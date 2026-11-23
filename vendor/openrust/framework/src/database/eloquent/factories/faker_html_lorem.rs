@@ -4,12 +4,11 @@ use quick_xml::escape::{escape, partial_escape};
 
 use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker};
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
     /// Generates a full sample HTML document. Both limits default to four.
-    pub fn randomHtml(
+    pub fn random_html(
         &self,
-        maxDepth: Option<i32>,
+        max_depth: Option<i32>,
         max_width: Option<i32>,
     ) -> DatabaseResult<String> {
         let mut document = HtmlLorem {
@@ -20,20 +19,19 @@ impl Faker {
         document.sentence_element("title", 10);
         document.html.push_str("</head><body>");
         document.login_form();
-        document.subtree(maxDepth.unwrap_or(4), max_width.unwrap_or(4))?;
+        document.subtree(max_depth.unwrap_or(4), max_width.unwrap_or(4))?;
         document.html.push_str("</body></html>\n");
         Ok(document.html)
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
-    pub fn randomHtml(
+    pub fn random_html(
         &self,
-        maxDepth: Option<i32>,
+        max_depth: Option<i32>,
         max_width: Option<i32>,
     ) -> DatabaseResult<String> {
-        self.try_generate("randomHtml", || self.0.randomHtml(maxDepth, max_width))
+        self.try_generate("randomHtml", || self.0.random_html(max_depth, max_width))
     }
 }
 
@@ -45,7 +43,7 @@ struct HtmlLorem<'a> {
 
 impl HtmlLorem<'_> {
     fn login_form(&mut self) {
-        let action = self.faker.safeEmailDomain();
+        let action = self.faker.safe_email_domain();
         write!(self.html, r#"<form action="{action}" method="POST">"#).unwrap();
         for (id, kind) in [("username", "text"), ("password", "password")] {
             write!(
@@ -98,7 +96,7 @@ impl HtmlLorem<'_> {
         match self.faker.random.u8(1..=10) {
             1 => self.sentence_element("p", 10),
             2 => {
-                let href = self.faker.safeEmailDomain();
+                let href = self.faker.safe_email_domain();
                 write!(self.html, r#"<a href="{href}">"#).unwrap();
                 self.sentence(10);
                 self.html.push_str("</a>");
@@ -149,7 +147,7 @@ impl HtmlLorem<'_> {
     fn sentence(&mut self, max_words: usize) {
         let text = self
             .faker
-            .sentenceWithWordCount(self.faker.random.usize(1..=max_words), true);
+            .sentence_with_word_count(self.faker.random.usize(1..=max_words), true);
         self.html.push_str(&partial_escape(text));
     }
 }

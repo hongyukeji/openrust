@@ -69,17 +69,16 @@ impl<'source, T: 'source> Default for LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn make<I>(source: impl Fn() -> I + 'source) -> Self
     where
         I: IntoIterator<Item = T>,
         I::IntoIter: 'source,
     {
-        Self::tryMake(move || source().into_iter().map(Ok))
+        Self::try_make(move || source().into_iter().map(Ok))
     }
 
-    pub fn tryMake<I>(source: impl Fn() -> I + 'source) -> Self
+    pub fn try_make<I>(source: impl Fn() -> I + 'source) -> Self
     where
         I: IntoIterator<Item = CollectionResult<T>>,
         I::IntoIter: 'source,
@@ -87,16 +86,16 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Self::from_source(move || index_values(source().into_iter()))
     }
 
-    pub fn fromEntries<K, I>(source: impl Fn() -> I + 'source) -> Self
+    pub fn from_entries<K, I>(source: impl Fn() -> I + 'source) -> Self
     where
         K: Into<ArrayKey> + 'source,
         I: IntoIterator<Item = (K, T)>,
         I::IntoIter: 'source,
     {
-        Self::tryFromEntries(move || source().into_iter().map(Ok))
+        Self::try_from_entries(move || source().into_iter().map(Ok))
     }
 
-    pub fn tryFromEntries<K, I>(source: impl Fn() -> I + 'source) -> Self
+    pub fn try_from_entries<K, I>(source: impl Fn() -> I + 'source) -> Self
     where
         K: Into<ArrayKey> + 'source,
         I: IntoIterator<Item = CollectionResult<(K, T)>>,
@@ -154,7 +153,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn getIterator(&self) -> LazyIterator<'source, T> {
+    pub fn get_iterator(&self) -> LazyIterator<'source, T> {
         self.into_iter()
     }
 
@@ -164,7 +163,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn collect(&self) -> CollectionResult<Collection<T>> {
         let mut output = Collection::new();
-        for entry in self.getIterator() {
+        for entry in self.get_iterator() {
             let (key, value) = entry?;
             output.put(key, value);
         }
@@ -183,7 +182,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         T: Clone,
     {
         let state = Rc::new(RefCell::new(Remembered {
-            iterator: Some(self.getIterator()),
+            iterator: Some(self.get_iterator()),
             entries: Vec::new(),
             error: None,
         }));
@@ -213,17 +212,17 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self,
         callback: impl Fn(&T, &ArrayKey) -> U + 'source,
     ) -> LazyCollection<'source, U> {
-        self.tryMap(move |value, key| Ok(callback(value, key)))
+        self.try_map(move |value, key| Ok(callback(value, key)))
     }
 
-    pub fn tryMap<U: 'source>(
+    pub fn try_map<U: 'source>(
         self,
         callback: impl Fn(&T, &ArrayKey) -> CollectionResult<U> + 'source,
     ) -> LazyCollection<'source, U> {
         let callback = Rc::new(callback);
         LazyCollection::from_iterators(move || {
             let callback = Rc::clone(&callback);
-            self.getIterator().map(move |entry| {
+            self.get_iterator().map(move |entry| {
                 let (key, value) = entry?;
                 let mapped = callback(&value, &key)?;
                 Ok((key, mapped))
@@ -235,7 +234,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         let predicate = Rc::new(predicate);
         Self::from_iterators(move || {
             let predicate = Rc::clone(&predicate);
-            self.getIterator().filter(move |entry| {
+            self.get_iterator().filter(move |entry| {
                 entry
                     .as_ref()
                     .map_or(true, |(key, value)| predicate(value, key))
@@ -247,11 +246,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.filter(move |value, key| !predicate(value, key))
     }
 
-    pub fn tapEach(self, callback: impl Fn(&T, &ArrayKey) + 'source) -> Self {
+    pub fn tap_each(self, callback: impl Fn(&T, &ArrayKey) + 'source) -> Self {
         let callback = Rc::new(callback);
         Self::from_iterators(move || {
             let callback = Rc::clone(&callback);
-            self.getIterator().inspect(move |entry| {
+            self.get_iterator().inspect(move |entry| {
                 if let Ok((key, value)) = entry {
                     callback(value, key);
                 }
@@ -261,15 +260,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn keys(self) -> LazyCollection<'source, ArrayKey> {
         LazyCollection::from_iterators(move || {
-            index_values(self.getIterator().map(|entry| entry.map(|(key, _)| key)))
+            index_values(self.get_iterator().map(|entry| entry.map(|(key, _)| key)))
         })
     }
 
     pub fn concat(self, source: Self) -> Self {
         Self::from_iterators(move || {
             let source = source.clone();
-            self.getIterator()
-                .chain(iter::once_with(move || source.getIterator()).flatten())
+            self.get_iterator()
+                .chain(iter::once_with(move || source.get_iterator()).flatten())
         })
         .values()
     }
@@ -277,7 +276,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn values(self) -> Self {
         Self::from_iterators(move || {
             index_values(
-                self.getIterator()
+                self.get_iterator()
                     .map(|entry| entry.map(|(_, value)| value)),
             )
         })
@@ -285,12 +284,12 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn take(self, limit: isize) -> Self {
         if let Ok(limit) = usize::try_from(limit) {
-            return Self::from_iterators(move || self.getIterator().take(limit));
+            return Self::from_iterators(move || self.get_iterator().take(limit));
         }
 
         let limit = limit.unsigned_abs();
         Self::from_iterators(move || {
-            let mut iterator = Some(self.getIterator());
+            let mut iterator = Some(self.get_iterator());
             let mut tail = VecDeque::new();
             iter::from_fn(move || {
                 if let Some(iterator) = iterator.take() {
@@ -314,7 +313,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn skip(self, count: usize) -> Self {
         Self::from_iterators(move || {
             let mut remaining = count;
-            self.getIterator().filter(move |entry| {
+            self.get_iterator().filter(move |entry| {
                 if entry.is_err() || remaining == 0 {
                     return true;
                 }
@@ -344,7 +343,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         let source = self.slice(offset, None);
         Ok(Self::from_iterators(move || {
             let mut until_next = 0;
-            source.getIterator().filter(move |entry| {
+            source.get_iterator().filter(move |entry| {
                 if entry.is_err() {
                     return true;
                 }
@@ -360,11 +359,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         .values())
     }
 
-    pub fn takeWhile(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
+    pub fn take_while(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
         let predicate = Rc::new(predicate);
         Self::from_iterators(move || {
             let predicate = Rc::clone(&predicate);
-            self.getIterator().take_while(move |entry| {
+            self.get_iterator().take_while(move |entry| {
                 entry
                     .as_ref()
                     .map_or(true, |(key, value)| predicate(value, key))
@@ -372,15 +371,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn takeUntil(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
-        self.takeWhile(move |value, key| !predicate(value, key))
+    pub fn take_until(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
+        self.take_while(move |value, key| !predicate(value, key))
     }
 
-    pub fn skipWhile(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
+    pub fn skip_while(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
         let predicate = Rc::new(predicate);
         Self::from_iterators(move || {
             let predicate = Rc::clone(&predicate);
-            self.getIterator().skip_while(move |entry| {
+            self.get_iterator().skip_while(move |entry| {
                 entry
                     .as_ref()
                     .is_ok_and(|(key, value)| predicate(value, key))
@@ -388,8 +387,8 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn skipUntil(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
-        self.skipWhile(move |value, key| !predicate(value, key))
+    pub fn skip_until(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
+        self.skip_while(move |value, key| !predicate(value, key))
     }
 
     pub fn chunk(self, size: usize, preserve_keys: bool) -> LazyCollection<'source, Collection<T>> {
@@ -397,7 +396,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             return LazyCollection::empty();
         }
         LazyCollection::from_iterators(move || {
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             index_values(iter::from_fn(move || {
                 let mut chunk = Collection::new();
                 while chunk.count() < size {
@@ -419,13 +418,13 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn chunkWhile(
+    pub fn chunk_while(
         self,
         predicate: impl Fn(&T, &ArrayKey, &Collection<T>) -> bool + 'source,
     ) -> LazyCollection<'source, Collection<T>> {
         let predicate = Rc::new(predicate);
         LazyCollection::from_iterators(move || {
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             let predicate = Rc::clone(&predicate);
             let mut pending = None;
             index_values(iter::from_fn(move || {
@@ -452,11 +451,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn chunkBy<K: PartialEq>(
+    pub fn chunk_by<K: PartialEq>(
         self,
         project: impl Fn(&T, &ArrayKey) -> K + 'source,
     ) -> LazyCollection<'source, Collection<T>> {
-        self.chunkWhile(move |value, key, group| {
+        self.chunk_while(move |value, key, group| {
             let (last_key, last) = group.iter().next_back().expect("current group is nonempty");
             project(value, key) == project(last, last_key)
         })
@@ -474,7 +473,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             return Err(CollectionError::InvalidArgument);
         }
         Ok(LazyCollection::from_iterators(move || {
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             let mut window = IndexMap::new();
             let mut skip = 0;
             index_values(iter::from_fn(move || {
@@ -491,7 +490,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                         Err(error) => return Some(Err(error)),
                     }
                 }
-                let output = Collection::fromEntries(
+                let output = Collection::from_entries(
                     window
                         .iter()
                         .map(|(key, value)| (key.clone(), value.clone())),
@@ -505,22 +504,22 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn first(&self) -> CollectionResult<Option<T>> {
         Ok(self
-            .getIterator()
+            .get_iterator()
             .next()
             .transpose()?
             .map(|(_, value)| value))
     }
 
     /// Evaluates the fallback only when the source is empty.
-    pub fn firstOrElse(&self, fallback: impl FnOnce() -> T) -> CollectionResult<T> {
+    pub fn first_or_else(&self, fallback: impl FnOnce() -> T) -> CollectionResult<T> {
         Ok(self.first()?.unwrap_or_else(fallback))
     }
 
-    pub fn firstWhere(
+    pub fn first_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<Option<T>> {
-        for entry in self.getIterator() {
+        for entry in self.get_iterator() {
             let (key, value) = entry?;
             if predicate(&value, &key) {
                 return Ok(Some(value));
@@ -530,21 +529,21 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 
     /// Evaluates the fallback only when no entry matches.
-    pub fn firstWhereOrElse(
+    pub fn first_where_or_else(
         &self,
         predicate: impl FnMut(&T, &ArrayKey) -> bool,
         fallback: impl FnOnce() -> T,
     ) -> CollectionResult<T> {
-        Ok(self.firstWhere(predicate)?.unwrap_or_else(fallback))
+        Ok(self.first_where(predicate)?.unwrap_or_else(fallback))
     }
 
     pub fn count(&self) -> CollectionResult<usize> {
-        self.getIterator()
+        self.get_iterator()
             .try_fold(0, |count, entry| entry.map(|_| count + 1))
     }
 
     pub fn each(&self, mut callback: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<&Self> {
-        for entry in self.getIterator() {
+        for entry in self.get_iterator() {
             let (key, value) = entry?;
             if !callback(&value, &key) {
                 break;

@@ -1,10 +1,9 @@
 use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, Value, schema};
 
 /// A compiled migration registered with the application.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Migration: Send + Sync {
     /// Resolves a potentially configuration-derived name from the owning application.
-    fn getConnection(
+    fn get_connection(
         &self,
         _config: &dyn crate::contracts::config::Repository,
     ) -> DatabaseResult<Option<String>> {
@@ -12,7 +11,7 @@ pub trait Migration: Send + Sync {
     }
 
     /// Allows the migrator to run the whole migration in a schema transaction.
-    fn withinTransaction(&self) -> bool {
+    fn within_transaction(&self) -> bool {
         true
     }
 
@@ -40,7 +39,6 @@ pub struct MigrationContext {
     statements: Option<Vec<String>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MigrationContext {
     pub(super) fn new(connection: Connection, pretend: bool) -> Self {
         Self {
@@ -50,12 +48,12 @@ impl MigrationContext {
         }
     }
 
-    pub fn getSchemaBuilder(&mut self) -> schema::Builder<'_> {
+    pub fn get_schema_builder(&mut self) -> schema::Builder<'_> {
         match &mut self.statements {
             Some(statements) => schema::Builder::pretend(&self.connection, statements),
             None => match &mut self.transaction {
-                Some(transaction) => transaction.getSchemaBuilder(),
-                None => self.connection.getSchemaBuilder(),
+                Some(transaction) => transaction.get_schema_builder(),
+                None => self.connection.get_schema_builder(),
             },
         }
     }
@@ -72,8 +70,8 @@ impl MigrationContext {
     }
 
     /// Returns the driver used by this migration, including pretend mode.
-    pub fn getDriverName(&self) -> &'static str {
-        self.connection.getDriverName()
+    pub fn get_driver_name(&self) -> &'static str {
+        self.connection.get_driver_name()
     }
 
     pub fn get_name(&self) -> &str {
@@ -86,7 +84,7 @@ impl MigrationContext {
 
     pub(super) async fn begin_transaction(&mut self, enabled: bool) -> DatabaseResult<()> {
         if enabled && (self.connection.is_postgres() || self.connection.is_sql_server()) {
-            self.transaction = Some(self.connection.beginTransaction().await?);
+            self.transaction = Some(self.connection.begin_transaction().await?);
         }
         Ok(())
     }

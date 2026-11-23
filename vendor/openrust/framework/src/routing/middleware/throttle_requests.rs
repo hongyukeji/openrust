@@ -105,9 +105,9 @@ pub(super) async fn handle(
         .iter()
         .map(|limit| Quota {
             key: counters::key("http", namespace, &limit.key),
-            max: limit.maxAttempts,
-            decay: limit.decaySeconds,
-            charge: limit.afterCallback.is_none(),
+            max: limit.max_attempts,
+            decay: limit.decay_seconds,
+            charge: limit.after_callback.is_none(),
         })
         .collect();
     let mut buckets = match backend.admit(&quotas).await? {
@@ -115,12 +115,12 @@ pub(super) async fn handle(
         Admission::Denied { index, bucket } => {
             let limit = &limits[index];
             let retry = if bucket.remaining_seconds == 0 {
-                limit.decaySeconds
+                limit.decay_seconds
             } else {
                 bucket.remaining_seconds
             };
             let headers = headers(limit, bucket, Some(retry))?;
-            return if let Some(callback) = &limit.responseCallback {
+            return if let Some(callback) = &limit.response_callback {
                 Ok(callback(request, headers))
             } else {
                 Err(HttpError::Throttled { headers })
@@ -130,7 +130,7 @@ pub(super) async fn handle(
     let mut response = next.run(request).await;
     for ((limit, quota), bucket) in limits.iter().zip(quotas.iter_mut()).zip(&mut buckets) {
         if limit
-            .afterCallback
+            .after_callback
             .as_ref()
             .is_some_and(|callback| callback(&response))
         {
@@ -141,7 +141,7 @@ pub(super) async fn handle(
                 Admission::Denied { bucket, .. } => bucket,
             };
         }
-        let remaining = limit.maxAttempts.saturating_sub(bucket.count);
+        let remaining = limit.max_attempts.saturating_sub(bucket.count);
         let response_headers = &mut response.parts_mut().headers;
         if response_headers
             .get(&REMAINING)
@@ -262,10 +262,10 @@ fn numeric_attempts(max: f64) -> Option<u64> {
 
 fn headers(limit: &Limit, bucket: Bucket, retry: Option<u64>) -> Result<HeaderMap, HttpError> {
     let mut headers = HeaderMap::new();
-    headers.insert(LIMIT, HeaderValue::from(limit.maxAttempts));
+    headers.insert(LIMIT, HeaderValue::from(limit.max_attempts));
     headers.insert(
         REMAINING,
-        HeaderValue::from(limit.maxAttempts.saturating_sub(bucket.count)),
+        HeaderValue::from(limit.max_attempts.saturating_sub(bucket.count)),
     );
     if let Some(retry) = retry {
         headers.insert(RETRY_AFTER, HeaderValue::from(retry));

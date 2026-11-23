@@ -23,7 +23,7 @@ impl<'a> LookupSelection<'a> {
                 query.restrict_relation_attributes(attributes).limit(limit)
             }
             Self::Keys(keys) => {
-                let key = query.qualifyColumn(M::metadata().primary_key);
+                let key = query.qualify_column(M::metadata().primary_key);
                 query.map_relation_query(|query| query.where_in(&key, keys.to_vec()))
             }
         }
@@ -54,31 +54,28 @@ macro_rules! relation_lookup {
         }
 
         /// Finds the matching related primary keys in relationship query order.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn findMany(
+        pub async fn find_many(
             &self, parent: &P, keys: &[crate::database::Value],
         ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
             if keys.is_empty() {
-                return Ok(R::newCollection(Vec::new()));
+                return Ok(R::new_collection(Vec::new()));
             }
             self$($delegate)*.lookup_many(parent, keys).await
         }
 
         /// Requires every requested primary key to match the relationship.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn findManyOrFail(
+        pub async fn find_many_or_fail(
             &self,
             parent: &P,
             keys: &[crate::database::Value],
         ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
-            let models = self.findMany(parent, keys).await?;
-            models.findManyOrFail(keys)?;
+            let models = self.find_many(parent, keys).await?;
+            models.find_many_or_fail(keys)?;
             Ok(models)
         }
 
         /// Runs the fallback if any requested primary key is missing.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn findManyOr<Fut>(
+        pub async fn find_many_or<Fut>(
             &self,
             parent: &P,
             keys: &[crate::database::Value],
@@ -87,8 +84,8 @@ macro_rules! relation_lookup {
         where
             Fut: std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>> + Send,
         {
-            let models = self.findMany(parent, keys).await?;
-            match models.findManyOrFail(keys) {
+            let models = self.find_many(parent, keys).await?;
+            match models.find_many_or_fail(keys) {
                 Ok(_) => Ok(models),
                 Err(crate::database::DatabaseError::ModelNotFound(_)) => missing().await,
                 Err(error) => Err(error),
@@ -96,14 +93,12 @@ macro_rules! relation_lookup {
         }
 
         /// Requires a related model by its primary key.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn findOrFail(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
+        pub async fn find_or_fail(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
             self.find(parent, key).await?.ok_or(crate::database::DatabaseError::ModelNotFound(R::metadata().table))
         }
 
         /// Requires exactly one related match for the primary key.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn findSole(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
+        pub async fn find_sole(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
             let keys = super::lookup::primary_key::<R>(key.into());
             super::lookup::sole_match(self$($delegate)*.lookup_models(parent, &keys, 2).await?)
         }
@@ -114,8 +109,7 @@ macro_rules! relation_lookup {
         }
 
         /// Runs the fallback only when no row matches the related primary key.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn findOr<Fut>(
+        pub async fn find_or<Fut>(
             &self,
             parent: &P,
             key: impl Into<crate::database::Value> + Send,
@@ -131,8 +125,7 @@ macro_rules! relation_lookup {
         }
 
         /// Runs the fallback only when the relationship has no matching rows.
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn firstOr<Fut>(
+        pub async fn first_or<Fut>(
             &self,
             parent: &P,
             missing: impl FnOnce() -> Fut + Send,

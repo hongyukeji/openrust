@@ -32,12 +32,12 @@ use serde_json::json;
 struct Root(PathBuf);
 impl Root {
     fn new() -> Self {
-        // The application canonicalizes the root before joining Unix socket paths.
+        // Unix socket 的路径长度有限；保持项目内临时目录，并缩短唯一目录名。
         let temporary = std::env::temp_dir();
         let path = temporary.join(format!(
-            "openrust-log-{}-{}",
+            "l-{:x}-{:x}",
             std::process::id(),
-            fastrand::u64(..)
+            fastrand::u32(..)
         ));
         fs::create_dir(&path).unwrap();
         Self(path)
@@ -88,13 +88,13 @@ impl std::error::Error for Failure {
 
 fn configure_exceptions(exceptions: &mut Exceptions) {
     exceptions
-        .exceptionContext::<Failure>(|_| {
+        .exception_context::<Failure>(|_| {
             LogContext::from_iter([
                 ("outer".into(), json!("outer context")),
                 ("class".into(), json!("ignored class")),
             ])
         })
-        .exceptionContext::<Previous>(|_| {
+        .exception_context::<Previous>(|_| {
             LogContext::from_iter([("inner".into(), json!("inner context"))])
         })
         .context(|_| LogContext::from_iter([("configured".into(), json!(true))]));
@@ -109,7 +109,7 @@ fn json_formatter_handles_unconfigured_errors_and_record_options() {
         "formatter_with":{"append_newline":false,"ignore_empty_context_and_extra":true,"max_normalize_depth":2}
     })).unwrap();
     logger
-        .logException(
+        .log_exception(
             Level::Error,
             "caught",
             &Failure(Previous),
@@ -137,7 +137,7 @@ fn json_formatter_handles_unconfigured_errors_and_record_options() {
         }))
         .unwrap();
     buffered
-        .logException(
+        .log_exception(
             Level::Info,
             "pending",
             &Failure(Previous),
@@ -218,7 +218,7 @@ fn windows_syslog_preserves_formatted_events_and_recovers_after_rejection() {
     );
     let source = event_source(&root.0);
     config.set("app.name", json!(source)).unwrap();
-    manager.registerFormatter("probe", |_| {
+    manager.register_formatter("probe", |_| {
         Ok(Arc::new(|record| {
             let message = record.message();
             if message == "oversize" {
@@ -316,7 +316,7 @@ fn syslog_formats_real_datagrams_and_recovers_when_the_receiver_returns() {
 }
 
 fn register_customization(manager: &LogManager) {
-    manager.registerFormatter("label", |arguments| {
+    manager.register_formatter("label", |arguments| {
         let prefix = arguments["prefix"]
             .as_str()
             .ok_or(LogError::InvalidConfiguration)?
@@ -330,7 +330,7 @@ fn register_customization(manager: &LogManager) {
             Ok(format!("{prefix}:{}:{trace}\n", record.message()))
         }))
     });
-    manager.registerProcessor("trace", |arguments| {
+    manager.register_processor("trace", |arguments| {
         let label = arguments["label"].as_str().unwrap_or("default").to_owned();
         Ok(Arc::new(move |record| {
             let mut trace = record
@@ -344,17 +344,17 @@ fn register_customization(manager: &LogManager) {
             Ok(())
         }))
     });
-    manager.registerTap("prepend", |logger, arguments| {
+    manager.register_tap("prepend", |logger, arguments| {
         let marker = arguments.join("/");
-        logger.pushProcessor(Arc::new(move |record| {
+        logger.push_processor(Arc::new(move |record| {
             record.extra.to_mut().insert("trace".into(), json!(marker));
             Ok(())
         }));
         Ok(())
     });
-    manager.registerTap("format", |logger, arguments| {
+    manager.register_tap("format", |logger, arguments| {
         let label = arguments[0].to_owned();
-        logger.setFormatter(Arc::new(move |record| {
+        logger.set_formatter(Arc::new(move |record| {
             Ok(format!("{label}:{}\n", record.message()))
         }));
         Ok(())
@@ -377,7 +377,7 @@ fn customized_stacks_preserve_each_formatter_and_process_in_order() {
         }}),
     );
     register_customization(&manager);
-    manager.registerProcessor("unexpected", |_| {
+    manager.register_processor("unexpected", |_| {
         Ok(Arc::new(|_| {
             panic!("filtered records must skip processors")
         }))
@@ -440,7 +440,7 @@ fn configured_handler_merges_arguments_and_controls_stack_propagation() {
     );
     register_customization(&manager);
     let observed = Arc::new(Mutex::new(Vec::new()));
-    manager.registerHandler("capture", {
+    manager.register_handler("capture", {
         let observed = observed.clone();
         move |options| {
             assert_eq!(
@@ -469,7 +469,7 @@ fn configured_handler_merges_arguments_and_controls_stack_propagation() {
     assert!(!leaf.contains("captured"));
 
     let attempts = std::sync::atomic::AtomicUsize::new(0);
-    manager.registerHandler("fail-once", move |_| {
+    manager.register_handler("fail-once", move |_| {
         if attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
             return Err(LogError::InvalidConfiguration);
         }
@@ -589,13 +589,13 @@ fn resolves_cached_stacks_with_severity_bubbling_and_fresh_driver_settings() {
         .info("discard", &LogContext::new())
         .unwrap();
     assert!(!root.read("second.log").contains("discard"));
-    manager.setDefaultDriver("second").unwrap();
+    manager.set_default_driver("second").unwrap();
     assert_eq!(manager.get_default_driver().as_deref(), Some("second"));
     let old = manager.channel(None).unwrap();
     config
         .set("logging.channels.second.path", json!("new.log"))
         .unwrap();
-    manager.forgetChannel(None);
+    manager.forget_channel(None);
     manager.warning("new target", &LogContext::new()).unwrap();
     old.warning("old target", &LogContext::new()).unwrap();
     assert!(root.read("new.log").contains("new target"));
@@ -723,10 +723,10 @@ fn log_exception(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let failure = Failure(Previous);
         Context::add("request", json!("json-probe")).unwrap();
         Context::addHidden("hidden", json!("private-json-marker")).unwrap();
-        Log::logException(Level::Error, "direct failure", &failure, &LogContext::new()).unwrap();
+        Log::log_exception(Level::Error, "direct failure", &failure, &LogContext::new()).unwrap();
         Log::channel(Some("limited"))
             .unwrap()
-            .logException(
+            .log_exception(
                 Level::Error,
                 "limited failure",
                 &failure,
@@ -963,7 +963,7 @@ fn console_routes() -> Result<(), ConsoleError> {
         assert!(Context::is_empty().unwrap());
         Context::add("command", json!("log:probe")).unwrap();
         Context::addHidden("token", json!("private-artisan-token")).unwrap();
-        Context::scopeSync(
+        Context::scope_sync(
             || {
                 assert_eq!(Context::get("command").unwrap(), Some(json!("nested")));
             },
@@ -972,7 +972,7 @@ fn console_routes() -> Result<(), ConsoleError> {
         )
         .unwrap();
         Log::warning("artisan wrote a file", &LogContext::new()).unwrap();
-        Log::logException(
+        Log::log_exception(
             Level::Error,
             "artisan failure",
             &Failure(Previous),
@@ -1006,7 +1006,7 @@ fn console_routes() -> Result<(), ConsoleError> {
         .unwrap()
         .notice("formatted command", &LogContext::new())
         .unwrap();
-        manager.registerFactory("console", |manager, _| {
+        manager.register_factory("console", |manager, _| {
             Ok(manager.build(&json!({"driver":"monthly","path":"console.log"}))?)
         });
         Log::build(&json!({"driver":"custom","via":"console"}))
@@ -1218,7 +1218,7 @@ fn registered_factories_are_lazy_and_mix_with_on_demand_channels() {
     );
     let count = Arc::new(AtomicUsize::new(0));
     let hits = count.clone();
-    manager.registerFactory("audit-factory", move |manager, config| {
+    manager.register_factory("audit-factory", move |manager, config| {
         if hits.fetch_add(1, Ordering::Relaxed) == 0 {
             return Err(LogError::UnknownChannel("private-factory-error".into()));
         }
@@ -1243,7 +1243,7 @@ fn registered_factories_are_lazy_and_mix_with_on_demand_channels() {
         &manager.build(&temp_config).unwrap()
     ));
     let combined = manager
-        .stackChannels(
+        .stack_channels(
             &[
                 StackChannel::Named("audit"),
                 StackChannel::Logger(&temporary),
@@ -1293,7 +1293,7 @@ fn forgetting_a_channel_during_factory_execution_prevents_stale_publication() {
         config
             .set("logging.channels.selected.target", json!("new.log"))
             .unwrap();
-        manager.forgetChannel(None);
+        manager.forget_channel(None);
         let current = manager.channel(None).unwrap();
         release.wait();
         let old = pending.join().unwrap();
@@ -1316,9 +1316,9 @@ fn resolved_channels_are_inspectable_without_creating_unused_channels() {
             "second":{"driver":"single","path":"second.log"}
         }}),
     );
-    assert!(logs.getChannels().is_empty());
+    assert!(logs.get_channels().is_empty());
     let first = logs.channel(None).unwrap();
-    let snapshot = logs.getChannels();
+    let snapshot = logs.get_channels();
     assert_eq!(snapshot.len(), 1);
     assert!(Arc::ptr_eq(snapshot.get("first").unwrap(), &first));
     assert!(!root.0.join("second.log").exists());
@@ -1327,16 +1327,16 @@ fn resolved_channels_are_inspectable_without_creating_unused_channels() {
         .unwrap();
     assert!(root.read("first.log").contains("first entry"));
     let second = logs.channel(Some("second")).unwrap();
-    assert_eq!(logs.getChannels().len(), 2);
+    assert_eq!(logs.get_channels().len(), 2);
     assert_eq!(snapshot.len(), 1);
-    logs.forgetChannel(Some("first"));
-    assert!(!logs.getChannels().contains_key("first"));
+    logs.forget_channel(Some("first"));
+    assert!(!logs.get_channels().contains_key("first"));
     snapshot["first"]
         .log(Level::Info, "retained entry", &LogContext::new())
         .unwrap();
     assert!(root.read("first.log").contains("retained entry"));
     assert!(Arc::ptr_eq(
-        logs.getChannels().get("second").unwrap(),
+        logs.get_channels().get("second").unwrap(),
         &second
     ));
     assert!(!Arc::ptr_eq(&first, &logs.channel(Some("first")).unwrap()));

@@ -23,9 +23,9 @@ impl DatabaseEntriesRepository {
             if id.len() < 36 && !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
                 query
                     .r#where("uuid", "like", format!("{id}%"))
-                    .orderByDesc("sequence")
+                    .order_by_desc("sequence")
             } else {
-                query.whereExactText("uuid", id)
+                query.where_exact_text("uuid", id)
             };
         let row = query.first().await?.ok_or(Error::NotFound)?;
         let mut entry = decode(&row)?.ok_or(Error::InvalidEntry)?;
@@ -33,7 +33,7 @@ impl DatabaseEntriesRepository {
         entry.tags = self
             .connection
             .table("telescope_entries_tags")
-            .whereExactText("entry_uuid", &entry.id.to_string())
+            .where_exact_text("entry_uuid", &entry.id.to_string())
             .get()
             .await?
             .iter()
@@ -48,10 +48,10 @@ impl DatabaseEntriesRepository {
     ) -> Result<Vec<EntryResult>> {
         let mut query = self.connection.table("telescope_entries");
         if let Some(kind) = kind {
-            query = query.whereExactText("type", kind.as_str());
+            query = query.where_exact_text("type", kind.as_str());
         }
         if let Some(batch) = options.batchId {
-            query = query.whereExactText("batch_id", &batch.to_string());
+            query = query.where_exact_text("batch_id", &batch.to_string());
         }
         if let Some(tag) = options.tag.as_ref().filter(|value| !value.is_empty()) {
             let mut tags = self
@@ -62,14 +62,14 @@ impl DatabaseEntriesRepository {
                     "tag",
                     tag.split(',').map(|tag| Value::from(tag.trim())).collect(),
                 );
-            query = query.whereInSub("uuid", &mut tags)?;
+            query = query.where_in_sub("uuid", &mut tags)?;
         }
         if let Some(hash) = options
             .familyHash
             .as_ref()
             .filter(|value| !value.is_empty())
         {
-            query = query.whereExactText("family_hash", hash);
+            query = query.where_exact_text("family_hash", hash);
         }
         if let Some(before) = options.beforeSequence.filter(|value| *value != 0) {
             query = query.r#where("sequence", "<", before);
@@ -86,7 +86,7 @@ impl DatabaseEntriesRepository {
         {
             query = query.r#where("should_display_on_index", "=", true);
         }
-        query = query.orderByDesc("sequence");
+        query = query.order_by_desc("sequence");
         if options.limit != u64::MAX {
             query = query.limit(options.limit);
         }
@@ -113,14 +113,14 @@ impl DatabaseEntriesRepository {
                 let occurrences = self
                     .connection
                     .table("telescope_entries")
-                    .whereExactText("type", "exception")
-                    .whereExactText("family_hash", hash)
+                    .where_exact_text("type", "exception")
+                    .where_exact_text("family_hash", hash)
                     .count("*")
                     .await?;
                 self.connection
                     .table("telescope_entries")
-                    .whereExactText("type", "exception")
-                    .whereExactText("family_hash", hash)
+                    .where_exact_text("type", "exception")
+                    .where_exact_text("family_hash", hash)
                     .r#where("should_display_on_index", "=", true)
                     .update(BTreeMap::from([(
                         "should_display_on_index".into(),
@@ -209,8 +209,8 @@ impl DatabaseEntriesRepository {
             let query = self
                 .connection
                 .table("telescope_entries")
-                .whereExactText("uuid", &update.uuid.to_string())
-                .whereExactText("type", update.r#type.as_str());
+                .where_exact_text("uuid", &update.uuid.to_string())
+                .where_exact_text("type", update.r#type.as_str());
             let Some(record) = query.first().await? else {
                 failed.push(update.clone());
                 continue;
@@ -219,8 +219,8 @@ impl DatabaseEntriesRepository {
             content.extend(update.changes.clone());
             self.connection
                 .table("telescope_entries")
-                .whereExactText("uuid", &update.uuid.to_string())
-                .whereExactText("type", update.r#type.as_str())
+                .where_exact_text("uuid", &update.uuid.to_string())
+                .where_exact_text("type", update.r#type.as_str())
                 .update(BTreeMap::from([(
                     "content".into(),
                     serde_json::Value::Object(content).to_string().into(),
@@ -231,7 +231,7 @@ impl DatabaseEntriesRepository {
             if !update.removedTags.is_empty() {
                 self.connection
                     .table("telescope_entries_tags")
-                    .whereExactText("entry_uuid", &update.uuid.to_string())
+                    .where_exact_text("entry_uuid", &update.uuid.to_string())
                     .where_in(
                         "tag",
                         update
@@ -325,7 +325,7 @@ impl DatabaseEntriesRepository {
             }
             let ids = query
                 .select(["sequence"])
-                .orderBy("sequence", "asc")
+                .order_by("sequence", "asc")
                 .limit(self.chunkSize as u64)
                 .get()
                 .await?
@@ -350,7 +350,7 @@ impl DatabaseEntriesRepository {
                 .connection
                 .table("telescope_entries")
                 .select(["sequence"])
-                .orderBy("sequence", "asc")
+                .order_by("sequence", "asc")
                 .limit(self.chunkSize as u64)
                 .get()
                 .await?
@@ -371,7 +371,7 @@ impl DatabaseEntriesRepository {
                 .connection
                 .table("telescope_monitoring")
                 .select(["tag"])
-                .orderBy("tag", "asc")
+                .order_by("tag", "asc")
                 .limit(self.chunkSize as u64)
                 .get()
                 .await?

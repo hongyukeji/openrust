@@ -135,9 +135,9 @@ async fn http_reports_default_logs_with_context_and_deduplicates_only_shared_ins
         .with_routing(Routing::new(routes))
         .with_exceptions(move |exceptions| {
             exceptions
-                .dontReportDuplicates()
-                .dontReport::<io::Error>()
-                .dontReportWhen(|error| {
+                .dont_report_duplicates()
+                .dont_report::<io::Error>()
+                .dont_report_when(|error| {
                     error
                         .downcast_ref::<Failure>()
                         .is_some_and(|cause| cause.0 == "conditional")
@@ -212,15 +212,15 @@ async fn ignored_shared_error_can_report_later_and_deduplication_is_application_
     let mut app = Application::configure(root.0.clone())
         .with_exceptions(move |exceptions| {
             exceptions
-                .dontReportDuplicates()
-                .dontReportWhen(move |_| observed.load(Ordering::Relaxed))
-                .stopIgnoring::<HttpError>();
+                .dont_report_duplicates()
+                .dont_report_when(move |_| observed.load(Ordering::Relaxed))
+                .stop_ignoring::<HttpError>();
         })
         .create()
         .unwrap();
     let mut second = Application::configure(other.0.clone())
         .with_exceptions(|exceptions| {
-            exceptions.dontReportDuplicates();
+            exceptions.dont_report_duplicates();
         })
         .create()
         .unwrap();
@@ -284,8 +284,9 @@ async fn run_artisan(root: &Path, limited: bool) -> i32 {
         .with_config(|_, _| Ok(array_cache()))
         .with_exceptions(move |exceptions| {
             if limited {
-                exceptions
-                    .throttle::<ConsoleError>(|_| Some(ReportThrottle::Limit(Limit::perMinute(0))));
+                exceptions.throttle::<ConsoleError>(|_| {
+                    Some(ReportThrottle::Limit(Limit::per_minute(0)))
+                });
             }
         })
         .create()
@@ -403,9 +404,9 @@ async fn concurrent_http_reports_use_an_atomic_budget_and_resume_after_decay() {
         .with_exceptions(move |exceptions| {
             exceptions.throttle::<Failure>(|failure| {
                 let limit = if failure.0 == "conditional" {
-                    Limit::perMinute(1).by("conditional")
+                    Limit::per_minute(1).by("conditional")
                 } else {
-                    Limit::perSecond(2)
+                    Limit::per_second(2)
                 };
                 Some(ReportThrottle::Limit(limit))
             });
@@ -455,7 +456,7 @@ async fn unavailable_throttle_store_does_not_suppress_explicit_reports() {
             Ok(config)
         })
         .with_exceptions(|exceptions| {
-            exceptions.throttle::<Failure>(|_| Some(ReportThrottle::Limit(Limit::perMinute(0))));
+            exceptions.throttle::<Failure>(|_| Some(ReportThrottle::Limit(Limit::per_minute(0))));
         })
         .create()
         .unwrap();
@@ -473,10 +474,10 @@ async fn explicit_keys_share_a_budget_across_error_types_within_each_application
             .with_config(|_, _| Ok(array_cache()))
             .with_exceptions(|exceptions| {
                 exceptions.throttle::<Failure>(|_| {
-                    Some(ReportThrottle::Limit(Limit::perMinute(1).by("shared")))
+                    Some(ReportThrottle::Limit(Limit::per_minute(1).by("shared")))
                 });
                 exceptions.throttle::<io::Error>(|_| {
-                    Some(ReportThrottle::Limit(Limit::perMinute(1).by("shared")))
+                    Some(ReportThrottle::Limit(Limit::per_minute(1).by("shared")))
                 });
             })
             .create()

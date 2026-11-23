@@ -183,13 +183,13 @@ Use `validate_with_bag("profile")` on a validator or override `FormRequest::erro
 
 ### Excluding Sensitive Input
 
-Password fields are omitted from flashed input. Register additional paths in `with_exceptions` with `dontFlash`.
+Password fields are omitted from flashed input. Register additional paths in `with_exceptions` with `dont_flash`.
 
 ```rust
 use openrust::foundation::configuration::Exceptions;
 
 fn configure(exceptions: &mut Exceptions) {
-    exceptions.dontFlash(["profile.secret"]);
+    exceptions.dont_flash(["profile.secret"]);
 }
 ```
 ## Standard Rules and Validation Hooks
@@ -208,24 +208,24 @@ Form requests execute `prepare_for_validation`, `authorize`, `with_validator`, v
 
 ## Message Bags {#message-bags}
 
-Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `intoMessages()` only when flattening is intended.
+Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `into_messages()` only when flattening is intended.
 
 ```rust
 use openrust::support::{MessageBag, ViewErrorBag};
 
 let mut messages = MessageBag::new([("email", ["Invalid email"])]);
-messages.addIf(true, "name", "Required");
+messages.add_if(true, "name", "Required");
 assert_eq!(messages.first(Some("email"), None), "Invalid email");
 assert!(messages.has_any(["email", "phone"]));
-messages.setFormat(":key: :message");
+messages.set_format(":key: :message");
 assert_eq!(messages.first(Some("name"), None), "name: Required");
 let mut errors = ViewErrorBag::new();
 errors.put("profile", messages);
-assert_eq!(errors.getBag("profile").count(), 2);
+assert_eq!(errors.get_bag("profile").count(), 2);
 assert_eq!(errors.count(), 0);
 ```
 
-Named bag counts and forwarded read methods use only the `default` bag. Reading a missing bag does not register it; mutate an existing bag with `getBagMut`, or add one with `put`. JSON stores raw messages, independent of display format; decoding restores the default format. Message lists use contiguous Rust indices and JSON options follow Serde; PHP array indices, JSON flag bitmasks and runtime method dispatch are not exposed.
+Named bag counts and forwarded read methods use only the `default` bag. Reading a missing bag does not register it; mutate an existing bag with `get_bag_mut`, or add one with `put`. JSON stores raw messages, independent of display format; decoding restores the default format. Message lists use contiguous Rust indices and JSON options follow Serde; PHP array indices, JSON flag bitmasks and runtime method dispatch are not exposed.
 
 
 ## Scalar and digit rules

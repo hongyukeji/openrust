@@ -33,7 +33,7 @@ impl Model for Item {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("visible", &Visible)]
     }
     fn attribute(name: &str) -> Option<Attribute> {
@@ -68,7 +68,7 @@ impl Model for ValueItem {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("visible", &ValueVisible)]
     }
     fn attribute(name: &str) -> Option<Attribute> {
@@ -96,7 +96,7 @@ impl Model for TextItem {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn getKeyType(&self) -> ModelKeyType {
+    fn get_key_type(&self) -> ModelKeyType {
         ModelKeyType::String
     }
 }
@@ -140,7 +140,7 @@ async fn ids(query: Builder<'static, Item>) -> Vec<i64> {
         .await
         .unwrap()
         .into_iter()
-        .map(|model| match model.getKey().unwrap() {
+        .map(|model| match model.get_key().unwrap() {
             Value::Integer(id) => *id,
             other => panic!("整数主键类型错误：{other:?}"),
         })
@@ -152,46 +152,46 @@ async fn ids(query: Builder<'static, Item>) -> Vec<i64> {
 #[tokio::test]
 async fn key_filters_preserve_scalar_list_null_or_groups_and_global_scopes() {
     let db = setup().await;
-    let mut query = Item::queryOn(&db);
-    query.whereKey(1);
+    let mut query = Item::query_on(&db);
+    query.where_key(1);
     assert_eq!(ids(query).await, [1]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey([1, 2, 3]);
+    let mut query = Item::query_on(&db);
+    query.where_key([1, 2, 3]);
     assert_eq!(ids(query).await, [1, 2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey(vec![Value::Text("2suffix".into()), Value::Null]);
+    let mut query = Item::query_on(&db);
+    query.where_key(vec![Value::Text("2suffix".into()), Value::Null]);
     assert_eq!(ids(query).await, [2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKeyNot(vec![1, 3]);
+    let mut query = Item::query_on(&db);
+    query.where_key_not(vec![1, 3]);
     assert_eq!(ids(query).await, [2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKeyNot(1);
+    let mut query = Item::query_on(&db);
+    query.where_key_not(1);
     assert_eq!(ids(query).await, [2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey(Vec::<Value>::new());
+    let mut query = Item::query_on(&db);
+    query.where_key(Vec::<Value>::new());
     assert!(ids(query).await.is_empty());
-    let mut query = Item::queryOn(&db);
-    query.whereKeyNot(Vec::<Value>::new());
+    let mut query = Item::query_on(&db);
+    query.where_key_not(Vec::<Value>::new());
     assert_eq!(ids(query).await, [1, 2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey(Value::Null);
+    let mut query = Item::query_on(&db);
+    query.where_key(Value::Null);
     assert!(ids(query).await.is_empty());
-    let mut query = Item::queryOn(&db);
-    query.whereKeyNot(Value::Null);
+    let mut query = Item::query_on(&db);
+    query.where_key_not(Value::Null);
     assert_eq!(ids(query).await, [1, 2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey(1).orWhereKey([2, 3]);
+    let mut query = Item::query_on(&db);
+    query.where_key(1).or_where_key([2, 3]);
     assert_eq!(ids(query).await, [1, 2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey(1).orWhereKeyNot([1, 3]);
+    let mut query = Item::query_on(&db);
+    query.where_key(1).or_where_key_not([1, 3]);
     assert_eq!(ids(query).await, [1, 2]);
-    let mut query = Item::queryOn(&db);
-    query.whereKey(3).orWhereKey(3);
+    let mut query = Item::query_on(&db);
+    query.where_key(3).or_where_key(3);
     assert!(ids(query).await.is_empty(), "OR 主键不能绕过全局作用域");
-    let mut query = Item::queryOn(&db);
-    query.whereKey(3).orWhereKeyNot(3);
+    let mut query = Item::query_on(&db);
+    query.where_key(3).or_where_key_not(3);
     assert_eq!(ids(query).await, [1, 2]);
-    assert!(Item::queryOn(&db).find(1).await.unwrap().is_some());
+    assert!(Item::query_on(&db).find(1).await.unwrap().is_some());
 }
 
 #[tokio::test]
@@ -216,58 +216,58 @@ async fn text_keys_cast_scalars_but_preserve_list_strings_and_empty_sets() {
         (Value::Bool(true), "1"),
         (Value::Bool(false), ""),
     ] {
-        let mut query = TextItem::queryOn(&db);
-        query.whereKey(key);
+        let mut query = TextItem::query_on(&db);
+        query.where_key(key);
         assert_eq!(
-            query.first().await.unwrap().unwrap().getKey(),
+            query.first().await.unwrap().unwrap().get_key(),
             Some(&expected.into())
         );
     }
-    let mut query = TextItem::queryOn(&db);
-    query.whereKey(["007", "x' OR 1=1 --"]);
+    let mut query = TextItem::query_on(&db);
+    query.where_key(["007", "x' OR 1=1 --"]);
     assert_eq!(query.get().await.unwrap().len(), 2);
-    let mut query = TextItem::queryOn(&db);
-    query.whereKeyNot(["007", "x' OR 1=1 --"]);
+    let mut query = TextItem::query_on(&db);
+    query.where_key_not(["007", "x' OR 1=1 --"]);
     assert_eq!(query.get().await.unwrap().len(), 3);
-    let mut query = TextItem::queryOn(&db);
-    query.whereKey(Vec::<Value>::new());
+    let mut query = TextItem::query_on(&db);
+    query.where_key(Vec::<Value>::new());
     assert!(query.get().await.unwrap().is_empty());
-    let mut query = TextItem::queryOn(&db);
-    query.whereKeyNot(Vec::<Value>::new());
+    let mut query = TextItem::query_on(&db);
+    query.where_key_not(Vec::<Value>::new());
     assert_eq!(query.get().await.unwrap().len(), 5);
 }
 
 #[tokio::test]
 async fn single_value_queries_hydrate_accessors_preserve_projection_and_report_cardinality() {
     let db = setup_table("parity_model_values").await;
-    let mut query = ValueItem::queryOn(&db);
-    query.whereKey(1);
+    let mut query = ValueItem::query_on(&db);
+    query.where_key(1);
     assert_eq!(
         query.value("parity_model_values.label").await.unwrap(),
         "ADA".into()
     );
-    let mut query = ValueItem::queryOn(&db);
-    query.whereKey(1);
-    assert_eq!(query.soleValue("label").await.unwrap(), "ADA".into());
-    let mut query = ValueItem::queryOn(&db);
-    query.whereKey(2);
-    assert_eq!(query.valueOrFail("label").await.unwrap(), "GRACE".into());
-    let mut query = ValueItem::queryOn(&db);
-    query.whereKey(1);
+    let mut query = ValueItem::query_on(&db);
+    query.where_key(1);
+    assert_eq!(query.sole_value("label").await.unwrap(), "ADA".into());
+    let mut query = ValueItem::query_on(&db);
+    query.where_key(2);
+    assert_eq!(query.value_or_fail("label").await.unwrap(), "GRACE".into());
+    let mut query = ValueItem::query_on(&db);
+    query.where_key(1);
     assert_eq!(
-        query.valueOrFail("nullable_value").await.unwrap(),
+        query.value_or_fail("nullable_value").await.unwrap(),
         Value::Null
     );
-    let mut query = ValueItem::queryOn(&db);
-    query.whereKey(99);
+    let mut query = ValueItem::query_on(&db);
+    query.where_key(99);
     assert_eq!(query.value("label").await.unwrap(), Value::Null);
     for sole in [false, true] {
-        let mut query = ValueItem::queryOn(&db);
-        query.whereKey(99);
+        let mut query = ValueItem::query_on(&db);
+        query.where_key(99);
         let result = if sole {
-            query.soleValue("label").await
+            query.sole_value("label").await
         } else {
-            query.valueOrFail("label").await
+            query.value_or_fail("label").await
         };
         assert!(matches!(
             result,
@@ -275,23 +275,23 @@ async fn single_value_queries_hydrate_accessors_preserve_projection_and_report_c
         ));
     }
     assert!(matches!(
-        ValueItem::queryOn(&db).limit(1).soleValue("label").await,
+        ValueItem::query_on(&db).limit(1).sole_value("label").await,
         Err(DatabaseError::MultipleModelsFound {
             table: "parity_model_values",
             count: 2
         })
     ));
-    let mut query = ValueItem::queryOn(&db).select(["id"]);
-    query.whereKey(1);
+    let mut query = ValueItem::query_on(&db).select(["id"]);
+    query.where_key(1);
     assert_eq!(
-        query.valueOrFail("label").await.unwrap(),
+        query.value_or_fail("label").await.unwrap(),
         Value::Null,
         "既有投影不能被单值接口覆盖"
     );
     assert_eq!(
-        ValueItem::queryOn(&db)
-            .orderBy("id", "desc")
-            .valueOrFail("label")
+        ValueItem::query_on(&db)
+            .order_by("id", "desc")
+            .value_or_fail("label")
             .await
             .unwrap(),
         "GRACE".into()
@@ -299,7 +299,12 @@ async fn single_value_queries_hydrate_accessors_preserve_projection_and_report_c
     db.statement("drop table parity_model_values", &[])
         .await
         .unwrap();
-    assert!(ValueItem::queryOn(&db).valueOrFail("label").await.is_err());
+    assert!(
+        ValueItem::query_on(&db)
+            .value_or_fail("label")
+            .await
+            .is_err()
+    );
 }
 
 fn fixture_value(value: &serde_json::Value) -> Value {
@@ -312,7 +317,7 @@ fn fixture_value(value: &serde_json::Value) -> Value {
     }
 }
 async fn fixture_ids<M: Model>(db: &Connection, case: &serde_json::Value) -> serde_json::Value {
-    let mut query = M::queryOn(db);
+    let mut query = M::query_on(db);
     let method = case["method"].as_str().unwrap();
     if method.starts_with("or") {
         query.r#where(
@@ -332,20 +337,20 @@ async fn fixture_ids<M: Model>(db: &Connection, case: &serde_json::Value) -> ser
         value => openrust::database::eloquent::Key::Scalar(fixture_value(value)),
     };
     match method {
-        "whereKey" => query.whereKey(input),
-        "whereKeyNot" => query.whereKeyNot(input),
-        "orWhereKey" => query.orWhereKey(input),
-        "orWhereKeyNot" => query.orWhereKeyNot(input),
+        "whereKey" => query.where_key(input),
+        "whereKeyNot" => query.where_key_not(input),
+        "orWhereKey" => query.or_where_key(input),
+        "orWhereKeyNot" => query.or_where_key_not(input),
         _ => panic!("未知主键方法"),
     };
     serde_json::Value::Array(
         query
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .get()
             .await
             .unwrap()
             .into_iter()
-            .map(|model| match model.getKey().unwrap() {
+            .map(|model| match model.get_key().unwrap() {
                 Value::Integer(value) => json!(value),
                 Value::Text(value) => json!(value),
                 value => panic!("参考主键类型错误：{value:?}"),
@@ -394,15 +399,15 @@ async fn sqlite_key_and_model_value_results_match_181_fixed_php_cases() {
     }
     assert_eq!(reference["values"].as_array().unwrap().len(), 45);
     for case in reference["values"].as_array().unwrap() {
-        let mut query = Item::queryOn(&db).orderBy("id", "asc");
+        let mut query = Item::query_on(&db).order_by("id", "asc");
         if !case["id"].is_null() {
-            query.whereKey(fixture_value(&case["id"]));
+            query.where_key(fixture_value(&case["id"]));
         }
         let column = case["column"].as_str().unwrap();
         let result = match case["method"].as_str().unwrap() {
             "value" => query.value(column).await,
-            "soleValue" => query.soleValue(column).await,
-            "valueOrFail" => query.valueOrFail(column).await,
+            "soleValue" => query.sole_value(column).await,
+            "valueOrFail" => query.value_or_fail(column).await,
             _ => panic!("未知单值方法"),
         };
         let result = match result {

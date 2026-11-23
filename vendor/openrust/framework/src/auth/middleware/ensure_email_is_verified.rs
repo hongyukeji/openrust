@@ -2,7 +2,7 @@ use crate::{
     auth::{Auth, AuthError},
     contracts::http::Middleware,
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
-    support::facades::URL,
+    support::facades::Url,
 };
 
 /// Requires verified email for users that declare the verification capability.
@@ -38,7 +38,7 @@ impl Middleware for EnsureEmailIsVerified {
                     "Your email address is not verified.".into(),
                 ));
             }
-            let url = URL::route(
+            let url = Url::route(
                 self.route.as_deref().unwrap_or("verification.notice"),
                 &[],
                 true,

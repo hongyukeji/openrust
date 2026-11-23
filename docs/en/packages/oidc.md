@@ -32,7 +32,7 @@ The published `config/oidc.rs` template contains `oidc.providers.work`. Set `OID
 
 ## Authorization and callback {#authorization}
 
-Use the same configured provider name in the login and fixed callback route. `redirect()` and `user()` are asynchronous. A provider owns a mutable request borrow; create a new provider for each callback. `prompt("login")` requests reauthentication and `maxAge(60)` requires a sufficiently recent `auth_time` claim. Starting a new attempt for the same provider replaces the previous attempt in that Session.
+Use the same configured provider name in the login and fixed callback route. `redirect()` and `user()` are asynchronous. A provider owns a mutable request borrow; create a new provider for each callback. `prompt("login")` requests reauthentication and `max_age(60)` requires a sufficiently recent `auth_time` claim. Starting a new attempt for the same provider replaces the previous attempt in that Session.
 
 ```rust,ignore
 use openrust_oidc::facades::Oidc;
@@ -47,7 +47,7 @@ let identity = &authentication.identity;
 
 ## Verified identities {#identity}
 
-`Authentication.identity` is a `VerifiedIdentity` constructed only after signature and claims validation. `issuer()` and `subject()` are the stable identity pair; `email()`, `emailVerified()`, `claims()` and `userInfo()` expose validated data. UserInfo must have the exact verified subject. A changed email does not inherit the ID Token’s verification flag: the UserInfo response must itself contain boolean `email_verified: true`. `Authentication.tokens` explicitly exposes zeroizing access/ID/optional refresh tokens and optional expiry; it has no Debug or Serialize implementation. Refresh-token grants are outside this RP client API.
+`Authentication.identity` is a `VerifiedIdentity` constructed only after signature and claims validation. `issuer()` and `subject()` are the stable identity pair; `email()`, `emailVerified()`, `claims()` and `user_info()` expose validated data. UserInfo must have the exact verified subject. A changed email does not inherit the ID Token’s verification flag: the UserInfo response must itself contain boolean `email_verified: true`. `Authentication.tokens` explicitly exposes zeroizing access/ID/optional refresh tokens and optional expiry; it has no Debug or Serialize implementation. Refresh-token grants are outside this RP client API.
 
 ## Local account binding {#local-binding}
 
@@ -67,7 +67,7 @@ CREATE TABLE oidc_identities (
 use openrust::{
     auth::{Auth, AuthIdentifier},
     contracts::{auth::StatefulGuard as _, session::Session as _},
-    database::DB,
+    database::Db,
     http::{HttpError, Request},
 };
 use openrust_oidc::VerifiedIdentity;
@@ -83,10 +83,10 @@ pub async fn login_bound_user(
     request: &mut Request,
     remote: &VerifiedIdentity,
 ) -> Result<bool, HttpError> {
-    let Some(binding) = DB::table("oidc_identities")
+    let Some(binding) = Db::table("oidc_identities")
         .map_err(internal)?
-        .whereExactText("issuer", remote.issuer())
-        .whereExactText("subject", remote.subject())
+        .where_exact_text("issuer", remote.issuer())
+        .where_exact_text("subject", remote.subject())
         .first()
         .await
         .map_err(internal)?
@@ -119,7 +119,7 @@ Discovery endpoints default to the issuer origin. Add required HTTPS origins to 
 
 ## Browser SSO and logout {#sso-logout}
 
-Configure each RP with its own client ID, application key, database and local user bindings. Sign in at the OP once; the second RP can authorize through the existing OP browser Session. Each RP still owns its local Session and resolves `(issuer, subject)` separately. `prompt("login")` asks the OP to authenticate again; `maxAge` additionally checks the returned `auth_time`.
+Configure each RP with its own client ID, application key, database and local user bindings. Sign in at the OP once; the second RP can authorize through the existing OP browser Session. Each RP still owns its local Session and resolves `(issuer, subject)` separately. `prompt("login")` asks the OP to authenticate again; `max_age` additionally checks the returned `auth_time`.
 
 RP-initiated logout follows OpenID Connect RP-Initiated Logout 1.0 (2022-09-12). Set `OIDC_POST_LOGOUT_REDIRECT_URI` (`post_logout_redirect`) to a fixed callback registered at the OP. After `user()` and successful local account binding, call `Oidc::provider("work", request)?.rememberLogout(&authentication)?`. This explicitly saves only the verified ID Token in the server-side Session. `LogoutHint` is opaque; changing the public token fields cannot replace this verified hint. Treat all Session storage and outbound logout URLs as sensitive.
 

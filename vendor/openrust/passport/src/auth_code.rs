@@ -24,7 +24,7 @@ impl Model for AuthCode {
     fn from_state(state: ModelState) -> Self {
         Self(state)
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn state(&self) -> &ModelState {
@@ -33,8 +33,8 @@ impl Model for AuthCode {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn resolveConnectionName(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
-        if let Some(name) = self.getConnectionName() {
+    fn resolve_connection_name(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
+        if let Some(name) = self.get_connection_name() {
             return Ok(Some(name.into()));
         }
         crate::client::configured_connection(
@@ -56,7 +56,7 @@ impl AuthCode {
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, C> {
         openrust::database::eloquent::relations::BelongsTo::new(
             "client_id",
-            C::from_state(ModelState::default()).getKeyName(),
+            C::from_state(ModelState::default()).get_key_name(),
         )
     }
 }

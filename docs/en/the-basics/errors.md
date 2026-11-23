@@ -32,11 +32,11 @@ By default, reportable errors go through the application's configured log channe
 
 ### Ignoring Exceptions
 
-HTTP 400, 403, 404 and 405 are ignored by default. Use `dontReport::<E>` to ignore a matching type, `dontReportWhen` for a predicate, and `stopIgnoring::<HttpError>` to allow reporting those HTTP errors. Ignoring affects reporting. Rendering still produces the response.
+HTTP 400, 403, 404 and 405 are ignored by default. Use `dont_report::<E>` to ignore a matching type, `dont_report_when` for a predicate, and `stop_ignoring::<HttpError>` to allow reporting those HTTP errors. Ignoring affects reporting. Rendering still produces the response.
 
 ### Deduplicating Reported Exceptions
 
-Enable `dontReportDuplicates` and wrap errors that have a shared identity in `SharedException`. Clones share the same identity. Use `Application::report` for an explicit report, or return the shared error as the source of `HttpError::Internal`. Independently constructed errors can report even when their messages are identical.
+Enable `dont_report_duplicates` and wrap errors that have a shared identity in `SharedException`. Clones share the same identity. Use `Application::report` for an explicit report, or return the shared error as the source of `HttpError::Internal`. Independently constructed errors can report even when their messages are identical.
 
 ```rust
 use openrust::{
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_exceptions(|exceptions| {
             exceptions
                 .level::<std::io::Error>(Level::Warning)
-                .dontReportDuplicates();
+                .dont_report_duplicates();
         })
         .create()?;
     app.boot().await?;
@@ -76,7 +76,7 @@ use openrust::{
 
 fn configure(exceptions: &mut Exceptions) {
     exceptions.throttle::<std::io::Error>(|_| {
-        Some(ReportThrottle::Limit(Limit::perMinute(2).by("transport")))
+        Some(ReportThrottle::Limit(Limit::per_minute(2).by("transport")))
     });
 }
 ```
@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Rendering Exceptions as JSON
 
-The framework uses the request's JSON preference by default. The application skeleton configures `with_exceptions` to render JSON for the effective API namespace and for requests that expect JSON. Use `shouldRenderJsonWhen` to set a different policy.
+The framework uses the request's JSON preference by default. The application skeleton configures `with_exceptions` to render JSON for the effective API namespace and for requests that expect JSON. Use `should_render_json_when` to set a different policy.
 
 Set `APP_DEBUG=false` in production. The default JSON response uses `Server Error` for a generic 500, and the default HTML page omits exception sources. In debug mode, built-in server-error responses include a bounded list of source messages, escaped when displayed as HTML. Custom callbacks control the contents of responses they return.
 

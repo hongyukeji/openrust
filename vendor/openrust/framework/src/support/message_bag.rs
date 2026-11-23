@@ -12,8 +12,7 @@ pub enum MessageLookup {
 
 impl MessageLookup {
     /// 显式扁平化，适合只消费消息文本的调用方。
-    #[allow(non_snake_case)]
-    pub fn intoMessages(self) -> Vec<String> {
+    pub fn into_messages(self) -> Vec<String> {
         match self {
             Self::Exact(messages) => messages,
             Self::Wildcard(messages) => messages.into_values().flatten().collect(),
@@ -71,7 +70,6 @@ impl Default for MessageBag {
     }
 }
 
-#[allow(non_snake_case)]
 impl MessageBag {
     /// 构造时逐字段去重；空消息字段仍保留。
     pub fn new<K, S, V>(messages: impl IntoIterator<Item = (K, V)>) -> Self
@@ -107,7 +105,7 @@ impl MessageBag {
         self
     }
 
-    pub fn addIf(
+    pub fn add_if(
         &mut self,
         condition: bool,
         key: impl Into<String>,
@@ -210,16 +208,16 @@ impl MessageBag {
     pub fn messages(&self) -> &IndexMap<String, Vec<String>> {
         &self.messages
     }
-    pub fn getMessages(&self) -> &IndexMap<String, Vec<String>> {
+    pub fn get_messages(&self) -> &IndexMap<String, Vec<String>> {
         self.messages()
     }
-    pub fn getMessageBag(&self) -> &Self {
+    pub fn get_message_bag(&self) -> &Self {
         self
     }
-    pub fn getFormat(&self) -> &str {
+    pub fn get_format(&self) -> &str {
         &self.format
     }
-    pub fn setFormat(&mut self, format: impl Into<String>) -> &mut Self {
+    pub fn set_format(&mut self, format: impl Into<String>) -> &mut Self {
         self.format = format.into();
         self
     }
@@ -242,7 +240,7 @@ impl MessageBag {
     pub fn to_array(&self) -> &IndexMap<String, Vec<String>> {
         self.messages()
     }
-    pub fn jsonSerialize(&self) -> &IndexMap<String, Vec<String>> {
+    pub fn json_serialize(&self) -> &IndexMap<String, Vec<String>> {
         self.messages()
     }
     pub fn to_json(&self) -> Result<String, serde_json::Error> {

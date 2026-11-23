@@ -70,6 +70,6 @@ pub trait Notifiable: Send + Sync {
     where
         Self: Sized,
     {
-        Box::pin(async move { NotificationFacade::sendNow(&[self], notification, channels).await })
+        Box::pin(async move { NotificationFacade::send_now(&[self], notification, channels).await })
     }
 }

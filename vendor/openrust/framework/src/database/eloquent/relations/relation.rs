@@ -1,7 +1,7 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::database::{
-    Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value, query,
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Db, Transaction, Value, query,
 };
 
 use super::{
@@ -17,14 +17,13 @@ use super::{
 };
 
 /// The typed result and batch matching contract shared by relationships.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Relation: Send + Sync + 'static {
     type Parent: Model;
     type Output: Send + Sync + 'static;
 
     /// Identifies an empty collection output without projecting its models.
     #[doc(hidden)]
-    fn isEmptyCollection(_output: &Self::Output) -> bool {
+    fn is_empty_collection(_output: &Self::Output) -> bool {
         false
     }
 
@@ -34,24 +33,24 @@ pub trait Relation: Send + Sync + 'static {
     }
 
     /// Returns the loaded relationship paths shared by this relation's related models.
-    fn queueableRelations(_output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(_output: &Self::Output) -> Vec<String> {
         Vec::new()
     }
 
     /// Associates model outputs with a shared automatic loading batch.
     #[doc(hidden)]
-    fn attachAutoload(_outputs: &mut [Self::Output]) {}
+    fn attach_autoload(_outputs: &mut [Self::Output]) {}
 
     /// Copies the loaded output for automatic loading propagation.
     #[doc(hidden)]
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         let _ = output;
         None
     }
 
     /// Saves model snapshots in a loaded output and returns the replacement output.
     #[doc(hidden)]
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         _output: &'a Self::Output,
         _context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -59,13 +58,13 @@ pub trait Relation: Send + Sync + 'static {
     }
 
     /// Returns one result per parent, in the original order.
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a Self::Parent],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>>;
 
     /// Matches related rows while borrowing an explicit transaction.
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         _parents: &'a [&'a Self::Parent],
         _transaction: &'a mut Transaction,
@@ -77,12 +76,12 @@ pub trait Relation: Send + Sync + 'static {
         })
     }
 
-    fn getResults<'a>(
+    fn get_results<'a>(
         &'a self,
         parent: &'a Self::Parent,
     ) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
         Box::pin(async move {
-            let mut results = self.matchResults(&[parent]).await?;
+            let mut results = self.match_results(&[parent]).await?;
             if results.len() != 1 {
                 return Err(DatabaseError::InvalidQuery("relation result cardinality"));
             }
@@ -123,9 +122,8 @@ pub trait NestedRelation: Relation {
 }
 
 /// Builds a correlated subquery for filtering parent models by a relationship.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ExistenceRelation: Relation {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
@@ -245,7 +243,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             None => query,
         };
         Ok(if let Some((column, alias)) = self.discriminator {
-            let column = query.qualifyColumn(column);
+            let column = query.qualify_column(column);
             query.require_relation_value(&column, alias)
         } else {
             query
@@ -258,8 +256,8 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             return Ok(None);
         }
         let connection = self.connection(child)?;
-        let query = self.configure(R::queryOn(&connection))?;
-        let owner = query.qualifyColumn(self.related);
+        let query = self.configure(R::query_on(&connection))?;
+        let owner = query.qualify_column(self.related);
         Ok(Some(query.restrict_relation(&owner, &keys.bindings)))
     }
 
@@ -267,7 +265,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         let resolve = || {
             let related = R::from_state(Default::default());
             let name = related
-                .resolveConnectionName()?
+                .resolve_connection_name()?
                 .map(|name| name.into_owned());
             if let Some(name) = name {
                 if let Some(connection) = parent.state().connection.as_ref() {
@@ -281,9 +279,9 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                             .connection(Some(&name));
                     }
                 }
-                return DB::connection(Some(&name));
+                return Db::connection(Some(&name));
             }
-            parent.getConnection()
+            parent.get_connection()
         };
         if let Some(owner) = parent
             .state()
@@ -298,7 +296,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
     }
 
     pub(super) fn shares_related_source(&self, parent: &P, related: &R) -> bool {
-        if related.getTable() != R::metadata().table {
+        if related.get_table() != R::metadata().table {
             return false;
         }
         if let (Some(_), Some(actual)) = (&parent.state().connection, &related.state().connection) {
@@ -309,15 +307,15 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         // Unsaved, unbound models compare declared identities without resolving a database.
         let name = R::metadata()
             .connection
-            .or_else(|| parent.getConnectionName());
-        related.getConnectionName() == name
+            .or_else(|| parent.get_connection_name());
+        related.get_connection_name() == name
     }
 
     pub(super) fn matches_identity(&self, parent: &P, related: &R) -> bool {
         self.shares_related_source(parent, related)
             && compare_relation_keys(
-                parent.getAttribute(self.parent),
-                related.getAttribute(self.related),
+                parent.get_attribute(self.parent),
+                related.get_attribute(self.related),
             )
     }
 
@@ -330,15 +328,15 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         }
 
         let (Some(parent_key), Some(related_key)) = (
-            parent.getAttribute(self.parent),
-            related.getKey().filter(|key| !matches!(key, Value::Null)),
+            parent.get_attribute(self.parent),
+            related.get_key().filter(|key| !matches!(key, Value::Null)),
         ) else {
             return Ok(false);
         };
         let connection = self.connection(parent)?;
-        let query = self.select_one(self.configure(R::queryOn(&connection))?)?;
-        let foreign = query.qualifyColumn(self.related);
-        let primary = query.qualifyColumn(R::metadata().primary_key);
+        let query = self.select_one(self.configure(R::query_on(&connection))?)?;
+        let foreign = query.qualify_column(self.related);
+        let primary = query.qualify_column(R::metadata().primary_key);
         query
             .restrict_relation(&foreign, std::slice::from_ref(parent_key))
             .restrict_relation(&primary, std::slice::from_ref(related_key))
@@ -363,10 +361,10 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         };
         let connection = self.connection(model)?;
         let relation = self
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .restrict_relation(self.related, std::slice::from_ref(foreign_key));
         let casts = relation.casts.clone();
-        let query = relation.scoped()?.0.useWritePdo();
+        let query = relation.scoped()?.0.use_write_pdo();
         let row = match transaction.as_deref_mut() {
             Some(tx) => query.in_transaction(tx)?.first().await?,
             None => query.first().await?,
@@ -385,11 +383,11 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             return Ok(());
         }
         if let Some(column) = metadata.updated_at
-            && !R::isIgnoringTouch()
+            && !R::is_ignoring_touch()
         {
             let time = timestamp(&connection, metadata.date_format)?;
             let query = self
-                .configure(R::queryOn(&connection))?
+                .configure(R::query_on(&connection))?
                 .restrict_relation(self.related, std::slice::from_ref(foreign_key))
                 .restrict_relation(metadata.primary_key, &[key])
                 .scoped()?
@@ -432,7 +430,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                 "relationship existence requires one connection",
             ));
         }
-        let mut query = R::queryOn(connection);
+        let mut query = R::query_on(connection);
         if parent_table == R::metadata().table {
             let alias = if parent_table == "laravel_reserved_0" {
                 "laravel_reserved_1"
@@ -450,9 +448,9 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>> {
         let query = self.existence_builder(connection, parent_table)?;
-        let related = query.qualifyColumn(self.related);
+        let related = query.qualify_column(self.related);
         let parent = format!("{parent_table}.{}", self.parent);
-        Ok(query.scoped()?.0.whereColumn(&related, "=", &parent))
+        Ok(query.scoped()?.0.where_column(&related, "=", &parent))
     }
 
     pub fn batch_connection(&self, parents: &[&P]) -> DatabaseResult<Connection> {
@@ -503,12 +501,12 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
 
     fn set_inverse(&self, name: &str, parent: Arc<P>, model: &mut R) {
         if let Some((_, alias)) = self.discriminator {
-            model.setRelation::<super::MorphTo<R>>(
+            model.set_relation::<super::MorphTo<R>>(
                 name,
                 Some(super::MorphTarget::from_model(alias, parent)),
             );
         } else {
-            model.setRelation::<super::BelongsTo<R, P>>(name, Some(parent));
+            model.set_relation::<super::BelongsTo<R, P>>(name, Some(parent));
         }
     }
 
@@ -534,13 +532,13 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             // Bound the number of SQL parameters for SQLite as well as MySQL.
             for batch in keys.bindings.chunks(500) {
                 let query = self
-                    .select_one(self.configure(prepare(R::queryOn(&connection)))?)?
+                    .select_one(self.configure(prepare(R::query_on(&connection)))?)?
                     .restrict_relation(self.related, batch);
                 for model in query
                     .get_models_with_transaction(transaction.as_deref_mut())
                     .await?
                 {
-                    if let Some(key) = dictionary_key(model.getAttribute(self.related))? {
+                    if let Some(key) = dictionary_key(model.get_attribute(self.related))? {
                         dictionary.entry(key).or_default().push(Arc::new(model));
                     }
                 }
@@ -572,14 +570,14 @@ impl ParentKeys {
     pub fn new<P: Model>(parents: &[&P], column: &str) -> DatabaseResult<Self> {
         let keys = parents
             .iter()
-            .map(|parent| dictionary_key(parent.getAttribute(column)))
+            .map(|parent| dictionary_key(parent.get_attribute(column)))
             .collect::<DatabaseResult<Vec<_>>>()?;
         let mut values = indexmap::IndexMap::new();
         for (parent, key) in parents.iter().zip(&keys) {
             if let Some(key) = key {
                 values.entry(key).or_insert_with(|| {
                     parent
-                        .getAttribute(column)
+                        .get_attribute(column)
                         .expect("key came from parent")
                         .clone()
                 });

@@ -39,7 +39,7 @@ use openrust::{
     routing::{Router, RoutingError},
     support::{
         ProviderResult, ServiceProvider,
-        facades::{Broadcast, DB},
+        facades::{Broadcast, Db},
     },
 };
 use serde_json::{Value, json};
@@ -76,14 +76,14 @@ impl Broadcaster for Recorder {
             match (&result, presence) {
                 (ChannelAuthorization::Allowed, false)
                 | (ChannelAuthorization::Presence(_), true) => {
-                    self.validAuthenticationResponse(request, result).await
+                    self.valid_authentication_response(request, result).await
                 }
                 _ => Err(BroadcastException::AccessDenied),
             }
         })
     }
 
-    fn validAuthenticationResponse<'a>(
+    fn valid_authentication_response<'a>(
         &'a self,
         _: &'a mut Request,
         result: ChannelAuthorization,
@@ -189,7 +189,7 @@ impl<const MODE: u8> Event for Notice<MODE> {
     }
 }
 impl<const MODE: u8> ShouldBroadcast for Notice<MODE> {
-    fn broadcastOn(&self) -> Vec<BroadcastChannel> {
+    fn broadcast_on(&self) -> Vec<BroadcastChannel> {
         vec![
             BroadcastChannel::Public(Channel {
                 name: "news".into(),
@@ -202,19 +202,19 @@ impl<const MODE: u8> ShouldBroadcast for Notice<MODE> {
             }),
         ]
     }
-    fn broadcastAs(&self) -> Option<&str> {
+    fn broadcast_as(&self) -> Option<&str> {
         (MODE == 2).then_some("notice.queued")
     }
-    fn broadcastData(&self) -> BroadcastPayload {
+    fn broadcast_data(&self) -> BroadcastPayload {
         BroadcastPayload::from_iter([("id".into(), json!(42))])
     }
-    fn broadcastWhen(&self) -> bool {
+    fn broadcast_when(&self) -> bool {
         self.0
     }
-    fn broadcastQueue(&self) -> Option<&str> {
+    fn broadcast_queue(&self) -> Option<&str> {
         Some("broadcasts")
     }
-    fn broadcastAfterCommit(&self) -> Option<bool> {
+    fn broadcast_after_commit(&self) -> Option<bool> {
         Some(true)
     }
 }
@@ -230,31 +230,31 @@ impl<const KIND: u8> Event for UniqueNotice<KIND> {
 }
 
 impl<const KIND: u8> ShouldBroadcast for UniqueNotice<KIND> {
-    fn broadcastOn(&self) -> Vec<BroadcastChannel> {
+    fn broadcast_on(&self) -> Vec<BroadcastChannel> {
         vec!["unique".into()]
     }
-    fn broadcastData(&self) -> BroadcastPayload {
+    fn broadcast_data(&self) -> BroadcastPayload {
         BroadcastPayload::from_iter([("id".into(), json!(self.0)), ("kind".into(), json!(KIND))])
     }
-    fn broadcastQueue(&self) -> Option<&str> {
+    fn broadcast_queue(&self) -> Option<&str> {
         Some("broadcasts")
     }
-    fn shouldBroadcastNow(&self) -> bool {
+    fn should_broadcast_now(&self) -> bool {
         KIND == 3
     }
-    fn broadcastAfterCommit(&self) -> Option<bool> {
+    fn broadcast_after_commit(&self) -> Option<bool> {
         Some(true)
     }
 }
 
 impl<const KIND: u8> ShouldBeUnique for UniqueNotice<KIND> {
-    fn uniqueId(&self) -> &str {
+    fn unique_id(&self) -> &str {
         &self.0
     }
-    fn uniqueFor(&self) -> Option<u64> {
+    fn unique_for(&self) -> Option<u64> {
         Some(if self.0 == "expiring" { 1 } else { 60 })
     }
-    fn uniqueVia(&self) -> Option<&str> {
+    fn unique_via(&self) -> Option<&str> {
         Some("event-locks")
     }
 }
@@ -276,7 +276,7 @@ impl Model for Room {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn getRouteKeyName() -> &'static str {
+    fn get_route_key_name() -> &'static str {
         "slug"
     }
 }
@@ -284,7 +284,7 @@ impl Model for Room {
 struct RoomChannel;
 
 impl ChannelHandler for RoomChannel {
-    fn joinBound<'a>(
+    fn join_bound<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         parameters: &'a ChannelParameters,
@@ -301,7 +301,7 @@ impl ChannelHandler for RoomChannel {
             let room = models
                 .get::<Room>("room")
                 .expect("room argument should be bound");
-            let owner = room.getAttributeValue("owner").unwrap();
+            let owner = room.get_attribute_value("owner").unwrap();
             let allowed = match owner {
                 Some(DbValue::Text(owner)) => {
                     user.get_auth_identifier() == AuthIdentifier::String(owner)
@@ -347,11 +347,11 @@ fn anonymous_now(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
         .r#as("anonymous.ready")
         .with(BroadcastPayload::from_iter([("ok".into(), json!(true))]))
         .toOthers(request)
-        .sendNow()
+        .send_now()
         .await?;
         Broadcast::private("discarded")
             .via("null")
-            .sendNow()
+            .send_now()
             .await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
@@ -379,9 +379,9 @@ fn transaction_unique<const COMMIT: bool>(
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let id = request.route("id").unwrap().to_owned();
-        let database = DB::connection(None)?;
-        let mut transaction = database.beginTransaction().await?;
-        openrust::support::facades::Event::dispatchInTransaction(
+        let database = Db::connection(None)?;
+        let mut transaction = database.begin_transaction().await?;
+        openrust::support::facades::Event::dispatch_in_transaction(
             UniqueNotice::<1>(id),
             &mut transaction,
         )
@@ -389,7 +389,7 @@ fn transaction_unique<const COMMIT: bool>(
         if COMMIT {
             transaction.commit().await?;
         } else {
-            transaction.rollBack(None).await?;
+            transaction.roll_back(None).await?;
         }
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
@@ -498,7 +498,7 @@ async fn actual_channel_requests_use_guard_rules_and_presence_payloads() {
         .unwrap()
         .connection(None)
         .unwrap();
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("channel_rooms", |table| {
             table.id();
             table.string("slug", 100).unique();
@@ -656,7 +656,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
         .unwrap();
     assert!(recorder.delivered.lock().unwrap().is_empty());
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let mut context = EventContext::in_transaction(&mut transaction).toOthers(&request);
     assert!(matches!(
         dispatcher
@@ -669,7 +669,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
         .dispatch(Arc::new(Notice::<2>(true)), &mut context)
         .await
         .unwrap();
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert!(recorder.delivered.lock().unwrap().is_empty());
 
     let queue = app
@@ -679,7 +679,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
         .connection(None)
         .unwrap();
     assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let mut context = EventContext::in_transaction(&mut transaction).toOthers(&request);
     dispatcher
         .dispatch(Arc::new(Notice::<1>(true)), &mut context)
@@ -731,15 +731,15 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
 }
 
 async fn create_jobs(db: &openrust::database::Connection) {
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();

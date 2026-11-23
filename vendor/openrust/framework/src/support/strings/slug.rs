@@ -55,7 +55,7 @@ pub(super) fn ascii(value: &str, language: &str) -> String {
         }
     }
     if localized.is_none() {
-        output = Str::transliterateWithUnknown(&output, None);
+        output = Str::transliterate_with_unknown(&output, None);
     }
     output = output.replace("\n\r", " ").replace(['\n', '\r', '\t'], " ");
     output.retain(|ch| ascii_fast_path(ch.encode_utf8(&mut [0; 4])));

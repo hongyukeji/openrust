@@ -229,7 +229,7 @@ impl Image {
         Ok(self.render().await?.bytes.clone())
     }
 
-    pub async fn toBase64(&self) -> Result<String> {
+    pub async fn to_base64(&self) -> Result<String> {
         Ok(STANDARD.encode(self.toBytes().await?))
     }
 
@@ -242,7 +242,7 @@ impl Image {
         ))
     }
 
-    pub async fn mimeType(&self) -> Result<&'static str> {
+    pub async fn mime_type(&self) -> Result<&'static str> {
         Ok(self.render().await?.format.mime_type())
     }
 
@@ -307,7 +307,7 @@ impl Image {
         })
     }
 
-    pub async fn toString(&self) -> Result<String> {
+    pub async fn to_string(&self) -> Result<String> {
         self.toDataUri().await
     }
 

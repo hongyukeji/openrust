@@ -88,8 +88,8 @@ async fn provider_is_lazy_and_native_http_lifecycles_record_canonical_route_path
     assert!(
         !storage
             .connection()
-            .getSchemaBuilder()
-            .hasTable("pulse_entries")
+            .get_schema_builder()
+            .has_table("pulse_entries")
             .await
             .unwrap()
     );
@@ -251,7 +251,7 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
         .make::<openrust::view::Factory>()
         .await
         .unwrap()
-        .getFinder()
+        .get_finder()
         .flush();
     app.get("/pulse")
         .await
@@ -324,14 +324,14 @@ impl openrust::contracts::auth::Authenticatable for Identity {
 }
 fn observed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        use openrust::support::facades::{Auth, Cache, Config, DB, Facade, Http, Log};
+        use openrust::support::facades::{Auth, Cache, Config, Db, Facade, Http, Log};
         Auth::user(request).await?;
-        DB::select("select 1 as probe", &[]).await?;
+        Db::select("select 1 as probe", &[]).await?;
         Cache::get("feature:123").await?;
         Cache::put("feature:123", &openrust::cache::Value::from("cached"), None).await?;
         Cache::get("feature:123").await?;
         let log = Log::channel(None)?;
-        log.logException(
+        log.log_exception(
             openrust::log::Level::Error,
             "typed error",
             &std::io::Error::other("expected"),

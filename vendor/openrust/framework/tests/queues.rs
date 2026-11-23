@@ -48,7 +48,7 @@ impl JobHandler for Handler {
                 .ok_or(QueueError::InvalidPayload)?;
             assert_eq!(payload.version(), 1);
             if let Some(transaction) = context.transaction() {
-                assert_eq!(transaction.transactionLevel(), 1);
+                assert_eq!(transaction.transaction_level(), 1);
                 transaction
                     .scalar("select 1", &[])
                     .await
@@ -189,7 +189,7 @@ struct ExtensionQueue {
 }
 
 impl QueueContract for ExtensionQueue {
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
 
@@ -285,7 +285,7 @@ async fn exercise_storage(
     let (one, two) = (one.unwrap(), two.unwrap());
     assert_ne!(one.is_some(), two.is_some());
     let mut first = one.or(two).unwrap();
-    assert_eq!(first.getJobId(), first_id);
+    assert_eq!(first.get_job_id(), first_id);
     assert_eq!(first.attempts(), 1);
     let uuid = first.uuid().to_owned();
     // 为并发领取留足租约余量；过期句柄不能确认后续的保留。
@@ -298,14 +298,14 @@ async fn exercise_storage(
         Err(QueueError::LostReservation)
     ));
     second.release(Duration::ZERO).await.unwrap();
-    assert!(second.isReleased());
+    assert!(second.is_released());
     let mut third = queue.pop(None).await.unwrap().unwrap();
     assert_eq!(third.uuid(), uuid);
     assert_eq!(third.attempts(), 3);
     let mut context = JobContext::default();
     third.fire(&mut context).await.unwrap();
     third.delete().await.unwrap();
-    assert!(third.isDeleted());
+    assert!(third.is_deleted());
     assert_eq!(queue.size(None).await.unwrap(), 0);
     assert_eq!(
         handler.0.lock().unwrap().as_slice(),
@@ -327,22 +327,22 @@ async fn exercise_storage(
     assert!(queue.pop(Some("delayed")).await.unwrap().is_none());
     sleep(Duration::from_millis(3100)).await;
     let mut delayed = queue.pop(Some("delayed")).await.unwrap().unwrap();
-    assert_eq!(delayed.getQueue(), "delayed");
+    assert_eq!(delayed.get_queue(), "delayed");
     delayed.delete().await.unwrap();
 }
 
 async fn verify_database(db_config: Value) {
     let table = format!("queue_test_{:016x}", fastrand::u64(..));
     let (app, manager, db, handler) = application(db_config, None, &table).await;
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create(&table, |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();
@@ -351,7 +351,7 @@ async fn verify_database(db_config: Value) {
     let id = request(address, "database").await;
     exercise_storage(&manager, "database", &id, &handler).await;
     let queue = manager.connection(None).unwrap();
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let inserted = manager
         .dispatch(
             payload(),
@@ -362,14 +362,14 @@ async fn verify_database(db_config: Value) {
         .unwrap();
     assert!(matches!(inserted, DispatchResult::Queued(_)));
     assert_eq!(transaction.table(&table).count("*").await.unwrap(), 1);
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(queue.size(None).await.unwrap(), 0);
 
     let deferred = || DispatchOptions {
         connection: Some("after".into()),
         ..Default::default()
     };
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     assert_eq!(
         manager
             .dispatch(payload(), deferred(), Some(&mut transaction))
@@ -377,12 +377,12 @@ async fn verify_database(db_config: Value) {
             .unwrap(),
         DispatchResult::Deferred
     );
-    transaction.beginTransaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     manager
         .dispatch(payload(), deferred(), Some(&mut transaction))
         .await
         .unwrap();
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(transaction.table(&table).count("*").await.unwrap(), 0);
     transaction.commit().await.unwrap();
     assert_eq!(queue.size(None).await.unwrap(), 1);
@@ -395,7 +395,7 @@ async fn verify_database(db_config: Value) {
         .await
         .unwrap();
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     manager
         .dispatch(
             payload(),
@@ -408,9 +408,9 @@ async fn verify_database(db_config: Value) {
         )
         .await
         .unwrap();
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(handler.0.lock().unwrap().len(), 2);
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let result = manager
         .dispatch(
             payload(),
@@ -423,7 +423,7 @@ async fn verify_database(db_config: Value) {
         .await
         .unwrap();
     assert_eq!(result, DispatchResult::Completed);
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(handler.0.lock().unwrap().len(), 3);
     let unknown = manager
         .dispatch(
@@ -437,7 +437,10 @@ async fn verify_database(db_config: Value) {
         .await;
     assert!(matches!(unknown, Err(QueueError::UnknownJob(_))));
     server.abort();
-    db.getSchemaBuilder().dropIfExists(&table).await.unwrap();
+    db.get_schema_builder()
+        .drop_if_exists(&table)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -502,7 +505,7 @@ async fn redis_queue_over_http_and_blocking_reservation() {
         .unwrap();
     job.delete().await.unwrap();
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let options = DispatchOptions {
         connection: Some("redis".into()),
         after_commit: Some(true),

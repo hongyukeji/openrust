@@ -13,7 +13,7 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("sms_deliveries", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.sms_deliveries", &Default::default())?);
                     table
@@ -45,8 +45,8 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
-                .dropIfExists("sms_deliveries")
+                .get_schema_builder()
+                .drop_if_exists("sms_deliveries")
                 .await
         })
     }

@@ -49,7 +49,7 @@ async fn eighteen_catalogs_load_exactly_and_validation_consumes_the_active_trans
             leaves(&value, group, &mut keys);
             for key in keys {
                 assert!(
-                    translator.hasForLocale(&key, Some(locale)).unwrap(),
+                    translator.has_for_locale(&key, Some(locale)).unwrap(),
                     "{locale}: {key}"
                 );
             }
@@ -83,7 +83,7 @@ async fn eighteen_catalogs_load_exactly_and_validation_consumes_the_active_trans
             "All rights reserved.",
         ] {
             assert!(
-                translator.hasForLocale(key, Some(locale)).unwrap(),
+                translator.has_for_locale(key, Some(locale)).unwrap(),
                 "{locale}: {key}"
             );
         }
@@ -120,12 +120,12 @@ async fn eighteen_notification_messages_render_to_local_capture_and_restore_loca
     application.boot().await.unwrap();
     application.call(Callback::new(&[], |_|async {
         for locale in LOCALES {
-            Lang::withLocale(locale, async {
+            Lang::with_locale(locale, async {
                 let title=Lang::get("Reset your password", &BTreeMap::new(), None).unwrap();
                 let action=Lang::get("Reset Password", &BTreeMap::new(), None).unwrap();
                 let line=Lang::get("You are receiving this email because we received a password reset request for your account.",&BTreeMap::new(),None).unwrap();
                 let message=MailMessage::new().subject(title.clone()).line(line.clone()).action(action,"https://example.test/reset");
-                let sent=Mail::to("recipient@example.test").unwrap().sendNow(&message).await.unwrap().unwrap();
+                let sent=Mail::to("recipient@example.test").unwrap().send_now(&message).await.unwrap().unwrap();
                 assert_eq!(sent.message.envelope().subject,title);
                 let body=sent.message.getTextBody().unwrap();assert!(body.contains(&line),"{locale}: {body}");
                 let greeting=Lang::get("Hello!",&BTreeMap::new(),None).unwrap();assert!(body.contains(&greeting),"{locale}: {body}");
@@ -143,7 +143,7 @@ fn eighteen_number_locales_and_fixed_plural_rules_are_supported() {
     let counts = [0.0, 1.0, 2.0, 3.0, 5.0, 11.0, 21.0, 1.5];
     for locale in LOCALES {
         let mut number = Number::default();
-        number.useLocale(locale).unwrap();
+        number.use_locale(locale).unwrap();
         assert!(!number.format(12345.67, Some(2), None).unwrap().is_empty());
         for count in counts {
             let expected = match *locale {
@@ -254,7 +254,7 @@ async fn application_keys_override_embedded_defaults_without_replacing_the_group
         r#"{"Hello!":"extra","Reset Password":"extra","Only extra":"extra"}"#,
     )
     .unwrap();
-    loader.addJsonPath(extra);
+    loader.add_json_path(extra);
     let sentences = loader.load("fr", "*", Some("*")).await.unwrap();
     assert_eq!(
         sentences["Hello!"],
@@ -276,7 +276,7 @@ async fn application_keys_override_embedded_defaults_without_replacing_the_group
             .unwrap()
             .is_empty()
     );
-    assert_eq!(loader.availableLocales().unwrap().len(), 18);
+    assert_eq!(loader.available_locales().unwrap().len(), 18);
     std::fs::write(directory.path().join("lang/fr/validation.json"), "{").unwrap();
     assert!(loader.load("fr", "validation", None).await.is_err());
 }

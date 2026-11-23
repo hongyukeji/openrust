@@ -23,7 +23,7 @@ impl<'a, M: Model> RelationAggregateQuery<'a, M> {
         Self {
             name,
             aggregate,
-            apply: Box::new(move |query| query.withAggregate(name, relation, aggregate)),
+            apply: Box::new(move |query| query.with_aggregate(name, relation, aggregate)),
         }
     }
 

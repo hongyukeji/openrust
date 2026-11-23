@@ -5,7 +5,7 @@ use crate::app::http::controllers::welcome_controller::WelcomeController;
 pub(crate) fn register() -> Result<(), RoutingError> {
     Route::get("/", WelcomeController::index)?;
     Route::post("/locale", WelcomeController::store_locale)?;
-    Route::staticDisk("web")?;
-    Route::staticDisk("public")?;
+    Route::static_disk("web")?;
+    Route::static_disk("public")?;
     Ok(())
 }

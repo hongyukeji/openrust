@@ -78,20 +78,19 @@ const GREEK_OBJECT: &[&str] = &[
     "Καθεκλοποιός",
 ];
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
     /// Samples the selected Person provider's SSN format.
     pub fn ssn(&self) -> DatabaseResult<String> {
         match super::faker_person::provider_locale(self.provider_locale()) {
             "en_US" | "th_TH" => Ok(us_ssn(&self.random)),
-            "de_AT" => self.ssnWithBirthdate(None),
+            "de_AT" => self.ssn_with_birthdate(None),
             "is_IS" => Ok(icelandic_ssn(&self.random, self.identity_birthdate()?)),
             _ => Err(DatabaseError::InvalidQuery("unsupported Faker SSN locale")),
         }
     }
 
     /// Samples the Austrian SSN using the supplied civil birth date, if any.
-    pub fn ssnWithBirthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
+    pub fn ssn_with_birthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
         if self.provider_locale() != "de_AT" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker SSN birthdate locale",
@@ -106,10 +105,10 @@ impl Faker {
 
     fn identity_birthdate(&self) -> DatabaseResult<CivilDate> {
         let timezone = self
-            .getDefaultTimezone()
+            .get_default_timezone()
             .unwrap_or_else(|| self.application_timezone.clone());
         Ok(self
-            .dateTimeThisCentury(None)?
+            .date_time_this_century(None)?
             .to_zoned(timezone.clone())
             .date())
     }
@@ -150,19 +149,19 @@ impl Faker {
     }
 
     /// Samples a Czech birth number using the supplied age range and slash probability.
-    pub fn birthNumber(
+    pub fn birth_number(
         &self,
         gender: Option<&str>,
-        minAge: u32,
-        maxAge: u32,
-        slashProbability: i64,
+        min_age: u32,
+        max_age: u32,
+        slash_probability: i64,
     ) -> DatabaseResult<String> {
         if self.provider_locale() != "cs_CZ" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Czech birth number locale",
             ));
         }
-        if minAge > maxAge {
+        if min_age > max_age {
             return Err(DatabaseError::InvalidQuery(
                 "invalid Faker birth number age range",
             ));
@@ -190,14 +189,14 @@ impl Faker {
             )
         };
         let date = self
-            .dateTimeBetween(age_bound(maxAge)?, age_bound(minAge)?)?
+            .date_time_between(age_bound(max_age)?, age_bound(min_age)?)?
             .to_zoned(self.application_timezone.clone());
         let female = gender.map_or_else(|| self.random.bool(), |value| value == "female");
         let year = date.year();
         let capacity_offset = year >= 2004 && self.boolean(Some(10));
         let month =
             i32::from(date.month()) + 50 * i32::from(female) + 20 * i32::from(capacity_offset);
-        let serial = self.numberBetween(0, 999);
+        let serial = self.number_between(0, 999);
         let mut number = format!(
             "{:02}{month:02}{:02}{serial:03}",
             year.rem_euclid(100),
@@ -210,18 +209,18 @@ impl Faker {
                 % 11;
             number.push(char::from(b'0' + (remainder % 10) as u8));
         }
-        if self.boolean(Some(slashProbability)) {
+        if self.boolean(Some(slash_probability)) {
             number.insert(6, '/');
         }
         Ok(number)
     }
 
-    pub fn birthNumberMale(&self) -> DatabaseResult<String> {
-        self.birthNumber(Some("male"), 0, 100, 50)
+    pub fn birth_number_male(&self) -> DatabaseResult<String> {
+        self.birth_number(Some("male"), 0, 100, 50)
     }
 
-    pub fn birthNumberFemale(&self) -> DatabaseResult<String> {
-        self.birthNumber(Some("female"), 0, 100, 50)
+    pub fn birth_number_female(&self) -> DatabaseResult<String> {
+        self.birth_number(Some("female"), 0, 100, 50)
     }
 
     /// Samples a Swiss social security number with the German formatter name.
@@ -247,9 +246,9 @@ impl Faker {
     }
 
     /// Samples a Kazakh individual identification number.
-    pub fn individualIdentificationNumber(
+    pub fn individual_identification_number(
         &self,
-        birthDate: Option<CivilDate>,
+        birth_date: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         if self.provider_locale() != "kk_KZ" {
@@ -260,12 +259,12 @@ impl Faker {
             Some("female") => true,
             _ => return Err(DatabaseError::InvalidQuery("invalid Faker IIN gender")),
         };
-        let date = match birthDate {
+        let date = match birth_date {
             Some(date) => date,
             None => self
-                .dateTimeBetweenExpressions("-30 years", "now")?
+                .date_time_between_expressions("-30 years", "now")?
                 .to_zoned(
-                    self.getDefaultTimezone()
+                    self.get_default_timezone()
                         .unwrap_or_else(|| self.application_timezone.clone()),
                 )
                 .date(),
@@ -283,9 +282,9 @@ impl Faker {
         let marker = century + u8::from(female);
         let birth = date.strftime("%y%m%d");
         loop {
-            let serial = self.numberBetween(1000, 2000);
+            let serial = self.number_between(1000, 2000);
             let prefix = format!("{birth}{marker}{serial}");
-            let check = Self::checkSum(&prefix)?;
+            let check = Self::check_sum(&prefix)?;
             if check != 10 {
                 return Ok(format!("{prefix}{check}"));
             }
@@ -293,21 +292,21 @@ impl Faker {
     }
 
     /// Calculates the Kazakh IIN control digit for an eleven-digit prefix.
-    pub fn checkSum(iinValue: &str) -> DatabaseResult<u8> {
-        if iinValue.len() != 11 || !iinValue.bytes().all(|digit| digit.is_ascii_digit()) {
+    pub fn check_sum(iin_value: &str) -> DatabaseResult<u8> {
+        if iin_value.len() != 11 || !iin_value.bytes().all(|digit| digit.is_ascii_digit()) {
             return Err(DatabaseError::InvalidQuery(
                 "Faker IIN prefix must have eleven digits",
             ));
         }
-        let first = weighted_digits(iinValue, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) % 11;
+        let first = weighted_digits(iin_value, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) % 11;
         if first != 10 {
             return Ok(first as u8);
         }
-        Ok((weighted_digits(iinValue, &[3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2]) % 11) as u8)
+        Ok((weighted_digits(iin_value, &[3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2]) % 11) as u8)
     }
 
     /// Samples a Venezuelan national ID with an optional separator.
-    pub fn nationalId(&self, separator: Option<&str>) -> DatabaseResult<String> {
+    pub fn national_id(&self, separator: Option<&str>) -> DatabaseResult<String> {
         if self.provider_locale() != "es_VE" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Venezuelan national ID locale",
@@ -318,19 +317,19 @@ impl Faker {
         } else {
             ('E', 80_000_000)
         };
-        let serial = self.numberBetween(lower, 100_000_000);
+        let serial = self.number_between(lower, 100_000_000);
         Ok(format!("{prefix}{}{serial}", separator.unwrap_or_default()))
     }
 
     /// Samples an Iranian national code with its modulo-11 check digit.
-    pub fn nationalCode(&self) -> DatabaseResult<String> {
+    pub fn national_code(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "fa_IR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Iranian national code locale",
             ));
         }
-        let area = self.numberBetween(1, 999);
-        let core = self.numberBetween(0, 999_999);
+        let area = self.number_between(1, 999);
+        let core = self.number_between(0, 999_999);
         let mut number = format!("{area:03}{core:06}");
         let remainder = weighted_digits(&number, &[10, 9, 8, 7, 6, 5, 4, 3, 2]) % 11;
         let check = if remainder < 2 {
@@ -346,19 +345,19 @@ impl Faker {
     pub fn nik(
         &self,
         gender: Option<&str>,
-        birthDate: Option<CivilDate>,
+        birth_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
         if self.provider_locale() != "id_ID" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Indonesian NIK locale",
             ));
         }
-        let date = match birthDate {
+        let date = match birth_date {
             Some(date) => date,
             None => self
-                .dateTimeBetweenExpressions("-30 years", "now")?
+                .date_time_between_expressions("-30 years", "now")?
                 .to_zoned(
-                    self.getDefaultTimezone()
+                    self.get_default_timezone()
                         .unwrap_or_else(|| self.application_timezone.clone()),
                 )
                 .date(),
@@ -369,11 +368,11 @@ impl Faker {
         };
         let places = super::south_southeast_asian::ID_BIRTH_PLACE_CODES;
         let place = places[self.random.usize(..places.len())];
-        let district = self.numberBetween(0, 99);
+        let district = self.number_between(0, 99);
         let day = i32::from(date.day()) + 40 * i32::from(female);
         let month = date.month();
         let year = date.year().rem_euclid(100);
-        let serial = self.numberBetween(0, 9999);
+        let serial = self.number_between(0, 9999);
         Ok(format!(
             "{place}{district:02}{day:02}{month:02}{year:02}{serial:04}"
         ))
@@ -398,10 +397,10 @@ impl Faker {
         let sex = match gender {
             Some("male") => 1,
             Some("female") => 2,
-            _ => self.numberBetween(1, 2),
+            _ => self.number_between(1, 2),
         };
         let year = self.numerify(Some("##"));
-        let month = self.numberBetween(1, 12);
+        let month = self.number_between(1, 12);
         let department = DEPARTMENTS[self.random.usize(..DEPARTMENTS.len())];
         let town = self.numerify(Some(if department.len() == 2 { "###" } else { "##" }));
         let serial = self.numerify(Some("###"));
@@ -430,7 +429,7 @@ impl Faker {
     }
 
     /// Samples the uppercase Italian tax ID mask.
-    pub fn taxId(&self) -> DatabaseResult<String> {
+    pub fn tax_id(&self) -> DatabaseResult<String> {
         if !matches!(self.provider_locale(), "it_IT" | "it_CH") {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Italian tax ID locale",
@@ -447,7 +446,7 @@ impl Faker {
             ));
         }
 
-        let mut serial = self.numberBetween(1, 997) as u64;
+        let mut serial = self.number_between(1, 997) as u64;
         match gender {
             Some("male") => serial += 1 - serial % 2,
             Some("female") => serial += serial % 2,
@@ -469,18 +468,18 @@ impl Faker {
     }
 
     /// Samples a Singapore citizen's NRIC.
-    pub fn nric(&self, birthDate: Option<CivilDate>) -> DatabaseResult<String> {
-        self.singaporeId(birthDate, false)
+    pub fn nric(&self, birth_date: Option<CivilDate>) -> DatabaseResult<String> {
+        self.singapore_id(birth_date, false)
     }
 
     /// Samples a Singapore foreign identification number.
-    pub fn fin(&self, issueDate: Option<CivilDate>) -> DatabaseResult<String> {
-        self.singaporeId(issueDate, true)
+    pub fn fin(&self, issue_date: Option<CivilDate>) -> DatabaseResult<String> {
+        self.singapore_id(issue_date, true)
     }
 
-    pub fn singaporeId(
+    pub fn singapore_id(
         &self,
-        issueDate: Option<CivilDate>,
+        issue_date: Option<CivilDate>,
         foreigner: bool,
     ) -> DatabaseResult<String> {
         if self.provider_locale() != "en_SG" {
@@ -488,7 +487,7 @@ impl Faker {
                 "unsupported Faker Singapore identity locale",
             ));
         }
-        let date = match issueDate {
+        let date = match issue_date {
             Some(date) => date,
             None => self.identity_birthdate()?,
         };
@@ -518,9 +517,9 @@ impl Faker {
     }
 
     /// Samples an identification number for the selected locale.
-    pub fn idNumber(&self) -> DatabaseResult<String> {
+    pub fn id_number(&self) -> DatabaseResult<String> {
         match self.provider_locale() {
-            "en_ZA" => self.idNumberWithBirthdate(None, None, None),
+            "en_ZA" => self.id_number_with_birthdate(None, None, None),
             "nl_NL" => Ok(dutch_identity(&self.random)),
             "ar_SA" => Ok(self.saudi_identity(if self.random.bool() { "1" } else { "2" })),
             "mn_MN" => Ok(format!(
@@ -536,7 +535,7 @@ impl Faker {
     }
 
     /// Samples a South African ID with optional birth date, citizenship and gender.
-    pub fn idNumberWithBirthdate(
+    pub fn id_number_with_birthdate(
         &self,
         birthdate: Option<CivilDate>,
         citizen: Option<bool>,
@@ -573,22 +572,22 @@ impl Faker {
         Ok(number)
     }
 
-    pub fn nationalIdNumber(&self) -> DatabaseResult<String> {
+    pub fn national_id_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() == "ar_SA" {
             return Ok(self.saudi_identity("1"));
         }
-        self.nationalIdNumberWithGender(None)
+        self.national_id_number_with_gender(None)
     }
 
     /// Samples an Egyptian national ID with the requested registration sequence parity.
-    pub fn nationalIdNumberWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+    pub fn national_id_number_with_gender(&self, gender: Option<&str>) -> DatabaseResult<String> {
         if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker gendered national ID locale",
             ));
         }
         let date = self
-            .dateTimeBetweenExpressions("1950-01-10", "2005-12-25")?
+            .date_time_between_expressions("1950-01-10", "2005-12-25")?
             .to_zoned(self.application_timezone.clone());
         let century = if date.year() >= 2000 { 3 } else { 2 };
         let sequence = self.random.u16(1..=500);
@@ -601,11 +600,11 @@ impl Faker {
         Ok(format!(
             "{century}{}{governorate}{sequence:04}{check}",
             date.strftime("%y%m%d"),
-            governorate = self.governorateId()?
+            governorate = self.governorate_id()?
         ))
     }
 
-    pub fn foreignerIdNumber(&self) -> DatabaseResult<String> {
+    pub fn foreigner_id_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "ar_SA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker foreigner ID locale",
@@ -622,7 +621,7 @@ impl Faker {
     }
 
     /// Samples the initial used in Mongolian full names.
-    pub fn namePrefix(&self) -> DatabaseResult<char> {
+    pub fn name_prefix(&self) -> DatabaseResult<char> {
         if self.provider_locale() != "mn_MN" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker name prefix locale",
@@ -649,7 +648,7 @@ impl Faker {
         Ok(ALPHABET[self.random.usize(..ALPHABET.len())])
     }
 
-    pub fn governorateId(&self) -> DatabaseResult<&'static str> {
+    pub fn governorate_id(&self) -> DatabaseResult<&'static str> {
         if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker governorate locale",
@@ -659,7 +658,7 @@ impl Faker {
     }
 
     /// Samples a driving licence number using the Lithuanian or Latvian provider.
-    pub fn driverLicence(&self) -> DatabaseResult<String> {
+    pub fn driver_licence(&self) -> DatabaseResult<String> {
         match self.provider_locale() {
             "lt_LT" => Ok(self.numerify(Some("########"))),
             "lv_LV" => Ok(self.bothify(Some("??######"))),
@@ -670,7 +669,7 @@ impl Faker {
     }
 
     /// Samples a passport number using the Lithuanian or Latvian provider.
-    pub fn passportNumber(&self) -> DatabaseResult<String> {
+    pub fn passport_number(&self) -> DatabaseResult<String> {
         match self.provider_locale() {
             "lt_LT" => Ok(self.numerify(Some("########"))),
             "lv_LV" => Ok(self.bothify(Some("??#######"))),
@@ -681,52 +680,53 @@ impl Faker {
     }
 
     /// Samples a Turkish identity number using the fixed FakerPHP checksum.
-    pub fn tcNo(&self) -> DatabaseResult<String> {
+    pub fn tc_no(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "tr_TR" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Turkish identity locale",
             ));
         }
         let mut number = self.numerify(Some("#########"));
-        number.push_str(&Self::tcNoChecksum(&number)?);
+        number.push_str(&Self::tc_no_checksum(&number)?);
         Ok(number)
     }
 
-    pub fn tcNoChecksum(identityPrefix: &str) -> DatabaseResult<String> {
-        if identityPrefix.len() != 9 || !identityPrefix.bytes().all(|digit| digit.is_ascii_digit())
+    pub fn tc_no_checksum(identity_prefix: &str) -> DatabaseResult<String> {
+        if identity_prefix.len() != 9
+            || !identity_prefix.bytes().all(|digit| digit.is_ascii_digit())
         {
             return Err(DatabaseError::InvalidQuery(
                 "Faker Turkish identity prefix must contain nine ASCII digits",
             ));
         }
 
-        let odd = weighted_digits(identityPrefix, &[1, 0, 1, 0, 1, 0, 1, 0, 1]);
-        let even = weighted_digits(identityPrefix, &[0, 1, 0, 1, 0, 1, 0, 1, 0]);
+        let odd = weighted_digits(identity_prefix, &[1, 0, 1, 0, 1, 0, 1, 0, 1]);
+        let even = weighted_digits(identity_prefix, &[0, 1, 0, 1, 0, 1, 0, 1, 0]);
         // PHP preserves the sign of a negative remainder.
         let tenth = (7 * odd as i16 - even as i16) % 10;
         let eleventh = (odd as i16 + even as i16 + tenth) % 10;
         Ok(format!("{tenth}{eleventh}"))
     }
 
-    pub fn tcNoIsValid(tcNo: &str) -> DatabaseResult<bool> {
-        let split = tcNo
+    pub fn tc_no_is_valid(tc_no: &str) -> DatabaseResult<bool> {
+        let split = tc_no
             .len()
             .checked_sub(2)
-            .and_then(|offset| tcNo.split_at_checked(offset))
+            .and_then(|offset| tc_no.split_at_checked(offset))
             .ok_or(DatabaseError::InvalidQuery(
                 "Faker Turkish identity number has an invalid length",
             ))?;
-        Ok(Self::tcNoChecksum(split.0)? == split.1)
+        Ok(Self::tc_no_checksum(split.0)? == split.1)
     }
 
     /// Samples the Taiwanese eight-digit VAT identifier.
-    pub fn VAT(&self) -> DatabaseResult<i64> {
+    pub fn taiwan_vat(&self) -> DatabaseResult<i64> {
         if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Taiwanese VAT locale",
             ));
         }
-        self.randomNumber(Some(8), true)
+        self.random_number(Some(8), true)
     }
 
     /// Samples a Greek tax office.
@@ -750,7 +750,7 @@ impl Faker {
     }
 
     /// Samples a Kazakh business ID using the supplied civil registration date.
-    pub fn businessIdentificationNumber(
+    pub fn business_identification_number(
         &self,
         registration_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
@@ -761,9 +761,11 @@ impl Faker {
             Some(date) => date,
             None => {
                 let zone = self
-                    .getDefaultTimezone()
+                    .get_default_timezone()
                     .unwrap_or_else(|| self.application_timezone.clone());
-                self.dateTimeThisYear(None)?.to_zoned(zone.clone()).date()
+                self.date_time_this_year(None)?
+                    .to_zoned(zone.clone())
+                    .date()
             }
         };
         let legal_type = self.random.u8(4..=6);
@@ -776,7 +778,7 @@ impl Faker {
     }
 
     /// Samples a South African company registration number.
-    pub fn companyNumber(&self) -> DatabaseResult<String> {
+    pub fn company_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "en_ZA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company registration locale",
@@ -787,19 +789,19 @@ impl Faker {
             "21", "22", "23", "24", "25", "26", "30", "31", "80",
         ];
         let zone = self
-            .getDefaultTimezone()
+            .get_default_timezone()
             .unwrap_or_else(|| self.application_timezone.clone());
         let date = self
-            .dateTimeBetweenExpressions("-50 years", "now")?
+            .date_time_between_expressions("-50 years", "now")?
             .to_zoned(zone.clone());
         let year = date.strftime("%Y");
-        let number = self.randomNumber(Some(6), true)?;
+        let number = self.random_number(Some(6), true)?;
         let entity = ENTITIES[self.random.usize(..ENTITIES.len())];
         Ok(format!("{year}/{number}/{entity}"))
     }
 
     /// Samples a Saudi company identification number.
-    pub fn companyIdNumber(&self) -> DatabaseResult<String> {
+    pub fn company_id_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "ar_SA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Saudi company ID locale",
@@ -809,7 +811,7 @@ impl Faker {
     }
 
     /// Samples an Egyptian company tax identification number.
-    pub fn companyTaxIdNumber(&self) -> DatabaseResult<String> {
+    pub fn company_tax_id_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Egyptian company tax ID locale",
@@ -819,7 +821,7 @@ impl Faker {
     }
 
     /// Samples an Egyptian commercial registration number.
-    pub fn companyTradeRegisterNumber(&self) -> DatabaseResult<String> {
+    pub fn company_trade_register_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "ar_EG" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker Egyptian commercial registration locale",
@@ -908,7 +910,7 @@ impl Faker {
     }
 
     /// Samples a Polish local business register number with a valid REGON prefix.
-    pub fn regonLocal(&self) -> DatabaseResult<String> {
+    pub fn regon_local(&self) -> DatabaseResult<String> {
         let mut number = self.regon()?;
         number.push_str(&self.numerify(Some("####")));
         number.push(regon_check_digit(
@@ -962,7 +964,7 @@ impl Faker {
             area
         };
         let mut number = format!("{area:02}{:07}", self.random.u32(..10_000_000));
-        number.push_str(&Self::inn10Checksum(&number)?);
+        number.push_str(&Self::inn10_checksum(&number)?);
         Ok(number)
     }
 
@@ -990,7 +992,7 @@ impl Faker {
     }
 
     /// Calculates the check digit from the first nine digits.
-    pub fn inn10Checksum(inn: &str) -> DatabaseResult<String> {
+    pub fn inn10_checksum(inn: &str) -> DatabaseResult<String> {
         let prefix = inn
             .get(..9)
             .filter(|value| value.bytes().all(|digit| digit.is_ascii_digit()))
@@ -1001,9 +1003,9 @@ impl Faker {
     }
 
     /// Checks a ten-digit INN against its checksum.
-    pub fn inn10IsValid(inn: &str) -> bool {
+    pub fn inn10_is_valid(inn: &str) -> bool {
         inn.len() == 10
-            && Self::inn10Checksum(inn).is_ok_and(|check| inn.as_bytes()[9..] == *check.as_bytes())
+            && Self::inn10_checksum(inn).is_ok_and(|check| inn.as_bytes()[9..] == *check.as_bytes())
     }
 
     /// Samples a DNI for Spain or Peru.
@@ -1021,11 +1023,11 @@ impl Faker {
     }
 
     /// Samples the pinned Peruvian RUC format.
-    pub fn ruc(&self, isNaturalPerson: Option<bool>) -> DatabaseResult<String> {
+    pub fn ruc(&self, is_natural_person: Option<bool>) -> DatabaseResult<String> {
         if self.provider_locale() != "es_PE" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker RUC locale"));
         }
-        let mask = if isNaturalPerson.unwrap_or(false) {
+        let mask = if is_natural_person.unwrap_or(false) {
             "10#########"
         } else {
             "20#########"
@@ -1034,7 +1036,7 @@ impl Faker {
     }
 
     /// Samples a driving licence category for Spain or South Africa.
-    pub fn licenceCode(&self) -> DatabaseResult<&'static str> {
+    pub fn licence_code(&self) -> DatabaseResult<&'static str> {
         let codes: &[&str] = match self.provider_locale() {
             "es_ES" => &[
                 "AM", "A1", "A2", "A", "B", "B+E", "C1", "C1+E", "C", "C+E", "D1", "D1+E", "D",
@@ -1139,7 +1141,7 @@ impl Faker {
     }
 
     /// Calculates the Portuguese Person provider's modulo-11 check digit.
-    pub fn dvCalcMod11(number: &str) -> DatabaseResult<u8> {
+    pub fn dv_calc_mod11(number: &str) -> DatabaseResult<u8> {
         let mut remainder = 0;
         for (digit, weight) in number.bytes().rev().zip((2..=9).cycle()) {
             if !digit.is_ascii_digit() {
@@ -1153,9 +1155,9 @@ impl Faker {
     }
 
     /// Samples a Portuguese NIF, Polish NIP, or Venezuelan RIF.
-    pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
+    pub fn taxpayer_identification_number(&self) -> DatabaseResult<String> {
         if self.provider_locale() == "es_VE" {
-            return self.taxpayerIdentificationNumberWithSeparator(None);
+            return self.taxpayer_identification_number_with_separator(None);
         }
         if self.provider_locale() == "pt_PT" {
             const MASKS: &[&str] = &[
@@ -1165,7 +1167,7 @@ impl Faker {
             ];
             let mask = MASKS[self.random.usize(..MASKS.len())];
             let mut number = self.numerify(Some(mask));
-            let digit = Self::dvCalcMod11(&number)?;
+            let digit = Self::dv_calc_mod11(&number)?;
             number.push(char::from(b'0' + digit));
             return Ok(number);
         }
@@ -1184,7 +1186,7 @@ impl Faker {
     }
 
     /// Samples a Venezuelan RIF with a separator on either side of the eight-digit body.
-    pub fn taxpayerIdentificationNumberWithSeparator(
+    pub fn taxpayer_identification_number_with_separator(
         &self,
         separator: Option<&str>,
     ) -> DatabaseResult<String> {
@@ -1194,23 +1196,23 @@ impl Faker {
             ));
         }
         let separator = separator.unwrap_or_default();
-        let prefix = char::from(*self.randomElement(b"JGVEPC").unwrap());
+        let prefix = char::from(*self.random_element(b"JGVEPC").unwrap());
         let body = self.numerify(Some("########"));
-        let last_digit = self.randomDigit();
+        let last_digit = self.random_digit();
         Ok(format!("{prefix}{separator}{body}{separator}{last_digit}"))
     }
 
     /// Samples the selected Person provider's personal identity number.
-    pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
+    pub fn personal_identity_number(&self, gender: Option<&str>) -> DatabaseResult<String> {
         match self.provider_locale() {
             "zh_TW" => Ok(self.taiwanese_identity(gender)),
             "pl_PL" => Ok(polish_identity(&self.random)),
-            _ => self.personalIdentityNumberWithBirthdate(None, gender),
+            _ => self.personal_identity_number_with_birthdate(None, gender),
         }
     }
 
     /// Samples a European personal identity number using a civil birth date.
-    pub fn personalIdentityNumberWithBirthdate(
+    pub fn personal_identity_number_with_birthdate(
         &self,
         birthdate: Option<CivilDate>,
         gender: Option<&str>,
@@ -1235,7 +1237,7 @@ impl Faker {
     }
 
     /// Supplies the optional Lithuanian serial while preserving leading zeroes.
-    pub fn personalIdentityNumberWithSerial(
+    pub fn personal_identity_number_with_serial(
         &self,
         birthdate: Option<CivilDate>,
         gender: Option<&str>,
@@ -1254,7 +1256,7 @@ impl Faker {
     }
 
     fn taiwanese_identity(&self, gender: Option<&str>) -> String {
-        let &(birthplace, code) = self.randomElement(TAIWAN_BIRTHPLACES).unwrap();
+        let &(birthplace, code) = self.random_element(TAIWAN_BIRTHPLACES).unwrap();
         let gender = match gender.filter(|value| !value.is_empty()) {
             Some("male") => 1,
             Some(_) => 2,
@@ -1272,14 +1274,13 @@ impl Faker {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
     pub fn ssn(&self) -> DatabaseResult<String> {
         self.try_generate("ssn", || self.0.ssn())
     }
 
-    pub fn ssnWithBirthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
-        self.try_generate("ssn", || self.0.ssnWithBirthdate(birthdate))
+    pub fn ssn_with_birthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
+        self.try_generate("ssn", || self.0.ssn_with_birthdate(birthdate))
     }
 
     pub fn nino(&self) -> DatabaseResult<String> {
@@ -1290,24 +1291,25 @@ impl UniqueFaker<'_> {
         self.try_generate("cpr", || self.0.cpr())
     }
 
-    pub fn birthNumber(
+    pub fn birth_number(
         &self,
         gender: Option<&str>,
-        minAge: u32,
-        maxAge: u32,
-        slashProbability: i64,
+        min_age: u32,
+        max_age: u32,
+        slash_probability: i64,
     ) -> DatabaseResult<String> {
         self.try_generate("birthNumber", || {
-            self.0.birthNumber(gender, minAge, maxAge, slashProbability)
+            self.0
+                .birth_number(gender, min_age, max_age, slash_probability)
         })
     }
 
-    pub fn birthNumberMale(&self) -> DatabaseResult<String> {
-        self.try_generate("birthNumberMale", || self.0.birthNumberMale())
+    pub fn birth_number_male(&self) -> DatabaseResult<String> {
+        self.try_generate("birthNumberMale", || self.0.birth_number_male())
     }
 
-    pub fn birthNumberFemale(&self) -> DatabaseResult<String> {
-        self.try_generate("birthNumberFemale", || self.0.birthNumberFemale())
+    pub fn birth_number_female(&self) -> DatabaseResult<String> {
+        self.try_generate("birthNumberFemale", || self.0.birth_number_female())
     }
 
     pub fn ahv13(&self) -> DatabaseResult<String> {
@@ -1318,103 +1320,103 @@ impl UniqueFaker<'_> {
         self.try_generate("avs13", || self.0.avs13())
     }
 
-    pub fn individualIdentificationNumber(
+    pub fn individual_identification_number(
         &self,
-        birthDate: Option<CivilDate>,
+        birth_date: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         self.try_generate("individualIdentificationNumber", || {
-            self.0.individualIdentificationNumber(birthDate, gender)
+            self.0.individual_identification_number(birth_date, gender)
         })
     }
 
-    pub fn nationalId(&self, separator: Option<&str>) -> DatabaseResult<String> {
-        self.try_generate("nationalId", || self.0.nationalId(separator))
+    pub fn national_id(&self, separator: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("nationalId", || self.0.national_id(separator))
     }
 
-    pub fn nationalCode(&self) -> DatabaseResult<String> {
-        self.try_generate("nationalCode", || self.0.nationalCode())
+    pub fn national_code(&self) -> DatabaseResult<String> {
+        self.try_generate("nationalCode", || self.0.national_code())
     }
 
     pub fn nik(
         &self,
         gender: Option<&str>,
-        birthDate: Option<CivilDate>,
+        birth_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
-        self.try_generate("nik", || self.0.nik(gender, birthDate))
+        self.try_generate("nik", || self.0.nik(gender, birth_date))
     }
 
     pub fn nir(&self, gender: Option<&str>, formatted: bool) -> DatabaseResult<String> {
         self.try_generate("nir", || self.0.nir(gender, formatted))
     }
 
-    pub fn taxId(&self) -> DatabaseResult<String> {
-        self.try_generate("taxId", || self.0.taxId())
+    pub fn tax_id(&self) -> DatabaseResult<String> {
+        self.try_generate("taxId", || self.0.tax_id())
     }
 
     pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {
         self.try_generate("rrn", || self.0.rrn(gender))
     }
 
-    pub fn nric(&self, birthDate: Option<CivilDate>) -> DatabaseResult<String> {
-        self.try_generate("nric", || self.0.nric(birthDate))
+    pub fn nric(&self, birth_date: Option<CivilDate>) -> DatabaseResult<String> {
+        self.try_generate("nric", || self.0.nric(birth_date))
     }
 
-    pub fn fin(&self, issueDate: Option<CivilDate>) -> DatabaseResult<String> {
-        self.try_generate("fin", || self.0.fin(issueDate))
+    pub fn fin(&self, issue_date: Option<CivilDate>) -> DatabaseResult<String> {
+        self.try_generate("fin", || self.0.fin(issue_date))
     }
 
-    pub fn singaporeId(
+    pub fn singapore_id(
         &self,
-        issueDate: Option<CivilDate>,
+        issue_date: Option<CivilDate>,
         foreigner: bool,
     ) -> DatabaseResult<String> {
-        self.try_generate("singaporeId", || self.0.singaporeId(issueDate, foreigner))
+        self.try_generate("singaporeId", || self.0.singapore_id(issue_date, foreigner))
     }
 
-    pub fn idNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("idNumber", || self.0.idNumber())
+    pub fn id_number(&self) -> DatabaseResult<String> {
+        self.try_generate("idNumber", || self.0.id_number())
     }
 
-    pub fn idNumberWithBirthdate(
+    pub fn id_number_with_birthdate(
         &self,
         birthdate: Option<CivilDate>,
         citizen: Option<bool>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         self.try_generate("idNumber", || {
-            self.0.idNumberWithBirthdate(birthdate, citizen, gender)
+            self.0.id_number_with_birthdate(birthdate, citizen, gender)
         })
     }
 
-    pub fn nationalIdNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("nationalIdNumber", || self.0.nationalIdNumber())
+    pub fn national_id_number(&self) -> DatabaseResult<String> {
+        self.try_generate("nationalIdNumber", || self.0.national_id_number())
     }
 
-    pub fn nationalIdNumberWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+    pub fn national_id_number_with_gender(&self, gender: Option<&str>) -> DatabaseResult<String> {
         self.try_generate("nationalIdNumber", || {
-            self.0.nationalIdNumberWithGender(gender)
+            self.0.national_id_number_with_gender(gender)
         })
     }
 
-    pub fn foreignerIdNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("foreignerIdNumber", || self.0.foreignerIdNumber())
+    pub fn foreigner_id_number(&self) -> DatabaseResult<String> {
+        self.try_generate("foreignerIdNumber", || self.0.foreigner_id_number())
     }
 
-    pub fn namePrefix(&self) -> DatabaseResult<char> {
-        self.try_generate("namePrefix", || self.0.namePrefix())
+    pub fn name_prefix(&self) -> DatabaseResult<char> {
+        self.try_generate("namePrefix", || self.0.name_prefix())
     }
 
     pub fn alphabet(&self) -> DatabaseResult<char> {
         self.try_generate("alphabet", || self.0.alphabet())
     }
 
-    pub fn governorateId(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("governorateId", || self.0.governorateId())
+    pub fn governorate_id(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("governorateId", || self.0.governorate_id())
     }
 
-    pub fn VAT(&self) -> DatabaseResult<i64> {
-        self.try_generate("VAT", || self.0.VAT())
+    pub fn taiwan_vat(&self) -> DatabaseResult<i64> {
+        self.try_generate("VAT", || self.0.taiwan_vat())
     }
 
     pub fn doy(&self) -> DatabaseResult<&'static str> {
@@ -1425,30 +1427,30 @@ impl UniqueFaker<'_> {
         self.try_generate("object", || self.0.object())
     }
 
-    pub fn businessIdentificationNumber(
+    pub fn business_identification_number(
         &self,
         registration_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
         self.try_generate("businessIdentificationNumber", || {
-            self.0.businessIdentificationNumber(registration_date)
+            self.0.business_identification_number(registration_date)
         })
     }
 
-    pub fn companyNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("companyNumber", || self.0.companyNumber())
+    pub fn company_number(&self) -> DatabaseResult<String> {
+        self.try_generate("companyNumber", || self.0.company_number())
     }
 
-    pub fn companyIdNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("companyIdNumber", || self.0.companyIdNumber())
+    pub fn company_id_number(&self) -> DatabaseResult<String> {
+        self.try_generate("companyIdNumber", || self.0.company_id_number())
     }
 
-    pub fn companyTaxIdNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("companyTaxIdNumber", || self.0.companyTaxIdNumber())
+    pub fn company_tax_id_number(&self) -> DatabaseResult<String> {
+        self.try_generate("companyTaxIdNumber", || self.0.company_tax_id_number())
     }
 
-    pub fn companyTradeRegisterNumber(&self) -> DatabaseResult<String> {
+    pub fn company_trade_register_number(&self) -> DatabaseResult<String> {
         self.try_generate("companyTradeRegisterNumber", || {
-            self.0.companyTradeRegisterNumber()
+            self.0.company_trade_register_number()
         })
     }
 
@@ -1476,8 +1478,8 @@ impl UniqueFaker<'_> {
         self.try_generate("regon", || self.0.regon())
     }
 
-    pub fn regonLocal(&self) -> DatabaseResult<String> {
-        self.try_generate("regonLocal", || self.0.regonLocal())
+    pub fn regon_local(&self) -> DatabaseResult<String> {
+        self.try_generate("regonLocal", || self.0.regon_local())
     }
 
     pub fn ein(&self) -> DatabaseResult<String> {
@@ -1496,28 +1498,28 @@ impl UniqueFaker<'_> {
         self.try_generate("kpp", || self.0.kpp(inn))
     }
 
-    pub fn driverLicence(&self) -> DatabaseResult<String> {
-        self.try_generate("driverLicence", || self.0.driverLicence())
+    pub fn driver_licence(&self) -> DatabaseResult<String> {
+        self.try_generate("driverLicence", || self.0.driver_licence())
     }
 
-    pub fn passportNumber(&self) -> DatabaseResult<String> {
-        self.try_generate("passportNumber", || self.0.passportNumber())
+    pub fn passport_number(&self) -> DatabaseResult<String> {
+        self.try_generate("passportNumber", || self.0.passport_number())
     }
 
-    pub fn tcNo(&self) -> DatabaseResult<String> {
-        self.try_generate("tcNo", || self.0.tcNo())
+    pub fn tc_no(&self) -> DatabaseResult<String> {
+        self.try_generate("tcNo", || self.0.tc_no())
     }
 
     pub fn dni(&self) -> DatabaseResult<String> {
         self.try_generate("dni", || self.0.dni())
     }
 
-    pub fn ruc(&self, isNaturalPerson: Option<bool>) -> DatabaseResult<String> {
-        self.try_generate("ruc", || self.0.ruc(isNaturalPerson))
+    pub fn ruc(&self, is_natural_person: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("ruc", || self.0.ruc(is_natural_person))
     }
 
-    pub fn licenceCode(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("licenceCode", || self.0.licenceCode())
+    pub fn licence_code(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("licenceCode", || self.0.licence_code())
     }
 
     pub fn cpf(&self, formatted: Option<bool>) -> DatabaseResult<String> {
@@ -1536,38 +1538,39 @@ impl UniqueFaker<'_> {
         self.try_generate("pesel", || self.0.pesel(birthdate, sex))
     }
 
-    pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
+    pub fn taxpayer_identification_number(&self) -> DatabaseResult<String> {
         self.try_generate("taxpayerIdentificationNumber", || {
-            self.0.taxpayerIdentificationNumber()
+            self.0.taxpayer_identification_number()
         })
     }
 
-    pub fn taxpayerIdentificationNumberWithSeparator(
+    pub fn taxpayer_identification_number_with_separator(
         &self,
         separator: Option<&str>,
     ) -> DatabaseResult<String> {
         self.try_generate("taxpayerIdentificationNumber", || {
-            self.0.taxpayerIdentificationNumberWithSeparator(separator)
+            self.0
+                .taxpayer_identification_number_with_separator(separator)
         })
     }
 
-    pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
+    pub fn personal_identity_number(&self, gender: Option<&str>) -> DatabaseResult<String> {
         self.try_generate("personalIdentityNumber", || {
-            self.0.personalIdentityNumber(gender)
+            self.0.personal_identity_number(gender)
         })
     }
-    pub fn personalIdentityNumberWithBirthdate(
+    pub fn personal_identity_number_with_birthdate(
         &self,
         birthdate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         self.try_generate("personalIdentityNumber", || {
             self.0
-                .personalIdentityNumberWithBirthdate(birthdate, gender)
+                .personal_identity_number_with_birthdate(birthdate, gender)
         })
     }
 
-    pub fn personalIdentityNumberWithSerial(
+    pub fn personal_identity_number_with_serial(
         &self,
         birthdate: Option<CivilDate>,
         gender: Option<&str>,
@@ -1575,7 +1578,7 @@ impl UniqueFaker<'_> {
     ) -> DatabaseResult<String> {
         self.try_generate("personalIdentityNumber", || {
             self.0
-                .personalIdentityNumberWithSerial(birthdate, gender, serial)
+                .personal_identity_number_with_serial(birthdate, gender, serial)
         })
     }
 }

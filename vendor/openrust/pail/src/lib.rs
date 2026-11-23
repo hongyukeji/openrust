@@ -70,7 +70,7 @@ impl ServiceProvider for PailServiceProvider {
             let owner = Arc::downgrade(&container);
             let logging_owner = owner.clone();
             let request_owner = owner.clone();
-            app.make::<LogManager>().await?.listenForRequest(
+            app.make::<LogManager>().await?.listen_for_request(
                 move |event| {
                     let container = logging_owner
                         .upgrade()
@@ -85,7 +85,7 @@ impl ServiceProvider for PailServiceProvider {
                             .ok_or(LogError::Unavailable(BindingResolutionError::ScopeClosed))?;
                         container
                             .make::<Handler>()?
-                            .logWithRequest(event, request)
+                            .log_with_request(event, request)
                             .await
                     })
                 }),

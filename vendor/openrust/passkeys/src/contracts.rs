@@ -16,22 +16,22 @@ pub trait PasskeyUser: Authenticatable + Model {
         async move { self.passkeys().exists(self).await }
     }
     fn getPasskeyUserHandle(&self, secret: &str) -> PasskeyResult<String> {
-        let key = self.getKey().ok_or(crate::PasskeyError::Format)?;
+        let key = self.get_key().ok_or(crate::PasskeyError::Format)?;
         let text = scalar(key).ok_or(crate::PasskeyError::Format)?;
         let key = aws_lc_rs::hmac::Key::new(aws_lc_rs::hmac::HMAC_SHA256, secret.as_bytes());
-        let digest = aws_lc_rs::hmac::sign(&key, format!("{}|{text}", self.getTable()).as_bytes());
+        let digest = aws_lc_rs::hmac::sign(&key, format!("{}|{text}", self.get_table()).as_bytes());
         Ok(digest.as_ref().iter().map(|b| format!("{b:02x}")).collect())
     }
     fn getPasskeyDisplayName(&self) -> PasskeyResult<String> {
         for name in ["name", "email"] {
-            if let Some(value) = self.getAttribute(name).filter(|v| **v != Value::Null) {
+            if let Some(value) = self.get_attribute(name).filter(|v| **v != Value::Null) {
                 return scalar(value).ok_or(crate::PasskeyError::Format);
             }
         }
         Ok(self.get_auth_identifier().to_string())
     }
     fn getPasskeyUsername(&self) -> PasskeyResult<String> {
-        if let Some(value) = self.getAttribute("email").filter(|v| **v != Value::Null) {
+        if let Some(value) = self.get_attribute("email").filter(|v| **v != Value::Null) {
             return scalar(value).ok_or(crate::PasskeyError::Format);
         }
         Ok(self.get_auth_identifier().to_string())

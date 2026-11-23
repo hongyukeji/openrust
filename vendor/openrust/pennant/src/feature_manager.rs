@@ -69,7 +69,7 @@ impl FeatureManager {
             .and_then(|value| value.as_str().map(str::to_owned))
             .ok_or(Error::InvalidConfiguration)
     }
-    pub fn setDefaultDriver(&self, name: &str) -> Result<()> {
+    pub fn set_default_driver(&self, name: &str) -> Result<()> {
         *self
             .registry
             .defaultDriver
@@ -183,7 +183,7 @@ impl FeatureManager {
             .insert(driver.into(), Arc::new(creator));
         Ok(())
     }
-    pub fn forgetDriver(&self, name: Option<&str>) -> Result<()> {
+    pub fn forget_driver(&self, name: Option<&str>) -> Result<()> {
         let name = name
             .map(str::to_owned)
             .map(Ok)
@@ -205,7 +205,7 @@ impl FeatureManager {
             .remove(&name);
         Ok(())
     }
-    pub fn forgetDrivers(&self) -> Result<()> {
+    pub fn forget_drivers(&self) -> Result<()> {
         self.stores
             .0
             .write()
@@ -298,7 +298,7 @@ impl FeatureManager {
         if !custom {
             self.auth.user(request).await.map_err(Error::Auth)?;
         }
-        Ok(store.r#for(self.defaultScope(store.storeName())?))
+        Ok(store.r#for(self.defaultScope(store.store_name())?))
     }
     pub fn r#for(&self, scope: impl Into<Scope>) -> Result<PendingScopedFeatureInteraction> {
         Ok(self.store(None)?.r#for(scope))
@@ -308,7 +308,7 @@ impl FeatureManager {
     }
     pub fn interaction(&self) -> Result<PendingScopedFeatureInteraction> {
         let store = self.store(None)?;
-        let scope = self.defaultScope(store.storeName())?;
+        let scope = self.defaultScope(store.store_name())?;
         Ok(store.r#for(scope))
     }
 }

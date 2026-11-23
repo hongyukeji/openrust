@@ -289,7 +289,7 @@ impl openrust::contracts::auth::Authenticatable for Actor {
     }
     fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         use openrust::database::eloquent::Model;
-        openrust::auth::AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
+        openrust::auth::AuthIdentifier::try_from(self.get_key().unwrap()).unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
@@ -312,15 +312,15 @@ fn authenticated_activity(
         use openrust::{
             contracts::auth::Factory as _,
             database::eloquent::Model,
-            support::facades::{Auth, DB},
+            support::facades::{Auth, Db},
         };
         let auth = Auth::manager().unwrap();
         if !request.path().ends_with("guest") {
-            let connection = DB::connection(None).unwrap();
+            let connection = Db::connection(None).unwrap();
             for (guard, id) in [("first", 1_i64), ("second", 2_i64)] {
-                let mut actor = Actor::newInstanceOn(&connection, Default::default()).unwrap();
-                actor.setAttribute("id", id);
-                actor.setAttribute("name", format!("Actor {id}"));
+                let mut actor = Actor::new_instance_on(&connection, Default::default()).unwrap();
+                actor.set_attribute("id", id);
+                actor.set_attribute("name", format!("Actor {id}"));
                 auth.guard(request, Some(guard))
                     .unwrap()
                     .set_user(Box::new(actor));
@@ -372,7 +372,8 @@ async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolat
     auth.via_request("cached", |_| {
         panic!("already resolved identity must not perform another lookup")
     });
-    MorphMap::enforceMorphMap(app.app(), [MorphMapEntry::model::<Actor>("staff")], false).unwrap();
+    MorphMap::enforce_morph_map(app.app(), [MorphMapEntry::model::<Actor>("staff")], false)
+        .unwrap();
     let repository = app.app().make::<ActivityRepository>().await.unwrap();
     for path in [
         "/api/identity",
@@ -400,7 +401,7 @@ async fn default_auth_causer_uses_configured_guard_real_morph_and_request_isolat
         .connection(None)
         .unwrap();
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("actors", |table| {
             table.id();
             table.string("name", 255);
@@ -535,12 +536,13 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
         .unwrap();
     let connection = manager.connection(None).unwrap();
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .rename("activity_log", "custom_activity_log")
         .await
         .unwrap();
     use openrust::database::eloquent::{Model as _, concerns::ModelEvent};
-    CustomActivity::registerModelEvent(app.app(), ModelEvent::Creating, CustomizeActivity).unwrap();
+    CustomActivity::register_model_event(app.app(), ModelEvent::Creating, CustomizeActivity)
+        .unwrap();
     let config = app.app().config().unwrap();
     config
         .set("activitylog.activity_model", json!("application.activity"))
@@ -603,8 +605,8 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
     assert_eq!(repository.query().get().await.unwrap().len(), 1);
     assert!(
         !connection
-            .getSchemaBuilder()
-            .hasTable("activity_log")
+            .get_schema_builder()
+            .has_table("activity_log")
             .await
             .unwrap()
     );
@@ -629,7 +631,7 @@ impl openrust::database::eloquent::concerns::ModelEventListener<CustomActivity>
         Box::pin(async move {
             let description = model
                 .state()
-                .getAttributes()
+                .get_attributes()
                 .get("description")
                 .and_then(|value| match value {
                     openrust::database::Value::Text(text) => Some(text.as_str()),
@@ -637,7 +639,7 @@ impl openrust::database::eloquent::concerns::ModelEventListener<CustomActivity>
                 })
                 .unwrap()
                 .to_owned();
-            model.setAttribute("description", format!("{description} from model"));
+            model.set_attribute("description", format!("{description} from model"));
             Ok(openrust::database::eloquent::concerns::ModelEventResponse::Continue)
         })
     }

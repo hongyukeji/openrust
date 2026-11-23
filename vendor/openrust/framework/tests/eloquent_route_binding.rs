@@ -19,7 +19,7 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
     routing::{BindingContext, RouteParameter, RoutingError, SignatureMode, UrlError},
-    support::facades::{Route, URL},
+    support::facades::{Route, Url},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -34,12 +34,12 @@ impl<const ULID: bool> Model for Ticket<ULID> {
     fn metadata() -> &'static ModelMetadata {
         static UUID: ModelMetadata = ModelMetadata::new("route_tickets")
             .timestamps(None, None)
-            .uniqueId(UniqueId::Uuid)
-            .uniqueIds(&["id", "reference"]);
+            .unique_id(UniqueId::Uuid)
+            .unique_ids(&["id", "reference"]);
         static ULID_META: ModelMetadata = ModelMetadata::new("route_tickets")
             .timestamps(None, None)
-            .uniqueId(UniqueId::Ulid)
-            .uniqueIds(&["id", "reference"]);
+            .unique_id(UniqueId::Ulid)
+            .unique_ids(&["id", "reference"]);
         if ULID { &ULID_META } else { &UUID }
     }
 
@@ -55,27 +55,27 @@ impl<const ULID: bool> Model for Ticket<ULID> {
 }
 
 async fn create_ticket<const ULID: bool>(db: &openrust::database::Connection) -> (String, String) {
-    let mut ticket = Ticket::<ULID>::newInstanceOn(db, Default::default()).unwrap();
-    ticket.setAttribute("id", "0");
+    let mut ticket = Ticket::<ULID>::new_instance_on(db, Default::default()).unwrap();
+    ticket.set_attribute("id", "0");
     let supplied = if ULID {
         "01arz3ndektsv4rrffq69g5fav"
     } else {
         "00000000-0000-4000-8000-000000000042"
     };
-    ticket.setAttribute("reference", supplied);
+    ticket.set_attribute("reference", supplied);
     assert!(ticket.save().await.unwrap());
-    assert_eq!(ticket.getAttribute("reference"), Some(&supplied.into()));
+    assert_eq!(ticket.get_attribute("reference"), Some(&supplied.into()));
 
     let mut replica = ticket.replicate(&[]).await.unwrap();
-    assert!(replica.getKey().is_none());
-    assert!(replica.getAttribute("reference").is_none());
+    assert!(replica.get_key().is_none());
+    assert!(replica.get_attribute("reference").is_none());
     assert!(replica.save().await.unwrap());
     let (Some(DbValue::Text(id)), Some(DbValue::Text(reference))) =
-        (replica.getKey(), replica.getAttribute("reference"))
+        (replica.get_key(), replica.get_attribute("reference"))
     else {
         panic!("replica must generate both identifiers");
     };
-    assert_ne!(replica.getKey(), ticket.getKey());
+    assert_ne!(replica.get_key(), ticket.get_key());
     assert_ne!(id, reference);
     for value in [id, reference] {
         if ULID {
@@ -114,7 +114,7 @@ impl Model for Post {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("route_posts")
             .timestamps(None, None)
-            .softDeletes("deleted_at");
+            .soft_deletes("deleted_at");
         &META
     }
 
@@ -149,11 +149,11 @@ impl Model for Post {
         &[("padded", AttributeCast::Integer)]
     }
 
-    fn getRouteKeyName() -> &'static str {
+    fn get_route_key_name() -> &'static str {
         "slug"
     }
 
-    fn resolveChildRouteBinding(
+    fn resolve_child_route_binding(
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
         Box::pin(async move {
@@ -161,7 +161,7 @@ impl Model for Post {
                 return Ok(None);
             };
             HasMany::<Account, Post>::new("id", "account_id")
-                .resolveRouteBinding(account, binding)
+                .resolve_route_binding(account, binding)
                 .await
         })
     }
@@ -190,33 +190,33 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .route_model::<Post>("post")
             .or_else(|| request.route_model::<Post>("explicit"))
             .ok_or(HttpError::NotFound)?;
-        let Some(DbValue::Text(slug)) = post.getAttribute("slug") else {
+        let Some(DbValue::Text(slug)) = post.get_attribute("slug") else {
             return Err(HttpError::InvalidRequest);
         };
         let named = RouteParameter::model("post", post)?;
         let positional = RouteParameter::positional_model(post)?;
         assert!(matches!(
-            URL::route("missing-column", std::slice::from_ref(&named), false),
+            Url::route("missing-column", std::slice::from_ref(&named), false),
             Err(UrlError::MissingParameter)
         ));
         assert!(matches!(
-            URL::route("broken-column", std::slice::from_ref(&named), false),
+            Url::route("broken-column", std::slice::from_ref(&named), false),
             Err(UrlError::ModelAttribute(DatabaseError::InvalidScalar))
         ));
         Response::json(
             StatusCode::OK,
             json!({
                 "slug": slug,
-                "by_id": URL::route("post-id", std::slice::from_ref(&named), false)?,
-                "named_accessor": URL::route("post-accessor", std::slice::from_ref(&named), false)?,
-                "position_accessor": URL::route("post-accessor", std::slice::from_ref(&positional), false)?,
-                "by_cast": URL::route("post-cast", std::slice::from_ref(&named), false)?,
-                "signed_accessor": URL::signed_route(
+                "by_id": Url::route("post-id", std::slice::from_ref(&named), false)?,
+                "named_accessor": Url::route("post-accessor", std::slice::from_ref(&named), false)?,
+                "position_accessor": Url::route("post-accessor", std::slice::from_ref(&positional), false)?,
+                "by_cast": Url::route("post-cast", std::slice::from_ref(&named), false)?,
+                "signed_accessor": Url::signed_route(
                     "post-accessor-signed", std::slice::from_ref(&named), None, SignatureMode::Relative
                 )?,
-                "signed": URL::signed_route("post-signed", &[named], None, SignatureMode::Relative)?,
-                "by_slug": URL::route("post-slug", std::slice::from_ref(&positional), false)?,
-                "action": URL::action("PostController@byId", &[positional], false)?,
+                "signed": Url::signed_route("post-signed", &[named], None, SignatureMode::Relative)?,
+                "by_slug": Url::route("post-slug", std::slice::from_ref(&positional), false)?,
+                "action": Url::action("PostController@byId", &[positional], false)?,
             }),
         )
     })
@@ -231,43 +231,43 @@ fn custom_missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 
 fn api() -> Result<(), RoutingError> {
-    Route::getWith("/uuid/{ticket}", empty, |route| {
+    Route::get_with("/uuid/{ticket}", empty, |route| {
         route.model::<Ticket<false>>("ticket")?;
         Ok(())
     })?;
-    Route::getWith("/ulid/{ticket:reference}", empty, |route| {
+    Route::get_with("/ulid/{ticket:reference}", empty, |route| {
         route.model::<Ticket<true>>("ticket")?;
         Ok(())
     })?;
-    Route::getWith("/accounts/{account}/posts/{post:slug}", lookup, |route| {
+    Route::get_with("/accounts/{account}/posts/{post:slug}", lookup, |route| {
         route
             .model::<Account>("account")?
             .model::<Post>("post")?
             .middleware(Arc::new(RequiresBoundPost));
         Ok(())
     })?;
-    Route::getWith("/unscoped/{account}/{post:slug}", lookup, |route| {
+    Route::get_with("/unscoped/{account}/{post:slug}", lookup, |route| {
         route
             .model::<Account>("account")?
             .model::<Post>("post")?
             .without_scoped_bindings();
         Ok(())
     })?;
-    Route::getWith("/scoped/{account}/{post}", lookup, |route| {
+    Route::get_with("/scoped/{account}/{post}", lookup, |route| {
         route
             .model::<Account>("account")?
             .model::<Post>("post")?
             .scope_bindings();
         Ok(())
     })?;
-    Route::getWith("/id/{post:id}", lookup, |route| {
+    Route::get_with("/id/{post:id}", lookup, |route| {
         route
             .model::<Post>("post")?
             .name("post-id")
             .set_action("PostController@byId")?;
         Ok(())
     })?;
-    Route::getWith("/signed/{post:id}", lookup, |route| {
+    Route::get_with("/signed/{post:id}", lookup, |route| {
         route
             .model::<Post>("post")?
             .name("post-signed")
@@ -279,26 +279,26 @@ fn api() -> Result<(), RoutingError> {
         ("/cast/{post:padded}", "post-cast"),
         ("/broken/{post:broken_slug}", "broken-column"),
     ] {
-        Route::getWith(path, empty, |route| {
+        Route::get_with(path, empty, |route| {
             route.name(name);
             Ok(())
         })?;
     }
-    Route::getWith("/signed-accessor/{post:public_slug}", empty, |route| {
+    Route::get_with("/signed-accessor/{post:public_slug}", empty, |route| {
         route
             .name("post-accessor-signed")
             .middleware_name("signed:relative");
         Ok(())
     })?;
-    Route::getWith("/missing-column/{post:unknown}", lookup, |route| {
+    Route::get_with("/missing-column/{post:unknown}", lookup, |route| {
         route.name("missing-column");
         Ok(())
     })?;
-    Route::getWith("/trashed/{post}", lookup, |route| {
+    Route::get_with("/trashed/{post}", lookup, |route| {
         route.model::<Post>("post")?.with_trashed();
         Ok(())
     })?;
-    Route::getWith("/missing/{post}", lookup, |route| {
+    Route::get_with("/missing/{post}", lookup, |route| {
         route.model::<Post>("post")?.missing(custom_missing);
         Ok(())
     })
@@ -309,7 +309,7 @@ fn web() -> Result<(), RoutingError> {
     Route::bind("alias", |binding| {
         Box::pin(async move { Ok(Some(binding.value().to_uppercase())) })
     })?;
-    Route::getWith("/posts/{explicit}", lookup, |route| {
+    Route::get_with("/posts/{explicit}", lookup, |route| {
         route.name("post-slug");
         Ok(())
     })?;

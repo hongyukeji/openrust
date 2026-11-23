@@ -68,9 +68,9 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 ### 队列模型关系 {#queued-model-relationships}
 
-单个模型用 `ModelIdentifier::capture`，集合用 `ModelCollectionIdentifier::capture`。在任务的 Serde 字段中声明模型类型，将标识写入 `Payload`。JSON 保存带类型的键、数据库连接名和已加载的关系路径。在已注册的处理器中调用 `restore`。模型查询走写连接、跳过全局作用域，然后补加载已登记的关系。用 `Model::namedRelations` 登记这些路径。派发前的关系查询约束不会保留。
+单个模型用 `ModelIdentifier::capture`，集合用 `ModelCollectionIdentifier::capture`。在任务的 Serde 字段中声明模型类型，将标识写入 `Payload`。JSON 保存带类型的键、数据库连接名和已加载的关系路径。在已注册的处理器中调用 `restore`。模型查询走写连接、跳过全局作用域，然后补加载已登记的关系。用 `Model::named_relations` 登记这些路径。派发前的关系查询约束不会保留。
 
-用 `withoutRelations` 省略已捕获的关系路径，模型的默认关系仍会加载。单个模型缺失时返回 `DatabaseError::ModelNotFound`，由处理器决定如何处理。集合跳过缺失行，保留载荷中的顺序和重复键。
+用 `without_relations` 省略已捕获的关系路径，模型的默认关系仍会加载。单个模型缺失时返回 `DatabaseError::ModelNotFound`，由处理器决定如何处理。集合跳过缺失行，保留载荷中的顺序和重复键。
 
 模型类型由编译时的处理器确定。队列继续使用现有 JSON 格式，由 Rust 类型解析模型。
 
@@ -100,7 +100,7 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 
 #### 模型缺失 {#ignoring-missing-models}
 
-任务依赖某个模型时，调用 `ModelIdentifier::restoreForJob().await?`。模型缺失时默认立即将任务标记为失败。派发时调用 `Payload::deleteWhenMissingModels()` 可静默确认该任务。两种情况都会释放唯一任务锁。静默确认会将该成员记为批次成功，并停止其任务链。其他数据库错误沿用原有处理。
+任务依赖某个模型时，调用 `ModelIdentifier::restore_for_job().await?`。模型缺失时默认立即将任务标记为失败。派发时调用 `Payload::deleteWhenMissingModels()` 可静默确认该任务。两种情况都会释放唯一任务锁。静默确认会将该成员记为批次成功，并停止其任务链。其他数据库错误沿用原有处理。
 
 ```rust
 use openrust::{
@@ -115,13 +115,13 @@ pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
 pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
     let id: ModelIdentifier<M> = serde_json::from_value(payload.data().clone())
         .map_err(|_| QueueError::InvalidPayload)?;
-    id.restoreForJob().await
+    id.restore_for_job().await
 }
 ```
 
 #### 自定义 Pivot 模型 {#queued-custom-pivots}
 
-在自定义模型的 `Model::queueablePivots` 方法登记可恢复的关系。对每个生成该模型的关系返回 `relation.queueablePivot()`，沿用同一套中间表、键和时间戳配置。捕获和恢复仍使用模型标识接口。有主键时保存主键，否则保存两端键，多态 Pivot 还保存类型鉴别值。Worker 先匹配编译时登记的关系，再查表。恢复后仍可用原表和关系键更新或删除该记录。
+在自定义模型的 `Model::queueable_pivots` 方法登记可恢复的关系。对每个生成该模型的关系返回 `relation.queueable_pivot()`，沿用同一套中间表、键和时间戳配置。捕获和恢复仍使用模型标识接口。有主键时保存主键，否则保存两端键，多态 Pivot 还保存类型鉴别值。Worker 先匹配编译时登记的关系，再查表。恢复后仍可用原表和关系键更新或删除该记录。
 
 一个 Pivot 集合使用同一个关系定义。恢复返回数据库匹配的记录，跳过缺失行及重复标识。Pivot 集合恢复时不重放捕获的关系路径。
 
@@ -130,13 +130,13 @@ use openrust::database::eloquent::{Model, QueueablePivot, relations::BelongsToMa
 
 pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
     BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
-        .queueablePivot()
+        .queueable_pivot()
 }
 ```
 
 ## Bus 派发 {#bus-dispatch}
 
-用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派发已登记的队列任务。`dispatchSync` 使用同步队列，保留任务中间件和事件。`dispatchNow` 在当前进程经应用的 `pipeThrough` 管道调用已登记处理器。`bulk` 接收载荷与选项对，按顺序返回结果，遇到第一个错误即停止。用 `Bus::map` 登记处理器，用 `hasCommandHandler` 或 `getCommandHandler` 查询。
+用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派发已登记的队列任务。`dispatchSync` 使用同步队列，保留任务中间件和事件。`dispatchNow` 在当前进程经应用的 `pipe_through` 管道调用已登记处理器。`bulk` 接收载荷与选项对，按顺序返回结果，遇到第一个错误即停止。用 `Bus::map` 登记处理器，用 `hasCommandHandler` 或 `getCommandHandler` 查询。
 
 在 HTTP 请求内等待 `Bus::dispatchAfterResponse(payload, options)` 完成登记，任务在终止阶段同步执行。可在应用装配时用 `withoutDispatchingAfterResponses` 切换为立即执行。持久队列的 Worker 根据已登记的名称解析编译后的处理器，并解码 JSON 载荷。
 
@@ -401,7 +401,7 @@ Windows ARM64 已补验 MySQL 队列搭配文件缓存、Redis 队列搭配 Redi
 
 #### 按异常停止重试 {#stopping-retries-by-exception}
 
-队列任务遇到特定错误需要直接失败时，在应用的 `with_exceptions` 回调中注册规则。`dontRetry` 匹配异常本身或来源链中的类型。`dontRetryWhen` 按谓词判断异常。
+队列任务遇到特定错误需要直接失败时，在应用的 `with_exceptions` 回调中注册规则。`dont_retry` 匹配异常本身或来源链中的类型。`dont_retry_when` 按谓词判断异常。
 
 ```rust
 use std::{io, num::ParseIntError};
@@ -409,8 +409,8 @@ use openrust::foundation::configuration::Exceptions;
 
 fn configure_exceptions(exceptions: &mut Exceptions) {
     exceptions
-        .dontRetry::<ParseIntError>()
-        .dontRetryWhen(|exception| {
+        .dont_retry::<ParseIntError>()
+        .dont_retry_when(|exception| {
             exception.downcast_ref::<io::Error>()
                 .is_some_and(|error| error.kind() == io::ErrorKind::InvalidData)
         });
@@ -529,7 +529,7 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
-    let name = connection.getConnectionName();
+    let name = connection.get_connection_name();
     Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
     assert!(Queue::isPaused(name, "default").await?);
     assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
@@ -838,8 +838,8 @@ use openrust::{
 };
 
 fn register_job_budget() -> CacheResult<()> {
-    RateLimiter::forJob("job-budget", |job| {
-        Limit::perMinute(1).by(job.data().as_str().unwrap_or_default())
+    RateLimiter::for_job("job-budget", |job| {
+        Limit::per_minute(1).by(job.data().as_str().unwrap_or_default())
     })
 }
 
@@ -848,7 +848,7 @@ fn job_rate_limit() -> RateLimited {
 }
 ```
 
-达到限额后，任务默认在剩余窗口再加三秒后可重新预约。使用 `releaseAfter` 可覆盖延迟，使用 `dontRelease` 则跳过处理器并确认该任务。释放仍消耗一次尝试。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 连接上原子应用限额。
+达到限额后，任务默认在剩余窗口再加三秒后可重新预约。使用 `release_after` 可覆盖延迟，使用 `dontRelease` 则跳过处理器并确认该任务。释放仍消耗一次尝试。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 连接上原子应用限额。
 
 ### 防止任务重叠 {#preventing-job-overlaps}
 
@@ -862,12 +862,12 @@ fn account_lock(account_id: u64) -> WithoutOverlapping {
     WithoutOverlapping::new(account_id.to_string())
         .withPrefix("account-update:")
         .shared()
-        .releaseAfter(Duration::from_secs(15))
+        .release_after(Duration::from_secs(15))
         .expireAfter(Duration::from_secs(120))
 }
 ```
 
-发生竞争时默认立即释放任务。用 `releaseAfter` 指定相对延迟或绝对时间，或用 `dontRelease` 确认任务并跳过处理器。默认锁租约由缓存驱动决定。可设置 `expireAfter`，使原 Worker 在释放锁前停止时，其他 Worker 能在租约到期后取得锁。
+发生竞争时默认立即释放任务。用 `release_after` 指定相对延迟或绝对时间，或用 `dontRelease` 确认任务并跳过处理器。默认锁租约由缓存驱动决定。可设置 `expireAfter`，使原 Worker 在释放锁前停止时，其他 Worker 能在租约到期后取得锁。
 
 ### 异常节流 {#throttling-exceptions}
 
@@ -971,7 +971,7 @@ Worker 回调在新的应用作用域中运行，并恢复分发时的日志上�
 
 #### 刷新重试截止时间 {#refreshing-a-retry-deadline}
 
-在 `make:job` 生成的队列任务中覆写 `retryUntil`，计算绝对截止时间。生成的任务创建载荷时会调用此方法，Artisan 手工重试失败任务时会再次调用。
+在 `make:job` 生成的队列任务中覆写 `retry_until`，计算绝对截止时间。生成的任务创建载荷时会调用此方法，Artisan 手工重试失败任务时会再次调用。
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -981,7 +981,7 @@ struct ProcessUpload;
 
 impl ProcessUpload {
     #[allow(non_snake_case)]
-    fn retryUntil(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
+    fn retry_until(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
         Ok(SystemTime::now().checked_add(Duration::from_secs(300)))
     }
 }

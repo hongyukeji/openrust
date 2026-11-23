@@ -112,7 +112,7 @@ fn session_data_route(request: &mut Request, action: &str) -> Result<Response, H
 
     let session = request.session_mut()?;
     if action == "seed" {
-        session.putMany(&[
+        session.put_many(&[
             ("profile.name".into(), json!("before")),
             ("profile.note".into(), Value::Null),
         ])?;
@@ -172,16 +172,16 @@ async fn session_cache_route(request: &mut Request, action: &str) -> Result<Resp
     let named = Cache::store(Some("session"))?;
     let owner = Cache::get_facade_root()
         .map_err(CacheError::Unavailable)?
-        .getContainer()
+        .get_container()
         .ok_or(CacheError::SessionUnavailable)?;
     let underlying = SessionStore::new(Arc::downgrade(&owner), "widgets".into())?;
     assert_eq!(
-        underlying.itemKey("dashboard.banner"),
+        underlying.item_key("dashboard.banner"),
         "widgets.dashboard.banner"
     );
-    assert_eq!(underlying.getPrefix(), "");
+    assert_eq!(underlying.get_prefix(), "");
     assert!(Arc::ptr_eq(&cache, &named));
-    assert!(!cache.supportsTags() && !cache.supportsFlushingLocks());
+    assert!(!cache.supports_tags() && !cache.supports_flushing_locks());
     assert!(cache.get_store().lock_provider().is_none());
 
     match action {
@@ -251,15 +251,15 @@ fn register() -> Result<(), RoutingError> {
 }
 
 fn register_blocked() -> Result<(), RoutingError> {
-    Route::getWith("/session/{action}", blocked_route, |route| {
+    Route::get_with("/session/{action}", blocked_route, |route| {
         route.block(10, 2);
         Ok(())
     })?;
-    Route::getWith("/session/immediate/{action}", blocked_route, |route| {
+    Route::get_with("/session/immediate/{action}", blocked_route, |route| {
         route.block(10, 0);
         Ok(())
     })?;
-    Route::getWith("/session/default/{action}", blocked_route, |route| {
+    Route::get_with("/session/default/{action}", blocked_route, |route| {
         route.block(10, 2).without_blocking();
         Ok(())
     })
@@ -600,18 +600,18 @@ async fn cookie_sessions_round_trip_and_rotate_across_applications() {
         percent_encoding::percent_decode_str(payload_cookie.split_once('=').unwrap().1)
             .decode_utf8()
             .unwrap();
-    let decoded = encrypter.decryptString(&ciphertext).unwrap();
+    let decoded = encrypter.decrypt_string(&ciphertext).unwrap();
     let mut envelope: Value = serde_json::from_slice(
-        CookieValuePrefix::validate(id, &decoded, encrypter.getAllKeys()).unwrap(),
+        CookieValuePrefix::validate(id, &decoded, encrypter.get_all_keys()).unwrap(),
     )
     .unwrap();
     assert!(Encrypter::appearsEncrypted(
         envelope["data"].as_str().unwrap()
     ));
     envelope["expires"] = 0.into();
-    let mut expired = CookieValuePrefix::create(id, encrypter.getKey()).to_vec();
+    let mut expired = CookieValuePrefix::create(id, encrypter.get_key()).to_vec();
     expired.extend(serde_json::to_vec(&envelope).unwrap());
-    let expired = encrypter.encryptString(&expired).unwrap();
+    let expired = encrypter.encrypt_string(&expired).unwrap();
     let (_, fresh) = read(&send(second, "read", &format!("{pointer}; {id}={expired}")).await);
     assert!(fresh["name"].is_null());
     assert_ne!(fresh["token"], state["token"]);

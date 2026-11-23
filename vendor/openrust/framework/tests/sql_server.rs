@@ -18,7 +18,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
         .await
         .unwrap();
     assert_eq!(tls, "TRUE".into());
-    let rows = db.selectResultSets(
+    let rows = db.select_result_sets(
         "select :name as [value], 'literal ? :n' as [literal]; select cast(:amount as decimal(20,4)) as [amount]",
         Bindings::Named(&[("name","测试 ' 声称?".into()), ("amount","1234567890123.1234".into())]), true,
     ).await.unwrap();
@@ -37,7 +37,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
     );
 
     let table = format!("sqlserver_release_{:016x}", fastrand::u64(..));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create(&table, |table| {
             table.id();
@@ -47,7 +47,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
         })
         .await
         .unwrap();
-    let columns = schema.getColumns(&table).await.unwrap();
+    let columns = schema.get_columns(&table).await.unwrap();
     assert!(
         columns
             .iter()
@@ -55,7 +55,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
     );
     assert!(
         schema
-            .getSchemas()
+            .get_schemas()
             .await
             .unwrap()
             .iter()
@@ -63,7 +63,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
     );
     assert!(
         schema
-            .getTables(Some("dbo"))
+            .get_tables(Some("dbo"))
             .await
             .unwrap()
             .iter()
@@ -74,24 +74,24 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
     };
     assert_eq!(
         db.table(&table)
-            .insertGetId(record("first", 1))
+            .insert_get_id(record("first", 1))
             .await
             .unwrap(),
         1.into()
     );
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .table(&table)
         .insert(&[record("kept", 2)])
         .await
         .unwrap();
-    transaction.beginTransaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     transaction
         .table(&table)
         .insert(&[record("rolled back", 3)])
         .await
         .unwrap();
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     transaction.commit().await.unwrap();
     assert_eq!(db.table(&table).count("*").await.unwrap(), 2);
     db.table(&table)
@@ -100,7 +100,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
         .unwrap();
     let rows = db
         .table(&table)
-        .orderByDesc("score")
+        .order_by_desc("score")
         .offset(1)
         .limit(1)
         .get()
@@ -121,7 +121,7 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
             .unwrap(),
         encoded
     );
-    schema.dropIfExists(&table).await.unwrap();
+    schema.drop_if_exists(&table).await.unwrap();
 }
 
 #[tokio::test]
@@ -133,11 +133,11 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("dbo.entries", |table| {
                         table.index(&["score"], Some("search")).online();
                         table.unique(&["ref"], Some("unique_ref")).online();
-                        table.dropForeign("entry]parent");
+                        table.drop_foreign("entry]parent");
                     })
                     .await
             })
@@ -167,7 +167,7 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
     let parent = format!("dbo.parents_{suffix:016x}");
     let child = format!("dbo.entries_{suffix:016x}");
     let foreign = format!("entry_parent_{suffix:016x}");
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create(&parent, |table| {
             table.id();
@@ -188,7 +188,7 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
         })
         .await
         .unwrap();
-    let keys = schema.getForeignKeys(&child).await.unwrap();
+    let keys = schema.get_foreign_keys(&child).await.unwrap();
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0].name.as_deref(), Some(foreign.as_str()));
     assert_eq!(keys[0].columns, ["parent_id"]);
@@ -198,12 +198,12 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
     schema
         .table(&child, |table| {
             table.unique(&["ref"], Some("unique_ref")).online();
-            table.dropForeign(&foreign);
+            table.drop_foreign(&foreign);
         })
         .await
         .unwrap();
 
-    let indexes = schema.getIndexes(&child).await.unwrap();
+    let indexes = schema.get_indexes(&child).await.unwrap();
     assert!(indexes.iter().any(|index| index.name == "search"
         && !index.unique
         && index.columns == [Some("score".into())]));
@@ -212,9 +212,9 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
             .iter()
             .any(|index| index.name == "unique_ref" && index.unique)
     );
-    assert!(schema.getForeignKeys(&child).await.unwrap().is_empty());
-    schema.dropIfExists(&parent).await.unwrap();
-    schema.dropIfExists(&child).await.unwrap();
+    assert!(schema.get_foreign_keys(&child).await.unwrap().is_empty());
+    schema.drop_if_exists(&parent).await.unwrap();
+    schema.drop_if_exists(&child).await.unwrap();
 }
 
 #[tokio::test]
@@ -230,14 +230,14 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("dbo.entries", |table| {
                         table
                             .string("label]'", Some(20))
                             .nullable()
                             .default("replacement")
                             .change();
-                        table.dropColumn(&["score", "amount"]);
+                        table.drop_column(&["score", "amount"]);
                     })
                     .await
             })
@@ -279,7 +279,7 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
     db.statement("insert into changes.entries default values", &[])
         .await
         .unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let result = schema
         .table("changes.entries", |table| {
             table.string("label", Some(2)).nullable().change();
@@ -287,7 +287,7 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
         .await;
     assert!(result.is_err());
     let column = schema
-        .getColumn("changes.entries", "label")
+        .get_column("changes.entries", "label")
         .await
         .unwrap()
         .unwrap();
@@ -307,12 +307,12 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
                 .nullable()
                 .default("replacement")
                 .change();
-            table.dropColumn(&["score", "amount"]);
+            table.drop_column(&["score", "amount"]);
         })
         .await
         .unwrap();
 
-    let columns = schema.getColumns("changes.entries").await.unwrap();
+    let columns = schema.get_columns("changes.entries").await.unwrap();
     assert_eq!(
         columns
             .iter()
@@ -379,7 +379,7 @@ async fn sql_server_computed_columns_switch_persistence_in_place() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
+                let mut schema = db.get_schema_builder();
                 schema
                     .create("dbo.computed_totals", |table| {
                         table.integer("quantity");
@@ -417,7 +417,7 @@ async fn sql_server_computed_columns_switch_persistence_in_place() {
     let db = ConnectionFactory
         .make("sqlsrv", json!({"url":url}), root.path())
         .unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let table = format!("dbo.computed_totals_{:016x}", fastrand::u64(..));
     schema
         .create(&table, |table| {
@@ -442,7 +442,7 @@ async fn sql_server_computed_columns_switch_persistence_in_place() {
             .await
             .is_err()
     );
-    let column = schema.getColumn(&table, "twice").await.unwrap().unwrap();
+    let column = schema.get_column(&table, "twice").await.unwrap().unwrap();
     assert_eq!(
         column.generation.as_ref().unwrap().kind,
         GenerationType::Virtual
@@ -454,7 +454,7 @@ async fn sql_server_computed_columns_switch_persistence_in_place() {
         })
         .await
         .unwrap();
-    let persisted = schema.getColumn(&table, "twice").await.unwrap().unwrap();
+    let persisted = schema.get_column(&table, "twice").await.unwrap().unwrap();
     assert_eq!(
         persisted.generation.as_ref().unwrap().kind,
         GenerationType::Stored
@@ -481,7 +481,7 @@ async fn sql_server_computed_columns_switch_persistence_in_place() {
         })
         .await
         .unwrap();
-    let computed = schema.getColumn(&table, "twice").await.unwrap().unwrap();
+    let computed = schema.get_column(&table, "twice").await.unwrap().unwrap();
     assert_eq!(
         computed.generation.as_ref().unwrap().kind,
         GenerationType::Virtual
@@ -515,11 +515,11 @@ async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
+                let mut schema = db.get_schema_builder();
                 schema
                     .table("tenant.entries", |table| {
-                        table.renameColumn("old]'", "new]'");
-                        table.renameIndex("ix_old", "ix_new");
+                        table.rename_column("old]'", "new]'");
+                        table.rename_index("ix_old", "ix_new");
                     })
                     .await?;
                 schema.rename("tenant.entries", "tenant.archive").await
@@ -540,7 +540,7 @@ async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
     );
     assert!(
         preview
-            .getSchemaBuilder()
+            .get_schema_builder()
             .rename("tenant.entries", "other.archive")
             .await
             .is_err()
@@ -548,9 +548,9 @@ async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
     let long_name = "x".repeat(129);
     assert!(
         preview
-            .getSchemaBuilder()
+            .get_schema_builder()
             .table("tenant.entries", |table| {
-                table.renameIndex("ix_old", &long_name);
+                table.rename_index("ix_old", &long_name);
             })
             .await
             .is_err()
@@ -566,7 +566,7 @@ async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
     let suffix = fastrand::u64(..);
     let from = format!("dbo.rename_from_{suffix:016x}");
     let to = format!("dbo.rename_to_]'新_{suffix:016x}");
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create(&from, |table| {
             table.integer("score");
@@ -581,31 +581,31 @@ async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
     assert!(
         schema
             .table(&from, |table| {
-                table.renameColumn("score", "renamed");
-                table.renameColumn("missing", "unused");
+                table.rename_column("score", "renamed");
+                table.rename_column("missing", "unused");
             })
             .await
             .is_err()
     );
-    assert!(schema.hasColumn(&from, "score").await.unwrap());
-    assert!(!schema.hasColumn(&from, "renamed").await.unwrap());
+    assert!(schema.has_column(&from, "score").await.unwrap());
+    assert!(!schema.has_column(&from, "renamed").await.unwrap());
     schema
         .table(&from, |table| {
-            table.renameColumn("score", "value]'新");
-            table.renameIndex("ix_score", "ix]'新");
+            table.rename_column("score", "value]'新");
+            table.rename_index("ix_score", "ix]'新");
         })
         .await
         .unwrap();
     schema.rename(&from, &to).await.unwrap();
-    assert!(!schema.hasTable(&from).await.unwrap());
-    assert!(schema.hasTable(&to).await.unwrap());
-    assert!(schema.hasColumn(&to, "value]'新").await.unwrap());
-    assert!(schema.hasIndex(&to, "ix]'新").await.unwrap());
+    assert!(!schema.has_table(&from).await.unwrap());
+    assert!(schema.has_table(&to).await.unwrap());
+    assert!(schema.has_column(&to, "value]'新").await.unwrap());
+    assert!(schema.has_index(&to, "ix]'新").await.unwrap());
     assert_eq!(db.table(&to).value("value]'新").await.unwrap(), 7.into());
     schema
         .table(&to, |table| {
-            table.renameColumn("value]'新", "score");
-            table.renameIndex("ix]'新", "ix_score");
+            table.rename_column("value]'新", "score");
+            table.rename_index("ix]'新", "ix_score");
         })
         .await
         .unwrap();
@@ -627,12 +627,12 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("dbo.entries", |table| {
                         table.primary(&["id"], Some("pk]entries"));
-                        table.dropPrimaryNamed("pk]entries");
-                        table.dropPrimaryColumns(&["id", "tenant_id"]);
-                        table.dropPrimary();
+                        table.drop_primary_named("pk]entries");
+                        table.drop_primary_columns(&["id", "tenant_id"]);
+                        table.drop_primary();
                     })
                     .await
             })
@@ -677,7 +677,7 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
     let child = format!("dbo.primary_child_{suffix:016x}");
     let key = format!("primary_]'父_{suffix:016x}");
     let foreign = format!("foreign_{suffix:016x}");
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create(&parent, |table| {
             table.integer("id");
@@ -705,23 +705,23 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
         .unwrap();
     assert!(
         schema
-            .table(&parent, |table| table.dropPrimaryNamed(&key))
+            .table(&parent, |table| table.drop_primary_named(&key))
             .await
             .is_err()
     );
-    assert!(schema.hasIndex(&parent, &key).await.unwrap());
+    assert!(schema.has_index(&parent, &key).await.unwrap());
     schema
-        .table(&child, |table| table.dropForeign(&foreign))
+        .table(&child, |table| table.drop_foreign(&foreign))
         .await
         .unwrap();
     schema
-        .table(&parent, |table| table.dropPrimary())
+        .table(&parent, |table| table.drop_primary())
         .await
         .unwrap();
-    assert!(!schema.hasIndex(&parent, &key).await.unwrap());
+    assert!(!schema.has_index(&parent, &key).await.unwrap());
     assert!(
         schema
-            .table(&parent, |table| table.dropPrimary())
+            .table(&parent, |table| table.drop_primary())
             .await
             .is_err()
     );
@@ -732,7 +732,7 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
         .await
         .unwrap();
     let index = schema
-        .getIndexes(&parent)
+        .get_indexes(&parent)
         .await
         .unwrap()
         .into_iter()
@@ -741,7 +741,7 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
     assert_eq!(index.columns, [Some("tenant_id".into()), Some("id".into())]);
     schema
         .table(&parent, |table| {
-            table.dropPrimaryColumns(&["tenant_id", "id"])
+            table.drop_primary_columns(&["tenant_id", "id"])
         })
         .await
         .unwrap();
@@ -751,7 +751,7 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
     );
     assert!(
         !schema
-            .getIndexes(&parent)
+            .get_indexes(&parent)
             .await
             .unwrap()
             .iter()
@@ -785,16 +785,16 @@ async fn sql_server_keeps_original_error_when_server_already_rolled_back() {
         )
         .unwrap();
     let table = "dbo.automatic_rollback_probe";
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create(table, |table| {
             table.integer("id");
         })
         .await
         .unwrap();
     let callbacks = Arc::new(AtomicUsize::new(0));
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     let outer = callbacks.clone();
-    tx.afterRollBack(move || {
+    tx.after_roll_back(move || {
         Box::pin(async move {
             outer.fetch_add(1, Ordering::SeqCst);
             Ok(())
@@ -808,7 +808,7 @@ async fn sql_server_keeps_original_error_when_server_already_rolled_back() {
     let failure = tx
         .transaction(move |tx| {
             Box::pin(async move {
-                tx.afterRollBack(move || {
+                tx.after_roll_back(move || {
                     Box::pin(async move {
                         inner.fetch_add(1, Ordering::SeqCst);
                         Ok(())
@@ -826,7 +826,7 @@ async fn sql_server_keeps_original_error_when_server_already_rolled_back() {
     assert!(
         matches!(failure, DatabaseError::SqlServer { source: tiberius::error::Error::Server(error), .. } if error.code() == 51017)
     );
-    assert_eq!(tx.transactionLevel(), 0);
+    assert_eq!(tx.transaction_level(), 0);
     assert_eq!(callbacks.load(Ordering::SeqCst), 2);
     assert!(matches!(
         tx.statement("insert into dbo.automatic_rollback_probe values (2)", &[])
@@ -839,7 +839,7 @@ async fn sql_server_keeps_original_error_when_server_already_rolled_back() {
         .transaction(
             |tx| {
                 Box::pin(async move {
-                    tx.getSchemaBuilder()
+                    tx.get_schema_builder()
                         .table(table, |table| {
                             table
                                 .foreign(&["id"], Some("rollback_probe_fk"))
@@ -873,5 +873,5 @@ async fn sql_server_keeps_original_error_when_server_already_rolled_back() {
     .await
     .unwrap();
     assert_eq!(db.table(table).value("id").await.unwrap(), 3.into());
-    db.getSchemaBuilder().drop(table).await.unwrap();
+    db.get_schema_builder().drop(table).await.unwrap();
 }

@@ -61,7 +61,7 @@ impl DatabaseNotifications {
                         let stored = tx
                             .table("payment_notifications")
                             .r#where("id", "=", key.clone())
-                            .lockForUpdate()
+                            .lock_for_update()
                             .value("fingerprint")
                             .await?;
                         if stored != Value::from(fingerprint) {
@@ -106,7 +106,7 @@ impl Migration for CreatePaymentNotificationsTable {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             context
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("payment_notifications", |table| {
                     table.string("id", 64).primary();
                     table.string("fingerprint", 64);
@@ -121,8 +121,8 @@ impl Migration for CreatePaymentNotificationsTable {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             context
-                .getSchemaBuilder()
-                .dropIfExists("payment_notifications")
+                .get_schema_builder()
+                .drop_if_exists("payment_notifications")
                 .await
         })
     }

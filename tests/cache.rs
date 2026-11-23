@@ -129,9 +129,9 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
     let mut contender = second
         .lock("resource", Some(Duration::from_secs(3)), None)
         .unwrap();
-    assert!(!first_lock.isLocked().await.unwrap());
-    assert_eq!(first_lock.currentOwner().await.unwrap(), None);
-    assert!(first_lock.isOwnedBy(None).await.unwrap());
+    assert!(!first_lock.is_locked().await.unwrap());
+    assert_eq!(first_lock.current_owner().await.unwrap(), None);
+    assert!(first_lock.is_owned_by(None).await.unwrap());
     let (left, right) = tokio::join!(first_lock.get(), contender.get());
     let (held, waiting) = if left.unwrap() {
         assert!(!right.unwrap());
@@ -144,16 +144,16 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         waiting.block(Duration::from_millis(15)).await,
         Err(CacheError::LockTimeout)
     ));
-    assert!(waiting.isLocked().await.unwrap());
+    assert!(waiting.is_locked().await.unwrap());
     assert_eq!(
-        waiting.currentOwner().await.unwrap().as_deref(),
+        waiting.current_owner().await.unwrap().as_deref(),
         Some(held.owner())
     );
-    assert!(!waiting.isOwnedByCurrentProcess().await.unwrap());
-    assert!(waiting.isOwnedBy(held.owner()).await.unwrap());
+    assert!(!waiting.is_owned_by_current_process().await.unwrap());
+    assert!(waiting.is_owned_by(held.owner()).await.unwrap());
     assert!(!waiting.release().await.unwrap());
     assert!(!waiting.refresh(None).await.unwrap());
-    let mut restored = second.restoreLock("resource", held.owner()).unwrap();
+    let mut restored = second.restore_lock("resource", held.owner()).unwrap();
     assert!(
         restored
             .refresh(Some(Duration::from_millis(120)))
@@ -162,13 +162,13 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
     );
     // 数据库存储按整秒保存租约，等待真实过期，不能假定亚秒精度。
     tokio::time::timeout(Duration::from_secs(2), async {
-        while restored.isLocked().await.unwrap() {
+        while restored.is_locked().await.unwrap() {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
     .await
     .expect("刷新后的缓存锁未按租约过期");
-    assert!(!restored.isLocked().await.unwrap());
+    assert!(!restored.is_locked().await.unwrap());
     assert!(waiting.get().await.unwrap());
     assert!(!restored.release().await.unwrap());
     assert!(waiting.release().await.unwrap());
@@ -185,8 +185,8 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         .await
         .unwrap();
     assert!(!timed.release().await.unwrap());
-    retry.forceRelease().await.unwrap();
-    assert_eq!(retry.currentOwner().await.unwrap(), None);
+    retry.force_release().await.unwrap();
+    assert_eq!(retry.current_owner().await.unwrap(), None);
 
     assert!(
         first
@@ -275,7 +275,7 @@ async fn file_lock_process_fixture() {
         .unwrap();
     let result = if std::env::var_os("OPENRUST_FILE_LOCK_RELEASE").is_some() {
         store
-            .restoreLock("cross-process", &owner)
+            .restore_lock("cross-process", &owner)
             .unwrap()
             .release()
             .await
@@ -484,7 +484,7 @@ async fn mysql_and_redis_failover_retries_errors_and_prefers_the_recovered_prima
         events.dispatched(CacheFailedOver::NAME)[0]
             .downcast_ref::<CacheFailedOver>()
             .unwrap()
-            .storeName,
+            .store_name,
         "database"
     );
 
@@ -523,7 +523,7 @@ async fn mysql_and_redis_failover_retries_errors_and_prefers_the_recovered_prima
     assert_eq!(events.dispatched(CacheFailedOver::NAME).len(), 2);
 
     // A failover repository can still scope tagged values while its first store is unavailable.
-    assert!(failover.supportsTags());
+    assert!(failover.supports_tags());
     let tagged = failover.tags(&["batch", "reports"]).unwrap();
     assert!(tagged.forever("status", &"backup".into()).await.unwrap());
     assert_eq!(tagged.get("status").await.unwrap(), Some("backup".into()));
@@ -579,7 +579,7 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
         .lock("lease", Some(Duration::from_secs(10)), Some("owner"))
         .unwrap();
     assert!(lock.get().await.unwrap());
-    let mut restored = failover.restoreLock("lease", "owner").unwrap();
+    let mut restored = failover.restore_lock("lease", "owner").unwrap();
     assert!(restored.release().await.unwrap());
     let isolated = manager.store(Some("isolated")).unwrap();
     assert!(
@@ -604,14 +604,14 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
         manager
             .store(Some("lock-failover"))
             .unwrap()
-            .flushLocks()
+            .flush_locks()
             .await
             .unwrap()
     );
     assert!(first_lock.get().await.unwrap());
     assert!(second_lock.get().await.unwrap());
     assert!(matches!(
-        manager.store(Some("cycle-a")).unwrap().flushLocks().await,
+        manager.store(Some("cycle-a")).unwrap().flush_locks().await,
         Err(CacheError::FailoverCycle)
     ));
 }
@@ -620,7 +620,7 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
 async fn tagged_cache_preserves_order_duplicates_and_application_boundaries() {
     let root = Sandbox::new("tags", "CACHE_STORE=array\n");
     let cache = root.cache(None).await;
-    assert!(cache.supportsTags());
+    assert!(cache.supports_tags());
 
     let ordered = cache.tags(&["people", "artists"]).unwrap();
     let reversed = cache.tags(&["artists", "people"]).unwrap();
@@ -630,7 +630,7 @@ async fn tagged_cache_preserves_order_duplicates_and_application_boundaries() {
     let key = "profile:42";
 
     assert_eq!(
-        duplicated.getTags().getNames(),
+        duplicated.get_tags().get_names(),
         ["people", "artists", "artists"]
     );
     let cases = [
@@ -647,13 +647,13 @@ async fn tagged_cache_preserves_order_duplicates_and_application_boundaries() {
         assert_eq!(tagged.get(key).await.unwrap(), Some(value.into()));
     }
     assert!(matches!(
-        ordered.flushStale().await,
+        ordered.flush_stale().await,
         Err(CacheError::StaleTagPruningUnsupported)
     ));
     cache.forever(key, &0.into()).await.unwrap();
-    let metadata = ordered.getTags().getNamespace().await.unwrap();
+    let metadata = ordered.get_tags().get_namespace().await.unwrap();
     assert!(cache.tags(&["artists"]).unwrap().flush().await.unwrap());
-    assert_ne!(ordered.getTags().getNamespace().await.unwrap(), metadata);
+    assert_ne!(ordered.get_tags().get_namespace().await.unwrap(), metadata);
     for tagged in [&ordered, &reversed, &duplicated] {
         assert_eq!(tagged.get(key).await.unwrap(), None);
     }
@@ -845,11 +845,11 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     let cardinality = async |key: &str| redis.command("ZCARD", &[key.as_bytes()]).await.unwrap();
     let index = async |name: &str| {
         let tags = plain.tags(&[name]).unwrap();
-        let id = tags.getTags().tagId(name).await.unwrap();
+        let id = tags.get_tags().tag_id(name).await.unwrap();
         format!("tags-cache*?-tagged:v1:index:{id}")
     };
 
-    assert!(plain.supportsTags());
+    assert!(plain.supports_tags());
     assert!(plain.forever("same", &0.into()).await.unwrap());
     let ordered = plain.tags(&["people", "artists"]).unwrap();
     let reversed = plain.tags(&["artists", "people"]).unwrap();
@@ -874,14 +874,14 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     let artist_index = index("artists").await;
     let people_index = index("people").await;
     let mut physical = vec![
-        ordered.taggedItemKey("same").await.unwrap(),
-        reversed.taggedItemKey("same").await.unwrap(),
-        repeated.taggedItemKey("same").await.unwrap(),
+        ordered.tagged_item_key("same").await.unwrap(),
+        reversed.tagged_item_key("same").await.unwrap(),
+        repeated.tagged_item_key("same").await.unwrap(),
     ];
     for number in 0..130 {
         let key = number.to_string();
         assert!(ordered.add(&key, &number.into(), None).await.unwrap());
-        physical.push(ordered.taggedItemKey(&key).await.unwrap());
+        physical.push(ordered.tagged_item_key(&key).await.unwrap());
     }
     assert!(!ordered.add("same", &19.into(), None).await.unwrap());
     assert_eq!(cardinality(&artist_index).await, RedisValue::Int(133));
@@ -919,10 +919,10 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     assert_eq!(cardinality(&authors).await, RedisValue::Int(2));
     tokio::time::sleep(Duration::from_millis(1100)).await;
     assert_eq!(unrelated.get("short").await.unwrap(), None);
-    let unknown = unrelated.getTags().tagKey("unknown");
+    let unknown = unrelated.get_tags().tag_key("unknown");
     let selected = plain.tags(&["authors", "unknown"]).unwrap();
     assert_eq!(cardinality(&people_index).await, RedisValue::Int(133));
-    assert!(selected.flushStale().await.unwrap());
+    assert!(selected.flush_stale().await.unwrap());
     assert_eq!(cardinality(&authors).await, RedisValue::Int(1));
     assert_eq!(cardinality(&people_index).await, RedisValue::Int(133));
     assert!(!exists(&unknown).await);
@@ -936,7 +936,7 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
 
     let scored = plain.tags(&["scored"]).unwrap();
     assert!(scored.forever("value", &11.into()).await.unwrap());
-    let scored_key = scored.taggedItemKey("value").await.unwrap();
+    let scored_key = scored.tagged_item_key("value").await.unwrap();
     let scored_index = index("scored").await;
     redis
         .command(
@@ -949,7 +949,7 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     assert_eq!(cardinality(&scored_index).await, RedisValue::Int(0));
     assert_eq!(scored.get("value").await.unwrap(), Some(11.into()));
 
-    let old_key = unrelated.taggedItemKey("same").await.unwrap();
+    let old_key = unrelated.tagged_item_key("same").await.unwrap();
     // An invalid reference interrupts the first drain without deleting ordinary keys.
     let ordinary = "tags-cache*?-same";
     redis
@@ -961,7 +961,7 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     assert!(exists(&old_key).await);
     assert_eq!(unrelated.get("same").await.unwrap(), None);
     assert!(unrelated.forever("same", &5.into()).await.unwrap());
-    assert_ne!(unrelated.taggedItemKey("same").await.unwrap(), old_key);
+    assert_ne!(unrelated.tagged_item_key("same").await.unwrap(), old_key);
     assert_eq!(unrelated.get("same").await.unwrap(), Some(5.into()));
     redis
         .command("ZREM", &[authors.as_bytes(), ordinary.as_bytes()])
@@ -975,7 +975,7 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     let before_clear = plain
         .tags(&["new"])
         .unwrap()
-        .taggedItemKey("value")
+        .tagged_item_key("value")
         .await
         .unwrap();
     assert!(plain.flush().await.unwrap());
@@ -983,7 +983,7 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
         plain
             .tags(&["new"])
             .unwrap()
-            .taggedItemKey("value")
+            .tagged_item_key("value")
             .await
             .unwrap(),
         before_clear
@@ -996,7 +996,7 @@ async fn clearing_array_and_file_locks_preserves_data_and_gate() {
         let root = Sandbox::new("flush-locks", &format!("CACHE_STORE={store}\n"));
         let cache = root.cache(None).await;
         let lock = || cache.lock("shared", None, None).unwrap();
-        assert!(cache.supportsFlushingLocks());
+        assert!(cache.supports_flushing_locks());
         assert!(cache.forever("shared", &"data".into()).await.unwrap());
         let mut first = lock();
         let mut second = lock();
@@ -1009,7 +1009,7 @@ async fn clearing_array_and_file_locks_preserves_data_and_gate() {
             assert!(locks.join(".gate").is_file());
             assert_eq!(fs::read_to_string(locks.join("other")).unwrap(), "keep");
         } else {
-            assert!(cache.flushLocks().await.unwrap());
+            assert!(cache.flush_locks().await.unwrap());
         }
         assert!(second.get().await.unwrap());
         assert!(!first.release().await.unwrap());
@@ -1077,7 +1077,7 @@ async fn artisan_redis_lock_flush_uses_selected_database_and_preserves_tagged_va
     let mut shared_probe = shared.lock("data-db-lock", None, None).unwrap();
     assert!(shared_lock.get().await.unwrap());
     assert!(matches!(
-        shared.flushLocks().await,
+        shared.flush_locks().await,
         Err(CacheError::LockStoreNotSeparate)
     ));
     let result = same.artisan(&["cache:clear", "redis", "--locks"]);
@@ -1168,7 +1168,7 @@ async fn redis_lock_flush_distinguishes_servers_from_aliases() {
     let mut probe = same.lock("alias", None, None).unwrap();
     assert!(alias.get().await.unwrap());
     assert!(matches!(
-        same.flushLocks().await,
+        same.flush_locks().await,
         Err(CacheError::LockStoreNotSeparate)
     ));
     assert!(!probe.get().await.unwrap());
@@ -1176,7 +1176,7 @@ async fn redis_lock_flush_distinguishes_servers_from_aliases() {
     let mut original = cache.lock("alias", None, None).unwrap();
     let mut replacement = cache.lock("alias", None, None).unwrap();
     assert!(original.get().await.unwrap());
-    assert!(cache.flushLocks().await.unwrap());
+    assert!(cache.flush_locks().await.unwrap());
     assert!(replacement.get().await.unwrap());
     assert!(!probe.get().await.unwrap());
     assert_eq!(backend.get("locks-db-marker").await.unwrap(), None);
@@ -1201,14 +1201,14 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
 
     let root = Sandbox::new("null-cache", "CACHE_STORE=null\n");
     let cache = root.cache(None).await;
-    assert!(cache.supportsTags());
-    assert!(cache.supportsFlushingLocks());
+    assert!(cache.supports_tags());
+    assert!(cache.supports_flushing_locks());
     assert!(
         !cache
             .get_store()
             .lock_flusher()
             .unwrap()
-            .hasSeparateLockStore()
+            .has_separate_lock_store()
     );
     assert_eq!(cache.get_store().get_prefix(), "");
     assert_eq!(cache.get("one").await.unwrap(), None);
@@ -1224,7 +1224,7 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
     );
     assert!(
         !cache
-            .putMany(&[("one".into(), 1.into())], Some(Ttl::Seconds(30)))
+            .put_many(&[("one".into(), 1.into())], Some(Ttl::Seconds(30)))
             .await
             .unwrap()
     );
@@ -1248,19 +1248,19 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
 
     let first = cache.lock("no-lock", None, None).unwrap();
     let mut second = cache.lock("no-lock", None, None).unwrap();
-    let mut first = first.betweenBlockedAttemptsSleepFor(0).unwrap();
-    assert!(!first.isLocked().await.unwrap());
-    assert!(first.isOwnedByCurrentProcess().await.unwrap());
-    assert!(!first.isOwnedBy(None).await.unwrap());
+    let mut first = first.between_blocked_attempts_sleep_for(0).unwrap();
+    assert!(!first.is_locked().await.unwrap());
+    assert!(first.is_owned_by_current_process().await.unwrap());
+    assert!(!first.is_owned_by(None).await.unwrap());
     assert_ne!(first.owner(), second.owner());
     assert!(first.get().await.unwrap());
     assert!(second.get().await.unwrap());
     assert!(second.refresh(None).await.unwrap());
     assert!(second.release().await.unwrap());
-    let mut restored = cache.restoreLock("no-lock", first.owner()).unwrap();
+    let mut restored = cache.restore_lock("no-lock", first.owner()).unwrap();
     assert_eq!(restored.owner(), first.owner());
     restored.block(Duration::ZERO).await.unwrap();
-    restored.forceRelease().await.unwrap();
+    restored.force_release().await.unwrap();
     root.success(&["cache:forget", "reports/latest", "null"]);
     root.success(&["cache:clear", "null", "--tags=reports"]);
     root.success(&["cache:clear", "null", "--locks"]);
@@ -1311,7 +1311,7 @@ async fn null_results_end_failover_and_emit_reference_event_payloads() {
     events.assertNotDispatched(CacheFailedOver::NAME);
     let misses = events.dispatched(CacheMissed::NAME);
     let miss = misses[0].downcast_ref::<CacheMissed>().unwrap();
-    assert_eq!(miss.storeName, None);
+    assert_eq!(miss.store_name, None);
     assert_eq!(miss.key, "two");
     events.assertDispatchedTimes(KeyWriteFailed::NAME, 1);
 }
@@ -1337,8 +1337,8 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
         .disk(None)
         .unwrap();
     let cache = manager.store(None).unwrap();
-    assert!(!cache.supportsTags());
-    assert!(!cache.supportsFlushingLocks());
+    assert!(!cache.supports_tags());
+    assert!(!cache.supports_flushing_locks());
     assert!(matches!(
         cache.lock("outside", None, None),
         Err(CacheError::LocksUnsupported)
@@ -1518,7 +1518,12 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
         ("number".into(), 7.into()),
         ("numeric-string".into(), "007".into()),
     ];
-    assert!(first.putMany(&values, Some(Ttl::Seconds(2))).await.unwrap());
+    assert!(
+        first
+            .put_many(&values, Some(Ttl::Seconds(2)))
+            .await
+            .unwrap()
+    );
     assert_eq!(
         second
             .many(&["number", "missing", "binary", "number", "numeric-string"])
@@ -1591,11 +1596,11 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
     let mut other = second
         .lock("rebuild", Some(Duration::from_secs(3)), Some("second"))
         .unwrap();
-    assert!(!owner.isLocked().await.unwrap());
+    assert!(!owner.is_locked().await.unwrap());
     assert!(owner.get().await.unwrap());
-    assert!(owner.isOwnedByCurrentProcess().await.unwrap());
-    assert!(other.isOwnedBy("first").await.unwrap());
-    assert!(!other.isOwnedByCurrentProcess().await.unwrap());
+    assert!(owner.is_owned_by_current_process().await.unwrap());
+    assert!(other.is_owned_by("first").await.unwrap());
+    assert!(!other.is_owned_by_current_process().await.unwrap());
     assert!(!other.get().await.unwrap());
     assert!(matches!(
         other.block(Duration::from_millis(25)).await,
@@ -1603,7 +1608,7 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
     ));
     assert!(!other.release().await.unwrap());
     assert!(!other.refresh(None).await.unwrap());
-    let mut restored = second.restoreLock("rebuild", "first").unwrap();
+    let mut restored = second.restore_lock("rebuild", "first").unwrap();
     assert!(
         restored
             .refresh(Some(Duration::from_secs(1)))
@@ -1612,9 +1617,9 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
     );
     tokio::time::sleep(Duration::from_millis(1200)).await;
     assert!(second.get("expiring").await.unwrap().is_none());
-    assert!(!restored.isLocked().await.unwrap());
+    assert!(!restored.is_locked().await.unwrap());
     assert!(other.get().await.unwrap());
-    assert!(restored.isOwnedBy("second").await.unwrap());
+    assert!(restored.is_owned_by("second").await.unwrap());
     assert!(!restored.release().await.unwrap());
     assert!(
         other
@@ -1689,7 +1694,7 @@ async fn memcached_weighted_servers_and_persistent_id_are_application_scoped() {
         .collect();
     assert!(
         weighted
-            .putMany(&entries, Some(Ttl::Seconds(300)))
+            .put_many(&entries, Some(Ttl::Seconds(300)))
             .await
             .unwrap()
     );
@@ -1797,7 +1802,7 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
     let first = root.cache(None).await;
     let second = root.cache(None).await;
     assert!(first.many(&[]).await.unwrap().is_empty());
-    assert!(!first.supportsTags() && !first.supportsFlushingLocks());
+    assert!(!first.supports_tags() && !first.supports_flushing_locks());
     assert!(matches!(
         first.flush().await,
         Err(CacheError::FlushUnsupported)
@@ -1810,7 +1815,7 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
     entries.push(("binary".into(), vec![0, 255].into()));
     assert!(
         first
-            .putMany(&entries, Some(Ttl::Seconds(30)))
+            .put_many(&entries, Some(Ttl::Seconds(30)))
             .await
             .unwrap()
     );
@@ -1829,7 +1834,7 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
         .collect();
     assert!(
         first
-            .putMany(&large_batch, Some(Ttl::Seconds(30)))
+            .put_many(&large_batch, Some(Ttl::Seconds(30)))
             .await
             .unwrap()
     );
@@ -1894,11 +1899,11 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
         .lock("guard", Some(Duration::from_secs(1)), Some("first"))
         .unwrap();
     let mut other = second.lock("guard", None, Some("second")).unwrap();
-    assert!(!owner.isLocked().await.unwrap());
+    assert!(!owner.is_locked().await.unwrap());
     assert!(owner.get().await.unwrap());
-    assert!(owner.isOwnedByCurrentProcess().await.unwrap());
-    assert!(other.isOwnedBy("first").await.unwrap());
-    assert!(!other.isOwnedByCurrentProcess().await.unwrap());
+    assert!(owner.is_owned_by_current_process().await.unwrap());
+    assert!(other.is_owned_by("first").await.unwrap());
+    assert!(!other.is_owned_by_current_process().await.unwrap());
     assert!(!other.get().await.unwrap());
     assert!(!other.refresh(None).await.unwrap());
     assert!(!other.release().await.unwrap());
@@ -1906,7 +1911,7 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
         other.block(Duration::from_millis(30)).await,
         Err(CacheError::LockTimeout)
     ));
-    let mut restored = second.restoreLock("guard", "first").unwrap();
+    let mut restored = second.restore_lock("guard", "first").unwrap();
     assert!(
         restored
             .refresh(Some(Duration::from_secs(1)))
@@ -1917,9 +1922,9 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
     assert!(second.get("expiring").await.unwrap().is_none());
     assert!(!first.touch("expiring", ttl).await.unwrap());
     assert!(first.add("expiring", &7.into(), None).await.unwrap());
-    assert!(!restored.isLocked().await.unwrap());
+    assert!(!restored.is_locked().await.unwrap());
     assert!(other.get().await.unwrap());
-    assert!(restored.isOwnedBy("second").await.unwrap());
+    assert!(restored.is_owned_by("second").await.unwrap());
     assert!(!restored.release().await.unwrap());
     assert!(other.refresh(None).await.unwrap());
     assert!(other.release().await.unwrap());
@@ -1960,7 +1965,7 @@ async fn dynamodb_cache_uses_custom_attributes_for_conditions_and_batch_keys() {
     ));
     assert!(
         cache
-            .putMany(&[("one".into(), 1.into())], Some(Ttl::Seconds(30)))
+            .put_many(&[("one".into(), 1.into())], Some(Ttl::Seconds(30)))
             .await
             .unwrap()
     );
@@ -1994,7 +1999,7 @@ async fn dynamodb_cache_retries_partial_batches_and_reports_exhaustion() {
     let ttl = Some(Ttl::Seconds(30));
     assert!(
         cache
-            .putMany(
+            .put_many(
                 &[("first".into(), 1.into()), ("second".into(), 2.into())],
                 ttl
             )
@@ -2007,7 +2012,7 @@ async fn dynamodb_cache_retries_partial_batches_and_reports_exhaustion() {
     );
     assert!(matches!(
         cache
-            .putMany(&[("always-throttled".into(), 3.into())], ttl)
+            .put_many(&[("always-throttled".into(), 3.into())], ttl)
             .await,
         Err(CacheError::Backend { .. }),
     ));
@@ -2024,13 +2029,13 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let wait = Duration::from_secs(3);
     let key = "held-during-callback";
     let mut inspector = first.lock(key, lease, None).unwrap();
-    assert!(!inspector.isLocked().await.unwrap());
-    assert!(inspector.isOwnedBy(None).await.unwrap());
+    assert!(!inspector.is_locked().await.unwrap());
+    assert!(inspector.is_owned_by(None).await.unwrap());
 
     let result = first
         .lock(key, lease, None)
         .unwrap()
-        .getWith(|| async {
+        .get_with(|| async {
             let mut contender = second.lock(key, lease, None)?;
             assert!(!contender.get().await?);
             Ok("value")
@@ -2041,15 +2046,15 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
 
     let mut contender = second.lock(key, lease, None).unwrap();
     assert!(contender.get().await.unwrap());
-    assert!(inspector.isLocked().await.unwrap());
-    assert!(inspector.isOwnedBy(contender.owner()).await.unwrap());
-    assert!(!inspector.isOwnedByCurrentProcess().await.unwrap());
-    assert!(contender.isOwnedByCurrentProcess().await.unwrap());
+    assert!(inspector.is_locked().await.unwrap());
+    assert!(inspector.is_owned_by(contender.owner()).await.unwrap());
+    assert!(!inspector.is_owned_by_current_process().await.unwrap());
+    assert!(contender.is_owned_by_current_process().await.unwrap());
     let mut called = false;
     let missed = first
         .lock(key, lease, None)
         .unwrap()
-        .getWith(|| async {
+        .get_with(|| async {
             called = true;
             Ok("unexpected")
         })
@@ -2061,7 +2066,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let timeout = first
         .lock(key, lease, None)
         .unwrap()
-        .blockWith(Duration::from_millis(30), || async {
+        .block_with(Duration::from_millis(30), || async {
             called = true;
             Ok(())
         })
@@ -2075,7 +2080,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let candidate = first
         .lock(key, lease, None)
         .unwrap()
-        .betweenBlockedAttemptsSleepFor(10)
+        .between_blocked_attempts_sleep_for(10)
         .unwrap();
     let release = async {
         tokio::time::sleep(Duration::from_millis(40)).await;
@@ -2083,7 +2088,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     };
     let (released, retried) = tokio::join!(
         release,
-        candidate.blockWith(retry_wait, || async { Ok(42) })
+        candidate.block_with(retry_wait, || async { Ok(42) })
     );
     assert!(released.unwrap());
     assert_eq!(retried.unwrap(), 42);
@@ -2092,7 +2097,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let mut candidate = first
         .lock(key, lease, None)
         .unwrap()
-        .betweenBlockedAttemptsSleepFor(0)
+        .between_blocked_attempts_sleep_for(0)
         .unwrap();
     let release = async {
         tokio::time::sleep(Duration::from_millis(40)).await;
@@ -2106,7 +2111,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let failed = first
         .lock(key, lease, None)
         .unwrap()
-        .blockWith(wait, || async { Err::<(), _>(CacheError::InvalidValue) })
+        .block_with(wait, || async { Err::<(), _>(CacheError::InvalidValue) })
         .await;
     assert!(matches!(failed, Err(CacheError::InvalidValue)));
     assert!(contender.get().await.unwrap());
@@ -2115,7 +2120,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
         first
             .lock(key, lease, None)
             .unwrap()
-            .blockWith(wait, || async { Ok(42) })
+            .block_with(wait, || async { Ok(42) })
             .await
             .unwrap(),
         42
@@ -2124,8 +2129,8 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let owned = first.lock(key, lease, None).unwrap();
     let owner = owned.owner().to_owned();
     let result = owned
-        .getWith(|| async {
-            assert!(second.restoreLock(key, &owner)?.release().await?);
+        .get_with(|| async {
+            assert!(second.restore_lock(key, &owner)?.release().await?);
             assert!(contender.get().await?);
             Ok("new owner")
         })
@@ -2137,7 +2142,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let (started, running) = oneshot::channel();
     let lock = first.lock(key, lease, None).unwrap();
     let task = tokio::spawn(async move {
-        lock.getWith(|| async move {
+        lock.get_with(|| async move {
             started.send(()).unwrap();
             std::future::pending::<CacheResult<()>>().await
         })
@@ -2151,7 +2156,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
 
     let lock = first.lock(key, lease, None).unwrap();
     let panicking = tokio::spawn(async move {
-        lock.getWith(|| async {
+        lock.get_with(|| async {
             assert!(std::hint::black_box(false), "callback panic");
             Ok(())
         })
@@ -2199,7 +2204,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
         }
 
         fn force_release(&mut self) -> CacheFuture<'_, CacheResult<()>> {
-            self.lock.forceRelease()
+            self.lock.force_release()
         }
 
         fn owner(&self) -> &str {
@@ -2216,7 +2221,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
         release_error: false,
     });
     let task = tokio::spawn(async move {
-        lock.getWith(|| async {
+        lock.get_with(|| async {
             assert!(std::hint::black_box(false), "cancelled callback ran");
             Ok(())
         })
@@ -2237,7 +2242,7 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
         release_error: true,
     });
     let result = lock
-        .getWith(|| async { Err::<(), _>(CacheError::InvalidValue) })
+        .get_with(|| async { Err::<(), _>(CacheError::InvalidValue) })
         .await;
     assert!(matches!(result, Err(CacheError::InvalidOwner)));
     assert!(contender.get().await.unwrap());
@@ -2285,7 +2290,7 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
     assert!(external.get().await.unwrap());
     let (started, running) = oneshot::channel();
     let (resume, held) = oneshot::channel();
-    let limiter = first.funnel("reports").unwrap().limit(2).releaseAfter(30);
+    let limiter = first.funnel("reports").unwrap().limit(2).release_after(30);
     let task = tokio::spawn(limiter.then(|| async move {
         started.send(()).unwrap();
         held.await.unwrap();
@@ -2301,7 +2306,7 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
     ));
     assert_eq!(
         attempt()
-            .thenWith(unused, |error| async move {
+            .then_with(unused, |error| async move {
                 assert!(matches!(error, CacheError::LimiterTimeout));
                 Ok(429)
             })
@@ -2329,7 +2334,7 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
     let wait = second.funnel("reports").unwrap().limit(2).block(2).sleep(5);
     let (_, result) = tokio::join!(
         release,
-        wait.thenWith(callback, |_| async { panic!("unexpected fallback") })
+        wait.then_with(callback, |_| async { panic!("unexpected fallback") })
     );
     assert!(matches!(result, Err(CacheError::InvalidValue)));
     assert_eq!(
@@ -2340,7 +2345,7 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
     assert_eq!(task.await.unwrap().unwrap(), 42);
 
     let (started, running) = oneshot::channel();
-    let limiter = first.funnel("reports").unwrap().limit(1).releaseAfter(10);
+    let limiter = first.funnel("reports").unwrap().limit(1).release_after(10);
     let task = tokio::spawn(limiter.then(|| async move {
         started.send(()).unwrap();
         std::future::pending::<Result<(), CacheError>>().await
@@ -2360,15 +2365,15 @@ async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository
 
     assert_eq!(
         first
-            .withoutOverlappingWith(
+            .without_overlapping_with(
                 "exclusive",
                 || async {
                     let blocked = second
-                        .withoutOverlappingWith("exclusive", unused, 10, 0, None)
+                        .without_overlapping_with("exclusive", unused, 10, 0, None)
                         .await;
                     assert!(matches!(blocked, Err(CacheError::LockTimeout)));
                     let mut lock = second.lock("exclusive", None, Some("fixture-owner"))?;
-                    assert!(lock.isOwnedByCurrentProcess().await?);
+                    assert!(lock.is_owned_by_current_process().await?);
                     Ok("done")
                 },
                 10,
@@ -2432,7 +2437,7 @@ async fn cache_concurrency_shares_redis_slots_between_applications() {
 
     let (started, running) = tokio::sync::oneshot::channel();
     let (resume, held) = tokio::sync::oneshot::channel();
-    let limiter = first.funnel("lease").unwrap().limit(1).releaseAfter(1);
+    let limiter = first.funnel("lease").unwrap().limit(1).release_after(1);
     let task = tokio::spawn(limiter.then(|| async move {
         started.send(()).unwrap();
         held.await.unwrap();
@@ -2443,7 +2448,7 @@ async fn cache_concurrency_shares_redis_slots_between_applications() {
     replacement.block(Duration::from_secs(4)).await.unwrap();
     resume.send(()).unwrap();
     task.await.unwrap().unwrap();
-    assert!(replacement.isOwnedByCurrentProcess().await.unwrap());
+    assert!(replacement.is_owned_by_current_process().await.unwrap());
     assert!(replacement.release().await.unwrap());
 }
 
@@ -2458,7 +2463,7 @@ async fn remember_reports_warmth_and_only_resolves_missing_non_null_values() {
         .unwrap();
     assert_eq!(
         cache
-            .rememberWithWarmthFor(
+            .remember_with_warmth_for(
                 "cached-null",
                 |value| {
                     assert_eq!(value, &Value::from(1));
@@ -2472,7 +2477,7 @@ async fn remember_reports_warmth_and_only_resolves_missing_non_null_values() {
     );
     assert_eq!(
         cache
-            .rememberWithWarmthFor("cached-null", |_| panic!("expiry already set"), async {
+            .remember_with_warmth_for("cached-null", |_| panic!("expiry already set"), async {
                 panic!("already cached")
             })
             .await
@@ -2481,7 +2486,7 @@ async fn remember_reports_warmth_and_only_resolves_missing_non_null_values() {
     );
     assert_eq!(
         cache
-            .rememberForever("permanent", async { Ok(2.into()) })
+            .remember_forever("permanent", async { Ok(2.into()) })
             .await
             .unwrap(),
         2.into()
@@ -2527,7 +2532,7 @@ async fn verify_flexible(root: &Sandbox) {
                 StatusCode::OK
             };
             let always = path == "/always";
-            let value = Cache::flexibleWith(
+            let value = Cache::flexible_with(
                 "report",
                 [Ttl::Seconds(0), Ttl::Seconds(30)],
                 move || async move {
@@ -2698,7 +2703,7 @@ async fn verify_cache_defaults(first: &Repository, second: &Repository) {
     assert_eq!(first.get("null").await.unwrap(), Some(null));
     assert_eq!(
         first
-            .getOrElse("missing", || async { Ok("computed".into()) })
+            .get_or_else("missing", || async { Ok("computed".into()) })
             .await
             .unwrap(),
         "computed".into()
@@ -2707,14 +2712,14 @@ async fn verify_cache_defaults(first: &Repository, second: &Repository) {
     first.forever("zero", &0.into()).await.unwrap();
     assert_eq!(
         first
-            .getOrElse("zero", || async { panic!("fallback on a hit") })
+            .get_or_else("zero", || async { panic!("fallback on a hit") })
             .await
             .unwrap(),
         0.into()
     );
     let (left, right) = tokio::join!(
-        first.pullOr("zero", "empty".into()),
-        second.pullOrElse("zero", || async { Ok("empty".into()) }),
+        first.pull_or("zero", "empty".into()),
+        second.pull_or_else("zero", || async { Ok("empty".into()) }),
     );
     let values = [left.unwrap(), right.unwrap()];
     assert!(values.contains(&0.into()));
@@ -2722,7 +2727,7 @@ async fn verify_cache_defaults(first: &Repository, second: &Repository) {
     assert_eq!(first.get("zero").await.unwrap(), None);
     assert!(matches!(
         first
-            .pullOrElse("null", || async { Err(CacheError::InvalidValue) })
+            .pull_or_else("null", || async { Err(CacheError::InvalidValue) })
             .await,
         Err(CacheError::InvalidValue)
     ));
@@ -2737,7 +2742,7 @@ async fn cache_defaults_keep_atomic_pull_and_propagate_backend_errors() {
     assert!(matches!(
         root.cache(Some("session"))
             .await
-            .getOrElse("key", || async { panic!("fallback on a backend error") })
+            .get_or_else("key", || async { panic!("fallback on a backend error") })
             .await,
         Err(CacheError::SessionUnavailable)
     ));
@@ -2866,7 +2871,7 @@ async fn verify_typed_and_batch(cache: &Repository) {
     ];
     assert!(
         cache
-            .setMultiple(&input, Some(Ttl::Seconds(30)))
+            .set_multiple(&input, Some(Ttl::Seconds(30)))
             .await
             .unwrap()
     );
@@ -2926,7 +2931,7 @@ async fn verify_typed_and_batch(cache: &Repository) {
     ));
 
     let multiple = cache
-        .getMultiple(&["count", "null", "missing", "count"], Some(7.into()))
+        .get_multiple(&["count", "null", "missing", "count"], Some(7.into()))
         .await
         .unwrap();
     assert_eq!(
@@ -2936,11 +2941,14 @@ async fn verify_typed_and_batch(cache: &Repository) {
     assert_eq!(multiple["count"], Some(" +12 ".into()));
     assert_eq!(multiple["null"], Some(7.into()));
     assert_eq!(multiple["missing"], Some(7.into()));
-    let without_default = cache.getMultiple(&["null", "missing"], None).await.unwrap();
+    let without_default = cache
+        .get_multiple(&["null", "missing"], None)
+        .await
+        .unwrap();
     assert_eq!(without_default["null"], None);
     assert_eq!(without_default["missing"], None);
     let separate = cache
-        .manyOr(&[
+        .many_or(&[
             ("null", 2.into()),
             ("missing", 3.into()),
             ("null", 4.into()),
@@ -2950,7 +2958,7 @@ async fn verify_typed_and_batch(cache: &Repository) {
     assert_eq!(separate["null"], 4.into());
     assert_eq!(separate["missing"], 3.into());
     let lazy = cache
-        .manyOrElse(&["zero", "null", "missing", "null"], |key| async move {
+        .many_or_else(&["zero", "null", "missing", "null"], |key| async move {
             assert_ne!(key, "zero");
             Ok(Value::from(key))
         })
@@ -2965,7 +2973,7 @@ async fn verify_typed_and_batch(cache: &Repository) {
     assert!(cache.delete("delete").await.unwrap());
     assert!(
         !cache
-            .deleteMultiple(&["missing", "title", "zero"])
+            .delete_multiple(&["missing", "title", "zero"])
             .await
             .unwrap()
     );
@@ -2973,7 +2981,7 @@ async fn verify_typed_and_batch(cache: &Repository) {
     assert!(cache.missing("zero").await.unwrap());
     assert!(
         !cache
-            .setMultiple(&input, Some(Ttl::Seconds(0)))
+            .set_multiple(&input, Some(Ttl::Seconds(0)))
             .await
             .unwrap()
     );

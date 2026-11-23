@@ -16,7 +16,7 @@ use serde_json::json;
 fn hydrated(attributes: impl IntoIterator<Item = (&'static str, Value)>) -> Client {
     let mut state = ModelState::default();
     for (key, value) in attributes {
-        state.setAttribute(key, value);
+        state.set_attribute(key, value);
     }
     Client::from_state(state)
 }
@@ -49,9 +49,9 @@ fn client_grant_and_redirect_accessors_preserve_shapes_and_fixed_fallback_order(
             "urn:ietf:params:oauth:grant-type:device_code"
         ])
     );
-    client.state_mut().setAttribute("redirect_uris", "[]");
+    client.state_mut().set_attribute("redirect_uris", "[]");
     assert!(client.redirectUris().unwrap().is_empty());
-    client.state_mut().setAttribute(
+    client.state_mut().set_attribute(
         "grant_types",
         Value::Json(json!({"0":"refresh_token", "1":"authorization_code"})),
     );
@@ -59,7 +59,7 @@ fn client_grant_and_redirect_accessors_preserve_shapes_and_fixed_fallback_order(
         client.grantTypes().unwrap().as_value(),
         &json!(["refresh_token", "authorization_code"])
     );
-    client.state_mut().setAttribute(
+    client.state_mut().set_attribute(
         "grant_types",
         Value::Json(json!({"named":"authorization_code", "2":true})),
     );
@@ -71,9 +71,9 @@ fn client_grant_and_redirect_accessors_preserve_shapes_and_fixed_fallback_order(
         "PHP in_array is non-strict"
     );
     assert!(!grants.contains_strict_string("other"));
-    client.state_mut().setAttribute("grant_types", "null");
+    client.state_mut().set_attribute("grant_types", "null");
     assert!(client.grantTypes().is_err());
-    client.state_mut().setAttribute("redirect_uris", "12");
+    client.state_mut().set_attribute("redirect_uris", "12");
     assert!(client.redirectUris().is_err());
 }
 
@@ -86,10 +86,10 @@ fn client_projection_hides_raw_secret_and_uses_model_accessors_and_uuid_strategy
         ("redirect_uris", "[]".into()),
         ("revoked", "0".into()),
     ]);
-    assert!(Client::usesUniqueIds());
-    assert!(!Client::getIncrementing());
-    assert!(!Client::isValidUniqueId("1"));
-    assert!(Client::isValidUniqueId(
+    assert!(Client::uses_unique_ids());
+    assert!(!Client::get_incrementing());
+    assert!(!Client::is_valid_unique_id("1"));
+    assert!(Client::is_valid_unique_id(
         "550e8400-e29b-41d4-a716-446655440000"
     ));
     let json = client.to_array().unwrap();
@@ -106,7 +106,7 @@ fn client_projection_hides_raw_secret_and_uses_model_accessors_and_uuid_strategy
     assert_eq!(json["redirect_uris"], json!([]));
     assert!(client.plainSecret.is_none());
     assert_eq!(
-        client.getAttributeValue("plain_secret").unwrap(),
+        client.get_attribute_value("plain_secret").unwrap(),
         Some(Value::Null)
     );
     assert!(!format!("{client:?}").contains("never serialize"));
@@ -139,7 +139,7 @@ async fn application(rounds: u32) -> (Application, openrust::database::Connectio
 async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_local() {
     let (app, db) = application(4).await;
     let hasher = app.container().make::<dyn Hasher>().unwrap();
-    let mut client = Client::queryOn(&db)
+    let mut client = Client::query_on(&db)
         .make_async(Attributes::from([
             ("name".into(), "native client".into()),
             ("secret".into(), "plain secret".into()),
@@ -158,7 +158,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
         client.plainSecret.as_deref().map(|s| s.as_str()),
         Some("plain secret")
     );
-    let Some(Value::Text(hash)) = client.getAttribute("secret") else {
+    let Some(Value::Text(hash)) = client.get_attribute("secret") else {
         panic!("missing hash")
     };
     assert!(hash.starts_with("$2y$04$"));
@@ -174,24 +174,24 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
     let loaded = Client::from_state(client.state().clone());
     assert!(loaded.plainSecret.is_none());
     assert_eq!(
-        loaded.getAttribute("secret"),
+        loaded.get_attribute("secret"),
         Some(&Value::Text(hash.clone()))
     );
-    client.setAttributeValue("secret", hash.clone()).unwrap();
-    assert_eq!(client.getAttribute("secret"), Some(&Value::Text(hash)));
+    client.set_attribute_value("secret", hash.clone()).unwrap();
+    assert_eq!(client.get_attribute("secret"), Some(&Value::Text(hash)));
     assert!(
         client.plainSecret.is_some(),
         "PHP retains the setter input, even when already hashed"
     );
     client
-        .forceFillAsync(Attributes::from([("secret".into(), "replacement".into())]))
+        .force_fill_async(Attributes::from([("secret".into(), "replacement".into())]))
         .await
         .unwrap();
     assert_eq!(
         client.plainSecret.as_deref().map(|s| s.as_str()),
         Some("replacement")
     );
-    let Some(Value::Text(hash)) = client.getAttribute("secret") else {
+    let Some(Value::Text(hash)) = client.get_attribute("secret") else {
         panic!("missing hash")
     };
     assert!(
@@ -201,42 +201,48 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
             .unwrap()
     );
     client
-        .setAttributeValueAsync("secret", Value::Null)
+        .set_attribute_value_async("secret", Value::Null)
         .await
         .unwrap();
     assert!(client.plainSecret.is_none());
     assert!(!client.confidential());
-    assert!(client.state().getAttributes().get("plain_secret").is_none());
+    assert!(
+        client
+            .state()
+            .get_attributes()
+            .get("plain_secret")
+            .is_none()
+    );
 }
 
 #[tokio::test]
 async fn secret_failure_keeps_the_existing_hash_and_applications_keep_their_hash_configuration() {
     let (_one, first) = application(4).await;
     let (_two, second) = application(5).await;
-    let query1 = Client::queryOn(&first);
-    let query2 = Client::queryOn(&second);
+    let query1 = Client::query_on(&first);
+    let query2 = Client::query_on(&second);
     let attrs = || Attributes::from([("secret".into(), "same input".into())]);
     let (a, b) = tokio::join!(query1.make_async(attrs()), query2.make_async(attrs()));
     let mut a = a.unwrap();
     let b = b.unwrap();
     assert!(
-        matches!(a.getAttribute("secret"), Some(Value::Text(hash)) if hash.starts_with("$2y$04$"))
+        matches!(a.get_attribute("secret"), Some(Value::Text(hash)) if hash.starts_with("$2y$04$"))
     );
     assert!(
-        matches!(b.getAttribute("secret"), Some(Value::Text(hash)) if hash.starts_with("$2y$05$"))
+        matches!(b.get_attribute("secret"), Some(Value::Text(hash)) if hash.starts_with("$2y$05$"))
     );
-    let stored = a.getAttribute("secret").cloned();
+    let stored = a.get_attribute("secret").cloned();
     assert!(matches!(
-        a.setAttributeValueAsync("secret", b.getAttribute("secret").unwrap().clone())
+        a.set_attribute_value_async("secret", b.get_attribute("secret").unwrap().clone())
             .await,
         Err(openrust::database::DatabaseError::AttributeHashing(
             HashError::InvalidOptions
         ))
     ));
-    assert_eq!(a.getAttribute("secret"), stored.as_ref());
+    assert_eq!(a.get_attribute("secret"), stored.as_ref());
     assert_eq!(
         a.plainSecret.as_deref().map(|s| s.as_str()),
-        b.getAttribute("secret").and_then(|v| match v {
+        b.get_attribute("secret").and_then(|v| match v {
             Value::Text(s) => Some(s.as_str()),
             _ => None,
         })
@@ -284,15 +290,15 @@ fn plain_secret_appending_reads_the_instance_and_respects_visibility() {
     let projected = client.to_array().unwrap();
     assert_eq!(projected["plain_secret"], "instance-only secret");
     assert!(!projected.contains_key("secret"));
-    assert!(client.state().getAttribute("plain_secret").is_none());
-    client.makeHidden(&["plain_secret"]);
+    assert!(client.state().get_attribute("plain_secret").is_none());
+    client.make_hidden(&["plain_secret"]);
     assert!(!client.to_array().unwrap().contains_key("plain_secret"));
-    client.makeVisible(&["plain_secret"]);
+    client.make_visible(&["plain_secret"]);
     assert_eq!(
         client.to_array().unwrap()["plain_secret"],
         "instance-only secret"
     );
-    client.setVisible(&["secret"]);
+    client.set_visible(&["secret"]);
     assert!(!client.to_array().unwrap().contains_key("plain_secret"));
     let mut hydrated_again = hydrated([("secret", "stored hash".into())]);
     hydrated_again.append(&["plain_secret"]);
@@ -341,7 +347,7 @@ fn existing_eloquent_append_accessors_keep_raw_state_visibility_and_errors() {
         }
     }
     let mut state = ModelState::default();
-    state.setAttribute("label", "current value");
+    state.set_attribute("label", "current value");
     let mut model = DefaultAccessor::from_state(state);
     assert_eq!(
         model.to_array().unwrap(),
@@ -350,9 +356,9 @@ fn existing_eloquent_append_accessors_keep_raw_state_visibility_and_errors() {
             .unwrap()
             .clone()
     );
-    model.state_mut().setAttribute("label", "changed value");
+    model.state_mut().set_attribute("label", "changed value");
     assert_eq!(model.to_array().unwrap()["summary"], "changed value");
-    model.makeHidden(&["summary"]);
+    model.make_hidden(&["summary"]);
     assert!(model.to_array().unwrap().is_empty());
     model.append(&["missing"]);
     assert!(model.to_array().is_err());

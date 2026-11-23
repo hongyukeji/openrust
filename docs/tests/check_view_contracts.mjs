@@ -22,7 +22,7 @@ try {
                     assert.ok(await page.locator('a[href="#view-contracts"]').count());
                     const body = await page.locator("main").innerText();
                     assert.ok(body.includes("render_card"));
-                    assert.ok(body.includes("addNamespace"));
+                    assert.ok(body.includes("add_namespace"));
                     assert.equal(await page.locator("#native-view-values").count(), 1);
                     assert.ok(body.includes("ViewValue::Object(data)"));
                     assert.ok(body.includes("value.to_json().is_err()"));
@@ -39,9 +39,9 @@ try {
                     assert.equal((await page.goto(url.replace("views.html", "logging.html"))).status(), 200);
                     assert.equal(await page.locator("#request-log-authentication").count(), 1);
                     const logging = await page.locator("main").innerText();
-                    assert.ok(logging.includes("Log::logWithRequest(request"));
-                    assert.ok(logging.includes("listenForRequest"));
-                    assert.ok(logging.includes(".\\target\\debug\\main.exe artisan pail --timeout=0"));
+                    assert.ok(logging.includes("Log::log_with_request(request"));
+                    assert.ok(logging.includes("listen_for_request"));
+                    assert.ok(logging.includes(".\\artisan.bat pail --timeout=0"));
                     assert.ok(logging.includes("Ctrl+C"));
                     console.log(mount, locale, "PASS");
                 } finally {

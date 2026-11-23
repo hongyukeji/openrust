@@ -75,7 +75,6 @@ pub struct DynamoDbStore {
     prefix: String,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DynamoDbStore {
     pub fn new(
         client: Client,
@@ -149,15 +148,15 @@ impl DynamoDbStore {
         })
     }
 
-    pub fn getPrefix(&self) -> &str {
+    pub fn get_prefix(&self) -> &str {
         &self.prefix
     }
 
-    pub fn setPrefix(&mut self, prefix: String) {
+    pub fn set_prefix(&mut self, prefix: String) {
         self.prefix = prefix;
     }
 
-    pub async fn getClient(&self) -> &Client {
+    pub async fn get_client(&self) -> &Client {
         self.connection
             .client
             .get_or_init(|| async {
@@ -223,7 +222,7 @@ impl DynamoDbStore {
 
     async fn read(&self, key: &str, consistent: bool) -> CacheResult<Option<Item>> {
         let result = self
-            .getClient()
+            .get_client()
             .await
             .get_item()
             .table_name(&self.connection.table)
@@ -250,7 +249,7 @@ impl DynamoDbStore {
     }
 
     async fn write(&self, key: &str, value: &Value, expiry: i64) -> CacheResult<bool> {
-        self.getClient()
+        self.get_client()
             .await
             .put_item()
             .table_name(&self.connection.table)
@@ -270,7 +269,7 @@ impl DynamoDbStore {
     ) -> CacheResult<bool> {
         let fields = &self.connection.attributes;
         condition(
-            self.getClient()
+            self.get_client()
                 .await
                 .put_item()
                 .table_name(&self.connection.table)
@@ -292,7 +291,7 @@ impl DynamoDbStore {
         let minimum = (i128::from(i64::MIN) - amount).max(i128::from(i64::MIN));
         let maximum = (i128::from(i64::MAX) - amount).min(i128::from(i64::MAX));
         let result = self
-            .getClient()
+            .get_client()
             .await
             .update_item()
             .table_name(&self.connection.table)
@@ -339,7 +338,7 @@ impl DynamoDbStore {
             }
         }
         let mut values = HashMap::with_capacity(unique.len());
-        let client = self.getClient().await;
+        let client = self.get_client().await;
         let table = &self.connection.table;
         let now = now();
         for batch in requested.chunks(100) {
@@ -417,7 +416,7 @@ impl DynamoDbStore {
     }
 
     async fn write_batch(&self, batch: Vec<WriteRequest>) -> CacheResult<()> {
-        let client = self.getClient().await;
+        let client = self.get_client().await;
         let mut remaining = Some(HashMap::from([(self.connection.table.clone(), batch)]));
         for attempt in 0..BATCH_ATTEMPTS {
             let response = client
@@ -435,7 +434,7 @@ impl DynamoDbStore {
         unreachable!("batch loop returns an error on exhaustion")
     }
 
-    pub async fn refreshIfOwned(
+    pub async fn refresh_if_owned(
         &self,
         key: &str,
         owner: &str,
@@ -444,7 +443,7 @@ impl DynamoDbStore {
         let fields = &self.connection.attributes;
         let now = now();
         condition(
-            self.getClient()
+            self.get_client()
                 .await
                 .update_item()
                 .table_name(&self.connection.table)
@@ -467,7 +466,7 @@ impl DynamoDbStore {
     pub(super) async fn delete_if_owned(&self, key: &str, owner: &str) -> CacheResult<bool> {
         let fields = &self.connection.attributes;
         condition(
-            self.getClient()
+            self.get_client()
                 .await
                 .delete_item()
                 .table_name(&self.connection.table)
@@ -534,7 +533,7 @@ impl Store for DynamoDbStore {
     fn pull<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
         Box::pin(async move {
             let result = self
-                .getClient()
+                .get_client()
                 .await
                 .delete_item()
                 .table_name(&self.connection.table)
@@ -567,7 +566,7 @@ impl Store for DynamoDbStore {
             let fields = &self.connection.attributes;
             let now = now();
             condition(
-                self.getClient()
+                self.get_client()
                     .await
                     .update_item()
                     .table_name(&self.connection.table)
@@ -586,7 +585,7 @@ impl Store for DynamoDbStore {
 
     fn forget<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<bool>> {
         Box::pin(async move {
-            self.getClient()
+            self.get_client()
                 .await
                 .delete_item()
                 .table_name(&self.connection.table)

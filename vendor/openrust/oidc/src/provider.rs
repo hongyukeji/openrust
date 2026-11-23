@@ -70,7 +70,7 @@ impl<'a> Provider<'a> {
         self.prompt = Some(value.into());
         self
     }
-    pub fn maxAge(&mut self, seconds: u64) -> &mut Self {
+    pub fn max_age(&mut self, seconds: u64) -> &mut Self {
         self.max_age = Some(seconds);
         self
     }

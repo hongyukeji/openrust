@@ -12,7 +12,7 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = connection.getSchemaBuilder();
+            let mut schema = connection.get_schema_builder();
             schema
                 .create("jobs", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.jobs", &Default::default())?);
@@ -27,17 +27,17 @@ impl Migration for Definition {
                         .longText("payload")
                         .comment(__("schema.columns.payload", &Default::default())?);
                     table
-                        .unsignedSmallInteger("attempts")
+                        .unsigned_small_integer("attempts")
                         .comment(__("schema.columns.attempts", &Default::default())?);
                     table
-                        .unsignedBigInteger("reserved_at")
+                        .unsigned_big_integer("reserved_at")
                         .nullable()
                         .comment(__("schema.columns.reserved_at", &Default::default())?);
                     table
-                        .unsignedBigInteger("available_at")
+                        .unsigned_big_integer("available_at")
                         .comment(__("schema.columns.available_at", &Default::default())?);
                     table
-                        .unsignedBigInteger("created_at")
+                        .unsigned_big_integer("created_at")
                         .comment(__("schema.columns.created_at_unix", &Default::default())?);
                     Ok(())
                 })
@@ -106,7 +106,7 @@ impl Migration for Definition {
                         .comment(__("schema.columns.exception", &Default::default())?);
                     table
                         .timestamp("failed_at", None)
-                        .useCurrent()
+                        .use_current()
                         .comment(__("schema.columns.failed_at", &Default::default())?);
                     Ok(())
                 })
@@ -120,10 +120,10 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = connection.getSchemaBuilder();
-            schema.dropIfExists("jobs").await?;
-            schema.dropIfExists("job_batches").await?;
-            schema.dropIfExists("failed_jobs").await
+            let mut schema = connection.get_schema_builder();
+            schema.drop_if_exists("jobs").await?;
+            schema.drop_if_exists("job_batches").await?;
+            schema.drop_if_exists("failed_jobs").await
         })
     }
 }

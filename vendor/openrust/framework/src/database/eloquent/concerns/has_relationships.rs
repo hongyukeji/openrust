@@ -109,7 +109,7 @@ impl LoadedRelations {
                 queueable_paths: None,
                 push: None,
                 is_empty_collection: None,
-                pivot_table: Some(Pivot::getTable),
+                pivot_table: Some(Pivot::get_table),
             }),
         );
     }
@@ -124,9 +124,9 @@ impl LoadedRelations {
             Arc::new(LoadedValue {
                 value,
                 project: R::serialize,
-                queueable_paths: Some(R::queueableRelations),
-                push: Some(R::pushLoaded),
-                is_empty_collection: Some(R::isEmptyCollection),
+                queueable_paths: Some(R::queueable_relations),
+                push: Some(R::push_loaded),
+                is_empty_collection: Some(R::is_empty_collection),
                 pivot_table: None,
             }),
         );
@@ -163,7 +163,7 @@ impl LoadedRelations {
                 project,
                 queueable_paths: None,
                 is_empty_collection: None,
-                pivot_table: Some(M::getTable),
+                pivot_table: Some(M::get_table),
                 push: Some(|model, context| {
                     Box::pin(async move {
                         let mut model = M::from_state(model.state().clone());
@@ -313,10 +313,10 @@ where
     let values = match transaction {
         Some(transaction) => {
             relation
-                .matchResultsInTransaction(&parents, transaction)
+                .match_results_in_transaction(&parents, transaction)
                 .await?
         }
-        None => relation.matchResults(&parents).await?,
+        None => relation.match_results(&parents).await?,
     };
     if indexes.len() != values.len() {
         return Err(DatabaseError::InvalidQuery("relation result cardinality"));
@@ -339,13 +339,13 @@ where
     M: Model,
     R: Relation<Parent = M>,
 {
-    if model.preventsLazyLoading() {
-        model.handleLazyLoadingViolationUsing(DatabaseError::LazyLoadingViolation {
+    if model.prevents_lazy_loading() {
+        model.handle_lazy_loading_violation_using(DatabaseError::LazyLoadingViolation {
             model: std::any::type_name::<M>(),
             relation: name.to_owned(),
         })?;
     }
-    let output = relation.getResults(model).await?;
+    let output = relation.get_results(model).await?;
     model
         .state_mut()
         .relations

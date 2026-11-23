@@ -22,7 +22,7 @@ macro_rules! grant_model {
             fn casts() -> &'static [(&'static str, AttributeCast)] {
                 <$base>::casts()
             }
-            fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+            fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
                 openrust::database::eloquent::ModelKeyType::String
             }
             fn from_state(s: ModelState) -> Self {
@@ -48,7 +48,7 @@ impl Model for CustomClient {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("custom_clients")
             .connection("main")
-            .uniqueId(openrust::database::eloquent::UniqueId::Uuid)
+            .unique_id(openrust::database::eloquent::UniqueId::Uuid)
             .guarded(&[])
             .hidden(&["secret"]);
         &META
@@ -56,7 +56,7 @@ impl Model for CustomClient {
     fn casts() -> &'static [(&'static str, AttributeCast)] {
         openrust_passport::Client::casts()
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn from_state(s: ModelState) -> Self {
@@ -99,7 +99,7 @@ const TABLES: &[(&str, &str)] = &[
 ];
 async fn select(f: &Fixture) {
     for (old, new) in TABLES {
-        f.db.getSchemaBuilder().rename(old, new).await.unwrap();
+        f.db.get_schema_builder().rename(old, new).await.unwrap();
     }
     f.passport.useClientModel::<CustomClient>();
     f.passport.useTokenModel::<AlternateAccess>();
@@ -109,7 +109,7 @@ async fn select(f: &Fixture) {
 }
 async fn restore(f: &Fixture) {
     for (old, new) in TABLES.iter().rev() {
-        f.db.getSchemaBuilder().rename(new, old).await.unwrap();
+        f.db.get_schema_builder().rename(new, old).await.unwrap();
     }
     f.cleanup().await;
 }
@@ -156,7 +156,7 @@ async fn mysql_all_five_selected_models_issue_refresh_revoke_purge_and_stay_appl
                         error => panic!("{error}"),
                     });
                 assert!(client.model::<CustomClient>().is_some());
-                assert!(client.getKey().await.is_some());
+                assert!(client.get_key().await.is_some());
                 Ok(())
             }),
             Default::default(),
@@ -180,7 +180,7 @@ async fn mysql_all_five_selected_models_issue_refresh_revoke_purge_and_stay_appl
                 assert_eq!(
                     client
                         .authCodesFor::<CustomCode>()
-                        .getResults(&client)
+                        .get_results(&client)
                         .await
                         .unwrap()
                         .len(),
@@ -360,7 +360,7 @@ async fn mysql_custom_token_route_and_provider_keep_default_routes_suppressed() 
                     .createPasswordGrantClient("Custom route", Some("users"), false)
                     .await
                     .unwrap();
-                Ok(AuthIdentifier::try_from(&client.getKey().await.unwrap())
+                Ok(AuthIdentifier::try_from(&client.get_key().await.unwrap())
                     .unwrap()
                     .to_string())
             }),
@@ -475,14 +475,14 @@ async fn mysql_custom_grant_storage_failure_and_cross_connection_transaction_are
         .connection(Some("foreign"))
         .unwrap();
     foreign
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("custom_codes", |t| {
             t.string("id", 100).primary();
             t.bigInteger("user_id");
             t.string("client_id", 36);
             t.text("scopes");
             t.boolean("revoked");
-            t.dateTime("expires_at", 0);
+            t.date_time("expires_at", 0);
         })
         .await
         .unwrap();
@@ -511,8 +511,8 @@ async fn mysql_custom_grant_storage_failure_and_cross_connection_transaction_are
     assert!(f.issued().await["access_token"].is_string());
     assert!(f.device_code(&device, "read").await["device_code"].is_string());
     foreign
-        .getSchemaBuilder()
-        .dropIfExists("custom_codes")
+        .get_schema_builder()
+        .drop_if_exists("custom_codes")
         .await
         .unwrap();
     f.cleanup().await;

@@ -70,7 +70,7 @@ async fn restore<M: Searchable>(
     delete: bool,
     manager: &EngineManager,
 ) -> Result<Vec<M>> {
-    use openrust::support::facades::DB;
+    use openrust::support::facades::Db;
     let keys = payload.data()["keys"]
         .as_array()
         .ok_or_else(|| Error::InvalidConfiguration("Scout job keys must be an array".into()))?
@@ -80,19 +80,19 @@ async fn restore<M: Searchable>(
     if keys.is_empty() {
         return Ok(Vec::new());
     }
-    let connection = DB::connection(payload.data()["connection"].as_str())?;
+    let connection = Db::connection(payload.data()["connection"].as_str())?;
     let model = M::from_state(Default::default());
     if delete {
         return keys
             .into_iter()
             .map(|key| {
-                let mut tombstone = M::newInstanceOn(&connection, Default::default())?;
-                tombstone.forceFill([(model.getScoutKeyName(), key)].into())?;
+                let mut tombstone = M::new_instance_on(&connection, Default::default())?;
+                tombstone.force_fill([(model.getScoutKeyName(), key)].into())?;
                 Ok(tombstone)
             })
             .collect();
     }
-    let mut query = M::queryOn(&connection).withoutGlobalScopes();
+    let mut query = M::query_on(&connection).without_global_scopes();
     if manager.boolean("soft_delete") {
         query = query.with_trashed();
     }

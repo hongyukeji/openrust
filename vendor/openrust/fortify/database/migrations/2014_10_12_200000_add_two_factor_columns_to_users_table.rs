@@ -13,7 +13,7 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .table("users", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.users", &Default::default())?);
                     table
@@ -48,9 +48,9 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .table("users", |table| {
-                    table.dropColumn(&[
+                    table.drop_column(&[
                         "two_factor_secret",
                         "two_factor_recovery_codes",
                         "two_factor_confirmed_at",

@@ -10,21 +10,20 @@ use crate::{
 
 use super::{Builder, Column, Conditions, Order};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<Row>> {
-        self.paginateWith(PageOptions {
-            perPage: Some(per_page),
+        self.paginate_with(PageOptions {
+            per_page: Some(per_page),
             ..PageOptions::default()
         })
         .await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         mut self,
         mut options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<Row>> {
-        let resolved_page = if options.perPageUsing.is_none() {
+        let resolved_page = if options.per_page_using.is_none() {
             Some(offset_page(&options)?)
         } else {
             None
@@ -38,7 +37,7 @@ impl Builder<'_> {
         let (links, page, size, offset) = match resolved_page {
             Some(page) => page,
             None => {
-                options.perPage = options.resolve_per_page(total)?;
+                options.per_page = options.resolve_per_page(total)?;
                 offset_page(&options)?
             }
         };
@@ -52,15 +51,15 @@ impl Builder<'_> {
         ))
     }
 
-    pub async fn simplePaginate(self, per_page: u64) -> DatabaseResult<Paginator<Row>> {
-        self.simplePaginateWith(PageOptions {
-            perPage: Some(per_page),
+    pub async fn simple_paginate(self, per_page: u64) -> DatabaseResult<Paginator<Row>> {
+        self.simple_paginate_with(PageOptions {
+            per_page: Some(per_page),
             ..PageOptions::default()
         })
         .await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         self,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<Row>> {
@@ -74,20 +73,20 @@ impl Builder<'_> {
         Ok(Paginator::from_query(items, page, size, links))
     }
 
-    pub async fn cursorPaginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<Row>> {
-        self.cursorPaginateWith(CursorOptions {
-            perPage: Some(per_page),
+    pub async fn cursor_paginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<Row>> {
+        self.cursor_paginate_with(CursorOptions {
+            per_page: Some(per_page),
             ..CursorOptions::default()
         })
         .await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         mut self,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<Row>> {
-        let size = page_size(options.perPage)?;
-        let links = Links::current(options.cursorName);
+        let size = page_size(options.per_page)?;
+        let links = Links::current(options.cursor_name);
         // the framework starts at the first page when an incoming token cannot be decoded.
         let cursor = links.current_cursor(options.cursor);
         if !self.unions.is_empty()
@@ -100,13 +99,15 @@ impl Builder<'_> {
         self = self.select_page_columns(options.columns);
         let order = self.cursor_order()?;
         let names: Vec<_> = order.iter().map(|key| key.output.clone()).collect();
-        let backwards = cursor.as_ref().is_some_and(Cursor::pointsToPreviousItems);
+        let backwards = cursor
+            .as_ref()
+            .is_some_and(Cursor::points_to_previous_items);
         if let Some(cursor) = &cursor {
             let keys = cursor.keys(&names)?;
             let predicates = mem::take(&mut self.predicates);
             self.predicates = Conditions::default()
-                .whereNested(|_| predicates)
-                .whereNested(|group| seek(group, &order, &keys, backwards));
+                .where_nested(|_| predicates)
+                .where_nested(|group| seek(group, &order, &keys, backwards));
         }
         if backwards {
             for order in &mut self.orders {
@@ -145,7 +146,7 @@ impl Builder<'_> {
 
     pub(in crate::database) fn order_for_pagination(self, column: &str) -> Self {
         if self.orders.is_empty() && self.union_orders.is_empty() {
-            self.orderBy(column, "asc")
+            self.order_by(column, "asc")
         } else {
             self
         }
@@ -160,7 +161,7 @@ impl Builder<'_> {
     }
 
     async fn pagination_count(&mut self) -> DatabaseResult<u64> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let orders = mem::take(&mut self.orders);
         let union_orders = mem::take(&mut self.union_orders);
         let limits = (
@@ -241,9 +242,9 @@ impl Builder<'_> {
 }
 
 fn offset_page(options: &PageOptions<'_>) -> DatabaseResult<(Links, u64, u64, u64)> {
-    let links = Links::current(options.pageName);
+    let links = Links::current(options.page_name);
     let page = links.current_page(options.page);
-    let size = page_size(options.perPage)?;
+    let size = page_size(options.per_page)?;
     let offset = page_offset(page, size)?;
     Ok((links, page, size, offset))
 }
@@ -276,7 +277,7 @@ fn seek(
 ) -> Conditions {
     for (index, key) in order.iter().enumerate() {
         let operator = if key.ascending != backwards { ">" } else { "<" };
-        group = group.orWhereNested(|mut branch| {
+        group = group.or_where_nested(|mut branch| {
             for (previous, value) in order[..index].iter().zip(keys) {
                 branch = branch.r#where(&previous.column, "=", value.clone());
             }

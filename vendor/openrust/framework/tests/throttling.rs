@@ -37,7 +37,7 @@ struct Limits;
 impl ServiceProvider for Limits {
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
-            RateLimiter::forAsync("body", |request| {
+            RateLimiter::for_async("body", |request| {
                 Box::pin(async move {
                     let key = request
                         .input(Some("username"))
@@ -48,11 +48,12 @@ impl ServiceProvider for Limits {
                         "unlimited" => Limit::none().into(),
                         "response" => Response::new(StatusCode::ACCEPTED, "policy".into()).into(),
                         "error" => return Err(HttpError::InvalidRequest),
-                        "multi" => {
-                            vec![Limit::perMinute(2).by("same"), Limit::perHour(3).by("same")]
-                                .into()
-                        }
-                        "after" => Limit::perMinute(1)
+                        "multi" => vec![
+                            Limit::per_minute(2).by("same"),
+                            Limit::per_hour(3).by("same"),
+                        ]
+                        .into(),
+                        "after" => Limit::per_minute(1)
                             .by(key)
                             .after(|response| response.status() == StatusCode::NO_CONTENT)
                             .response(|_, headers| {
@@ -60,28 +61,28 @@ impl ServiceProvider for Limits {
                                     .with_headers(headers)
                             })
                             .into(),
-                        _ => Limit::perMinute(1).by(key).into(),
+                        _ => Limit::per_minute(1).by(key).into(),
                     })
                 })
             })?;
-            RateLimiter::r#for("9", |_| Limit::perMinute(1))?;
-            RateLimiter::r#for("short", |_| Limit::perSecond(2))?;
-            RateLimiter::r#for("shared", |_| Limit::perMinute(5))?;
+            RateLimiter::r#for("9", |_| Limit::per_minute(1))?;
+            RateLimiter::r#for("short", |_| Limit::per_second(2))?;
+            RateLimiter::r#for("shared", |_| Limit::per_minute(5))?;
             RateLimiter::r#for("multi-shared", |_| {
                 vec![
-                    Limit::perMinute(7).by("overall"),
-                    Limit::perMinute(5).by("strict"),
+                    Limit::per_minute(7).by("overall"),
+                    Limit::per_minute(5).by("strict"),
                 ]
             })?;
             RateLimiter::r#for("multi", |request| {
-                let mut limits = vec![Limit::perMinute(4).by("first")];
+                let mut limits = vec![Limit::per_minute(4).by("first")];
                 if request.is("multi") {
-                    limits.push(Limit::perMinute(1).by("strict"));
+                    limits.push(Limit::per_minute(1).by("strict"));
                 }
                 limits
             })?;
             RateLimiter::r#for("after", |_| {
-                Limit::perMinute(1)
+                Limit::per_minute(1)
                     .after(|response| response.status() == StatusCode::BAD_REQUEST)
                     .response(|_, headers| {
                         Response::new(StatusCode::TOO_MANY_REQUESTS, "custom denial".into())
@@ -186,8 +187,8 @@ fn manual(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             RateLimiter::attempt(key, 1, async { Ok(8) }, 30).await?,
             Attempt::Throttled
         ));
-        assert!(RateLimiter::tooManyAttempts(key, 1).await?);
-        assert!(RateLimiter::availableIn(key).await? > 0);
+        assert!(RateLimiter::too_many_attempts(key, 1).await?);
+        assert!(RateLimiter::available_in(key).await? > 0);
         let remaining = RateLimiter::remaining(key, 2).await?;
         RateLimiter::clear(key).await?;
         assert_eq!(RateLimiter::attempts(key).await?, 0);
@@ -645,21 +646,21 @@ async fn asynchronous_named_policies_parse_body_preserve_errors_and_isolate_appl
 #[tokio::test]
 async fn synchronous_and_asynchronous_policies_replace_each_other_atomically() {
     let limiter = openrust::cache::RateLimiter::default();
-    limiter.r#for("replace", |_| Limit::perMinute(1));
+    limiter.r#for("replace", |_| Limit::per_minute(1));
     let original = limiter.limiter("replace").unwrap();
-    assert!(limiter.asyncLimiter("replace").is_none());
-    limiter.forAsync("replace", |_| Box::pin(async { Ok(Limit::none().into()) }));
-    let asynchronous = limiter.asyncLimiter("replace").unwrap();
+    assert!(limiter.async_limiter("replace").is_none());
+    limiter.for_async("replace", |_| Box::pin(async { Ok(Limit::none().into()) }));
+    let asynchronous = limiter.async_limiter("replace").unwrap();
     assert!(limiter.limiter("replace").is_none());
     let (parts, body) = axum::http::Request::new(openrust::http::Body::empty()).into_parts();
     let mut request = Request::from_parts(parts, body);
     let LimiterResponse::Limit(limit) = original(&request) else {
         panic!("original policy changed")
     };
-    assert_eq!(limit.maxAttempts, 1);
-    limiter.r#for("replace", |_| Limit::perMinute(2));
+    assert_eq!(limit.max_attempts, 1);
+    limiter.r#for("replace", |_| Limit::per_minute(2));
     assert!(limiter.limiter("replace").is_some());
-    assert!(limiter.asyncLimiter("replace").is_none());
+    assert!(limiter.async_limiter("replace").is_none());
     assert!(matches!(
         asynchronous(&mut request).await.unwrap(),
         LimiterResponse::Unlimited(_)
@@ -667,7 +668,7 @@ async fn synchronous_and_asynchronous_policies_replace_each_other_atomically() {
     let LimiterResponse::Limit(limit) = limiter.limiter("replace").unwrap()(&request) else {
         panic!("replacement missing")
     };
-    assert_eq!(limit.maxAttempts, 2);
+    assert_eq!(limit.max_attempts, 2);
 }
 
 #[tokio::test]

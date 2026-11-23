@@ -6,31 +6,30 @@ use std::{
 
 use super::{CollectionError, CollectionResult, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: Debug + 'source> LazyCollection<'source, T> {
     /// Writes a snapshot of the collection to standard output and returns the source.
     pub fn dump(self) -> CollectionResult<Self> {
-        self.dumpWith(&[])
+        self.dump_with(&[])
     }
 
     /// Also writes the supplied context values after the collection snapshot.
-    pub fn dumpWith(self, context: &[&dyn Debug]) -> CollectionResult<Self> {
-        self.dumpTo(io::stdout(), context)
+    pub fn dump_with(self, context: &[&dyn Debug]) -> CollectionResult<Self> {
+        self.dump_to(io::stdout(), context)
     }
 
     /// Writes the collection and context to a caller-selected output.
-    pub fn dumpTo(self, mut output: impl Write, context: &[&dyn Debug]) -> CollectionResult<Self> {
+    pub fn dump_to(self, mut output: impl Write, context: &[&dyn Debug]) -> CollectionResult<Self> {
         self.write_dump(&mut output, context)?;
         Ok(self)
     }
 
     /// Prepares a debug dump and terminates the current fallible operation when propagated.
     pub fn dd(self) -> CollectionResult<Infallible> {
-        self.ddWith(&[])
+        self.dd_with(&[])
     }
 
     /// Includes additional debug values in the dump.
-    pub fn ddWith(self, context: &[&dyn Debug]) -> CollectionResult<Infallible> {
+    pub fn dd_with(self, context: &[&dyn Debug]) -> CollectionResult<Infallible> {
         let mut bytes = Vec::new();
         self.write_dump(&mut bytes, context)?;
         let output =

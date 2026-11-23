@@ -8,22 +8,22 @@ In an application, import `Image` from `openrust::support::facades`. Use `reques
 
 ## Manipulating and encoding images {#manipulating-images}
 
-Transformations run in the order they are added. `resize` takes optional width and height. `scale` preserves aspect ratio without enlarging the image. `cover` crops to fill, while `contain` preserves the whole image and fills empty space. Other operations include crop, EXIF orientation, rotation, blur, grayscale, sharpen, and flips. Clone the pipeline to branch it. Use `toBytes().await?`, `toBase64().await?`, or `toDataUri().await?` to retrieve the result.
+Transformations run in the order they are added. `resize` takes optional width and height. `scale` preserves aspect ratio without enlarging the image. `cover` crops to fill, while `contain` preserves the whole image and fills empty space. Other operations include crop, EXIF orientation, rotation, blur, grayscale, sharpen, and flips. Clone the pipeline to branch it. Use `toBytes().await?`, `to_base64().await?`, or `toDataUri().await?` to retrieve the result.
 
 `flip()` flips vertically; `flop()` flips horizontally. `resize(width, height)` and `scale(width, height)` return `Result<Image>` and reject two missing dimensions immediately. Supplied zero dimensions become 1. Blur and sharpen amounts are capped at 100 before reaching a driver handler.
 
-A successfully loaded source is shared across branches. Modifying a rendered image starts from its processed bytes, so earlier transformations are not repeated. `hash_name("").await?` returns a stable filename for that image, and `store` reuses it. `hash_name("avatars").await?` adds the path prefix. `toString().await?` returns the data URI. A route handler may return `Image` or `Result<Image, HttpError>` directly; its response contains the image bytes and MIME type.
+A successfully loaded source is shared across branches. Modifying a rendered image starts from its processed bytes, so earlier transformations are not repeated. `hash_name("").await?` returns a stable filename for that image, and `store` reuses it. `hash_name("avatars").await?` adds the path prefix. `to_string().await?` returns the data URI. A route handler may return `Image` or `Result<Image, HttpError>` directly; its response contains the image bytes and MIME type.
 
 ```rust
 use openrust::image::{ImageManager, Limits};
 
 let manager = ImageManager::new(Limits::default());
-let source = manager.fromBase64(
+let source = manager.from_base64(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
 );
 let thumbnail = source.cover(4, 4).toWebp();
 assert_eq!(thumbnail.dimensions().await?, (4, 4));
-assert_eq!(thumbnail.mimeType().await?, "image/webp");
+assert_eq!(thumbnail.mime_type().await?, "image/webp");
 ```
 
 ## Animated images {#animated-images}
@@ -48,7 +48,7 @@ Transforms and conversions between AVIF and HEIC sequences keep each displayed f
 
 ## Inspecting images {#inspecting-images}
 
-Use `mimeType`, `extension`, `dimensions`, `width`, and `height` to inspect the processed result. `dominantColor` returns the alpha-weighted average RGB color as a hexadecimal string.
+Use `mime_type`, `extension`, `dimensions`, `width`, and `height` to inspect the processed result. `dominantColor` returns the alpha-weighted average RGB color as a hexadecimal string.
 
 ## Image drivers {#image-drivers}
 
@@ -56,13 +56,13 @@ The application uses the `image` driver by default. `IMAGE_DRIVER` selects a reg
 
 The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `toAvif()`, `toHeic()`, `toJxl()`, or `toFormat("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, HEIC, and JPEG XL use the requested quality. WebP and JPEG XL use lossless encoding at quality 100. These codecs run in Rust.
 
-Register custom drivers with `Image::extend("custom", creator)`; the callback returns `Result<Arc<dyn Driver>>`. The creator runs on the first `driver` call, receives the manager, and can use `getContainer()` to resolve application services. Resolved drivers stay cached when their creator is replaced. `forgetDrivers()` clears those instances and preserves creators and transformation handlers. `setContainer(container)` changes the container used by future creators and unloaded storage or URL sources; it preserves the configuration repository and resolved drivers. The container must remain owned by the application. A standalone manager returns `None` from `getContainer()`.
+Register custom drivers with `Image::extend("custom", creator)`; the callback returns `Result<Arc<dyn Driver>>`. The creator runs on the first `driver` call, receives the manager, and can use `get_container()` to resolve application services. Resolved drivers stay cached when their creator is replaced. `forget_drivers()` clears those instances and preserves creators and transformation handlers. `setContainer(container)` changes the container used by future creators and unloaded storage or URL sources; it preserves the configuration repository and resolved drivers. The container must remain owned by the application. A standalone manager returns `None` from `get_container()`.
 
 Implement `ensureRequirementsAreMet` in the `Driver` trait when a backend needs a dependency check. The default implementation succeeds. The manager calls it after creation and before transformation handlers or caching; an error is returned without caching the failed driver, so a later resolution can retry.
 
 ### Custom transformation handlers {#custom-transformation-handlers}
 
-Use `Image::transformUsing(driver, name, callback)?` or the same method on `ImageManager` to register a handler for one driver. Registration also works before an application registers that driver with `extend`; manager `extend` returns a `Result`. The driver contract exposes `transformUsing` and `dimensions`. Drivers without handler support return `UnsupportedTransformationHandler`. `Image::driver(None)?`, `get_default_driver()` and `getDrivers()` expose the configured driver and registered instances.
+Use `Image::transformUsing(driver, name, callback)?` or the same method on `ImageManager` to register a handler for one driver. Registration also works before an application registers that driver with `extend`; manager `extend` returns a `Result`. The driver contract exposes `transformUsing` and `dimensions`. Drivers without handler support return `UnsupportedTransformationHandler`. `Image::driver(None)?`, `get_default_driver()` and `get_drivers()` expose the configured driver and registered instances.
 
 ```rust
 use std::sync::Arc;

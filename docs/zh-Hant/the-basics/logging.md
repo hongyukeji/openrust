@@ -12,7 +12,7 @@ Slack 管道的預設顯示名稱為應用程式名稱加 ` Log`，例如 `Examp
 
 `channels` 支援清單或逗號分隔字串。成員依序執行。`bubble: false` 的處理器接受記錄後停止後續處理。`null` 捨棄達到門檻的記錄並停止後續處理。設定 `ignore_exceptions: true` 後，群組會嘗試每個處理器並抑制寫入錯誤。
 
-`Log::stack(&["single", "stderr"], None)` 建立臨時日誌堆疊。具名管道依應用程式延遲解析和快取。更新具名管道設定後，可用 `forgetChannel(Some(name))` 重新解析。
+`Log::stack(&["single", "stderr"], None)` 建立臨時日誌堆疊。具名管道依應用程式延遲解析和快取。更新具名管道設定後，可用 `forget_channel(Some(name))` 重新解析。
 
 ## 寫入日誌
 
@@ -39,9 +39,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 臨時管道與自訂管道
 
-`Log::build(&settings)?` 建立臨時日誌管道。使用 `Log::stackChannels` 與 `StackChannel::Named`、`StackChannel::Logger` 可組合設定管道和臨時管道。組合後的日誌堆疊有自己的標籤。
+`Log::build(&settings)?` 建立臨時日誌管道。使用 `Log::stack_channels` 與 `StackChannel::Named`、`StackChannel::Logger` 可組合設定管道和臨時管道。組合後的日誌堆疊有自己的標籤。
 
-設定 `driver: "custom"` 時，將 `via` 指向透過 `LogManager::registerFactory` 登記的工廠。使用 `LogManager::extend` 可註冊具名驅動。工廠是編譯後的 Rust 閉包，接收管理器和管道設定，回傳實作日誌契約的物件。首次並行解析時可能同時呼叫工廠，初始化應可安全重複。成功解析的具名管道共用已發布的實例。工廠失敗時使用緊急日誌，後續呼叫可重試。
+設定 `driver: "custom"` 時，將 `via` 指向透過 `LogManager::register_factory` 登記的工廠。使用 `LogManager::extend` 可註冊具名驅動。工廠是編譯後的 Rust 閉包，接收管理器和管道設定，回傳實作日誌契約的物件。首次並行解析時可能同時呼叫工廠，初始化應可安全重複。成功解析的具名管道共用已發布的實例。工廠失敗時使用緊急日誌，後續呼叫可重試。
 
 ```rust
 use openrust::{config::Repository, log::{LogContext, LogManager, StackChannel}};
@@ -51,12 +51,12 @@ use std::sync::Arc;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::env::current_dir()?;
     let manager = LogManager::new(Arc::new(Repository::new(Default::default())), root);
-    manager.registerFactory("audit", |manager, config| {
+    manager.register_factory("audit", |manager, config| {
         let logger = manager.build(&json!({"driver":"monthly", "path":config["path"]}))?;
         Ok(logger)
     });
     let audit = manager.build(&json!({"driver":"custom", "via":"audit", "path":"audit.log"}))?;
-    let stack = manager.stackChannels(
+    let stack = manager.stack_channels(
         &[StackChannel::Named("single"), StackChannel::Logger(&audit)],
         Some("orders"),
     )?;
@@ -67,11 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 自訂日誌記錄 {#customizing-channel-records}
 
-在服務 Provider 中用 `LogManager::registerFormatter`、`registerProcessor` 和 `registerTap` 註冊名稱。透過 `formatter` 選擇格式化器，用 `formatter_with` 傳入選項。將 `formatter` 設為 `"default"` 使用內建格式。檔案、輪替檔案與標準錯誤處理器依格式化器回傳的位元組寫入，記錄分隔符號也由格式化器提供。自訂日誌工廠管理自己的輸出。
+在服務 Provider 中用 `LogManager::register_formatter`、`register_processor` 和 `register_tap` 註冊名稱。透過 `formatter` 選擇格式化器，用 `formatter_with` 傳入選項。將 `formatter` 設為 `"default"` 使用內建格式。檔案、輪替檔案與標準錯誤處理器依格式化器回傳的位元組寫入，記錄分隔符號也由格式化器提供。自訂日誌工廠管理自己的輸出。
 
 `processors` 的成員可以是名稱，也可以是帶有 `processor` 和 `with` 的物件。處理器依設定順序在格式化前執行，可透過 `LogRecord` 修改訊息、記錄上下文和公開作用域中繼資料。日誌堆疊依成員順序合併處理器，各成員沿用自己的格式化器。
 
-`"audit:orders,prod"` 這樣的 tap 會收到日誌器和兩個參數。tap 在快取通道前依清單順序執行。用 `setFormatter` 取代通道格式化器，用 `pushProcessor` 在最前面插入處理器。
+`"audit:orders,prod"` 這樣的 tap 會收到日誌器和兩個參數。tap 在快取通道前依清單順序執行。用 `set_formatter` 取代通道格式化器，用 `push_processor` 在最前面插入處理器。
 
 ```rust
 use openrust::{
@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(Repository::new(Default::default())),
         std::env::current_dir()?,
     );
-    manager.registerFormatter("message", |_| {
+    manager.register_formatter("message", |_| {
         Ok(Arc::new(|record| Ok(format!("{}\n", record.message()))))
     });
     let channel = manager.build(&json!({
@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 處理器通道 {#handler-channels}
 
-透過 `driver: "monolog"` 指定具名 Rust 處理器。內建 `stream` 處理器接受檔案路徑、`stderr` 或 `stdout`。可用 `LogManager::registerHandler` 註冊其他處理器。工廠收到合併後的設定，回傳接收結構化記錄與格式化文字的回呼。設定依通道 `level`、`with`、`handler_with` 的順序合併，後者覆蓋前者。
+透過 `driver: "monolog"` 指定具名 Rust 處理器。內建 `stream` 處理器接受檔案路徑、`stderr` 或 `stdout`。可用 `LogManager::register_handler` 註冊其他處理器。工廠收到合併後的設定，回傳接收結構化記錄與格式化文字的回呼。設定依通道 `level`、`with`、`handler_with` 的順序合併，後者覆蓋前者。
 
 設定 `action_level` 後，通道累積記錄，到達指定等級時寫出整批。底層處理器仍依最低 `level` 逐筆篩選。第一次寫出後，後續記錄會直接進入底層處理器。設定 `stop_buffering: false` 可在每次寫出後開始累積下一批。緩衝狀態屬於解析後的通道，釋放通道時會捨棄尚未觸發的批次。
 
@@ -177,7 +177,7 @@ Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
 
 設定 `formatter: "json"` 可輸出結構化記錄。可透過 `formatter_with` 設定 `append_newline`、`ignore_empty_context_and_extra` 和 `max_normalize_depth`（預設 9）。
 
-使用 `Log::logException(level, message, &error, &context)` 將錯誤寫入 `context.exception`，來源鏈記錄在 `previous` 中。在 `with_exceptions` 中註冊 `exceptionContext::<E>`，為相符的錯誤型別新增欄位，來源錯誤也適用。現有 `context` 回呼會補充直接記錄的根錯誤。應用程式透過報告機制記錄時，根錯誤欄位只出現在記錄的上下文中，來源錯誤欄位仍保留在對應節點。Rust 會保留直接傳入與已註冊錯誤的型別名稱，型別被抹除的來源可能顯示為 `Error`。標準錯誤介面不提供原始檔案或呼叫堆疊。
+使用 `Log::log_exception(level, message, &error, &context)` 將錯誤寫入 `context.exception`，來源鏈記錄在 `previous` 中。在 `with_exceptions` 中註冊 `exception_context::<E>`，為相符的錯誤型別新增欄位，來源錯誤也適用。現有 `context` 回呼會補充直接記錄的根錯誤。應用程式透過報告機制記錄時，根錯誤欄位只出現在記錄的上下文中，來源錯誤欄位仍保留在對應節點。Rust 會保留直接傳入與已註冊錯誤的型別名稱，型別被抹除的來源可能顯示為 `Error`。標準錯誤介面不提供原始檔案或呼叫堆疊。
 
 ```rust
 use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
@@ -195,20 +195,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "formatter": "json",
     }))?;
     let error = io::Error::other("storage offline");
-    logger.logException(Level::Error, "Import failed", &error, &LogContext::new())?;
+    logger.log_exception(Level::Error, "Import failed", &error, &LogContext::new())?;
     Ok(())
 }
 ```
 
 ## 上下文資訊
 
-[Context Facade](../digging-deeper/context.md) 擷取的公開欄位以獨立 JSON 中繼資料寫在單筆日誌欄位之後。自訂寫入端可實作 `logWithContext` 接收兩組欄位。隱藏欄位保存在上下文儲存庫中。
+[Context Facade](../digging-deeper/context.md) 擷取的公開欄位以獨立 JSON 中繼資料寫在單筆日誌欄位之後。自訂寫入端可實作 `log_with_context` 接收兩組欄位。隱藏欄位保存在上下文儲存庫中。
 
 ## 監聽日誌訊息
 
 在服務提供者的 `boot` 方法中註冊 `Log::listen`。管道接受並寫入記錄後，同步執行監聽閉包，閉包回傳 `LogResult<()>`。`LogManager::listen` 和 `Logger::listen` 共用目前應用程式的監聽器，涵蓋具名管道、日誌堆疊、臨時管道及重新命名的 Logger。
 
-`MessageLogged` 包含原始訊息、層級及 context。佔位符插值與管道處理器套用於寫出的記錄。`logException` 也提供正規化的 `context["exception"]`。低於所有處理器門檻的記錄跳過通知。緊急回退記錄及診斷也會通知監聽器。
+`MessageLogged` 包含原始訊息、層級及 context。佔位符插值與管道處理器套用於寫出的記錄。`log_exception` 也提供正規化的 `context["exception"]`。低於所有處理器門檻的記錄跳過通知。緊急回退記錄及診斷也會通知監聽器。
 
 閉包依註冊順序執行。回呼錯誤在日誌寫入後傳回呼叫者，並停止後續回呼。閉包可以再次寫入日誌或註冊監聽器，新增註冊於下一次通知生效。同步日誌監聽在呼叫者的應用程式作用域內執行，通用非同步事件分發採用顯式呼叫。
 
@@ -236,18 +236,18 @@ fn register_log_listener() -> Result<(), LogError> {
 同步 `Log::info` 等既有方法擷取目前 guard 已解析的身分，未解析使用者為 null。在非同步 HTTP 處理器中，需要本次日誌解析驗證時，使用請求日誌入口：
 
 ```rust
-Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
+Log::log_with_request(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
 ```
 
 `LogManager` 和已解析的 `Logger` 通道也提供同名方法。通道先寫日誌，再按註冊順序通知監聽器。存在活躍 Pail 工作階段時，Pail 等待目前選取的 guard，在本次呼叫返回前擷取 ID 和信箱。已快取使用者直接重用；登入、登出和 guard 切換影響後續日誌。沒有活躍工作階段、層級未被通道接受或被抑制的棄用警告不會觸發驗證。內建 HTTP 例外報告也使用請求日誌入口。
 
-顯式 await 對應 PHP 在同步日誌監聽器中解析 guard 的能力。容器回呼等同步程式碼繼續使用身分快照。`LogManager::listenForRequest` 註冊同步監聽器及其非同步請求版本，普通 `listen` 回呼仍同步執行。執行回呼時不持有監聽器註冊表鎖。guard 解析期間產生的日誌讀取已有快照，不再遞迴解析驗證。
+顯式 await 對應 PHP 在同步日誌監聽器中解析 guard 的能力。容器回呼等同步程式碼繼續使用身分快照。`LogManager::listen_for_request` 註冊同步監聽器及其非同步請求版本，普通 `listen` 回呼仍同步執行。執行回呼時不持有監聽器註冊表鎖。guard 解析期間產生的日誌讀取已有快照，不再遞迴解析驗證。
 
 驗證或監聽器錯誤在普通通道完成寫入後沿日誌結果返回。取消 future 因而可能留下已有通道記錄而沒有 Pail 擷取。取消會釋放請求借用與解析作用域，後續呼叫可以重試。請求和應用程式分別儲存驗證狀態；HTTP 中程式化呼叫 Artisan 保留該 HTTP 來源，獨立 Artisan 使用命令來源。
 
 ### 讀取與篩選擷取記錄
 
-`openrust_pail::value_objects::MessageLogged::fromJson` 讀取一行擷取資料，可取得訊息、等級、日期／時間、例外類別與檔案、trace，以及具型別的 HTTP、命令或佇列來源。解析、日期轉換與來源解碼的失敗透過 `Result` 傳回。`context()` 排除保留欄位 `__pail`、`exception` 和 `userId`。
+`openrust_pail::value_objects::MessageLogged::from_json` 讀取一行擷取資料，可取得訊息、等級、日期／時間、例外類別與檔案、trace，以及具型別的 HTTP、命令或佇列來源。解析、日期轉換與來源解碼的失敗透過 `Result` 傳回。`context()` 排除保留欄位 `__pail`、`exception` 和 `userId`。
 
 `Options::accepts` 要求所有已設定條件同時符合。等級比較與子字串搜尋使用 ASCII 大小寫折疊。message 條件只搜尋訊息文字；通用 filter 搜尋包含來源與 context 的四欄位 JSON 表示。該表示遵循 PHP 的 Unicode 跳脫、物件順序及浮點格式，因此通用 Unicode 搜尋可能需要使用 `\u` 表示。驗證 ID 按字串精確比較，`12` 與 `012` 不同。`fromCommand(&Input)` 保留 auth 優先於 user 的規則，包括明確空值，以及 PHP 的 timeout 轉換；Rust 的命令輸入物件與命令實作分開傳入。
 
@@ -255,7 +255,7 @@ Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogCon
 use openrust_pail::{Options, value_objects::MessageLogged};
 
 fn select(line: &str) -> Result<bool, serde_json::Error> {
-    let message = MessageLogged::fromJson(line)?;
+    let message = MessageLogged::from_json(line)?;
     let options = Options::new(3600, None, Some("ERROR".into()), None, Some("payment".into()));
     Ok(options.accepts(&message))
 }
@@ -307,24 +307,24 @@ Provider 透過所屬應用程式的 ConsoleKernel 註冊命令，沿用擷取�
 每次解析程序清單都會檢查 Provider 的載入狀態，因此在 Pail 註冊之前查詢清單，不會導致後續永久遺漏 `logs`。
 ## 頻道上下文
 
-使用 `withContext`、`withoutContext` 設定或移除頻道上下文。`shareContext` 合併到已解析及未來的頻道，每則日誌的同名欄位優先。`sharedContext` 讀取未來頻道的預設值。`flushSharedContext` 只清空這些預設值，不刪除已合併到頻道的欄位；移除頻道欄位使用 `withoutContext`。啟動階段預設值由請求或佇列工作繼承，動態上下文按作用域隔離，重用頻道控制代碼也不跨請求共用。
+使用 `with_context`、`without_context` 設定或移除頻道上下文。`share_context` 合併到已解析及未來的頻道，每則日誌的同名欄位優先。`shared_context` 讀取未來頻道的預設值。`flush_shared_context` 只清空這些預設值，不刪除已合併到頻道的欄位；移除頻道欄位使用 `without_context`。啟動階段預設值由請求或佇列工作繼承，動態上下文按作用域隔離，重用頻道控制代碼也不跨請求共用。
 
 
 ## 讀取已解析通道
 
-`LogManager::getChannels()` 與 `Log::getChannels()` 傳回已解析通道名稱到 `Arc<Logger>` 控制代碼的快照，不建立尚未使用的通道。`forgetChannel` 移除通道後，影響後續解析；先前傳回的快照和日誌控制代碼仍可使用。
+`LogManager::get_channels()` 與 `Log::get_channels()` 傳回已解析通道名稱到 `Arc<Logger>` 控制代碼的快照，不建立尚未使用的通道。`forget_channel` 移除通道後，影響後續解析；先前傳回的快照和日誌控制代碼仍可使用。
 
 ## 存取原生日誌器
 
-`Logger::getLogger()` 傳回通道實際使用的 `Arc<NativeLogger>` 控制代碼。`LogManager::getLogger()` 與 `Log::getLogger()` 解析預設通道，透過 `Result` 傳回同一個原生實例。讀取已解析控制代碼不會建立其他通道；`forgetChannel` 後，已持有的控制代碼仍可使用。
+`Logger::get_logger()` 傳回通道實際使用的 `Arc<NativeLogger>` 控制代碼。`LogManager::get_logger()` 與 `Log::get_logger()` 解析預設通道，透過 `Result` 傳回同一個原生實例。讀取已解析控制代碼不會建立其他通道；`forget_channel` 後，已持有的控制代碼仍可使用。
 
 ```rust
 use openrust::{log::LogContext, support::facades::Log};
 
 let channel = Log::channel(None)?;
-let native = channel.getLogger();
+let native = channel.get_logger();
 native.info("Worker started", &LogContext::new())?;
-let default_native = Log::getLogger()?;
+let default_native = Log::get_logger()?;
 ```
 
 原生寫入複用設定的級別篩選、處理器、格式器與輸出目標，只接收呼叫時傳入的上下文，略過應用程式頻道上下文、Context 中繼資料、MessageLogged 監聽器及 Pail 擷取。原生寫入或處理器失敗會直接傳回錯誤。需要應用程式上下文、事件及緊急復原時，使用通道或 Log Facade 的級別寫入方法。原生控制代碼實作既有 Rust 日誌契約；共用通道的處理器與格式器繼續透過既有註冊與 tap 介面設定。

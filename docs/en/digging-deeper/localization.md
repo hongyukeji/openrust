@@ -45,7 +45,7 @@ Service failures propagate at the step where they occur: configuration is writte
 
 Language identifiers use BCP 47 throughout configuration, APIs, resources, documentation URLs, HTML and HTTP. `set_locale("zh-CN")` keeps `zh-CN`; `is_locale("ZH-cn")` is true and `is_locale("zh-Hans")` is false. Normalization preserves script, region, variants and supported extensions; choosing a translation resource is a separate operation. Old underscore input returns an error.
 
-The `App` facade currently exposes these locale methods; other the framework App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::withLocale` provides a temporary translator-only locale scope without changing application locale configuration.
+The `App` facade currently exposes these locale methods; other the framework App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::with_locale` provides a temporary translator-only locale scope without changing application locale configuration.
 
 ### Browser Language {#welcome-page-language}
 
@@ -96,11 +96,11 @@ An unset variable defaults to `*`, discovering all available framework and appli
 Candidate precedence is explicit `middleware.set_locale(...)` → `app.supported_locales` → resource discovery. An explicit empty list also takes precedence. Configured and explicit lists skip scanning. The default middleware captures candidates once at HTTP startup; changes require restarting the application and rebuilding configuration cache when used. This setting does not alter `app.locale`, `app.fallback_locale` or request-source priority.
 
 
-The Provider loader includes embedded framework locales. `FileLoader::new(path)` alone remains a loader for explicitly supplied files. `FileLoader::availableLocales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `addPath` and top-level JSON files registered with `addJsonPath`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
+The Provider loader includes embedded framework locales. `FileLoader::new(path)` alone remains a loader for explicitly supplied files. `FileLoader::available_locales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `add_path` and top-level JSON files registered with `add_json_path`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
 
 The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `set_locale` candidates override configuration; otherwise an `app.supported_locales` array skips discovery. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
 
-For Japanese, add `lang/ja/welcome.json` and `lang/ja/languages.json` containing `{"name":"日本語"}`; no controller or menu changes are needed. Missing messages retain the normal translation fallback. Templates can use `Lang::hasForLocale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
+For Japanese, add `lang/ja/welcome.json` and `lang/ja/languages.json` containing `{"name":"日本語"}`; no controller or menu changes are needed. Missing messages retain the normal translation fallback. Templates can use `Lang::has_for_locale('languages.name', $choice)` to test exact-locale presence. For right-to-left pages, set `"direction":"rtl"` in that locale's `languages.json`; the welcome page sets HTML `dir="rtl"`, and its scrollable menu supports a longer language list. Missing direction uses the document's default left-to-right layout. New UI translations do not create documentation directories; keep the welcome documentation links consistent with the actual documentation available.
 
 ### URL Language Selection {#locale-query}
 
@@ -277,9 +277,9 @@ Put grouped translations in files such as `lang/en/messages.json`. Retrieve nest
 
 ### Registering Paths and Translation Lines {#registering-translation-sources}
 
-Register directories through `Lang::addPath`, `Lang::addJsonPath`, or `Lang::addNamespace` in the application scope before the first lookup. Later paths override earlier paths. Grouped catalogs merge recursively, including list indexes. Literal JSON keys are replaced as a whole. Application roots are applied after JSON-only roots.
+Register directories through `Lang::add_path`, `Lang::add_json_path`, or `Lang::add_namespace` in the application scope before the first lookup. Later paths override earlier paths. Grouped catalogs merge recursively, including list indexes. Literal JSON keys are replaced as a whole. Application roots are applied after JSON-only roots.
 
-Use `Lang::addLines` with dotted group keys. A newly registered group starts with the supplied lines. To extend a file-backed group, call `Lang::load` first. Loaded groups are cached for the application, so later path registration applies to future loads.
+Use `Lang::add_lines` with dotted group keys. A newly registered group starts with the supplied lines. To extend a file-backed group, call `Lang::load` first. Loaded groups are cached for the application, so later path registration applies to future loads.
 
 ```rust
 use std::path::PathBuf;
@@ -290,9 +290,9 @@ use openrust::{
 };
 
 pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
-    Lang::addPath(directory)?;
+    Lang::add_path(directory)?;
     Lang::load(None, "messages", "en")?;
-    Lang::addLines(
+    Lang::add_lines(
         [("messages.runtime".into(), Line::Text("Registered :name".into()))],
         "en",
         None,
@@ -302,7 +302,7 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 
 ### Loading Groups From a Custom Source {#loading-custom-translation-sources}
 
-Pass a `Loader` to `Lang::loadFrom` at an async application boundary. Each resource identifies one locale, group, and optional namespace. The returned lines replace the selected groups together. A loader error or a concurrent runtime write to one of those groups leaves the batch unpublished. Subsequent lookups stay synchronous.
+Pass a `Loader` to `Lang::load_from` at an async application boundary. Each resource identifies one locale, group, and optional namespace. The returned lines replace the selected groups together. A loader error or a concurrent runtime write to one of those groups leaves the batch unpublished. Subsequent lookups stay synchronous.
 
 ```rust
 use openrust::{
@@ -312,7 +312,7 @@ use openrust::{
 };
 
 pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
-    Lang::loadFrom(
+    Lang::load_from(
         source,
         &[TranslationResource {
             locale: "en",
@@ -326,7 +326,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### Database Translation Source (Extension) {#database-translation-loader}
 
-Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `DB::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
+Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `Db::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
 
 Create the table through an application migration before loading translations. This minimal schema is supported:
 
@@ -334,7 +334,7 @@ Create the table through an application migration before loading translations. T
 use openrust::database::{Connection, DatabaseResult};
 
 pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> {
-    connection.getSchemaBuilder().create("language_lines", |table| {
+    connection.get_schema_builder().create("language_lines", |table| {
         table.id();
         table.string("group", None).index();
         table.string("key", None);
@@ -365,7 +365,7 @@ pub async fn load_database_translations(
         .withTable("language_lines")?
         .withMaxRows(10_000)?
         .withFallback(Arc::new(FileLoader::new(language_directory)));
-    Lang::loadFrom(
+    Lang::load_from(
         &source,
         &[
             TranslationResource { locale: "fr", group: "messages", namespace: None },
@@ -379,7 +379,7 @@ The selected connection's table prefix applies. The table name is an unqualified
 
 `withFallback` loads the same locale/group/namespace from the file source and overlays database entries. Groups and list indexes merge recursively; literal JSON values are replaced as a whole. Empty database strings remain valid overrides. After deleting a row, explicitly reload its resource to restore the file value. The translator retains its configured language fallback; load database resources for both the selected and fallback languages when needed.
 
-`Lang::loadFrom` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
+`Lang::load_from` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
 
 Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: the translator applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
 
@@ -389,13 +389,13 @@ Use `__` to retrieve text. Placeholders support `:name`, `:Name` and `:NAME`. Us
 
 ### Fallback and Missing Keys {#translation-lookup-hooks}
 
-Use `Lang::has(key, locale, true)` to check fallback translations and `Lang::hasForLocale(key, locale)` for an exact locale. Existence checks skip the missing-key handler. Register lookup hooks inside the application scope. The locale callback can reorder grouped lookups. A literal JSON match takes precedence. The missing-key handler can return replacement text, which then receives normal placeholder replacements. Returning `None` keeps the original key.
+Use `Lang::has(key, locale, true)` to check fallback translations and `Lang::has_for_locale(key, locale)` for an exact locale. Existence checks skip the missing-key handler. Register lookup hooks inside the application scope. The locale callback can reorder grouped lookups. A literal JSON match takes precedence. The missing-key handler can return replacement text, which then receives normal placeholder replacements. Returning `None` keeps the original key.
 
 ```rust
 use openrust::{support::facades::Lang, translation::TranslationResult};
 
 pub fn register_lookup_hooks() -> TranslationResult<()> {
-    Lang::determineLocalesUsing(|locales| {
+    Lang::determine_locales_using(|locales| {
         let mut locales = locales.to_vec();
         if locales.first().is_some_and(|locale| locale == "fr-CA") {
             locales.insert(1, "fr".into());
@@ -403,7 +403,7 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
         locales
     })?;
 
-    Lang::handleMissingKeysUsing(|missing| {
+    Lang::handle_missing_keys_using(|missing| {
         (missing.key == "messages.welcome").then(|| "Hello, :name".into())
     })
 }
@@ -411,7 +411,7 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
 
 ### Replacing Parameters in Translation Strings {#replacing-parameters-in-translation-strings}
 
-Use `Lang::getWith` to pass an ordered list of text, tags, and objects. A callback receives the contents of each matching `<name>…</name>` on the same line. Tag callbacks run in argument order before text placeholders are substituted. Use `Lang::arrayWith` to replace values within a group or list. `Lang::choiceWith` picks the plural form before applying replacements.
+Use `Lang::get_with` to pass an ordered list of text, tags, and objects. A callback receives the contents of each matching `<name>…</name>` on the same line. Tag callbacks run in argument order before text placeholders are substituted. Use `Lang::array_with` to replace values within a group or list. `Lang::choice_with` picks the plural form before applying replacements.
 
 #### Object Replacement Formatting {#object-replacement-formatting}
 
@@ -436,7 +436,7 @@ pub fn register_formatters() -> TranslationResult<()> {
 }
 
 pub fn payment_notice(amount: &Amount) -> TranslationResult<String> {
-    Lang::getWith(
+    Lang::get_with(
         "payments.notice",
         &[
             ("amount", Replacement::object(amount)),
@@ -460,7 +460,7 @@ use openrust::{
 };
 
 pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
-    Lang::withLocale(locale, async {
+    Lang::with_locale(locale, async {
         let replacements = BTreeMap::from([("name".into(), "ada".into())]);
         Ok((
             __("messages.welcome", &replacements)?,
@@ -493,11 +493,11 @@ Production confirmations and cancellation messages use the same translation grou
 
 ## Locale contract methods
 
-The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `getFallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `withLocale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
+The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `get_fallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `with_locale` restores its caller’s locale; fallback is set separately. Migrate old snake_case contract calls to these names.
 
 ## Locale Ownership
 
-Locale and fallback getters return owned `String` snapshots. Setters take `&self` and return `TranslationResult<()>`; invalid tags return an error. Normalization keeps `zh-CN` distinct from `zh-Hans`. Boot-time values form the defaults; request and queue-task changes stay in that container scope. `withLocale` temporarily overrides only the active task and restores the enclosing locale after completion.
+Locale and fallback getters return owned `String` snapshots. Setters take `&self` and return `TranslationResult<()>`; invalid tags return an error. Normalization keeps `zh-CN` distinct from `zh-Hans`. Boot-time values form the defaults; request and queue-task changes stay in that container scope. `with_locale` temporarily overrides only the active task and restores the enclosing locale after completion.
 
 ## Upgrading Locale Identifiers {#bcp47-upgrade}
 
@@ -515,12 +515,12 @@ Clear old configuration and view caches with the old binary (`./main artisan con
 
 For database translations, inventory `language_lines.text` JSON keys and any application-owned settings or locale columns first. The templates in `vendor/openrust/translation-database/database/upgrade-bcp47/` include separate read-only inventory queries and PostgreSQL, MySQL and SQLite transactions. They map the two default catalogs plus `en_US`/`en_GB`; customize table names and any other legacy locale mappings after review. Unknown underscore keys or any old/new collision abort the transaction, including equal or null values; no content is overwritten. The final statement is **ROLLBACK** by default. Inspect the result and backup before explicitly changing it to **COMMIT**. On error roll back and close that dedicated database session. Re-running a successful migration is a no-op; rollback after a committed migration requires restoring the backup, since existing new-format keys cannot safely be distinguished from migrated ones.
 
-Faker keeps native provider keys private; `locale()` and `randomLocale()` return BCP 47. Script-only `zh-Hans`/`zh-Hant` use the corresponding existing Chinese providers, while the public label retains its original region and extensions. Third-party protocols such as WeChat's native `lang=zh_CN` are unchanged at that boundary.
+Faker keeps native provider keys private; `locale()` and `random_locale()` return BCP 47. Script-only `zh-Hans`/`zh-Hant` use the corresponding existing Chinese providers, while the public label retains its original region and extensions. Third-party protocols such as WeChat's native `lang=zh_CN` are unchanged at that boundary.
 
 
 ## Replacing plural selection
 
-`Translator::getSelector()` returns the active `Arc<dyn Selector>`. Implement `openrust::translation::Selector` and pass the instance to `setSelector` to customize plural branch selection. Its `choose` method receives the untranslated line, `PluralCount`, and resolved locale, and returns `TranslationResult<String>`. Replacement of `:count` and other placeholders happens afterward. Restore the default with `setSelector(MessageSelector)`. `getLoader()` returns the actual shared `Arc<FileLoader>`; previously returned selector and loader handles remain valid.
+`Translator::get_selector()` returns the active `Arc<dyn Selector>`. Implement `openrust::translation::Selector` and pass the instance to `set_selector` to customize plural branch selection. Its `choose` method receives the untranslated line, `PluralCount`, and resolved locale, and returns `TranslationResult<String>`. Replacement of `:count` and other placeholders happens afterward. Restore the default with `set_selector(MessageSelector)`. `get_loader()` returns the actual shared `Arc<FileLoader>`; previously returned selector and loader handles remain valid.
 
 ## Bundled Language Resources {#bundled-locales}
 

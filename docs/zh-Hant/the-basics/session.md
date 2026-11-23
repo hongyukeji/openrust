@@ -38,7 +38,7 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 用 `push` 向陣列或關聯陣列追加值。`increment` 和 `decrement` 接收明確的整數步長，傳回更新後的 JSON 值。輸入無效時傳回錯誤並保留原值。
 
-用 `putMany` 同時寫入多個鍵，支援點號路徑。`replace` 更新指定鍵並保留其他屬性。`has_old_input(Some(key))` 檢查指定快閃欄位是否非空，`has_old_input(None)` 檢查舊輸入是否包含任何項目。
+用 `put_many` 同時寫入多個鍵，支援點號路徑。`replace` 更新指定鍵並保留其他屬性。`has_old_input(Some(key))` 檢查指定快閃欄位是否非空，`has_old_input(None)` 檢查舊輸入是否包含任何項目。
 
 ## 快閃資料
 
@@ -77,7 +77,7 @@ fn cache_banner(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 ```rust
 use openrust::support::facades::Route;
 
-Route::getWith("/profile", remember, |route| {
+Route::get_with("/profile", remember, |route| {
     route.block(10, 10);
     Ok(())
 })?;

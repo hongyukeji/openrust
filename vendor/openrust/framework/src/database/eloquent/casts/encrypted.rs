@@ -94,7 +94,7 @@ impl EncryptedCast {
             .unwrap_or(Json::Null);
         if let Self::CollectionWith { factory, mapper } = self {
             return collection_cast::project_collection(
-                Collection::fromValue(json),
+                Collection::from_value(json),
                 factory,
                 mapper,
             )?
@@ -135,7 +135,7 @@ impl EncryptedCast {
                 .into_bytes()
         });
         encrypter
-            .encryptString(&plain)
+            .encrypt_string(&plain)
             .map(Value::Text)
             .map_err(DatabaseError::AttributeEncryption)
     }
@@ -147,7 +147,7 @@ impl EncryptedCast {
         connection: Option<&Connection>,
     ) -> DatabaseResult<bool> {
         let encrypter = encrypter(connection).map_err(decryption_unavailable)?;
-        if !encrypter.getPreviousKeys().is_empty() {
+        if !encrypter.get_previous_keys().is_empty() {
             return Ok(false);
         }
         let current = decrypt(current, encrypter.as_ref())?;
@@ -180,7 +180,7 @@ fn decrypt(raw: &Value, encrypter: &dyn Encrypter) -> DatabaseResult<Zeroizing<V
         ));
     };
     encrypter
-        .decryptString(raw)
+        .decrypt_string(raw)
         .map(Zeroizing::new)
         .map_err(DatabaseError::AttributeDecryption)
 }

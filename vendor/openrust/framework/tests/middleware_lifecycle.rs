@@ -97,7 +97,7 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
             middleware.set_locale(&["en"]).unwrap();
         })
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
+            exceptions.should_render_json_when(|request, _| request.expects_json());
         })
         .with_routing(Routing::default().api(routes))
         .create()
@@ -308,11 +308,11 @@ async fn receive(events: &mut mpsc::UnboundedReceiver<Event>, expected: Event) {
 }
 
 fn lifecycle_routes() -> Result<(), RoutingError> {
-    Route::getWith("/data", data, |route| {
+    Route::get_with("/data", data, |route| {
         route.middleware_name("ordered");
         Ok(())
     })?;
-    Route::getWith("/excluded", data, |route| {
+    Route::get_with("/excluded", data, |route| {
         route.middleware_name("ordered").without_middleware("later");
         Ok(())
     })

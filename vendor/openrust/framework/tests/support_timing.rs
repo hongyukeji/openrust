@@ -16,7 +16,7 @@ async fn benchmark_returns_values_and_preserves_named_iteration_order() {
     let mut first = || calls.borrow_mut().push("first");
     let mut second = || calls.borrow_mut().push("second");
     let iterations = NonZeroU32::new(3).unwrap();
-    let measured = Benchmark::measureMany(
+    let measured = Benchmark::measure_many(
         &mut [("first", &mut first), ("second", &mut second)],
         iterations,
     );
@@ -29,7 +29,7 @@ async fn benchmark_returns_values_and_preserves_named_iteration_order() {
         ["first", "first", "first", "second", "second", "second"]
     );
 
-    let (value, elapsed) = Benchmark::valueAsync(async {
+    let (value, elapsed) = Benchmark::value_async(async {
         Sleep::r#for(Duration::from_millis(3))
             .then(|| "ready")
             .await
@@ -45,7 +45,7 @@ async fn sleep_fake_captures_the_sequence_and_respects_skips() {
     let separate = Sleep::fake();
     let observed = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&observed);
-    fake.whenFakingSleep(move |duration| log.lock().unwrap().push(duration));
+    fake.when_faking_sleep(move |duration| log.lock().unwrap().push(duration));
     let total = Duration::from_micros(1500);
     assert_eq!(
         Sleep::usleep(1000)
@@ -60,11 +60,11 @@ async fn sleep_fake_captures_the_sequence_and_respects_skips() {
         .using(&fake)
         .wait()
         .await;
-    fake.assertSlept(|duration| *duration == total, 1);
-    fake.assertSequence(&[Some(total), Some(Duration::ZERO)]);
+    fake.assert_slept(|duration| *duration == total, 1);
+    fake.assert_sequence(&[Some(total), Some(Duration::ZERO)]);
     assert_eq!(*observed.lock().unwrap(), [total, Duration::ZERO]);
-    separate.assertNeverSlept();
-    separate.assertInsomniac();
+    separate.assert_never_slept();
+    separate.assert_insomniac();
 }
 
 #[tokio::test]
@@ -92,7 +92,7 @@ async fn timebox_pads_ok_and_err_results_and_leaves_overrunning_work_alone() {
             Duration::from_millis(1),
         )
         .await;
-    fake.assertNeverSlept();
+    fake.assert_never_slept();
 }
 
 #[tokio::test]
@@ -103,22 +103,22 @@ async fn timebox_early_return_persists_until_reset() {
     timebox
         .call(
             async |control| {
-                control.returnEarly();
+                control.return_early();
             },
             minimum,
         )
         .await;
     timebox.call(async |_| (), minimum).await;
-    fake.assertNeverSlept();
+    fake.assert_never_slept();
     timebox
         .call(
             async |control| {
-                control.dontReturnEarly();
+                control.dont_return_early();
             },
             minimum,
         )
         .await;
-    fake.assertSlept(
+    fake.assert_slept(
         |duration| *duration > Duration::ZERO && *duration <= minimum,
         1,
     );

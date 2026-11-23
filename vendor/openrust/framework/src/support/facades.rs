@@ -18,7 +18,7 @@ pub use crate::cache::Cache;
 pub use crate::concurrency::Concurrency;
 pub use crate::console::scheduling::ScheduleFacade as Schedule;
 pub use crate::cookie::facade::Cookie;
-pub use crate::database::{DB, schema::Schema};
+pub use crate::database::{Db, schema::Schema};
 pub use crate::encryption::Crypt;
 pub use crate::filesystem::Storage;
 pub use crate::hashing::Hash;
@@ -44,7 +44,7 @@ pub(crate) use facade::{
 };
 pub use redirect::Redirect;
 pub use response::Response;
-pub use url::URL;
+pub use url::Url;
 
 use std::{
     cell::RefCell,
@@ -87,7 +87,7 @@ impl RateLimiter {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forAsync(
+    pub fn for_async(
         name: impl Into<String>,
         callback: impl for<'a> Fn(
             &'a mut crate::http::Request,
@@ -98,26 +98,26 @@ impl RateLimiter {
         + Sync
         + 'static,
     ) -> crate::cache::CacheResult<()> {
-        Self::get_facade_root()?.forAsync(name, callback);
+        Self::get_facade_root()?.for_async(name, callback);
         Ok(())
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn asyncLimiter(
+    pub fn async_limiter(
         name: &str,
     ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::AsyncLimiter>>> {
-        Ok(Self::get_facade_root()?.asyncLimiter(name))
+        Ok(Self::get_facade_root()?.async_limiter(name))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forJob<R>(
+    pub fn for_job<R>(
         name: impl Into<String>,
         callback: impl Fn(&crate::queue::Payload) -> R + Send + Sync + 'static,
     ) -> crate::cache::CacheResult<()>
     where
         R: Into<crate::cache::rate_limiting::JobLimiterResponse>,
     {
-        Self::get_facade_root()?.forJob(name, callback);
+        Self::get_facade_root()?.for_job(name, callback);
         Ok(())
     }
 
@@ -141,9 +141,12 @@ impl RateLimiter {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn tooManyAttempts(key: &str, max_attempts: u64) -> crate::cache::CacheResult<bool> {
+    pub async fn too_many_attempts(
+        key: &str,
+        max_attempts: u64,
+    ) -> crate::cache::CacheResult<bool> {
         Self::get_facade_root()?
-            .tooManyAttempts(key, max_attempts)
+            .too_many_attempts(key, max_attempts)
             .await
     }
 
@@ -152,8 +155,8 @@ impl RateLimiter {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn availableIn(key: &str) -> crate::cache::CacheResult<u64> {
-        Self::get_facade_root()?.availableIn(key).await
+    pub async fn available_in(key: &str) -> crate::cache::CacheResult<u64> {
+        Self::get_facade_root()?.available_in(key).await
     }
 
     pub async fn clear(key: &str) -> crate::cache::CacheResult<()> {
@@ -180,33 +183,33 @@ impl Facade for View {
 
 impl View {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn renderWhen(
+    pub fn render_when(
         condition: bool,
         view: &str,
         data: &crate::view::ViewData,
     ) -> crate::view::ViewResult<String> {
-        Self::get_facade_root()?.renderWhen(condition, view, data)
+        Self::get_facade_root()?.render_when(condition, view, data)
     }
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn renderUnless(
+    pub fn render_unless(
         condition: bool,
         view: &str,
         data: &crate::view::ViewData,
     ) -> crate::view::ViewResult<String> {
-        Self::get_facade_root()?.renderUnless(condition, view, data)
+        Self::get_facade_root()?.render_unless(condition, view, data)
     }
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn renderEach(
+    pub fn render_each(
         view: &str,
         data: impl IntoIterator<Item = (crate::view::ViewValue, crate::view::ViewValue)>,
         iterator: &str,
         empty: &str,
     ) -> crate::view::ViewResult<String> {
-        Self::get_facade_root()?.renderEach(view, data, iterator, empty)
+        Self::get_facade_root()?.render_each(view, data, iterator, empty)
     }
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getShared() -> crate::view::ViewResult<crate::view::ViewData> {
-        Ok(Self::get_facade_root()?.getShared())
+    pub fn get_shared() -> crate::view::ViewResult<crate::view::ViewData> {
+        Ok(Self::get_facade_root()?.get_shared())
     }
 
     /// Resolves the application view factory through its public contract.
@@ -345,7 +348,7 @@ impl Route {
 
     /// Mounts an explicitly public local disk using its configured root and URL.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn staticDisk(disk: &str) -> Result<(), RoutingError> {
+    pub fn static_disk(disk: &str) -> Result<(), RoutingError> {
         ROUTER
             .try_with(|scope| {
                 let config = scope.config.as_ref();
@@ -458,13 +461,13 @@ impl Route {
     pub fn fallback<Arguments>(
         handler: impl IntoRouteHandler<Arguments>,
     ) -> Result<(), RoutingError> {
-        Self::fallbackWith(handler, |_| Ok(()))
+        Self::fallback_with(handler, |_| Ok(()))
     }
 
     /// 在登记作用域内配置后备路由，避免返回超出借用范围的可变引用。
     #[track_caller]
     #[allow(non_snake_case, reason = "沿用现有 Facade 的 With 配置方式")]
-    pub fn fallbackWith<Arguments>(
+    pub fn fallback_with<Arguments>(
         handler: impl IntoRouteHandler<Arguments>,
         configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
     ) -> Result<(), RoutingError> {
@@ -486,18 +489,18 @@ impl Route {
         view: &str,
         options: crate::routing::ViewRouteOptions,
     ) -> Result<(), RoutingError> {
-        Self::viewWith(uri, view, options, |_| Ok(()))
+        Self::view_with(uri, view, options, |_| Ok(()))
     }
 
     #[track_caller]
     #[allow(non_snake_case, reason = "沿用现有 Facade 的 With 配置方式")]
-    pub fn viewWith(
+    pub fn view_with(
         uri: &str,
         view: &str,
         options: crate::routing::ViewRouteOptions,
         configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
     ) -> Result<(), RoutingError> {
-        Self::getWith(
+        Self::get_with(
             uri,
             crate::routing::ViewController::new(view, options),
             configure,
@@ -507,7 +510,7 @@ impl Route {
     /// Configures a GET/HEAD route while its registration scope is active.
     #[track_caller]
     #[allow(non_snake_case, reason = "Matches the application routing API")]
-    pub fn getWith<Arguments>(
+    pub fn get_with<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
         configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
@@ -721,7 +724,7 @@ impl Artisan {
 
     /// Runs a registered command and discards its console output.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn callSilently(command: &str, arguments: &[OsString]) -> Result<i32, ConsoleError> {
+    pub async fn call_silently(command: &str, arguments: &[OsString]) -> Result<i32, ConsoleError> {
         Self::call(command, arguments, &mut Output::default()).await
     }
 

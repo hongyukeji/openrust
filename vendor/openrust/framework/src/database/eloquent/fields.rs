@@ -19,8 +19,10 @@ impl FieldModel {
             definition: || {
                 let model = M::from_state(ModelState::default());
                 Ok((
-                    model.getTable().to_owned(),
-                    model.resolveConnectionName()?.map(|name| name.into_owned()),
+                    model.get_table().to_owned(),
+                    model
+                        .resolve_connection_name()?
+                        .map(|name| name.into_owned()),
                 ))
             },
         }

@@ -299,7 +299,7 @@ async fn server(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>
         })
         .with_routing(Routing::new(routes))
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|_, _| true);
+            exceptions.should_render_json_when(|_, _| true);
         })
         .create()
         .unwrap();

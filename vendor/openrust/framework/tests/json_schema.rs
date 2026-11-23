@@ -45,7 +45,7 @@ fn typed_factory_retains_constraints_and_required_parent_semantics() {
                     .number()
                     .min(0)
                     .max(10.5)
-                    .multipleOf(0.5)
+                    .multiple_of(0.5)
                     .default(1)
                     .nullable(true)
                     .into(),
@@ -84,17 +84,17 @@ fn typed_factory_retains_constraints_and_required_parent_semantics() {
         Serializer::serialize(&schema).unwrap(),
         serde_json::to_value(&schema).unwrap()
     );
-    assert!(schema.toString().unwrap().contains('\n'));
+    assert!(schema.to_string().unwrap().contains('\n'));
 }
 
 #[test]
 fn combinations_can_be_nested_and_disabled_flags_are_omitted() {
-    let any = JsonSchema::anyOf([
+    let any = JsonSchema::any_of([
         JsonSchema::string().into(),
         JsonSchema::integer()
             .min(0)
             .max(5)
-            .multipleOf(1)
+            .multiple_of(1)
             .default(2)
             .into(),
     ])
@@ -133,7 +133,7 @@ fn combinations_can_be_nested_and_disabled_flags_are_omitted() {
 #[test]
 fn invalid_numeric_and_reference_inputs_fail_explicitly() {
     assert!(JsonSchema::number().min(f64::INFINITY).to_array().is_err());
-    assert!(JsonSchema::number().default(f64::NAN).toString().is_err());
+    assert!(JsonSchema::number().default(f64::NAN).to_string().is_err());
     assert!(JsonSchema::fromArray(json!({"$ref":"#/$defs/a","$defs":{"a":42}})).is_err());
     assert!(
         JsonSchema::fromArray(json!({"type":"object","properties":{"a":{"$ref":"#"}}})).is_err()

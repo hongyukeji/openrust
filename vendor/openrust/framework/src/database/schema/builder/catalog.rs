@@ -12,7 +12,6 @@ use crate::database::schema::{
 const MYSQL_SYSTEM_SCHEMAS: &str =
     "('information_schema', 'mysql', 'ndbinfo', 'performance_schema', 'sys')";
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     fn catalog_table(&self, name: &str) -> DatabaseResult<Table> {
         let table = self.resolve_table(name)?;
@@ -35,20 +34,20 @@ impl Builder<'_> {
     }
 
     /// Returns the default schema of the configured write connection.
-    pub fn getCurrentSchemaName(&self) -> &str {
+    pub fn get_current_schema_name(&self) -> &str {
         self.grammar.default_schema()
     }
 
     /// Returns the connection's default schema lookup list.
-    pub fn getCurrentSchemaListing(&self) -> Vec<String> {
+    pub fn get_current_schema_listing(&self) -> Vec<String> {
         if self.grammar.postgres() {
             return self.grammar.postgres_schemas().to_vec();
         }
-        vec![self.getCurrentSchemaName().to_owned()]
+        vec![self.get_current_schema_name().to_owned()]
     }
 
     /// Splits a logical table reference before the connection's table prefix is applied.
-    pub fn parseSchemaAndTable<'a>(
+    pub fn parse_schema_and_table<'a>(
         &'a self,
         reference: &'a str,
         fallback: SchemaFallback<'a>,
@@ -56,13 +55,13 @@ impl Builder<'_> {
         let (schema, table) = Grammar::parse_schema_and_table(reference)?;
         let schema = schema.or_else(|| match fallback {
             SchemaFallback::None => None,
-            SchemaFallback::Current => Some(self.getCurrentSchemaName()),
+            SchemaFallback::Current => Some(self.get_current_schema_name()),
             SchemaFallback::Named(schema) => Some(schema),
         });
         Ok((schema, table))
     }
 
-    pub async fn getSchemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {
+    pub async fn get_schemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {
         let mysql_sql;
         let sql = if self.grammar.mysql() {
             mysql_sql = format!(
@@ -90,12 +89,12 @@ impl Builder<'_> {
     }
 
     /// Lists PostgreSQL types in one schema or across all user schemas.
-    pub async fn getTypes(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TypeInfo>> {
+    pub async fn get_types(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TypeInfo>> {
         self.catalog_types(schema.as_ref().map(std::slice::from_ref))
             .await
     }
 
-    pub async fn getTypesIn(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TypeInfo>> {
+    pub async fn get_types_in(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TypeInfo>> {
         self.catalog_types(Some(schemas)).await
     }
 
@@ -120,15 +119,15 @@ impl Builder<'_> {
             .collect()
     }
 
-    pub async fn getViews(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {
+    pub async fn get_views(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {
         match schema {
-            Some(schema) => self.getViewsIn(&[schema]).await,
+            Some(schema) => self.get_views_in(&[schema]).await,
             None if self.grammar.mysql() => self.mysql_views(None).await,
             None if self.grammar.postgres() => self.postgres_views(None).await,
             None if self.grammar.sql_server() => self.sql_server_views(None).await,
             None if matches!(self.executor, Executor::Connection(_)) => {
                 let mut session = self.session().await?;
-                let result = session.getSchemaBuilder().all_sqlite_views().await;
+                let result = session.get_schema_builder().all_sqlite_views().await;
                 let cleanup = session.close().await;
                 let views = result?;
                 cleanup?;
@@ -138,7 +137,7 @@ impl Builder<'_> {
         }
     }
 
-    pub async fn getViewsIn(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<ViewInfo>> {
+    pub async fn get_views_in(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<ViewInfo>> {
         if schemas.is_empty() {
             return Ok(Vec::new());
         }
@@ -153,7 +152,7 @@ impl Builder<'_> {
         }
         if schemas.len() > 1 && matches!(self.executor, Executor::Connection(_)) {
             let mut session = self.session().await?;
-            let result = session.getSchemaBuilder().sqlite_views(schemas).await;
+            let result = session.get_schema_builder().sqlite_views(schemas).await;
             let cleanup = session.close().await;
             let views = result?;
             cleanup?;
@@ -162,7 +161,7 @@ impl Builder<'_> {
         self.sqlite_views(schemas).await
     }
 
-    pub async fn hasView(&mut self, view: &str) -> DatabaseResult<bool> {
+    pub async fn has_view(&mut self, view: &str) -> DatabaseResult<bool> {
         let view = self.resolve_table(view)?;
         if self.grammar.postgres() {
             let schema = view.schema.as_deref().unwrap_or_default();
@@ -174,7 +173,7 @@ impl Builder<'_> {
         }
         let schema = self.grammar.catalog_schema(&view).to_owned();
         Ok(self
-            .getViews(Some(&schema))
+            .get_views(Some(&schema))
             .await?
             .iter()
             .any(|item| item.name.eq_ignore_ascii_case(&view.name)))
@@ -199,7 +198,7 @@ impl Builder<'_> {
     }
 
     async fn all_sqlite_views(&mut self) -> DatabaseResult<Vec<ViewInfo>> {
-        let schemas = self.getSchemas().await?;
+        let schemas = self.get_schemas().await?;
         let names: Vec<_> = schemas.iter().map(|schema| schema.name.as_str()).collect();
         self.sqlite_views(&names).await
     }
@@ -249,7 +248,7 @@ impl Builder<'_> {
         Ok(views)
     }
 
-    pub async fn hasTable(&mut self, table: &str) -> DatabaseResult<bool> {
+    pub async fn has_table(&mut self, table: &str) -> DatabaseResult<bool> {
         let table = self.resolve_table(table)?;
         if let Executor::Session(session) = &self.executor
             && session.temporary_index(&table).is_some()
@@ -278,31 +277,31 @@ impl Builder<'_> {
         Ok(!self.select(sql, &parameters).await?.is_empty())
     }
 
-    pub async fn getTables(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TableInfo>> {
+    pub async fn get_tables(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TableInfo>> {
         match schema {
-            Some(schema) => self.getTablesIn(&[schema]).await,
+            Some(schema) => self.get_tables_in(&[schema]).await,
             None => self.catalog_tables(None).await,
         }
     }
 
-    pub async fn getTablesIn(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TableInfo>> {
+    pub async fn get_tables_in(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TableInfo>> {
         if schemas.is_empty() {
             return Ok(Vec::new());
         }
         self.catalog_tables(Some(schemas)).await
     }
 
-    pub async fn getTableListing(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<String>> {
-        self.getTableListingWith(schema, true).await
+    pub async fn get_table_listing(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<String>> {
+        self.get_table_listing_with(schema, true).await
     }
 
-    pub async fn getTableListingWith(
+    pub async fn get_table_listing_with(
         &mut self,
         schema: Option<&str>,
         schema_qualified: bool,
     ) -> DatabaseResult<Vec<String>> {
         Ok(self
-            .getTables(schema)
+            .get_tables(schema)
             .await?
             .into_iter()
             .map(|table| {
@@ -389,7 +388,7 @@ impl Builder<'_> {
             .collect()
     }
 
-    pub async fn getColumns(&mut self, table: &str) -> DatabaseResult<Vec<Column>> {
+    pub async fn get_columns(&mut self, table: &str) -> DatabaseResult<Vec<Column>> {
         let table = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {
@@ -495,21 +494,21 @@ impl Builder<'_> {
         Ok(columns)
     }
 
-    pub async fn getColumnListing(&mut self, table: &str) -> DatabaseResult<Vec<String>> {
+    pub async fn get_column_listing(&mut self, table: &str) -> DatabaseResult<Vec<String>> {
         Ok(self
-            .getColumns(table)
+            .get_columns(table)
             .await?
             .into_iter()
             .map(|column| column.name)
             .collect())
     }
 
-    pub async fn hasColumn(&mut self, table: &str, column: &str) -> DatabaseResult<bool> {
-        self.hasColumns(table, &[column]).await
+    pub async fn has_column(&mut self, table: &str, column: &str) -> DatabaseResult<bool> {
+        self.has_columns(table, &[column]).await
     }
 
-    pub async fn hasColumns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<bool> {
-        let existing = self.getColumnListing(table).await?;
+    pub async fn has_columns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<bool> {
+        let existing = self.get_column_listing(table).await?;
         Ok(columns.iter().all(|column| {
             existing
                 .iter()
@@ -518,22 +517,22 @@ impl Builder<'_> {
     }
 
     /// Returns the metadata for a case-insensitive column name, if present.
-    pub async fn getColumn(&mut self, table: &str, name: &str) -> DatabaseResult<Option<Column>> {
+    pub async fn get_column(&mut self, table: &str, name: &str) -> DatabaseResult<Option<Column>> {
         Ok(self
-            .getColumns(table)
+            .get_columns(table)
             .await?
             .into_iter()
             .find(|column| column.name.eq_ignore_ascii_case(name)))
     }
 
-    pub async fn getColumnType(
+    pub async fn get_column_type(
         &mut self,
         table: &str,
         name: &str,
         full: bool,
     ) -> DatabaseResult<String> {
         let column = self
-            .getColumn(table, name)
+            .get_column(table, name)
             .await?
             .ok_or(DatabaseError::InvalidSchema("unknown column"))?;
         Ok(if full {
@@ -543,7 +542,7 @@ impl Builder<'_> {
         })
     }
 
-    pub async fn getIndexes(&mut self, table: &str) -> DatabaseResult<Vec<Index>> {
+    pub async fn get_indexes(&mut self, table: &str) -> DatabaseResult<Vec<Index>> {
         let identifier = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&identifier);
         let (sql, parameters) = if self.grammar.mysql() {
@@ -616,27 +615,27 @@ impl Builder<'_> {
         Ok(indexes.into_values().collect())
     }
 
-    pub async fn getIndexListing(&mut self, table: &str) -> DatabaseResult<Vec<String>> {
+    pub async fn get_index_listing(&mut self, table: &str) -> DatabaseResult<Vec<String>> {
         Ok(self
-            .getIndexes(table)
+            .get_indexes(table)
             .await?
             .into_iter()
             .map(|index| index.name)
             .collect())
     }
 
-    pub async fn hasIndex(&mut self, table: &str, name: &str) -> DatabaseResult<bool> {
-        self.hasIndexWith(table, KeySelector::Name(name), None)
+    pub async fn has_index(&mut self, table: &str, name: &str) -> DatabaseResult<bool> {
+        self.has_index_with(table, KeySelector::Name(name), None)
             .await
     }
 
-    pub async fn hasIndexWith(
+    pub async fn has_index_with(
         &mut self,
         table: &str,
         selector: KeySelector<'_>,
         index_type: Option<&str>,
     ) -> DatabaseResult<bool> {
-        Ok(self.getIndexes(table).await?.iter().any(|index| {
+        Ok(self.get_indexes(table).await?.iter().any(|index| {
             let matches_type = index_type.is_none_or(|kind| {
                 (kind.eq_ignore_ascii_case("primary") && index.primary)
                     || (kind.eq_ignore_ascii_case("unique") && index.unique)
@@ -660,13 +659,13 @@ impl Builder<'_> {
         }))
     }
 
-    pub async fn hasForeignKey(
+    pub async fn has_foreign_key(
         &mut self,
         table: &str,
         selector: KeySelector<'_>,
     ) -> DatabaseResult<bool> {
         Ok(self
-            .getForeignKeys(table)
+            .get_foreign_keys(table)
             .await?
             .iter()
             .any(|key| match selector {
@@ -675,7 +674,7 @@ impl Builder<'_> {
             }))
     }
 
-    pub async fn getForeignKeys(&mut self, table: &str) -> DatabaseResult<Vec<ForeignKey>> {
+    pub async fn get_foreign_keys(&mut self, table: &str) -> DatabaseResult<Vec<ForeignKey>> {
         let table = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {

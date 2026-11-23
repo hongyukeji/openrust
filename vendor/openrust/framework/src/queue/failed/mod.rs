@@ -29,8 +29,8 @@ impl FailedJob {
     pub(super) fn new(job: &dyn crate::contracts::queue::Job, error: &QueueError) -> Self {
         Self {
             id: job.uuid().into(),
-            connection: job.getConnectionName().into(),
-            queue: job.getQueue().into(),
+            connection: job.get_connection_name().into(),
+            queue: job.get_queue().into(),
             payload: job.payload().clone(),
             exception: error.to_string(),
             failed_at: timestamp(jiff::Timestamp::now()),

@@ -17,7 +17,6 @@ pub struct Json {
     decoder: Option<Arc<Decoder>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Json {
     pub(super) const DEFAULT: Self = Self {
         encoder: None,
@@ -26,7 +25,7 @@ impl Json {
 
     /// Sets the encoder on the codec installed in an application's container.
     #[must_use]
-    pub fn encodeUsing(
+    pub fn encode_using(
         mut self,
         encoder: impl Fn(&Document) -> DatabaseResult<String> + Send + Sync + 'static,
     ) -> Self {
@@ -36,7 +35,7 @@ impl Json {
 
     /// Sets the decoder on the codec installed in an application's container.
     #[must_use]
-    pub fn decodeUsing(
+    pub fn decode_using(
         mut self,
         decoder: impl Fn(&str) -> DatabaseResult<Document> + Send + Sync + 'static,
     ) -> Self {

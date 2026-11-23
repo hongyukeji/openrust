@@ -191,54 +191,54 @@ async fn all_builtin_migrations_write_localized_comments_on_postgres() {
         let migrator = Migrator::new(manager.clone(),registry.clone(),"migrations".into(),root.clone());
         let rows = migrator.run(None,&[],RunOptions::default()).await.unwrap();
         assert_eq!(rows.len(),12);
-        let mut schema = db.getSchemaBuilder();
-        let tables = schema.getTables(Some(&namespace)).await.unwrap();
+        let mut schema = db.get_schema_builder();
+        let tables = schema.get_tables(Some(&namespace)).await.unwrap();
         assert_eq!(tables.len(),17);
         for table in &tables {
             assert!(table.comment.as_deref().is_some_and(|s|!s.is_empty() && !s.starts_with("schema.")),"{locale}: {}",table.name);
-            for column in schema.getColumns(&table.name).await.unwrap() {
+            for column in schema.get_columns(&table.name).await.unwrap() {
                 assert!(column.comment.as_deref().is_some_and(|s|!s.is_empty() && !s.starts_with("schema.")),"{locale}: {}.{}",table.name,column.name);
             }
         }
         assert_eq!(tables.iter().find(|t|t.name=="users").unwrap().comment.as_deref(),Some(user_name), "table comment: {locale}");
-        let columns = schema.getColumns("users").await.unwrap();
+        let columns = schema.get_columns("users").await.unwrap();
         assert_eq!(columns.iter().find(|c|c.name=="email").unwrap().comment.as_deref(),Some(email));
-        let columns = schema.getColumns("sms_deliveries").await.unwrap();
+        let columns = schema.get_columns("sms_deliveries").await.unwrap();
         assert!(columns.iter().find(|c|c.name=="status").unwrap().comment.as_deref().unwrap().contains(status), "locale={locale}, status={:?}", columns.iter().find(|c|c.name=="status").unwrap().comment);
         schema.table("users", |table| { table.string("nickname", None).nullable().comment("Nickname"); }).await.unwrap();
-        assert_eq!(schema.getColumns("users").await.unwrap().iter().find(|c|c.name=="nickname").unwrap().comment.as_deref(),Some("Nickname"));
+        assert_eq!(schema.get_columns("users").await.unwrap().iter().find(|c|c.name=="nickname").unwrap().comment.as_deref(),Some("Nickname"));
         schema.table("users", |table| { table.string("nickname", None).nullable().comment("Owner's nickname").change(); }).await.unwrap();
-        assert_eq!(schema.getColumns("users").await.unwrap().iter().find(|c|c.name=="nickname").unwrap().comment.as_deref(),Some("Owner's nickname"));
+        assert_eq!(schema.get_columns("users").await.unwrap().iter().find(|c|c.name=="nickname").unwrap().comment.as_deref(),Some("Owner's nickname"));
         // Existing data, column definitions and constraints survive comment-only changes.
         db.table("users").insert(&[BTreeMap::from([("name".into(),"reader".into()),("email".into(),"reader@example.test".into()),("password".into(),"hash".into())])]).await.unwrap();
-        let mut before = schema.getColumns("users").await.unwrap();
-        let indexes = schema.getIndexes("users").await.unwrap();
+        let mut before = schema.get_columns("users").await.unwrap();
+        let indexes = schema.get_indexes("users").await.unwrap();
         schema.table("users", |table| table.comment("User's table \\ archive")).await.unwrap();
         db.statement("comment on column users.email is 'Owner''s email \\ address'", &[]).await.unwrap();
         assert_eq!(db.table("users").count("*").await.unwrap(),1);
-        let mut after = schema.getColumns("users").await.unwrap();
+        let mut after = schema.get_columns("users").await.unwrap();
         for col in &mut before { col.comment=None; }
         for col in &mut after { col.comment=None; }
         assert_eq!(before,after);
-        assert_eq!(indexes,schema.getIndexes("users").await.unwrap());
+        assert_eq!(indexes,schema.get_indexes("users").await.unwrap());
         {
-            let tables=schema.getTables(Some(&namespace)).await.unwrap();
+            let tables=schema.get_tables(Some(&namespace)).await.unwrap();
             assert_eq!(tables.iter().find(|t|t.name=="users").unwrap().comment.as_deref(),Some("User's table \\ archive"));
-            assert_eq!(schema.getColumns("users").await.unwrap().iter().find(|c|c.name=="email").unwrap().comment.as_deref(),Some("Owner's email \\ address"));
+            assert_eq!(schema.get_columns("users").await.unwrap().iter().find(|c|c.name=="email").unwrap().comment.as_deref(),Some("Owner's email \\ address"));
         }
         db.statement("comment on column users.email is null", &[]).await.unwrap();
-        assert!(schema.getColumns("users").await.unwrap().iter().find(|c|c.name=="email").unwrap().comment.is_none());
+        assert!(schema.get_columns("users").await.unwrap().iter().find(|c|c.name=="email").unwrap().comment.is_none());
         assert_eq!(migrator.reset(None,&[],false).await.unwrap().len(),12);
-        assert!(!schema.hasTable("users").await.unwrap());
+        assert!(!schema.has_table("users").await.unwrap());
         // Failed callbacks must not execute partial DDL.
-        let result = openrust::translation::Lang::withLocale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
+        let result = openrust::translation::Lang::with_locale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
             assert_eq!(openrust::translation::Lang::get_locale().unwrap(), "de");
             table.id();
             table.comment(__("schema.tables.users", &Default::default())?);
             Ok(())
         })).await.unwrap();
         assert!(matches!(result,Err(openrust::database::DatabaseError::Translation(_))), "callback result={result:?}, locale={locale}");
-        assert!(!schema.hasTable("invalid_catalog").await.unwrap());
+        assert!(!schema.has_table("invalid_catalog").await.unwrap());
         db.unprepared(&format!("drop schema {namespace} cascade")).await.unwrap();
         Ok(())
         }), Default::default()).await.unwrap();
@@ -264,7 +264,7 @@ async fn mysql_comments_select_the_app_language_in_pretend_mode() {
         ]))), ".");
         let db=manager.connection(None).unwrap();
         let queries=db.pretend(|db|Box::pin(async move {
-            db.getSchemaBuilder().create("users",|table| -> openrust::database::DatabaseResult<()> {
+            db.get_schema_builder().create("users",|table| -> openrust::database::DatabaseResult<()> {
                 table.comment(__("schema.tables.users", &Default::default())?);
                 table.string("email",255).comment(__("schema.columns.email", &Default::default())?);
                 table.integer("status").comment("Status: 0=enabled, 1=disabled");
@@ -311,40 +311,40 @@ async fn builtin_migrations_run_on_mysql_and_sqlite() {
                     ("database".into(), json!({"default":"test","connections":{"test":connection}})),
                 ]))), root.clone()));
                 let db = manager.connection(None).unwrap();
-                let mut schema = db.getSchemaBuilder();
+                let mut schema = db.get_schema_builder();
                 let migrator = Migrator::new(manager.clone(), builtin_registry(), "migrations".into(), root);
                 assert_eq!(migrator.run(None, &[], RunOptions::default()).await.unwrap().len(), 12);
                 // MySQL 默认列举所有可见 schema；本夹具只检查本库的内置迁移。
-                let namespace = (driver == "mysql").then(|| db.getDatabaseName());
-                let tables = schema.getTables(namespace).await.unwrap();
+                let namespace = (driver == "mysql").then(|| db.get_database_name());
+                let tables = schema.get_tables(namespace).await.unwrap();
                 assert_eq!(tables.len(), 17, "{driver}: {locale}");
                 if driver == "mysql" {
                     for table in &tables {
                         assert!(table.comment.as_deref().is_some_and(|s| !s.is_empty() && !s.starts_with("schema.")), "{locale}: {}", table.name);
-                        for column in schema.getColumns(&table.name).await.unwrap() {
+                        for column in schema.get_columns(&table.name).await.unwrap() {
                             assert!(column.comment.as_deref().is_some_and(|s| !s.is_empty() && !s.starts_with("schema.")), "{locale}: {}.{}", table.name, column.name);
                         }
                     }
                     assert_eq!(tables.iter().find(|t| t.name == "users").unwrap().comment.as_deref(), Some(users));
-                    assert_eq!(schema.getColumns("users").await.unwrap().iter().find(|c| c.name == "email").unwrap().comment.as_deref(), Some(email));
+                    assert_eq!(schema.get_columns("users").await.unwrap().iter().find(|c| c.name == "email").unwrap().comment.as_deref(), Some(email));
                 } else {
                     // SQLite has no table/column comment metadata. the framework ignores these modifiers.
                     let version = db.select("select sqlite_version() as version", &[]).await.unwrap();
                     println!("SQLite {version:?}: {locale}");
                     assert!(tables.iter().all(|t| t.comment.is_none()));
-                    assert!(schema.getColumns("users").await.unwrap().iter().all(|c| c.comment.is_none()));
+                    assert!(schema.get_columns("users").await.unwrap().iter().all(|c| c.comment.is_none()));
                 }
                 db.table("users").insert(&[BTreeMap::from([("name".into(), "reader".into()), ("email".into(), "reader@example.test".into()), ("password".into(), "hash".into())])]).await.unwrap();
                 assert_eq!(db.table("users").count("*").await.unwrap(), 1);
-                let result = openrust::translation::Lang::withLocale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
+                let result = openrust::translation::Lang::with_locale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
                     table.id();
                     table.comment(__("schema.tables.users", &Default::default())?);
                     Ok(())
                 })).await.unwrap();
                 assert!(matches!(result, Err(openrust::database::DatabaseError::Translation(_))), "{driver}: {locale}: {result:?}");
-                assert!(!schema.hasTable("invalid_catalog").await.unwrap());
+                assert!(!schema.has_table("invalid_catalog").await.unwrap());
                 assert_eq!(migrator.reset(None, &[], false).await.unwrap().len(), 12);
-                assert!(!schema.hasTable("users").await.unwrap());
+                assert!(!schema.has_table("users").await.unwrap());
                 schema.drop("migrations").await.unwrap();
                 Ok(())
             }), Default::default()).await.unwrap();

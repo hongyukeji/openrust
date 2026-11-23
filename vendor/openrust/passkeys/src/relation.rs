@@ -19,11 +19,11 @@ impl<P: PasskeyUser> PasskeyRelation<P> {
             .map_err(|_| DatabaseError::InvalidQuery("Passkeys service is not bound"))
     }
     fn key(parent: &P) -> DatabaseResult<Value> {
-        parent.getKey().cloned().ok_or(DatabaseError::InvalidQuery(
+        parent.get_key().cloned().ok_or(DatabaseError::InvalidQuery(
             "Passkeys relationship requires a persisted user key",
         ))
     }
-    pub async fn getResults(&self, parent: &P) -> DatabaseResult<Vec<PasskeyRecord>> {
+    pub async fn get_results(&self, parent: &P) -> DatabaseResult<Vec<PasskeyRecord>> {
         Self::service()?
             .passkeyStore()
             .records("user_id", Self::key(parent)?)

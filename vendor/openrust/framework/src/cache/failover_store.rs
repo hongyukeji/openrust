@@ -96,7 +96,7 @@ impl FailoverStore {
                             // ends failover even though Rust represents it as a typed error.
                             Ok(_) | Err(CacheError::MissingCounter) => break,
                             Err(error) => failed.push(CacheFailedOver {
-                                storeName: name.clone(),
+                                store_name: name.clone(),
                                 exception: error.to_string(),
                             }),
                         }
@@ -114,8 +114,11 @@ impl FailoverStore {
                 .failed
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let next = events.iter().map(|event| event.storeName.clone()).collect();
-            events.retain(|event| !previous.contains(&event.storeName));
+            let next = events
+                .iter()
+                .map(|event| event.store_name.clone())
+                .collect();
+            events.retain(|event| !previous.contains(&event.store_name));
             *previous = next;
         }
         if events.is_empty() {
@@ -143,8 +146,7 @@ impl FailoverStore {
             let mut last = CacheError::LocksUnsupported;
             for name in &self.stores {
                 let result = manager.store(Some(name)).and_then(|store| {
-                    let locks = store
-                        .get_store()
+                    let locks = crate::contracts::cache::Repository::get_store(store.as_ref())
                         .lock_provider()
                         .ok_or(CacheError::LocksUnsupported)?;
                     operation(locks)
@@ -206,11 +208,11 @@ impl Store for FailoverStore {
 }
 
 impl CanFlushLocks for FailoverStore {
-    fn hasSeparateLockStore(&self) -> bool {
+    fn has_separate_lock_store(&self) -> bool {
         true
     }
 
-    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+    fn flush_locks(&self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async move {
             ACTIVE_FAILOVERS
                 .scope(self.enter()?, async {
@@ -219,7 +221,7 @@ impl CanFlushLocks for FailoverStore {
                     for name in &self.stores {
                         let store = manager.store(Some(name))?;
                         if let Some(flusher) = store.get_store().lock_flusher() {
-                            flushed &= flusher.flushLocks().await?;
+                            flushed &= flusher.flush_locks().await?;
                         }
                     }
                     Ok(flushed)

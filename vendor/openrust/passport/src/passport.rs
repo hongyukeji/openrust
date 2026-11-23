@@ -218,7 +218,7 @@ impl Passport {
                 .read()
                 .expect("Passport token key lock")
                 .map(|f| f(encrypter))
-                .unwrap_or_else(|| encrypter.getKey().to_vec()),
+                .unwrap_or_else(|| encrypter.get_key().to_vec()),
         )
     }
     pub fn enablePasswordGrant(&self) {

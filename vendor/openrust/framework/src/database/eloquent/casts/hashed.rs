@@ -38,7 +38,7 @@ fn prepare(value: Value, connection: Option<&Connection>) -> DatabaseResult<Inpu
         return Ok(Input::Plain(hasher, text));
     }
     if !hasher
-        .verifyConfiguration(&text)
+        .verify_configuration(&text)
         .map_err(DatabaseError::AttributeHashing)?
     {
         return Err(DatabaseError::AttributeHashing(HashError::InvalidOptions));

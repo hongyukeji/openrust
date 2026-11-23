@@ -79,13 +79,13 @@ CACHE_STORAGE_PATH=framework/cache/items
 
 ### 读取缓存条目 {#retrieving-items-from-the-cache}
 
-`get_or(key, default)` 接受默认值，`getOrElse(key, resolve)` 接受异步回退闭包。键缺失或缓存值为 JSON `null` 时使用默认值，命中时跳过回退。后端错误继续返回给调用方，回退计算的结果只返回给调用方。
+`get_or(key, default)` 接受默认值，`get_or_else(key, resolve)` 接受异步回退闭包。键缺失或缓存值为 JSON `null` 时使用默认值，命中时跳过回退。后端错误继续返回给调用方，回退计算的结果只返回给调用方。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_title() -> CacheResult<Value> {
-    Cache::getOrElse("reports:title", || async { Ok(Value::from("Untitled")) }).await
+    Cache::get_or_else("reports:title", || async { Ok(Value::from("Untitled")) }).await
 }
 ```
 
@@ -105,13 +105,13 @@ Redis 保留新写入的数字字符串及其原始写法。已有整数条目�
 
 ### 批量操作 {#cache-batch-operations}
 
-`getMultiple(keys, default)` 按输入顺序返回映射，可传入统一的默认值。`manyOr` 为每个键接收默认值，`manyOrElse` 按键计算惰性默认值。批量读取只调用一次存储，缺失键和 null 使用默认值。`set` 和 `setMultiple` 写入，`delete` 和 `deleteMultiple` 移除条目，`clear` 清空所选仓库。批量删除遇到缺失键会继续，并在任一键缺失时返回 `false`。
+`get_multiple(keys, default)` 按输入顺序返回映射，可传入统一的默认值。`many_or` 为每个键接收默认值，`many_or_else` 按键计算惰性默认值。批量读取只调用一次存储，缺失键和 null 使用默认值。`set` 和 `set_multiple` 写入，`delete` 和 `delete_multiple` 移除条目，`clear` 清空所选仓库。批量删除遇到缺失键会继续，并在任一键缺失时返回 `false`。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_state() -> CacheResult<Value> {
-    let entries = Cache::manyOr(&[
+    let entries = Cache::many_or(&[
         ("reports:title", Value::from("Untitled")),
         ("reports:limit", Value::from(10)),
     ]).await?;
@@ -121,13 +121,13 @@ pub async fn report_state() -> CacheResult<Value> {
 
 ### 读取并回填 {#retrieve-store}
 
-`remember` 返回缓存值，未命中时执行计算并写入缓存。`rememberWithWarmth` 返回 `(value, warm)`，命中非空值时 `warm` 为 `true`。`rememberWithWarmthFor` 在未命中时根据计算结果设置 TTL。`rememberForever` 和别名 `sear` 将计算结果写入缓存且不设到期时间。
+`remember` 返回缓存值，未命中时执行计算并写入缓存。`remember_with_warmth` 返回 `(value, warm)`，命中非空值时 `warm` 为 `true`。`remember_with_warmth_for` 在未命中时根据计算结果设置 TTL。`remember_forever` 和别名 `sear` 将计算结果写入缓存且不设到期时间。
 
 ```rust
 use openrust::{cache::{CacheResult, Ttl, Value}, support::facades::Cache};
 
 pub async fn load_report() -> CacheResult<(Value, bool)> {
-    Cache::rememberWithWarmth("reports:latest", Some(Ttl::Seconds(60)), async {
+    Cache::remember_with_warmth("reports:latest", Some(Ttl::Seconds(60)), async {
         Ok(Value::from("ready"))
     }).await
 }
@@ -147,11 +147,11 @@ pub async fn refresh_report() -> CacheResult<Value> {
 }
 ```
 
-后台刷新使用缓存原子锁。如果其他调用者已经刷新同一代缓存，等待执行的刷新会跳过计算。刷新失败时，旧值可以继续使用到原定到期时间。`flexibleWith` 接受两个 `Ttl` 和 `FlexibleOptions`，可设置锁租期、所有者令牌或失败后仍刷新的 `always_defer`。在应用生命周期之外直接调用仓库时，可读取旧值直到到期。后台计算需要捕获自有值，以便在请求处理函数返回后执行。
+后台刷新使用缓存原子锁。如果其他调用者已经刷新同一代缓存，等待执行的刷新会跳过计算。刷新失败时，旧值可以继续使用到原定到期时间。`flexible_with` 接受两个 `Ttl` 和 `FlexibleOptions`，可设置锁租期、所有者令牌或失败后仍刷新的 `always_defer`。在应用生命周期之外直接调用仓库时，可读取旧值直到到期。后台计算需要捕获自有值，以便在请求处理函数返回后执行。
 
 ### 取回并删除 {#retrieve-delete}
 
-`pullOr(key, default)` 和 `pullOrElse(key, resolve)` 支持默认值。两者先执行仓库的原子 `pull`，条目缺失或值为 `null` 时再使用默认值。两个调用同时取回同一非空条目时，只有一个能获得该值。
+`pull_or(key, default)` 和 `pull_or_else(key, resolve)` 支持默认值。两者先执行仓库的原子 `pull`，条目缺失或值为 `null` 时再使用默认值。两个调用同时取回同一非空条目时，只有一个能获得该值。
 
 ## 缓存记忆化 {#cache-memoization}
 
@@ -171,15 +171,15 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
-在支持标签的存储上，可用 `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`。同一生命周期内，完全相同的有序标签列表共享命中和未命中，改变顺序或重复项会选择其他标签组。通过记忆化标签仓储写入会使对应键失效。调用标签仓储的 `flush()` 会清空后端所选标签，并使该存储的全部标签组快照失效。调用 `clear()` 会清空整个存储，包括普通缓存值。调用 `flushMemoized()` 只清除所选标签组的记忆化结果。
+在支持标签的存储上，可用 `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`。同一生命周期内，完全相同的有序标签列表共享命中和未命中，改变顺序或重复项会选择其他标签组。通过记忆化标签仓储写入会使对应键失效。调用标签仓储的 `flush()` 会清空后端所选标签，并使该存储的全部标签组快照失效。调用 `clear()` 会清空整个存储，包括普通缓存值。调用 `flush_memoized()` 只清除所选标签组的记忆化结果。
 
-在 Redis 上，`flushStale().await?` 会转发给所选标签，清理过期索引引用，并保留有效值及记忆化结果。通过独立的普通 Redis 仓储清空标签后，本生命周期仍可读取已记忆化的旧结果，直到记忆化视图将它们失效。
+在 Redis 上，`flush_stale().await?` 会转发给所选标签，清理过期索引引用，并保留有效值及记忆化结果。通过独立的普通 Redis 仓储清空标签后，本生命周期仍可读取已记忆化的旧结果，直到记忆化视图将它们失效。
 
 ## cache 助手 {#the-cache-helper}
 
 `cache!()` 或 `openrust::support::cache()` 获取当前应用的缓存管理器。调用 `.store(None)?` 取得默认仓库。`cache!(key).await?` 返回 `Option<Value>`，`cache!(key, default).await?` 支持默认值。
 
-写入形式接受至少一组键值和 `Option<Ttl>`。与固定 助手一样，它只写入第一项。需要写入全部条目时使用 `Cache::putMany`。
+写入形式接受至少一组键值和 `Option<Ttl>`。与固定 助手一样，它只写入第一项。需要写入全部条目时使用 `Cache::put_many`。
 
 ```rust
 use openrust::{cache, cache::{CacheResult, Ttl, Value}};
@@ -192,18 +192,18 @@ pub async fn report() -> CacheResult<Value> {
 
 ## 仓库设置 {#cache-repository-settings}
 
-`get_name`、`getStore` 和 `getEventDispatcher` 分别读取已配置的仓库名称、底层存储和事件分发器。具名仓库关闭缓存事件后仍可读取名称。创建标签仓库时，它会继承来源仓库的名称、事件分发器和默认时长。
+`get_name`、`get_store` 和 `get_event_dispatcher` 分别读取已配置的仓库名称、底层存储和事件分发器。具名仓库关闭缓存事件后仍可读取名称。创建标签仓库时，它会继承来源仓库的名称、事件分发器和默认时长。
 
-`putWithDefault` 使用 `getDefaultCacheTime` 返回的时长，初始值为 3600 秒。显式调用 `put(key, value, None)` 会永久保存。用 `setDefaultCacheTime` 修改自有仓库的默认时长，`setStore` 和 `setEventDispatcher` 也用于自有仓库。克隆后的仓库共享底层存储，每份副本可各自替换设置。
+`put_with_default` 使用 `get_default_cache_time` 返回的时长，初始值为 3600 秒。显式调用 `put(key, value, None)` 会永久保存。用 `set_default_cache_time` 修改自有仓库的默认时长，`set_store` 和 `set_event_dispatcher` 也用于自有仓库。克隆后的仓库共享底层存储，每份副本可各自替换设置。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn cache_report() -> CacheResult<bool> {
     let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
-    repository.setDefaultCacheTime(Some(60));
+    repository.set_default_cache_time(Some(60));
     let reports = repository.tags(&["reports"])?;
-    reports.putWithDefault("latest", &Value::from("ready")).await
+    reports.put_with_default("latest", &Value::from("ready")).await
 }
 ```
 
@@ -227,7 +227,7 @@ async fn store_report() -> Result<bool, CacheError> {
 
 读取时传入完全相同的标签顺序，包括重复项。调用 `Cache::tags(&["daily"])?.flush().await?` 可使所有带 `daily` 标签的条目失效。普通键和只含无关标签的条目会保留。标签通过切换代际失效。`array` 和 `failover` 的旧条目无法再按标签读到，按原 TTL 到期。直接选择 Redis 存储时还会分批删除旧代际的实际键。Redis 在同一脚本内写入条目和更新索引，清理旧代际期间仍可写入新代际。
 
-调用 `Cache::tags(&["daily"])?.flushStale().await?` 可清理指定 Redis 标签的过期引用。它保留有效缓存值和其他标签索引。传入空列表时不访问 Redis。
+调用 `Cache::tags(&["daily"])?.flush_stale().await?` 可清理指定 Redis 标签的过期引用。它保留有效缓存值和其他标签索引。传入空列表时不访问 Redis。
 
 运行 `./artisan cache:prune-stale-tags redis` 可清理整个存储。两种方式都用 Redis 服务器时间和有序集合记录的到期时间判断引用是否过期，也会移除值键已不存在的引用。清理只修改索引，缓存值以及仍存在的永久条目引用均会保留。可显式指定存储名，也可省略以使用默认存储。
 
@@ -235,11 +235,11 @@ async fn store_report() -> Result<bool, CacheError> {
 
 在 Redis Cluster 中，存储级清理还会在负责该存储标签槽的主节点查找标签索引。如果 Redis 淘汰了索引登记集合，清理可重新发现仍存在的索引，移除过期引用并保留有效值。如果待回收代际的索引和登记都已丢失，清理也会移除对应的待回收记录。清理还会移除格式无效的待回收代际标识。命令在同一槽内每批最多检查 128 个待回收代际。仍有有效索引引用的代际会保留，以便后续按标签清空时继续处理。
 
-在 Redis Cluster 中，`flushStale()` 会查找所选标签各代际仍存在的索引，也会移除这些标签中已无索引引用或格式无效的待回收记录，包括索引已被淘汰的代际。所选标签的索引丢失后，即使没有待回收记录，也会移除残留的索引登记。能确定归属所选标签的异常登记也会移除，其指向的 Redis 键会保留。无法识别标签归属的异常登记可通过存储级命令清理。仍有有效引用的待回收代际会保留，供后续按标签清空时继续处理。
+在 Redis Cluster 中，`flush_stale()` 会查找所选标签各代际仍存在的索引，也会移除这些标签中已无索引引用或格式无效的待回收记录，包括索引已被淘汰的代际。所选标签的索引丢失后，即使没有待回收记录，也会移除残留的索引登记。能确定归属所选标签的异常登记也会移除，其指向的 Redis 键会保留。无法识别标签归属的异常登记可通过存储级命令清理。仍有有效引用的待回收代际会保留，供后续按标签清空时继续处理。
 
 即使标签索引的登记已丢失，索引键类型异常也会使清理失败。清理范围内的待回收集合类型异常时，清理也会失败。命令以状态码 1 退出，恢复正确的键类型后可重新清理。
 
-Redis Cluster 槽迁移期间，清理批次涉及缺失的键，或同一批次的键分布在不同节点时，Redis 可能返回 `TRYAGAIN`。此时 `flushStale()` 返回错误，`cache:prune-stale-tags` 以状态码 1 退出。槽迁移完成后可重试同一清理。已完成的批次保留结果，重试会跳过已移除的引用。
+Redis Cluster 槽迁移期间，清理批次涉及缺失的键，或同一批次的键分布在不同节点时，Redis 可能返回 `TRYAGAIN`。此时 `flush_stale()` 返回错误，`cache:prune-stale-tags` 以状态码 1 退出。槽迁移完成后可重试同一清理。已完成的批次保留结果，重试会跳过已移除的引用。
 
 如果 Redis Cluster 中的标签清空中断，可再次执行 `./artisan cache:clear redis --tags=artists`，继续删除旧代际的值。重试时会分批清理已退役的代际，并移除格式无效的代际标识。如果 Redis 键类型异常，命令以状态码 1 退出。恢复正确的键类型后即可重试。
 
@@ -247,17 +247,17 @@ Redis Cluster 槽迁移期间，清理批次涉及缺失的键，或同一批次
 
 ## 原子锁
 
-用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。
+用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restore_lock`。使用有限租期可在进程提前结束后恢复。
 
 ### 跨进程文件锁 {#managing-locks-across-processes}
 
-同一主机上，文件缓存通过本地文件系统上的同一缓存目录协调多个进程。在 Windows 上，可把获取进程的令牌传给释放进程的 `Cache::restoreLock`。两个应用应使用相同的锁目录和缓存前缀。
+同一主机上，文件缓存通过本地文件系统上的同一缓存目录协调多个进程。在 Windows 上，可把获取进程的令牌传给释放进程的 `Cache::restore_lock`。两个应用应使用相同的锁目录和缓存前缀。
 
 ### 锁状态与重试间隔 {#lock-status}
 
-`isLocked().await?` 查询后端是否持有锁。`isOwnedBy(token).await?` 比对指定令牌，`isOwnedByCurrentProcess().await?` 比对当前句柄的令牌。`isOwnedBy(None).await?` 检查是否没有所有者。状态查询不会获取锁或续期。`null` 存储始终报告未锁定，所有者查询使用当前句柄的令牌。
+`is_locked().await?` 查询后端是否持有锁。`is_owned_by(token).await?` 比对指定令牌，`is_owned_by_current_process().await?` 比对当前句柄的令牌。`is_owned_by(None).await?` 检查是否没有所有者。状态查询不会获取锁或续期。`null` 存储始终报告未锁定，所有者查询使用当前句柄的令牌。
 
-`betweenBlockedAttemptsSleepFor(milliseconds)` 设置返回句柄的 `block` 和 `blockWith` 重试间隔，默认 250 毫秒。间隔为 0 时，每次重试前让出 Tokio 执行权。
+`between_blocked_attempts_sleep_for(milliseconds)` 设置返回句柄的 `block` 和 `block_with` 重试间隔，默认 250 毫秒。间隔为 0 时，每次重试前让出 Tokio 执行权。
 
 ```rust
 use std::time::Duration;
@@ -266,9 +266,9 @@ use openrust::{cache::CacheResult, support::facades::Cache};
 
 pub async fn ready_for_report() -> CacheResult<bool> {
     let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?
-        .betweenBlockedAttemptsSleepFor(25)?;
+        .between_blocked_attempts_sleep_for(25)?;
     lock.block(Duration::from_secs(2)).await?;
-    let owned = lock.isOwnedByCurrentProcess().await;
+    let owned = lock.is_owned_by_current_process().await;
     lock.release().await?;
     owned
 }
@@ -276,7 +276,7 @@ pub async fn ready_for_report() -> CacheResult<bool> {
 
 ### 持锁执行回调 {#lock-callbacks}
 
-用 `getWith` 尝试一次，或用 `blockWith` 等待。两者接管锁句柄，在回调返回时释放锁，包括回调出错的情况。锁被占用时，`getWith` 返回 `None`。等待超时则由 `blockWith` 返回 `CacheError::LockTimeout`。获取失败时均不会调用回调。
+用 `get_with` 尝试一次，或用 `block_with` 等待。两者接管锁句柄，在回调返回时释放锁，包括回调出错的情况。锁被占用时，`get_with` 返回 `None`。等待超时则由 `block_with` 返回 `CacheError::LockTimeout`。获取失败时均不会调用回调。
 
 ```rust
 use std::time::Duration;
@@ -288,7 +288,7 @@ use openrust::{
 
 pub async fn cache_report() -> CacheResult<Option<bool>> {
     Cache::lock("report", Some(Duration::from_secs(10)))?
-        .getWith(|| async {
+        .get_with(|| async {
             Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await
         })
         .await
@@ -299,7 +299,7 @@ Future 被取消或回调 panic 时，Tokio 会调度清理。运行时退出导
 
 ### 并发限制 {#concurrency-limiting}
 
-`Cache::without_overlapping(key, callback).await?` 对同一键一次只执行一个回调，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待时间，并接受可选的所有者令牌。租期为零时使用驱动默认值。无法获得锁时返回 `CacheError::LockTimeout`。
+`Cache::without_overlapping(key, callback).await?` 对同一键一次只执行一个回调，最多等待 10 秒。`without_overlapping_with(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待时间，并接受可选的所有者令牌。租期为零时使用驱动默认值。无法获得锁时返回 `CacheError::LockTimeout`。
 
 使用 `Cache::funnel` 允许多个回调并行执行。各应用实例须使用同一个共享锁存储、缓存前缀、限制器名称和并发上限。租期应覆盖回调的执行时间，到期后其他调用者可以取得该名额。`null` 仓库允许所有调用通过。
 
@@ -309,18 +309,18 @@ use openrust::{cache::CacheResult, support::facades::Cache};
 pub async fn generate_report() -> CacheResult<&'static str> {
     Cache::funnel("reports:generate:")?
         .limit(3)
-        .releaseAfter(60)
+        .release_after(60)
         .block(10)
-        .thenWith(|| async { Ok("generated") }, |_| async { Ok("busy") })
+        .then_with(|| async { Ok("generated") }, |_| async { Ok("busy") })
         .await
 }
 ```
 
-用 `limit` 设置并发名额。租期默认 60 秒，等待默认 3 秒，`sleep(milliseconds)` 默认 250 毫秒。`block(0)` 只扫描一次名额。`then(callback)` 返回 `CacheError::LimiterTimeout`，`thenWith(callback, fallback)` 可在回调中处理该错误。可用 `Cache::store(Some("redis"))?.funnel(name)?` 选取具名仓库。缺少原子锁能力的仓库返回 `CacheError::LocksUnsupported`。
+用 `limit` 设置并发名额。租期默认 60 秒，等待默认 3 秒，`sleep(milliseconds)` 默认 250 毫秒。`block(0)` 只扫描一次名额。`then(callback)` 返回 `CacheError::LimiterTimeout`，`then_with(callback, fallback)` 可在回调中处理该错误。可用 `Cache::store(Some("redis"))?.funnel(name)?` 选取具名仓库。缺少原子锁能力的仓库返回 `CacheError::LocksUnsupported`。
 
 ### 清除缓存锁 {#clearing-cache-locks}
 
-使用 `Cache::flushLocks().await?` 清除默认存储的锁，或用 `Cache::store(Some("database"))?.flushLocks().await?` 指定存储。Artisan 同样可以指定存储名。
+使用 `Cache::flush_locks().await?` 清除默认存储的锁，或用 `Cache::store(Some("database"))?.flush_locks().await?` 指定存储。Artisan 同样可以指定存储名。
 
 ```sh
 ./artisan cache:clear database --locks
@@ -345,7 +345,7 @@ pub async fn generate_report() -> CacheResult<&'static str> {
 
 每次操作都从第一个存储开始。存储报错时才尝试下一个，缓存未命中或成功返回 `false` 时直接结束。主存储恢复后会再次优先读取它，故障期间写入备用存储的条目此时可能读不到。所有存储均失败时，操作返回最后一个错误。
 
-在应用事件分发器中监听 `openrust::cache::events::CacheFailedOver`，可获知新出现的存储故障。事件包含 `storeName` 和 `exception` 错误消息。同一存储连续报错只产生一次事件，经过一次该存储未报错的操作后，再次报错才会重新触发。锁句柄由第一个能创建它的存储提供，后续获取、续期和释放都使用该存储。
+在应用事件分发器中监听 `openrust::cache::events::CacheFailedOver`，可获知新出现的存储故障。事件包含 `store_name` 和 `exception` 错误消息。同一存储连续报错只产生一次事件，经过一次该存储未报错的操作后，再次报错才会重新触发。锁句柄由第一个能创建它的存储提供，后续获取、续期和释放都使用该存储。
 
 ```rust
 use openrust::{
@@ -372,9 +372,9 @@ Cache::extend("project", |manager, config| {
 })?;
 ```
 
-在 `config/cache.rs` 中将具名存储的 `driver` 设为 `project`。工厂收到缓存管理器和完整存储配置。用 `manager.getContainer()` 获取应用服务，用 `manager.repository(..., config)` 保留存储名和事件设置。存储解析是同步的，回调负责构造后端，异步 I/O 放在具体缓存操作中。
+在 `config/cache.rs` 中将具名存储的 `driver` 设为 `project`。工厂收到缓存管理器和完整存储配置。用 `manager.get_container()` 获取应用服务，用 `manager.repository(..., config)` 保留存储名和事件设置。存储解析是同步的，回调负责构造后端，异步 I/O 放在具体缓存操作中。
 
-具名仓库在首次访问时创建，后续继续复用。替换工厂后，可调用 `Cache::forgetDriver(Some("reports"))?` 或 `Cache::purge(Some("reports"))?`，下一次解析就使用新工厂。`Cache::build(config)?` 按给定配置即时创建独立仓库。
+具名仓库在首次访问时创建，后续继续复用。替换工厂后，可调用 `Cache::forget_driver(Some("reports"))?` 或 `Cache::purge(Some("reports"))?`，下一次解析就使用新工厂。`Cache::build(config)?` 按给定配置即时创建独立仓库。
 
 ## 缓存事件 {#cache-events}
 
@@ -397,4 +397,4 @@ events.assertDispatched(CacheHit::NAME);
 
 ## 查询与恢复锁
 
-`Lock` 契约提供 `currentOwner()` 查询后端 owner，不获取锁；`forceRelease()` 强制释放锁，不校验当前句柄的 owner。`LockProvider::restoreLock(name, owner)` 使用保存的 owner 标识重建句柄。trait 对象也可直接调用这些方法；恢复句柄不会获取锁或续租。
+`Lock` 契约提供 `current_owner()` 查询后端 owner，不获取锁；`force_release()` 强制释放锁，不校验当前句柄的 owner。`LockProvider::restore_lock(name, owner)` 使用保存的 owner 标识重建句柄。trait 对象也可直接调用这些方法；恢复句柄不会获取锁或续租。

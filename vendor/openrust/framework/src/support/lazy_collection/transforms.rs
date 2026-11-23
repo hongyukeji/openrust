@@ -3,11 +3,10 @@ use serde_json::Value;
 use super::{ArrayKey, CollectionResult, LazyCollection};
 use crate::support::data;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
-    pub fn mapInto<U: From<T> + 'source>(self) -> LazyCollection<'source, U> {
+    pub fn map_into<U: From<T> + 'source>(self) -> LazyCollection<'source, U> {
         LazyCollection::from_iterators(move || {
-            self.getIterator()
+            self.get_iterator()
                 .map(|entry| entry.map(|(key, item)| (key, item.into())))
         })
     }
@@ -20,16 +19,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, Vec<T>> {
-    pub fn mapSpread<U: 'source>(
+    pub fn map_spread<U: 'source>(
         self,
         callback: impl Fn(&[T], &ArrayKey) -> U + 'source,
     ) -> LazyCollection<'source, U> {
         self.map(move |chunk, key| callback(chunk, key))
     }
 
-    pub fn eachSpread(
+    pub fn each_spread(
         &self,
         mut callback: impl FnMut(&[T], &ArrayKey) -> bool,
     ) -> CollectionResult<&Self> {
@@ -40,13 +38,12 @@ impl<'source, T: 'source> LazyCollection<'source, Vec<T>> {
 impl LazyCollection<'_, ArrayKey> {
     pub fn flip(self) -> Self {
         Self::from_iterators(move || {
-            self.getIterator()
+            self.get_iterator()
                 .map(|entry| entry.map(|(key, value)| (value.normalized(), key)))
         })
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source> LazyCollection<'source, Value> {
     pub fn select(self, keys: &'source [&'source str]) -> Self {
         self.map(move |item, _| {
@@ -61,13 +58,13 @@ impl<'source> LazyCollection<'source, Value> {
         .values()
     }
 
-    pub fn mergeRecursive(self, other: impl Into<Self>) -> Self {
+    pub fn merge_recursive(self, other: impl Into<Self>) -> Self {
         let other = other.into();
-        self.try_passthru(move |items| items.mergeRecursive(Self::collect(&other)?))
+        self.try_passthru(move |items| items.merge_recursive(Self::collect(&other)?))
     }
 
-    pub fn replaceRecursive(self, other: impl Into<Self>) -> Self {
+    pub fn replace_recursive(self, other: impl Into<Self>) -> Self {
         let other = other.into();
-        self.try_passthru(move |items| items.replaceRecursive(Self::collect(&other)?))
+        self.try_passthru(move |items| items.replace_recursive(Self::collect(&other)?))
     }
 }

@@ -293,7 +293,7 @@ async fn application_scope_and_public_mount_work_over_http() {
             assert!(Storage::put("notes/example.txt", b"Hello").await.unwrap());
             assert_eq!(Storage::size("notes/example.txt").await.unwrap(), 5);
             assert_eq!(
-                Storage::mimeType("notes/example.txt")
+                Storage::mime_type("notes/example.txt")
                     .await
                     .unwrap()
                     .as_deref(),
@@ -404,7 +404,7 @@ async fn application_scope_and_public_mount_work_over_http() {
         let application = Application::configure(root.0.clone())
             .with_config(config)
             .with_routing(Routing::default().web(|| {
-                Route::staticDisk("public")?;
+                Route::static_disk("public")?;
                 Route::get("/write", write)?;
                 Route::post("/upload", upload)?;
                 Route::get("/download/{file}", download)
@@ -677,7 +677,10 @@ async fn local_metadata_uses_the_open_file_and_preserves_error_policy() {
         Some("bbef3d09d1fd68cfb48e7ae1acc56a17")
     );
     assert_eq!(
-        disk.mimeType("reports/large.bin").await.unwrap().as_deref(),
+        disk.mime_type("reports/large.bin")
+            .await
+            .unwrap()
+            .as_deref(),
         Some("application/octet-stream")
     );
     assert!(
@@ -686,7 +689,10 @@ async fn local_metadata_uses_the_open_file_and_preserves_error_policy() {
             .unwrap()
     );
     assert_eq!(
-        disk.mimeType("reports/image.txt").await.unwrap().as_deref(),
+        disk.mime_type("reports/image.txt")
+            .await
+            .unwrap()
+            .as_deref(),
         Some("image/png")
     );
 
@@ -700,17 +706,17 @@ async fn local_metadata_uses_the_open_file_and_preserves_error_policy() {
         Err(FilesystemError::NotFound)
     ));
     assert!(matches!(
-        disk.mimeType("missing.txt").await,
+        disk.mime_type("missing.txt").await,
         Err(FilesystemError::NotFound)
     ));
     assert!(matches!(
         disk.checksum("missing.txt").await,
         Err(FilesystemError::NotFound)
     ));
-    assert_eq!(quiet.mimeType("missing.txt").await.unwrap(), None);
+    assert_eq!(quiet.mime_type("missing.txt").await.unwrap(), None);
     assert_eq!(quiet.checksum("missing.txt").await.unwrap(), None);
     assert!(matches!(
-        quiet.mimeType("../outside.txt").await,
+        quiet.mime_type("../outside.txt").await,
         Err(FilesystemError::InvalidPath)
     ));
     assert!(disk.size("reports").await.is_err());
@@ -729,7 +735,7 @@ async fn local_metadata_rejects_symbolic_and_hard_links() {
     for name in ["soft.txt", "hard.txt"] {
         assert!(disk.size(name).await.is_err());
         assert!(disk.lastModified(name).await.is_err());
-        assert!(disk.mimeType(name).await.is_err());
+        assert!(disk.mime_type(name).await.is_err());
         assert!(disk.checksum(name).await.is_err());
     }
 }

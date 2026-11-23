@@ -24,14 +24,14 @@ enum Status {
     On,
 }
 impl CastableEnum for Status {
-    fn fromValue(value: &Value) -> DatabaseResult<Self> {
+    fn from_value(value: &Value) -> DatabaseResult<Self> {
         if value == &Value::from("on") {
             Ok(Self::On)
         } else {
             Err(DatabaseError::InvalidQuery("枚举值错误"))
         }
     }
-    fn intoValue(self) -> Value {
+    fn into_value(self) -> Value {
         "on".into()
     }
 }
@@ -96,15 +96,15 @@ impl Model for Handled {
     }
     state!();
     read_casts!();
-    fn handleDiscardedAttributeViolationUsing(
+    fn handle_discarded_attribute_violation_using(
         &mut self,
         keys: &[String],
         _: DatabaseError,
     ) -> DatabaseResult<()> {
-        self.setAttribute("discarded", keys.join(", "));
+        self.set_attribute("discarded", keys.join(", "));
         Ok(())
     }
-    fn handleMissingAttributeViolationUsing(
+    fn handle_missing_attribute_violation_using(
         &self,
         _: &str,
         _: DatabaseError,
@@ -144,7 +144,7 @@ impl Model for Child {
     }
     state!();
     fn touches() -> Touches<Self> {
-        Touches::default().belongsTo(BelongsTo::<Child, Owner>::new("owner_id", "id"))
+        Touches::default().belongs_to(BelongsTo::<Child, Owner>::new("owner_id", "id"))
     }
 }
 struct Saved(Arc<AtomicUsize>);
@@ -199,10 +199,10 @@ fn value(value: Option<&Value>) -> Json {
     }
 }
 fn fill_case<M: Model>(db: &Connection, force: bool) -> Json {
-    let mut model = M::newInstanceOn(db, Attributes::new()).unwrap();
+    let mut model = M::new_instance_on(db, Attributes::new()).unwrap();
     let input = Attributes::from([("name".into(), "New".into()), ("secret".into(), "x".into())]);
     let result = if force {
-        model.forceFill(input)
+        model.force_fill(input)
     } else {
         model.fill(input)
     };
@@ -213,7 +213,7 @@ fn fill_case<M: Model>(db: &Connection, force: bool) -> Json {
     };
     let attributes = model
         .state()
-        .getAttributes()
+        .get_attributes()
         .iter()
         .map(|(k, v)| (k.clone(), value(Some(v))))
         .collect::<serde_json::Map<_, _>>();
@@ -222,9 +222,9 @@ fn fill_case<M: Model>(db: &Connection, force: bool) -> Json {
 #[tokio::test]
 async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applications() {
     let (app, db) = application().await;
-    let id = if db.getDriverName() == "sqlite" {
+    let id = if db.get_driver_name() == "sqlite" {
         "integer primary key"
-    } else if db.getDriverName() == "pgsql" {
+    } else if db.get_driver_name() == "pgsql" {
         "bigserial primary key"
     } else {
         "bigint primary key auto_increment"
@@ -245,8 +245,8 @@ async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applic
     for strict in [false, true] {
         for guarded in [false, true] {
             for force in [false, true] {
-                Item::preventSilentlyDiscardingAttributes(&app, strict).unwrap();
-                Guarded::preventSilentlyDiscardingAttributes(&app, strict).unwrap();
+                Item::prevent_silently_discarding_attributes(&app, strict).unwrap();
+                Guarded::prevent_silently_discarding_attributes(&app, strict).unwrap();
                 let actual = if guarded {
                     fill_case::<Guarded>(&db, force)
                 } else {
@@ -264,8 +264,8 @@ async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applic
             }
         }
     }
-    Handled::preventSilentlyDiscardingAttributes(&app, true).unwrap();
-    let mut handled = Handled::newInstanceOn(&db, Attributes::new()).unwrap();
+    Handled::prevent_silently_discarding_attributes(&app, true).unwrap();
+    let mut handled = Handled::new_instance_on(&db, Attributes::new()).unwrap();
     handled
         .fill(Attributes::from([
             ("name".into(), "New".into()),
@@ -274,30 +274,30 @@ async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applic
         .unwrap();
     let actual = handled
         .state()
-        .getAttributes()
+        .get_attributes()
         .iter()
         .map(|(k, v)| (k.clone(), value(Some(v))))
         .collect::<serde_json::Map<_, _>>();
     assert_eq!(json!(actual), reference["fill_handler"]);
-    Item::preventSilentlyDiscardingAttributes(&app, false).unwrap();
+    Item::prevent_silently_discarding_attributes(&app, false).unwrap();
     for strict in [false, true] {
         for state in ["new", "existing", "recent"] {
             for key in ["unknown", "count", "alias", "nullable", "status"] {
-                Item::preventAccessingMissingAttributes(&app, strict).unwrap();
+                Item::prevent_accessing_missing_attributes(&app, strict).unwrap();
                 let model = match state {
-                    "new" => Item::newInstanceOn(&db, Attributes::new()).unwrap(),
-                    "existing" => Item::queryOn(&db)
+                    "new" => Item::new_instance_on(&db, Attributes::new()).unwrap(),
+                    "existing" => Item::query_on(&db)
                         .select(["id", "nullable"])
-                        .findOrFail(1)
+                        .find_or_fail(1)
                         .await
                         .unwrap(),
-                    "recent" => Item::queryOn(&db)
+                    "recent" => Item::query_on(&db)
                         .create(Attributes::from([("name".into(), "recent".into())]))
                         .await
                         .unwrap(),
                     _ => unreachable!(),
                 };
-                let actual = match model.getAttributeValue(key) {
+                let actual = match model.get_attribute_value(key) {
                     Ok(v) => json!({"value":value(v.as_ref())}),
                     Err(DatabaseError::MissingAttribute { .. }) => json!({"error":"missing"}),
                     Err(e) => panic!("属性读取错误：{e}"),
@@ -309,87 +309,87 @@ async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applic
             }
         }
     }
-    Handled::preventAccessingMissingAttributes(&app, true).unwrap();
-    let model = Handled::queryOn(&db)
+    Handled::prevent_accessing_missing_attributes(&app, true).unwrap();
+    let model = Handled::query_on(&db)
         .select(["id", "nullable"])
-        .findOrFail(1)
+        .find_or_fail(1)
         .await
         .unwrap();
     for key in ["unknown", "count", "status"] {
-        let got = model.getAttributeValue(key).unwrap();
+        let got = model.get_attribute_value(key).unwrap();
         assert_eq!(
             json!({"value":value(got.as_ref())}),
             reference[format!("read_handler_{key}")]
         );
     }
-    assert!(model.getEnum::<Status>("status").unwrap().is_none());
-    Item::preventAccessingMissingAttributes(&app, true).unwrap();
-    let enum_model = Item::queryOn(&db)
+    assert!(model.get_enum::<Status>("status").unwrap().is_none());
+    Item::prevent_accessing_missing_attributes(&app, true).unwrap();
+    let enum_model = Item::query_on(&db)
         .select(["id"])
-        .findOrFail(1)
+        .find_or_fail(1)
         .await
         .unwrap();
     assert!(matches!(
-        enum_model.getEnum::<Status>("status"),
+        enum_model.get_enum::<Status>("status"),
         Err(DatabaseError::MissingAttribute { .. })
     ));
     // 异步转换器先完成可赋值字段，拒绝额外字段时保留已完成的属性赋值。
-    AsyncItem::preventSilentlyDiscardingAttributes(&app, true).unwrap();
-    let mut hashed = AsyncItem::newInstanceOn(&db, Attributes::new()).unwrap();
+    AsyncItem::prevent_silently_discarding_attributes(&app, true).unwrap();
+    let mut hashed = AsyncItem::new_instance_on(&db, Attributes::new()).unwrap();
     assert!(matches!(
         hashed
-            .fillAsync(Attributes::from([
+            .fill_async(Attributes::from([
                 ("name".into(), "New".into()),
                 ("secret".into(), "x".into())
             ]))
             .await,
         Err(DatabaseError::MassAssignment(_))
     ));
-    assert!(matches!(hashed.getAttribute("name"),Some(Value::Text(v)) if v.starts_with('$')));
-    Item::shouldBeStrict(&app, true).unwrap();
+    assert!(matches!(hashed.get_attribute("name"),Some(Value::Text(v)) if v.starts_with('$')));
+    Item::should_be_strict(&app, true).unwrap();
     let relation = HasMany::<Item, Child>::new("id", "owner_id");
-    let mut single = Item::queryOn(&db).findOrFail(1).await.unwrap();
-    assert!(!single.preventsLazyLoading());
+    let mut single = Item::query_on(&db).find_or_fail(1).await.unwrap();
+    assert!(!single.prevents_lazy_loading());
     single
-        .getRelationOrLoad("children", &relation)
+        .get_relation_or_load("children", &relation)
         .await
         .unwrap();
-    let mut many: Vec<_> = Item::queryOn(&db)
-        .orderBy("id", "asc")
+    let mut many: Vec<_> = Item::query_on(&db)
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap()
         .into_iter()
         .collect();
-    assert!(many[0].preventsLazyLoading());
+    assert!(many[0].prevents_lazy_loading());
     assert!(matches!(
-        many[0].getRelationOrLoad("children", &relation).await,
+        many[0].get_relation_or_load("children", &relation).await,
         Err(DatabaseError::LazyLoadingViolation { .. })
     ));
-    Item::preventLazyLoading(&app, false).unwrap();
+    Item::prevent_lazy_loading(&app, false).unwrap();
     assert!(
-        many[0].preventsLazyLoading(),
+        many[0].prevents_lazy_loading(),
         "已有实例保留水合时的lazy-loading策略"
     );
-    let mut later: Vec<_> = Item::queryOn(&db)
+    let mut later: Vec<_> = Item::query_on(&db)
         .get()
         .await
         .unwrap()
         .into_iter()
         .collect();
-    assert!(!later[0].preventsLazyLoading());
+    assert!(!later[0].prevents_lazy_loading());
     later[0]
-        .getRelationOrLoad("children", &relation)
+        .get_relation_or_load("children", &relation)
         .await
         .unwrap();
     // 同一模型类型在另一个应用中不继承严格策略。
     let (_other_app, other_db) = application().await;
-    let permissive = Item::newInstanceOn(&other_db, Attributes::new()).unwrap();
-    assert!(!permissive.preventsAccessingMissingAttributes());
-    let guarded = Guarded::newInstanceOn(&db, Attributes::new()).unwrap();
-    assert!(!guarded.preventsAccessingMissingAttributes());
+    let permissive = Item::new_instance_on(&other_db, Attributes::new()).unwrap();
+    assert!(!permissive.prevents_accessing_missing_attributes());
+    let guarded = Guarded::new_instance_on(&db, Attributes::new()).unwrap();
+    assert!(!guarded.prevents_accessing_missing_attributes());
     let saved = Arc::new(AtomicUsize::new(0));
-    Owner::registerModelEvent(&app, ModelEvent::Saved, Saved(saved.clone())).unwrap();
+    Owner::register_model_event(&app, ModelEvent::Saved, Saved(saved.clone())).unwrap();
     for name in ["normal", "ignore_owner", "ignore_child", "ignore_on"] {
         db.statement(
             "update parity_strict_owners set updated_at='2000-01-01 00:00:00'",
@@ -398,18 +398,18 @@ async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applic
         .await
         .unwrap();
         saved.store(0, Ordering::SeqCst);
-        let mut child = Child::queryOn(&db).findOrFail(1).await.unwrap();
-        child.setAttribute("name", name);
+        let mut child = Child::query_on(&db).find_or_fail(1).await.unwrap();
+        child.set_attribute("name", name);
         match name {
             "normal" => child.save().await,
-            "ignore_owner" => Owner::withoutTouching(child.save()).await,
-            "ignore_child" => Child::withoutTouching(child.save()).await,
-            "ignore_on" => Child::withoutTouchingOn(&[TypeId::of::<Owner>()], child.save()).await,
+            "ignore_owner" => Owner::without_touching(child.save()).await,
+            "ignore_child" => Child::without_touching(child.save()).await,
+            "ignore_on" => Child::without_touching_on(&[TypeId::of::<Owner>()], child.save()).await,
             _ => unreachable!(),
         }
         .unwrap();
-        let owner = Owner::queryOn(&db).findOrFail(1).await.unwrap();
-        let actual = json!({"changed":owner.getAttribute("updated_at")!=Some(&"2000-01-01 00:00:00".into()),"saved":saved.load(Ordering::SeqCst)});
+        let owner = Owner::query_on(&db).find_or_fail(1).await.unwrap();
+        let actual = json!({"changed":owner.get_attribute("updated_at")!=Some(&"2000-01-01 00:00:00".into()),"saved":saved.load(Ordering::SeqCst)});
         assert_eq!(actual, reference[format!("touch_{name}")]);
     }
     // 显式差异：同类型嵌套结束后恢复外层抑制，避免上游array_diff提前删除外层条目。
@@ -417,53 +417,53 @@ async fn strict_attributes_and_scoped_touches_match_reference_and_isolate_applic
         reference["upstream_nested_same"],
         json!([true, true, false, false])
     );
-    Owner::withoutTouching(async {
-        assert!(Owner::isIgnoringTouch());
-        Owner::withoutTouching(async {
-            assert!(Owner::isIgnoringTouch());
+    Owner::without_touching(async {
+        assert!(Owner::is_ignoring_touch());
+        Owner::without_touching(async {
+            assert!(Owner::is_ignoring_touch());
         })
         .await;
-        assert!(Owner::isIgnoringTouch());
+        assert!(Owner::is_ignoring_touch());
     })
     .await;
-    assert!(!Owner::isIgnoringTouch());
+    assert!(!Owner::is_ignoring_touch());
     // 预先构造的嵌套Future在轮询时继承外层上下文。
-    Owner::withoutTouching(OtherOwner::withoutTouching(async {
-        assert!(Owner::isIgnoringTouch());
-        assert!(OtherOwner::isIgnoringTouch());
+    Owner::without_touching(OtherOwner::without_touching(async {
+        assert!(Owner::is_ignoring_touch());
+        assert!(OtherOwner::is_ignoring_touch());
     }))
     .await;
-    assert!(!Owner::isIgnoringTouch());
-    assert!(!OtherOwner::isIgnoringTouch());
-    assert!(Child::isIgnoringTouch());
-    let error = Owner::withoutTouching(async { Err::<(), _>("失败") }).await;
+    assert!(!Owner::is_ignoring_touch());
+    assert!(!OtherOwner::is_ignoring_touch());
+    assert!(Child::is_ignoring_touch());
+    let error = Owner::without_touching(async { Err::<(), _>("失败") }).await;
     assert!(error.is_err());
-    assert!(!Owner::isIgnoringTouch());
-    let panic = std::panic::AssertUnwindSafe(Owner::withoutTouching(async {
+    assert!(!Owner::is_ignoring_touch());
+    let panic = std::panic::AssertUnwindSafe(Owner::without_touching(async {
         panic!("隔离测试恐慌")
     }))
     .catch_unwind()
     .await;
     assert!(panic.is_err());
-    assert!(!Owner::isIgnoringTouch());
+    assert!(!Owner::is_ignoring_touch());
     let started = Arc::new(tokio::sync::Notify::new());
     let signal = started.clone();
-    let task = tokio::spawn(Owner::withoutTouching(async move {
+    let task = tokio::spawn(Owner::without_touching(async move {
         signal.notify_one();
         std::future::pending::<()>().await
     }));
     started.notified().await;
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
-    assert!(!Owner::isIgnoringTouch());
+    assert!(!Owner::is_ignoring_touch());
     let (inside, outside) = tokio::join!(
-        Owner::withoutTouching(async {
+        Owner::without_touching(async {
             tokio::task::yield_now().await;
-            Owner::isIgnoringTouch()
+            Owner::is_ignoring_touch()
         }),
         async {
             tokio::task::yield_now().await;
-            Owner::isIgnoringTouch()
+            Owner::is_ignoring_touch()
         }
     );
     assert!(inside);

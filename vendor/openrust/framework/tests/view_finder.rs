@@ -60,11 +60,11 @@ fn finder_resolves_ordered_locations_extensions_and_namespaces() {
     fs::write(&primary, "primary").unwrap();
     finder.flush();
     assert_eq!(finder.find("admin.index").unwrap(), primary);
-    finder.addNamespace("package", &[&second]).unwrap();
+    finder.add_namespace("package", &[&second]).unwrap();
     assert_eq!(finder.find("package::admin.index").unwrap(), fallback);
-    finder.prependNamespace("package", &[&first]).unwrap();
+    finder.prepend_namespace("package", &[&first]).unwrap();
     assert_eq!(finder.find("package::admin.index").unwrap(), primary);
-    finder.replaceNamespace("package", &[&second]).unwrap();
+    finder.replace_namespace("package", &[&second]).unwrap();
     assert_eq!(finder.find("package::admin.index").unwrap(), fallback);
     assert!(matches!(
         finder.find("unknown::admin.index"),
@@ -122,30 +122,30 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
         ("missing".to_owned(), json!([]).into()),
         ("items".to_owned(), json!(["one", "<two>"]).into()),
     ]);
-    let engine = factory.getEngineResolver().resolve("blade").unwrap();
+    let engine = factory.get_engine_resolver().resolve("blade").unwrap();
     let openrust::view::engines::Engine::Blade(engine) = engine else {
         panic!("blade resolves to the compiled engine");
     };
-    let compiler = engine.getCompiler();
-    assert!(compiler.isExpired(&blade).unwrap());
+    let compiler = engine.get_compiler();
+    assert!(compiler.is_expired(&blade).unwrap());
     assert_eq!(
         factory.render("welcome", &data).unwrap(),
         "&lt;&amp;&#039;&quot;|<em>safe</em>|{{ client }}|yes|one&lt;two&gt;| none|ready|empty"
     );
-    assert!(!compiler.isExpired(&blade).unwrap());
-    let artifact = compiler.getCompiledPath(&blade).unwrap();
+    assert!(!compiler.is_expired(&blade).unwrap());
+    let artifact = compiler.get_compiled_path(&blade).unwrap();
     assert!(artifact.is_file());
     let mut legacy: serde_json::Value =
         serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
     legacy.as_object_mut().unwrap().remove("compiler_version");
     fs::write(&artifact, serde_json::to_vec(&legacy).unwrap()).unwrap();
-    assert!(compiler.isExpired(&blade).unwrap());
+    assert!(compiler.is_expired(&blade).unwrap());
     compiler.compile(&blade).unwrap();
-    assert!(!compiler.isExpired(&blade).unwrap());
+    assert!(!compiler.is_expired(&blade).unwrap());
     compiler
         .r#if("ready", |arguments| Ok(arguments.is_empty()))
         .unwrap();
-    assert!(compiler.isExpired(&blade).unwrap());
+    assert!(compiler.is_expired(&blade).unwrap());
     assert!(compiler.check("ready", &[]).unwrap());
     assert!(compiler.check("unknown", &[]).is_err());
     fs::write(&blade, "@formatName($user->name)").unwrap();
@@ -158,25 +158,25 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
             Ok(DirectiveOutput::Text(args[0].as_str().unwrap().to_owned()))
         })
         .unwrap();
-    assert!(compiler.isExpired(&blade).unwrap());
+    assert!(compiler.is_expired(&blade).unwrap());
     compiler.compile(&blade).unwrap();
-    assert!(!compiler.isExpired(&blade).unwrap());
+    assert!(!compiler.is_expired(&blade).unwrap());
     assert_eq!(
         factory.render("welcome", &data).unwrap(),
         "&lt;&amp;&#039;&quot;"
     );
     assert_eq!(
         factory
-            .renderInline(r#"<b>@formatName($user->name)</b>"#, &data)
+            .render_inline(r#"<b>@formatName($user->name)</b>"#, &data)
             .unwrap(),
         "<b>&lt;&amp;&#039;&quot;</b>"
     );
     assert!(matches!(
-        factory.renderInline("@formatName($x + 1)", &data),
+        factory.render_inline("@formatName($x + 1)", &data),
         Err(ViewError::RenderFailed(_))
     ));
     fs::write(&blade, "@unless ($none)updated{{ '' }}@endunless").unwrap();
-    assert!(compiler.isExpired(&blade).unwrap());
+    assert!(compiler.is_expired(&blade).unwrap());
     assert_eq!(factory.render("welcome", &data).unwrap(), "updated");
     fs::write(&artifact, "incomplete data").unwrap();
     assert_eq!(factory.render("welcome", &data).unwrap(), "updated");
@@ -294,15 +294,15 @@ fn view_contracts_resolve_files_namespaces_and_engines() {
         Err(ViewError::NotFound)
     ));
 
-    contract.addNamespace("pkg", &[&old]).unwrap();
+    contract.add_namespace("pkg", &[&old]).unwrap();
     let mut namespaced = contract
         .make("pkg::index", ViewData::new(), ViewData::new())
         .unwrap();
     assert_eq!(namespaced.render().unwrap(), "old");
-    contract.replaceNamespace("pkg", &[&replacement]).unwrap();
+    contract.replace_namespace("pkg", &[&replacement]).unwrap();
     assert_eq!(namespaced.render().unwrap(), "new");
     assert!(matches!(
-        contract.addNamespace("../invalid", &[&old]),
+        contract.add_namespace("../invalid", &[&old]),
         Err(ViewError::InvalidName)
     ));
 
@@ -314,7 +314,7 @@ fn view_contracts_resolve_files_namespaces_and_engines() {
         ),
         Err(ViewError::UnknownEngine)
     ));
-    let engine = factory.getEngineResolver().resolve("blade").unwrap();
+    let engine = factory.get_engine_resolver().resolve("blade").unwrap();
     let data = ViewData::from_iter([
         ("title".into(), "engine".into()),
         ("base".into(), "safe".into()),
@@ -409,7 +409,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     }
 
     impl Component for HiddenCard {
-        fn shouldRender(&self) -> bool {
+        fn should_render(&self) -> bool {
             false
         }
 
@@ -542,17 +542,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/broken-stack", || view("broken_stack"))?;
                 Route::get("/fragment", || view("fragment_page").fragment("left"))?;
                 Route::get("/fragments", || {
-                    view("fragment_page").fragmentsIf(true, ["right", "missing", "left"])
+                    view("fragment_page").fragments_if(true, ["right", "missing", "left"])
                 })?;
                 Route::get("/full-fragments", || {
-                    view("fragment_page").fragmentIf(false, "left")
+                    view("fragment_page").fragment_if(false, "left")
                 })?;
-                Route::get("/all-fragments", || view("fragment_page").allFragments())?;
+                Route::get("/all-fragments", || view("fragment_page").all_fragments())?;
                 Route::get("/fragment-composed", || {
                     view("fragment_composed").fragments(["right", "missing", "left", "left"])
                 })?;
                 Route::get("/all-fragments-composed", || {
-                    view("fragment_composed").allFragments()
+                    view("fragment_composed").all_fragments()
                 })?;
                 Route::get("/empty-fragments", || {
                     view("fragment_composed").fragments(Vec::<String>::new())
@@ -565,7 +565,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 })?;
                 Route::get("/stream-loop", || {
                     view("stream_loop")
-                        .withIterator("lazy", || {
+                        .with_iterator("lazy", || {
                             let mut pulled = false;
                             std::iter::from_fn(move || {
                                 assert!(!pulled, "early break pulled a second item");
@@ -573,13 +573,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                                 Some(("key".into(), 10.into()))
                             })
                         })
-                        .withExactSizeIterator("known", || {
+                        .with_exact_size_iterator("known", || {
                             [10, 20, 30]
                                 .into_iter()
                                 .enumerate()
                                 .map(|(key, value)| (key.into(), value.into()))
                         })
-                        .withIterator("empty", std::iter::empty)
+                        .with_iterator("empty", std::iter::empty)
                 })?;
                 Route::get("/array-expressions", || {
                     view("array_expressions")
@@ -625,7 +625,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     let known_pulls = Arc::new(AtomicUsize::new(0));
                     view("stream_each")
                         .with("caller", "private")
-                        .withIterator("lazy", {
+                        .with_iterator("lazy", {
                             let (runs, pulls) = (runs.clone(), pulls.clone());
                             move || {
                                 let run = runs.fetch_add(1, Relaxed);
@@ -641,7 +641,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                                     })
                             }
                         })
-                        .withExactSizeIterator("known", {
+                        .with_exact_size_iterator("known", {
                             let (runs, pulls) = (known_runs.clone(), known_pulls.clone());
                             move || {
                                 runs.fetch_add(1, Relaxed);
@@ -652,14 +652,14 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                                 })
                             }
                         })
-                        .withIterator("emptyStream", {
+                        .with_iterator("emptyStream", {
                             let empty_runs = empty_runs.clone();
                             move || {
                                 empty_runs.fetch_add(1, Relaxed);
                                 std::iter::empty()
                             }
                         })
-                        .withExactSizeIterator("probe", move || {
+                        .with_exact_size_iterator("probe", move || {
                             assert_eq!((runs.load(Relaxed), pulls.load(Relaxed)), (2, 4));
                             assert_eq!(
                                 (known_runs.load(Relaxed), known_pulls.load(Relaxed)),
@@ -692,7 +692,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/unknown-font", || view("unknown_font"))?;
                 Route::get("/echo-formatters", || {
                     view("echo_formatters")
-                        .withStringable("price", &Price(42))
+                        .with_stringable("price", &Price(42))
                         .unwrap()
                         .with("items", serde_json::json!(["<one>", "two"]))
                 })?;
@@ -709,8 +709,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/blade-auth-failed", || view("blade_auth_failed"))?;
                 Route::get("/blade-gate/{state}", || {
                     view("blade_gate")
-                        .withGateArgument("subject", Price(42))
-                        .withGateArgument("target", PolicyTarget::of::<Price>())
+                        .with_gate_argument("subject", Price(42))
+                        .with_gate_argument("target", PolicyTarget::of::<Price>())
                         .with("label", "retail")
                         .with(
                             "abilities",
@@ -795,7 +795,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .get::<Factory>(ServiceKey::typed::<Factory>())
             .unwrap();
         factory
-            .registerViewService("blade.summary", |summary: &ViewSummary| {
+            .register_view_service("blade.summary", |summary: &ViewSummary| {
                 Ok(serde_json::json!({"label": format!("<{}>", summary.0)}).into())
             })
             .unwrap();
@@ -807,19 +807,19 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             >())
             .unwrap();
         contract.share("contract_app", app.into());
-        contract.addNamespace("demo", &[&package_views]).unwrap();
+        contract.add_namespace("demo", &[&package_views]).unwrap();
         factory
-            .anonymousComponentNamespace("widgets", Some("external"))
+            .anonymous_component_namespace("widgets", Some("external"))
             .unwrap();
         factory
-            .anonymousComponentPath(&extra_components, Some("external"))
+            .anonymous_component_path(&extra_components, Some("external"))
             .unwrap();
         factory
-            .anonymousComponentPath(&extra_components, None)
+            .anonymous_component_path(&extra_components, None)
             .unwrap();
         assert!(
             factory
-                .anonymousComponentNamespace("../outside", Some("bad"))
+                .anonymous_component_namespace("../outside", Some("bad"))
                 .is_err()
         );
         contract.composer(
@@ -839,27 +839,27 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         });
         factory.component("hidden-card", |_| Ok(HiddenCard));
         let openrust::view::engines::Engine::Blade(engine) =
-            factory.getEngineResolver().resolve("blade").unwrap()
+            factory.get_engine_resolver().resolve("blade").unwrap()
         else {
             panic!("the default view compiler uses Blade");
         };
         engine
-            .getCompiler()
+            .get_compiler()
             .r#if("appIs", move |arguments| {
                 Ok(arguments.first().and_then(|value| value.as_str()) == Some(app))
             })
             .unwrap();
         engine
-            .getCompiler()
+            .get_compiler()
             .stringable(move |price: &Price| Ok(format!("<{app}:{}>", price.0)));
         engine
-            .getCompiler()
-            .attributeFilter("client", |name, value| {
+            .get_compiler()
+            .attribute_filter("client", |name, value| {
                 name.starts_with("data-") && value.as_str().is_some_and(|text| text != "ignored")
             })
             .unwrap();
         if app == "A" {
-            engine.getCompiler().stringableIterable(|items| {
+            engine.get_compiler().stringable_iterable(|items| {
                 Ok(items
                     .get(0)
                     .and_then(openrust::view::ViewValue::as_str)
@@ -867,11 +867,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     .to_owned())
             });
         }
-        assert!(engine.getCompiler().applyEchoHandler(&0i64).is_err());
+        assert!(engine.get_compiler().apply_echo_handler(&0i64).is_err());
         if app == "A" {
-            engine.getCompiler().withoutDoubleEncoding();
+            engine.get_compiler().without_double_encoding();
             engine
-                .getCompiler()
+                .get_compiler()
                 .directive("formatName", move |args| {
                     Ok(DirectiveOutput::Text(format!(
                         "{app}:{}",
@@ -881,7 +881,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 .unwrap();
         }
         engine
-            .getCompiler()
+            .get_compiler()
             .directive("htmlBadge", move |_| {
                 Ok(DirectiveOutput::Html(format!("<mark>{app}</mark>")))
             })

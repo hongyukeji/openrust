@@ -77,8 +77,7 @@ impl NativeLogger {
     }
 
     /// 为通道的字节输出目标设置格式器。
-    #[allow(non_snake_case, reason = "保留日志公开方法名")]
-    pub fn setFormatter(&mut self, formatter: Arc<Formatter>) {
+    pub fn set_formatter(&mut self, formatter: Arc<Formatter>) {
         if let Some(handlers) = &mut self.handlers {
             *handlers = handlers
                 .iter()
@@ -97,8 +96,7 @@ impl NativeLogger {
     }
 
     /// 将处理器插入执行顺序的最前面。
-    #[allow(non_snake_case, reason = "保留日志公开方法名")]
-    pub fn pushProcessor(&mut self, processor: Arc<Processor>) {
+    pub fn push_processor(&mut self, processor: Arc<Processor>) {
         self.processors.insert(0, processor);
     }
 
@@ -161,8 +159,7 @@ impl Logger {
         merged.extend(context.clone());
         merged
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withContext(&self, context: LogContext) -> &Self {
+    pub fn with_context(&self, context: LogContext) -> &Self {
         let state = self.channel_context();
         let mut fields = state.0.lock().expect("日志上下文锁中毒");
         let shared = fields.shared.clone();
@@ -174,8 +171,7 @@ impl Logger {
             .extend(context);
         self
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutContext(&self, keys: Option<&[&str]>) -> &Self {
+    pub fn without_context(&self, keys: Option<&[&str]>) -> &Self {
         let state = self.channel_context();
         let mut fields = state.0.lock().expect("日志上下文锁中毒");
         let shared = fields.shared.clone();
@@ -199,9 +195,8 @@ impl Logger {
     }
 
     /// Returns a logger with the same handlers and context under a different name.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[must_use]
-    pub fn withName(&self, name: impl Into<String>) -> Self {
+    pub fn with_name(&self, name: impl Into<String>) -> Self {
         let mut native = (*self.native).clone();
         native.name = name.into();
         Self {
@@ -213,19 +208,16 @@ impl Logger {
         }
     }
 
-    #[allow(non_snake_case, reason = "保留日志公开方法名")]
-    pub fn setFormatter(&mut self, formatter: Arc<Formatter>) {
-        Arc::make_mut(&mut self.native).setFormatter(formatter);
+    pub fn set_formatter(&mut self, formatter: Arc<Formatter>) {
+        Arc::make_mut(&mut self.native).set_formatter(formatter);
     }
 
-    #[allow(non_snake_case, reason = "保留日志公开方法名")]
-    pub fn pushProcessor(&mut self, processor: Arc<Processor>) {
-        Arc::make_mut(&mut self.native).pushProcessor(processor);
+    pub fn push_processor(&mut self, processor: Arc<Processor>) {
+        Arc::make_mut(&mut self.native).push_processor(processor);
     }
 
     /// 返回本通道实际使用的原生日志器；直接写入不合并应用上下文或派发框架事件。
-    #[allow(non_snake_case, reason = "保留日志公开方法名")]
-    pub fn getLogger(&self) -> Arc<NativeLogger> {
+    pub fn get_logger(&self) -> Arc<NativeLogger> {
         self.native.clone()
     }
 
@@ -234,8 +226,7 @@ impl Logger {
     }
 
     /// Writes a record, then awaits observers that require the current request.
-    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
-    pub async fn logWithRequest(
+    pub async fn log_with_request(
         &self,
         request: &mut crate::http::Request,
         level: Level,
@@ -255,8 +246,7 @@ impl Logger {
     }
 
     /// Logs an error and its source chain as structured exception data.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn logException<E: std::error::Error + Send + Sync + 'static>(
+    pub fn log_exception<E: std::error::Error + Send + Sync + 'static>(
         &self,
         level: Level,
         message: &str,
@@ -270,7 +260,7 @@ impl Logger {
             .upgrade()
             .and_then(|owner| owner.make::<dyn ExceptionHandler>().ok());
         let snapshot = match handler {
-            Some(handler) => handler.buildLogException(&exception, name, false),
+            Some(handler) => handler.build_log_exception(&exception, name, false),
             None => super::json::snapshot(
                 &exception,
                 name,
@@ -405,8 +395,7 @@ impl crate::contracts::log::Logger for Logger {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
     }
-    #[allow(non_snake_case)]
-    fn logWithExceptionForRequest<'a>(
+    fn log_with_exception_for_request<'a>(
         &'a self,
         request: &'a mut crate::http::Request,
         level: Level,
@@ -416,8 +405,7 @@ impl crate::contracts::log::Logger for Logger {
     ) -> crate::http::HttpFuture<'a, LogResult<()>> {
         Box::pin(self.write_for_request(request, level, message, context, Some(exception)))
     }
-    #[allow(non_snake_case)]
-    fn logWithContext(
+    fn log_with_context(
         &self,
         level: Level,
         message: &str,
@@ -427,8 +415,7 @@ impl crate::contracts::log::Logger for Logger {
         self.write(level, message, context, extra, None)
     }
 
-    #[allow(non_snake_case)]
-    fn logWithException(
+    fn log_with_exception(
         &self,
         level: Level,
         message: &str,

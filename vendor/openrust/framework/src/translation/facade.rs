@@ -46,29 +46,29 @@ impl Lang {
         Self::get_facade_root()?.array(key, replacements, locale)
     }
 
-    pub fn getWith(
+    pub fn get_with(
         key: &str,
         args: &[(&str, Replacement<'_>)],
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        Self::get_facade_root()?.stringWith(key, args, locale)
+        Self::get_facade_root()?.string_with(key, args, locale)
     }
 
-    pub fn arrayWith(
+    pub fn array_with(
         key: &str,
         args: &[(&str, Replacement<'_>)],
         locale: Option<&str>,
     ) -> TranslationResult<Lines> {
-        Self::get_facade_root()?.arrayWith(key, args, locale)
+        Self::get_facade_root()?.array_with(key, args, locale)
     }
 
-    pub fn choiceWith(
+    pub fn choice_with(
         key: &str,
         count: impl Into<PluralCount>,
         args: &[(&str, Replacement<'_>)],
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        Self::get_facade_root()?.choiceWith(key, count, args, locale)
+        Self::get_facade_root()?.choice_with(key, count, args, locale)
     }
 
     pub fn stringable<T: Any>(
@@ -82,65 +82,65 @@ impl Lang {
         Self::get_facade_root()?.has(key, locale, fallback)
     }
 
-    pub fn hasForLocale(key: &str, locale: Option<&str>) -> TranslationResult<bool> {
-        Self::get_facade_root()?.hasForLocale(key, locale)
+    pub fn has_for_locale(key: &str, locale: Option<&str>) -> TranslationResult<bool> {
+        Self::get_facade_root()?.has_for_locale(key, locale)
     }
 
-    pub fn handleMissingKeysUsing(
+    pub fn handle_missing_keys_using(
         handler: impl Fn(MissingTranslation<'_>) -> Option<String> + Send + Sync + 'static,
     ) -> TranslationResult<()> {
-        Self::get_facade_root()?.handleMissingKeysUsing(handler);
+        Self::get_facade_root()?.handle_missing_keys_using(handler);
         Ok(())
     }
 
-    pub fn clearMissingKeyHandler() -> TranslationResult<()> {
-        Self::get_facade_root()?.clearMissingKeyHandler();
+    pub fn clear_missing_key_handler() -> TranslationResult<()> {
+        Self::get_facade_root()?.clear_missing_key_handler();
         Ok(())
     }
 
-    pub fn determineLocalesUsing(
+    pub fn determine_locales_using(
         resolver: impl Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
     ) -> TranslationResult<()> {
-        Self::get_facade_root()?.determineLocalesUsing(resolver);
+        Self::get_facade_root()?.determine_locales_using(resolver);
         Ok(())
     }
 
-    pub fn clearLocaleResolver() -> TranslationResult<()> {
-        Self::get_facade_root()?.clearLocaleResolver();
+    pub fn clear_locale_resolver() -> TranslationResult<()> {
+        Self::get_facade_root()?.clear_locale_resolver();
         Ok(())
     }
 
-    pub fn addPath(path: impl Into<PathBuf>) -> TranslationResult<()> {
-        Self::get_facade_root()?.addPath(path.into());
+    pub fn add_path(path: impl Into<PathBuf>) -> TranslationResult<()> {
+        Self::get_facade_root()?.add_path(path.into());
         Ok(())
     }
 
-    pub fn addJsonPath(path: impl Into<PathBuf>) -> TranslationResult<()> {
-        Self::get_facade_root()?.addJsonPath(path.into());
+    pub fn add_json_path(path: impl Into<PathBuf>) -> TranslationResult<()> {
+        Self::get_facade_root()?.add_json_path(path.into());
         Ok(())
     }
 
-    pub fn addNamespace(namespace: &str, path: impl Into<PathBuf>) -> TranslationResult<()> {
-        Self::get_facade_root()?.addNamespace(namespace, path.into())
+    pub fn add_namespace(namespace: &str, path: impl Into<PathBuf>) -> TranslationResult<()> {
+        Self::get_facade_root()?.add_namespace(namespace, path.into())
     }
 
     pub fn load(namespace: Option<&str>, group: &str, locale: &str) -> TranslationResult<()> {
         Self::get_facade_root()?.load(namespace, group, locale)
     }
 
-    pub async fn loadFrom(
+    pub async fn load_from(
         loader: &dyn Loader,
         resources: &[TranslationResource<'_>],
     ) -> TranslationResult<()> {
-        Self::get_facade_root()?.loadFrom(loader, resources).await
+        Self::get_facade_root()?.load_from(loader, resources).await
     }
 
-    pub fn addLines(
+    pub fn add_lines(
         lines: impl IntoIterator<Item = (String, Line)>,
         locale: &str,
         namespace: Option<&str>,
     ) -> TranslationResult<()> {
-        Self::get_facade_root()?.addLines(lines, locale, namespace)
+        Self::get_facade_root()?.add_lines(lines, locale, namespace)
     }
 
     pub fn get_locale() -> TranslationResult<String> {
@@ -150,18 +150,20 @@ impl Lang {
     pub fn set_locale(locale: &str) -> TranslationResult<()> {
         Self::get_facade_root()?.set_locale(locale)
     }
-    pub fn getFallback() -> TranslationResult<String> {
-        Ok(Self::get_facade_root()?.getFallback())
+    pub fn get_fallback() -> TranslationResult<String> {
+        Ok(Self::get_facade_root()?.get_fallback())
     }
     pub fn set_fallback(fallback: &str) -> TranslationResult<()> {
         Self::get_facade_root()?.set_fallback(fallback)
     }
 
-    pub async fn withLocale<T>(
+    pub async fn with_locale<T>(
         locale: &str,
         operation: impl Future<Output = T>,
     ) -> TranslationResult<T> {
-        Self::get_facade_root()?.withLocale(locale, operation).await
+        Self::get_facade_root()?
+            .with_locale(locale, operation)
+            .await
     }
 }
 

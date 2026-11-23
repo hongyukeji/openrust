@@ -162,7 +162,7 @@ impl<'a> Render<'a> {
         }
         let content = self
             .views
-            .renderInline(Self::builtin(&MESSAGE, self.format), &data)
+            .render_inline(Self::builtin(&MESSAGE, self.format), &data)
             .map_err(composition)?;
         data.insert("mail_content".into(), content.into());
         self.document.replace(Some(self.layout(data)?));
@@ -219,9 +219,9 @@ impl<'a> Render<'a> {
         let app_url = safe_url(self.markdown.app_url.as_str().into()).to_string();
         let year = Date::now(Some(self.markdown.timezone.clone()))
             .map_err(|error| composition(error.to_string()))?
-            .asDateTime()
+            .as_date_time()
             .year();
-        let copyright = match Lang::getWith(COPYRIGHT, &[], None) {
+        let copyright = match Lang::get_with(COPYRIGHT, &[], None) {
             Ok(line) => line,
             Err(TranslationError::Unavailable(_)) => COPYRIGHT.into(),
             Err(error) => return Err(composition(error)),

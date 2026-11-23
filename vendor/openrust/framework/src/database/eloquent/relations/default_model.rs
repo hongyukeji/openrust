@@ -40,7 +40,7 @@ pub(super) fn new_default<P: Model, R: Model>(
     {
         model.state_mut().connection = Some(keys.connection(parent)?);
     }
-    model.forceFill(attributes)?;
+    model.force_fill(attributes)?;
     configure(&mut model, parent);
     Ok(Arc::new(model))
 }

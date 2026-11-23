@@ -243,7 +243,7 @@ impl FilesystemAdapter {
         use crate::{
             contracts::routing::UrlGenerator as _,
             routing::{RouteParameter, SignatureMode},
-            support::facades::URL,
+            support::facades::Url,
         };
         let name = self
             .signed_route
@@ -265,7 +265,7 @@ impl FilesystemAdapter {
             parameters.push(RouteParameter::named("upload", "1"));
         }
         let url = (|| {
-            let urls = URL::generator()?;
+            let urls = Url::generator()?;
             let relative = urls.temporary_signed_route(
                 &name,
                 expiration,
@@ -389,7 +389,7 @@ impl FilesystemAdapter {
         Ok(disk.metadata(path.into()).await?.modified()?)
     }
 
-    pub async fn mimeType(&self, path: &str) -> FilesystemResult<Option<String>> {
+    pub async fn mime_type(&self, path: &str) -> FilesystemResult<Option<String>> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {

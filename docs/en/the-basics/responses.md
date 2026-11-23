@@ -73,7 +73,7 @@ Use `without_header` with one typed header name or `without_headers` with a coll
 Apply `cache.headers` to the routes that need a cache policy. Separate directives with semicolons and write option names in `snake_case`. The middleware applies to successful GET and HEAD responses. With `etag`, it reuses an existing validator or hashes the available response body with XXH3-128, the same digest the framework uses for `xxh128`. Use `etag=value` to provide a validator for a stream without buffering it.
 
 ```rust
-Route::getWith("/cacheable", cache_response, |route| {
+Route::get_with("/cacheable", cache_response, |route| {
     route.middleware_name("cache.headers:public;max_age=2628000;etag");
     Ok(())
 })?;

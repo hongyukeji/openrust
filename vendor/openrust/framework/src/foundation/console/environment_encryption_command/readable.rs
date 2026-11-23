@@ -43,7 +43,7 @@ pub(super) fn encrypt(
             None => append(
                 &mut result,
                 name,
-                &encrypter.encryptString(value.as_bytes()).map_err(error)?,
+                &encrypter.encrypt_string(value.as_bytes()).map_err(error)?,
             ),
         }
     }
@@ -89,7 +89,7 @@ fn encrypted_entries<'a>(
                     "Invalid encrypted environment entry on line {number}."
                 ))
             })?;
-        let value = encrypter.decryptString(payload).map_err(|_| {
+        let value = encrypter.decrypt_string(payload).map_err(|_| {
             ConsoleError::new(format!(
                 "Unable to decrypt the encrypted environment entry on line {number}."
             ))

@@ -12,11 +12,11 @@ pub(crate) struct UserFactory;
 
 impl UserFactory {
     pub(crate) fn factory() -> Factory<User> {
-        Factory::tryWithFaker(|faker| {
+        Factory::try_with_faker(|faker| {
             let now = jiff::Timestamp::now();
             Ok(Attributes::from([
                 ("name".into(), faker.name().into()),
-                ("email".into(), faker.unique(false).safeEmail()?.into()),
+                ("email".into(), faker.unique(false).safe_email()?.into()),
                 (
                     "email_verified_at".into(),
                     now.strftime("%Y-%m-%dT%H:%M:%S%.f%:z").to_string().into(),

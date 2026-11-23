@@ -87,7 +87,7 @@ impl ResourceServer {
         let token = bearer(authorization)?;
         let now = Date::now(None)
             .map_err(internal)?
-            .asDateTime()
+            .as_date_time()
             .timestamp()
             .as_nanosecond()
             .div_euclid(1000) as f64

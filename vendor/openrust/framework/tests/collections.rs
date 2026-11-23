@@ -6,7 +6,7 @@ use serde_json::json;
 
 #[test]
 fn keys_follow_php_integer_normalization_append_and_replacement_order() {
-    let mut values = Collection::fromEntries([
+    let mut values = Collection::from_entries([
         ("-5", "negative"),
         ("1", "first"),
         ("01", "leading zero"),
@@ -23,15 +23,15 @@ fn keys_follow_php_integer_normalization_append_and_replacement_order() {
     values.push("reused").unwrap();
     assert_eq!(values.get(8), Some(&"reused"));
 
-    let mut negative = Collection::fromEntries([(-5, 1)]);
+    let mut negative = Collection::from_entries([(-5, 1)]);
     negative.push(2).unwrap();
     assert_eq!(negative.to_json().unwrap(), r#"{"-5":1,"-4":2}"#);
 
-    let mut smallest = Collection::fromEntries([(i64::MIN, 1)]);
+    let mut smallest = Collection::from_entries([(i64::MIN, 1)]);
     assert_eq!(smallest.pop(), Some(1));
     smallest.push(2).unwrap();
     assert_eq!(smallest.get(i64::MIN), Some(&2));
-    let mut largest = Collection::fromEntries([(i64::MAX, 1)]);
+    let mut largest = Collection::from_entries([(i64::MAX, 1)]);
     assert!(matches!(
         largest.push(2),
         Err(CollectionError::IndexOverflow)
@@ -41,7 +41,7 @@ fn keys_follow_php_integer_normalization_append_and_replacement_order() {
 
 #[test]
 fn mapping_filtering_and_plucking_keep_the_upstream_key_shapes() {
-    let source = Collection::fromEntries([(0, 1), (3, 2), (7, 3)]);
+    let source = Collection::from_entries([(0, 1), (3, 2), (7, 3)]);
     let mapped = source
         .clone()
         .map(|value, _| value * 10)
@@ -54,9 +54,9 @@ fn mapping_filtering_and_plucking_keep_the_upstream_key_shapes() {
     );
     let collisions = source
         .clone()
-        .mapWithKeys(|value, _| [("same", value * 2), ("x", *value)]);
+        .map_with_keys(|value, _| [("same", value * 2), ("x", *value)]);
     assert_eq!(collisions.to_json().unwrap(), r#"{"same":6,"x":3}"#);
-    let rekeyed = source.clone().keyBy(|value, _| *value % 2);
+    let rekeyed = source.clone().key_by(|value, _| *value % 2);
     assert_eq!(rekeyed.to_json().unwrap(), r#"{"1":3,"0":2}"#);
     assert_eq!(
         source.clone().only([3, 7]).to_json().unwrap(),
@@ -68,7 +68,7 @@ fn mapping_filtering_and_plucking_keep_the_upstream_key_shapes() {
     );
 
     let visits = Cell::new(0);
-    let failure = source.tryMap(|value, _| {
+    let failure = source.try_map(|value, _| {
         visits.set(visits.get() + 1);
         if *value == 2 {
             Err("failed")
@@ -83,9 +83,9 @@ fn mapping_filtering_and_plucking_keep_the_upstream_key_shapes() {
 #[test]
 fn grouping_partitioning_and_stable_sorting_preserve_order() {
     let source =
-        Collection::fromEntries([("one", (2, "A")), ("two", (1, "B")), ("three", (2, "C"))]);
+        Collection::from_entries([("one", (2, "A")), ("two", (1, "B")), ("three", (2, "C"))]);
     let calls = Cell::new(0);
-    let sorted = source.clone().sortBy(|(value, _), _| {
+    let sorted = source.clone().sort_by(|(value, _), _| {
         calls.set(calls.get() + 1);
         *value
     });
@@ -94,20 +94,20 @@ fn grouping_partitioning_and_stable_sorting_preserve_order() {
     assert_eq!(
         source
             .clone()
-            .sortByDesc(|(value, _), _| *value)
+            .sort_by_desc(|(value, _), _| *value)
             .keys()
             .to_json()
             .unwrap(),
         r#"["one","three","two"]"#
     );
-    let groups = source.clone().groupBy(|(value, _), _| *value, true);
+    let groups = source.clone().group_by(|(value, _), _| *value, true);
     assert_eq!(
         groups.to_json().unwrap(),
         r#"{"2":{"one":[2,"A"],"three":[2,"C"]},"1":{"two":[1,"B"]}}"#
     );
     let many = source
         .clone()
-        .groupByMany(|(value, _), _| [0, *value], false);
+        .group_by_many(|(value, _), _| [0, *value], false);
     assert_eq!(many.get(0).unwrap().count(), 3);
     assert_eq!(
         many.get(2)
@@ -124,14 +124,14 @@ fn grouping_partitioning_and_stable_sorting_preserve_order() {
 
 #[test]
 fn aggregates_boundaries_and_shared_enumerable_contract() {
-    let source = Collection::fromEntries([(4, 9), (5, 3), (8, 1), (9, 7)]);
+    let source = Collection::from_entries([(4, 9), (5, 3), (8, 1), (9, 7)]);
     assert_eq!(source.sum(), 20);
     assert_eq!(source.avg(), Some(5.0));
     assert_eq!(source.median(), Some(5.0));
     assert_eq!(source.min(), Some(&1));
     assert_eq!(source.max(), Some(&9));
     assert_eq!(
-        source.avgBy(|value, _| (*value > 3).then_some(*value as f64)),
+        source.avg_by(|value, _| (*value > 3).then_some(*value as f64)),
         Some(8.0)
     );
     assert_eq!(
@@ -157,10 +157,10 @@ fn aggregates_boundaries_and_shared_enumerable_contract() {
         Err(CollectionError::MultipleItemsFound)
     ));
     assert!(matches!(
-        Collection::<i32>::new().firstOrFail(),
+        Collection::<i32>::new().first_or_fail(),
         Err(CollectionError::ItemNotFound)
     ));
-    assert_eq!(source.soleWhere(|value, _| *value < 3).unwrap(), &1);
+    assert_eq!(source.sole_where(|value, _| *value < 3).unwrap(), &1);
 
     fn adapt<'a>(items: impl Enumerable<'a, Item = i64>) -> Collection<i64> {
         items
@@ -176,8 +176,8 @@ fn aggregates_boundaries_and_shared_enumerable_contract() {
 
 #[test]
 fn merging_and_json_round_trip_keep_php_array_shape() {
-    let left = Collection::fromEntries([(ArrayKey::from(7), "old"), ("keep".into(), "left")]);
-    let right = Collection::fromEntries([(ArrayKey::from(7), "new"), ("keep".into(), "right")]);
+    let left = Collection::from_entries([(ArrayKey::from(7), "old"), ("keep".into(), "left")]);
+    let right = Collection::from_entries([(ArrayKey::from(7), "new"), ("keep".into(), "right")]);
     assert_eq!(
         left.clone().merge(right.clone()).to_json().unwrap(),
         r#"{"0":"old","keep":"right","1":"new"}"#

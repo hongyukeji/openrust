@@ -116,10 +116,9 @@ impl IndexDefinition {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl IndexDefinition {
     /// Controls whether a PostgreSQL unique constraint treats NULL values as equal.
-    pub fn nullsNotDistinct(&mut self, enabled: bool) -> &mut Self {
+    pub fn nulls_not_distinct(&mut self, enabled: bool) -> &mut Self {
         self.nulls_not_distinct = Some(enabled);
         self
     }
@@ -131,7 +130,7 @@ impl IndexDefinition {
     }
 
     /// Chooses the initial check timing for a deferrable PostgreSQL unique constraint.
-    pub fn initiallyImmediate(&mut self, enabled: bool) -> &mut Self {
+    pub fn initially_immediate(&mut self, enabled: bool) -> &mut Self {
         self.initially_immediate = Some(enabled);
         self
     }
@@ -143,7 +142,7 @@ impl IndexDefinition {
     }
 
     /// Chooses a PostgreSQL operator class or MariaDB options for a vector index.
-    pub fn operatorClass(&mut self, operator_class: &str) -> &mut Self {
+    pub fn operator_class(&mut self, operator_class: &str) -> &mut Self {
         self.operator_class = Some(operator_class.to_owned());
         self
     }

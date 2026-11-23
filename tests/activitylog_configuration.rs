@@ -151,14 +151,14 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
     run(&["migrate", "--force"], false);
     assert!(
         connection
-            .getSchemaBuilder()
-            .hasTable("activity_log")
+            .get_schema_builder()
+            .has_table("activity_log")
             .await
             .unwrap()
     );
     let columns = connection
-        .getSchemaBuilder()
-        .getColumns("activity_log")
+        .get_schema_builder()
+        .get_columns("activity_log")
         .await
         .unwrap();
     for name in ["subject_id", "causer_id"] {
@@ -227,8 +227,8 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
     run(&["migrate:rollback", "--force"], false);
     assert!(
         !connection
-            .getSchemaBuilder()
-            .hasTable("activity_log")
+            .get_schema_builder()
+            .has_table("activity_log")
             .await
             .unwrap()
     );

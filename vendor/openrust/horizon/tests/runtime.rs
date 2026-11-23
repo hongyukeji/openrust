@@ -572,7 +572,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         .connection(None)
         .unwrap();
     database
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("failed_jobs", |table| {
             table.id();
             table.string("uuid", None).unique();

@@ -23,13 +23,13 @@ use super::{AccessToken, NewAccessToken, PersonalAccessToken, PersonalAccessToke
 #[allow(non_snake_case, reason = "Matches Sanctum's owner API")]
 pub trait HasApiTokens: Model + Authenticatable {
     fn tokens(&self, sanctum: &Sanctum, database: &DatabaseManager) -> AuthResult<TokenRelation> {
-        let owner_id = match self.getKey() {
+        let owner_id = match self.get_key() {
             Some(crate::database::Value::Integer(id)) if *id >= 0 => (*id as u64).into(),
             Some(key) => AuthIdentifier::try_from(key)?,
             None => return Err(AuthError::InvalidIdentity),
         };
         Ok(TokenRelation {
-            owner_type: self.getMorphClass()?,
+            owner_type: self.get_morph_class()?,
             owner_id,
             store: sanctum.personalAccessTokens(database, "")?,
         })
@@ -41,9 +41,9 @@ pub trait HasApiTokens: Model + Authenticatable {
         sanctum: &Sanctum,
     ) -> AuthResult<MorphMany<Self, T>> {
         sanctum.require_token_model::<T>()?;
-        let alias = self.getMorphClass()?;
+        let alias = self.get_morph_class()?;
         Ok(
-            MorphMany::new(self.getKeyName(), "tokenable_id", "tokenable_type", alias)
+            MorphMany::new(self.get_key_name(), "tokenable_id", "tokenable_type", alias)
                 .with_exact_morph_alias(alias),
         )
     }
@@ -184,7 +184,7 @@ impl PersonalAccessToken {
         morphs: &MorphMap,
     ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
         let model = morphs
-            .getMorphedModel(&self.tokenable_type)
+            .get_morphed_model(&self.tokenable_type)
             .unwrap_or(&self.tokenable_type);
         Ok(auth
             .retrieve_sanctum_owner(model, &self.tokenable_id)

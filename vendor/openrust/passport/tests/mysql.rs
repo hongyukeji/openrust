@@ -120,9 +120,9 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
         .unwrap();
     assert!(format!("{version:?}").contains("8.4."));
     for table in TABLES {
-        assert!(!oauth.getSchemaBuilder().hasTable(table).await.unwrap());
+        assert!(!oauth.get_schema_builder().has_table(table).await.unwrap());
     }
-    main.getSchemaBuilder().drop("history").await.unwrap();
+    main.get_schema_builder().drop("history").await.unwrap();
     let mut first = application(true);
     let mut second = application(true);
     let (a, b) = tokio::join!(first.artisan(["migrate"]), second.artisan(["migrate"]));
@@ -137,9 +137,9 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
     let oauth = a.connection(Some("oauth")).unwrap();
     let other = b.connection(Some("oauth")).unwrap();
     for table in TABLES {
-        assert!(!main.getSchemaBuilder().hasTable(table).await.unwrap());
-        assert!(oauth.getSchemaBuilder().hasTable(table).await.unwrap());
-        assert!(other.getSchemaBuilder().hasTable(table).await.unwrap());
+        assert!(!main.get_schema_builder().has_table(table).await.unwrap());
+        assert!(oauth.get_schema_builder().has_table(table).await.unwrap());
+        assert!(other.get_schema_builder().has_table(table).await.unwrap());
     }
     let prefix = first
         .app()
@@ -164,11 +164,11 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
     }
     for table in TABLES {
         let expected = main
-            .getSchemaBuilder()
-            .getColumns(&format!("reference_{table}"))
+            .get_schema_builder()
+            .get_columns(&format!("reference_{table}"))
             .await
             .unwrap();
-        let mut actual = oauth.getSchemaBuilder().getColumns(table).await.unwrap();
+        let mut actual = oauth.get_schema_builder().get_columns(table).await.unwrap();
         // 项目明确增加了本地化元数据注释；单独验证后再对照上游的结构契约。
         let labels: serde_json::Value = serde_json::from_str(include_str!(
             "../../framework/src/translation/lang/en/schema.json"
@@ -191,11 +191,11 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
         }
         assert_eq!(actual, expected, "{table}");
         let mut expected = main
-            .getSchemaBuilder()
-            .getIndexes(&format!("reference_{table}"))
+            .get_schema_builder()
+            .get_indexes(&format!("reference_{table}"))
             .await
             .unwrap();
-        let mut actual = oauth.getSchemaBuilder().getIndexes(table).await.unwrap();
+        let mut actual = oauth.get_schema_builder().get_indexes(table).await.unwrap();
         for index in expected.iter_mut().chain(actual.iter_mut()) {
             index.name.clear();
         }
@@ -204,8 +204,8 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
         assert_eq!(actual, expected, "{table}");
         assert!(
             oauth
-                .getSchemaBuilder()
-                .getForeignKeys(table)
+                .get_schema_builder()
+                .get_foreign_keys(table)
                 .await
                 .unwrap()
                 .is_empty()
@@ -217,12 +217,12 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
     config_a.set("passport.connection", json!([true])).unwrap();
     assert!(
         migrations::oauth_clients::Definition
-            .getConnection(config_a.as_ref())
+            .get_connection(config_a.as_ref())
             .is_err()
     );
     assert_eq!(
         migrations::oauth_clients::Definition
-            .getConnection(config_b.as_ref())
+            .get_connection(config_b.as_ref())
             .unwrap()
             .as_deref(),
         Some("oauth")
@@ -233,8 +233,8 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
         .await
         .assert_successful();
     for table in TABLES {
-        assert!(!oauth.getSchemaBuilder().hasTable(table).await.unwrap());
-        assert!(other.getSchemaBuilder().hasTable(table).await.unwrap());
+        assert!(!oauth.get_schema_builder().has_table(table).await.unwrap());
+        assert!(other.get_schema_builder().has_table(table).await.unwrap());
     }
     first.artisan(["migrate"]).await.assert_successful();
     first.artisan(["migrate:status"]).await.assert_successful();
@@ -247,15 +247,15 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
         .await
         .assert_successful();
     for table in TABLES {
-        main.getSchemaBuilder()
+        main.get_schema_builder()
             .drop(&format!("reference_{table}"))
             .await
             .unwrap();
     }
-    main.getSchemaBuilder().drop("history").await.unwrap();
+    main.get_schema_builder().drop("history").await.unwrap();
     b.connection(None)
         .unwrap()
-        .getSchemaBuilder()
+        .get_schema_builder()
         .drop("history")
         .await
         .unwrap();

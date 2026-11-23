@@ -28,10 +28,10 @@ impl ServiceProvider for Limits {
             RateLimiter::r#for("uploads", move |request| {
                 let key = request.route("tenant").unwrap();
                 vec![
-                    Limit::perMinute(max)
+                    Limit::per_minute(max)
                         .by(key)
                         .after(|response| response.status().is_success()),
-                    Limit::perDay(max + 2).by(key).response(|_, headers| {
+                    Limit::per_day(max + 2).by(key).response(|_, headers| {
                         Response::empty(StatusCode::TOO_MANY_REQUESTS).with_headers(headers)
                     }),
                 ]
@@ -47,8 +47,8 @@ fn show(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let LimiterResponse::Limits(limits) = callback(request) else {
             panic!("expected multiple limits");
         };
-        let allowed = limits[0].afterCallback.as_ref().unwrap()(&Response::empty(StatusCode::OK));
-        let denied = limits[1].responseCallback.as_ref().unwrap()(request, Default::default());
+        let allowed = limits[0].after_callback.as_ref().unwrap()(&Response::empty(StatusCode::OK));
+        let denied = limits[1].response_callback.as_ref().unwrap()(request, Default::default());
         Response::json(
             StatusCode::OK,
             json!({

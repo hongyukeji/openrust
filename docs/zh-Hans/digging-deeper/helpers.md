@@ -19,7 +19,7 @@ assert_eq!(Arr::get(&users, "1.active"), Some(&json!(true)));
 
 ## 链式 URI {#fluent-uris}
 
-使用 `Uri::of` 解析绝对或相对引用。组件设置方法返回新的已验证 URI。`query()` 读取解码后的参数并保留字面的加号和带点键。用 `with_query`、`withQueryIfMissing`、`replaceQuery`、`pushOntoQuery` 和 `withoutQuery` 修改查询串。用 JSON 映射传递具名参数。应用代码可用 `Uri::to`、`route`、`action`、`signed_route` 或 `temporary_signed_route` 生成地址，再用 `redirect` 构建经过验证的重定向响应。
+使用 `Uri::of` 解析绝对或相对引用。组件设置方法返回新的已验证 URI。`query()` 读取解码后的参数并保留字面的加号和带点键。用 `with_query`、`with_query_if_missing`、`replace_query`、`push_onto_query` 和 `without_query` 修改查询串。用 JSON 映射传递具名参数。应用代码可用 `Uri::to`、`route`、`action`、`signed_route` 或 `temporary_signed_route` 生成地址，再用 `redirect` 构建经过验证的重定向响应。
 
 ```rust
 use openrust::support::Uri;
@@ -47,32 +47,32 @@ assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 
 ## 数字 {#numbers}
 
-`Number::default()` 默认使用英语和 USD。通过 `useLocale` 和 `useCurrency` 设置实例默认值，或通过 `withLocale` 和 `withCurrency` 将局部设置传给回调。设置归实例所有，可在并发请求中使用各自的设置。
+`Number::default()` 默认使用英语和 USD。通过 `use_locale` 和 `use_currency` 设置实例默认值，或通过 `with_locale` 和 `with_currency` 将局部设置传给回调。设置归实例所有，可在并发请求中使用各自的设置。
 
-`format`、`percentage` 和 `currency` 使用 CLDR 数据。`parseInt` 保留 64 位整数，`parseFloat` 读取本地化数字前缀。`fileSize`、`abbreviate`、`forHumans`、`clamp`、`pairs` 和 `trim` 沿用框架数字规则。
+`format`、`percentage` 和 `currency` 使用 CLDR 数据。`parse_int` 保留 64 位整数，`parse_float` 读取本地化数字前缀。`file_size`、`abbreviate`、`for_humans`、`clamp`、`pairs` 和 `trim` 沿用框架数字规则。
 
 ```rust
 use openrust::support::Number;
 
 let number = Number::default();
-let localized = number.withLocale("de-DE", |de| de.format(1234.5, Some(2), None))??;
+let localized = number.with_locale("de-DE", |de| de.format(1234.5, Some(2), None))??;
 assert_eq!(localized, "1.234,50");
 assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
-assert_eq!(number.spellOrdinal(21)?, "twenty-first");
-assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
+assert_eq!(number.spell_ordinal(21)?, "twenty-first");
+assert_eq!(number.parse_int("9,223,372,036,854,775,807")?, i64::MAX);
 ```
 
 ### 本地化数字拼读 {#localized-number-spellout}
 
-使用 `spell` 和 `spellOrdinal` 按区域设置拼读整数和小数。Rust 实现内置 ICU 76.1／CLDR 46 规则。区域设置没有专用序数拼读规则时，`spellOrdinal` 沿用该区域的默认拼读规则。传入 `after` 或 `until` 时，等于阈值也返回数字格式。有限浮点数超出有符号 64 位范围时，数字回退使用可往返转换的原始十进制表示。
+使用 `spell` 和 `spell_ordinal` 按区域设置拼读整数和小数。Rust 实现内置 ICU 76.1／CLDR 46 规则。区域设置没有专用序数拼读规则时，`spell_ordinal` 沿用该区域的默认拼读规则。传入 `after` 或 `until` 时，等于阈值也返回数字格式。有限浮点数超出有符号 64 位范围时，数字回退使用可往返转换的原始十进制表示。
 
 ```rust
 use openrust::support::Number;
 
 let number = Number::default();
-let german = number.withLocale("de-DE", |number| number.spell(1.25, None, None))??;
-let russian = number.withLocale("ru", |number| number.spell(1.25, None, None))??;
-let chinese = number.withLocale("zh-TW", |number| number.spell(1.25, None, None))??;
+let german = number.with_locale("de-DE", |number| number.spell(1.25, None, None))??;
+let russian = number.with_locale("ru", |number| number.spell(1.25, None, None))??;
+let chinese = number.with_locale("zh-TW", |number| number.spell(1.25, None, None))??;
 assert_eq!(german, "eins Komma zwei fünf");
 assert_eq!(russian, "одна целый двадцать пять сотых");
 assert_eq!(chinese, "一點二五");
@@ -80,11 +80,11 @@ assert_eq!(chinese, "一點二五");
 
 ## 计时工具 {#timing-tools}
 
-`Benchmark::value` 返回计算结果和经过的毫秒数。`measure` 求非零次运行的平均值，`measureMany` 按顺序报告具名回调。使用 `valueAsync` 测量 Future。
+`Benchmark::value` 返回计算结果和经过的毫秒数。`measure` 求非零次运行的平均值，`measure_many` 按顺序报告具名回调。使用 `value_async` 测量 Future。
 
 `Sleep` 接收 `Duration`，在 await 时执行等待。用 `and` 累加时长，`when` 或 `unless` 控制是否等待，`while` 重复同一间隔。`Sleep::fake()` 创建实例内的记录，通过 `using` 传给等待后即可核对记录的时长。
 
-`Timebox::call` 运行异步回调，并将返回结果等到最短时限，返回的错误同样适用。`returnEarly` 允许该实例提前返回，直到调用 `dontReturnEarly` 重置。
+`Timebox::call` 运行异步回调，并将返回结果等到最短时限，返回的错误同样适用。`return_early` 允许该实例提前返回，直到调用 `dont_return_early` 重置。
 
 ```rust
 use openrust::support::{Benchmark, Sleep, Timebox};
@@ -97,7 +97,7 @@ assert!(milliseconds >= 0.0);
 let duration = Duration::from_millis(5);
 let fake = Sleep::fake();
 Sleep::r#for(duration).using(&fake).wait().await;
-fake.assertSequence(&[Some(duration)]);
+fake.assert_sequence(&[Some(duration)]);
 
 let mut timebox = Timebox::default();
 assert_eq!(timebox.call(async |_| Ok::<_, ()>(42), duration).await, Ok(42));
@@ -124,16 +124,16 @@ assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!
 
 `plus` 和 `minus` 接收有符号的 `DateInterval`。`MonthOverflow::Carry` 将多出的天数进位到下个月，`Clamp` 则取月末。使用 `microseconds` 至 `years` 构造区间。
 
-`Date::timezone(name)` 使用框架内置的 IANA 2025b 数据解析时区标识，不受操作系统时区数据影响。`DateTimezone` 是 Jiff 原生 `TimeZone`；显式传入其他来源的时区时使用该来源。`Date::fromUtc` 接收 `jiff::Timestamp`，`fromLocal` 接收 `jiff::civil::DateTime`，`asDateTime` 借用 `jiff::Zoned`。重复使用日期或时区时可以克隆。原生类型支持 −9999 至 9999 年；PHP 日期表达式解析器继续支持其更宽的年份范围。
+`Date::timezone(name)` 使用框架内置的 IANA 2025b 数据解析时区标识，不受操作系统时区数据影响。`DateTimezone` 是 Jiff 原生 `TimeZone`；显式传入其他来源的时区时使用该来源。`Date::from_utc` 接收 `jiff::Timestamp`，`from_local` 接收 `jiff::civil::DateTime`，`as_date_time` 借用 `jiff::Zoned`。重复使用日期或时区时可以克隆。原生类型支持 −9999 至 9999 年；PHP 日期表达式解析器继续支持其更宽的年份范围。
 
 ```rust
 use openrust::support::{Date, DateTimezone, MonthOverflow, months, now};
 
-let zone = now(None)?.asDateTime().time_zone().clone();
-assert_eq!(now(Some(zone.clone()))?.asDateTime().time_zone().clone(), zone);
-let start = Date::fromLocal("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
+let zone = now(None)?.as_date_time().time_zone().clone();
+assert_eq!(now(Some(zone.clone()))?.as_date_time().time_zone().clone(), zone);
+let start = Date::from_local("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
 let end = start.plus(months(1), MonthOverflow::Clamp)?;
-let formatted = end.asDateTime().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
+let formatted = end.as_date_time().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
 
@@ -141,9 +141,9 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 `Pipeline::send` 创建类型化异步流水线。`through` 替换阶段，`pipe` 追加阶段。调用 `next.run` 继续执行，或直接返回结果以短路。用 `then` 做最终投影，用 `thenReturn` 返回传递值，用 `finally` 读取原始输入。
 
-数据库操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `withinTransaction`。阶段通过 `next.context()` 在同一事务中执行查询，返回错误时回滚。可传入类型化回调，或显式解析服务。
+数据库操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `within_transaction`。阶段通过 `next.context()` 在同一事务中执行查询，返回错误时回滚。可传入类型化回调，或显式解析服务。
 
-`.withinTransaction(None)` 使用默认连接，`.withinTransaction(Some("audit"))` 选择具名连接。该调用仅配置管道；`.then(...)` 或 `.thenReturn()` 才开启事务并执行。终点回调接收 `(value, &mut Transaction)`。`finally` 在提交或回滚后执行一次，执行中恐慌或被取消时也会执行。
+`.within_transaction(None)` 使用默认连接，`.within_transaction(Some("audit"))` 选择具名连接。该调用仅配置管道；`.then(...)` 或 `.thenReturn()` 才开启事务并执行。终点回调接收 `(value, &mut Transaction)`。`finally` 在提交或回滚后执行一次，执行中恐慌或被取消时也会执行。
 
 ```rust
 use openrust::support::facades::Pipeline;
@@ -159,7 +159,7 @@ assert_eq!(result, 42);
 
 ## 空值判断与重试 {#blank-and-retry}
 
-`blank` 和 `filled` 判断 JSON 值是否为空。零和 false 都算作已填充。`Retry::backoff` 指定重试间隔，`Retry::times` 指定固定间隔和尝试次数。`runWhen` 仅在错误满足谓词时重试。
+`blank` 和 `filled` 判断 JSON 值是否为空。零和 false 都算作已填充。`Retry::backoff` 指定重试间隔，`Retry::times` 指定固定间隔和尝试次数。`run_when` 仅在错误满足谓词时重试。
 
 可选值使用 `Option`，回退值使用 `Result::unwrap_or_else`，值缓存可使用作用域明确的 `OnceLock`。
 
@@ -219,6 +219,6 @@ assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
 
 ## 概率回调
 
-`Lottery::odds(1, 100)?` 表示 100 个整数机会中有 1 个中奖机会。浮点概率使用 `Lottery::odds(0.02, None::<u64>)?`。通过 `winner(|| ...)` 和 `loser(|| ...)` 返回同一种 Rust 类型，两者默认返回布尔值。`choose()` 返回一次结果，`chooseTimes(n)` 返回结果数组。机会数超过分母时始终中奖，负数始终不中奖；非有限概率报错。
+`Lottery::odds(1, 100)?` 表示 100 个整数机会中有 1 个中奖机会。浮点概率使用 `Lottery::odds(0.02, None::<u64>)?`。通过 `winner(|| ...)` 和 `loser(|| ...)` 返回同一种 Rust 类型，两者默认返回布尔值。`choose()` 返回一次结果，`choose_times(n)` 返回结果数组。机会数超过分母时始终中奖，负数始终不中奖；非有限概率报错。
 
-测试中通过 `alwaysWin`、`alwaysLose`、`fix(sequence)` 或 `forceResultWithSequence(sequence, missing_callback)` 控制结果。序列耗尽后恢复正常抽样，也可提供自定义后备回调。`setResultFactory` 设置抽样器，`determineResultNormally()` 或复数别名清除控制。异步控制必须放在 `Lottery::scope(async { ... }).await` 中，否则在异步运行时触发 panic，防止线程状态串入其他请求。同步测试使用 `scopeSync(|| ...)`。作用域在 panic 或取消后也恢复父级控制。回调通过闭包捕获参数，不提供动态可变参数调用。
+测试中通过 `always_win`、`always_lose`、`fix(sequence)` 或 `force_result_with_sequence(sequence, missing_callback)` 控制结果。序列耗尽后恢复正常抽样，也可提供自定义后备回调。`set_result_factory` 设置抽样器，`determine_result_normally()` 或复数别名清除控制。异步控制必须放在 `Lottery::scope(async { ... }).await` 中，否则在异步运行时触发 panic，防止线程状态串入其他请求。同步测试使用 `scope_sync(|| ...)`。作用域在 panic 或取消后也恢复父级控制。回调通过闭包捕获参数，不提供动态可变参数调用。

@@ -21,9 +21,9 @@ impl ServiceProvider for MorphKeyProvider {
     fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
         Box::pin(async {
             match self.0 {
-                MorphKeyType::Int => Schema::defaultMorphKeyType(MorphKeyType::Int)?,
-                MorphKeyType::Uuid => Schema::morphUsingUuids()?,
-                MorphKeyType::Ulid => Schema::morphUsingUlids()?,
+                MorphKeyType::Int => Schema::default_morph_key_type(MorphKeyType::Int)?,
+                MorphKeyType::Uuid => Schema::morph_using_uuids()?,
+                MorphKeyType::Ulid => Schema::morph_using_ulids()?,
             }
             Ok(())
         })
@@ -39,12 +39,12 @@ async fn morph_columns_follow_the_current_app_and_keep_the_composite_index() {
         })
         .unwrap();
         let connection = app.database().await.unwrap();
-        let mut schema = connection.getSchemaBuilder();
+        let mut schema = connection.get_schema_builder();
         schema
             .create("tokens", |table| table.morphs("tokenable"))
             .await
             .unwrap();
-        let columns = schema.getColumns("tokens").await.unwrap();
+        let columns = schema.get_columns("tokens").await.unwrap();
         assert_eq!(columns.len(), 2);
         assert_eq!(columns[0].name, "tokenable_type");
         assert_eq!(columns[1].name, "tokenable_id");
@@ -52,7 +52,7 @@ async fn morph_columns_follow_the_current_app_and_keep_the_composite_index() {
         assert!(columns.iter().all(|column| !column.nullable));
         assert!(
             schema
-                .getIndexes("tokens")
+                .get_indexes("tokens")
                 .await
                 .unwrap()
                 .iter()
@@ -102,19 +102,19 @@ async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_quer
         ),
     ] {
         let db = manager.connection(name).unwrap();
-        let schema = db.getSchemaBuilder();
-        assert_eq!(schema.getCurrentSchemaName(), expected[0]);
-        assert_eq!(schema.getCurrentSchemaListing(), expected);
+        let schema = db.get_schema_builder();
+        assert_eq!(schema.get_current_schema_name(), expected[0]);
+        assert_eq!(schema.get_current_schema_listing(), expected);
         assert_eq!(
             schema
-                .parseSchemaAndTable("records", SchemaFallback::Current)
+                .parse_schema_and_table("records", SchemaFallback::Current)
                 .unwrap(),
             (Some(expected[0]), "records"),
         );
     }
     let legacy = connection(json!({"driver":"pgsql", "schema":["legacy", "public"]}));
     assert_eq!(
-        legacy.getSchemaBuilder().getCurrentSchemaListing(),
+        legacy.get_schema_builder().get_current_schema_listing(),
         ["legacy", "public"]
     );
 
@@ -122,18 +122,18 @@ async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_quer
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
-                assert!(schema.getSchemas().await?.is_empty());
-                assert!(schema.getTables(None).await?.is_empty());
+                let mut schema = db.get_schema_builder();
+                assert!(schema.get_schemas().await?.is_empty());
+                assert!(schema.get_tables(None).await?.is_empty());
                 assert!(
                     schema
-                        .getTablesIn(&["Tenant, A", "public"])
+                        .get_tables_in(&["Tenant, A", "public"])
                         .await?
                         .is_empty()
                 );
-                assert!(schema.getViews(None).await?.is_empty());
-                assert!(schema.getViewsIn(&["Tenant, A"]).await?.is_empty());
-                assert!(!schema.hasView("records").await?);
+                assert!(schema.get_views(None).await?.is_empty());
+                assert!(schema.get_views_in(&["Tenant, A"]).await?.is_empty());
+                assert!(!schema.has_view("records").await?);
                 Ok(())
             })
         })
@@ -162,7 +162,7 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("documents", |table| {
                         table
                             .index(&["title"], Some("docs_title"))
@@ -171,8 +171,10 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
                         table
                             .unique(&["external_id"], Some("docs_external"))
                             .online();
-                        table.fullText(&["title"], Some("docs_search")).online();
-                        table.vectorIndex("embedding", Some("docs_vector")).online();
+                        table.full_text(&["title"], Some("docs_search")).online();
+                        table
+                            .vector_index("embedding", Some("docs_vector"))
+                            .online();
                     })
                     .await
             })
@@ -201,10 +203,10 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
     let queries = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("tenant.entries", |table| {
-                        table.renameIndex("lookup", "ordered");
-                        table.renameIndex("tenant.ordered", "lookup");
+                        table.rename_index("lookup", "ordered");
+                        table.rename_index("tenant.ordered", "lookup");
                     })
                     .await
             })
@@ -221,7 +223,7 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
     );
     for method in ["", "1brin", "brin btree", "brin; select 1"] {
         let rejected = preview
-            .getSchemaBuilder()
+            .get_schema_builder()
             .table("tenant.entries", |table| {
                 table.index(&["number"], Some("lookup")).algorithm(method);
             })
@@ -239,7 +241,7 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
     let db = connection(json!({"url":url}));
     db.unprepared("create schema tenant; create schema neighbor; create table tenant.entries (number integer, label text); create table neighbor.entries (number integer); create index lookup on neighbor.entries (number)")
         .await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .table("tenant.entries", |table| {
             table.index(&["number"], Some("lookup")).algorithm("BRIN");
@@ -248,12 +250,12 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
                 .algorithm("hash")
                 .online();
             table
-                .rawIndex("lower(label)", "lookup_lower")
+                .raw_index("lower(label)", "lookup_lower")
                 .algorithm("btree");
         })
         .await
         .unwrap();
-    let entries = schema.getIndexes("tenant.entries").await.unwrap();
+    let entries = schema.get_indexes("tenant.entries").await.unwrap();
     for (name, method) in [
         ("lookup", "brin"),
         ("hashed", "hash"),
@@ -266,9 +268,9 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
         .transaction(
             |tx| {
                 Box::pin(async {
-                    tx.getSchemaBuilder()
+                    tx.get_schema_builder()
                         .table("tenant.entries", |table| {
-                            table.renameIndex("lookup", "rolled_back")
+                            table.rename_index("lookup", "rolled_back")
                         })
                         .await?;
                     Err::<(), _>(DatabaseError::InvalidSchema("rollback rename"))
@@ -283,7 +285,7 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
     ));
     assert!(
         schema
-            .getIndexes("tenant.entries")
+            .get_indexes("tenant.entries")
             .await
             .unwrap()
             .iter()
@@ -291,35 +293,35 @@ async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
     );
     schema
         .table("tenant.entries", |table| {
-            table.renameIndex("lookup", "ordered")
+            table.rename_index("lookup", "ordered")
         })
         .await
         .unwrap();
     schema
         .table("tenant.entries", |table| {
-            table.renameIndex("tenant.ordered", "qualified")
+            table.rename_index("tenant.ordered", "qualified")
         })
         .await
         .unwrap();
     assert!(
         schema
-            .getIndexes("tenant.entries")
+            .get_indexes("tenant.entries")
             .await
             .unwrap()
             .iter()
             .any(|index| index.name == "qualified" && index.index_type.as_deref() == Some("brin"))
     );
     assert_eq!(
-        schema.getIndexes("neighbor.entries").await.unwrap()[0].name,
+        schema.get_indexes("neighbor.entries").await.unwrap()[0].name,
         "lookup"
     );
     schema
-        .table("tenant.entries", |table| table.dropIndex("qualified"))
+        .table("tenant.entries", |table| table.drop_index("qualified"))
         .await
         .unwrap();
     assert!(
         schema
-            .getIndexes("tenant.entries")
+            .get_indexes("tenant.entries")
             .await
             .unwrap()
             .iter()
@@ -336,14 +338,14 @@ async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes
     let db = connection(json!({"url":url}));
     db.unprepared("create schema tenant; create table tenant.accounts (reference integer); create table tenant.legacy (reference integer); create table tenant.other (reference integer); create unique index legacy_reference on tenant.legacy (reference); create index ordinary_reference on tenant.legacy (reference); create unique index other_reference on tenant.other (reference)")
         .await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .table("tenant.accounts", |table| {
             table
                 .unique(&["reference"], None)
-                .nullsNotDistinct(true)
+                .nulls_not_distinct(true)
                 .deferrable(true)
-                .initiallyImmediate(false);
+                .initially_immediate(false);
         })
         .await
         .unwrap();
@@ -360,7 +362,7 @@ async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes
     assert_eq!(db.table("tenant.accounts").count("*").await.unwrap(), 2);
     schema
         .table("tenant.accounts", |table| {
-            table.dropUniqueColumns(&["reference"])
+            table.drop_unique_columns(&["reference"])
         })
         .await
         .unwrap();
@@ -370,7 +372,7 @@ async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes
                 .unique(&["reference"], Some("online_reference"))
                 .algorithm("btree")
                 .online()
-                .nullsNotDistinct(true);
+                .nulls_not_distinct(true);
         })
         .await
         .unwrap();
@@ -385,7 +387,7 @@ async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes
     );
     schema
         .table("tenant.accounts", |table| {
-            table.dropUnique("online_reference")
+            table.drop_unique("online_reference")
         })
         .await
         .unwrap();
@@ -394,7 +396,7 @@ async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes
             table
                 .unique(&["reference"], Some("distinct_reference"))
                 .algorithm("btree")
-                .nullsNotDistinct(false)
+                .nulls_not_distinct(false)
                 .deferrable(false);
         })
         .await
@@ -404,20 +406,20 @@ async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes
         .unwrap();
     schema
         .table("tenant.accounts", |table| {
-            table.dropUnique("distinct_reference")
+            table.drop_unique("distinct_reference")
         })
         .await
         .unwrap();
     schema
         .table("tenant.legacy", |table| {
-            table.dropUnique("legacy_reference")
+            table.drop_unique("legacy_reference")
         })
         .await
         .unwrap();
     for index in ["ordinary_reference", "other_reference"] {
         assert!(
             schema
-                .table("tenant.legacy", |table| table.dropUnique(index))
+                .table("tenant.legacy", |table| table.drop_unique(index))
                 .await
                 .is_err()
         );
@@ -434,11 +436,11 @@ async fn mariadb_vector_index_options_are_validated_and_compiled() {
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("documents", |table| {
                         table
-                            .vectorIndex("embedding", Some("semantic"))
-                            .operatorClass("distance=EUCLIDEAN M=8");
+                            .vector_index("embedding", Some("semantic"))
+                            .operator_class("distance=EUCLIDEAN M=8");
                     })
                     .await
             })
@@ -451,9 +453,11 @@ async fn mariadb_vector_index_options_are_validated_and_compiled() {
     );
     for options in ["M=2", "M=201", "M=8 M=9", "DISTANCE=dot", "M=8; SELECT 1"] {
         let result = db
-            .getSchemaBuilder()
+            .get_schema_builder()
             .table("documents", |table| {
-                table.vectorIndex("embedding", None).operatorClass(options);
+                table
+                    .vector_index("embedding", None)
+                    .operator_class(options);
             })
             .await;
         assert!(matches!(
@@ -462,9 +466,9 @@ async fn mariadb_vector_index_options_are_validated_and_compiled() {
         ));
     }
     let result = db
-        .getSchemaBuilder()
+        .get_schema_builder()
         .table("documents", |table| {
-            table.vectorIndex("embedding", None).online();
+            table.vector_index("embedding", None).online();
         })
         .await;
     assert!(matches!(
@@ -479,10 +483,10 @@ async fn postgres_vector_extension_previews_on_the_writer_with_quoted_identifier
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
-                schema.ensureVectorExtensionExists(None).await?;
+                let mut schema = db.get_schema_builder();
+                schema.ensure_vector_extension_exists(None).await?;
                 schema
-                    .ensureExtensionExists("special\"ext", Some("app\"extensions"))
+                    .ensure_extension_exists("special\"ext", Some("app\"extensions"))
                     .await
             })
         })
@@ -510,7 +514,7 @@ async fn mariadb_vector_ddl_previews_fluent_and_explicit_indexes() {
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
+                let mut schema = db.get_schema_builder();
                 schema
                     .create("documents", |table| {
                         table.id();
@@ -519,16 +523,16 @@ async fn mariadb_vector_ddl_previews_fluent_and_explicit_indexes() {
                     .await?;
                 schema
                     .table("documents", |table| {
-                        table.dropVectorIndexColumns(&["embedding"])
+                        table.drop_vector_index_columns(&["embedding"])
                     })
                     .await?;
                 schema
                     .table("documents", |table| {
-                        table.vectorIndex("embedding", Some("semantic"));
+                        table.vector_index("embedding", Some("semantic"));
                     })
                     .await?;
                 schema
-                    .table("documents", |table| table.dropVectorIndex("semantic"))
+                    .table("documents", |table| table.drop_vector_index("semantic"))
                     .await
             })
         })
@@ -559,7 +563,7 @@ async fn vector_schema_rejects_missing_dimensions_and_unsupported_drivers() {
     let maria = connection(json!({"driver":"mariadb"}));
     assert!(matches!(
         maria
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("documents", |table| {
                 table.vector("embedding", None);
             })
@@ -568,9 +572,9 @@ async fn vector_schema_rejects_missing_dimensions_and_unsupported_drivers() {
     ));
     for driver in ["mysql", "sqlite", "sqlsrv"] {
         let db = connection(json!({"driver":driver}));
-        let mut schema = db.getSchemaBuilder();
+        let mut schema = db.get_schema_builder();
         assert!(matches!(
-            schema.ensureVectorExtensionExists(None).await,
+            schema.ensure_vector_extension_exists(None).await,
             Err(DatabaseError::UnsupportedSchema(_))
         ));
         assert!(matches!(
@@ -584,7 +588,7 @@ async fn vector_schema_rejects_missing_dimensions_and_unsupported_drivers() {
         assert!(matches!(
             schema
                 .table("documents", |table| {
-                    table.vectorIndex("embedding", None);
+                    table.vector_index("embedding", None);
                 })
                 .await,
             Err(DatabaseError::UnsupportedSchema("vector index"))
@@ -598,11 +602,11 @@ async fn postgres_type_catalog_uses_the_writer_and_supports_schema_filters() {
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
-                assert!(schema.getTypes(None).await?.is_empty());
-                assert!(schema.getTypes(Some("tenant")).await?.is_empty());
-                assert!(schema.getTypesIn(&["tenant", "public"]).await?.is_empty());
-                assert!(schema.getTypesIn(&[]).await?.is_empty());
+                let mut schema = db.get_schema_builder();
+                assert!(schema.get_types(None).await?.is_empty());
+                assert!(schema.get_types(Some("tenant")).await?.is_empty());
+                assert!(schema.get_types_in(&["tenant", "public"]).await?.is_empty());
+                assert!(schema.get_types_in(&[]).await?.is_empty());
                 Ok(())
             })
         })
@@ -625,7 +629,7 @@ async fn postgres_type_catalog_uses_the_writer_and_supports_schema_filters() {
     );
     let mysql = connection(json!({"driver":"mysql"}));
     assert!(matches!(
-        mysql.getSchemaBuilder().getTypes(None).await,
+        mysql.get_schema_builder().get_types(None).await,
         Err(DatabaseError::UnsupportedSchema(_))
     ));
 }
@@ -639,7 +643,7 @@ async fn postgres_foreign_keys_support_validation_timing_and_qualified_targets()
     let db = connection(json!({"url":url}));
     db.unprepared("create schema parents; create schema children; create table parents.records (id integer primary key); create table children.records (id integer primary key, parent_id integer not null); insert into children.records values (1, 100)")
         .await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .table("children.records", |table| {
             table
@@ -647,14 +651,14 @@ async fn postgres_foreign_keys_support_validation_timing_and_qualified_targets()
                 .references("id")
                 .on("parents.records")
                 .deferrable(true)
-                .initiallyImmediate(false)
-                .notValid();
+                .initially_immediate(false)
+                .not_valid();
         })
         .await
         .unwrap_or_else(|error| panic!("{error}: {:?}", std::error::Error::source(&error)));
-    let keys = schema.getForeignKeys("children.records").await.unwrap();
+    let keys = schema.get_foreign_keys("children.records").await.unwrap();
     assert_eq!(keys[0].foreign_schema.as_deref(), Some("parents"));
-    let settings = db.selectOne(
+    let settings = db.select_one(
         "select condeferrable, condeferred, convalidated from pg_constraint where conname = ? and conrelid = 'children.records'::regclass",
         &[keys[0].name.as_deref().unwrap().into()],
     ).await.unwrap().unwrap();
@@ -691,13 +695,13 @@ async fn postgres_foreign_keys_support_validation_timing_and_qualified_targets()
     assert_eq!(db.table("children.records").count("*").await.unwrap(), 2);
     schema
         .table("children.records", |table| {
-            table.dropForeignColumns(&["parent_id"])
+            table.drop_foreign_columns(&["parent_id"])
         })
         .await
         .unwrap();
     assert!(
         schema
-            .getForeignKeys("children.records")
+            .get_foreign_keys("children.records")
             .await
             .unwrap()
             .is_empty()
@@ -710,7 +714,7 @@ async fn postgres_foreign_keys_support_validation_timing_and_qualified_targets()
                 .references("id")
                 .on("parents.records")
                 .deferrable(true)
-                .initiallyImmediate(true);
+                .initially_immediate(true);
         })
         .await
         .unwrap();
@@ -720,7 +724,7 @@ async fn postgres_foreign_keys_support_validation_timing_and_qualified_targets()
             .is_err()
     );
     schema
-        .table("children.fresh", |table| table.dropForeign("explicit_fk"))
+        .table("children.fresh", |table| table.drop_foreign("explicit_fk"))
         .await
         .unwrap();
     db.statement("insert into children.fresh values (999)", &[])
@@ -734,9 +738,9 @@ async fn postgres_column_and_foreign_key_catalogs_use_native_metadata_and_qualif
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
-                assert!(schema.getColumns("tenant.posts").await?.is_empty());
-                assert!(schema.getForeignKeys("posts").await?.is_empty());
+                let mut schema = db.get_schema_builder();
+                assert!(schema.get_columns("tenant.posts").await?.is_empty());
+                assert!(schema.get_foreign_keys("posts").await?.is_empty());
                 Ok(())
             })
         })
@@ -767,15 +771,15 @@ async fn postgres_column_and_foreign_key_catalogs_use_native_metadata_and_qualif
 }
 
 async fn verify(db: Connection, mysql: bool) {
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("posts").await.unwrap();
-    schema.dropIfExists("writers").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("posts").await.unwrap();
+    schema.drop_if_exists("writers").await.unwrap();
     schema
         .create("writers", |table| {
             table.id();
             table.string("name", 80).unique();
             table.timestamps();
-            table.date("active_on").useCurrent();
+            table.date("active_on").use_current();
         })
         .await
         .unwrap();
@@ -783,11 +787,11 @@ async fn verify(db: Connection, mysql: bool) {
         .create("posts", |table| {
             table.id();
             table
-                .foreignId("writer_id")
+                .foreign_id("writer_id")
                 .nullable()
-                .constrainedOn("writers", "id", Some("post_author_fk"))
-                .cascadeOnUpdate()
-                .nullOnDelete();
+                .constrained_on("writers", "id", Some("post_author_fk"))
+                .cascade_on_update()
+                .null_on_delete();
             table.string("title", 120).default("O'Reilly \\ notes");
             table.text("scratch").nullable();
             table.boolean("visible").default(false);
@@ -797,29 +801,32 @@ async fn verify(db: Connection, mysql: bool) {
         .await
         .unwrap();
 
-    assert!(schema.hasTable("posts").await.unwrap());
-    assert!(!schema.hasTable("unknown").await.unwrap());
+    assert!(schema.has_table("posts").await.unwrap());
+    assert!(!schema.has_table("unknown").await.unwrap());
     assert!(
         schema
-            .getTables(None)
+            .get_tables(None)
             .await
             .unwrap()
             .iter()
             .any(|table| table.name == "app_posts")
     );
     assert_eq!(
-        schema.getColumnListing("posts").await.unwrap(),
+        schema.get_column_listing("posts").await.unwrap(),
         ["id", "writer_id", "title", "scratch", "visible", "amount"]
     );
-    assert!(schema.hasColumns("posts", &["ID", "Title"]).await.unwrap());
-    let columns = schema.getColumns("posts").await.unwrap();
+    assert!(schema.has_columns("posts", &["ID", "Title"]).await.unwrap());
+    let columns = schema.get_columns("posts").await.unwrap();
     assert!(columns[0].auto_increment && columns[0].primary);
     assert!(columns[1].nullable);
     assert_eq!(
-        schema.getColumnType("posts", "title", true).await.unwrap(),
+        schema
+            .get_column_type("posts", "title", true)
+            .await
+            .unwrap(),
         if mysql { "varchar(120)" } else { "varchar" }
     );
-    let indexes = schema.getIndexes("posts").await.unwrap();
+    let indexes = schema.get_indexes("posts").await.unwrap();
     assert!(
         indexes
             .iter()
@@ -829,17 +836,21 @@ async fn verify(db: Connection, mysql: bool) {
         && index.columns == [Some("writer_id".into()), Some("title".into())]));
     assert!(
         schema
-            .hasIndex("writers", "app_writers_name_unique")
+            .has_index("writers", "app_writers_name_unique")
             .await
             .unwrap()
     );
 
-    let keys = schema.getForeignKeys("posts").await.unwrap();
+    let keys = schema.get_foreign_keys("posts").await.unwrap();
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0].foreign_table, "app_writers");
     assert_eq!(
         keys[0].foreign_schema.as_deref(),
-        Some(if mysql { db.getDatabaseName() } else { "main" })
+        Some(if mysql {
+            db.get_database_name()
+        } else {
+            "main"
+        })
     );
     assert_eq!(keys[0].columns, ["writer_id"]);
     assert_eq!(keys[0].foreign_columns, [Some("id".into())]);
@@ -889,54 +900,57 @@ async fn verify(db: Connection, mysql: bool) {
     schema
         .table("posts", |table| {
             table.string("slug", 140).nullable();
-            table.renameColumn("scratch", "draft");
-            table.dropColumn(&["draft"]);
+            table.rename_column("scratch", "draft");
+            table.drop_column(&["draft"]);
             table.unique(&["slug"], None);
         })
         .await
         .unwrap();
-    assert!(schema.hasColumn("posts", "slug").await.unwrap());
-    assert!(!schema.hasColumn("posts", "draft").await.unwrap());
+    assert!(schema.has_column("posts", "slug").await.unwrap());
+    assert!(!schema.has_column("posts", "draft").await.unwrap());
     schema
         .table("posts", |table| {
-            table.dropUnique("app_posts_slug_unique");
+            table.drop_unique("app_posts_slug_unique");
         })
         .await
         .unwrap();
     if mysql {
         schema
             .table("posts", |table| {
-                table.renameIndex("post_writer_title", "post_lookup");
+                table.rename_index("post_writer_title", "post_lookup");
                 table
                     .string("title", 150)
                     .nullable()
                     .comment("reviewed")
                     .change();
-                table.dropForeign("post_author_fk");
+                table.drop_foreign("post_author_fk");
             })
             .await
             .unwrap();
         assert_eq!(
-            schema.getColumnType("posts", "title", true).await.unwrap(),
+            schema
+                .get_column_type("posts", "title", true)
+                .await
+                .unwrap(),
             "varchar(150)"
         );
-        let column = schema.getColumn("posts", "TITLE").await.unwrap().unwrap();
+        let column = schema.get_column("posts", "TITLE").await.unwrap().unwrap();
         assert_eq!(column.name, "title");
         assert_eq!(column.full_type, "varchar(150)");
         assert_eq!(column.comment.as_deref(), Some("reviewed"));
         assert!(column.nullable);
-        assert_eq!(schema.getColumn("posts", "missing").await.unwrap(), None);
+        assert_eq!(schema.get_column("posts", "missing").await.unwrap(), None);
         assert!(matches!(
-            schema.getColumnType("posts", "missing", false).await,
+            schema.get_column_type("posts", "missing", false).await,
             Err(DatabaseError::InvalidSchema("unknown column"))
         ));
-        assert!(schema.hasIndex("posts", "post_lookup").await.unwrap());
-        assert!(schema.getForeignKeys("posts").await.unwrap().is_empty());
+        assert!(schema.has_index("posts", "post_lookup").await.unwrap());
+        assert!(schema.get_foreign_keys("posts").await.unwrap().is_empty());
     }
 
     schema.rename("posts", "articles").await.unwrap();
-    assert!(schema.hasTable("articles").await.unwrap());
-    assert!(!schema.hasTable("posts").await.unwrap());
+    assert!(schema.has_table("articles").await.unwrap());
+    assert!(!schema.has_table("posts").await.unwrap());
     schema.drop("articles").await.unwrap();
     schema.drop("writers").await.unwrap();
 }
@@ -947,7 +961,7 @@ async fn schema_builds_and_inspects_real_sqlite() {
         json!({"driver":"sqlite","database":":memory:","prefix":"app_","prefix_indexes":true}),
     );
     verify(db.clone(), false).await;
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     assert!(matches!(
         schema
             .create("bad", |table| {
@@ -956,7 +970,7 @@ async fn schema_builds_and_inspects_real_sqlite() {
             .await,
         Err(DatabaseError::UnsupportedSchema(_))
     ));
-    assert!(!schema.hasTable("bad").await.unwrap());
+    assert!(!schema.has_table("bad").await.unwrap());
 }
 
 #[tokio::test]
@@ -971,8 +985,8 @@ async fn schema_builds_and_inspects_real_mysql() {
 }
 
 async fn verify_mysql_column_modifiers(db: Connection) {
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("column_modifiers").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("column_modifiers").await.unwrap();
     schema
         .create("column_modifiers", |table| {
             table.id();
@@ -980,12 +994,12 @@ async fn verify_mysql_column_modifiers(db: Connection) {
             table.string("hidden", 80).invisible().default("secret");
             table
                 .timestamp("touched_at", 6)
-                .useCurrent()
-                .useCurrentOnUpdate();
+                .use_current()
+                .use_current_on_update();
             table
-                .dateTime("changed_at", 3)
-                .useCurrent()
-                .useCurrentOnUpdate();
+                .date_time("changed_at", 3)
+                .use_current()
+                .use_current_on_update();
         })
         .await
         .unwrap();
@@ -998,7 +1012,7 @@ async fn verify_mysql_column_modifiers(db: Connection) {
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnListing("column_modifiers").await.unwrap(),
+        schema.get_column_listing("column_modifiers").await.unwrap(),
         [
             "lead",
             "id",
@@ -1017,7 +1031,7 @@ async fn verify_mysql_column_modifiers(db: Connection) {
     .await
     .unwrap();
     let row = db
-        .selectOne("select * from app_column_modifiers", &[])
+        .select_one("select * from app_column_modifiers", &[])
         .await
         .unwrap()
         .unwrap();
@@ -1034,7 +1048,7 @@ async fn verify_mysql_column_modifiers(db: Connection) {
     db.update("update app_column_modifiers set label = 'updated'", &[])
         .await
         .unwrap();
-    let row = db.selectOne("select date_format(touched_at, '%Y-%m-%d %H:%i:%s.%f') as touched_at, date_format(changed_at, '%Y-%m-%d %H:%i:%s.%f') as changed_at from app_column_modifiers", &[])
+    let row = db.select_one("select date_format(touched_at, '%Y-%m-%d %H:%i:%s.%f') as touched_at, date_format(changed_at, '%Y-%m-%d %H:%i:%s.%f') as changed_at from app_column_modifiers", &[])
         .await.unwrap().unwrap();
     for column in ["touched_at", "changed_at"] {
         assert!(
@@ -1046,14 +1060,14 @@ async fn verify_mysql_column_modifiers(db: Connection) {
         schema
             .table("column_modifiers", |table| {
                 table.integer("not_added");
-                table.integer("bad").useCurrentOnUpdate();
+                table.integer("bad").use_current_on_update();
             })
             .await,
         Err(DatabaseError::InvalidSchema(_))
     ));
     assert!(
         !schema
-            .hasColumn("column_modifiers", "not_added")
+            .has_column("column_modifiers", "not_added")
             .await
             .unwrap()
     );
@@ -1065,24 +1079,24 @@ async fn verify_mysql_column_modifiers(db: Connection) {
             .await,
         Err(DatabaseError::InvalidSchema(_))
     ));
-    assert!(!schema.hasTable("bad_position").await.unwrap());
+    assert!(!schema.has_table("bad_position").await.unwrap());
     schema.drop("column_modifiers").await.unwrap();
 }
 
 #[tokio::test]
 async fn sqlite_ddl_rolls_back_and_invalid_blueprint_has_no_effect() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     assert!(matches!(
         schema
             .create("bad", |table| {
                 table.id();
-                table.fullText(&["id"], None);
+                table.full_text(&["id"], None);
             })
             .await,
         Err(DatabaseError::UnsupportedSchema("SQLite index kind"))
     ));
-    assert!(!schema.hasTable("bad").await.unwrap());
+    assert!(!schema.has_table("bad").await.unwrap());
     let result = schema
         .create("partial", |table| {
             table.id();
@@ -1091,11 +1105,11 @@ async fn sqlite_ddl_rolls_back_and_invalid_blueprint_has_no_effect() {
         })
         .await;
     assert!(matches!(result, Err(DatabaseError::Driver { .. })));
-    assert!(!schema.hasTable("partial").await.unwrap());
+    assert!(!schema.has_table("partial").await.unwrap());
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("pending", |table| {
             table.id();
         })
@@ -1103,19 +1117,19 @@ async fn sqlite_ddl_rolls_back_and_invalid_blueprint_has_no_effect() {
         .unwrap();
     assert!(
         transaction
-            .getSchemaBuilder()
-            .hasTable("pending")
+            .get_schema_builder()
+            .has_table("pending")
             .await
             .unwrap()
     );
-    transaction.rollBack(None).await.unwrap();
-    assert!(!schema.hasTable("pending").await.unwrap());
+    transaction.roll_back(None).await.unwrap();
+    assert!(!schema.has_table("pending").await.unwrap());
 }
 
 #[tokio::test]
 async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("parents", |table| {
             table.id();
@@ -1126,7 +1140,10 @@ async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
     schema
         .create("children", |table| {
             table.id();
-            table.foreignId("parent_id").constrained().cascadeOnDelete();
+            table
+                .foreign_id("parent_id")
+                .constrained()
+                .cascade_on_delete();
         })
         .await
         .unwrap();
@@ -1137,13 +1154,13 @@ async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
     schema
         .table("parents", |table| {
             table.text("label").nullable().change();
-            table.renameIndex("label_expr", "label_lookup");
+            table.rename_index("label_expr", "label_lookup");
         })
         .await
         .unwrap();
     assert_eq!(
         schema
-            .getColumnType("parents", "label", true)
+            .get_column_type("parents", "label", true)
             .await
             .unwrap(),
         "text"
@@ -1160,8 +1177,8 @@ async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
             .unwrap(),
         5.into()
     );
-    assert!(schema.hasIndex("parents", "label_lookup").await.unwrap());
-    assert!(!schema.hasIndex("parents", "label_expr").await.unwrap());
+    assert!(schema.has_index("parents", "label_lookup").await.unwrap());
+    assert!(!schema.has_index("parents", "label_expr").await.unwrap());
     assert_eq!(
         db.scalar("select count(*) from audit_log", &[])
             .await
@@ -1197,21 +1214,27 @@ async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
     ));
     assert!(
         schema
-            .getColumns("parents")
+            .get_columns("parents")
             .await
             .unwrap()
             .iter()
             .any(|column| column.name == "label" && column.nullable)
     );
-    assert!(schema.hasIndex("parents", "label_lookup").await.unwrap());
+    assert!(schema.has_index("parents", "label_lookup").await.unwrap());
 
     schema
         .table("children", |table| {
-            table.dropForeignColumns(&["parent_id"]);
+            table.drop_foreign_columns(&["parent_id"]);
         })
         .await
         .unwrap();
-    assert!(schema.getForeignKeys("children").await.unwrap().is_empty());
+    assert!(
+        schema
+            .get_foreign_keys("children")
+            .await
+            .unwrap()
+            .is_empty()
+    );
     db.insert("insert into children (parent_id) values (900)", &[])
         .await
         .unwrap();
@@ -1222,12 +1245,18 @@ async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
                     .foreign(&["parent_id"], Some("child_parent"))
                     .references("id")
                     .on("parents")
-                    .cascadeOnDelete();
+                    .cascade_on_delete();
             })
             .await,
         Err(DatabaseError::InvalidSchema("SQLite foreign key check"))
     ));
-    assert!(schema.getForeignKeys("children").await.unwrap().is_empty());
+    assert!(
+        schema
+            .get_foreign_keys("children")
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         db.scalar("select count(*) from children", &[])
             .await
@@ -1243,7 +1272,7 @@ async fn sqlite_rebuild_preserves_children_catalog_objects_and_sequence() {
                 .foreign(&["parent_id"], Some("child_parent"))
                 .references("id")
                 .on("parents")
-                .cascadeOnDelete();
+                .cascade_on_delete();
         })
         .await
         .unwrap();
@@ -1287,10 +1316,10 @@ async fn schema_facade_uses_the_artisan_application_connection() {
                         table.string("title", 80).unique();
                     })
                     .await?;
-                    assert!(Schema::hasColumn("schema_artisan_probe", "title").await?);
+                    assert!(Schema::has_column("schema_artisan_probe", "title").await?);
                     assert!(
                         Schema::connection("sqlite")?
-                            .hasIndex("schema_artisan_probe", "schema_artisan_probe_title_unique")
+                            .has_index("schema_artisan_probe", "schema_artisan_probe_title_unique")
                             .await?
                     );
                     Ok(())
@@ -1330,8 +1359,8 @@ async fn schema_facade_uses_the_artisan_application_connection() {
     let isolated = connection(json!({"driver":"sqlite","database":file}));
     assert!(
         isolated
-            .getSchemaBuilder()
-            .hasTable("schema_artisan_probe")
+            .get_schema_builder()
+            .has_table("schema_artisan_probe")
             .await
             .unwrap()
     );
@@ -1352,7 +1381,7 @@ async fn cancelled_sqlite_rebuild_finishes_and_restores_foreign_key_checks() {
     let db = connection(
         json!({"driver":"sqlite","database":file,"max_connections":2,"busy_timeout":4000}),
     );
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("parents", |table| {
             table.id();
@@ -1363,11 +1392,11 @@ async fn cancelled_sqlite_rebuild_finishes_and_restores_foreign_key_checks() {
     schema
         .create("children", |table| {
             table.id();
-            table.foreignId("parent_id").constrained();
+            table.foreign_id("parent_id").constrained();
         })
         .await
         .unwrap();
-    let mut blocker = db.beginTransaction().await.unwrap();
+    let mut blocker = db.begin_transaction().await.unwrap();
     blocker
         .insert("insert into parents (label) values ('in flight')", &[])
         .await
@@ -1387,7 +1416,7 @@ async fn cancelled_sqlite_rebuild_finishes_and_restores_foreign_key_checks() {
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {
             if schema
-                .getColumnType("parents", "label", true)
+                .get_column_type("parents", "label", true)
                 .await
                 .unwrap()
                 == "text"
@@ -1399,8 +1428,8 @@ async fn cancelled_sqlite_rebuild_finishes_and_restores_foreign_key_checks() {
     })
     .await
     .unwrap();
-    let mut first = db.beginTransaction().await.unwrap();
-    let mut second = db.beginTransaction().await.unwrap();
+    let mut first = db.begin_transaction().await.unwrap();
+    let mut second = db.begin_transaction().await.unwrap();
     for transaction in [&mut first, &mut second] {
         assert_eq!(
             transaction
@@ -1416,7 +1445,7 @@ async fn cancelled_sqlite_rebuild_finishes_and_restores_foreign_key_checks() {
                 .unwrap(),
             0.into()
         );
-        transaction.rollBack(None).await.unwrap();
+        transaction.roll_back(None).await.unwrap();
     }
     assert_eq!(
         db.table("parents").value("label").await.unwrap(),
@@ -1438,25 +1467,25 @@ async fn verify_foreign_key_scope(db: Connection, mysql: bool) {
     )
     .await
     .unwrap();
-    let schema = db.getSchemaBuilder();
+    let schema = db.get_schema_builder();
     let cannot_insert = "INSERT INTO fk_scope_children VALUES (?, 99)";
     assert!(db.statement(cannot_insert, &[0.into()]).await.is_err());
 
     let count = schema
-        .withoutForeignKeyConstraints(|session| {
+        .without_foreign_key_constraints(|session| {
             Box::pin(async move {
                 assert_eq!(
                     session.select(state, &[]).await?[0].get_at(0),
                     Some(&0.into())
                 );
                 assert!(session.statement(cannot_insert, &[1.into()]).await?);
-                let mut builder = session.getSchemaBuilder();
+                let mut builder = session.get_schema_builder();
                 builder
                     .create("fk_scope_marker", |table| {
                         table.id();
                     })
                     .await?;
-                assert!(builder.hasTable("fk_scope_marker").await?);
+                assert!(builder.has_table("fk_scope_marker").await?);
                 Ok(1)
             })
         })
@@ -1466,7 +1495,7 @@ async fn verify_foreign_key_scope(db: Connection, mysql: bool) {
     assert!(db.statement(cannot_insert, &[2.into()]).await.is_err());
 
     let result = schema
-        .withoutForeignKeyConstraints(|_| {
+        .without_foreign_key_constraints(|_| {
             Box::pin(async { Err::<(), _>(DatabaseError::InvalidSchema("callback failed")) })
         })
         .await;
@@ -1481,8 +1510,8 @@ async fn verify_foreign_key_scope(db: Connection, mysql: bool) {
     let task_db = db.clone();
     let job = tokio::spawn(async move {
         task_db
-            .getSchemaBuilder()
-            .withoutForeignKeyConstraints(move |session| {
+            .get_schema_builder()
+            .without_foreign_key_constraints(move |session| {
                 Box::pin(async move {
                     assert_eq!(
                         session.select(state, &[]).await?[0].get_at(0),
@@ -1512,9 +1541,9 @@ async fn verify_foreign_key_scope(db: Connection, mysql: bool) {
         session.select(state, &[]).await.unwrap()[0].get_at(0),
         Some(&1.into())
     );
-    session.disableForeignKeyConstraints().await.unwrap();
+    session.disable_foreign_key_constraints().await.unwrap();
     session.statement(cannot_insert, &[5.into()]).await.unwrap();
-    session.enableForeignKeyConstraints().await.unwrap();
+    session.enable_foreign_key_constraints().await.unwrap();
     assert!(session.statement(cannot_insert, &[6.into()]).await.is_err());
     session.close().await.unwrap();
     assert_eq!(db.table("fk_scope_children").count("*").await.unwrap(), 2);
@@ -1535,8 +1564,8 @@ async fn sqlite_foreign_key_scope_restores_the_leased_session() {
     let db = connection(
         json!({"driver":"sqlite","database":":memory:","foreign_key_constraints":false}),
     );
-    let mut session = db.getSchemaBuilder().session().await.unwrap();
-    session.enableForeignKeyConstraints().await.unwrap();
+    let mut session = db.get_schema_builder().session().await.unwrap();
+    session.enable_foreign_key_constraints().await.unwrap();
     assert_eq!(
         session.select("pragma foreign_keys", &[]).await.unwrap()[0].get_at(0),
         Some(&1.into())
@@ -1558,34 +1587,34 @@ async fn mysql_foreign_key_scope_restores_the_leased_session() {
 }
 
 async fn verify_additional_column_types(db: Connection, mysql: bool) {
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
-        .dropIfExists("additional_column_types")
+        .drop_if_exists("additional_column_types")
         .await
         .unwrap();
     schema
         .create("additional_column_types", |table| {
-            table.tinyIncrements("id");
-            table.unsignedTinyInteger("tiny_value").default(255_i64);
+            table.tiny_increments("id");
+            table.unsigned_tiny_integer("tiny_value").default(255_i64);
             table
-                .unsignedSmallInteger("small_value")
+                .unsigned_small_integer("small_value")
                 .default(65_535_i64);
             table
-                .unsignedMediumInteger("medium_value")
+                .unsigned_medium_integer("medium_value")
                 .default(16_777_215_i64);
             table.tinyText("summary").nullable();
             table
                 .r#enum("state", &["ready", "customer's choice"])
                 .default("ready");
-            table.year("observed_year").useCurrent();
+            table.year("observed_year").use_current();
             table.ipAddress("network_ip").nullable();
-            table.macAddress("network_mac").nullable();
-            table.binaryWith("fixed_data", 4, true).nullable();
-            table.binaryWith("variable_data", 12, false).nullable();
-            table.timeTz("observed_time", 3).nullable();
-            table.dateTimeTz("seen_at", 3).nullable();
-            table.timestampsTz();
-            table.softDeletesTz();
+            table.mac_address("network_mac").nullable();
+            table.binary_with("fixed_data", 4, true).nullable();
+            table.binary_with("variable_data", 12, false).nullable();
+            table.time_tz("observed_time", 3).nullable();
+            table.date_time_tz("seen_at", 3).nullable();
+            table.timestamps_tz();
+            table.soft_deletes_tz();
             if mysql {
                 table.set("flags", &["one", "two"]).default("one,two");
             }
@@ -1596,7 +1625,7 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
             _ => panic!("column DDL failed: {error}"),
         });
 
-    let columns = schema.getColumns("additional_column_types").await.unwrap();
+    let columns = schema.get_columns("additional_column_types").await.unwrap();
     let kind = |name| {
         columns
             .iter()
@@ -1633,7 +1662,7 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
 
     let id = db
         .table("additional_column_types")
-        .insertGetId(BTreeMap::from([
+        .insert_get_id(BTreeMap::from([
             ("state".into(), "customer's choice".into()),
             ("fixed_data".into(), Value::Bytes(vec![0, 1, 2, 3])),
         ]))
@@ -1681,7 +1710,7 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
         assert!(
             schema
                 .create("invalid_binary_size", |table| {
-                    table.binaryWith("value", 256, true);
+                    table.binary_with("value", 256, true);
                 })
                 .await
                 .is_err()
@@ -1720,19 +1749,19 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
     ));
     schema
         .create("small_identity_columns", |table| {
-            table.smallIncrements("id");
+            table.small_increments("id");
         })
         .await
         .unwrap();
     schema
         .create("medium_identity_columns", |table| {
-            table.mediumIncrements("id");
+            table.medium_increments("id");
         })
         .await
         .unwrap();
     assert_eq!(
         schema
-            .getColumnType("small_identity_columns", "id", true)
+            .get_column_type("small_identity_columns", "id", true)
             .await
             .unwrap(),
         if mysql {
@@ -1743,7 +1772,7 @@ async fn verify_additional_column_types(db: Connection, mysql: bool) {
     );
     assert_eq!(
         schema
-            .getColumnType("medium_identity_columns", "id", true)
+            .get_column_type("medium_identity_columns", "id", true)
             .await
             .unwrap(),
         if mysql {
@@ -1782,10 +1811,10 @@ async fn mysql_configures_ulid_and_foreign_ulid_lengths() {
         return;
     };
     let db = connection(json!({"url":url,"prefix":"app_"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("ulid_imports", |table| {
-            table.ulidWith("id", 32).primary();
+            table.ulid_with("id", 32).primary();
             table.ulid("standard_id");
         })
         .await
@@ -1794,10 +1823,10 @@ async fn mysql_configures_ulid_and_foreign_ulid_lengths() {
         .create("ulid_import_entries", |table| {
             table.id();
             table
-                .foreignUlidWith("import_id", 32)
-                .constrainedOn("ulid_imports", "id", None)
-                .cascadeOnDelete();
-            table.foreignUlid("standard_ref").nullable();
+                .foreign_ulid_with("import_id", 32)
+                .constrained_on("ulid_imports", "id", None)
+                .cascade_on_delete();
+            table.foreign_ulid("standard_ref").nullable();
         })
         .await
         .unwrap();
@@ -1809,7 +1838,7 @@ async fn mysql_configures_ulid_and_foreign_ulid_lengths() {
         ("ulid_import_entries", "standard_ref", "char(26)"),
     ] {
         assert_eq!(
-            schema.getColumnType(table, column, true).await.unwrap(),
+            schema.get_column_type(table, column, true).await.unwrap(),
             width
         );
     }
@@ -1835,28 +1864,28 @@ async fn mysql_configures_ulid_and_foreign_ulid_lengths() {
 }
 
 async fn verify_generated_columns(db: Connection, mysql: bool) {
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("generated_samples").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("generated_samples").await.unwrap();
     schema
         .create("generated_samples", |table| {
             table.id();
             table.integer("base_units");
             table.integer("bonus_units").default(4_i64);
-            table.integer("twice").virtualAs("base_units * 2").index();
-            table.integer("total").storedAs("base_units + bonus_units");
+            table.integer("twice").virtual_as("base_units * 2").index();
+            table.integer("total").stored_as("base_units + bonus_units");
             table.json("payload").nullable();
             table
                 .string("locale", 30)
-                .virtualAsJson("payload->menu.name->value")
+                .virtual_as_json("payload->menu.name->value")
                 .nullable();
             table
                 .string("label", 50)
-                .storedAsJson("payload->fields[0]->display")
+                .stored_as_json("payload->fields[0]->display")
                 .nullable();
         })
         .await
         .unwrap();
-    let columns = schema.getColumns("generated_samples").await.unwrap();
+    let columns = schema.get_columns("generated_samples").await.unwrap();
     let generation = |name| {
         columns
             .iter()
@@ -1913,7 +1942,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
     assert!(before[0].get("offset_total").is_none());
     schema
         .table("generated_samples", |table| {
-            table.integer("offset_total").virtualAs("total + 1");
+            table.integer("offset_total").virtual_as("total + 1");
         })
         .await
         .unwrap();
@@ -1937,7 +1966,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
                 table.integer("base");
                 table
                     .integer("derived")
-                    .virtualAs("base + 1")
+                    .virtual_as("base + 1")
                     .default(1_i64);
             })
             .await,
@@ -1949,7 +1978,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
             .table("generated_samples", |table| {
                 table
                     .integer("total")
-                    .storedAs("base_units + bonus_units * 2")
+                    .stored_as("base_units + bonus_units * 2")
                     .change();
             })
             .await
@@ -1975,7 +2004,7 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
         );
         assert!(
             schema
-                .getIndexes("generated_samples")
+                .get_indexes("generated_samples")
                 .await
                 .unwrap()
                 .iter()
@@ -1986,12 +2015,12 @@ async fn verify_generated_columns(db: Connection, mysql: bool) {
             .table("generated_samples", |table| {
                 table
                     .integer("total")
-                    .storedAs("base_units + bonus_units * 2")
+                    .stored_as("base_units + bonus_units * 2")
                     .change();
                 table.integer("twice").change();
                 table
                     .integer("bonus_units")
-                    .storedAs("base_units + 1")
+                    .stored_as("base_units + 1")
                     .change();
             })
             .await
@@ -2035,14 +2064,14 @@ async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("spatial_sites").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("spatial_sites").await.unwrap();
     schema
         .create("spatial_sites", |table| {
             table.id();
             table
                 .geography("wgs_point", Some("POINT"), None)
-                .spatialIndex();
+                .spatial_index();
             table.geometry("cartesian", None, None).nullable();
             table
                 .geography("no_srid", Some("unrecognized"), Some(0))
@@ -2068,7 +2097,7 @@ async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
             DatabaseError::Driver { source, .. } => panic!("spatial DDL failed: {source}"),
             _ => panic!("spatial DDL failed: {error}"),
         });
-    let columns = schema.getColumns("spatial_sites").await.unwrap();
+    let columns = schema.get_columns("spatial_sites").await.unwrap();
     let kind = |name: &str| {
         columns
             .iter()
@@ -2114,7 +2143,7 @@ async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
         Value::Null
     );
     let index = schema
-        .getIndexes("spatial_sites")
+        .get_indexes("spatial_sites")
         .await
         .unwrap()
         .into_iter()
@@ -2155,7 +2184,7 @@ async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
 
     schema
         .table("spatial_sites", |table| {
-            table.dropSpatialIndex("spatial_sites_wgs_point_spatialindex");
+            table.drop_spatial_index("spatial_sites_wgs_point_spatialindex");
             table
                 .geometry("extra_shapes", Some("multipoint"), None)
                 .nullable();
@@ -2164,13 +2193,13 @@ async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
         .unwrap();
     assert!(
         !schema
-            .hasIndex("spatial_sites", "spatial_sites_wgs_point_spatialindex")
+            .has_index("spatial_sites", "spatial_sites_wgs_point_spatialindex")
             .await
             .unwrap()
     );
     assert_eq!(
         schema
-            .getColumnType("spatial_sites", "extra_shapes", false)
+            .get_column_type("spatial_sites", "extra_shapes", false)
             .await
             .unwrap(),
         "multipoint"
@@ -2181,7 +2210,7 @@ async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
 #[tokio::test]
 async fn sqlite_spatial_columns_use_geometry_without_a_spatial_index() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("spatial_sites", |table| {
             table.geometry("shape", Some("point"), Some(3857));
@@ -2191,7 +2220,7 @@ async fn sqlite_spatial_columns_use_geometry_without_a_spatial_index() {
         })
         .await
         .unwrap();
-    let columns = schema.getColumns("spatial_sites").await.unwrap();
+    let columns = schema.get_columns("spatial_sites").await.unwrap();
     assert!(columns.iter().all(|column| column.type_name == "geometry"));
     let data = Value::Bytes(vec![1, 2, 3]);
     db.insert(
@@ -2208,16 +2237,16 @@ async fn sqlite_spatial_columns_use_geometry_without_a_spatial_index() {
     assert!(matches!(
         schema
             .create("spatial_index_unsupported", |table| {
-                table.geometry("shape", None, None).spatialIndex();
+                table.geometry("shape", None, None).spatial_index();
             })
             .await,
         Err(DatabaseError::UnsupportedSchema("SQLite index kind"))
     ));
-    assert!(!schema.hasTable("spatial_index_unsupported").await.unwrap());
+    assert!(!schema.has_table("spatial_index_unsupported").await.unwrap());
     assert!(matches!(
         schema
             .table("spatial_sites", |table| {
-                table.geometry("shape", None, None).spatialIndex().change();
+                table.geometry("shape", None, None).spatial_index().change();
             })
             .await,
         Err(DatabaseError::UnsupportedSchema("SQLite index kind"))
@@ -2230,7 +2259,7 @@ async fn sqlite_spatial_columns_use_geometry_without_a_spatial_index() {
 
 async fn verify_temporary_tables(db: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS temp_scope_items; CREATE TABLE temp_scope_items (id BIGINT PRIMARY KEY); INSERT INTO temp_scope_items VALUES (41)").await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     assert!(matches!(
         schema
             .create("unleased_temporary_table", |table| {
@@ -2254,7 +2283,7 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
     } else {
         None
     };
-    let mut builder = session.getSchemaBuilder();
+    let mut builder = session.get_schema_builder();
     builder
         .create("temp_scope_items", |table| {
             table.temporary();
@@ -2263,17 +2292,17 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
         })
         .await
         .unwrap();
-    assert!(builder.hasTable("temp_scope_items").await.unwrap());
+    assert!(builder.has_table("temp_scope_items").await.unwrap());
     if !mysql {
         assert!(
             builder
-                .hasColumn("temp_scope_items", "label")
+                .has_column("temp_scope_items", "label")
                 .await
                 .unwrap()
         );
         assert!(
             builder
-                .hasIndex("temp_scope_items", "temp_temp_scope_items_label_index")
+                .has_index("temp_scope_items", "temp_temp_scope_items_label_index")
                 .await
                 .unwrap()
         );
@@ -2293,13 +2322,13 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
             .get_at(0),
         Some(&if mysql { Value::Unsigned(2) } else { 2.into() })
     );
-    let mut builder = session.getSchemaBuilder();
+    let mut builder = session.get_schema_builder();
     builder
         .rename("temp_scope_items", "temp_scope_renamed")
         .await
         .unwrap();
-    assert!(builder.hasTable("temp_scope_renamed").await.unwrap());
-    assert!(builder.hasTable("temp_scope_items").await.unwrap());
+    assert!(builder.has_table("temp_scope_renamed").await.unwrap());
+    assert!(builder.has_table("temp_scope_items").await.unwrap());
     assert_eq!(
         session
             .select("select label from temp_scope_renamed", &[])
@@ -2331,7 +2360,7 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
             .await
             .is_err()
     );
-    let mut builder = session.getSchemaBuilder();
+    let mut builder = session.get_schema_builder();
     assert!(
         builder
             .create("temp_scope_failed", |table| {
@@ -2351,7 +2380,7 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
     );
 
     session
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("temp_scope_items", |table| {
             table.temporary();
             table.id();
@@ -2359,7 +2388,7 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
         .await
         .unwrap();
     session
-        .getSchemaBuilder()
+        .get_schema_builder()
         .drop("temp_scope_items")
         .await
         .unwrap();
@@ -2377,10 +2406,10 @@ async fn verify_temporary_tables(db: Connection, mysql: bool) {
     let started = ready.clone();
     let owned = db.clone();
     let job = tokio::spawn(async move {
-        let schema = owned.getSchemaBuilder();
+        let schema = owned.get_schema_builder();
         let mut session = schema.session().await.unwrap();
         session
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("temp_scope_cancelled", |table| {
                 table.temporary();
                 table.id();
@@ -2444,12 +2473,15 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
     let db = connection(
         json!({"url":url,"charset":"utf8mb4","collation":"utf8mb4_bin","engine":"MyISAM"}),
     );
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
-        .dropIfExists("inherited_table_options")
+        .drop_if_exists("inherited_table_options")
         .await
         .unwrap();
-    schema.dropIfExists("explicit_table_options").await.unwrap();
+    schema
+        .drop_if_exists("explicit_table_options")
+        .await
+        .unwrap();
     schema
         .create("inherited_table_options", |table| {
             table.string("name", 30);
@@ -2458,7 +2490,7 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
         .unwrap();
     schema
         .create("explicit_table_options", |table| {
-            table.innoDb();
+            table.inno_db();
             table.charset("latin1");
             table.collation("latin1_bin");
             table.comment("Customer's \\ archive");
@@ -2469,7 +2501,7 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
         })
         .await
         .unwrap();
-    let tables = schema.getTables(None).await.unwrap();
+    let tables = schema.get_tables(None).await.unwrap();
     let inherited = tables
         .iter()
         .find(|table| table.name == "inherited_table_options")
@@ -2484,13 +2516,13 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
     assert_eq!(explicit.collation.as_deref(), Some("latin1_bin"));
     assert_eq!(explicit.comment.as_deref(), Some("Customer's \\ archive"));
     assert_eq!(
-        schema.getColumns("inherited_table_options").await.unwrap()[0]
+        schema.get_columns("inherited_table_options").await.unwrap()[0]
             .collation
             .as_deref(),
         Some("utf8mb4_bin")
     );
     assert_eq!(
-        schema.getColumns("explicit_table_options").await.unwrap()[0]
+        schema.get_columns("explicit_table_options").await.unwrap()[0]
             .collation
             .as_deref(),
         Some("utf8mb4_0900_ai_ci")
@@ -2531,7 +2563,7 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
     );
     assert_eq!(
         schema
-            .getTables(None)
+            .get_tables(None)
             .await
             .unwrap()
             .into_iter()
@@ -2551,7 +2583,7 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
             .await,
         Err(DatabaseError::InvalidSchema("table storage engine"))
     ));
-    assert!(!schema.hasTable("invalid_table_options").await.unwrap());
+    assert!(!schema.has_table("invalid_table_options").await.unwrap());
     schema.drop("explicit_table_options").await.unwrap();
     schema.drop("inherited_table_options").await.unwrap();
 }
@@ -2559,7 +2591,7 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
 #[tokio::test]
 async fn sqlite_uses_column_collation_through_rebuild() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("local_table_options", |table| {
             table.engine("InnoDB");
@@ -2571,12 +2603,12 @@ async fn sqlite_uses_column_collation_through_rebuild() {
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumns("local_table_options").await.unwrap()[0]
+        schema.get_columns("local_table_options").await.unwrap()[0]
             .collation
             .as_deref(),
         Some("nocase")
     );
-    let tables = schema.getTables(None).await.unwrap();
+    let tables = schema.get_tables(None).await.unwrap();
     let table = tables
         .iter()
         .find(|table| table.name == "local_table_options")
@@ -2618,7 +2650,7 @@ async fn sqlite_uses_column_collation_through_rebuild() {
         0
     );
     assert_eq!(
-        schema.getColumns("local_table_options").await.unwrap()[0]
+        schema.get_columns("local_table_options").await.unwrap()[0]
             .collation
             .as_deref(),
         Some("binary")
@@ -2643,7 +2675,7 @@ async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys()
          INSERT INTO inline_children (owner_id, second_id, label) VALUES (1, 2, 'first'), (1, 2, 'second');
          DELETE FROM inline_children WHERE id = 2",
     ).await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .table("inline_children", |table| {
             table.bigInteger("id").change();
@@ -2652,11 +2684,11 @@ async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys()
         })
         .await
         .unwrap();
-    let keys = schema.getForeignKeys("inline_children").await.unwrap();
+    let keys = schema.get_foreign_keys("inline_children").await.unwrap();
     assert!(keys.iter().any(|key| key.columns == ["owner_id"]
         && key.on_delete.eq_ignore_ascii_case("set null")
         && key.on_update.eq_ignore_ascii_case("cascade")));
-    let columns = schema.getColumns("inline_children").await.unwrap();
+    let columns = schema.get_columns("inline_children").await.unwrap();
     assert!(
         columns
             .iter()
@@ -2696,14 +2728,14 @@ async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys()
 
     schema
         .table("inline_children", |table| {
-            table.dropForeign("OWNER LINK");
-            table.dropForeignColumns(&["second_id"]);
+            table.drop_foreign("OWNER LINK");
+            table.drop_foreign_columns(&["second_id"]);
         })
         .await
         .unwrap();
     assert!(
         schema
-            .getForeignKeys("inline_children")
+            .get_foreign_keys("inline_children")
             .await
             .unwrap()
             .is_empty()
@@ -2733,7 +2765,7 @@ async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys()
     assert!(
         schema
             .table("inline_children", |table| {
-                table.dropForeign("missing");
+                table.drop_foreign("missing");
             })
             .await
             .is_err()
@@ -2745,12 +2777,12 @@ async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys()
 async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
     db.unprepared("CREATE TABLE inline_counter (id INTEGER PRIMARY KEY AUTOINCREMENT CHECK (id > 0)); INSERT INTO inline_counter VALUES (17)").await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
-        .table("inline_counter", |table| table.dropPrimary())
+        .table("inline_counter", |table| table.drop_primary())
         .await
         .unwrap();
-    assert!(!schema.getColumns("inline_counter").await.unwrap()[0].primary);
+    assert!(!schema.get_columns("inline_counter").await.unwrap()[0].primary);
     assert_eq!(
         db.scalar(
             "SELECT seq FROM sqlite_sequence WHERE name = 'inline_counter'",
@@ -2778,11 +2810,11 @@ async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
         return;
     };
     let db = connection(json!({"url": url, "prefix": "it_"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let unkeyed = "add_auto_unkeyed";
     let keyed = "add_auto_keyed";
     for name in [unkeyed, keyed] {
-        schema.dropIfExists(name).await.unwrap();
+        schema.drop_if_exists(name).await.unwrap();
     }
 
     schema
@@ -2800,12 +2832,12 @@ async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
     .unwrap();
     schema
         .table(unkeyed, |table| {
-            table.bigIncrements("id").first().startingValue(42);
+            table.big_increments("id").first().starting_value(42);
             table.primary(&["id", "tenant_id"], None).lock("shared");
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes(unkeyed).await.unwrap();
+    let indexes = schema.get_indexes(unkeyed).await.unwrap();
     assert_eq!(indexes.len(), 1);
     assert!(indexes[0].primary);
     assert_eq!(
@@ -2813,13 +2845,13 @@ async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
         [Some("id".into()), Some("tenant_id".into())]
     );
     assert_eq!(
-        schema.getColumnListing(unkeyed).await.unwrap(),
+        schema.get_column_listing(unkeyed).await.unwrap(),
         ["id", "tenant_id", "payload"]
     );
     assert_eq!(db.table(unkeyed).count("*").await.unwrap(), 2);
     assert_eq!(
         db.table(unkeyed)
-            .insertGetId(BTreeMap::from([
+            .insert_get_id(BTreeMap::from([
                 ("tenant_id".into(), 2.into()),
                 ("payload".into(), "third".into())
             ]))
@@ -2843,23 +2875,23 @@ async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
 
     let invalid = schema
         .table(keyed, |table| {
-            table.dropPrimary();
-            table.bigIncrements("id");
+            table.drop_primary();
+            table.big_increments("id");
             table.primary(&["legacy_id", "id"], None);
         })
         .await;
     assert!(invalid.is_err());
-    assert!(!schema.hasColumn(keyed, "id").await.unwrap());
+    assert!(!schema.has_column(keyed, "id").await.unwrap());
     assert_eq!(
-        schema.getIndexes(keyed).await.unwrap()[0].columns,
+        schema.get_indexes(keyed).await.unwrap()[0].columns,
         [Some("legacy_id".into())]
     );
     assert_eq!(db.table(keyed).count("*").await.unwrap(), 2);
 
     let conflicting = schema
         .table(keyed, |table| {
-            table.dropPrimary();
-            table.bigIncrements("id").lock("shared");
+            table.drop_primary();
+            table.big_increments("id").lock("shared");
             table.primary(&["id", "legacy_id"], None).lock("exclusive");
         })
         .await;
@@ -2869,12 +2901,12 @@ async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
             "conflicting MySQL ALTER lock modes"
         ))
     ));
-    assert!(!schema.hasColumn(keyed, "id").await.unwrap());
+    assert!(!schema.has_column(keyed, "id").await.unwrap());
 
     schema
         .table(keyed, |table| {
-            table.dropPrimary();
-            table.bigIncrements("id").lock("SHARED");
+            table.drop_primary();
+            table.big_increments("id").lock("SHARED");
             table
                 .primary(&["id", "legacy_id"], None)
                 .inplace()
@@ -2882,13 +2914,13 @@ async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes(keyed).await.unwrap();
+    let indexes = schema.get_indexes(keyed).await.unwrap();
     assert_eq!(indexes.len(), 1);
     assert_eq!(
         indexes[0].columns,
         [Some("id".into()), Some("legacy_id".into())]
     );
-    let id = schema.getColumn(keyed, "id").await.unwrap().unwrap();
+    let id = schema.get_column(keyed, "id").await.unwrap().unwrap();
     assert!(id.auto_increment && id.primary);
     assert_eq!(db.table(keyed).count("*").await.unwrap(), 2);
     for name in [unkeyed, keyed] {
@@ -2903,29 +2935,29 @@ async fn mysql_replaces_primary_keys_in_one_alter_statement() {
         return;
     };
     let db = connection(json!({"url":url, "prefix": "it_"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let serial = "replace_primary_serial";
     let repeated = "replace_primary_duplicate";
     for name in [serial, repeated] {
-        schema.dropIfExists(name).await.unwrap();
+        schema.drop_if_exists(name).await.unwrap();
     }
     schema
         .create(serial, |table| {
-            table.id().startingValue(24);
+            table.id().starting_value(24);
             table.integer("tenant_id");
         })
         .await
         .unwrap();
     assert_eq!(
         db.table(serial)
-            .insertGetId(BTreeMap::from([("tenant_id".into(), 1.into())]))
+            .insert_get_id(BTreeMap::from([("tenant_id".into(), 1.into())]))
             .await
             .unwrap(),
         24.into()
     );
     schema
         .table(serial, |table| {
-            table.dropPrimary();
+            table.drop_primary();
             table
                 .primary(&["id", "tenant_id"], None)
                 .inplace()
@@ -2933,7 +2965,7 @@ async fn mysql_replaces_primary_keys_in_one_alter_statement() {
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes(serial).await.unwrap();
+    let indexes = schema.get_indexes(serial).await.unwrap();
     assert_eq!(indexes.len(), 1);
     assert!(indexes[0].primary);
     assert_eq!(
@@ -2942,7 +2974,7 @@ async fn mysql_replaces_primary_keys_in_one_alter_statement() {
     );
     assert!(
         schema
-            .getColumn(serial, "id")
+            .get_column(serial, "id")
             .await
             .unwrap()
             .unwrap()
@@ -2950,7 +2982,7 @@ async fn mysql_replaces_primary_keys_in_one_alter_statement() {
     );
     assert_eq!(
         db.table(serial)
-            .insertGetId(BTreeMap::from([("tenant_id".into(), 2.into())]))
+            .insert_get_id(BTreeMap::from([("tenant_id".into(), 2.into())]))
             .await
             .unwrap(),
         25.into()
@@ -2972,22 +3004,22 @@ async fn mysql_replaces_primary_keys_in_one_alter_statement() {
     assert!(
         schema
             .table(repeated, |table| {
-                table.dropPrimary();
+                table.drop_primary();
                 table.primary(&["repeated"], None);
             })
             .await
             .is_err()
     );
-    let indexes = schema.getIndexes(repeated).await.unwrap();
+    let indexes = schema.get_indexes(repeated).await.unwrap();
     assert_eq!(indexes.len(), 1);
     assert!(indexes[0].primary);
     assert_eq!(indexes[0].columns, [Some("id".into())]);
     assert_eq!(db.table(repeated).count("*").await.unwrap(), 2);
     schema
-        .table(repeated, |table| table.dropPrimary())
+        .table(repeated, |table| table.drop_primary())
         .await
         .unwrap();
-    assert!(schema.getIndexes(repeated).await.unwrap().is_empty());
+    assert!(schema.get_indexes(repeated).await.unwrap().is_empty());
     for name in [serial, repeated] {
         schema.drop(name).await.unwrap();
     }
@@ -3000,11 +3032,11 @@ async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
         return;
     };
     let db = connection(json!({"url": url, "prefix": "it_", "prefix_indexes": true}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let parent = "fluent_index_parents";
     let child = "fluent_index_children";
     for name in [child, parent] {
-        schema.dropIfExists(name).await.unwrap();
+        schema.drop_if_exists(name).await.unwrap();
     }
     schema
         .create(parent, |table| {
@@ -3015,14 +3047,14 @@ async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
     schema
         .create(child, |table| {
             table.id();
-            table.unsignedBigInteger("parent_id");
+            table.unsigned_big_integer("parent_id");
             table.index(&["parent_id"], None);
             table
                 .foreign(&["parent_id"], Some("fluent_parent"))
                 .references("id")
                 .on(parent);
             table.string("postal_code", 10).unique();
-            table.text("body").fullTextWith("fluent_body_search");
+            table.text("body").full_text_with("fluent_body_search");
         })
         .await
         .unwrap();
@@ -3039,11 +3071,11 @@ async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
         .unwrap();
     assert!(
         schema
-            .hasIndex(child, "it_fluent_index_children_postal_code_unique")
+            .has_index(child, "it_fluent_index_children_postal_code_unique")
             .await
             .unwrap()
     );
-    assert_eq!(schema.getForeignKeys(child).await.unwrap().len(), 1);
+    assert_eq!(schema.get_foreign_keys(child).await.unwrap().len(), 1);
     assert!(
         db.insert("insert into it_fluent_index_children (parent_id, postal_code, body) values (9, 'BB', 'invalid parent')", &[]).await.is_err()
     );
@@ -3052,20 +3084,20 @@ async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
         .table(child, |table| {
             table
                 .string("postal_code", 30)
-                .uniqueWith(false)
-                .indexWith("fluent_region_lookup")
-                .renameTo("region_code")
+                .unique_with(false)
+                .index_with("fluent_region_lookup")
+                .rename_to("region_code")
                 .change();
         })
         .await
         .unwrap();
     assert!(
         !schema
-            .hasIndex(child, "it_fluent_index_children_postal_code_unique")
+            .has_index(child, "it_fluent_index_children_postal_code_unique")
             .await
             .unwrap()
     );
-    let indexes = schema.getIndexes(child).await.unwrap();
+    let indexes = schema.get_indexes(child).await.unwrap();
     assert!(
         indexes
             .iter()
@@ -3073,7 +3105,7 @@ async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
                 && index.columns == [Some("region_code".into())]
                 && !index.unique)
     );
-    assert!(schema.hasIndex(child, "fluent_body_search").await.unwrap());
+    assert!(schema.has_index(child, "fluent_body_search").await.unwrap());
     assert_eq!(
         db.table(child).value("region_code").await.unwrap(),
         "AA".into()
@@ -3083,20 +3115,20 @@ async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
     schema
         .table(child, |table| {
             table
-                .unsignedBigInteger("parent_id")
-                .indexWith(false)
+                .unsigned_big_integer("parent_id")
+                .index_with(false)
                 .change();
-            table.dropForeign("fluent_parent");
+            table.drop_foreign("fluent_parent");
         })
         .await
         .unwrap();
     assert!(
         !schema
-            .hasIndex(child, "it_fluent_index_children_parent_id_index")
+            .has_index(child, "it_fluent_index_children_parent_id_index")
             .await
             .unwrap()
     );
-    assert!(schema.getForeignKeys(child).await.unwrap().is_empty());
+    assert!(schema.get_foreign_keys(child).await.unwrap().is_empty());
     assert_eq!(db.table(child).count("*").await.unwrap(), 2);
     for name in [child, parent] {
         schema.drop(name).await.unwrap();
@@ -3110,25 +3142,25 @@ async fn mysql_generated_columns_keep_explicit_and_default_nullability() {
         return;
     };
     let db = connection(json!({"url": url}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let name = "generated_nullability";
-    schema.dropIfExists(name).await.unwrap();
+    schema.drop_if_exists(name).await.unwrap();
     schema
         .create(name, |table| {
             table.id();
             table.integer("base").nullable();
             table.json("payload").nullable();
-            table.integer("twice").virtualAs("base * 2");
-            table.integer("total").storedAs("base + 10").nullable();
-            table.string("label", 24).virtualAsJson("payload->label");
+            table.integer("twice").virtual_as("base * 2");
+            table.integer("total").stored_as("base + 10").nullable();
+            table.string("label", 24).virtual_as_json("payload->label");
             table
                 .string("stored_label", 24)
-                .storedAsJson("payload->label");
+                .stored_as_json("payload->label");
             table
                 .integer("required")
-                .storedAs("COALESCE(base, 0)")
+                .stored_as("COALESCE(base, 0)")
                 .nullable()
-                .nullableWith(false);
+                .nullable_with(false);
         })
         .await
         .unwrap();
@@ -3136,7 +3168,7 @@ async fn mysql_generated_columns_keep_explicit_and_default_nullability() {
     for column in ["twice", "total", "label", "stored_label"] {
         assert!(
             schema
-                .getColumn(name, column)
+                .get_column(name, column)
                 .await
                 .unwrap()
                 .unwrap()
@@ -3145,7 +3177,7 @@ async fn mysql_generated_columns_keep_explicit_and_default_nullability() {
     }
     assert!(
         !schema
-            .getColumn(name, "required")
+            .get_column(name, "required")
             .await
             .unwrap()
             .unwrap()
@@ -3170,15 +3202,15 @@ async fn mysql_generated_columns_keep_explicit_and_default_nullability() {
         .table(name, |table| {
             table
                 .integer("twice")
-                .virtualAs("base * 2")
-                .nullableWith(false)
+                .virtual_as("base * 2")
+                .nullable_with(false)
                 .change();
         })
         .await
         .unwrap();
     assert!(
         !schema
-            .getColumn(name, "twice")
+            .get_column(name, "twice")
             .await
             .unwrap()
             .unwrap()
@@ -3200,31 +3232,31 @@ async fn mysql_current_defaults_override_explicit_values_only_for_supported_type
         return;
     };
     let db = connection(json!({"url": url}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let name = "temporal_current_defaults";
-    schema.dropIfExists(name).await.unwrap();
+    schema.drop_if_exists(name).await.unwrap();
     schema
         .create(name, |table| {
             table.id();
-            table.date("today").useCurrent().default("2000-01-01");
-            table.year("this_year").default(2000).useCurrent();
+            table.date("today").use_current().default("2000-01-01");
+            table.year("this_year").default(2000).use_current();
             table
-                .dateTime("started_at", 3)
+                .date_time("started_at", 3)
                 .default("2000-01-01 00:00:00")
-                .useCurrent();
+                .use_current();
             table
                 .timestamp("touched_at", 6)
-                .useCurrent()
+                .use_current()
                 .default("2000-01-01 00:00:00");
             table
                 .time("start_time", 3)
                 .default("07:08:09.123")
-                .useCurrent();
-            table.integer("counted").useCurrent().default(7);
+                .use_current();
+            table.integer("counted").use_current().default(7);
             table
                 .integer("generated")
-                .virtualAs("counted + 1")
-                .useCurrent();
+                .virtual_as("counted + 1")
+                .use_current();
         })
         .await
         .unwrap();
@@ -3232,7 +3264,7 @@ async fn mysql_current_defaults_override_explicit_values_only_for_supported_type
         .await
         .unwrap();
     let query = || {
-        db.selectOne(
+        db.select_one(
         "select count(*) as matched from temporal_current_defaults where today = curdate() and this_year = year(curdate()) and abs(timestampdiff(second, started_at, now())) < 60 and abs(timestampdiff(second, touched_at, now())) < 60 and start_time = '07:08:09.123' and counted = 7 and `generated` = 8",
         &[],
     )
@@ -3245,13 +3277,13 @@ async fn mysql_current_defaults_override_explicit_values_only_for_supported_type
     schema
         .table(name, |table| {
             table
-                .dateTime("started_at", 3)
-                .useCurrent()
+                .date_time("started_at", 3)
+                .use_current()
                 .default("2000-01-01 00:00:00")
                 .change();
             table
                 .time("start_time", 3)
-                .useCurrent()
+                .use_current()
                 .default("07:08:09.123")
                 .change();
         })
@@ -3274,17 +3306,17 @@ async fn mysql_preserves_zero_and_boundary_column_lengths() {
         return;
     };
     let db = connection(json!({"url": url}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let name = "column_width_edges";
-    schema.dropIfExists(name).await.unwrap();
+    schema.drop_if_exists(name).await.unwrap();
     schema
         .create(name, |table| {
             table.id();
             table.char("optional_flag", 0).nullable();
             table.char("fixed_label", 255);
-            table.binaryWith("payload", 0, true);
-            table.binaryWith("token", 255, true).nullable();
-            table.binaryWith("variable", 511, false).nullable();
+            table.binary_with("payload", 0, true);
+            table.binary_with("token", 255, true).nullable();
+            table.binary_with("variable", 511, false).nullable();
         })
         .await
         .unwrap();
@@ -3297,7 +3329,7 @@ async fn mysql_preserves_zero_and_boundary_column_lengths() {
         ("variable", "varbinary(511)"),
     ] {
         assert_eq!(
-            schema.getColumnType(name, column, true).await.unwrap(),
+            schema.get_column_type(name, column, true).await.unwrap(),
             expected
         );
     }
@@ -3319,7 +3351,7 @@ async fn mysql_preserves_zero_and_boundary_column_lengths() {
         result,
         Err(DatabaseError::InvalidSchema("column length"))
     ));
-    assert!(!schema.hasColumn(name, "not_added").await.unwrap());
+    assert!(!schema.has_column(name, "not_added").await.unwrap());
     schema.drop(name).await.unwrap();
 }
 
@@ -3332,23 +3364,23 @@ async fn mysql_compiles_explicit_temporal_on_update_expressions() {
         return;
     };
     let db = connection(json!({"url": url}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let name = "temporal_update_expression";
     let initial = "2020-01-01 00:00:00";
-    schema.dropIfExists(name).await.unwrap();
+    schema.drop_if_exists(name).await.unwrap();
     schema
         .create(name, |table| {
             table.id();
             table.integer("status");
             table
-                .dateTime("handled_at", 3)
+                .date_time("handled_at", 3)
                 .default(initial)
-                .onUpdate(Expression::new("NOW(3)"));
+                .on_update(Expression::new("NOW(3)"));
             table
                 .timestamp("changed_at", 6)
                 .default(initial)
-                .useCurrentOnUpdate()
-                .onUpdate(Expression::new("unused_expression"));
+                .use_current_on_update()
+                .on_update(Expression::new("unused_expression"));
         })
         .await
         .unwrap();
@@ -3360,14 +3392,14 @@ async fn mysql_compiles_explicit_temporal_on_update_expressions() {
     .await
     .unwrap();
     let timestamps = "select date_format(handled_at, '%Y-%m-%d %H:%i:%s.%f') as handled_at, date_format(changed_at, '%Y-%m-%d %H:%i:%s.%f') as changed_at from temporal_update_expression";
-    let row = db.selectOne(timestamps, &[]).await.unwrap().unwrap();
+    let row = db.select_one(timestamps, &[]).await.unwrap().unwrap();
     for column in ["handled_at", "changed_at"] {
         assert_eq!(row.get(column), Some(&format!("{initial}.000000").into()));
     }
     db.update("update temporal_update_expression set status = 1", &[])
         .await
         .unwrap();
-    let row = db.selectOne(timestamps, &[]).await.unwrap().unwrap();
+    let row = db.select_one(timestamps, &[]).await.unwrap().unwrap();
     for column in ["handled_at", "changed_at"] {
         assert!(
             matches!(row.get(column), Some(Value::Text(value)) if value.len() == 26 && !value.starts_with(initial))
@@ -3377,16 +3409,16 @@ async fn mysql_compiles_explicit_temporal_on_update_expressions() {
     schema
         .table(name, |table| {
             table
-                .dateTime("handled_at", 6)
+                .date_time("handled_at", 6)
                 .default(initial)
-                .onUpdate(Expression::new("CURRENT_TIMESTAMP(6)"))
+                .on_update(Expression::new("CURRENT_TIMESTAMP(6)"))
                 .change();
         })
         .await
         .unwrap();
     assert_eq!(
         schema
-            .getColumnType(name, "handled_at", true)
+            .get_column_type(name, "handled_at", true)
             .await
             .unwrap(),
         "datetime(6)"
@@ -3397,14 +3429,14 @@ async fn mysql_compiles_explicit_temporal_on_update_expressions() {
             table.integer("not_added");
             table
                 .timestamp("bound", 3)
-                .onUpdate(Expression::new("NOW(?)").with_bindings(vec![3.into()]));
+                .on_update(Expression::new("NOW(?)").with_bindings(vec![3.into()]));
         })
         .await;
     assert!(matches!(
         result,
         Err(DatabaseError::InvalidSchema("column on-update expression"))
     ));
-    assert!(!schema.hasColumn(name, "not_added").await.unwrap());
+    assert!(!schema.has_column(name, "not_added").await.unwrap());
     schema.drop(name).await.unwrap();
 }
 
@@ -3415,29 +3447,29 @@ async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_incre
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let name = "composite_increment";
     let alias = "integer_increment_alias";
     for table in [name, alias] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
 
     schema
         .create(name, |table| {
-            table.integer("id").autoIncrement().startingValue(500);
+            table.integer("id").auto_increment().starting_value(500);
             table.integer("tenant_id");
             table.primary(&["id", "tenant_id"], None);
         })
         .await
         .unwrap();
-    let primary = schema.getIndexes(name).await.unwrap();
+    let primary = schema.get_indexes(name).await.unwrap();
     assert_eq!(primary.len(), 1);
     assert!(primary[0].primary);
     assert_eq!(
         primary[0].columns,
         [Some("id".into()), Some("tenant_id".into())]
     );
-    let id = schema.getColumn(name, "id").await.unwrap().unwrap();
+    let id = schema.get_column(name, "id").await.unwrap().unwrap();
     assert_eq!(id.full_type, "int");
     assert!(id.auto_increment);
     db.insert(
@@ -3448,7 +3480,7 @@ async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_incre
     .unwrap();
     assert_eq!(
         db.table(name)
-            .insertGetId(BTreeMap::from([("tenant_id".into(), 1.into())]))
+            .insert_get_id(BTreeMap::from([("tenant_id".into(), 1.into())]))
             .await
             .unwrap(),
         500.into()
@@ -3456,21 +3488,21 @@ async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_incre
 
     schema
         .table(name, |table| {
-            table.bigInteger("id").autoIncrement().change();
+            table.bigInteger("id").auto_increment().change();
         })
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnType(name, "id", true).await.unwrap(),
+        schema.get_column_type(name, "id", true).await.unwrap(),
         "bigint"
     );
     assert_eq!(
-        schema.getIndexes(name).await.unwrap()[0].columns,
+        schema.get_indexes(name).await.unwrap()[0].columns,
         [Some("id".into()), Some("tenant_id".into())]
     );
     assert_eq!(
         db.table(name)
-            .insertGetId(BTreeMap::from([("tenant_id".into(), 1.into())]))
+            .insert_get_id(BTreeMap::from([("tenant_id".into(), 1.into())]))
             .await
             .unwrap(),
         501.into()
@@ -3478,15 +3510,15 @@ async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_incre
 
     schema
         .create(alias, |table| {
-            table.integerIncrements("serial");
+            table.integer_increments("serial");
         })
         .await
         .unwrap();
-    let column = schema.getColumn(alias, "serial").await.unwrap().unwrap();
+    let column = schema.get_column(alias, "serial").await.unwrap().unwrap();
     assert_eq!(column.full_type, "int unsigned");
     assert!(column.primary && column.auto_increment);
     for table in [name, alias] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
 }
 
@@ -3497,8 +3529,8 @@ async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("online_column_ddl").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("online_column_ddl").await.unwrap();
     schema
         .create("online_column_ddl", |table| {
             table.id().from(500);
@@ -3509,7 +3541,7 @@ async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
 
     assert_eq!(
         db.table("online_column_ddl")
-            .insertGetId(BTreeMap::from([("rank".into(), 1.into())]))
+            .insert_get_id(BTreeMap::from([("rank".into(), 1.into())]))
             .await
             .unwrap(),
         500.into()
@@ -3527,7 +3559,10 @@ async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnListing("online_column_ddl").await.unwrap(),
+        schema
+            .get_column_listing("online_column_ddl")
+            .await
+            .unwrap(),
         ["id", "rank", "label", "note"]
     );
 
@@ -3550,20 +3585,20 @@ async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
     );
     assert!(
         !schema
-            .hasColumn("online_column_ddl", "not_added")
+            .has_column("online_column_ddl", "not_added")
             .await
             .unwrap()
     );
 
     schema
         .table("online_column_ddl", |table| {
-            table.id().startingValue(900).change();
+            table.id().starting_value(900).change();
         })
         .await
         .unwrap();
     assert_eq!(
         db.table("online_column_ddl")
-            .insertGetId(BTreeMap::from([("label".into(), "online".into())]))
+            .insert_get_id(BTreeMap::from([("label".into(), "online".into())]))
             .await
             .unwrap(),
         900.into()
@@ -3590,7 +3625,7 @@ async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
 #[tokio::test]
 async fn sqlite_keeps_native_autoincrement_and_rejects_mysql_online_ddl() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("online_column_ddl", |table| {
             table.id().from(500);
@@ -3600,7 +3635,7 @@ async fn sqlite_keeps_native_autoincrement_and_rejects_mysql_online_ddl() {
         .unwrap();
     assert_eq!(
         db.table("online_column_ddl")
-            .insertGetId(BTreeMap::from([("rank".into(), 1.into())]))
+            .insert_get_id(BTreeMap::from([("rank".into(), 1.into())]))
             .await
             .unwrap(),
         1.into()
@@ -3621,24 +3656,27 @@ async fn sqlite_keeps_native_autoincrement_and_rejects_mysql_online_ddl() {
         assert!(matches!(result, Err(DatabaseError::UnsupportedSchema(_))));
     }
     assert_eq!(
-        schema.getColumnListing("online_column_ddl").await.unwrap(),
+        schema
+            .get_column_listing("online_column_ddl")
+            .await
+            .unwrap(),
         ["id", "rank"]
     );
-    assert!(!schema.getColumns("online_column_ddl").await.unwrap()[1].nullable);
+    assert!(!schema.get_columns("online_column_ddl").await.unwrap()[1].nullable);
 }
 
 async fn verify_default_expressions(db: Connection) {
-    use openrust::{database::query::Expression, support::facades::DB};
+    use openrust::{database::query::Expression, support::facades::Db};
 
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("expression_defaults").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("expression_defaults").await.unwrap();
     schema
         .create("expression_defaults", |table| {
             table.id();
-            table.json("movies").default(DB::raw("(JSON_ARRAY())"));
+            table.json("movies").default(Db::raw("(JSON_ARRAY())"));
             table.string("label", 80).default("(40 + 2)");
             table.integer("points").default(Expression::new("(40 + 2)"));
-            table.foreignId("owner_id").default(DB::raw("(1 + 1)"));
+            table.foreign_id("owner_id").default(Db::raw("(1 + 1)"));
         })
         .await
         .unwrap();
@@ -3646,7 +3684,7 @@ async fn verify_default_expressions(db: Connection) {
         .await
         .unwrap();
     let first = db
-        .selectOne("select * from expression_defaults where id = 1", &[])
+        .select_one("select * from expression_defaults where id = 1", &[])
         .await
         .unwrap()
         .unwrap();
@@ -3664,7 +3702,7 @@ async fn verify_default_expressions(db: Connection) {
 
     schema
         .table("expression_defaults", |table| {
-            table.integer("points").default(DB::raw("(6 * 9)")).change();
+            table.integer("points").default(Db::raw("(6 * 9)")).change();
         })
         .await
         .unwrap();
@@ -3679,7 +3717,7 @@ async fn verify_default_expressions(db: Connection) {
     assert_eq!(rows[1].get("points"), Some(&54.into()));
     assert!(
         schema
-            .getColumns("expression_defaults")
+            .get_columns("expression_defaults")
             .await
             .unwrap()
             .iter()
@@ -3689,9 +3727,9 @@ async fn verify_default_expressions(db: Connection) {
     );
 
     for invalid in [
-        DB::raw("(?)").with_bindings(vec![1.into()]),
-        DB::raw(" "),
-        DB::raw("(1\0)"),
+        Db::raw("(?)").with_bindings(vec![1.into()]),
+        Db::raw(" "),
+        Db::raw("(1\0)"),
     ] {
         assert!(matches!(
             schema
@@ -3704,7 +3742,7 @@ async fn verify_default_expressions(db: Connection) {
         ));
         assert!(
             !schema
-                .hasColumn("expression_defaults", "not_added")
+                .has_column("expression_defaults", "not_added")
                 .await
                 .unwrap()
         );
@@ -3727,9 +3765,9 @@ async fn sqlite_evaluates_default_expressions_after_rebuilding_the_table() {
 }
 
 async fn verify_column_groups(db: Connection, mysql: bool) {
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("grouped_columns").await.unwrap();
-    schema.dropIfExists("group_owners").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("grouped_columns").await.unwrap();
+    schema.drop_if_exists("group_owners").await.unwrap();
     schema
         .create("group_owners", |table| {
             table.id();
@@ -3740,20 +3778,20 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
         .create("grouped_columns", |table| {
             table.id();
             table.string("title", 80);
-            table.nullableMorphs("owner", None, None);
-            table.nullableUuidMorphs("image", Some("grouped_image_lookup"), None);
-            table.ulidMorphs("parent", None, None);
+            table.nullable_morphs("owner", None, None);
+            table.nullable_uuid_morphs("image", Some("grouped_image_lookup"), None);
+            table.ulid_morphs("parent", None, None);
             table
-                .foreignId("reviewer_id")
+                .foreign_id("reviewer_id")
                 .nullable()
-                .constrainedOn("group_owners", "id", None);
-            table.rememberToken();
-            table.nullableTimestampsTz();
-            table.softDeletesTz();
+                .constrained_on("group_owners", "id", None);
+            table.remember_token();
+            table.nullable_timestamps_tz();
+            table.soft_deletes_tz();
         })
         .await
         .unwrap();
-    let columns = schema.getColumns("grouped_columns").await.unwrap();
+    let columns = schema.get_columns("grouped_columns").await.unwrap();
     for name in [
         "owner_id",
         "owner_type",
@@ -3791,13 +3829,13 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
     );
     assert!(
         schema
-            .hasIndex("grouped_columns", "grouped_image_lookup")
+            .has_index("grouped_columns", "grouped_image_lookup")
             .await
             .unwrap()
     );
     assert!(
         schema
-            .hasIndex(
+            .has_index(
                 "grouped_columns",
                 "app_grouped_columns_owner_type_owner_id_index"
             )
@@ -3806,7 +3844,7 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
     );
     assert!(
         !schema
-            .getForeignKeys("grouped_columns")
+            .get_foreign_keys("grouped_columns")
             .await
             .unwrap()
             .is_empty()
@@ -3829,12 +3867,12 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
                     table.string("first_extra", 40).nullable();
                     table.string("second_extra", 40).nullable();
                 });
-                table.nullableNumericMorphs("contact", None, Some("second_extra"));
+                table.nullable_numeric_morphs("contact", None, Some("second_extra"));
                 table.integer("at_end").nullable();
             })
             .await
             .unwrap();
-        let listing = schema.getColumnListing("grouped_columns").await.unwrap();
+        let listing = schema.get_column_listing("grouped_columns").await.unwrap();
         assert_eq!(
             &listing[..6],
             [
@@ -3856,22 +3894,22 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
             })
             .await
             .unwrap();
-        let listing = schema.getColumnListing("grouped_columns").await.unwrap();
+        let listing = schema.get_column_listing("grouped_columns").await.unwrap();
         assert_eq!(listing.last().map(String::as_str), Some("first_extra"));
     }
 
     schema
         .table("grouped_columns", |table| {
-            table.dropMorphs("owner", None);
-            table.dropMorphs("image", Some("grouped_image_lookup"));
-            table.dropConstrainedForeignId("reviewer_id");
-            table.dropRememberToken();
-            table.dropTimestampsTz();
-            table.dropSoftDeletesTz(None);
+            table.drop_morphs("owner", None);
+            table.drop_morphs("image", Some("grouped_image_lookup"));
+            table.drop_constrained_foreign_id("reviewer_id");
+            table.drop_remember_token();
+            table.drop_timestamps_tz();
+            table.drop_soft_deletes_tz(None);
         })
         .await
         .unwrap();
-    let listing = schema.getColumnListing("grouped_columns").await.unwrap();
+    let listing = schema.get_column_listing("grouped_columns").await.unwrap();
     for removed in [
         "owner_type",
         "owner_id",
@@ -3887,13 +3925,13 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
     }
     assert!(
         !schema
-            .hasIndex("grouped_columns", "grouped_image_lookup")
+            .has_index("grouped_columns", "grouped_image_lookup")
             .await
             .unwrap()
     );
     assert!(
         !schema
-            .hasIndex(
+            .has_index(
                 "grouped_columns",
                 "app_grouped_columns_owner_type_owner_id_index"
             )
@@ -3902,7 +3940,7 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
     );
     assert!(
         schema
-            .getForeignKeys("grouped_columns")
+            .get_foreign_keys("grouped_columns")
             .await
             .unwrap()
             .is_empty()
@@ -3971,36 +4009,36 @@ mod model_foreign_keys {
     schema_model!(
         AuditOwner,
         ModelMetadata::new("team_people")
-            .primaryKey("owner_no")
-            .uniqueId(UniqueId::Uuid)
-            .uniqueIds(&["external_code"])
+            .primary_key("owner_no")
+            .unique_id(UniqueId::Uuid)
+            .unique_ids(&["external_code"])
     );
     schema_model!(
         AuditPhoto,
         ModelMetadata::new("photo_assets")
-            .primaryKey("photo_code")
-            .uniqueId(UniqueId::Uuid)
+            .primary_key("photo_code")
+            .unique_id(UniqueId::Uuid)
     );
     schema_model!(
         AuditAlbum,
         ModelMetadata::new("media_albums")
-            .primaryKey("album_code")
-            .uniqueId(UniqueId::Ulid)
+            .primary_key("album_code")
+            .unique_id(UniqueId::Ulid)
     );
 
     async fn verify(db: Connection) {
-        let mut schema = db.getSchemaBuilder();
+        let mut schema = db.get_schema_builder();
         for table in [
             "model_attachments",
             "team_people",
             "photo_assets",
             "media_albums",
         ] {
-            schema.dropIfExists(table).await.unwrap();
+            schema.drop_if_exists(table).await.unwrap();
         }
         schema
             .create("team_people", |table| {
-                table.unsignedBigInteger("owner_no").primary();
+                table.unsigned_big_integer("owner_no").primary();
             })
             .await
             .unwrap();
@@ -4020,27 +4058,27 @@ mod model_foreign_keys {
             .create("model_attachments", |table| {
                 table.id();
                 table
-                    .foreignIdFor::<AuditOwner>(None)
+                    .foreign_id_for::<AuditOwner>(None)
                     .nullable()
                     .constrained()
-                    .nullOnDelete();
+                    .null_on_delete();
                 table
-                    .foreignIdFor::<AuditPhoto>(Some("photo_ref"))
+                    .foreign_id_for::<AuditPhoto>(Some("photo_ref"))
                     .constrained();
-                table.foreignIdFor::<AuditAlbum>(None).constrained();
+                table.foreign_id_for::<AuditAlbum>(None).constrained();
                 table
-                    .foreignUuidFor::<AuditPhoto>(Some("previous_photo"))
+                    .foreign_uuid_for::<AuditPhoto>(Some("previous_photo"))
                     .nullable();
                 table
-                    .foreignUlidFor::<AuditAlbum>(Some("previous_album"))
+                    .foreign_ulid_for::<AuditAlbum>(Some("previous_album"))
                     .nullable();
-                table.foreignUuid("external_photo").nullable();
-                table.foreignUlid("external_album").nullable();
+                table.foreign_uuid("external_photo").nullable();
+                table.foreign_ulid("external_album").nullable();
             })
             .await
             .unwrap();
 
-        let foreign = schema.getForeignKeys("model_attachments").await.unwrap();
+        let foreign = schema.get_foreign_keys("model_attachments").await.unwrap();
         for (column, table, key) in [
             ("audit_owner_owner_no", "app_team_people", "owner_no"),
             ("photo_ref", "app_photo_assets", "photo_code"),
@@ -4094,23 +4132,26 @@ mod model_foreign_keys {
 
         schema
             .table("model_attachments", |table| {
-                table.dropConstrainedForeignIdFor::<AuditOwner>(None);
-                table.dropConstrainedForeignIdFor::<AuditPhoto>(Some("photo_ref"));
-                table.dropConstrainedForeignIdFor::<AuditAlbum>(None);
-                table.dropForeignIdFor::<AuditPhoto>(Some("previous_photo"));
-                table.dropForeignIdFor::<AuditAlbum>(Some("previous_album"));
+                table.drop_constrained_foreign_id_for::<AuditOwner>(None);
+                table.drop_constrained_foreign_id_for::<AuditPhoto>(Some("photo_ref"));
+                table.drop_constrained_foreign_id_for::<AuditAlbum>(None);
+                table.drop_foreign_id_for::<AuditPhoto>(Some("previous_photo"));
+                table.drop_foreign_id_for::<AuditAlbum>(Some("previous_album"));
             })
             .await
             .unwrap();
         assert!(
             schema
-                .getForeignKeys("model_attachments")
+                .get_foreign_keys("model_attachments")
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert_eq!(
-            schema.getColumnListing("model_attachments").await.unwrap(),
+            schema
+                .get_column_listing("model_attachments")
+                .await
+                .unwrap(),
             ["id", "external_photo", "external_album"]
         );
         assert_eq!(db.table("model_attachments").count("*").await.unwrap(), 1);
@@ -4143,24 +4184,24 @@ mod model_foreign_keys {
             return;
         };
         let db = connection(json!({"url":url,"prefix":"override_"}));
-        let mut schema = db.getSchemaBuilder();
+        let mut schema = db.get_schema_builder();
         schema
             .create("workspaces", |table| {
                 table.id();
-                table.unsignedBigInteger("code").unique();
+                table.unsigned_big_integer("code").unique();
             })
             .await
             .unwrap();
         schema
             .create("team_people", |table| {
-                table.idWith("owner_no");
-                table.unsignedBigInteger("legacy_no").unique();
+                table.id_with("owner_no");
+                table.unsigned_big_integer("legacy_no").unique();
             })
             .await
             .unwrap();
         schema
             .create("reviewers", |table| {
-                table.idWith("owner_no");
+                table.id_with("owner_no");
             })
             .await
             .unwrap();
@@ -4168,24 +4209,24 @@ mod model_foreign_keys {
             .create("assignments", |table| {
                 table.id();
                 table
-                    .foreignId("workspace_code")
+                    .foreign_id("workspace_code")
                     .nullable()
-                    .constrainedWith(None, Some("code"), Some("assignments_workspace"))
-                    .nullOnDelete();
+                    .constrained_with(None, Some("code"), Some("assignments_workspace"))
+                    .null_on_delete();
                 table
-                    .foreignIdFor::<AuditOwner>(Some("author_ref"))
-                    .constrainedWith(None, None, Some("assignments_author"));
+                    .foreign_id_for::<AuditOwner>(Some("author_ref"))
+                    .constrained_with(None, None, Some("assignments_author"));
                 table
-                    .foreignIdFor::<AuditOwner>(Some("legacy_ref"))
-                    .constrainedWith(None, Some("legacy_no"), Some("assignments_legacy"));
+                    .foreign_id_for::<AuditOwner>(Some("legacy_ref"))
+                    .constrained_with(None, Some("legacy_no"), Some("assignments_legacy"));
                 table
-                    .foreignIdFor::<AuditOwner>(Some("reviewer_ref"))
-                    .constrainedWith(Some("reviewers"), None, Some("assignments_reviewer"));
+                    .foreign_id_for::<AuditOwner>(Some("reviewer_ref"))
+                    .constrained_with(Some("reviewers"), None, Some("assignments_reviewer"));
             })
             .await
             .unwrap();
 
-        let foreign = schema.getForeignKeys("assignments").await.unwrap();
+        let foreign = schema.get_foreign_keys("assignments").await.unwrap();
         assert_eq!(foreign.len(), 4);
         for (name, column, table, key) in [
             (
@@ -4264,21 +4305,21 @@ mod model_foreign_keys {
 }
 
 async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("column_precision").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("column_precision").await.unwrap();
     schema
         .create("column_precision", |table| {
             table.id();
             table.float("default_precision");
-            table.floatWith("single_precision", 24);
-            table.floatWith("double_precision", 25);
-            table.floatWith("native_float", 0).nullable();
+            table.float_with("single_precision", 24);
+            table.float_with("double_precision", 25);
+            table.float_with("native_float", 0).nullable();
             table.double("native_double").nullable();
-            table.rawColumn("priority", "smallint").default(7);
+            table.raw_column("priority", "smallint").default(7);
         })
         .await
         .unwrap();
-    let columns = schema.getColumns("column_precision").await.unwrap();
+    let columns = schema.get_columns("column_precision").await.unwrap();
     let data_type = |name: &str| {
         &columns
             .iter()
@@ -4306,7 +4347,7 @@ async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
     .await
     .unwrap();
     let row = db
-        .selectOne("select * from column_precision", &[])
+        .select_one("select * from column_precision", &[])
         .await
         .unwrap()
         .unwrap();
@@ -4327,7 +4368,7 @@ async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
 
     schema
         .table("column_precision", |table| {
-            table.rawColumn("priority", "bigint").default(9).change();
+            table.raw_column("priority", "bigint").default(9).change();
         })
         .await
         .unwrap();
@@ -4358,7 +4399,7 @@ async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
             schema
                 .table("column_precision", |table| {
                     table.integer("not_added");
-                    table.rawColumn("invalid", definition);
+                    table.raw_column("invalid", definition);
                 })
                 .await,
             Err(DatabaseError::InvalidSchema("raw column definition"))
@@ -4366,7 +4407,7 @@ async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
     }
     assert!(
         !schema
-            .hasColumn("column_precision", "not_added")
+            .has_column("column_precision", "not_added")
             .await
             .unwrap()
     );
@@ -4374,7 +4415,7 @@ async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
         assert!(matches!(
             schema
                 .table("column_precision", |table| {
-                    table.floatWith("invalid_precision", 54);
+                    table.float_with("invalid_precision", 54);
                 })
                 .await,
             Err(DatabaseError::InvalidSchema("floating-point precision"))
@@ -4408,11 +4449,11 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("online_schema").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("online_schema").await.unwrap();
     schema
         .create("online_schema", |table| {
-            table.unsignedBigInteger("id");
+            table.unsigned_big_integer("id");
             table.primary(&["id"], None).algorithm("BTREE");
             table.integer("kept");
             table.integer("first_old").nullable();
@@ -4433,7 +4474,7 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes("online_schema").await.unwrap();
+    let indexes = schema.get_indexes("online_schema").await.unwrap();
     for name in ["primary", "lookup"] {
         assert!(indexes.iter().any(|index| {
             index.name == name
@@ -4447,14 +4488,14 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
     assert!(
         schema
             .table("online_schema", |table| {
-                table.dropColumn(&["first_old", "missing"]).instant();
+                table.drop_column(&["first_old", "missing"]).instant();
             })
             .await
             .is_err()
     );
     assert!(
         schema
-            .hasColumn("online_schema", "first_old")
+            .has_column("online_schema", "first_old")
             .await
             .unwrap()
     );
@@ -4472,14 +4513,14 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
         schema
             .table("online_schema", |table| {
                 table.integer("not_applied");
-                table.dropColumn(&["first_old"]).lock("invalid");
+                table.drop_column(&["first_old"]).lock("invalid");
             })
             .await,
         Err(DatabaseError::InvalidSchema("DDL lock mode"))
     ));
     assert!(
         !schema
-            .hasColumn("online_schema", "not_applied")
+            .has_column("online_schema", "not_applied")
             .await
             .unwrap()
     );
@@ -4487,21 +4528,21 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
     schema
         .table("online_schema", |table| {
             table
-                .dropColumn(&["first_old", "second_old"])
+                .drop_column(&["first_old", "second_old"])
                 .instant()
                 .lock("default");
         })
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnListing("online_schema").await.unwrap(),
+        schema.get_column_listing("online_schema").await.unwrap(),
         ["id", "kept"]
     );
     assert_eq!(
         db.table("online_schema").value("kept").await.unwrap(),
         42.into()
     );
-    schema.dropIfExists("hashed_schema").await.unwrap();
+    schema.drop_if_exists("hashed_schema").await.unwrap();
     schema
         .create("hashed_schema", |table| {
             table.engine("MEMORY");
@@ -4512,7 +4553,7 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes("hashed_schema").await.unwrap();
+    let indexes = schema.get_indexes("hashed_schema").await.unwrap();
     assert!(
         indexes
             .iter()
@@ -4530,8 +4571,8 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("renamed_columns").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("renamed_columns").await.unwrap();
     schema
         .create("renamed_columns", |table| {
             table.id();
@@ -4554,7 +4595,7 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
                 table
                     .string("old label", 60)
                     .nullable()
-                    .renameTo("rank")
+                    .rename_to("rank")
                     .change();
             })
             .await
@@ -4562,7 +4603,7 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
     );
     assert_eq!(
         schema
-            .getColumnType("renamed_columns", "old label", true)
+            .get_column_type("renamed_columns", "old label", true)
             .await
             .unwrap(),
         "varchar(20)"
@@ -4572,14 +4613,14 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
         schema
             .table("renamed_columns", |table| {
                 table.integer("not_applied");
-                table.string("invalid_add", 20).renameTo("still_invalid");
+                table.string("invalid_add", 20).rename_to("still_invalid");
             })
             .await,
         Err(DatabaseError::InvalidSchema("renameTo requires change"))
     ));
     assert!(
         !schema
-            .hasColumn("renamed_columns", "not_applied")
+            .has_column("renamed_columns", "not_applied")
             .await
             .unwrap()
     );
@@ -4590,7 +4631,7 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
                 .string("old label", 60)
                 .nullable()
                 .default("new")
-                .renameTo("new label")
+                .rename_to("new label")
                 .change()
                 .unique();
         })
@@ -4598,18 +4639,18 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
         .unwrap();
     assert_eq!(
         schema
-            .getColumnType("renamed_columns", "new label", true)
+            .get_column_type("renamed_columns", "new label", true)
             .await
             .unwrap(),
         "varchar(60)"
     );
     assert!(
         !schema
-            .hasColumn("renamed_columns", "old label")
+            .has_column("renamed_columns", "old label")
             .await
             .unwrap()
     );
-    let indexes = schema.getIndexes("renamed_columns").await.unwrap();
+    let indexes = schema.get_indexes("renamed_columns").await.unwrap();
     assert!(
         indexes
             .iter()
@@ -4642,19 +4683,22 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
 
     schema
         .table("renamed_columns", |table| {
-            table.string("new label", 20).renameTo("old label").change();
+            table
+                .string("new label", 20)
+                .rename_to("old label")
+                .change();
         })
         .await
         .unwrap();
     assert!(
         !schema
-            .hasColumn("renamed_columns", "new label")
+            .has_column("renamed_columns", "new label")
             .await
             .unwrap()
     );
     assert_eq!(
         schema
-            .getColumnType("renamed_columns", "old label", true)
+            .get_column_type("renamed_columns", "old label", true)
             .await
             .unwrap(),
         "varchar(20)"
@@ -4709,59 +4753,59 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
     let mut read_url = url::Url::parse(&url).unwrap();
     read_url.set_path(&format!("/{alternate}"));
     let db = connection(json!({"url":url,"prefix":"app_","read":{"url":read_url.as_str()}}));
-    let mut schema = db.getSchemaBuilder();
-    let current = db.getDatabaseName();
+    let mut schema = db.get_schema_builder();
+    let current = db.get_database_name();
     let read = db
-        .selectOne("select database() as name", &[])
+        .select_one("select database() as name", &[])
         .await
         .unwrap()
         .unwrap();
     assert_eq!(read.get("name"), Some(&Value::Text(alternate.clone())));
-    assert_eq!(schema.getCurrentSchemaName(), current);
-    assert_eq!(schema.getCurrentSchemaListing(), [current]);
+    assert_eq!(schema.get_current_schema_name(), current);
+    assert_eq!(schema.get_current_schema_listing(), [current]);
     assert_eq!(
         schema
-            .parseSchemaAndTable("catalog_entries", SchemaFallback::None)
+            .parse_schema_and_table("catalog_entries", SchemaFallback::None)
             .unwrap(),
         (None, "catalog_entries")
     );
     assert_eq!(
         schema
-            .parseSchemaAndTable("catalog_entries", SchemaFallback::Current)
+            .parse_schema_and_table("catalog_entries", SchemaFallback::Current)
             .unwrap(),
         (Some(current), "catalog_entries")
     );
     assert_eq!(
         schema
-            .parseSchemaAndTable("catalog_entries", SchemaFallback::Named(&alternate))
+            .parse_schema_and_table("catalog_entries", SchemaFallback::Named(&alternate))
             .unwrap(),
         (Some(alternate.as_str()), "catalog_entries")
     );
     let qualified_logical = format!("{alternate}.catalog_entries");
     assert_eq!(
         schema
-            .parseSchemaAndTable(&qualified_logical, SchemaFallback::Current)
+            .parse_schema_and_table(&qualified_logical, SchemaFallback::Current)
             .unwrap(),
         (Some(alternate.as_str()), "catalog_entries")
     );
-    assert!(schema.hasTable(&qualified_logical).await.unwrap());
+    assert!(schema.has_table(&qualified_logical).await.unwrap());
     for reference in ["", ".catalog_entries", "schema.", "connection.schema.table"] {
         assert!(matches!(
-            schema.parseSchemaAndTable(reference, SchemaFallback::Current),
+            schema.parse_schema_and_table(reference, SchemaFallback::Current),
             Err(DatabaseError::InvalidSchema("table name"))
         ));
         assert!(matches!(
-            schema.hasTable(reference).await,
+            schema.has_table(reference).await,
             Err(DatabaseError::InvalidSchema("table name"))
         ));
     }
     let other = connection(json!({"url": read_url.as_str()}));
     assert_eq!(
-        other.getSchemaBuilder().getCurrentSchemaListing(),
+        other.get_schema_builder().get_current_schema_listing(),
         [alternate.as_str()]
     );
 
-    let schemas = schema.getSchemas().await.unwrap();
+    let schemas = schema.get_schemas().await.unwrap();
     assert!(
         schemas
             .iter()
@@ -4777,21 +4821,21 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
             .iter()
             .any(|entry| entry.name == "information_schema")
     );
-    assert!(schema.hasView("CATALOG_STATUS").await.unwrap());
+    assert!(schema.has_view("CATALOG_STATUS").await.unwrap());
     assert!(
         schema
-            .hasView(&format!("{alternate}.catalog_status"))
+            .has_view(&format!("{alternate}.catalog_status"))
             .await
             .unwrap()
     );
     assert!(
         !schema
-            .hasView(&format!("{alternate}.missing"))
+            .has_view(&format!("{alternate}.missing"))
             .await
             .unwrap()
     );
-    assert!(!schema.hasTable("catalog_status").await.unwrap());
-    let current_views = schema.getViews(Some(current)).await.unwrap();
+    assert!(!schema.has_table("catalog_status").await.unwrap());
+    let current_views = schema.get_views(Some(current)).await.unwrap();
     assert!(current_views.iter().any(|view| {
         view.name == "app_catalog_status"
             && view.schema == current
@@ -4804,7 +4848,7 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
     assert!(!current_views.iter().any(|view| view.schema == alternate));
     assert_eq!(
         schema
-            .getViewsIn(&[current, &alternate])
+            .get_views_in(&[current, &alternate])
             .await
             .unwrap()
             .iter()
@@ -4812,7 +4856,7 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
             .count(),
         2
     );
-    let all_views = schema.getViews(None).await.unwrap();
+    let all_views = schema.get_views(None).await.unwrap();
     assert!(all_views.iter().any(|view| {
         view.schema_qualified_name == qualified
             && view
@@ -4827,13 +4871,13 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
     );
     assert!(
         schema
-            .getViews(Some("missing_catalog"))
+            .get_views(Some("missing_catalog"))
             .await
             .unwrap()
             .is_empty()
     );
 
-    let tables = schema.getTables(None).await.unwrap();
+    let tables = schema.get_tables(None).await.unwrap();
     for database in [current, alternate.as_str()] {
         assert!(tables.iter().any(|info| info.schema_qualified_name
             == format!("{database}.app_catalog_entries")
@@ -4847,7 +4891,7 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
     );
     assert_eq!(
         schema
-            .getTablesIn(&[current, &alternate])
+            .get_tables_in(&[current, &alternate])
             .await
             .unwrap()
             .iter()
@@ -4855,23 +4899,23 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
             .count(),
         2
     );
-    let local = schema.getTables(Some(current)).await.unwrap();
+    let local = schema.get_tables(Some(current)).await.unwrap();
     assert!(local.iter().all(|info| info.schema == current));
     assert!(local.iter().any(|info| info.name == "app_catalog_entries"
         && info.comment.as_deref() == Some("directory fixture")
         && info.engine.as_deref() == Some("InnoDB")));
     assert_eq!(
-        schema.getTableListing(Some(&alternate)).await.unwrap(),
+        schema.get_table_listing(Some(&alternate)).await.unwrap(),
         [format!("{alternate}.app_catalog_entries")]
     );
     assert_eq!(
         schema
-            .getTableListingWith(Some(&alternate), false)
+            .get_table_listing_with(Some(&alternate), false)
             .await
             .unwrap(),
         ["app_catalog_entries"]
     );
-    assert!(schema.getTablesIn(&[]).await.unwrap().is_empty());
+    assert!(schema.get_tables_in(&[]).await.unwrap().is_empty());
     db.statement("drop table app_catalog_entries", &[])
         .await
         .unwrap();
@@ -4882,7 +4926,7 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
     db.statement(&format!("drop database {alternate}"), &[])
         .await
         .unwrap();
-    assert!(!schema.hasView("catalog_status").await.unwrap());
+    assert!(!schema.has_view("catalog_status").await.unwrap());
 }
 
 #[tokio::test]
@@ -4891,10 +4935,10 @@ async fn mysql_schema_column_defaults_are_application_local() {
     impl ServiceProvider for Defaults {
         fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
             Box::pin(async {
-                Schema::defaultStringLength(80)?;
-                Schema::defaultTimePrecision(Some(3))?;
-                assert!(Schema::defaultStringLength(0).is_err());
-                assert!(Schema::defaultTimePrecision(Some(7)).is_err());
+                Schema::default_string_length(80)?;
+                Schema::default_time_precision(Some(3))?;
+                assert!(Schema::default_string_length(0).is_err());
+                assert!(Schema::default_time_precision(Some(7)).is_err());
                 Ok(())
             })
         }
@@ -4921,19 +4965,19 @@ async fn mysql_schema_column_defaults_are_application_local() {
         })
         .unwrap();
         let db = app.database().await.unwrap();
-        let mut schema = db.getSchemaBuilder();
-        schema.dropIfExists(name).await.unwrap();
+        let mut schema = db.get_schema_builder();
+        schema.drop_if_exists(name).await.unwrap();
         schema
             .create(name, |table| {
                 table.id();
                 table.string("label", None);
                 table.char("fixed", None).nullable();
                 table.string("explicit_width", 20).nullable();
-                table.rememberToken();
+                table.remember_token();
                 table.morphs("owner");
                 table.timestamps();
-                table.dateTime("seen_at", 2).nullable();
-                table.softDeletesDatetime(Some("removed_at"), 6);
+                table.date_time("seen_at", 2).nullable();
+                table.soft_deletes_datetime(Some("removed_at"), 6);
             })
             .await
             .unwrap();
@@ -4955,30 +4999,30 @@ async fn mysql_schema_column_defaults_are_application_local() {
             ("removed_at", "datetime(6)".into()),
         ] {
             assert_eq!(
-                schema.getColumnType(name, column, true).await.unwrap(),
+                schema.get_column_type(name, column, true).await.unwrap(),
                 expected
             );
         }
         let group = format!("{name}_dates");
-        schema.dropIfExists(&group).await.unwrap();
+        schema.drop_if_exists(&group).await.unwrap();
         schema
             .create(&group, |table| {
                 table.id();
                 table.datetimes(4);
-                table.softDeletesTzWith(Some("discarded_at"), 5);
+                table.soft_deletes_tz_with(Some("discarded_at"), 5);
             })
             .await
             .unwrap();
         assert_eq!(
             schema
-                .getColumnType(&group, "created_at", true)
+                .get_column_type(&group, "created_at", true)
                 .await
                 .unwrap(),
             "datetime(4)"
         );
         assert_eq!(
             schema
-                .getColumnType(&group, "discarded_at", true)
+                .get_column_type(&group, "discarded_at", true)
                 .await
                 .unwrap(),
             "timestamp(5)"
@@ -5009,9 +5053,9 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
         return;
     };
     let db = connection(json!({"url":url,"prefix":"app_"}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("conditional_items").await.unwrap();
-    schema.dropIfExists("conditional_owners").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("conditional_items").await.unwrap();
+    schema.drop_if_exists("conditional_owners").await.unwrap();
     schema
         .create("conditional_owners", |table| {
             table.id();
@@ -5021,7 +5065,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     schema
         .create("conditional_items", |table| {
             table.id();
-            table.foreignId("owner_id").nullable().constrainedOn(
+            table.foreign_id("owner_id").nullable().constrained_on(
                 "conditional_owners",
                 "id",
                 Some("conditional_owner_fk"),
@@ -5035,18 +5079,18 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
         .unwrap();
 
     schema
-        .whenTableHasColumn("conditional_items", "missing", |_| panic!("column absent"))
+        .when_table_has_column("conditional_items", "missing", |_| panic!("column absent"))
         .await
         .unwrap();
     schema
-        .whenTableHasColumn("conditional_items", "SCORE", |table| {
+        .when_table_has_column("conditional_items", "SCORE", |table| {
             table.integer("score").default(7).change();
         })
         .await
         .unwrap();
     for _ in 0..2 {
         schema
-            .whenTableDoesntHaveColumn("conditional_items", "status", |table| {
+            .when_table_doesnt_have_column("conditional_items", "status", |table| {
                 table.string("status", 16).default("draft");
             })
             .await
@@ -5064,7 +5108,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     let columns = KeySelector::Columns(&["status", "score"]);
     for _ in 0..2 {
         schema
-            .whenTableDoesntHaveIndex(
+            .when_table_doesnt_have_index(
                 "conditional_items",
                 columns,
                 |table| {
@@ -5077,7 +5121,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     }
     assert!(
         schema
-            .hasIndexWith(
+            .has_index_with(
                 "conditional_items",
                 KeySelector::Name("CONDITIONAL_LOOKUP"),
                 Some("BTREE")
@@ -5087,7 +5131,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     );
     assert!(
         schema
-            .hasIndexWith(
+            .has_index_with(
                 "conditional_items",
                 KeySelector::Columns(&["id"]),
                 Some("primary")
@@ -5097,7 +5141,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     );
     assert!(
         !schema
-            .hasIndexWith(
+            .has_index_with(
                 "conditional_items",
                 KeySelector::Columns(&["score", "status"]),
                 None
@@ -5107,7 +5151,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     );
     assert!(
         !schema
-            .hasIndexWith(
+            .has_index_with(
                 "conditional_items",
                 KeySelector::Columns(&["STATUS", "score"]),
                 None
@@ -5116,7 +5160,7 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
             .unwrap()
     );
     schema
-        .whenTableHasIndex(
+        .when_table_has_index(
             "conditional_items",
             columns,
             |_| panic!("wrong index type"),
@@ -5125,11 +5169,11 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
         .await
         .unwrap();
     schema
-        .whenTableHasIndex(
+        .when_table_has_index(
             "conditional_items",
             columns,
             |table| {
-                table.dropUnique("conditional_lookup");
+                table.drop_unique("conditional_lookup");
             },
             Some("unique"),
         )
@@ -5137,14 +5181,14 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
         .unwrap();
     assert!(
         !schema
-            .hasIndexWith("conditional_items", columns, None)
+            .has_index_with("conditional_items", columns, None)
             .await
             .unwrap()
     );
 
     assert!(
         schema
-            .hasForeignKey(
+            .has_foreign_key(
                 "conditional_items",
                 KeySelector::Name("conditional_owner_fk")
             )
@@ -5153,19 +5197,19 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     );
     assert!(
         schema
-            .hasForeignKey("conditional_items", KeySelector::Columns(&["owner_id"]))
+            .has_foreign_key("conditional_items", KeySelector::Columns(&["owner_id"]))
             .await
             .unwrap()
     );
     assert!(
         !schema
-            .hasForeignKey("conditional_items", KeySelector::Columns(&["score"]))
+            .has_foreign_key("conditional_items", KeySelector::Columns(&["score"]))
             .await
             .unwrap()
     );
     assert!(
         schema
-            .whenTableHasColumn("conditional_items", "score", |table| {
+            .when_table_has_column("conditional_items", "score", |table| {
                 table.integer("score");
             })
             .await
@@ -5189,9 +5233,9 @@ async fn postgres_previews_database_ddl_without_using_the_filesystem() {
     let preview = db
         .pretend(|db| {
             Box::pin(async move {
-                let mut schema = db.getSchemaBuilder();
-                assert!(schema.createDatabase("reports\"archive").await?);
-                assert!(schema.dropDatabaseIfExists(&name).await?);
+                let mut schema = db.get_schema_builder();
+                assert!(schema.create_database("reports\"archive").await?);
+                assert!(schema.drop_database_if_exists(&name).await?);
                 Ok(())
             })
         })
@@ -5215,10 +5259,10 @@ async fn mysql_creates_and_drops_explicit_databases_with_connection_defaults() {
     let db = connection(
         json!({"url":url,"charset":"utf8mb4","collation":"utf8mb4_bin","prefix":"app_"}),
     );
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let name = format!("schema-life-{:x}", fastrand::u64(..));
-    assert!(schema.createDatabase(&name).await.unwrap());
-    let row = db.selectOne(
+    assert!(schema.create_database(&name).await.unwrap());
+    let row = db.select_one(
         "select default_character_set_name as charset, default_collation_name as collation from information_schema.schemata where schema_name = ?",
         &[name.as_str().into()],
     ).await.unwrap().unwrap();
@@ -5232,19 +5276,25 @@ async fn mysql_creates_and_drops_explicit_databases_with_connection_defaults() {
         .statement("create table retained (id int primary key)", &[])
         .await
         .unwrap();
-    assert!(schema.createDatabase(&name).await.is_err());
-    assert!(child.getSchemaBuilder().hasTable("retained").await.unwrap());
+    assert!(schema.create_database(&name).await.is_err());
+    assert!(
+        child
+            .get_schema_builder()
+            .has_table("retained")
+            .await
+            .unwrap()
+    );
     drop(child);
 
     for _ in 0..2 {
-        assert!(schema.dropDatabaseIfExists(&name).await.unwrap());
+        assert!(schema.drop_database_if_exists(&name).await.unwrap());
     }
-    let schemas = schema.getSchemas().await.unwrap();
+    let schemas = schema.get_schemas().await.unwrap();
     assert!(!schemas.iter().any(|schema| schema.name == name));
     assert!(
         schemas
             .iter()
-            .any(|schema| schema.name == db.getDatabaseName() && schema.default)
+            .any(|schema| schema.name == db.get_database_name() && schema.default)
     );
 }
 
@@ -5254,19 +5304,19 @@ async fn sqlite_database_files_are_created_without_overwriting_existing_data() {
     let path = directory.path().join("schema.sqlite");
     let name = path.to_str().unwrap();
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
-    assert!(schema.createDatabase(name).await.unwrap());
+    let mut schema = db.get_schema_builder();
+    assert!(schema.create_database(name).await.unwrap());
     assert_eq!(tokio::fs::read(&path).await.unwrap(), b"");
     tokio::fs::write(&path, b"retained").await.unwrap();
     assert!(matches!(
-        schema.createDatabase(name).await,
+        schema.create_database(name).await,
         Err(DatabaseError::SchemaIo(_))
     ));
     assert_eq!(tokio::fs::read(&path).await.unwrap(), b"retained");
-    assert!(schema.dropDatabaseIfExists(name).await.unwrap());
-    assert!(schema.dropDatabaseIfExists(name).await.unwrap());
+    assert!(schema.drop_database_if_exists(name).await.unwrap());
+    assert!(schema.drop_database_if_exists(name).await.unwrap());
     assert!(!path.exists());
-    assert!(schema.createDatabase(":memory:").await.is_err());
+    assert!(schema.create_database(":memory:").await.is_err());
 }
 
 #[tokio::test]
@@ -5278,8 +5328,8 @@ async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema()
     let admin = connection(json!({"url":url}));
     let name = format!("schema_drop_{:x}", fastrand::u64(..));
     admin
-        .getSchemaBuilder()
-        .createDatabase(&name)
+        .get_schema_builder()
+        .create_database(&name)
         .await
         .unwrap();
     let mut target = url::Url::parse(&url).unwrap();
@@ -5287,7 +5337,7 @@ async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema()
     let db = connection(
         json!({"url":target.as_str(),"read":{"url":url},"max_connections":1,"prefix":"app_"}),
     );
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
 
     admin
         .statement(
@@ -5311,9 +5361,9 @@ async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema()
     )
     .await
     .unwrap();
-    schema.dropAllViews().await.unwrap();
-    assert!(!schema.hasView("report").await.unwrap());
-    assert!(schema.hasTable("child").await.unwrap());
+    schema.drop_all_views().await.unwrap();
+    assert!(!schema.has_view("report").await.unwrap());
+    assert!(schema.has_table("child").await.unwrap());
 
     db.statement(
         "create view app_report as select id from unprefixed_parent",
@@ -5322,33 +5372,33 @@ async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema()
     .await
     .unwrap();
     for _ in 0..2 {
-        schema.dropAllTables().await.unwrap();
+        schema.drop_all_tables().await.unwrap();
     }
-    assert!(schema.getTables(Some(&name)).await.unwrap().is_empty());
-    assert!(schema.hasView("report").await.unwrap());
+    assert!(schema.get_tables(Some(&name)).await.unwrap().is_empty());
+    assert!(schema.has_view("report").await.unwrap());
     assert!(
         admin
-            .getSchemaBuilder()
-            .hasTable("bulk_drop_sentinel")
+            .get_schema_builder()
+            .has_table("bulk_drop_sentinel")
             .await
             .unwrap()
     );
 
     let checks = db
-        .selectFromWriteConnection("select @@foreign_key_checks as checks_enabled", &[])
+        .select_from_write_connection("select @@foreign_key_checks as checks_enabled", &[])
         .await
         .unwrap();
     assert!(matches!(
         checks[0].get("checks_enabled"),
         Some(Value::Integer(1) | Value::Unsigned(1) | Value::Bool(true))
     ));
-    schema.dropAllViews().await.unwrap();
-    assert!(schema.getViews(Some(&name)).await.unwrap().is_empty());
+    schema.drop_all_views().await.unwrap();
+    assert!(schema.get_views(Some(&name)).await.unwrap().is_empty());
     drop(schema);
     drop(db);
     admin
-        .getSchemaBuilder()
-        .dropDatabaseIfExists(&name)
+        .get_schema_builder()
+        .drop_database_if_exists(&name)
         .await
         .unwrap();
     admin
@@ -5360,7 +5410,7 @@ async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema()
 #[tokio::test]
 async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
     let db = connection(json!({"driver":"sqlite","database":":memory:","max_connections":1}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     db.statement("attach database ':memory:' as retained", &[])
         .await
         .unwrap();
@@ -5376,27 +5426,27 @@ async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
     db.statement("create view local_view as select id from local_row", &[])
         .await
         .unwrap();
-    assert_eq!(schema.getCurrentSchemaName(), "main");
-    assert_eq!(schema.getCurrentSchemaListing(), ["main"]);
+    assert_eq!(schema.get_current_schema_name(), "main");
+    assert_eq!(schema.get_current_schema_listing(), ["main"]);
     assert_eq!(
         schema
-            .parseSchemaAndTable("sentinel", SchemaFallback::Current)
+            .parse_schema_and_table("sentinel", SchemaFallback::Current)
             .unwrap(),
         (Some("main"), "sentinel")
     );
     assert_eq!(
         schema
-            .parseSchemaAndTable("retained.sentinel", SchemaFallback::Current)
+            .parse_schema_and_table("retained.sentinel", SchemaFallback::Current)
             .unwrap(),
         (Some("retained"), "sentinel")
     );
-    schema.dropAllTables().await.unwrap();
-    assert!(!schema.hasTable("local_row").await.unwrap());
-    assert!(schema.hasView("local_view").await.unwrap());
-    assert!(schema.hasTable("retained.sentinel").await.unwrap());
-    schema.dropAllViews().await.unwrap();
-    assert!(!schema.hasView("local_view").await.unwrap());
-    assert!(schema.hasTable("retained.sentinel").await.unwrap());
+    schema.drop_all_tables().await.unwrap();
+    assert!(!schema.has_table("local_row").await.unwrap());
+    assert!(schema.has_view("local_view").await.unwrap());
+    assert!(schema.has_table("retained.sentinel").await.unwrap());
+    schema.drop_all_views().await.unwrap();
+    assert!(!schema.has_view("local_view").await.unwrap());
+    assert!(schema.has_table("retained.sentinel").await.unwrap());
 }
 
 #[tokio::test]
@@ -5406,39 +5456,39 @@ async fn mysql_manages_raw_expression_indexes() {
         return;
     };
     let db = connection(json!({"url":url,"prefix":"app_"}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("raw_index_labels").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("raw_index_labels").await.unwrap();
     schema
         .create("raw_index_labels", |table| {
             table.id();
             table.string("label", 50);
             table
-                .rawIndex("(lower(label))", "label_folded")
+                .raw_index("(lower(label))", "label_folded")
                 .algorithm("btree");
         })
         .await
         .unwrap();
     assert!(
         schema
-            .hasIndex("raw_index_labels", "label_folded")
+            .has_index("raw_index_labels", "label_folded")
             .await
             .unwrap()
     );
     schema
         .table("raw_index_labels", |table| {
-            table.dropIndex("label_folded");
-            table.rawIndex("(lower(label)), id", "label_folded_id");
+            table.drop_index("label_folded");
+            table.raw_index("(lower(label)), id", "label_folded_id");
         })
         .await
         .unwrap();
     assert!(
         !schema
-            .hasIndex("raw_index_labels", "label_folded")
+            .has_index("raw_index_labels", "label_folded")
             .await
             .unwrap()
     );
     let index = schema
-        .getIndexes("raw_index_labels")
+        .get_indexes("raw_index_labels")
         .await
         .unwrap()
         .into_iter()
@@ -5473,7 +5523,7 @@ async fn mysql_manages_raw_expression_indexes() {
             schema
                 .table("raw_index_labels", |table| {
                     table.integer("not_added");
-                    table.rawIndex(invalid, "invalid_label_idx");
+                    table.raw_index(invalid, "invalid_label_idx");
                 })
                 .await,
             Err(DatabaseError::InvalidSchema("raw index expression"))
@@ -5481,7 +5531,7 @@ async fn mysql_manages_raw_expression_indexes() {
     }
     assert!(
         !schema
-            .hasColumn("raw_index_labels", "not_added")
+            .has_column("raw_index_labels", "not_added")
             .await
             .unwrap()
     );
@@ -5491,12 +5541,12 @@ async fn mysql_manages_raw_expression_indexes() {
 #[tokio::test]
 async fn sqlite_preserves_raw_expression_indexes_during_table_rebuild() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("raw_index_labels", |table| {
             table.id();
             table.string("label", 50);
-            table.rawIndex("lower(label)", "label_folded");
+            table.raw_index("lower(label)", "label_folded");
         })
         .await
         .unwrap();
@@ -5507,7 +5557,7 @@ async fn sqlite_preserves_raw_expression_indexes_during_table_rebuild() {
         .await
         .unwrap();
     assert_eq!(
-        schema.getIndexListing("raw_index_labels").await.unwrap(),
+        schema.get_index_listing("raw_index_labels").await.unwrap(),
         ["label_folded", "primary"]
     );
     let plan = db
@@ -5529,8 +5579,11 @@ async fn mysql_drops_columns_through_the_named_schema_builder() {
         return;
     };
     let db = connection(json!({"url":url,"prefix":"app_"}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("drop_columns_shortcut").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema
+        .drop_if_exists("drop_columns_shortcut")
+        .await
+        .unwrap();
     schema
         .create("drop_columns_shortcut", |table| {
             table.id();
@@ -5539,23 +5592,23 @@ async fn mysql_drops_columns_through_the_named_schema_builder() {
         })
         .await
         .unwrap();
-    let target = format!("{}.drop_columns_shortcut", schema.getCurrentSchemaName());
+    let target = format!("{}.drop_columns_shortcut", schema.get_current_schema_name());
     assert!(
         schema
-            .dropColumns(&target, &["retired", "absent"])
+            .drop_columns(&target, &["retired", "absent"])
             .await
             .is_err()
     );
-    assert!(schema.hasColumn(&target, "retired").await.unwrap());
+    assert!(schema.has_column(&target, "retired").await.unwrap());
     assert!(matches!(
-        schema.dropColumns(&target, &[]).await,
+        schema.drop_columns(&target, &[]).await,
         Err(DatabaseError::InvalidSchema("empty column list"))
     ));
     schema
-        .dropColumns(&target, &["retired", "old label"])
+        .drop_columns(&target, &["retired", "old label"])
         .await
         .unwrap();
-    assert_eq!(schema.getColumnListing(&target).await.unwrap(), ["id"]);
+    assert_eq!(schema.get_column_listing(&target).await.unwrap(), ["id"]);
     schema.drop(&target).await.unwrap();
 }
 
@@ -5566,10 +5619,10 @@ async fn mysql_drops_conventionally_named_indexes_by_ordered_columns() {
         return;
     };
     let db = connection(json!({"url":url,"prefix":"app_","prefix_indexes":true}));
-    let mut schema = db.getSchemaBuilder();
-    let database = schema.getCurrentSchemaName().to_owned();
+    let mut schema = db.get_schema_builder();
+    let database = schema.get_current_schema_name().to_owned();
     let table_name = format!("{database}.column_indexes");
-    schema.dropIfExists(&table_name).await.unwrap();
+    schema.drop_if_exists(&table_name).await.unwrap();
     schema
         .create(&table_name, |table| {
             table.id();
@@ -5580,13 +5633,13 @@ async fn mysql_drops_conventionally_named_indexes_by_ordered_columns() {
             table.index(&["label", "rank"], None);
             table.index(&["label", "rank"], Some("named_index"));
             table.unique(&["label", "rank"], None);
-            table.fullText(&["body"], None);
-            table.spatialIndex(&["location"], None);
+            table.full_text(&["body"], None);
+            table.spatial_index(&["location"], None);
         })
         .await
         .unwrap();
     let expected = |suffix| format!("{database}_app_column_indexes_{suffix}");
-    let before = schema.getIndexListing(&table_name).await.unwrap();
+    let before = schema.get_index_listing(&table_name).await.unwrap();
     for suffix in [
         "label_rank_index",
         "label_rank_unique",
@@ -5598,28 +5651,28 @@ async fn mysql_drops_conventionally_named_indexes_by_ordered_columns() {
     assert!(
         schema
             .table(&table_name, |table| table
-                .dropIndexColumns(&["rank", "label"]))
+                .drop_index_columns(&["rank", "label"]))
             .await
             .is_err()
     );
-    assert_eq!(schema.getIndexListing(&table_name).await.unwrap(), before);
+    assert_eq!(schema.get_index_listing(&table_name).await.unwrap(), before);
     assert!(matches!(
         schema
-            .table(&table_name, |table| table.dropIndexColumns(&[]))
+            .table(&table_name, |table| table.drop_index_columns(&[]))
             .await,
         Err(DatabaseError::InvalidSchema("empty column list"))
     ));
     schema
         .table(&table_name, |table| {
-            table.dropIndexColumns(&["label", "rank"]);
-            table.dropUniqueColumns(&["label", "rank"]);
-            table.dropFullTextColumns(&["body"]);
-            table.dropSpatialIndexColumns(&["location"]);
+            table.drop_index_columns(&["label", "rank"]);
+            table.drop_unique_columns(&["label", "rank"]);
+            table.drop_full_text_columns(&["body"]);
+            table.drop_spatial_index_columns(&["location"]);
         })
         .await
         .unwrap();
     assert_eq!(
-        schema.getIndexListing(&table_name).await.unwrap(),
+        schema.get_index_listing(&table_name).await.unwrap(),
         ["named_index", "primary"]
     );
     schema.drop(&table_name).await.unwrap();
@@ -5637,7 +5690,7 @@ async fn sqlite_json_declarations_follow_independent_connection_options() {
             "driver": "sqlite", "database": ":memory:",
             "use_native_json": json, "use_native_jsonb": jsonb,
         }));
-        let mut schema = db.getSchemaBuilder();
+        let mut schema = db.get_schema_builder();
         schema
             .create("documents", |table| {
                 table.json("document");
@@ -5653,7 +5706,7 @@ async fn sqlite_json_declarations_follow_independent_connection_options() {
         for (column, expected) in ["document", "snapshot"].into_iter().zip(expected) {
             assert_eq!(
                 schema
-                    .getColumnType("documents", column, true)
+                    .get_column_type("documents", column, true)
                     .await
                     .unwrap(),
                 expected
@@ -5666,7 +5719,7 @@ async fn sqlite_json_declarations_follow_independent_connection_options() {
         .await
         .unwrap();
         let row = db
-            .selectOne("select json_extract(document, '$.version') as current_version, json_extract(snapshot, '$.version') as snapshot_version, typeof(snapshot) as storage from documents", &[])
+            .select_one("select json_extract(document, '$.version') as current_version, json_extract(snapshot, '$.version') as snapshot_version, typeof(snapshot) as storage from documents", &[])
             .await
             .unwrap()
             .unwrap();
@@ -5683,8 +5736,8 @@ async fn mysql_declares_json_and_jsonb_as_native_json() {
         return;
     };
     let db = connection(json!({"url": url}));
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("schema_json_types").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("schema_json_types").await.unwrap();
     schema
         .create("schema_json_types", |table| {
             table.json("document");
@@ -5695,7 +5748,7 @@ async fn mysql_declares_json_and_jsonb_as_native_json() {
     for column in ["document", "snapshot"] {
         assert_eq!(
             schema
-                .getColumnType("schema_json_types", column, true)
+                .get_column_type("schema_json_types", column, true)
                 .await
                 .unwrap(),
             "json"
@@ -5725,37 +5778,37 @@ async fn mysql_edits_pending_blueprint_columns_and_creates_named_ids() {
         return;
     };
     let db = connection(json!({"url": url, "prefix": "app_", "prefix_indexes": true}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let table_name = "blueprint_items";
-    schema.dropIfExists(table_name).await.unwrap();
+    schema.drop_if_exists(table_name).await.unwrap();
     schema
         .create(table_name, |table| {
-            table.idWith("item_id").startingValue(10);
+            table.id_with("item_id").starting_value(10);
             table.string("label", 32);
             table.integer("pending").unique();
             table.string("pending", 32);
-            table.removeColumn("pending").removeColumn("unknown");
+            table.remove_column("pending").remove_column("unknown");
             table.index(&["label"], Some("blueprint_label"));
         })
         .await
         .unwrap();
     let key = schema
-        .getColumn(table_name, "item_id")
+        .get_column(table_name, "item_id")
         .await
         .unwrap()
         .unwrap();
     assert_eq!(key.full_type, "bigint unsigned");
     assert!(key.primary && key.auto_increment);
-    assert!(!schema.hasColumn(table_name, "pending").await.unwrap());
+    assert!(!schema.has_column(table_name, "pending").await.unwrap());
     assert!(
         schema
-            .hasIndex(table_name, "blueprint_label")
+            .has_index(table_name, "blueprint_label")
             .await
             .unwrap()
     );
     assert!(
         !schema
-            .hasIndex(table_name, "app_blueprint_items_pending_unique")
+            .has_index(table_name, "app_blueprint_items_pending_unique")
             .await
             .unwrap()
     );
@@ -5773,13 +5826,13 @@ async fn mysql_edits_pending_blueprint_columns_and_creates_named_ids() {
     schema
         .table(table_name, |table| {
             table.integer("label").change();
-            table.removeColumn("label").integer("rank").default(1);
+            table.remove_column("label").integer("rank").default(1);
         })
         .await
         .unwrap();
     assert_eq!(
         schema
-            .getColumnType(table_name, "label", true)
+            .get_column_type(table_name, "label", true)
             .await
             .unwrap(),
         "varchar(32)"
@@ -5800,7 +5853,7 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
     use openrust::database::schema::KeySelector;
 
     let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("events", |table| {
             table.integer("sequence");
@@ -5810,7 +5863,7 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes("main.events").await.unwrap();
+    let indexes = schema.get_indexes("main.events").await.unwrap();
     let native_primary = indexes.iter().find(|index| index.primary).unwrap();
     assert_eq!(native_primary.name, "sqlite_autoindex_app_events_1");
     assert_eq!(
@@ -5820,7 +5873,7 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
     assert!(native_primary.unique);
     assert!(
         schema
-            .hasIndexWith("events", KeySelector::Name("primary"), Some("primary"))
+            .has_index_with("events", KeySelector::Name("primary"), Some("primary"))
             .await
             .unwrap()
     );
@@ -5829,7 +5882,7 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
         && index.columns == [Some("sequence".into())]));
 
     schema
-        .table("events", |table| table.dropIndex("primary"))
+        .table("events", |table| table.drop_index("primary"))
         .await
         .unwrap();
     schema
@@ -5840,7 +5893,7 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
         })
         .await
         .unwrap();
-    let indexes = schema.getIndexes("deliveries").await.unwrap();
+    let indexes = schema.get_indexes("deliveries").await.unwrap();
     assert_eq!(indexes.len(), 2);
     assert!(indexes.iter().all(|index| index.name == "primary"));
     assert!(
@@ -5851,7 +5904,7 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
     assert!(indexes.iter().any(|index| !index.primary
         && !index.unique
         && index.columns == [Some("sequence".into())]));
-    assert!(schema.getIndexes("missing").await.unwrap().is_empty());
+    assert!(schema.get_indexes("missing").await.unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -5870,14 +5923,14 @@ async fn sqlite_reports_base_types_and_primary_key_storage_behavior() {
     )
     .await
     .unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     for (name, expected, full) in [
         ("title", "varchar", "varchar(32)"),
         ("total", "decimal", "decimal(8,2)"),
         ("untyped", "", ""),
     ] {
         let column = schema
-            .getColumn("generated_ids", name)
+            .get_column("generated_ids", name)
             .await
             .unwrap()
             .unwrap();
@@ -5885,14 +5938,14 @@ async fn sqlite_reports_base_types_and_primary_key_storage_behavior() {
         assert_eq!(column.full_type, full);
         assert_eq!(
             schema
-                .getColumnType("generated_ids", name, false)
+                .get_column_type("generated_ids", name, false)
                 .await
                 .unwrap(),
             expected
         );
         assert_eq!(
             schema
-                .getColumnType("generated_ids", name, true)
+                .get_column_type("generated_ids", name, true)
                 .await
                 .unwrap(),
             full
@@ -5906,7 +5959,7 @@ async fn sqlite_reports_base_types_and_primary_key_storage_behavior() {
         ("descending_ids", "id", false, true),
         ("separate_ids", "id", false, false),
     ] {
-        let column = schema.getColumn(table, name).await.unwrap().unwrap();
+        let column = schema.get_column(table, name).await.unwrap().unwrap();
         assert!(column.primary, "{table}.{name}");
         assert_eq!(column.auto_increment, auto_increment, "{table}.{name}");
         assert_eq!(column.nullable, nullable, "{table}.{name}");
@@ -5939,7 +5992,7 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
     use openrust::database::schema::KeySelector;
 
     let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
-    let mut session = db.getSchemaBuilder().session().await.unwrap();
+    let mut session = db.get_schema_builder().session().await.unwrap();
     for statement in [
         "attach database ':memory:' as warehouse",
         "create table warehouse.app_single (id integer primary key)",
@@ -5987,8 +6040,8 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
             .is_err()
     );
 
-    let mut schema = session.getSchemaBuilder();
-    let keys = schema.getForeignKeys("warehouse.child").await.unwrap();
+    let mut schema = session.get_schema_builder();
+    let keys = schema.get_foreign_keys("warehouse.child").await.unwrap();
     assert_eq!(keys.len(), children.len() + 1);
     assert!(
         keys.iter().all(|key| {
@@ -6008,7 +6061,7 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
     }
     assert!(
         schema
-            .hasForeignKey(
+            .has_foreign_key(
                 "warehouse.child",
                 KeySelector::Columns(&["tenant", "number"])
             )
@@ -6017,7 +6070,7 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
     );
     assert!(
         !schema
-            .hasForeignKey(
+            .has_foreign_key(
                 "warehouse.child",
                 KeySelector::Columns(&["number", "tenant"])
             )
@@ -6026,7 +6079,7 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
     );
     assert!(
         schema
-            .getForeignKeys("main.child")
+            .get_foreign_keys("main.child")
             .await
             .unwrap()
             .is_empty()
@@ -6042,54 +6095,54 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
 async fn verify_blueprint_context(db: Connection, table_ref: &str) {
     use openrust::database::schema::ColumnDefinition;
 
-    assert_eq!(db.getTablePrefix(), "app_");
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists(table_ref).await.unwrap();
+    assert_eq!(db.get_table_prefix(), "app_");
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists(table_ref).await.unwrap();
     schema
         .create(table_ref, |table| {
-            assert_eq!(table.getTable(), table_ref);
-            assert_eq!(table.getPrefix(), "app_");
+            assert_eq!(table.get_table(), table_ref);
+            assert_eq!(table.get_prefix(), "app_");
             assert!(table.creating());
-            assert_eq!(table.getColumns().count(), 0);
+            assert_eq!(table.get_columns().count(), 0);
             table.id();
             table.string("code", 16);
             table.string("transient", 20);
-            table.removeColumn("transient");
+            table.remove_column("transient");
             table.index(&["code"], Some("blueprint_context_code"));
             assert_eq!(
                 table
-                    .getAddedColumns()
+                    .get_added_columns()
                     .map(ColumnDefinition::get_name)
                     .collect::<Vec<_>>(),
                 ["id", "code"]
             );
-            assert_eq!(table.getChangedColumns().count(), 0);
+            assert_eq!(table.get_changed_columns().count(), 0);
         })
         .await
         .unwrap();
     schema
-        .whenTableHasColumn(table_ref, "code", |table| {
-            assert_eq!(table.getTable(), table_ref);
-            assert_eq!(table.getPrefix(), "app_");
+        .when_table_has_column(table_ref, "code", |table| {
+            assert_eq!(table.get_table(), table_ref);
+            assert_eq!(table.get_prefix(), "app_");
             assert!(!table.creating());
             table.string("code", 32).nullable().change();
             table.integer("quantity").default(0);
             assert_eq!(
                 table
-                    .getColumns()
+                    .get_columns()
                     .map(ColumnDefinition::get_name)
                     .collect::<Vec<_>>(),
                 ["code", "quantity"]
             );
             assert!(
                 table
-                    .getChangedColumns()
+                    .get_changed_columns()
                     .map(ColumnDefinition::get_name)
                     .eq(["code"])
             );
             assert!(
                 table
-                    .getAddedColumns()
+                    .get_added_columns()
                     .map(ColumnDefinition::get_name)
                     .eq(["quantity"])
             );
@@ -6097,12 +6150,12 @@ async fn verify_blueprint_context(db: Connection, table_ref: &str) {
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnListing(table_ref).await.unwrap(),
+        schema.get_column_listing(table_ref).await.unwrap(),
         ["id", "code", "quantity"]
     );
     assert!(
         schema
-            .getColumn(table_ref, "code")
+            .get_column(table_ref, "code")
             .await
             .unwrap()
             .unwrap()
@@ -6110,7 +6163,7 @@ async fn verify_blueprint_context(db: Connection, table_ref: &str) {
     );
     assert!(
         schema
-            .hasIndex(table_ref, "blueprint_context_code")
+            .has_index(table_ref, "blueprint_context_code")
             .await
             .unwrap()
     );
@@ -6130,18 +6183,18 @@ async fn mysql_exposes_blueprint_context_for_creation_and_conditional_alter() {
         return;
     };
     let db = connection(json!({"url": url, "prefix": "app_"}));
-    let table = format!("{}.blueprint_context", db.getDatabaseName());
+    let table = format!("{}.blueprint_context", db.get_database_name());
     verify_blueprint_context(db, &table).await;
 }
 
 #[tokio::test]
 async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
     let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     {
-        let mut schema = tx.getSchemaBuilder();
-        schema.blueprintResolver(|table| {
-            assert_eq!(table.getPrefix(), "app_");
+        let mut schema = tx.get_schema_builder();
+        schema.blueprint_resolver(|table| {
+            assert_eq!(table.get_prefix(), "app_");
             if table.creating() {
                 table.id();
             }
@@ -6149,10 +6202,10 @@ async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
         });
         schema
             .create("resolved", |table| {
-                assert_eq!(table.getTable(), "resolved");
+                assert_eq!(table.get_table(), "resolved");
                 assert!(
                     table
-                        .getAddedColumns()
+                        .get_added_columns()
                         .any(|c| c.get_name() == "from_resolver")
                 );
                 table.string("from_callback", 16);
@@ -6160,18 +6213,18 @@ async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
             .await
             .unwrap();
         assert_eq!(
-            schema.getColumnListing("resolved").await.unwrap(),
+            schema.get_column_listing("resolved").await.unwrap(),
             ["id", "from_resolver", "from_callback"]
         );
-        schema.blueprintResolver(|table| {
+        schema.blueprint_resolver(|table| {
             assert!(!table.creating());
             table.integer("updated_resolver").default(1);
         });
         schema
-            .whenTableHasColumn("resolved", "from_callback", |table| {
+            .when_table_has_column("resolved", "from_callback", |table| {
                 assert!(
                     table
-                        .getAddedColumns()
+                        .get_added_columns()
                         .any(|c| c.get_name() == "updated_resolver")
                 );
                 table.integer("quantity").default(0);
@@ -6180,26 +6233,26 @@ async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
             .unwrap();
     }
     {
-        let mut fresh = tx.getSchemaBuilder();
+        let mut fresh = tx.get_schema_builder();
         assert!(
             fresh
-                .hasColumn("resolved", "updated_resolver")
+                .has_column("resolved", "updated_resolver")
                 .await
                 .unwrap()
         );
         fresh
             .create("fresh", |table| {
-                assert_eq!(table.getColumns().count(), 0);
+                assert_eq!(table.get_columns().count(), 0);
                 table.id();
             })
             .await
             .unwrap();
-        assert_eq!(fresh.getColumnListing("fresh").await.unwrap(), ["id"]);
+        assert_eq!(fresh.get_column_listing("fresh").await.unwrap(), ["id"]);
     }
-    tx.rollBack(None).await.unwrap();
-    let mut schema = db.getSchemaBuilder();
-    assert!(!schema.hasTable("resolved").await.unwrap());
-    assert!(!schema.hasTable("fresh").await.unwrap());
+    tx.roll_back(None).await.unwrap();
+    let mut schema = db.get_schema_builder();
+    assert!(!schema.has_table("resolved").await.unwrap());
+    assert!(!schema.has_table("fresh").await.unwrap());
 }
 
 #[tokio::test]
@@ -6211,17 +6264,17 @@ async fn mysql_resolves_blueprints_in_preview_and_real_ddl() {
     let db = connection(json!({"url": url, "prefix": "app_"}));
     let configure = |table: &mut openrust::database::schema::Blueprint| {
         assert!(table.creating());
-        assert_eq!(table.getPrefix(), "app_");
+        assert_eq!(table.get_prefix(), "app_");
         table.id();
         table.string("external_ref", 32);
     };
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("resolver_probe").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists("resolver_probe").await.unwrap();
     let preview = db
         .pretend(|connection| {
             Box::pin(async move {
-                let mut builder = connection.getSchemaBuilder();
-                builder.blueprintResolver(configure);
+                let mut builder = connection.get_schema_builder();
+                builder.blueprint_resolver(configure);
                 builder.create("resolver_probe", |_| {}).await
             })
         })
@@ -6230,12 +6283,12 @@ async fn mysql_resolves_blueprints_in_preview_and_real_ddl() {
     assert_eq!(preview.len(), 1);
     assert!(preview[0].query.contains("`app_resolver_probe`"));
     assert!(preview[0].query.contains("`external_ref` varchar(32)"));
-    assert!(!schema.hasTable("resolver_probe").await.unwrap());
+    assert!(!schema.has_table("resolver_probe").await.unwrap());
 
-    schema.blueprintResolver(configure);
+    schema.blueprint_resolver(configure);
     schema.create("resolver_probe", |_| {}).await.unwrap();
     assert_eq!(
-        schema.getColumnListing("resolver_probe").await.unwrap(),
+        schema.get_column_listing("resolver_probe").await.unwrap(),
         ["id", "external_ref"]
     );
     schema.drop("resolver_probe").await.unwrap();
@@ -6249,7 +6302,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
     let queries = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("tenant.entries", |table| {
                         table
                             .decimal("amount", 7, 2)
@@ -6275,7 +6328,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
     );
     assert!(matches!(
         preview
-            .getSchemaBuilder()
+            .get_schema_builder()
             .table("entries", |table| {
                 table
                     .integer("amount")
@@ -6293,7 +6346,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
     let db = connection(json!({"url":url}));
     db.unprepared("create schema tenant; create table tenant.amounts (amount varchar(8) not null, marker varchar(16)); insert into tenant.amounts values ('01250', 'known'); create index amount_marker on tenant.amounts (marker)")
         .await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     assert!(
         schema
             .table("tenant.amounts", |table| {
@@ -6308,7 +6361,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
     );
     assert_eq!(
         schema
-            .getColumnType("tenant.amounts", "marker", true)
+            .get_column_type("tenant.amounts", "marker", true)
             .await
             .unwrap(),
         "character varying(16)"
@@ -6326,7 +6379,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
         .await
         .unwrap();
     let column = schema
-        .getColumn("tenant.amounts", "amount")
+        .get_column("tenant.amounts", "amount")
         .await
         .unwrap()
         .unwrap();
@@ -6356,7 +6409,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
     );
     assert!(
         schema
-            .hasIndex("tenant.amounts", "amount_marker")
+            .has_index("tenant.amounts", "amount_marker")
             .await
             .unwrap()
     );
@@ -6367,7 +6420,7 @@ async fn postgres_changes_column_types_and_modifiers_atomically() {
         .await
         .unwrap();
     let column = schema
-        .getColumn("tenant.amounts", "amount")
+        .get_column("tenant.amounts", "amount")
         .await
         .unwrap()
         .unwrap();
@@ -6385,15 +6438,15 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .create("tenant.generated", |table| {
                         table
                             .bigInteger("seq")
-                            .generatedAsWith(Expression::new("start with 10 increment by 2"))
+                            .generated_as_with(Expression::new("start with 10 increment by 2"))
                             .always();
                         table.integer("base");
-                        table.integer("saved").storedAs("base * 2");
-                        table.integer("computed").virtualAs("base + 1");
+                        table.integer("saved").stored_as("base * 2");
+                        table.integer("computed").virtual_as("base + 1");
                     })
                     .await
             })
@@ -6410,9 +6463,9 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .create("tenant.other", |table| {
-                        table.bigInteger("seq").generatedAs();
+                        table.bigInteger("seq").generated_as();
                         table.integer("plain").always();
                         table.primary(&["seq", "plain"], Some("other_primary"));
                     })
@@ -6426,11 +6479,11 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     assert!(sql.contains("\"plain\" integer not null,"));
     assert_eq!(sql.matches("primary key").count(), 1);
     let invalid = preview
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("tenant.other", |table| {
             table
                 .bigInteger("seq")
-                .generatedAsWith(Expression::new("start with ?").with_bindings(vec![10.into()]));
+                .generated_as_with(Expression::new("start with ?").with_bindings(vec![10.into()]));
         })
         .await;
     assert!(matches!(
@@ -6439,9 +6492,9 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     ));
 
     let result = preview
-        .getSchemaBuilder()
+        .get_schema_builder()
         .table("tenant.generated", |table| {
-            table.integer("saved").storedAs("base + 2").change();
+            table.integer("saved").stored_as("base + 2").change();
         })
         .await;
     assert!(matches!(
@@ -6457,16 +6510,16 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     };
     let db = connection(json!({"url": url}));
     db.statement("create schema tenant", &[]).await.unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("tenant.generated", |table| {
             table
                 .bigInteger("seq")
-                .generatedAsWith(Expression::new("start with 10 increment by 2"))
+                .generated_as_with(Expression::new("start with 10 increment by 2"))
                 .always();
             table.integer("base");
-            table.integer("saved").storedAs("base * 2");
-            table.integer("computed").virtualAs("base + 1");
+            table.integer("saved").stored_as("base * 2");
+            table.integer("computed").virtual_as("base + 1");
         })
         .await
         .unwrap();
@@ -6475,7 +6528,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
         ("computed", GenerationType::Virtual),
     ] {
         let column = schema
-            .getColumn("tenant.generated", name)
+            .get_column("tenant.generated", name)
             .await
             .unwrap()
             .unwrap();
@@ -6506,17 +6559,17 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
     );
     schema
         .table("tenant.generated", |table| {
-            table.integer("saved").dropExpression().change();
+            table.integer("saved").drop_expression().change();
             table
                 .bigInteger("seq")
-                .generatedAsWith(Expression::new("start with 20"))
+                .generated_as_with(Expression::new("start with 20"))
                 .change();
         })
         .await
         .unwrap();
     assert!(
         schema
-            .getColumn("tenant.generated", "saved")
+            .get_column("tenant.generated", "saved")
             .await
             .unwrap()
             .unwrap()
@@ -6567,7 +6620,7 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
         .unwrap();
     assert!(
         !schema
-            .getColumn("tenant.generated", "seq")
+            .get_column("tenant.generated", "seq")
             .await
             .unwrap()
             .unwrap()
@@ -6591,7 +6644,7 @@ async fn tsvector_rejects_unsupported_schema_dialects_before_executing_ddl() {
     for driver in ["sqlite", "mysql", "mariadb", "sqlsrv"] {
         let db = connection(json!({"driver": driver, "database": ":memory:"}));
         let error = db
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("documents", |table| {
                 table.tsvector("search_terms");
             })
@@ -6610,13 +6663,15 @@ async fn postgres_generated_json_columns_use_native_selector_semantics() {
     let statements = preview
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .create("tenant.documents", |table| {
                         table.jsonb("payload");
                         table
                             .string("label", 80)
-                            .storedAsJson("payload->items[0][1]->owner's\\name");
-                        table.string("code", 20).virtualAsJson("payload->codes->01");
+                            .stored_as_json("payload->items[0][1]->owner's\\name");
+                        table
+                            .string("code", 20)
+                            .virtual_as_json("payload->codes->01");
                     })
                     .await
             })
@@ -6633,26 +6688,26 @@ async fn postgres_generated_json_columns_use_native_selector_semantics() {
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     tx.statement("set local standard_conforming_strings = off", &[])
         .await
         .unwrap();
-    tx.getSchemaBuilder()
+    tx.get_schema_builder()
         .create("generated_json", |table| {
             table.integer("id");
             table.jsonb("payload");
             table
                 .string("label", 80)
-                .storedAsJson("payload->items[0][1]->owner's\\name")
+                .stored_as_json("payload->items[0][1]->owner's\\name")
                 .nullable()
                 .index();
             table
                 .string("code", 20)
-                .virtualAsJson("payload->codes->01")
+                .virtual_as_json("payload->codes->01")
                 .nullable();
             table
                 .string("last", 20)
-                .virtualAsJson("payload->names[-1]")
+                .virtual_as_json("payload->names[-1]")
                 .nullable();
         })
         .await
@@ -6675,16 +6730,16 @@ async fn postgres_generated_json_columns_use_native_selector_semantics() {
     )
     .await
     .unwrap();
-    let mut schema = tx.getSchemaBuilder();
+    let mut schema = tx.get_schema_builder();
     let column = schema
-        .getColumn("generated_json", "label")
+        .get_column("generated_json", "label")
         .await
         .unwrap()
         .unwrap();
     assert_eq!(column.generation.unwrap().kind, GenerationType::Stored);
     assert!(
         schema
-            .hasIndex("generated_json", "generated_json_label_index")
+            .has_index("generated_json", "generated_json_label_index")
             .await
             .unwrap()
     );
@@ -6718,5 +6773,5 @@ async fn postgres_generated_json_columns_use_native_selector_semantics() {
             .unwrap(),
         "two".into()
     );
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
 }

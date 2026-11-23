@@ -20,7 +20,6 @@ use super::{ExistenceRelation, HasOne, Relation, relation::RelationKeys};
 /// Links a parent key to a foreign key on many related models.
 pub struct HasMany<P: Model, R: Model>(pub(super) RelationKeys<P, R>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> HasMany<P, R> {
     pub async fn paginate(
         &self,
@@ -30,47 +29,47 @@ impl<P: Model, R: Model> HasMany<P, R> {
         self.pagination_query(parent)?.paginate(per_page).await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.pagination_query(parent)?.paginateWith(options).await
+        self.pagination_query(parent)?.paginate_with(options).await
     }
 
-    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
         self.pagination_query(parent)?
-            .simplePaginate(per_page)
+            .simple_paginate(per_page)
             .await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<R>> {
         self.pagination_query(parent)?
-            .simplePaginateWith(options)
+            .simple_paginate_with(options)
             .await
     }
 
-    pub async fn cursorPaginate(
+    pub async fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<CursorPaginator<R>> {
         self.pagination_query(parent)?
-            .cursorPaginate(per_page)
+            .cursor_paginate(per_page)
             .await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<R>> {
         self.pagination_query(parent)?
-            .cursorPaginateWith(options)
+            .cursor_paginate_with(options)
             .await
     }
 
@@ -126,8 +125,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, i64) -> Fut,
@@ -140,14 +138,13 @@ impl<P: Model, R: Model> HasMany<P, R> {
     {
         self.0
             .select_one(self.pagination_query(parent)?)?
-            .eachById(callback, count, column, alias)
+            .each_by_id(callback, count, column, alias)
             .await
     }
 
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -161,7 +158,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     {
         self.0
             .select_one(self.pagination_query(parent)?)?
-            .orderedChunkById(count, callback, column, alias, descending)
+            .ordered_chunk_by_id(count, callback, column, alias, descending)
             .await
     }
 
@@ -185,8 +182,8 @@ impl<P: Model, R: Model> HasMany<P, R> {
 
     fn pagination_query(&self, parent: &P) -> DatabaseResult<Builder<'static, R>> {
         let connection = self.0.connection(parent)?;
-        let query = self.0.configure(R::queryOn(&connection))?;
-        let foreign = query.qualifyColumn(self.0.related);
+        let query = self.0.configure(R::query_on(&connection))?;
+        let foreign = query.qualify_column(self.0.related);
         let parents = super::relation::ParentKeys::new(&[parent], self.0.parent)?;
         Ok(query.restrict_relation(&foreign, &parents.bindings))
     }
@@ -203,8 +200,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
 
     /// Uses the same keys and constraints with a composed parent model.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches the Eloquent relationship API")]
-    pub fn forParent<M: Model>(self) -> HasMany<M, R> {
+    pub fn for_parent<M: Model>(self) -> HasMany<M, R> {
         HasMany(self.0.for_parent())
     }
 
@@ -229,17 +225,15 @@ impl<P: Model, R: Model> HasMany<P, R> {
         self.chaperone(relation)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[must_use]
-    pub fn withoutChaperone(mut self) -> Self {
+    pub fn without_chaperone(mut self) -> Self {
         self.0.inverse = None;
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[must_use]
-    pub fn withoutInverse(self) -> Self {
-        self.withoutChaperone()
+    pub fn without_inverse(self) -> Self {
+        self.without_chaperone()
     }
 
     /// Applies constraints and nested eager loads to the related query.
@@ -253,8 +247,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Resolves one routed child through this parent's relationship.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn resolveRouteBinding(
+    pub async fn resolve_route_binding(
         &self,
         parent: &P,
         binding: BindingContext<'_>,
@@ -262,22 +255,21 @@ impl<P: Model, R: Model> HasMany<P, R> {
         use super::super::route_binding::lookup;
 
         let Some(key) = parent
-            .getAttribute(self.0.parent)
+            .get_attribute(self.0.parent)
             .filter(|key| !matches!(key, Value::Null))
         else {
             return Ok(None);
         };
         let connection = self.0.connection(parent)?;
-        let query = self.0.configure(R::queryOn(&connection))?;
-        let column = query.qualifyColumn(self.0.related);
+        let query = self.0.configure(R::query_on(&connection))?;
+        let column = query.qualify_column(self.0.related);
         lookup(query.require_relation_value(&column, key.clone()), binding)
             .await
             .map_err(Into::into)
     }
 
     /// Finds the related primary key or prepares an unsaved child for this parent.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+    pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         match self.find(parent, key).await? {
             Some(model) => Ok(model),
             None => self.make(parent, Attributes::new()).await,
@@ -302,10 +294,10 @@ impl<P: Model, R: Model> HasMany<P, R> {
         keys: &[Value],
     ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
         if parent
-            .getAttribute(self.0.parent)
+            .get_attribute(self.0.parent)
             .is_none_or(|key| matches!(key, Value::Null))
         {
-            return Ok(R::newCollection(Vec::new()));
+            return Ok(R::new_collection(Vec::new()));
         }
         super::lookup::LookupSelection::Keys(keys)
             .apply(self.lookup(parent, &Attributes::new(), false)?)
@@ -314,8 +306,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Creates a child with an initial counter or increments a matching child.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn firstOrNew<'a>(
+    pub async fn first_or_new<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -330,8 +321,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn firstOrCreate<'a>(
+    pub async fn first_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -341,8 +331,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createOrFirst<'a>(
+    pub async fn create_or_first<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -352,8 +341,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn updateOrCreate<'a>(
+    pub async fn update_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -363,15 +351,14 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let mut model = self
             .find_or_create(parent, attributes, &mut values, false, false)
             .await?;
-        if !model.state().wasRecentlyCreated() {
-            model.fillAsync(values.resolve()).await?;
+        if !model.state().was_recently_created() {
+            model.fill_async(values.resolve()).await?;
             model.save().await?;
         }
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn restoreOrCreate<'a>(
+    pub async fn restore_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -385,8 +372,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createOrRestore<'a>(
+    pub async fn create_or_restore<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -400,8 +386,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn incrementOrCreate(
+    pub async fn increment_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -421,7 +406,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let model = self
             .find_or_create(parent, attributes, &mut values.into(), false, false)
             .await?;
-        if model.state().wasRecentlyCreated() {
+        if model.state().was_recently_created() {
             return Ok(model);
         }
         increment_related(model, column, step, extra).await
@@ -453,7 +438,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             )),
             Err(error) if super::super::persistence::is_unique_violation(&error) => self
                 .lookup(parent, &attributes, include_trashed)?
-                .useWritePdo()
+                .use_write_pdo()
                 .first()
                 .await?
                 .ok_or(error),
@@ -468,17 +453,17 @@ impl<P: Model, R: Model> HasMany<P, R> {
         include_trashed: bool,
     ) -> DatabaseResult<Builder<'static, R>> {
         let key = parent
-            .getAttribute(self.0.parent)
+            .get_attribute(self.0.parent)
             .filter(|key| !matches!(key, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))?;
         let connection = self.0.connection(parent)?;
-        let query = self.0.configure(R::queryOn(&connection))?;
+        let query = self.0.configure(R::query_on(&connection))?;
         let query = if include_trashed {
             query.with_trashed()
         } else {
             query
         };
-        let foreign = query.qualifyColumn(self.0.related);
+        let foreign = query.qualify_column(self.0.related);
         Ok(self
             .0
             .select_one(query)?
@@ -498,7 +483,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             return Ok(0);
         }
         let key = parent
-            .getAttribute(self.0.parent)
+            .get_attribute(self.0.parent)
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))?;
         for row in &mut rows {
@@ -509,14 +494,14 @@ impl<P: Model, R: Model> HasMany<P, R> {
         }
         let connection = self.0.connection(parent)?;
         self.0
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .upsert(rows, unique_by, update)
             .await
     }
 
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         let connection = self.0.connection(parent)?;
-        let query = self.0.configure(R::queryOn(&connection))?;
+        let query = self.0.configure(R::query_on(&connection))?;
         self.apply_creation_attributes(parent, model, query.pending_attributes)
             .await?;
         self.0.hydrate_inverse(parent, model);
@@ -526,7 +511,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     /// Constructs an unsaved child with the relationship attributes.
     pub async fn make(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         let connection = self.0.connection(parent)?;
-        let query = self.0.configure(R::queryOn(&connection))?;
+        let query = self.0.configure(R::query_on(&connection))?;
         let mut model = query.make_with_attributes_async(attributes).await?;
         self.apply_creation_attributes(parent, &mut model, query.pending_attributes)
             .await?;
@@ -535,8 +520,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Constructs unsaved children in input order.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn makeMany(
+    pub async fn make_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
@@ -545,7 +529,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         for attributes in records {
             models.push(self.make(parent, attributes).await?);
         }
-        Ok(R::newCollection(models))
+        Ok(R::new_collection(models))
     }
 
     pub(in crate::database::eloquent) fn factory_attributes(
@@ -555,7 +539,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let connection = self.0.connection(parent)?;
         let defaults = self
             .0
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .pending_attributes;
         let mut model = R::from_state(Default::default());
         self.set_parent_attributes(parent, &mut model)?;
@@ -590,8 +574,8 @@ impl<P: Model, R: Model> HasMany<P, R> {
     ) -> DatabaseResult<()> {
         self.set_parent_attributes(parent, model)?;
         for (column, value) in attributes {
-            if model.getAttribute(&column).is_none() {
-                model.setAttributeValueAsync(&column, value).await?;
+            if model.get_attribute(&column).is_none() {
+                model.set_attribute_value_async(&column, value).await?;
             }
         }
         Ok(())
@@ -599,7 +583,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
 
     fn set_parent_attributes(&self, parent: &P, model: &mut R) -> DatabaseResult<()> {
         let key = parent
-            .getAttribute(self.0.parent)
+            .get_attribute(self.0.parent)
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))?;
         let connection = self.0.connection(parent)?;
@@ -611,38 +595,33 @@ impl<P: Model, R: Model> HasMany<P, R> {
             ));
         }
         model.state_mut().connection = Some(connection);
-        model.setAttribute(self.0.related, key.clone());
+        model.set_attribute(self.0.related, key.clone());
         if let Some((column, alias)) = self.0.discriminator {
-            model.setAttribute(column, alias);
+            model.set_attribute(column, alias);
         }
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
-        R::withoutEvents(self.save(parent, model)).await
+    pub async fn save_quietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
+        R::without_events(self.save(parent, model)).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+    pub async fn save_many(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
         for model in models {
             self.save(parent, model).await?;
         }
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
-        R::withoutEvents(self.saveMany(parent, models)).await
+    pub async fn save_many_quietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        R::without_events(self.save_many(parent, models)).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        R::withoutEvents(self.create(parent, attributes)).await
+    pub async fn create_quietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        R::without_events(self.create(parent, attributes)).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createMany(
+    pub async fn create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
@@ -654,22 +633,20 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(models)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createManyQuietly(
+    pub async fn create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        R::withoutEvents(self.createMany(parent, records)).await
+        R::without_events(self.create_many(parent, records)).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+    pub async fn force_create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         let connection = self.0.connection(parent)?;
-        let query = self.0.configure(R::queryOn(&connection))?;
-        let mut model = R::newInstanceOn(&connection, Attributes::new())?;
+        let query = self.0.configure(R::query_on(&connection))?;
+        let mut model = R::new_instance_on(&connection, Attributes::new())?;
         for (column, value) in query.creation_attributes(attributes) {
-            model.setAttributeValueAsync(&column, value).await?;
+            model.set_attribute_value_async(&column, value).await?;
         }
         self.set_parent_attributes(parent, &mut model)?;
         self.0.hydrate_inverse(parent, &mut model);
@@ -677,35 +654,32 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreateQuietly(
+    pub async fn force_create_quietly(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<R> {
-        R::withoutEvents(self.forceCreate(parent, attributes)).await
+        R::without_events(self.force_create(parent, attributes)).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreateMany(
+    pub async fn force_create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
         let mut models = Vec::new();
         for attributes in records {
-            models.push(self.forceCreate(parent, attributes).await?);
+            models.push(self.force_create(parent, attributes).await?);
         }
         Ok(models)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreateManyQuietly(
+    pub async fn force_create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        R::withoutEvents(self.forceCreateMany(parent, records)).await
+        R::without_events(self.force_create_many(parent, records)).await
     }
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
@@ -715,20 +689,19 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for HasMany<P, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
 
-    fn isEmptyCollection(output: &Self::Output) -> bool {
+    fn is_empty_collection(output: &Self::Output) -> bool {
         output.is_empty()
     }
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -738,7 +711,7 @@ impl<P: Model, R: Model> Relation for HasMany<P, R> {
         })
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -746,18 +719,18 @@ impl<P: Model, R: Model> Relation for HasMany<P, R> {
         super::super::serialization::many(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         super::super::queueable::common_relations(output.iter().map(Arc::as_ref))
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -782,9 +755,8 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for HasMany<P, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,

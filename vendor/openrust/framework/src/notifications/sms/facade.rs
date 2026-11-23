@@ -5,7 +5,6 @@ use super::{NotificationResult, SmsManager, SmsSender, SmsSubmission, delivery};
 /// Resolves SMS drivers for the current application.
 pub struct Sms;
 
-#[allow(non_snake_case, reason = "Implements the application facade contract")]
 impl Facade for Sms {
     type Service = SmsManager;
 
@@ -15,16 +14,14 @@ impl Facade for Sms {
 }
 
 impl Sms {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn get_default_driver() -> NotificationResult<String> {
         Self::get_facade_root()
             .map_err(delivery)?
             .get_default_driver()
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forgetDrivers() -> NotificationResult<()> {
-        Self::get_facade_root().map_err(delivery)?.forgetDrivers();
+    pub fn forget_drivers() -> NotificationResult<()> {
+        Self::get_facade_root().map_err(delivery)?.forget_drivers();
         Ok(())
     }
 

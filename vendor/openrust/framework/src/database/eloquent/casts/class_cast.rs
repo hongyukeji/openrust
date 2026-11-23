@@ -80,12 +80,11 @@ pub trait CastsAttributes: CastsInboundAttributes {
 }
 
 /// Constructs a caster from an attribute's declared arguments.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Castable {
     type Arguments: Send + Sync + 'static;
     type Caster: CastsInboundAttributes + 'static;
 
-    fn castUsing(arguments: &Self::Arguments) -> DatabaseResult<Self::Caster>;
+    fn cast_using(arguments: &Self::Arguments) -> DatabaseResult<Self::Caster>;
 }
 
 type Arguments = dyn Any + Send + Sync;
@@ -133,7 +132,7 @@ fn resolve<C: Castable>(arguments: &Arguments) -> DatabaseResult<C::Caster> {
     let arguments = arguments
         .downcast_ref::<C::Arguments>()
         .ok_or(DatabaseError::InvalidQuery("class cast arguments"))?;
-    C::castUsing(arguments)
+    C::cast_using(arguments)
 }
 
 pub(super) enum ResolvedClassCast {

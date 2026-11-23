@@ -157,13 +157,13 @@ impl<T> ResourceCollection<T> {
         match &mut self.source {
             ResourceItems::Collection(_) | ResourceItems::KeyedCollection(_) => {}
             ResourceItems::Paginator(page) => {
-                page.withQueryString();
+                page.with_query_string();
             }
             ResourceItems::LengthAwarePaginator(page) => {
-                page.withQueryString();
+                page.with_query_string();
             }
             ResourceItems::CursorPaginator(page) => {
-                page.withQueryString();
+                page.with_query_string();
             }
         }
         self

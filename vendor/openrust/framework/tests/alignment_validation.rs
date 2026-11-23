@@ -93,13 +93,13 @@ async fn after_runs_on_failure_and_stop_is_global_while_safe_excludes_unvalidate
         Ok(())
     });
     assert!(validator.validate().await.is_err());
-    assert!(!validator.errors().get("a", None).intoMessages().is_empty());
-    assert!(validator.errors().get("b", None).intoMessages().is_empty());
+    assert!(!validator.errors().get("a", None).into_messages().is_empty());
+    assert!(validator.errors().get("b", None).into_messages().is_empty());
     assert!(
         !validator
             .errors()
             .get("after", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     assert!(validator.safe().is_err());
@@ -155,14 +155,14 @@ async fn exclusions_follow_rule_order_and_preserve_other_attributes() {
         !validator
             .errors()
             .get("rows.0.address", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     assert!(
         validator
             .errors()
             .get("rows.1.address", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     assert!(passes(json!(["a", "b"]), "array|in:a,b").await);
@@ -269,25 +269,25 @@ async fn standard_rules_preserve_missing_null_wildcards_and_translated_condition
         .unwrap();
     assert!(validator.validate().await.is_err());
     assert_eq!(
-        validator.errors().get("amount", None).intoMessages(),
+        validator.errors().get("amount", None).into_messages(),
         ["模式 为 银行卡 时必须填写 数量"]
     );
     assert_eq!(
-        validator.errors().get("rows.0.score", None).intoMessages(),
+        validator.errors().get("rows.0.score", None).into_messages(),
         ["rows.0.score 必须为数值"]
     );
     assert!(
         validator
             .errors()
             .get("rows.1.score", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     assert!(
         validator
             .errors()
             .get("missing", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     let mut validator = factory

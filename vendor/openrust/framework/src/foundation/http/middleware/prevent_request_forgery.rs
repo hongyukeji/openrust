@@ -76,7 +76,7 @@ impl PreventRequestForgery {
                     .cookie_encryption
                     .as_ref()?
                     .encrypter
-                    .decryptString(value)
+                    .decrypt_string(value)
                     .ok()
             })
             .map(Zeroizing::new);

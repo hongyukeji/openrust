@@ -1,16 +1,18 @@
 use super::{ArrayKey, CollectionError, CollectionResult, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn pipe<U>(self, callback: impl FnOnce(Self) -> U) -> U {
         callback(self)
     }
 
-    pub fn pipeInto<U: From<Self>>(self) -> U {
+    pub fn pipe_into<U: From<Self>>(self) -> U {
         self.into()
     }
 
-    pub fn pipeThrough<F: FnOnce(Self) -> Self>(self, stages: impl IntoIterator<Item = F>) -> Self {
+    pub fn pipe_through<F: FnOnce(Self) -> Self>(
+        self,
+        stages: impl IntoIterator<Item = F>,
+    ) -> Self {
         stages.into_iter().fold(self, |items, stage| stage(items))
     }
 
@@ -20,10 +22,10 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 
     pub fn when(self, condition: bool, callback: impl FnOnce(Self) -> Self) -> Self {
-        self.whenElse(condition, callback, std::convert::identity)
+        self.when_else(condition, callback, std::convert::identity)
     }
 
-    pub fn whenElse(
+    pub fn when_else(
         self,
         condition: bool,
         callback: impl FnOnce(Self) -> Self,
@@ -40,45 +42,45 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.when(!condition, callback)
     }
 
-    pub fn unlessElse(
+    pub fn unless_else(
         self,
         condition: bool,
         callback: impl FnOnce(Self) -> Self,
         otherwise: impl FnOnce(Self) -> Self,
     ) -> Self {
-        self.whenElse(!condition, callback, otherwise)
+        self.when_else(!condition, callback, otherwise)
     }
 
     pub fn when_empty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
-        self.whenEmptyElse(callback, std::convert::identity)
+        self.when_empty_else(callback, std::convert::identity)
     }
 
-    pub fn whenEmptyElse(
+    pub fn when_empty_else(
         self,
         callback: impl FnOnce(Self) -> Self,
         otherwise: impl FnOnce(Self) -> Self,
     ) -> CollectionResult<Self> {
         let empty = self.is_empty()?;
-        Ok(self.whenElse(empty, callback, otherwise))
+        Ok(self.when_else(empty, callback, otherwise))
     }
 
-    pub fn whenNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
-        self.whenNotEmptyElse(callback, std::convert::identity)
+    pub fn when_not_empty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
+        self.when_not_empty_else(callback, std::convert::identity)
     }
 
-    pub fn whenNotEmptyElse(
+    pub fn when_not_empty_else(
         self,
         callback: impl FnOnce(Self) -> Self,
         otherwise: impl FnOnce(Self) -> Self,
     ) -> CollectionResult<Self> {
-        self.whenEmptyElse(otherwise, callback)
+        self.when_empty_else(otherwise, callback)
     }
 
-    pub fn unlessEmpty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
-        self.whenNotEmpty(callback)
+    pub fn unless_empty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
+        self.when_not_empty(callback)
     }
 
-    pub fn unlessNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
+    pub fn unless_not_empty(self, callback: impl FnOnce(Self) -> Self) -> CollectionResult<Self> {
         self.when_empty(callback)
     }
 

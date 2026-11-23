@@ -13,7 +13,7 @@ use openrust::{
         RedirectOptions, RouteGroup, RouteParameter, Router, RoutingError, SignatureMode, UrlError,
         UrlGenerator, UrlValue,
     },
-    support::facades::{Redirect, URL},
+    support::facades::{Redirect, Url},
 };
 use serde_json::json;
 use tokio::{
@@ -33,9 +33,9 @@ fn links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let parameters = [RouteParameter::named("article", "42")];
         let mode = SignatureMode::Absolute;
         let expires = SystemTime::now() + Duration::from_secs(60);
-        let absolute = URL::temporary_signed_route("article", expires, &parameters, mode)?;
-        let relative = URL::signed_route("relative", &parameters, None, SignatureMode::Relative)?;
-        let expired = URL::temporary_signed_route(
+        let absolute = Url::temporary_signed_route("article", expires, &parameters, mode)?;
+        let relative = Url::signed_route("relative", &parameters, None, SignatureMode::Relative)?;
+        let expired = Url::temporary_signed_route(
             "article",
             SystemTime::now() - Duration::from_secs(5),
             &parameters,
@@ -45,8 +45,8 @@ fn links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             StatusCode::OK,
             json!({
                 "absolute": absolute, "relative": relative, "expired": expired,
-                "named": URL::route("ordinary", &[], true)?,
-            "article": URL::route("article", &parameters, true)?,
+                "named": Url::route("ordinary", &[], true)?,
+            "article": Url::route("article", &parameters, true)?,
             }),
         )
     })
@@ -68,18 +68,18 @@ fn action_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async {
         let parameters = [RouteParameter::named("article", "a b")];
         assert!(matches!(
-            URL::action("OldController@show", &parameters, true),
+            Url::action("OldController@show", &parameters, true),
             Err(UrlError::MissingAction)
         ));
         assert!(matches!(
-            URL::action(SHOW_ARTICLE, &[], true),
+            Url::action(SHOW_ARTICLE, &[], true),
             Err(UrlError::MissingParameter)
         ));
         Response::json(
             StatusCode::OK,
             json!({
-                "absolute": URL::action(SHOW_ARTICLE, &parameters, true)?,
-                "relative": URL::action(SHOW_ARTICLE, &parameters, false)?,
+                "absolute": Url::action(SHOW_ARTICLE, &parameters, true)?,
+                "relative": Url::action(SHOW_ARTICLE, &parameters, false)?,
             }),
         )
     })
@@ -99,8 +99,8 @@ fn action_redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
 fn request_links(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         if let Some(locale) = request.route("locale").map(str::to_owned) {
-            URL::defaults(request, &[("locale", "replaced")]);
-            URL::defaults(request, &[("locale", &locale), ("slug", "localized")]);
+            Url::defaults(request, &[("locale", "replaced")]);
+            Url::defaults(request, &[("locale", &locale), ("slug", "localized")]);
         }
         tokio::task::yield_now().await;
         let params = [RouteParameter::positional("a%?#")];
@@ -108,16 +108,16 @@ fn request_links(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
         Response::json(
             StatusCode::OK,
             json!({
-                "full": URL::full()?,
-                "current": URL::current()?,
-                "previous_path": URL::previous_path(request, Some("/fallback/?x=1"))?,
-                "default": URL::route("ordinary", &[], false)?,
-                "positional_override": URL::route("localized", &[RouteParameter::positional("en"), params[0].clone()], false)?,
-                "named_required": URL::route("localized", &[RouteParameter::named("article", "post"), RouteParameter::positional("en")], false)?,
+                "full": Url::full()?,
+                "current": Url::current()?,
+                "previous_path": Url::previous_path(request, Some("/fallback/?x=1"))?,
+                "default": Url::route("ordinary", &[], false)?,
+                "positional_override": Url::route("localized", &[RouteParameter::positional("en"), params[0].clone()], false)?,
+                "named_required": Url::route("localized", &[RouteParameter::named("article", "post"), RouteParameter::positional("en")], false)?,
 
-                "action": URL::action("LocalizedController@show", &params, false).ok(),
-                "explicit": URL::route("localized", &[RouteParameter::named("locale", "en"), params[0].clone()], false)?,
-                "signed": URL::signed_route("localized", &params, None, mode).ok(),
+                "action": Url::action("LocalizedController@show", &params, false).ok(),
+                "explicit": Url::route("localized", &[RouteParameter::named("locale", "en"), params[0].clone()], false)?,
+                "signed": Url::signed_route("localized", &params, None, mode).ok(),
             }),
         )
     })
@@ -987,7 +987,7 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
         })
         .with_routing(Routing::default().web(|| {
             use openrust::support::facades::Route;
-            Route::getWith("/guarded", guest, |route| {
+            Route::get_with("/guarded", guest, |route| {
                 route.name("guarded");
                 Ok(())
             })?;

@@ -33,7 +33,7 @@ impl Decorator {
     pub fn getDriver(&self) -> Arc<dyn Driver> {
         self.driver.clone()
     }
-    pub fn storeName(&self) -> &str {
+    pub fn store_name(&self) -> &str {
         &self.name
     }
     pub fn define(&self, feature: &str, resolver: Resolver) -> Result<()> {

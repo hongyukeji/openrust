@@ -2,7 +2,6 @@ use std::iter;
 
 use super::{ArrayKey, CollectionError, LazyCollection, index_values};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn zip<U: 'source>(
         self,
@@ -10,8 +9,8 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     ) -> LazyCollection<'source, (Option<T>, Option<U>)> {
         let items = items.into();
         LazyCollection::from_iterators(move || {
-            let mut left = self.getIterator();
-            let mut right = items.getIterator();
+            let mut left = self.get_iterator();
+            let mut right = items.get_iterator();
             index_values(iter::from_fn(move || {
                 let left = match left.next().transpose() {
                     Ok(entry) => entry,
@@ -29,14 +28,14 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn zipMany<U: 'source, I: Into<LazyCollection<'source, U>>>(
+    pub fn zip_many<U: 'source, I: Into<LazyCollection<'source, U>>>(
         self,
         columns: impl IntoIterator<Item = I>,
     ) -> LazyCollection<'source, (Option<T>, Vec<Option<U>>)> {
         let columns: Vec<_> = columns.into_iter().map(Into::into).collect();
         LazyCollection::from_iterators(move || {
-            let mut first = self.getIterator();
-            let mut columns: Vec<_> = columns.iter().map(LazyCollection::getIterator).collect();
+            let mut first = self.get_iterator();
+            let mut columns: Vec<_> = columns.iter().map(LazyCollection::get_iterator).collect();
             index_values(iter::from_fn(move || {
                 let first = match first.next().transpose() {
                     Ok(entry) => entry.map(|(_, item)| item),
@@ -71,8 +70,8 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     {
         let values = values.into();
         LazyCollection::from_iterators(move || {
-            let mut keys = self.getIterator();
-            let mut values = values.getIterator();
+            let mut keys = self.get_iterator();
+            let mut values = values.get_iterator();
             iter::from_fn(move || {
                 let key = match keys.next().transpose() {
                     Ok(entry) => entry,

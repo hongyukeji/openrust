@@ -41,7 +41,7 @@ impl Migration for Definition {
                 return Err(DatabaseError::InvalidMigration("test failure"));
             }
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create(self.name, |table| {
                     table.id();
                 })
@@ -53,7 +53,7 @@ impl Migration for Definition {
         &'a self,
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async { connection.getSchemaBuilder().drop(self.name).await })
+        Box::pin(async { connection.get_schema_builder().drop(self.name).await })
     }
 }
 
@@ -92,7 +92,7 @@ struct TransactionProbe {
 }
 
 impl Migration for TransactionProbe {
-    fn withinTransaction(&self) -> bool {
+    fn within_transaction(&self) -> bool {
         self.transactional
     }
 
@@ -102,7 +102,7 @@ impl Migration for TransactionProbe {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             context
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create(self.table, |table| {
                     table.integer("id");
                 })
@@ -127,7 +127,7 @@ impl Migration for TransactionProbe {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            context.getSchemaBuilder().drop(self.table).await?;
+            context.get_schema_builder().drop(self.table).await?;
             if self.fail_down.swap(false, Ordering::SeqCst) {
                 return Err(DatabaseError::InvalidMigration(
                     "transaction probe down failure",
@@ -213,7 +213,7 @@ async fn assert_migration_transaction_rollback(
         "transaction_history".into(),
         root.path().to_path_buf(),
     );
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let atomic = [root.path().join(entries[0].path)];
     let autocommit = [root.path().join(entries[1].path)];
 
@@ -226,7 +226,7 @@ async fn assert_migration_transaction_rollback(
         matches!(failed_up, DatabaseError::MigrationFailed { .. }),
         "{failed_up:?}"
     );
-    assert!(!schema.hasTable("migration_atomic_probe").await.unwrap());
+    assert!(!schema.has_table("migration_atomic_probe").await.unwrap());
     assert_eq!(db.table("transaction_history").count("*").await.unwrap(), 0);
     migrator
         .run(None, &atomic, RunOptions::default())
@@ -252,7 +252,7 @@ async fn assert_migration_transaction_rollback(
         .rollback(None, &atomic, RollbackOptions::default())
         .await
         .unwrap();
-    assert!(!schema.hasTable("migration_atomic_probe").await.unwrap());
+    assert!(!schema.has_table("migration_atomic_probe").await.unwrap());
 
     assert!(matches!(
         migrator.run(None, &autocommit, RunOptions::default()).await,
@@ -301,7 +301,7 @@ async fn mysql_migration_repository_projects_history_and_selects_the_latest_batc
         repository.log(migration, batch).await.unwrap();
     }
 
-    connection.enableQueryLog();
+    connection.enable_query_log();
     let latest = repository.get_last().await.unwrap();
     assert_eq!(
         latest
@@ -321,7 +321,7 @@ async fn mysql_migration_repository_projects_history_and_selects_the_latest_batc
             .collect::<Vec<_>>(),
         [("older", 1), ("alpha", 2), ("zeta", 2)]
     );
-    let log = connection.getQueryLog();
+    let log = connection.get_query_log();
     assert_eq!(log.len(), 3);
     assert!(
         log.iter()
@@ -378,7 +378,7 @@ async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
     let mut app = create();
     app.boot().await.unwrap();
     let migrator = app.app().container().get::<Migrator>("migrator").unwrap();
-    migrator.withoutMigrations(&[FIRST_PATH]);
+    migrator.without_migrations(&[FIRST_PATH]);
 
     let planned = app.artisan(["migrate", "--pretend"]).await;
     planned.assert_successful();
@@ -391,7 +391,7 @@ async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
     independent.assert_successful();
     assert!(independent.stdout.contains("0001_create_first"));
 
-    migrator.withoutMigrations(&["0001_create_first"]);
+    migrator.without_migrations(&["0001_create_first"]);
     let excluded = app.artisan(["migrate", "--path", FIRST_PATH]).await;
     excluded.assert_successful();
     assert!(excluded.stdout.contains("Nothing to migrate"));
@@ -404,12 +404,12 @@ async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
         .assert_successful()
         .expects_output("0001_create_first Pending")
         .expects_output("0002_create_third [1] Ran");
-    migrator.withoutMigrations(&[]);
+    migrator.without_migrations(&[]);
     app.artisan(["migrate", "--path", FIRST_PATH])
         .await
         .assert_successful()
         .expects_output("0001_create_first DONE");
-    migrator.withoutMigrations(&["0001_create_first"]);
+    migrator.without_migrations(&["0001_create_first"]);
     app.artisan(["migrate:rollback", "--step=1"])
         .await
         .assert_successful()
@@ -506,7 +506,7 @@ async fn failed_migration_leaves_prior_batch_and_retry_is_serialized() {
     assert!(
         matches!(migrator.run(None, &[], RunOptions::default()).await, Err(DatabaseError::MigrationFailed { migration, .. }) if migration == "0002_second")
     );
-    let batch = || db.table("history").orderBy("migration", "asc");
+    let batch = || db.table("history").order_by("migration", "asc");
     assert_eq!(
         batch().pluck("migration").await.unwrap(),
         ["0001_first".into()]
@@ -543,9 +543,9 @@ async fn failed_migration_leaves_prior_batch_and_retry_is_serialized() {
         )
         .await
         .unwrap();
-    assert!(!db.getSchemaBuilder().hasTable("second").await.unwrap());
-    assert!(db.getSchemaBuilder().hasTable("third").await.unwrap());
-    assert!(!db.getSchemaBuilder().hasTable("skipped").await.unwrap());
+    assert!(!db.get_schema_builder().has_table("second").await.unwrap());
+    assert!(db.get_schema_builder().has_table("third").await.unwrap());
+    assert!(!db.get_schema_builder().has_table("skipped").await.unwrap());
     assert_eq!(batch().pluck("batch").await.unwrap(), [1.into(), 3.into()]);
 }
 
@@ -554,7 +554,7 @@ async fn destructive_migration_prohibition_is_local_to_the_application() {
     use openrust::{
         foundation::Application,
         http::HttpFuture,
-        support::{ProviderResult, ServiceProvider, facades::DB},
+        support::{ProviderResult, ServiceProvider, facades::Db},
         testing::TestApp,
     };
 
@@ -563,7 +563,7 @@ async fn destructive_migration_prohibition_is_local_to_the_application() {
     impl ServiceProvider for ProhibitDestructiveCommands {
         fn boot(&mut self, _: &Application) -> HttpFuture<'_, ProviderResult> {
             Box::pin(async {
-                DB::prohibitDestructiveCommands(true)?;
+                Db::prohibit_destructive_commands(true)?;
                 Ok(())
             })
         }
@@ -641,7 +641,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
         http::HttpFuture,
         support::{
             ProviderResult, ServiceProvider,
-            facades::{DB, Event},
+            facades::{Db, Event},
         },
     };
 
@@ -726,7 +726,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                         let config = <openrust::support::facades::Config as openrust::support::facades::Facade>::get_facade_root().unwrap();
                         assert!(
                             e.migration
-                                .getConnection(config.as_ref())
+                                .get_connection(config.as_ref())
                                 .unwrap()
                                 .is_none()
                         );
@@ -734,7 +734,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                     }
                     MigrationEnded::NAME => {
                         let e = event.downcast_ref::<MigrationEnded>().unwrap();
-                        let db = DB::connection(None).unwrap();
+                        let db = Db::connection(None).unwrap();
                         let found = db
                             .table("history")
                             .r#where("migration", "=", e.name.as_str())
@@ -754,7 +754,7 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                     }
                     DatabaseRefreshed::NAME => {
                         let e = event.downcast_ref::<DatabaseRefreshed>().unwrap();
-                        let db = DB::connection(None).unwrap();
+                        let db = Db::connection(None).unwrap();
                         assert_eq!(db.table("history").count("*").await.unwrap(), 2);
                         format!(
                             "refresh:{}:{}",
@@ -766,20 +766,20 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                         let e = event.downcast_ref::<SchemaDumped>().unwrap();
                         assert_eq!(e.connection.get_name(), "mysql");
                         assert!(e.path.is_file());
-                        format!("dump:{}", e.connectionName)
+                        format!("dump:{}", e.connection_name)
                     }
                     SchemaLoaded::NAME => {
                         let e = event.downcast_ref::<SchemaLoaded>().unwrap();
                         assert_eq!(e.connection.table("history").count("*").await.unwrap(), 2);
                         assert!(e.path.is_file());
-                        format!("load:{}", e.connectionName)
+                        format!("load:{}", e.connection_name)
                     }
                     MigrationsPruned::NAME => {
                         let e = event.downcast_ref::<MigrationsPruned>().unwrap();
                         assert!(e.path.join("mod.rs").is_file());
                         assert!(!e.path.join("0001_events_first.rs").exists());
                         assert_eq!(e.connection.get_name(), "mysql");
-                        format!("prune:{}", e.connectionName)
+                        format!("prune:{}", e.connection_name)
                     }
                     name => panic!("unexpected event {name}"),
                 };

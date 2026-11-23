@@ -303,7 +303,7 @@ async fn explicit_exception_policy_overrides_json_preference_after_middleware_re
                 *middleware = Default::default();
             })
             .with_exceptions(|exceptions| {
-                exceptions.shouldRenderJsonWhen(|_, _| false);
+                exceptions.should_render_json_when(|_, _| false);
             })
             .with_routing(Routing::default().api(|| Route::get("/fail", reject_request)))
     })

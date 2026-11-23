@@ -154,8 +154,8 @@ pub struct JobSnapshot {
 impl JobSnapshot {
     pub(super) fn from_job(job: &dyn Job) -> Self {
         Self {
-            id: job.getJobId().to_owned(),
-            queue: job.getQueue().to_owned(),
+            id: job.get_job_id().to_owned(),
+            queue: job.get_queue().to_owned(),
             attempts: job.attempts(),
             payload: job.payload().clone(),
         }

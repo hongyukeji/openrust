@@ -7,7 +7,7 @@
 | N-01 | 验收通过 | 语法树盘点、workspace 清单、调用位置、字符串边界及碰撞检查；无运行代码改动 |
 | N-02 | 验收通过 | 177 个基础方法族及跨 crate 消费者；20 项应用、59 项框架、独立生成测试、实际 HTTP／CLI、workspace 与可选 feature 严格 Clippy |
 | N-03 | 验收通过 | HTTP／路由／认证／命令及同名调度接口完成命名迁移；隔离构建、实际HTTP/CLI、MySQL、Redis调度、生成器与三语消费验证通过 |
-| N-04 | 待实施 | 数据库、集合、缓存、Redis、翻译、视图、日志和异常 |
+| N-04 | 验收通过 | 数据/基础服务1814组拼写、真实MySQL58项与Artisan/Redis、生成源码、组合Request、三语及workspace/可选features严格Clippy |
 | N-05 | 待实施 | 异步服务、协议和全部扩展 |
 | N-06 | 待实施 | 全仓复核、三语、Rustdoc、CI、防回归及最终真实消费者 |
 
@@ -96,3 +96,31 @@ request_languages 的请求语言算法测试原意不启用自动识别，现�
 Request门面负责人在本批期间另获授权新增IP及完整门面。其新增源码、Provider、代理状态、上下文和路由调用借用均排除本批；共享源文件从HEAD只应用核定标识符迁移构造候选，三语新IP段落也保留为其工作区在途差异。工作区与索引不重置、不覆盖。目录 `candidate-overrides/` 是本地提交候选，不是回写他人工作。
 
 HTTP代码生成曾触32GB停线，守卫安全终止且持锁清理全部项目编译profile，释放72,809,451,520字节；停止的一轮不计通过。源码/下载/数据/日志与原索引保留，空间恢复后完整重试。证据均在 `target/tmp/rust-naming/N-03/`：http-tests-combination.log、ip-intersection-final-sha.json、isolated-root-tests-final.log、isolated-fixture-regressions.log、mysql-acceptance.log、mysql-consumer-*.log、client-console-tests.log、scheduling-redis.log、isolated-clippy-final.log、docs-isolated-build.log、docs-browser.log。下一批沿用热缓存，退出后清理重复源码副本和临时容器；历史失败日志保留。
+
+## N-04 数据与基础服务（验收通过）
+
+本批按清单迁移1814组Rust拼写；包括Db/Url、数据库/Schema/Eloquent/工厂、分页/Resources、缓存/Redis、翻译/视图、日志/异常及相应trait、Facade、调用方、生成模板和三语文档。命名不改变SQL、事件名、序列化键、CLI或Blade表达式。
+
+### 冲突与字符串边界
+
+- Factory原生执行辅助方法和公开On入口分开；查询内部布尔/联接参数、关系pivot时间戳、集合字典查找、分页窗口读取、视图上下文渲染、Loader共享命名空间写入均按实际签名核定私有职责，不靠重载或同名递归。
+- 台湾统一编号原VAT与既有vat(Option<bool>)冲突，前者采用taiwan_vat，保持数值返回与独立动态VAT/vat分发；后者保持原签名。Faker宏的89个表项与word显式携带原格式化器/唯一历史键，8个时区宏保持原history字符串。
+- HashInfo是本批字段中直接Serialize的类型，algo_name显式映射algoName；其他本批字段非Serde模型，手动JSON/事件字符串不随字段拼写更改。新增4项消费者覆盖实际序列化、原动态格式化器、区域VAT与唯一历史。
+- 缓存公开get_store拥有Arc返回，原Repository trait借用保持不变；借用敏感的内部调用显式走trait。事件has_listeners包装显式委派trait，避免遮蔽后递归。Stringable转HTTP响应按原拥有值消费into_string，不误选新增同名借用方法。
+- Rust生成模板与模型字段识别同步；model:fields的syn方法匹配改为get_table。Passport/Fortify与模型验收脚本中明确的Rust片段同步，协议/能力名viewAny/forceDelete及Blade Lang::hasForLocale等既有表达式保留。
+
+### 已实际通过的验收
+
+- 隔离命名源码：基础服务41组369项通过，含集合、模型转换、分页、Resources、Faker、Hash、翻译、视图/Blade、日志/异常与字符串。数据库环境未提供的早退不计真实后端验证。
+- 临时MySQL 8.4.13：8组58项真实查询、写入、Schema、迁移、模型、工厂、关系、分页通过；另真实Artisan迁移和Seeder各1项通过。
+- 临时Redis 8配合MySQL：10批36项通过，覆盖memo、独立HTTP/Artisan命名连接与锁、数据库缓存、清锁、Redis值/锁、MySQL故障回退恢复、标签物理清理与过期索引、HTTP标签、驱动/事件及18语资源实际消费者。临时服务及匿名资源已清理，未使用用户数据卷。
+- 三语站点构建/内容及根与/docs/桌面/移动浏览器12组通过；8个时区宏和VAT冲突裁决后的文档已重新构建。视图/日志与翻译数据库专项另12组浏览器通过；日志断言原先仍期待旧Windows产物调用，现按正式文档的artisan.bat入口修正，不修改命令行为或声称Windows实机已验。
+
+### 失败、修复与待验边界
+
+- Unix socket日志夹具在规定的项目内TMPDIR下超出SUN_LEN；缩短唯一夹具名后，真实日志HTTP/Artisan/Unix datagram完整复验通过，未改变产品日志实现。
+- 大型关系夹具在迁移前N-03源码强制重编译后同样默认Debug线程栈溢出；本批使用RUST_MIN_STACK=16777216完成真实MySQL复验，应用运行时设置未变。首次跨快照缓存未重编译的baseline尝试不计证据；同缓存切换源码须检查实际编译路径/时间戳。
+- 最终Clippy到达32GB磁盘停线，守卫已持锁清理全部项目编译profile并释放71,958,274,048字节，保留源码、下载、数据、日志、独立交付文件及索引。该中断不计通过；model:fields专项随后因二进制已清理未完成，不计通过，重建后补验。
+- Request门面在另一已授权单元开发，其未提交新文件/功能不属于本单元；候选对共享文件只应用命名差异，保持原有两份许可删除暂存及用户WIP。其功能已独立提交225699817，本单元基于该HEAD重新组合共享源文件，只应用本批标识符；组合Request28项与命名4项、Faker116项通过，MySQL/Redis/Artisan再次全过。
+
+证据：target/tmp/rust-naming/N-04/，其中accepted-groups.json、data-tests-*.log、mysql-framework.log、migrations-mysql.log、seeding-mysql.log、redis-consumer-*.log、docs-build.log、docs-browser.log保留实际结果。最终workspace/all-targets严格Clippy通过24.22s，新增周期/时区测试后复核0.55s；根全部兼容features严格Clippy通过41.63s。实际make:model/model:fields在临时MySQL生成、保留自定义get_table、幂等检查与生成源码严格编译通过；通知迁移生成器及生成源码严格编译通过。8个时区宏通过Faker116项及新增周期边界/时区消费覆盖，根具名日期/限定日期测试另2项通过。候选源码、Rust模板、脚本与测试均逐项匹配隔离快照SHA，Git核定范围排除并行功能和用户在途差异，本地提交另记实际哈希，不推送。

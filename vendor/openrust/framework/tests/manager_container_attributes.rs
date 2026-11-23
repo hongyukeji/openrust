@@ -6,7 +6,7 @@ use openrust::{
     config::{ConfigError, Environment},
     container::{
         AttributeParameter, ClassAttribute, ClassDescriptor, ConstructorParam, Container,
-        attributes::{Cache, DB, Database, Log, Storage},
+        attributes::{Cache, Database, Db, Log, Storage},
     },
     contracts::{
         cache::Repository as _,
@@ -41,7 +41,7 @@ fn descriptor() -> ClassDescriptor {
             ConstructorParam::class::<Connection>("default_db")
                 .with_attribute(ClassAttribute::contextual(|| Ok(Database::default()))),
             ConstructorParam::class::<Connection>("named_db")
-                .with_attribute(ClassAttribute::contextual(|| Ok(DB::new("named")))),
+                .with_attribute(ClassAttribute::contextual(|| Ok(Db::new("named")))),
             ConstructorParam::class::<Repository>("cache")
                 .with_attribute(ClassAttribute::contextual(|| Ok(Cache::new("named")))),
             ConstructorParam::class::<Repository>("memo").with_attribute(

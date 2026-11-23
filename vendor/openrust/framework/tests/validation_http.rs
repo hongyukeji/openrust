@@ -97,7 +97,7 @@ async fn submit(request: &mut Request) -> Result<Response, HttpError> {
 fn form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let locale = request.route("locale").unwrap().to_owned();
-        Lang::withLocale(&locale, submit(request)).await?
+        Lang::with_locale(&locale, submit(request)).await?
     })
 }
 
@@ -833,25 +833,25 @@ async fn custom_rules_respect_presence_nullable_bail_and_custom_messages() {
         .unwrap();
     assert!(validator.fails().await.unwrap());
     assert_eq!(
-        validator.errors().get("blocked", None).intoMessages(),
+        validator.errors().get("blocked", None).into_messages(),
         ["Supply a text description."]
     );
     assert_eq!(
-        validator.errors().get("checked", None).intoMessages(),
+        validator.errors().get("checked", None).into_messages(),
         ["The name is already used."]
     );
     assert!(
         validator
             .errors()
             .get("absent", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     assert!(
         validator
             .errors()
             .get("null", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
 }

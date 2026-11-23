@@ -6,7 +6,7 @@ Copy `.env.example` to `.env` in the application root to customize local setting
 
 An explicit `APP_URL` takes precedence for `app.url`. When it is unset, a specific `APP_HOST` and `APP_PORT` produce a URL such as `http://example.test:8080` or `http://[2001:db8::1]:8080`. An unset host, a loopback address such as `127.0.0.1` or `::1`, or a wildcard listener such as `0.0.0.0` or `::` uses `http://localhost:{port}`. The environment template sets `APP_URL="http://${APP_HOST}:${APP_PORT}"`, which expands to `http://127.0.0.1:8000` with its default settings.
 
-HTTP URL generation, including `URL::for_request(request)`, uses the explicit `APP_URL` first. With no explicit URL, it uses the current request origin, then the listener-derived `app.url` if the request has no origin. Artisan uses `app.url` directly.
+HTTP URL generation, including `Url::for_request(request)`, uses the explicit `APP_URL` first. With no explicit URL, it uses the current request origin, then the listener-derived `app.url` if the request has no origin. Artisan uses `app.url` directly.
 
 Set `APP_VERSION` to override the application version stored in `app.version`. When `APP_VERSION` is unset, the version defaults to the Cargo package version captured at compile time by `env!("CARGO_PKG_VERSION")`. The welcome page displays `app.version`.
 
@@ -148,7 +148,7 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 
 `FILESYSTEM_WEB_ROOT` overrides the website disk root; when unset, it uses `APP_PUBLIC_PATH` (default `public`). Relative paths are resolved from the application root; absolute paths are used directly. Empty or whitespace-only values fail configuration loading.
 
-When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::staticDisk("web")` and `Route::staticDisk("public")`. Calling `use_public_path()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
+When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::static_disk("web")` and `Route::static_disk("public")`. Calling `use_public_path()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
 
 ## Maintenance mode {#maintenance-mode}
 

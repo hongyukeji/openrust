@@ -43,7 +43,7 @@ impl Handler {
             return error.bare_response();
         }
         let exception = Exception::Http(error);
-        if self.shouldReport(&exception).await && !self.duplicate(&exception, true) {
+        if self.should_report(&exception).await && !self.duplicate(&exception, true) {
             let _ = self.write_report(&exception, Some(request)).await;
         }
         let config = self.configuration.as_ref();
@@ -170,8 +170,8 @@ impl Handler {
         };
         let quota = Quota {
             key,
-            max: limit.maxAttempts,
-            decay: limit.decaySeconds,
+            max: limit.max_attempts,
+            decay: limit.decay_seconds,
             charge: true,
         };
         // A failed throttle must leave the original exception reportable.
@@ -206,10 +206,10 @@ impl Handler {
             if let Some(error) = exception.downcast_ref::<HttpError>() {
                 context.insert("status".into(), error.status().as_u16().into());
             }
-            let snapshot = self.buildLogException(exception, None, true);
+            let snapshot = self.build_log_exception(exception, None, true);
             if let Some(request) = request {
                 return logger
-                    .logWithExceptionForRequest(
+                    .log_with_exception_for_request(
                         request,
                         level,
                         &exception.error().to_string(),
@@ -218,7 +218,7 @@ impl Handler {
                     )
                     .await;
             }
-            return logger.logWithException(
+            return logger.log_with_exception(
                 level,
                 &exception.error().to_string(),
                 &context,
@@ -235,9 +235,8 @@ impl Handler {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ExceptionHandler for Handler {
-    fn buildLogException(
+    fn build_log_exception(
         &self,
         exception: &Exception<'_>,
         name: Option<&'static str>,
@@ -262,13 +261,13 @@ impl ExceptionHandler for Handler {
         )
     }
 
-    fn shouldStopRetries(&self, exception: &Exception<'_>) -> bool {
+    fn should_stop_retries(&self, exception: &Exception<'_>) -> bool {
         self.configuration
             .as_ref()
             .is_some_and(|configuration| configuration.stops_retries(exception))
     }
 
-    fn shouldReport<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
+    fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
         Box::pin(async move {
             !self.duplicate(exception, false)
                 && self.allowed(exception)
@@ -278,7 +277,7 @@ impl ExceptionHandler for Handler {
 
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
         Box::pin(async move {
-            if !self.shouldReport(exception).await || self.duplicate(exception, true) {
+            if !self.should_report(exception).await || self.duplicate(exception, true) {
                 return Ok(());
             }
             self.write_report(exception, None).await
@@ -302,7 +301,7 @@ impl ExceptionHandler for Handler {
         self.respond(response, exception, request)
     }
 
-    fn renderForConsole(&self, output: &mut Output, exception: &Exception<'_>) {
+    fn render_for_console(&self, output: &mut Output, exception: &Exception<'_>) {
         writeln!(output.stderr, "{}", exception.error()).expect("writing to String");
     }
 }

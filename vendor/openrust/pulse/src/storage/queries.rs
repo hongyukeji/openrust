@@ -49,7 +49,7 @@ impl DatabaseStorage {
             .r#where("aggregate", "=", aggregate)
             .r#where("period", "=", period)
             .r#where("bucket", ">=", first)
-            .orderBy("bucket", "asc")
+            .order_by("bucket", "asc")
             .get()
             .await?;
         let mut padding = IndexMap::new();
@@ -80,21 +80,21 @@ impl DatabaseStorage {
             .connection
             .table("pulse_entries as keys")
             .select(["key"])
-            .whereColumn("keys.key_hash", "=", "aggregated.key_hash")
+            .where_column("keys.key_hash", "=", "aggregated.key_hash")
             .limit(1);
         Ok(self
             .connection
             .table("pulse_entries")
             .select(columns.iter().map(String::as_str))
-            .selectSub(&mut keys, "key")?
-            .fromSub(&mut query, "aggregated")?)
+            .select_sub(&mut keys, "key")?
+            .from_sub(&mut query, "aggregated")?)
     }
     pub async fn aggregate(
         &self,
         r#type: &str,
         aggregates: &[String],
         interval: i64,
-        orderBy: Option<&str>,
+        order_by: Option<&str>,
         direction: &str,
         limit: u64,
     ) -> Result<Vec<Row>> {
@@ -104,7 +104,7 @@ impl DatabaseStorage {
         for a in aggregates {
             validate(a)?;
         }
-        let order = orderBy.unwrap_or(&aggregates[0]);
+        let order = order_by.unwrap_or(&aggregates[0]);
         if !aggregates.iter().any(|a| a == order) {
             return Err(Error::InvalidAggregate(order.into()));
         }
@@ -116,13 +116,13 @@ impl DatabaseStorage {
             } else {
                 format!("{a}({})", self.wrap("value"))
             };
-            tail = tail.selectRaw(&format!("{expression} as {}", self.wrap(a)), vec![]);
+            tail = tail.select_raw(&format!("{expression} as {}", self.wrap(a)), vec![]);
         }
         tail = tail
             .r#where("type", "=", r#type)
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
-            .groupBy(&["key_hash"]);
+            .group_by(&["key_hash"]);
         for current in aggregates {
             let mut buckets = self
                 .connection
@@ -134,30 +134,30 @@ impl DatabaseStorage {
                 } else {
                     "null".into()
                 };
-                buckets = buckets.selectRaw(&format!("{expression} as {}", self.wrap(a)), vec![]);
+                buckets = buckets.select_raw(&format!("{expression} as {}", self.wrap(a)), vec![]);
             }
             buckets = buckets
                 .r#where("period", "=", period)
                 .r#where("type", "=", r#type)
                 .r#where("aggregate", "=", current.as_str())
                 .r#where("bucket", ">=", oldest)
-                .groupBy(&["key_hash"]);
-            tail = tail.unionAll(&mut buckets)?;
+                .group_by(&["key_hash"]);
+            tail = tail.union_all(&mut buckets)?;
         }
         let mut grouped = self
             .connection
             .table("pulse_entries")
             .select(["key_hash"])
-            .fromSub(&mut tail, "results")?;
+            .from_sub(&mut tail, "results")?;
         for a in aggregates {
-            grouped = grouped.selectRaw(
+            grouped = grouped.select_raw(
                 &format!("{} as {}", self.aggregateSql(a, a), self.wrap(a)),
                 vec![],
             );
         }
         grouped = grouped
-            .groupBy(&["key_hash"])
-            .orderBy(order, direction)
+            .group_by(&["key_hash"])
+            .order_by(order, direction)
             .limit(limit);
         Ok(self.mapKeys(grouped, aggregates)?.get().await?)
     }
@@ -166,7 +166,7 @@ impl DatabaseStorage {
         types: &[String],
         aggregate: &str,
         interval: i64,
-        orderBy: Option<&str>,
+        order_by: Option<&str>,
         direction: &str,
         limit: u64,
     ) -> Result<Vec<Row>> {
@@ -174,7 +174,7 @@ impl DatabaseStorage {
         if types.is_empty() {
             return Ok(vec![]);
         }
-        let order = orderBy.unwrap_or(&types[0]);
+        let order = order_by.unwrap_or(&types[0]);
         if !types.iter().any(|t| t == order) {
             return Err(Error::InvalidConfiguration(
                 "orderBy must be a requested type".into(),
@@ -196,7 +196,7 @@ impl DatabaseStorage {
                     self.wrap("value")
                 }
             );
-            tail = tail.selectRaw(
+            tail = tail.select_raw(
                 &format!("{aggregate}({conditional}) as {}", self.wrap(t)),
                 vec![t.clone().into()],
             );
@@ -205,7 +205,7 @@ impl DatabaseStorage {
                 self.wrap("type"),
                 self.wrap("value")
             );
-            buckets = buckets.selectRaw(
+            buckets = buckets.select_raw(
                 &format!(
                     "{}({conditional}) as {}",
                     if aggregate == "count" {
@@ -222,28 +222,28 @@ impl DatabaseStorage {
             .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
-            .groupBy(&["key_hash"]);
+            .group_by(&["key_hash"]);
         buckets = buckets
             .r#where("period", "=", period)
             .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("aggregate", "=", aggregate)
             .r#where("bucket", ">=", oldest)
-            .groupBy(&["key_hash"]);
-        tail = tail.unionAll(&mut buckets)?;
+            .group_by(&["key_hash"]);
+        tail = tail.union_all(&mut buckets)?;
         let mut grouped = self
             .connection
             .table("pulse_entries")
             .select(["key_hash"])
-            .fromSub(&mut tail, "results")?;
+            .from_sub(&mut tail, "results")?;
         for t in types {
-            grouped = grouped.selectRaw(
+            grouped = grouped.select_raw(
                 &format!("{} as {}", self.aggregateSql(aggregate, t), self.wrap(t)),
                 vec![],
             );
         }
         grouped = grouped
-            .groupBy(&["key_hash"])
-            .orderBy(order, direction)
+            .group_by(&["key_hash"])
+            .order_by(order, direction)
             .limit(limit);
         Ok(self.mapKeys(grouped, types)?.get().await?)
     }
@@ -264,16 +264,16 @@ impl DatabaseStorage {
             .connection
             .table("pulse_entries")
             .select(["type"])
-            .selectRaw(&format!("{tailSql} as {}", self.wrap(aggregate)), vec![])
+            .select_raw(&format!("{tailSql} as {}", self.wrap(aggregate)), vec![])
             .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
-            .groupBy(&["type"]);
+            .group_by(&["type"]);
         let mut buckets = self
             .connection
             .table("pulse_aggregates")
             .select(["type"])
-            .selectRaw(
+            .select_raw(
                 &format!(
                     "{} as {}",
                     self.aggregateSql(aggregate, "value"),
@@ -285,13 +285,13 @@ impl DatabaseStorage {
             .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("aggregate", "=", aggregate)
             .r#where("bucket", ">=", oldest)
-            .groupBy(&["type"]);
-        tail = tail.unionAll(&mut buckets)?;
+            .group_by(&["type"]);
+        tail = tail.union_all(&mut buckets)?;
         let rows = self
             .connection
             .table("pulse_entries")
             .select(["type"])
-            .selectRaw(
+            .select_raw(
                 &format!(
                     "{} as {}",
                     self.aggregateSql(aggregate, aggregate),
@@ -299,8 +299,8 @@ impl DatabaseStorage {
                 ),
                 vec![],
             )
-            .fromSub(&mut tail, "child")?
-            .groupBy(&["type"])
+            .from_sub(&mut tail, "child")?
+            .group_by(&["type"])
             .get()
             .await?;
         rows.into_iter()

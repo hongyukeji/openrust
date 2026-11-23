@@ -10,7 +10,7 @@
 
 ### 自訂驅動 {#custom-hash-drivers}
 
-在服務提供者啟動時用 `Hash::extend` 或 `HashManager::extend` 註冊應用自己的驅動。透過 `HASH_DRIVER` 選為預設驅動，也可以把名稱傳給 `driver`。工廠收到管理器並傳回 `Arc<dyn Hasher>`，可透過 `getContainer()` 讀取應用綁定。
+在服務提供者啟動時用 `Hash::extend` 或 `HashManager::extend` 註冊應用自己的驅動。透過 `HASH_DRIVER` 選為預設驅動，也可以把名稱傳給 `driver`。工廠收到管理器並傳回 `Arc<dyn Hasher>`，可透過 `get_container()` 讀取應用綁定。
 
 ```rust
 use std::sync::Arc;
@@ -19,16 +19,16 @@ use openrust::hashing::HashManager;
 
 pub fn register(manager: &HashManager) {
     manager.extend("project", |manager| {
-        Ok(Arc::new(manager.createArgon2idDriver()?))
+        Ok(Arc::new(manager.create_argon2id_driver()?))
     });
 }
 ```
 
-管理器在首次使用時建立驅動並依名稱快取。重新註冊後，現有實例會繼續使用，直到呼叫 `forgetDrivers()`。工廠失敗後可在下次查找時重試。遞迴或並行建立正在建構的同名驅動會傳回 `DriverBusy`。透過管理器建立的內建驅動共用應用雜湊限制。
+管理器在首次使用時建立驅動並依名稱快取。重新註冊後，現有實例會繼續使用，直到呼叫 `forget_drivers()`。工廠失敗後可在下次查找時重試。遞迴或並行建立正在建構的同名驅動會傳回 `DriverBusy`。透過管理器建立的內建驅動共用應用雜湊限制。
 
 ## 基本用法
 
-呼叫 `Hash::make` 產生雜湊，呼叫 `Hash::check` 驗證密碼。`HashOptions::new()` 使用設定中的成本。單次 bcrypt 操作可指定 `rounds`，Argon 可指定 `memory`、`time` 和 `threads`。密碼驗證成功後，用 `needsRehash` 判斷是否儲存替換雜湊。
+呼叫 `Hash::make` 產生雜湊，呼叫 `Hash::check` 驗證密碼。`HashOptions::new()` 使用設定中的成本。單次 bcrypt 操作可指定 `rounds`，Argon 可指定 `memory`、`time` 和 `threads`。密碼驗證成功後，用 `needs_rehash` 判斷是否儲存替換雜湊。
 
 ```rust
 use openrust::{
@@ -38,7 +38,7 @@ use openrust::{
 
 pub async fn refresh_password(password: &[u8], stored: &str) -> HashResult<Option<String>> {
     let options = HashOptions::new();
-    if Hash::check(password, stored, &options).await? && Hash::needsRehash(stored, &options)? {
+    if Hash::check(password, stored, &options).await? && Hash::needs_rehash(stored, &options)? {
         return Hash::make(password, &options).await.map(Some);
     }
     Ok(None)
@@ -54,4 +54,4 @@ OpenRust 在阻塞執行緒上執行密碼操作。每個應用程式預設允�
 
 ## 修改實例預設參數
 
-在可變的具體雜湊實例上呼叫 `BcryptHasher::setRounds(rounds)`，或 `ArgonHasher` / `Argon2IdHasher` 的 `setMemory(kib)`、`setTime(iterations)`、`setThreads(threads)`。這些方法支援鏈式呼叫，只修改目前實例的預設參數。單次操作傳入的選項優先，資源上限仍在實際執行時檢查。
+在可變的具體雜湊實例上呼叫 `BcryptHasher::set_rounds(rounds)`，或 `ArgonHasher` / `Argon2IdHasher` 的 `set_memory(kib)`、`set_time(iterations)`、`set_threads(threads)`。這些方法支援鏈式呼叫，只修改目前實例的預設參數。單次操作傳入的選項優先，資源上限仍在實際執行時檢查。

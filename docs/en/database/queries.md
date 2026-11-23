@@ -2,9 +2,9 @@
 
 ## Running Database Queries
 
-Start with `DB::table("users")?` in an application lifecycle or `connection.table("users")` on a named connection. Use `transaction.table("users")` inside a transaction to keep the query on its physical write connection. The builder's terminal methods are asynchronous and return a `Result`.
+Start with `Db::table("users")?` in an application lifecycle or `connection.table("users")` on a named connection. Use `transaction.table("users")` inside a transaction to keep the query on its physical write connection. The builder's terminal methods are asynchronous and return a `Result`.
 
-`get` returns a vector of rows. `first` and `find` return an optional row. `value` returns a single value, with `Value::Null` for a missing row, and `pluck` returns a vector of values. Use `exists` or `doesntExist` to test for rows. `useWritePdo` sends a query to the write connection.
+`get` returns a vector of rows. `first` and `find` return an optional row. `value` returns a single value, with `Value::Null` for a missing row, and `pluck` returns a vector of values. Use `exists` or `doesnt_exist` to test for rows. `use_write_pdo` sends a query to the write connection.
 
 ### Aggregates
 
@@ -19,7 +19,7 @@ use futures_util::TryStreamExt as _;
 use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
-    let mut rows = db.table("reports").orderBy("id", "asc").cursor();
+    let mut rows = db.table("reports").order_by("id", "asc").cursor();
     rows.try_next().await
 }
 ```
@@ -30,7 +30,7 @@ Inside a transaction, exhaust the cursor before issuing another statement or com
 
 Call `chunk(count, callback)` on an ordered query. The async callback receives a nonempty batch and a page number starting at 1. Return `Ok(false)` to stop or propagate an error with `Err`. An existing offset skips rows at the start and a limit caps the total. These pages use offsets, so changing which rows match while iterating can skip or repeat rows.
 
-Use `chunkById(count, callback, column, alias)` or `chunkByIdDesc` to fetch each next batch by comparing a unique, non-null key. Set `column` to `None` for `id`, and `alias` to the name used in the SQL projection if it differs from the column. The first batch honors the offset and the limit caps all batches. Keep the key stable while processing. The callback can stop before the key is checked. Wrap a union in `fromSub` to apply the key filter to all arms.
+Use `chunk_by_id(count, callback, column, alias)` or `chunk_by_id_desc` to fetch each next batch by comparing a unique, non-null key. Set `column` to `None` for `id`, and `alias` to the name used in the SQL projection if it differs from the column. The first batch honors the offset and the limit caps all batches. Keep the key stable while processing. The callback can stop before the key is checked. Wrap a union in `from_sub` to apply the key filter to all arms.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult};
@@ -38,7 +38,7 @@ use openrust::database::{Connection, DatabaseResult};
 async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
     db.table("reports")
         .select(["id as batch_id"])
-        .chunkByIdDesc(200, |rows, page| async move {
+        .chunk_by_id_desc(200, |rows, page| async move {
             println!("{}: {}", page, rows.len());
             Ok(true)
         }, None, Some("batch_id"))
@@ -46,17 +46,17 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 }
 ```
 
-Use `each(callback, count)` to process one row at a time from offset batches. The index starts at zero in every batch. `eachById(callback, count, column, alias)` uses ascending keyset batches and passes the index across the entire scan. Return `Ok(false)` to stop immediately or `Err` to propagate a failure.
+Use `each(callback, count)` to process one row at a time from offset batches. The index starts at zero in every batch. `each_by_id(callback, count, column, alias)` uses ascending keyset batches and passes the index across the entire scan. Return `Ok(false)` to stop immediately or `Err` to propagate a failure.
 
-Use `lazy(count)`, `lazyById(count, column, alias)` or `lazyByIdDesc` to consume rows from successive batches as an async stream. Query validation and database errors surface when polling. Dropping the stream stops future fetches. A full keyset batch needs a projected boundary key. A short final batch can finish without it. `chunkMap(callback, count)` maps the rows asynchronously and returns one reindexed collection of results.
+Use `lazy(count)`, `lazy_by_id(count, column, alias)` or `lazy_by_id_desc` to consume rows from successive batches as an async stream. Query validation and database errors surface when polling. Dropping the stream stops future fetches. A full keyset batch needs a projected boundary key. A short final batch can finish without it. `chunk_map(callback, count)` maps the rows asynchronously and returns one reindexed collection of results.
 
 ## Select Statements
 
-`select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.
+`select` sets the projection and `add_select` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `select_raw` or `Db::raw`. Bind values separately and select identifiers from application-defined names.
 
 ### Index hints {#index-hints}
 
-The last index hint on a query takes effect. MySQL and MariaDB support `useIndex`, `forceIndex`, and `ignoreIndex`, with one name or a comma-separated list. SQL Server applies `forceIndex` to a single index and combines it with any row-lock hints on the same table. SQLite applies `forceIndex` to a single index other than `PRIMARY`. SQL Server and SQLite ignore the other two methods. PostgreSQL ignores all three. Use index names defined by the application.
+The last index hint on a query takes effect. MySQL and MariaDB support `use_index`, `force_index`, and `ignore_index`, with one name or a comma-separated list. SQL Server applies `force_index` to a single index and combines it with any row-lock hints on the same table. SQLite applies `force_index` to a single index other than `PRIMARY`. SQL Server and SQLite ignore the other two methods. PostgreSQL ignores all three. Use index names defined by the application.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -64,9 +64,9 @@ use openrust::database::{Connection, DatabaseResult, Row};
 pub async fn indexed_items(connection: &Connection, score: i64) -> DatabaseResult<Vec<Row>> {
     connection
         .table("items")
-        .forceIndex("idx_score")
+        .force_index("idx_score")
         .r#where("score", "=", score)
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await
 }
@@ -74,7 +74,7 @@ pub async fn indexed_items(connection: &Connection, score: i64) -> DatabaseResul
 
 ## Joins
 
-Use `join`, `leftJoin`, `rightJoin`, or `crossJoin`. For an ON clause with several conditions, pass a closure to `joinWith` or `leftJoinWith`. `on` compares columns and `r#where` binds a value. Use `joinSub` to join a derived query.
+Use `join`, `left_join`, `right_join`, or `cross_join`. For an ON clause with several conditions, pass a closure to `join_with` or `left_join_with`. `on` compares columns and `r#where` binds a value. Use `join_sub` to join a derived query.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -87,9 +87,9 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
         .r#where("g.region", "=", region);
 
     items
-        .joinSub(&groups, "regional", |join| join.on("i.group_id", "=", "regional.id"))?
+        .join_sub(&groups, "regional", |join| join.on("i.group_id", "=", "regional.id"))?
         .select(["i.code", "i.stock"])
-        .orderBy("i.code", "asc")
+        .order_by("i.code", "asc")
         .get()
         .await
 }
@@ -97,7 +97,7 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
 
 ### Cross and straight joins {#cross-and-straight-joins}
 
-Use `crossJoinSub` to pair each outer row with every row of a derived query. On MySQL and MariaDB, `straightJoin` keeps the left source before the right source in the join order. Use `straightJoinWhere` to bind a value in the join condition, `straightJoinWith` for a closure, or `straightJoinSub` for a derived source.
+Use `cross_join_sub` to pair each outer row with every row of a derived query. On MySQL and MariaDB, `straight_join` keeps the left source before the right source in the join order. Use `straight_join_where` to bind a value in the join condition, `straight_join_with` for a closure, or `straight_join_sub` for a derived source.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -107,11 +107,11 @@ pub async fn label_paid_orders(connection: &Connection) -> DatabaseResult<Vec<Ro
     let labels = orders.subquery("labels").r#where("active", "=", 1);
 
     orders
-        .straightJoin("payments as p", "o.id", "=", "p.order_id")
-        .crossJoinSub(&labels, "label")?
+        .straight_join("payments as p", "o.id", "=", "p.order_id")
+        .cross_join_sub(&labels, "label")?
         .r#where("p.state", "=", "paid")
         .select(["o.id", "label.code"])
-        .orderBy("label.code", "asc")
+        .order_by("label.code", "asc")
         .get()
         .await
 }
@@ -119,7 +119,7 @@ pub async fn label_paid_orders(connection: &Connection) -> DatabaseResult<Vec<Ro
 
 ### Lateral Joins {#lateral-joins}
 
-Use `joinLateral` or `leftJoinLateral` on PostgreSQL, MySQL 8.0.14+, and SQL Server. Put the correlation in the subquery with `whereColumn`. The left join keeps outer rows with no match and returns null for their right-side columns. PostgreSQL and MySQL use `JOIN LATERAL`, and SQL Server uses `CROSS APPLY` or `OUTER APPLY`.
+Use `join_lateral` or `left_join_lateral` on PostgreSQL, MySQL 8.0.14+, and SQL Server. Put the correlation in the subquery with `where_column`. The left join keeps outer rows with no match and returns null for their right-side columns. PostgreSQL and MySQL use `JOIN LATERAL`, and SQL Server uses `CROSS APPLY` or `OUTER APPLY`.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -129,15 +129,15 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     let posts = users
         .subquery("posts as p")
         .select(["p.id as post_id"])
-        .whereColumn("p.user_id", "=", "u.id")
+        .where_column("p.user_id", "=", "u.id")
         .r#where("p.published", "=", 1)
-        .orderByDesc("p.id")
+        .order_by_desc("p.id")
         .limit(1);
 
     users
-        .leftJoinLateral(&posts, "latest")?
+        .left_join_lateral(&posts, "latest")?
         .select(["u.id", "latest.post_id"])
-        .orderBy("u.id", "asc")
+        .order_by("u.id", "asc")
         .get()
         .await
 }
@@ -145,13 +145,13 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 ## Unions
 
-Call `union(&other)?` to remove duplicate rows, or `unionAll(&other)?` to keep them. An order or limit applied before the union belongs to the first query. Apply an order or limit after the union to affect the combined result.
+Call `union(&other)?` to remove duplicate rows, or `union_all(&other)?` to keep them. An order or limit applied before the union belongs to the first query. Apply an order or limit after the union to affect the combined result.
 
 ## Basic Where Clauses
 
-Use `r#where(column, operator, value)` for `where`, since `where` is reserved in Rust. `orWhere` combines predicates with OR. Group them with `whereNested` or negate the group with `where_not`. Use `where_null`, `where_not_null`, `where_in`, `where_not_in`, `whereBetween`, or `whereColumn` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
+Use `r#where(column, operator, value)` for `where`, since `where` is reserved in Rust. `or_where` combines predicates with OR. Group them with `where_nested` or negate the group with `where_not`. Use `where_null`, `where_not_null`, `where_in`, `where_not_in`, `where_between`, or `where_column` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
 
-`whereLike` accepts a case-sensitivity flag. `whereDate` and `whereTime` use `jiff::civil::Date` and `jiff::civil::Time`. Use `toSql()` and `get_bindings()` to inspect the SQL and parameters in execution order.
+`where_like` accepts a case-sensitivity flag. `where_date` and `where_time` use `jiff::civil::Date` and `jiff::civil::Time`. Use `to_sql()` and `get_bindings()` to inspect the SQL and parameters in execution order.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row, Value};
@@ -161,13 +161,13 @@ pub async fn active_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
         .table("users")
         .select(["id", "name"])
         .r#where("active", "=", true)
-        .whereNested(|query| {
+        .where_nested(|query| {
             query
                 .where_null("archived_at")
-                .orWhere("name", "=", "Admin")
+                .or_where("name", "=", "Admin")
         })
-        .orderBy("id", "asc")
-        .forPage(1, 20)
+        .order_by("id", "asc")
+        .for_page(1, 20)
         .get()
         .await
 }
@@ -183,7 +183,7 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 ## Advanced Where Clauses
 
-Use `whereExists`, `whereNotExists`, `whereInSub` or `whereSub` to embed a query. `selectSub` adds a scalar projection and `fromSub` selects from a derived table. Inside a transaction, build the embedded query with `subquery` on the outer builder. The outer query executes the whole statement on its transaction connection.
+Use `where_exists`, `where_not_exists`, `where_in_sub` or `where_sub` to embed a query. `select_sub` adds a scalar projection and `from_sub` selects from a derived table. Inside a transaction, build the embedded query with `subquery` on the outer builder. The outer query executes the whole statement on its transaction connection.
 
 ### MySQL Subqueries Across Schemas {#mysql-cross-schema-subqueries}
 
@@ -202,8 +202,8 @@ async fn active_customers(
         .r#where("active", "=", 1);
     primary
         .table("customers")
-        .whereInSub("id", &active)?
-        .orderBy("id", "asc")
+        .where_in_sub("id", &active)?
+        .order_by("id", "asc")
         .pluck("id")
         .await
 }
@@ -215,7 +215,7 @@ MySQL runs the entire statement with the outer connection’s permissions. Grant
 
 Vector queries use cosine distance on PostgreSQL with the `pgvector` extension and on MariaDB 11.7 or later. See [vector columns](./migrations.md#vector-columns) for enabling the PostgreSQL extension and declaring the column and index.
 
-`whereVectorSimilarTo` takes a numeric embedding, a minimum similarity from 0 to 1, and a flag for sorting the closest rows first. Pass `false` to provide your own sort. A score of 1 matches an identical direction.
+`where_vector_similar_to` takes a numeric embedding, a minimum similarity from 0 to 1, and a flag for sorting the closest rows first. Pass `false` to provide your own sort. A score of 1 matches an identical direction.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -227,28 +227,28 @@ pub async fn related_documents(
     connection
         .table("documents")
         .select(["id"])
-        .selectVectorDistance("embedding", embedding, Some("distance"))?
-        .whereVectorSimilarTo("embedding", embedding, 0.7, true)?
+        .select_vector_distance("embedding", embedding, Some("distance"))?
+        .where_vector_similar_to("embedding", embedding, 0.7, true)?
         .limit(10)
         .get()
         .await
 }
 ```
 
-Use `selectVectorDistance`, `whereVectorDistanceLessThan`, `orWhereVectorDistanceLessThan`, and `orderByVectorDistance` independently when you need finer control. The distance filter includes the maximum distance. When projecting a PostgreSQL vector column, the result contains the vector as text. MariaDB returns the vector as bytes.
+Use `select_vector_distance`, `where_vector_distance_less_than`, `or_where_vector_distance_less_than`, and `order_by_vector_distance` independently when you need finer control. The distance filter includes the maximum distance. When projecting a PostgreSQL vector column, the result contains the vector as text. MariaDB returns the vector as bytes.
 
-Eloquent builders expose the same vector methods. Use the distance predicates inside `whereNested` to group them with other conditions. Eloquent applies global scopes to the full group, including every `orWhereVectorDistanceLessThan` branch.
+Eloquent builders expose the same vector methods. Use the distance predicates inside `where_nested` to group them with other conditions. Eloquent applies global scopes to the full group, including every `or_where_vector_distance_less_than` branch.
 
 ```rust
 use openrust::database::eloquent::Model;
 
-let mut query = Document::queryOn(&connection).select(["id"]);
-query.whereNested(|group| {
+let mut query = Document::query_on(&connection).select(["id"]);
+query.where_nested(|group| {
     group
-        .whereVectorDistanceLessThan("embedding", &primary, 0.3)
-        .orWhereVectorDistanceLessThan("embedding", &alternate, 0.2)
+        .where_vector_distance_less_than("embedding", &primary, 0.3)
+        .or_where_vector_distance_less_than("embedding", &alternate, 0.2)
 });
-let documents = query.orderByVectorDistance("embedding", &primary)?.get().await?;
+let documents = query.order_by_vector_distance("embedding", &primary)?.get().await?;
 ```
 
 #### Text Embeddings {#text-embeddings}
@@ -272,9 +272,9 @@ In Query Builder and Eloquent, the vector methods with a `Text` suffix resolve t
 let documents = connection
     .table("documents")
     .select(["id"])
-    .selectVectorDistanceText("embedding", "Rust web frameworks", Some("distance"))
+    .select_vector_distance_text("embedding", "Rust web frameworks", Some("distance"))
     .await?
-    .whereVectorSimilarToText("embedding", "Rust web frameworks", 0.7, true)
+    .where_vector_similar_to_text("embedding", "Rust web frameworks", 0.7, true)
     .await?
     .limit(10)
     .get()
@@ -283,7 +283,7 @@ let documents = connection
 
 ## JSON Where Clauses
 
-Use `whereJsonContains` and `whereJsonDoesntContain` to test JSON containment, `whereJsonContainsKey` and `whereJsonDoesntContainKey` to check path existence, and `whereJsonLength` to compare the length. Separate path segments with `->` and append indexes such as `groups[0]`. Each method has an `orWhere` variant.
+Use `where_json_contains` and `where_json_doesnt_contain` to test JSON containment, `where_json_contains_key` and `where_json_doesnt_contain_key` to check path existence, and `where_json_length` to compare the length. Separate path segments with `->` and append indexes such as `groups[0]`. Each method has an `or_where` variant.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -292,9 +292,9 @@ use serde_json::json;
 pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     connection
         .table("users")
-        .whereJsonContains("options->languages", json!("en"))
-        .whereJsonContainsKey("options->timezone")
-        .whereJsonLength("options->languages", ">", 1)
+        .where_json_contains("options->languages", json!("en"))
+        .where_json_contains_key("options->timezone")
+        .where_json_length("options->languages", ">", 1)
         .get()
         .await
 }
@@ -306,7 +306,7 @@ SQL Server uses `OPENJSON` for scalar containment, key existence, and length com
 
 ### JSON Overlap {#json-overlap}
 
-`whereJsonOverlaps` checks whether the selected JSON value shares an element or key-value pair with the candidate. MySQL uses `JSON_OVERLAPS`. `whereJsonDoesntOverlap` negates the predicate, and both have `orWhere` variants. For a missing path or SQL NULL document, MySQL returns SQL NULL, which a WHERE clause filters out even when the predicate is negated.
+`where_json_overlaps` checks whether the selected JSON value shares an element or key-value pair with the candidate. MySQL uses `JSON_OVERLAPS`. `where_json_doesnt_overlap` negates the predicate, and both have `or_where` variants. For a missing path or SQL NULL document, MySQL returns SQL NULL, which a WHERE clause filters out even when the predicate is negated.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
@@ -315,8 +315,8 @@ use serde_json::json;
 async fn eligible_user_ids(connection: &Connection) -> DatabaseResult<Vec<Value>> {
     connection
         .table("users")
-        .whereJsonOverlaps("options->languages", json!(["en", "fr"]))
-        .orderBy("id", "asc")
+        .where_json_overlaps("options->languages", json!(["en", "fr"]))
+        .order_by("id", "asc")
         .pluck("id")
         .await
 }
@@ -326,7 +326,7 @@ Use a JSON value or an `Expression` containing trusted SQL with separate binding
 
 ## Ordering, Grouping, Limit and Offset
 
-Use `orderBy("id", "asc")` or `orderByDesc("id")` to sort. `reorder()` clears the current sort. Use `groupBy` and `having` to filter groups. `limit` and `offset` select a range of rows. `forPage(page, per_page)` takes a one-based page number. SQLite and MySQL require a limit when executing an offset. Include a deterministic sort when selecting pages.
+Use `order_by("id", "asc")` or `order_by_desc("id")` to sort. `reorder()` clears the current sort. Use `group_by` and `having` to filter groups. `limit` and `offset` select a range of rows. `for_page(page, per_page)` takes a one-based page number. SQLite and MySQL require a limit when executing an offset. Include a deterministic sort when selecting pages.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -335,10 +335,10 @@ pub async fn departments(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     connection
         .table("users")
         .select(["department"])
-        .selectRaw("count(*) as total", Vec::new())
-        .groupBy(&["department"])
+        .select_raw("count(*) as total", Vec::new())
+        .group_by(&["department"])
         .having("total", ">=", 2)
-        .orderByDesc("total")
+        .order_by_desc("total")
         .get()
         .await
 }
@@ -346,18 +346,18 @@ pub async fn departments(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 ### Value ranges and explicit ordering {#value-ranges-and-ordering}
 
-Use `whereValueBetween(value, [lower, upper])` to test a bound value against two columns in each row. The bounds are inclusive. The negated form is `whereValueNotBetween`, and both forms have an OR variant.
+Use `where_value_between(value, [lower, upper])` to test a bound value against two columns in each row. The bounds are inclusive. The negated form is `where_value_not_between`, and both forms have an OR variant.
 
-`inOrderOf` puts listed values first in the supplied order. Rows with unlisted values, including nulls, share the last rank. Add a second sort for ties. An empty list leaves the existing sort intact. Use `Expression` for trusted SQL operands with separate bindings.
+`in_order_of` puts listed values first in the supplied order. Rows with unlisted values, including nulls, share the last rank. Add a second sort for ties. An empty list leaves the existing sort intact. Use `Expression` for trusted SQL operands with separate bindings.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
 
 pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Value>> {
     connection.table("order_ranges")
-        .whereValueBetween(5, ["lower_bound", "upper_bound"])
-        .inOrderOf("status", vec!["active".into(), "pending".into()])
-        .orderBy("id", "asc")
+        .where_value_between(5, ["lower_bound", "upper_bound"])
+        .in_order_of("status", vec!["active".into(), "pending".into()])
+        .order_by("id", "asc")
         .pluck("id")
         .await
 }
@@ -365,7 +365,7 @@ pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Valu
 
 ### Limit rows within each group {#group-limit}
 
-Call `groupLimit(count, column)` to limit the rows for each value of the partition column. `orderBy` selects the rows retained within each group. Use a unique tie-breaker when the order must be deterministic. `offset` skips rows within each group, and a group limit of zero returns no rows.
+Call `group_limit(count, column)` to limit the rows for each value of the partition column. `order_by` selects the rows retained within each group. Use a unique tie-breaker when the order must be deterministic. `offset` skips rows within each group, and a group limit of zero returns no rows.
 
 The builder ranks rows with `row_number()` and hides the rank column from returned rows. Wrap a union in a derived table before applying a group limit.
 
@@ -375,9 +375,9 @@ use openrust::database::{Connection, DatabaseResult, Row};
 pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     connection.table("group_items")
         .r#where("active", "=", true)
-        .orderByDesc("score")
-        .orderBy("id", "asc")
-        .groupLimit(1, "category")
+        .order_by_desc("score")
+        .order_by("id", "asc")
+        .group_limit(1, "category")
         .offset(1)
         .get()
         .await
@@ -386,13 +386,13 @@ pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<
 
 ## Insert Statements
 
-`insert` accepts one or more `Record` values. Each record in a batch has the same columns. `insertOrIgnore` returns the driver's affected-row count and uses its native ignore behavior. `insertUsing` takes a column list and a select query. `insertGetId` returns the key from the same execution result.
+`insert` accepts one or more `Record` values. Each record in a batch has the same columns. `insert_or_ignore` returns the driver's affected-row count and uses its native ignore behavior. `insert_using` takes a column list and a select query. `insert_get_id` returns the key from the same execution result.
 
 ### Generated IDs and inserted rows {#insert-results}
 
-Use `insertGetIdFor(record, "item_key")` to return a named key column on PostgreSQL. Other drivers keep their native generated ID behavior. PostgreSQL also uses `ON CONFLICT DO NOTHING` for `insertOrIgnore` and `insertOrIgnoreUsing`. SQL Server reports that these ignore operations are unsupported.
+Use `insert_get_id_for(record, "item_key")` to return a named key column on PostgreSQL. Other drivers keep their native generated ID behavior. PostgreSQL also uses `ON CONFLICT DO NOTHING` for `insert_or_ignore` and `insert_or_ignore_using`. SQL Server reports that these ignore operations are unsupported.
 
-On PostgreSQL and SQLite, `insertOrIgnoreReturning` returns only newly inserted rows. Supply the columns to return and optionally the unique columns whose conflict should be ignored. A conflict on another constraint still raises an error.
+On PostgreSQL and SQLite, `insert_or_ignore_returning` returns only newly inserted rows. Supply the columns to return and optionally the unique columns whose conflict should be ignored. A conflict on another constraint still raises an error.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row, query::Record};
@@ -402,7 +402,7 @@ pub async fn register_item(connection: &Connection, code: &str) -> DatabaseResul
 
     connection
         .table("items")
-        .insertOrIgnoreReturning(&[item], &["item_key", "code"], Some(&["code"]))
+        .insert_or_ignore_returning(&[item], &["item_key", "code"], Some(&["code"]))
         .await
 }
 ```
@@ -415,7 +415,7 @@ Use `upsert` with a batch, its conflict columns and the columns to update. SQLit
 use openrust::database::{Connection, DatabaseResult, query::Record};
 
 pub async fn save_stock(connection: &Connection, code: &str, stock: i64) -> DatabaseResult<u64> {
-    let mut transaction = connection.beginTransaction().await?;
+    let mut transaction = connection.begin_transaction().await?;
     let row = Record::from([("code".into(), code.into()), ("stock".into(), stock.into())]);
     let affected = transaction
         .table("items")
@@ -428,7 +428,7 @@ pub async fn save_stock(connection: &Connection, code: &str, stock: i64) -> Data
 
 #### Assignments on Conflict {#upsert-conflict-assignments}
 
-Use `upsertWith` when an update on conflict copies some values from the attempted insert and supplies other values directly. `UpsertUpdate::FromInsert` copies the named insert column, `UpsertUpdate::Value` binds a fixed value, and `UpsertUpdate::Expression` accepts trusted SQL with separate bindings. A row inserted without a conflict uses the insert values and table defaults.
+Use `upsert_with` when an update on conflict copies some values from the attempted insert and supplies other values directly. `UpsertUpdate::FromInsert` copies the named insert column, `UpsertUpdate::Value` binds a fixed value, and `UpsertUpdate::Expression` accepts trusted SQL with separate bindings. A row inserted without a conflict uses the insert values and table defaults.
 
 ```rust
 use openrust::database::{
@@ -440,7 +440,7 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
     let row = Record::from([("code".into(), code.into()), ("stock".into(), stock.into())]);
     connection
         .table("items")
-        .upsertWith(
+        .upsert_with(
             &[row],
             &["code"],
             &[
@@ -454,7 +454,7 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 ## Update Statements
 
-`update` returns the affected row count. `updateOrInsert` performs an existence check followed by a write. Use `upsert` when the insert and conflict handling must run in one statement. `increment` and `decrement` perform arithmetic in SQL and can set extra columns.
+`update` returns the affected row count. `update_or_insert` performs an existence check followed by a write. Use `upsert` when the insert and conflict handling must run in one statement. `increment` and `decrement` perform arithmetic in SQL and can set extra columns.
 
 PostgreSQL applies joins and limits on updates or deletes by selecting the target rows in a subquery using `ctid`.
 
@@ -464,7 +464,7 @@ MySQL and MariaDB count rows actually changed by an update. An update that sets 
 
 ### Update expressions and scalar subqueries {#update-expressions}
 
-Use `updateWith` to mix bound values, trusted SQL `Expression` values, and `UpdateValue::Subquery` assignments. Build a correlated subquery with `subquery` on the target builder. The database evaluates it for each matching row and determines the result of an empty or multi-row subquery. For JSON paths, MySQL, MariaDB, and PostgreSQL also accept expressions. SQLite merge patches accept literal values.
+Use `update_with` to mix bound values, trusted SQL `Expression` values, and `UpdateValue::Subquery` assignments. Build a correlated subquery with `subquery` on the target builder. The database evaluates it for each matching row and determines the result of an empty or multi-row subquery. For JSON paths, MySQL, MariaDB, and PostgreSQL also accept expressions. SQLite merge patches accept literal values.
 
 ```rust
 use std::collections::BTreeMap;
@@ -478,13 +478,13 @@ pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult
     let accounts = connection.table("accounts as a");
     let credits = accounts
         .subquery("entries as e")
-        .selectRaw("sum(amount)", vec![])
-        .whereColumn("e.account_id", "=", "a.id")
+        .select_raw("sum(amount)", vec![])
+        .where_column("e.account_id", "=", "a.id")
         .r#where("e.state", "=", "posted");
 
     accounts
         .r#where("a.id", "=", id)
-        .updateWith(BTreeMap::from([
+        .update_with(BTreeMap::from([
             ("credits".into(), UpdateValue::Subquery(&credits)),
             (
                 "note".into(),
@@ -499,7 +499,7 @@ pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult
 
 ### PostgreSQL updates from joined sources {#postgresql-update-from}
 
-Use `updateFrom` on PostgreSQL to update a target using joined sources. PostgreSQL lists the sources in `FROM` and applies their join conditions after the query predicates in `WHERE`. As in the framework, this form ignores ordering, limit, and offset. Use a `Record` for bound values or `ValueOperand` to mix bound values with trusted SQL expressions.
+Use `update_from` on PostgreSQL to update a target using joined sources. PostgreSQL lists the sources in `FROM` and applies their join conditions after the query predicates in `WHERE`. As in the framework, this form ignores ordering, limit, and offset. Use a `Record` for bound values or `ValueOperand` to mix bound values with trusted SQL expressions.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, query::Record};
@@ -509,7 +509,7 @@ pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> 
         .table("orders as o")
         .join("payments as p", "o.id", "=", "p.order_id")
         .r#where("p.state", "=", "paid")
-        .updateFrom(Record::from([("status".into(), "verified".into())]))
+        .update_from(Record::from([("status".into(), "verified".into())]))
         .await
 }
 ```
@@ -526,7 +526,7 @@ pub async fn activate_latest(connection: &Connection) -> DatabaseResult<u64> {
     connection
         .table("event_archive")
         .r#where("score", "=", 0)
-        .orderBy("id", "desc")
+        .order_by("id", "desc")
         .limit(1)
         .update(BTreeMap::from([("score".into(), 1.into())]))
         .await
@@ -579,11 +579,11 @@ SQL Server executes native `TRUNCATE TABLE`. It resets the identity seed and rej
 
 ## Pessimistic Locking
 
-Use `lockForUpdate` or `sharedLock` inside a transaction. `lock(true)` and `lock(false)` select the same modes. A locking query uses the write connection. SQLite applies its normal transaction locking and omits row-lock clauses.
+Use `lock_for_update` or `shared_lock` inside a transaction. `lock(true)` and `lock(false)` select the same modes. A locking query uses the write connection. SQLite applies its normal transaction locking and omits row-lock clauses.
 
 ### Native locking clauses {#native-locking-clauses}
 
-Pass an application-defined SQL clause to `lock` for options such as `FOR UPDATE SKIP LOCKED` on MySQL and PostgreSQL or `WITH (UPDLOCK, ROWLOCK, READPAST)` on SQL Server. On SQL Server, a custom lock combined with `forceIndex` must use a `WITH (...)` list. Never put request input into the clause.
+Pass an application-defined SQL clause to `lock` for options such as `FOR UPDATE SKIP LOCKED` on MySQL and PostgreSQL or `WITH (UPDLOCK, ROWLOCK, READPAST)` on SQL Server. On SQL Server, a custom lock combined with `force_index` must use a `WITH (...)` list. Never put request input into the clause.
 
 ```rust
 use openrust::database::{DatabaseResult, Row, Transaction};
@@ -594,7 +594,7 @@ pub async fn next_unlocked(
 ) -> DatabaseResult<Option<Row>> {
     transaction
         .table("job_slots")
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .lock(lock_clause)
         .first()
         .await
@@ -603,41 +603,41 @@ pub async fn next_unlocked(
 
 ## Execution callbacks and raw SQL
 
-`beforeQuery` returns the modified builder and clears callbacks after successful application, for reads and writes. Failures retain callbacks for retry. `afterQuery` receives and returns `Vec<Row>`; an empty vector means an empty result. `toRawSql` reuses driver binding interpolation for debugging only; execution remains parameterized. Because `toSql` and `toRawSql` apply callbacks, they require `&mut self`. Embedded subqueries also require `&mut Builder` to consume callbacks once. Update consumers to declare `let mut query` and pass `&mut query`.
+`before_query` returns the modified builder and clears callbacks after successful application, for reads and writes. Failures retain callbacks for retry. `after_query` receives and returns `Vec<Row>`; an empty vector means an empty result. `to_raw_sql` reuses driver binding interpolation for debugging only; execution remains parameterized. Because `to_sql` and `to_raw_sql` apply callbacks, they require `&mut self`. Embedded subqueries also require `&mut Builder` to consume callbacks once. Update consumers to declare `let mut query` and pass `&mut query`.
 
 ```rust
 let mut query = connection.table("users")
-    .beforeQuery(|query| Ok(query.r#where("active", "=", true)));
-let sql = query.toRawSql()?;
-let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
+    .before_query(|query| Ok(query.r#where("active", "=", true)));
+let sql = query.to_raw_sql()?;
+let rows = query.after_query(|rows| Ok(rows)).get().await?;
 ```
 
 ## Binding Categories {#binding-categories}
 
-`getRawBindings()` returns the ordered categories `select`, `from`, `join`, `where`, `groupBy`, `having`, `order`, `union`, and `unionOrder`. `setBindings(values, kind)` replaces a category; `addBinding(value_or_values, kind)` appends to it. Use `None` for the default `where` category or `Some("join")` for an explicit category. Unknown categories return an error. These methods consume and return the builder through `Result`.
+`get_raw_bindings()` returns the ordered categories `select`, `from`, `join`, `where`, `group_by`, `having`, `order`, `union`, and `unionOrder`. `set_bindings(values, kind)` replaces a category; `add_binding(value_or_values, kind)` appends to it. Use `None` for the default `where` category or `Some("join")` for an explicit category. Unknown categories return an error. These methods consume and return the builder through `Result`.
 
 ```rust
 let query = connection.table("users")
-    .whereRaw("id > ? and id < ?", Vec::new())
-    .addBinding([1_i64, 10], None)?
-    .setBindings(vec![2.into(), 9.into()], None)?
+    .where_raw("id > ? and id < ?", Vec::new())
+    .add_binding([1_i64, 10], None)?
+    .set_bindings(vec![2.into(), 9.into()], None)?
     .r#where("active", "=", true);
-let bindings = query.getRawBindings()?;
+let bindings = query.get_raw_bindings()?;
 assert_eq!(bindings["where"], vec![2.into(), 9.into(), true.into()]);
 ```
 
-Later conditions append their values after a manual replacement. `select` clears projection bindings, and `reorder` clears both regular and union order bindings. `mergeBindings(&other)` appends each category without copying SQL; ensure the SQL contains the matching placeholders. The typed values remain bound parameters, including values that contain SQL text. `get_bindings()` reports the parameters used by the compiled query; grouped limits move ordering parameters into the window projection and add bound numeric limits. `getRawBindings()` reports the original logical categories.
+Later conditions append their values after a manual replacement. `select` clears projection bindings, and `reorder` clears both regular and union order bindings. `merge_bindings(&other)` appends each category without copying SQL; ensure the SQL contains the matching placeholders. The typed values remain bound parameters, including values that contain SQL text. `get_bindings()` reports the parameters used by the compiled query; grouped limits move ordering parameters into the window projection and add bound numeric limits. `get_raw_bindings()` reports the original logical categories.
 
 ## Additional Query Conditions {#additional-query-conditions}
 
-`fromRaw(sql, bindings)` sets a trusted SQL source. `joinWhere`, `leftJoinWhere` and `rightJoinWhere` compare a join column with a bound value. Raw SQL must come from application code; pass user values through bindings.
+`from_raw(sql, bindings)` sets a trusted SQL source. `join_where`, `left_join_where` and `right_join_where` compare a join column with a bound value. Raw SQL must come from application code; pass user values through bindings.
 
-`whereBinary`, `whereNotBinary` and their `or` variants use MySQL binary comparisons. Other drivers return an unsupported-operation error. The four `whereIntegerInRaw` / `whereIntegerNotInRaw` variants accept `Vec<i64>`; empty positive sets match nothing and empty negative sets match everything. `whereRowValues` and `orWhereRowValues` return `Result`, reject unequal column/value counts and invalid operators, and bind every value.
+`where_binary`, `where_not_binary` and their `or` variants use MySQL binary comparisons. Other drivers return an unsupported-operation error. The four `where_integer_in_raw` / `where_integer_not_in_raw` variants accept `Vec<i64>`; empty positive sets match nothing and empty negative sets match everything. `where_row_values` and `or_where_row_values` return `Result`, reject unequal column/value counts and invalid operators, and bind every value.
 
-`havingNull` / `havingNotNull` and their `or` variants accept a column slice. `havingBetween` / `havingNotBetween` and their `or` variants accept two bounds. `havingNested` and `orHavingNested` receive a query builder and group its HAVING conditions; an empty callback adds no condition.
+`having_null` / `having_not_null` and their `or` variants accept a column slice. `having_between` / `having_not_between` and their `or` variants accept two bounds. `having_nested` and `or_having_nested` receive a query builder and group its HAVING conditions; an empty callback adds no condition.
 
-`inRandomOrder(None)` uses the driver's random function; `Some(seed)` supplies a MySQL seed. `reorder()` also clears union ordering, and `reorderDesc(column)` starts a new descending order. `forPageBeforeId(perPage, lastId, column)` and `forPageAfterId` replace ordering for that column while keeping other sorts. Pass `None` for `lastId` to select non-null IDs without an ID boundary.
+`in_random_order(None)` uses the driver's random function; `Some(seed)` supplies a MySQL seed. `reorder()` also clears union ordering, and `reorder_desc(column)` starts a new descending order. `for_page_before_id(per_page, last_id, column)` and `for_page_after_id` replace ordering for that column while keeping other sorts. Pass `None` for `last_id` to select non-null IDs without an ID boundary.
 
-`rawValue(expression, bindings)` appends a raw projection and returns the first column of the first row, or `Value::Null` for no row. Existing projections retain priority. PostgreSQL can infer an untyped parameter projection as text, so `select ?` may return `Value::Text`; use an explicit SQL cast when the result needs a particular type.
+`raw_value(expression, bindings)` appends a raw projection and returns the first column of the first row, or `Value::Null` for no row. Existing projections retain priority. PostgreSQL can infer an untyped parameter projection as text, so `select ?` may return `Value::Text`; use an explicit SQL cast when the result needs a particular type.
 
-`existsOr` and `doesntExistOr` accept a lazy async callback returning `DatabaseResult<T>`. They return `query::ExistsOr::Satisfied` when the condition holds, or `Callback(T)` after running the callback. Query errors skip the callback; callback errors propagate.
+`exists_or` and `doesnt_exist_or` accept a lazy async callback returning `DatabaseResult<T>`. They return `query::ExistsOr::Satisfied` when the condition holds, or `Callback(T)` after running the callback. Query errors skip the callback; callback errors propagate.

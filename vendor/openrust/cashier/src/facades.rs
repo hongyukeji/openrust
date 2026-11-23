@@ -18,10 +18,10 @@ impl Cashier {
             Self::get_facade_root().map_err(|_| Error::Configuration("application context"))?;
         manager.driver(&manager.get_default_driver()?)
     }
-    pub fn forgetDrivers() -> Result<()> {
+    pub fn forget_drivers() -> Result<()> {
         Self::get_facade_root()
             .map_err(|_| Error::Configuration("application context"))?
-            .forgetDrivers();
+            .forget_drivers();
         Ok(())
     }
 }

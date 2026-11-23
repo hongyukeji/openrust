@@ -34,7 +34,7 @@ impl VerifiedIdentity {
     pub fn claims(&self) -> &Value {
         &self.claims
     }
-    pub fn userInfo(&self) -> Option<&Value> {
+    pub fn user_info(&self) -> Option<&Value> {
         self.userinfo.as_ref()
     }
 }

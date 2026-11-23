@@ -27,7 +27,7 @@ impl PrunableFailedJobProvider for DatabaseUuidFailedJobProvider {
                     .connection
                     .table(&self.table)
                     .r#where("failed_at", "<", super::timestamp(before))
-                    .orderBy("id", "asc")
+                    .order_by("id", "asc")
                     .limit(1000)
                     .delete()
                     .await
@@ -95,8 +95,8 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
         Box::pin(async move {
             self.connection
                 .table(&self.table)
-                .useWritePdo()
-                .orderByDesc("id")
+                .use_write_pdo()
+                .order_by_desc("id")
                 .get()
                 .await
                 .map_err(backend)?
@@ -111,8 +111,8 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
             let mut query = self
                 .connection
                 .table(&self.table)
-                .useWritePdo()
-                .orderByDesc("id");
+                .use_write_pdo()
+                .order_by_desc("id");
             if let Some(queue) = queue {
                 query = query.r#where("queue", "=", queue);
             }
@@ -133,7 +133,7 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
         Box::pin(async move {
             self.connection
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .r#where("uuid", "=", id)
                 .first()
                 .await
@@ -159,7 +159,7 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
     fn forget_retry<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<bool>> {
         Box::pin(async move {
             let canonical = job.payload.encode()?;
-            let table = || self.connection.table(&self.table).useWritePdo();
+            let table = || self.connection.table(&self.table).use_write_pdo();
             if delete_retry_payload(table(), job, &canonical).await? {
                 return Ok(true);
             }

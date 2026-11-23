@@ -25,7 +25,6 @@ pub struct SeederEntry {
     without_model_events: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SeederEntry {
     pub const fn new(name: &'static str, seeder: &'static dyn Seeder) -> Self {
         Self {
@@ -37,7 +36,7 @@ impl SeederEntry {
 
     /// Mutes Eloquent model events for this seeder and the seeders it calls.
     #[must_use]
-    pub const fn withoutModelEvents(mut self) -> Self {
+    pub const fn without_model_events(mut self) -> Self {
         self.without_model_events = true;
         self
     }
@@ -79,7 +78,6 @@ pub struct SeederContext<'a> {
     parameters: &'a Record,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SeederContext<'_> {
     pub fn application(&self) -> &Application {
         self.application
@@ -94,28 +92,32 @@ impl SeederContext<'_> {
     }
 
     pub async fn call(&mut self, names: &[&str]) -> DatabaseResult<()> {
-        self.callWithMany(names, Record::new()).await
+        self.call_with_many(names, Record::new()).await
     }
 
-    pub async fn callSilent(&mut self, names: &[&str]) -> DatabaseResult<()> {
-        self.callSilentWith(names, Record::new()).await
+    pub async fn call_silent(&mut self, names: &[&str]) -> DatabaseResult<()> {
+        self.call_silent_with(names, Record::new()).await
     }
 
-    pub async fn callOnce(&mut self, names: &[&str]) -> DatabaseResult<()> {
-        self.callOnceWith(names, false, Record::new()).await
+    pub async fn call_once(&mut self, names: &[&str]) -> DatabaseResult<()> {
+        self.call_once_with(names, false, Record::new()).await
     }
 
-    pub async fn callWith(&mut self, name: &str, parameters: Record) -> DatabaseResult<()> {
-        self.callWithMany(&[name], parameters).await
+    pub async fn call_with(&mut self, name: &str, parameters: Record) -> DatabaseResult<()> {
+        self.call_with_many(&[name], parameters).await
     }
 
     /// Runs the seeders in order with the same arguments for each.
-    pub async fn callWithMany(&mut self, names: &[&str], parameters: Record) -> DatabaseResult<()> {
+    pub async fn call_with_many(
+        &mut self,
+        names: &[&str],
+        parameters: Record,
+    ) -> DatabaseResult<()> {
         self.call_seeders(names, &parameters, false, false).await
     }
 
     /// Passes arguments to each seeder while suppressing its progress lines.
-    pub async fn callSilentWith(
+    pub async fn call_silent_with(
         &mut self,
         names: &[&str],
         parameters: Record,
@@ -124,7 +126,7 @@ impl SeederContext<'_> {
     }
 
     /// Passes arguments to each seeder that has yet to complete in this invocation.
-    pub async fn callOnceWith(
+    pub async fn call_once_with(
         &mut self,
         names: &[&str],
         silent: bool,
@@ -207,7 +209,7 @@ pub(crate) async fn run(
     let name = name.unwrap_or(DEFAULT);
     let selected = match database.filter(|name| !name.is_empty()) {
         Some(database) => database.to_owned(),
-        None => manager.getDefaultConnection()?,
+        None => manager.get_default_connection()?,
     };
     let connection = manager.connection(Some(&selected))?;
     output.info("Seeding database.");
@@ -223,7 +225,7 @@ pub(crate) async fn run(
         parameters: &parameters,
     };
     manager
-        .usingConnection(
+        .using_connection(
             &selected,
             super::eloquent::concerns::unguarded(context.invoke(
                 name,

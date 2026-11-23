@@ -17,9 +17,8 @@ impl AsStringable {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CastableObject for Stringable {
-    fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
+    fn from_attributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
         match raw.get(name) {
             None | Some(Value::Null) => Ok(None),
             Some(value) => scalar_string(value).map(Self::from).map(Some),

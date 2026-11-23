@@ -14,7 +14,7 @@ pub use blade_compiler::{BladeCompiler, DirectiveOutput};
 
 /// Compiles a template and determines when its artifact is stale.
 pub trait Compiler: Send + Sync {
-    fn getCompiledPath(&self, path: &Path) -> ViewResult<PathBuf>;
-    fn isExpired(&self, path: &Path) -> ViewResult<bool>;
+    fn get_compiled_path(&self, path: &Path) -> ViewResult<PathBuf>;
+    fn is_expired(&self, path: &Path) -> ViewResult<bool>;
     fn compile(&self, path: &Path) -> ViewResult<()>;
 }

@@ -32,11 +32,11 @@ fn locale_form_field() -> Result<String, HttpError> {
 
 ### 忽略异常
 
-默认忽略 HTTP 400、403、404 和 405。用 `dontReport::<E>` 忽略匹配类型，`dontReportWhen` 按条件忽略，`stopIgnoring::<HttpError>` 恢复这些 HTTP 错误的报告。忽略规则只影响报告，响应仍按原流程渲染。
+默认忽略 HTTP 400、403、404 和 405。用 `dont_report::<E>` 忽略匹配类型，`dont_report_when` 按条件忽略，`stop_ignoring::<HttpError>` 恢复这些 HTTP 错误的报告。忽略规则只影响报告，响应仍按原流程渲染。
 
 ### 异常实例去重
 
-启用 `dontReportDuplicates` 后，用 `SharedException` 包装需要共享身份的异常。克隆保留同一身份。可以显式调用 `Application::report`，也可以将共享异常作为 `HttpError::Internal` 的来源返回。消息相同的独立异常仍可分别报告。
+启用 `dont_report_duplicates` 后，用 `SharedException` 包装需要共享身份的异常。克隆保留同一身份。可以显式调用 `Application::report`，也可以将共享异常作为 `HttpError::Internal` 的来源返回。消息相同的独立异常仍可分别报告。
 
 ```rust
 use openrust::{
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_exceptions(|exceptions| {
             exceptions
                 .level::<std::io::Error>(Level::Warning)
-                .dontReportDuplicates();
+                .dont_report_duplicates();
         })
         .create()?;
     app.boot().await?;
@@ -76,7 +76,7 @@ use openrust::{
 
 fn configure(exceptions: &mut Exceptions) {
     exceptions.throttle::<std::io::Error>(|_| {
-        Some(ReportThrottle::Limit(Limit::perMinute(2).by("transport")))
+        Some(ReportThrottle::Limit(Limit::per_minute(2).by("transport")))
     });
 }
 ```
@@ -132,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 将异常渲染为 JSON
 
-框架默认根据请求对 JSON 的偏好选择响应。应用骨架在 `with_exceptions` 中为 最终生效的 API 路径 和期望 JSON 的请求启用 JSON 异常响应。可用 `shouldRenderJsonWhen` 自定义策略。
+框架默认根据请求对 JSON 的偏好选择响应。应用骨架在 `with_exceptions` 中为 最终生效的 API 路径 和期望 JSON 的请求启用 JSON 异常响应。可用 `should_render_json_when` 自定义策略。
 
 生产环境设为 `APP_DEBUG=false`。通用 500 的默认 JSON 消息为 `Server Error`，默认 HTML 页面省略异常来源。调试模式下，内置服务端错误响应包含有数量及长度上限的来源消息，输出到 HTML 时会转义。自定义回调负责控制所返回的响应内容。
 

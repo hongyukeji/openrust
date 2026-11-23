@@ -53,7 +53,7 @@ struct FactorUser(ModelState);
 impl Model for FactorUser {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("fortify_factor_users")
-            .primaryKey("identity")
+            .primary_key("identity")
             .incrementing(false)
             .timestamps(None, None);
         &META
@@ -74,7 +74,7 @@ impl Authenticatable for FactorUser {
         "identity"
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.getKey().unwrap().try_into().unwrap()
+        self.get_key().unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
@@ -86,19 +86,19 @@ impl Authenticatable for FactorUser {
         field(self, "remember_token")
     }
     fn set_remember_token(&mut self, token: Option<String>) {
-        self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
+        self.set_attribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
     fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name)
+        self.get_attribute_value(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
 }
 
 fn field<'a>(user: &'a FactorUser, name: &str) -> Option<&'a str> {
-    match user.getAttribute(name) {
+    match user.get_attribute(name) {
         Some(Value::Text(value)) => Some(value),
         _ => None,
     }
@@ -152,7 +152,7 @@ impl Listener for Observe {
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
             use openrust_fortify::events::*;
-            macro_rules! check {($($kind:ty),+)=>{$(if let Some(event)=event.downcast_ref::<$kind>() {assert_eq!(event.user::<FactorUser>(context).unwrap().getKey(),Some(&Value::Text("001".into())));})+}}
+            macro_rules! check {($($kind:ty),+)=>{$(if let Some(event)=event.downcast_ref::<$kind>() {assert_eq!(event.user::<FactorUser>(context).unwrap().get_key(),Some(&Value::Text("001".into())));})+}}
             check!(
                 TwoFactorAuthenticationEnabled,
                 TwoFactorAuthenticationConfirmed,
@@ -224,7 +224,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             _ => return Err(HttpError::InvalidRequest),
         }
         let stored = FactorUser::find("001").await.map_err(internal)?.unwrap();
-        let codes_json = match stored.getAttribute("two_factor_recovery_codes") {
+        let codes_json = match stored.get_attribute("two_factor_recovery_codes") {
             Some(Value::Text(ciphertext)) => Some(
                 String::from_utf8(
                     fixture
@@ -238,7 +238,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             ),
             _ => None,
         };
-        let secret = match stored.getAttribute("two_factor_secret") {
+        let secret = match stored.get_attribute("two_factor_secret") {
             Some(Value::Text(ciphertext)) => Some(
                 String::from_utf8(
                     fixture
@@ -253,7 +253,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             _ => None,
         };
         let codes = if matches!(
-            stored.getAttribute("two_factor_recovery_codes"),
+            stored.get_attribute("two_factor_recovery_codes"),
             Some(Value::Text(_))
         ) {
             Some(stored.recoveryCodes(&fixture.fortify).map_err(internal)?)
@@ -271,7 +271,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         };
         Response::json(
             StatusCode::OK,
-            json!({"codes_json":codes_json,"secret":secret,"codes":codes,"qr":qr,"enabled":stored.hasEnabledTwoFactorAuthentication(&fixture.fortify).map_err(internal)?,"confirmed":stored.getAttribute("two_factor_confirmed_at").is_some_and(|v|*v!=Value::Null),"generated":*fixture.engine.generated.lock().unwrap(),"events":*fixture.events.lock().unwrap()}),
+            json!({"codes_json":codes_json,"secret":secret,"codes":codes,"qr":qr,"enabled":stored.hasEnabledTwoFactorAuthentication(&fixture.fortify).map_err(internal)?,"confirmed":stored.get_attribute("two_factor_confirmed_at").is_some_and(|v|*v!=Value::Null),"generated":*fixture.engine.generated.lock().unwrap(),"events":*fixture.events.lock().unwrap()}),
         )
     })
 }
@@ -338,7 +338,7 @@ async fn two_factor_model_actions_persist_encrypted_state_and_events_on_mysql() 
         .connection(None)
         .unwrap();
     let version = db
-        .selectOne("SELECT VERSION() AS version", &[])
+        .select_one("SELECT VERSION() AS version", &[])
         .await
         .unwrap()
         .unwrap();
@@ -464,11 +464,11 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
     let two = Fortify::new(Arc::new(Repository::new(Default::default())));
     let mut user = FactorUser(ModelState::default());
     assert!(!user.hasEnabledTwoFactorAuthentication(&one).unwrap());
-    user.setAttribute("two_factor_secret", "");
+    user.set_attribute("two_factor_secret", "");
     assert!(!user.hasEnabledTwoFactorAuthentication(&one).unwrap());
-    user.setAttribute("two_factor_confirmed_at", "");
+    user.set_attribute("two_factor_confirmed_at", "");
     assert!(user.hasEnabledTwoFactorAuthentication(&one).unwrap());
-    user.setAttribute("two_factor_confirmed_at", Value::Null);
+    user.set_attribute("two_factor_confirmed_at", Value::Null);
     config
         .set(
             "fortify-options.two-factor-authentication.confirm",
@@ -483,7 +483,7 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
         .unwrap()
         .encrypt(br#"["original"]"#, true)
         .unwrap();
-    user.setAttribute("two_factor_recovery_codes", cipher);
+    user.set_attribute("two_factor_recovery_codes", cipher);
     assert_eq!(user.recoveryCodes(&one).unwrap(), vec!["original"]);
     two.encryptUsing(Some(Arc::new(
         Encrypter::new([b'b'; 32], Cipher::Aes256Cbc).unwrap(),
@@ -502,7 +502,7 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
     one.generateRecoveryCodesUsing(None);
     assert_ne!(openrust_fortify::RecoveryCode::generate(&one), "only-one");
     for invalid in ["null", "{}", r#"["original",5]"#] {
-        user.setAttribute(
+        user.set_attribute(
             "two_factor_recovery_codes",
             one.currentEncrypter()
                 .unwrap()
@@ -511,7 +511,7 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
         );
         assert!(user.recoveryCodes(&one).is_err());
     }
-    user.setAttribute("two_factor_recovery_codes", Value::Integer(1));
+    user.set_attribute("two_factor_recovery_codes", Value::Integer(1));
     assert!(matches!(
         user.recoveryCodes(&one),
         Err(openrust_fortify::FortifyError::InvalidAttribute(
@@ -529,25 +529,25 @@ impl openrust::contracts::encryption::Encrypter for FailedEncrypter {
     fn decrypt(&self, _: &str, _: bool) -> Result<Vec<u8>, openrust::encryption::DecryptException> {
         Err(openrust::encryption::DecryptException::AuthenticationFailed)
     }
-    fn encryptString(
+    fn encrypt_string(
         &self,
         value: &[u8],
     ) -> Result<String, openrust::encryption::EncryptException> {
         self.encrypt(value, false)
     }
-    fn decryptString(
+    fn decrypt_string(
         &self,
         value: &str,
     ) -> Result<Vec<u8>, openrust::encryption::DecryptException> {
         self.decrypt(value, false)
     }
-    fn getKey(&self) -> &[u8] {
+    fn get_key(&self) -> &[u8] {
         &[]
     }
-    fn getAllKeys(&self) -> Vec<&[u8]> {
+    fn get_all_keys(&self) -> Vec<&[u8]> {
         vec![]
     }
-    fn getPreviousKeys(&self) -> &[Vec<u8>] {
+    fn get_previous_keys(&self) -> &[Vec<u8>] {
         &[]
     }
 }
@@ -579,7 +579,7 @@ async fn encryption_failures_stop_before_model_mutation_and_preserve_callback_or
     );
     assert_eq!(calls.load(Ordering::Relaxed), 0);
     assert_eq!(*provider.generated.lock().unwrap(), vec![16]);
-    assert!(user.state().getAttributes().is_empty());
+    assert!(user.state().get_attributes().is_empty());
     assert!(
         GenerateNewRecoveryCodes::new(fortify.clone())
             .call(&mut user)
@@ -587,16 +587,16 @@ async fn encryption_failures_stop_before_model_mutation_and_preserve_callback_or
             .is_err()
     );
     assert_eq!(calls.load(Ordering::Relaxed), 8);
-    assert!(user.state().getAttributes().is_empty());
-    user.setAttribute("two_factor_secret", "broken");
-    let original = user.state().getAttributes().clone();
+    assert!(user.state().get_attributes().is_empty());
+    user.set_attribute("two_factor_secret", "broken");
+    let original = user.state().get_attributes().clone();
     assert!(
         ConfirmTwoFactorAuthentication::new(provider, fortify.clone())
             .call(&mut user, "287082")
             .await
             .is_err()
     );
-    assert_eq!(user.state().getAttributes(), &original);
+    assert_eq!(user.state().get_attributes(), &original);
     assert!(
         user.replaceRecoveryCode("recovery", &fortify)
             .await

@@ -251,7 +251,7 @@ async fn named_profiles_cache_keys_until_forget_and_keep_existing_instances_isol
         .find("order_001")
         .await
         .unwrap();
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert!(manager.driver("main").is_err());
     held.find("order_001").await.unwrap();
     config
@@ -377,7 +377,7 @@ async fn provider_facade_http_callbacks_are_application_local_and_http_observati
         .unwrap();
     // Existing gateway is a snapshot; forgetting forces validation on the next resolution.
     m.driver("main").unwrap();
-    m.forgetDrivers();
+    m.forget_drivers();
     assert!(m.driver("main").is_err());
     config
         .set("pay.drivers.main.private_key", json!(MERCHANT))

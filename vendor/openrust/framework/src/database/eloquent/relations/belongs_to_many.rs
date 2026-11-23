@@ -117,7 +117,6 @@ impl PivotOperation {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> BelongsToMany<P, R> {
     pub const fn new(
         table: &'static str,
@@ -162,7 +161,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     #[must_use]
-    pub fn withPivot(mut self, columns: impl IntoIterator<Item = &'static str>) -> Self {
+    pub fn with_pivot(mut self, columns: impl IntoIterator<Item = &'static str>) -> Self {
         for column in columns {
             if !matches!(column, "*")
                 && !self.pivot_columns.contains(&column)
@@ -184,7 +183,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 
     /// Orders related rows by a column of the intermediate table.
     #[must_use]
-    pub fn orderByPivot(mut self, column: &str, direction: &str) -> Self {
+    pub fn order_by_pivot(mut self, column: &str, direction: &str) -> Self {
         let column = if column.contains('.') {
             column.to_owned()
         } else {
@@ -195,19 +194,19 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     #[must_use]
-    pub fn orderByPivotDesc(self, column: &str) -> Self {
-        self.orderByPivot(column, "desc")
+    pub fn order_by_pivot_desc(self, column: &str) -> Self {
+        self.order_by_pivot(column, "desc")
     }
 
     /// Selects and maintains the parent's conventional timestamp columns on the pivot.
     #[must_use]
-    pub fn withTimestamps(self) -> Self {
+    pub fn with_timestamps(self) -> Self {
         let (created, updated) = Self::default_timestamp_columns();
-        self.with_timestamp_columns((Some(created), Some(updated)))
+        self.set_pivot_timestamp_columns((Some(created), Some(updated)))
     }
 
     /// Sets explicit timestamp columns. A `None` skips that column.
-    pub fn withTimestampColumns(
+    pub fn with_timestamp_columns(
         self,
         created: Option<&'static str>,
         updated: Option<&'static str>,
@@ -228,10 +227,10 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             ));
         }
         self.validate_pivot_attributes(&columns)?;
-        Ok(self.with_timestamp_columns((created, updated)))
+        Ok(self.set_pivot_timestamp_columns((created, updated)))
     }
 
-    fn with_timestamp_columns(mut self, columns: PivotTimestampColumns) -> Self {
+    fn set_pivot_timestamp_columns(mut self, columns: PivotTimestampColumns) -> Self {
         self.pivot_timestamps = Some(columns);
         self
     }
@@ -276,7 +275,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Declares this relationship's table and keys for custom pivot queue restoration.
-    pub fn queueablePivot(&self) -> super::super::QueueablePivot {
+    pub fn queueable_pivot(&self) -> super::super::QueueablePivot {
         super::super::QueueablePivot(self.pivot.identity(self.timestamp_columns()))
     }
 
@@ -290,12 +289,12 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 
     /// Hydrates declared inverse relations from the models already participating in this load.
     pub fn chaperone(self) -> Self {
-        self.chaperoneWith(None, None)
+        self.chaperone_with(None, None)
             .expect("inferred names cannot fail validation")
     }
 
     /// Uses explicit inverse names for either endpoint and infers omitted names.
-    pub fn chaperoneWith(
+    pub fn chaperone_with(
         mut self,
         declaring: Option<&str>,
         related: Option<&str>,
@@ -310,28 +309,28 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     #[must_use]
-    pub fn withoutChaperone(mut self) -> Self {
+    pub fn without_chaperone(mut self) -> Self {
         self.pivot_inverses = (None, None);
         self
     }
 
     /// Refreshes the declaring model's timestamp when its links change.
     #[must_use]
-    pub fn withTouchingParent(mut self) -> Self {
+    pub fn with_touching_parent(mut self) -> Self {
         self.touch_parent = true;
         self
     }
 
     /// Refreshes the timestamps of models still linked after a pivot change.
     #[must_use]
-    pub fn withTouchingRelated(mut self) -> Self {
+    pub fn with_touching_related(mut self) -> Self {
         self.touch_related = true;
         self
     }
 
     /// Refreshes the timestamps of the models linked through this relation.
     pub async fn touch(&self, parent: &P) -> DatabaseResult<()> {
-        if R::isIgnoringTouch() {
+        if R::is_ignoring_touch() {
             return Ok(());
         }
         let connection = self.keys.connection(parent)?;
@@ -379,13 +378,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         if touches.is_empty() {
             return Ok(());
         }
-        let relation = self.keys.configure(R::queryOn(&connection))?;
+        let relation = self.keys.configure(R::query_on(&connection))?;
         let casts = relation.casts.clone();
         let query = relation
             .scoped()?
             .0
-            .whereInSub(self.keys.related, &mut linked)?
-            .useWritePdo();
+            .where_in_sub(self.keys.related, &mut linked)?
+            .use_write_pdo();
         let rows = match transaction.as_deref_mut() {
             Some(tx) => query.in_transaction(tx)?.get().await?,
             None => query.get().await?,
@@ -428,7 +427,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     fn touches_related_on(&self, connection: &Connection) -> DatabaseResult<bool> {
-        Ok(!R::isIgnoringTouch()
+        Ok(!R::is_ignoring_touch()
             && (self.touch_related
                 || P::touches().contains_pivot(&self.touch_identity(), connection)?))
     }
@@ -457,7 +456,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     fn related_touch(&self, owner: &Value) -> Option<RelatedTouch> {
-        if R::isIgnoringTouch() {
+        if R::is_ignoring_touch() {
             return None;
         }
         Some(RelatedTouch {
@@ -492,7 +491,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Filters the relation and supplies the value when inserting new links.
-    pub fn withPivotValue(mut self, column: &str, value: impl Into<Value>) -> DatabaseResult<Self> {
+    pub fn with_pivot_value(
+        mut self,
+        column: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
         let value = value.into();
         if matches!(value, Value::Null) || column.is_empty() || column.contains('.') {
             return Err(DatabaseError::InvalidQuery(
@@ -503,7 +506,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.pivot_constraints
             .defaults
             .insert(column.into(), value.clone());
-        Ok(self.wherePivot(column, "=", value))
+        Ok(self.where_pivot(column, "=", value))
     }
 
     /// Writes the related table without attaching or updating pivot rows.
@@ -519,16 +522,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         }
         let connection = self.keys.connection(parent)?;
         self.keys
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .upsert(rows, unique_by, update)
             .await
     }
 
     /// Finds an attached primary key or returns an unsaved model.
-    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+    pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         match self.find(parent, key).await? {
             Some(model) => Ok(model),
-            None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
+            None => R::new_instance_on(&self.keys.connection(parent)?, Attributes::new()),
         }
     }
 
@@ -571,23 +574,29 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .into_iter()
             .map(owned_model)
             .collect();
-        Ok(R::newCollection(models))
+        Ok(R::new_collection(models))
     }
 
     /// Finds an attached model, attaches an existing match, or creates a new model.
-    pub async fn firstOrCreate<'a>(
+    pub async fn first_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
         joining: Attributes,
     ) -> DatabaseResult<Arc<R>> {
-        self.first_or_create(parent, attributes, &mut values.into(), joining, false)
-            .await
+        self.first_or_create_with_trashed_option(
+            parent,
+            attributes,
+            &mut values.into(),
+            joining,
+            false,
+        )
+        .await
     }
 
     /// Fills and saves an existing related model, or creates and attaches a new one.
-    pub async fn updateOrCreate<'a>(
+    pub async fn update_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -596,20 +605,20 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> DatabaseResult<Arc<R>> {
         let mut values = values.into();
         let model = self
-            .first_or_create(parent, attributes, &mut values, joining, false)
+            .first_or_create_with_trashed_option(parent, attributes, &mut values, joining, false)
             .await?;
-        if model.state().wasRecentlyCreated() {
+        if model.state().was_recently_created() {
             return Ok(model);
         }
 
         let mut model = owned_model(model);
-        model.fillAsync(values.resolve()).await?;
+        model.fill_async(values.resolve()).await?;
         super::super::persistence::save_with_touch(&mut model, None, false).await?;
         Ok(Arc::new(model))
     }
 
     /// Creates a related model with an initial counter or atomically increments an existing one.
-    pub async fn incrementOrCreate(
+    pub async fn increment_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -625,9 +634,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         values.insert(column.into(), default);
         extra.remove(column);
         let model = self
-            .firstOrCreate(parent, attributes, values, Attributes::new())
+            .first_or_create(parent, attributes, values, Attributes::new())
             .await?;
-        if model.state().wasRecentlyCreated() {
+        if model.state().was_recently_created() {
             return Ok(model);
         }
         super::super::persistence::increment_related(owned_model(model), column, step, extra)
@@ -636,7 +645,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Finds or creates a related model and restores it through the model lifecycle.
-    pub async fn restoreOrCreate<'a>(
+    pub async fn restore_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -645,13 +654,19 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> DatabaseResult<Arc<R>> {
         self.require_soft_deletes()?;
         let model = self
-            .first_or_create(parent, attributes, &mut values.into(), joining, true)
+            .first_or_create_with_trashed_option(
+                parent,
+                attributes,
+                &mut values.into(),
+                joining,
+                true,
+            )
             .await?;
         restore_related(model).await
     }
 
     /// Attempts insertion first, recovering and restoring a matching soft-deleted model.
-    pub async fn createOrRestore<'a>(
+    pub async fn create_or_restore<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -660,7 +675,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> DatabaseResult<Arc<R>> {
         self.require_soft_deletes()?;
         let model = self
-            .create_or_first(parent, attributes, &mut values.into(), joining, true)
+            .create_or_first_with_trashed_option(
+                parent,
+                attributes,
+                &mut values.into(),
+                joining,
+                true,
+            )
             .await?;
         restore_related(model).await
     }
@@ -672,7 +693,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .ok_or_else(super::super::soft_deletes::unsupported)
     }
 
-    async fn first_or_create(
+    async fn first_or_create_with_trashed_option(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -693,8 +714,14 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         if let Some(model) = self.find_candidate(&connection, lookup).await? {
             self.attach_found(parent, model, lookup, joining).await
         } else {
-            self.create_or_first(parent, attributes, values, joining, include_trashed)
-                .await
+            self.create_or_first_with_trashed_option(
+                parent,
+                attributes,
+                values,
+                joining,
+                include_trashed,
+            )
+            .await
         }
     }
 
@@ -705,7 +732,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> DatabaseResult<Option<R>> {
         let query = lookup.selection.apply(
             self.keys
-                .configure(R::queryOn(connection))?
+                .configure(R::query_on(connection))?
                 .unconstrained_relation_query(),
         );
         let query = if lookup.include_trashed {
@@ -714,7 +741,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             query
         };
         let query = if lookup.use_writer {
-            query.useWritePdo()
+            query.use_write_pdo()
         } else {
             query
         };
@@ -734,18 +761,24 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Creates and attaches a model, or attaches a matching model after a unique conflict.
-    pub async fn createOrFirst<'a>(
+    pub async fn create_or_first<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
         joining: Attributes,
     ) -> DatabaseResult<Arc<R>> {
-        self.create_or_first(parent, attributes, &mut values.into(), joining, false)
-            .await
+        self.create_or_first_with_trashed_option(
+            parent,
+            attributes,
+            &mut values.into(),
+            joining,
+            false,
+        )
+        .await
     }
 
-    async fn create_or_first(
+    async fn create_or_first_with_trashed_option(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -781,16 +814,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.save_and_attach(parent, model, joining, true).await
     }
 
-    pub async fn saveQuietly(
+    pub async fn save_quietly(
         &self,
         parent: &P,
         model: &mut R,
         joining: Attributes,
     ) -> DatabaseResult<()> {
-        R::withoutEvents(self.save(parent, model, joining)).await
+        R::without_events(self.save(parent, model, joining)).await
     }
 
-    pub async fn saveMany(
+    pub async fn save_many(
         &self,
         parent: &P,
         models: &mut [R],
@@ -808,13 +841,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.touch_after_batch(parent).await
     }
 
-    pub async fn saveManyQuietly(
+    pub async fn save_many_quietly(
         &self,
         parent: &P,
         models: &mut [R],
         joinings: &[Attributes],
     ) -> DatabaseResult<()> {
-        R::withoutEvents(self.saveMany(parent, models, joinings)).await
+        R::without_events(self.save_many(parent, models, joinings)).await
     }
 
     pub async fn create(
@@ -827,16 +860,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
-    pub async fn createQuietly(
+    pub async fn create_quietly(
         &self,
         parent: &P,
         attributes: Attributes,
         joining: Attributes,
     ) -> DatabaseResult<R> {
-        R::withoutEvents(self.create(parent, attributes, joining)).await
+        R::without_events(self.create(parent, attributes, joining)).await
     }
 
-    pub async fn createMany(
+    pub async fn create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
@@ -858,16 +891,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(models)
     }
 
-    pub async fn createManyQuietly(
+    pub async fn create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
         joinings: &[Attributes],
     ) -> DatabaseResult<Vec<R>> {
-        R::withoutEvents(self.createMany(parent, records, joinings)).await
+        R::without_events(self.create_many(parent, records, joinings)).await
     }
 
-    pub async fn forceCreate(
+    pub async fn force_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -876,22 +909,22 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.owner(parent)?;
         self.validate_pivot_attributes(&joining)?;
         let connection = self.keys.connection(parent)?;
-        let query = self.keys.configure(R::queryOn(&connection))?;
-        let mut model = R::newInstanceOn(&connection, Attributes::new())?;
+        let query = self.keys.configure(R::query_on(&connection))?;
+        let mut model = R::new_instance_on(&connection, Attributes::new())?;
         for (column, value) in query.creation_attributes(attributes) {
-            model.setAttributeValueAsync(&column, value).await?;
+            model.set_attribute_value_async(&column, value).await?;
         }
         self.save(parent, &mut model, joining).await?;
         Ok(model)
     }
 
-    pub async fn forceCreateQuietly(
+    pub async fn force_create_quietly(
         &self,
         parent: &P,
         attributes: Attributes,
         joining: Attributes,
     ) -> DatabaseResult<R> {
-        R::withoutEvents(self.forceCreate(parent, attributes, joining)).await
+        R::without_events(self.force_create(parent, attributes, joining)).await
     }
 
     async fn create_and_attach(
@@ -906,7 +939,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let connection = self.keys.connection(parent)?;
         let mut model = self
             .keys
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .make_async(attributes)
             .await?;
         self.save_and_attach(parent, &mut model, joining, touch)
@@ -1059,7 +1092,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> DatabaseResult<Attributes> {
         Ok(self
             .keys
-            .configure(R::queryOn(connection))?
+            .configure(R::query_on(connection))?
             .pending_attributes)
     }
 
@@ -1097,10 +1130,10 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     pub async fn attach(&self, parent: &P, keys: &[Value]) -> DatabaseResult<()> {
-        self.attachWith(parent, keys, Attributes::new()).await
+        self.attach_with(parent, keys, Attributes::new()).await
     }
 
-    pub fn attachWith<'a>(
+    pub fn attach_with<'a>(
         &'a self,
         parent: &'a P,
         keys: &'a [Value],
@@ -1110,7 +1143,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Runs the pivot write and any model events in a single transaction.
-    pub fn attachOrFail<'a>(
+    pub fn attach_or_fail<'a>(
         &'a self,
         parent: &'a P,
         keys: &'a [Value],
@@ -1178,7 +1211,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         })
     }
 
-    pub fn updateExistingPivot<'a>(
+    pub fn update_existing_pivot<'a>(
         &'a self,
         parent: &'a P,
         related: &'a Value,
@@ -1188,7 +1221,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Runs the pivot write and any model events in a single transaction.
-    pub fn updateExistingPivotOrFail<'a>(
+    pub fn update_existing_pivot_or_fail<'a>(
         &'a self,
         parent: &'a P,
         related: &'a Value,
@@ -1251,7 +1284,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                     .apply(pivot.for_owner(transaction.table(pivot.table), &owner))
                                     .r#where(pivot.related, "=", related);
                                 let affected = if let Some(custom) = custom {
-                                    match query.lockForUpdate().first().await? {
+                                    match query.lock_for_update().first().await? {
                                         Some(raw) => u64::from(
                                             (custom.update)(
                                                 transaction,
@@ -1317,7 +1350,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Runs the pivot write and any model events in a single transaction.
-    pub fn detachOrFail<'a>(
+    pub fn detach_or_fail<'a>(
         &'a self,
         parent: &'a P,
         keys: Option<&'a [Value]>,
@@ -1370,7 +1403,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                     query = query.where_in(pivot.related, keys);
                                 }
                                 let removed = if let Some(custom) = custom {
-                                    let rows = query.lockForUpdate().get().await?;
+                                    let rows = query.lock_for_update().get().await?;
                                     let mut count = 0;
                                     for row in rows {
                                         count += u64::from(
@@ -1416,20 +1449,20 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     pub async fn sync(&self, parent: &P, keys: &[Value]) -> DatabaseResult<SyncChanges> {
-        self.syncWithPivotValues(parent, keys, Attributes::new(), true)
+        self.sync_with_pivot_values(parent, keys, Attributes::new(), true)
             .await
     }
 
-    pub async fn syncWithoutDetaching(
+    pub async fn sync_without_detaching(
         &self,
         parent: &P,
         keys: &[Value],
     ) -> DatabaseResult<SyncChanges> {
-        self.syncWithPivotValues(parent, keys, Attributes::new(), false)
+        self.sync_with_pivot_values(parent, keys, Attributes::new(), false)
             .await
     }
 
-    pub async fn syncWithPivotValues(
+    pub async fn sync_with_pivot_values(
         &self,
         parent: &P,
         keys: &[Value],
@@ -1445,37 +1478,37 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Synchronizes in the same transaction used by all sync variants.
-    pub async fn syncOrFail(
+    pub async fn sync_or_fail(
         &self,
         parent: &P,
         keys: &[Value],
         detach: bool,
     ) -> DatabaseResult<SyncChanges> {
-        self.syncWithPivotValuesOrFail(parent, keys, Attributes::new(), detach)
+        self.sync_with_pivot_values_or_fail(parent, keys, Attributes::new(), detach)
             .await
     }
 
-    pub async fn syncWithoutDetachingOrFail(
+    pub async fn sync_without_detaching_or_fail(
         &self,
         parent: &P,
         keys: &[Value],
     ) -> DatabaseResult<SyncChanges> {
-        self.syncOrFail(parent, keys, false).await
+        self.sync_or_fail(parent, keys, false).await
     }
 
-    pub async fn syncWithPivotValuesOrFail(
+    pub async fn sync_with_pivot_values_or_fail(
         &self,
         parent: &P,
         keys: &[Value],
         attributes: Attributes,
         detach: bool,
     ) -> DatabaseResult<SyncChanges> {
-        self.syncWithPivotValues(parent, keys, attributes, detach)
+        self.sync_with_pivot_values(parent, keys, attributes, detach)
             .await
     }
 
     /// Synchronizes related keys with a distinct set of pivot values for each key.
-    pub async fn syncWithPivotAttributes(
+    pub async fn sync_with_pivot_attributes(
         &self,
         parent: &P,
         records: &[(Value, Attributes)],
@@ -1499,7 +1532,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Switches links, applying per-key attributes when a link is inserted.
-    pub async fn toggleWithPivotAttributes(
+    pub async fn toggle_with_pivot_attributes(
         &self,
         parent: &P,
         records: &[(Value, Attributes)],
@@ -1508,7 +1541,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Switches links transactionally, rolling back all changes on error.
-    pub async fn toggleOrFail(&self, parent: &P, keys: &[Value]) -> DatabaseResult<ToggleChanges> {
+    pub async fn toggle_or_fail(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> DatabaseResult<ToggleChanges> {
         self.toggle(parent, keys).await
     }
 
@@ -1647,7 +1684,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 
     fn owner<'a>(&self, parent: &'a P) -> DatabaseResult<&'a Value> {
         parent
-            .getAttribute(self.keys.parent)
+            .get_attribute(self.keys.parent)
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))
     }
@@ -1657,17 +1694,17 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.paginateWith(
+        self.paginate_with(
             parent,
             PageOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..Default::default()
             },
         )
         .await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
@@ -1681,18 +1718,18 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
-    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
-        self.simplePaginateWith(
+    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.simple_paginate_with(
             parent,
             PageOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..Default::default()
             },
         )
         .await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
@@ -1706,22 +1743,22 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
-    pub async fn cursorPaginate(
+    pub async fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<CursorPaginator<R>> {
-        self.cursorPaginateWith(
+        self.cursor_paginate_with(
             parent,
             CursorOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..Default::default()
             },
         )
         .await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
@@ -1760,11 +1797,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     {
         let batches = self
             .pivot_batches(parent, count, None, false)
-            .map_ok(crate::database::eloquent::Collection::toBase);
+            .map_ok(crate::database::eloquent::Collection::to_base);
         query::visit_batches(batches, |_, key| Ok(key), callback).await
     }
 
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, i64) -> Fut,
@@ -1777,7 +1814,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     {
         let batches = self
             .pivot_batches(parent, count, Some((column, alias, false)), false)
-            .map_ok(crate::database::eloquent::Collection::toBase);
+            .map_ok(crate::database::eloquent::Collection::to_base);
         query::visit_batches(
             batches,
             |batch, key| query::collection_chunk_index(batch, count, key),
@@ -1798,7 +1835,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let columns = self.aliased_pivot_columns(&names);
             let query = self.pagination_query(parent, &["*"], &columns)?;
             let key = key.map(|(column, alias, descending)| query::ChunkKey {
-                column: column.map_or_else(|| query.qualifyColumn(self.keys.related), str::to_owned),
+                column: column.map_or_else(|| query.qualify_column(self.keys.related), str::to_owned),
                 alias: alias.unwrap_or(self.keys.related).into(),
                 descending,
                 lazy,
@@ -1825,7 +1862,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.chunk_pivots(parent, count, callback, None).await
     }
 
-    pub async fn chunkById<Fut>(
+    pub async fn chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -1836,11 +1873,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.orderedChunkById(parent, count, callback, column, alias, false)
+        self.ordered_chunk_by_id(parent, count, callback, column, alias, false)
             .await
     }
 
-    pub async fn chunkByIdDesc<Fut>(
+    pub async fn chunk_by_id_desc<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -1851,11 +1888,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.orderedChunkById(parent, count, callback, column, alias, true)
+        self.ordered_chunk_by_id(parent, count, callback, column, alias, true)
             .await
     }
 
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -1915,19 +1952,19 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         pivot_columns: &[String],
     ) -> DatabaseResult<Builder<'static, R>> {
         let connection = self.keys.connection(parent)?;
-        let query = R::queryOn(&connection);
+        let query = R::query_on(&connection);
         let columns = if columns.is_empty() || columns == ["*"] {
-            vec![query.qualifyColumn("*")]
+            vec![query.qualify_column("*")]
         } else {
             columns
                 .iter()
-                .map(|column| query.qualifyColumn(column))
+                .map(|column| query.qualify_column(column))
                 .collect()
         };
         let query = self
             .keys
             .configure(query.select_relation_columns(columns.iter().map(String::as_str)))?;
-        let related = query.qualifyColumn(self.keys.related);
+        let related = query.qualify_column(self.keys.related);
         let pivot_key = format!("{}.{}", self.pivot.table, self.pivot.related);
         let owner = format!("{}.{}", self.pivot.table, self.pivot.foreign);
         let keys = ParentKeys::new(&[parent], self.keys.parent)?;
@@ -1936,7 +1973,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .map_relation_query(|query| {
                 let query = query.join(self.pivot.table, &related, "=", &pivot_key);
                 self.apply_pivot_query(query)
-                    .addSelect(pivot_columns.iter().map(String::as_str))
+                    .add_select(pivot_columns.iter().map(String::as_str))
             }))
     }
 
@@ -1947,7 +1984,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.pivot_orders
             .iter()
             .fold(query, |query, (column, direction)| {
-                query.orderBy(column, direction)
+                query.order_by(column, direction)
             })
     }
 
@@ -2095,7 +2132,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let mut declaring_models = HashMap::new();
             if declaring_inverse.is_some() {
                 for parent in parents {
-                    if let Some(key) = dictionary_key(parent.getAttribute(self.keys.parent))? {
+                    if let Some(key) = dictionary_key(parent.get_attribute(self.keys.parent))? {
                         declaring_models
                             .entry(key)
                             .or_insert_with(|| Arc::new(P::from_state(parent.state().clone())));
@@ -2112,7 +2149,8 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 let mut query = self
                     .keys
                     .configure(
-                        R::queryOn(&connection).select_relation_columns([related_columns.as_str()]),
+                        R::query_on(&connection)
+                            .select_relation_columns([related_columns.as_str()]),
                     )?
                     .apply_default_counts()?
                     .restrict_relation(&parent_column, batch);
@@ -2122,7 +2160,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         query = query.with_trashed();
                     }
                     if lookup.use_writer {
-                        query = query.useWritePdo();
+                        query = query.use_write_pdo();
                     }
                 }
                 let eager_load = query.take_eager_load();
@@ -2134,7 +2172,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     .join(self.pivot.table, &related_key, "=", &pivot_key);
                 let query = self.apply_pivot_query(query);
                 let rows = query
-                    .addSelect(pivot_columns.iter().map(String::as_str))
+                    .add_select(pivot_columns.iter().map(String::as_str))
                     .get_with_transaction(transaction.as_deref_mut())
                     .await?;
                 let mut models = Vec::with_capacity(rows.len());
@@ -2188,20 +2226,19 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
 
-    fn isEmptyCollection(output: &Self::Output) -> bool {
+    fn is_empty_collection(output: &Self::Output) -> bool {
         output.is_empty()
     }
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -2211,7 +2248,7 @@ impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
         })
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -2219,18 +2256,18 @@ impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
         super::super::serialization::many(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         super::super::queueable::common_relations(output.iter().map(Arc::as_ref))
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -2273,10 +2310,10 @@ impl RelatedTouch {
                     .for_owner(connection.table(self.pivot.table), &self.owner),
             )
             .select([self.pivot.related]);
-        R::queryOn(connection)
+        R::query_on(connection)
             .scoped()?
             .0
-            .whereInSub(self.related_key, &mut linked)
+            .where_in_sub(self.related_key, &mut linked)
     }
 
     fn attributes<R: Model>(&self, connection: &Connection) -> DatabaseResult<Attributes> {
@@ -2311,7 +2348,7 @@ async fn restore_related<R: Model>(model: Arc<R>) -> DatabaseResult<Arc<R>> {
 
 fn attachment_key<'a, R: Model>(model: &'a R, key: &str) -> DatabaseResult<&'a Value> {
     model
-        .getAttribute(key)
+        .get_attribute(key)
         .filter(|value| !matches!(value, Value::Null))
         .ok_or(DatabaseError::InvalidQuery("relationship related key"))
 }
@@ -2358,8 +2395,8 @@ async fn touch_parent<P: Model>(
         let column = P::metadata()
             .updated_at
             .expect("touch enabled with a timestamp");
-        model.setAttribute(column, timestamp(connection, P::metadata().date_format)?);
-        model.saveInTransaction(transaction).await?;
+        model.set_attribute(column, timestamp(connection, P::metadata().date_format)?);
+        model.save_in_transaction(transaction).await?;
     }
     Ok(())
 }
@@ -2451,7 +2488,7 @@ impl PivotTouchIdentity<'_> {
         }
         let mut left = self.constraints.apply(connection.table(self.pivot.table));
         let mut right = other.constraints.apply(connection.table(other.pivot.table));
-        Ok(left.toSql()? == right.toSql()? && left.get_bindings()? == right.get_bindings()?)
+        Ok(left.to_sql()? == right.to_sql()? && left.get_bindings()? == right.get_bindings()?)
     }
 }
 
@@ -2541,7 +2578,7 @@ async fn sync_custom_pivot(
     } else {
         query
     };
-    let rows = rows.lockForUpdate().get().await?;
+    let rows = rows.lock_for_update().get().await?;
     let mut current = IndexMap::new();
     let mut changes = SyncChanges::default();
     for row in rows {
@@ -2604,7 +2641,7 @@ async fn sync_pivot(
     } else {
         query
     };
-    let current = query.lockForUpdate().get().await?;
+    let current = query.lock_for_update().get().await?;
     let current = key_map(
         current
             .into_iter()
@@ -2656,7 +2693,7 @@ async fn sync_pivot(
                     attributes
                         .iter()
                         .fold(conditions, |conditions, (column, value)| {
-                            conditions.whereNullSafeEquals(column, value.clone())
+                            conditions.where_null_safe_equals(column, value.clone())
                         })
                 })
                 .update(attributes)
@@ -2674,9 +2711,8 @@ async fn sync_pivot(
     Ok(changes)
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for BelongsToMany<P, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
@@ -2693,8 +2729,8 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         target_keys: Option<Vec<Value>>,
     ) -> DatabaseResult<query::Builder<'static>> {
         let query = self.keys.existence_builder(connection, parent_table)?;
-        let target_key = query.qualifyColumn(R::metadata().primary_key);
-        let related = query.qualifyColumn(self.keys.related);
+        let target_key = query.qualify_column(R::metadata().primary_key);
+        let related = query.qualify_column(self.keys.related);
         let related_pivot = format!("{}.{}", self.pivot.table, self.pivot.related);
         let foreign_pivot = format!("{}.{}", self.pivot.table, self.pivot.foreign);
         let parent = format!("{parent_table}.{}", self.keys.parent);
@@ -2702,7 +2738,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .scoped()?
             .0
             .join(self.pivot.table, &related, "=", &related_pivot)
-            .whereColumn(&foreign_pivot, "=", &parent);
+            .where_column(&foreign_pivot, "=", &parent);
         let query = self
             .pivot_constraints
             .apply(self.pivot.restrict_type(query, true));

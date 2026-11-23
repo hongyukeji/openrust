@@ -78,7 +78,6 @@ pub enum ModelEventResponse {
 }
 
 /// Handles model lifecycle events with access to the current operation's connection.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ModelEventListener<M: Model>: Send + Sync {
     fn handle<'a>(
         &'a self,
@@ -88,7 +87,7 @@ pub trait ModelEventListener<M: Model>: Send + Sync {
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>>;
 
     /// Handles a lifecycle event inside an explicit model transaction.
-    fn handleInTransaction<'a>(
+    fn handle_in_transaction<'a>(
         &'a self,
         event: ModelEvent,
         model: &'a mut M,
@@ -172,7 +171,7 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
     let Some(container) = Connection::model_container(Some(connection)) else {
         return Ok(true);
     };
-    if let Some(mapped) = model.dispatchesEvents(event) {
+    if let Some(mapped) = model.dispatches_events(event) {
         let dispatcher = container.make::<Dispatcher>()?;
         let mut context = match transaction.as_deref_mut() {
             Some(transaction) => EventContext::in_transaction(transaction),
@@ -220,7 +219,7 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
         let response = match transaction.as_deref_mut() {
             Some(transaction) => {
                 listener
-                    .handleInTransaction(event, model, transaction)
+                    .handle_in_transaction(event, model, transaction)
                     .await?
             }
             None => listener.handle(event, model, connection).await?,
@@ -239,13 +238,13 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
     );
     if dispatcher.observes(&name) {
         let key = model
-            .getKey()
+            .get_key()
             .cloned()
             .map(super::super::serialization::json_value)
             .transpose()?;
         let changes = model
             .state()
-            .getChanges()
+            .get_changes()
             .iter()
             .map(|(name, value)| {
                 Ok((

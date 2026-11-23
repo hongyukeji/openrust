@@ -66,14 +66,14 @@ impl Feature {
     pub fn get_default_driver() -> Result<String> {
         Self::manager()?.get_default_driver()
     }
-    pub fn setDefaultDriver(name: &str) -> Result<()> {
-        Self::manager()?.setDefaultDriver(name)
+    pub fn set_default_driver(name: &str) -> Result<()> {
+        Self::manager()?.set_default_driver(name)
     }
-    pub fn forgetDriver(name: Option<&str>) -> Result<()> {
-        Self::manager()?.forgetDriver(name)
+    pub fn forget_driver(name: Option<&str>) -> Result<()> {
+        Self::manager()?.forget_driver(name)
     }
-    pub fn forgetDrivers() -> Result<()> {
-        Self::manager()?.forgetDrivers()
+    pub fn forget_drivers() -> Result<()> {
+        Self::manager()?.forget_drivers()
     }
     pub fn resolveScopeUsing(
         resolver: impl Fn(&str) -> Result<Scope> + Send + Sync + 'static,
@@ -96,8 +96,8 @@ impl Feature {
     pub async fn load(features: &[&str]) -> Result<crate::FeatureValues> {
         Self::manager()?.interaction()?.load(features).await
     }
-    pub async fn loadMissing(features: &[&str]) -> Result<crate::FeatureValues> {
-        Self::manager()?.interaction()?.loadMissing(features).await
+    pub async fn load_missing(features: &[&str]) -> Result<crate::FeatureValues> {
+        Self::manager()?.interaction()?.load_missing(features).await
     }
     pub async fn loadAll() -> Result<crate::FeatureValues> {
         Self::manager()?.interaction()?.loadAll().await

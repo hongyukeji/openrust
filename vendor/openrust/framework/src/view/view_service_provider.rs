@@ -36,7 +36,7 @@ impl ServiceProvider for ViewServiceProvider {
                     config.as_ref(),
                 )
                 .map(|mut factory| {
-                    factory.compiler().nativeViews(native_views);
+                    factory.compiler().native_views(native_views);
                     factory.public_path = Some(public.clone());
                     Arc::new(factory.with_owner(owner.clone()))
                 })

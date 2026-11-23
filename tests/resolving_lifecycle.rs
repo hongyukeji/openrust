@@ -147,7 +147,7 @@ fn application(name: &'static str, fail: bool, stats: Arc<Stats>) -> Application
         .with_providers(vec![Box::new(Provider { name, fail, stats })])
         .with_commands(commands)
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|_, _| true);
+            exceptions.should_render_json_when(|_, _| true);
         })
         .with_routing(Routing::default().web(web))
         .create()

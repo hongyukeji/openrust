@@ -77,7 +77,7 @@ impl Compiled {
 impl BladeCompiler {
     /// 装配构建期生成的不可变函数表；不启动编译器或执行模板业务。
     #[doc(hidden)]
-    pub fn nativeViews(&self, templates: &'static [crate::view::NativeTemplate]) {
+    pub fn native_views(&self, templates: &'static [crate::view::NativeTemplate]) {
         Arc::make_mut(&mut self.extensions.write().unwrap()).native_views = templates;
     }
 
@@ -115,12 +115,12 @@ impl BladeCompiler {
     }
 
     /// Preserves existing HTML entities in escaped Blade echoes.
-    pub fn withoutDoubleEncoding(&self) {
+    pub fn without_double_encoding(&self) {
         Arc::make_mut(&mut self.extensions.write().unwrap()).preserve_html_entities = true;
     }
 
     /// Restores double encoding for escaped Blade echoes.
-    pub fn withDoubleEncoding(&self) {
+    pub fn with_double_encoding(&self) {
         Arc::make_mut(&mut self.extensions.write().unwrap()).preserve_html_entities = false;
     }
 
@@ -142,7 +142,7 @@ impl BladeCompiler {
     }
 
     /// Registers a formatter for arrays and maps used in Blade echo expressions.
-    pub fn stringableIterable(
+    pub fn stringable_iterable(
         &self,
         format: impl Fn(&ViewValue) -> ViewResult<String> + Send + Sync + 'static,
     ) {
@@ -150,7 +150,7 @@ impl BladeCompiler {
     }
 
     /// Formats a Rust value using the callback registered for its type.
-    pub fn applyEchoHandler<T: 'static>(&self, value: &T) -> ViewResult<String> {
+    pub fn apply_echo_handler<T: 'static>(&self, value: &T) -> ViewResult<String> {
         let format = self
             .extensions
             .read()
@@ -165,7 +165,7 @@ impl BladeCompiler {
     }
 
     /// Registers a predicate callable by name from a Blade attribute bag.
-    pub fn attributeFilter(
+    pub fn attribute_filter(
         &self,
         name: &str,
         filter: impl Fn(&str, &ViewValue) -> bool + Send + Sync + 'static,
@@ -357,11 +357,11 @@ impl BladeCompiler {
 }
 
 impl Compiler for BladeCompiler {
-    fn getCompiledPath(&self, path: &Path) -> ViewResult<PathBuf> {
+    fn get_compiled_path(&self, path: &Path) -> ViewResult<PathBuf> {
         Ok(self.directory.join(artifact_name(path)))
     }
 
-    fn isExpired(&self, path: &Path) -> ViewResult<bool> {
+    fn is_expired(&self, path: &Path) -> ViewResult<bool> {
         let source = fs::read(path).map_err(ViewError::ReadFailed)?;
         Ok(self
             .read_artifact(&artifact_name(path))?

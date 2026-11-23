@@ -13,7 +13,6 @@ pub struct TagSet {
     pub(super) redis: Option<RedisTagSet>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TagSet {
     pub fn new(store: Arc<dyn Store>, names: &[&str]) -> Self {
         Self {
@@ -30,40 +29,40 @@ impl TagSet {
         tags
     }
 
-    pub fn getNames(&self) -> &[String] {
+    pub fn get_names(&self) -> &[String] {
         &self.names
     }
 
-    pub async fn getNamespace(&self) -> CacheResult<String> {
+    pub async fn get_namespace(&self) -> CacheResult<String> {
         if let Some(redis) = &self.redis {
             return redis.namespace().await;
         }
         let mut generations = Vec::with_capacity(self.names.len());
         for name in &self.names {
-            generations.push(self.tagId(name).await?);
+            generations.push(self.tag_id(name).await?);
         }
         Ok(generations.join("|"))
     }
 
     pub async fn reset(&self) -> CacheResult<()> {
         for name in &self.names {
-            self.resetTag(name).await?;
+            self.reset_tag(name).await?;
         }
         Ok(())
     }
 
     pub async fn flush(&self) -> CacheResult<()> {
         for name in &self.names {
-            self.flushTag(name).await?;
+            self.flush_tag(name).await?;
         }
         Ok(())
     }
 
-    pub async fn tagId(&self, name: &str) -> CacheResult<String> {
+    pub async fn tag_id(&self, name: &str) -> CacheResult<String> {
         if let Some(redis) = &self.redis {
             return redis.tag_id(name).await;
         }
-        let key = self.tagKey(name);
+        let key = self.tag_key(name);
         if let Some(value) = self.store.get(&key).await? {
             return decode_generation(&value);
         }
@@ -80,27 +79,27 @@ impl TagSet {
         Ok(id)
     }
 
-    pub async fn resetTag(&self, name: &str) -> CacheResult<String> {
+    pub async fn reset_tag(&self, name: &str) -> CacheResult<String> {
         if let Some(redis) = &self.redis {
             return redis.flush(name).await;
         }
         let id = generation();
         self.store
-            .forever(&self.tagKey(name), &Value::from(id.as_str()))
+            .forever(&self.tag_key(name), &Value::from(id.as_str()))
             .await?;
         Ok(id)
     }
 
-    pub async fn flushTag(&self, name: &str) -> CacheResult<()> {
+    pub async fn flush_tag(&self, name: &str) -> CacheResult<()> {
         if let Some(redis) = &self.redis {
             redis.flush(name).await?;
         } else {
-            self.store.forget(&self.tagKey(name)).await?;
+            self.store.forget(&self.tag_key(name)).await?;
         }
         Ok(())
     }
 
-    pub fn tagKey(&self, name: &str) -> String {
+    pub fn tag_key(&self, name: &str) -> String {
         self.redis.as_ref().map_or_else(
             || format!("tag:{}:key", key_digest(name)),
             |redis| redis.tag_key(name),

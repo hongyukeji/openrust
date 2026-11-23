@@ -2,7 +2,7 @@ use openrust::routing::RoutingError;
 
 pub(crate) fn register() -> Result<(), RoutingError> {
     #[cfg(feature = "sanctum")]
-    openrust::support::facades::Route::getWith("/user", user, |route| {
+    openrust::support::facades::Route::get_with("/user", user, |route| {
         route.middleware_name("auth:sanctum");
         Ok(())
     })?;

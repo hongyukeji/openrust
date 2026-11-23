@@ -12,7 +12,7 @@ use super::{CacheError, CacheResult, Repository, Ttl, Value, engine, repository:
 const CREATED_KEY: &str = "illuminate:cache:flexible:created:";
 const REFRESH_LOCK: &str = "illuminate:cache:flexible:lock:";
 
-/// Options for the lock and deferred refresh used by `flexibleWith`.
+/// Options for the lock and deferred refresh used by `flexible_with`.
 #[derive(Debug, Default)]
 pub struct FlexibleOptions {
     pub lock_for: Duration,
@@ -20,7 +20,6 @@ pub struct FlexibleOptions {
     pub always_defer: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     /// Returns fresh or stale cache data. The durations are in seconds from the last write.
     pub async fn flexible<F>(
@@ -32,7 +31,7 @@ impl Repository {
     where
         F: Future<Output = CacheResult<Value>> + Send + 'static,
     {
-        self.flexibleWith(
+        self.flexible_with(
             key,
             ttl.map(Ttl::Seconds),
             resolve,
@@ -42,7 +41,7 @@ impl Repository {
     }
 
     /// Schedules a stale refresh during application termination, optionally after failure.
-    pub async fn flexibleWith<F>(
+    pub async fn flexible_with<F>(
         &self,
         key: &str,
         [fresh_until, expires_at]: [Ttl; 2],
@@ -85,7 +84,7 @@ impl Repository {
                     Some(lock_for),
                     owner.as_deref(),
                 )?;
-                lock.getWith(|| async {
+                lock.get_with(|| async {
                     if repository.get(&created_key).await?.as_ref() == Some(&revision) {
                         let value = resolve().await?;
                         repository
@@ -115,7 +114,7 @@ impl Repository {
         ttl: Ttl,
     ) -> CacheResult<()> {
         let revision = Value::from(Uuid::now_v7().to_string().as_str());
-        self.putMany(&[(key, value), (created_key, revision)], Some(ttl))
+        self.put_many(&[(key, value), (created_key, revision)], Some(ttl))
             .await?;
         Ok(())
     }

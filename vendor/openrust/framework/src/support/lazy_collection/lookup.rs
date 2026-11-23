@@ -2,15 +2,14 @@ use std::collections::HashSet;
 
 use super::{ArrayKey, CollectionResult, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn get(&self, key: impl Into<ArrayKey>) -> CollectionResult<Option<T>> {
         let key = key.into().normalized();
-        self.firstWhere(|_, candidate| candidate == &key)
+        self.first_where(|_, candidate| candidate == &key)
     }
 
     /// Evaluates the fallback only when the requested key is absent.
-    pub fn getOrElse(
+    pub fn get_or_else(
         &self,
         key: impl Into<ArrayKey>,
         fallback: impl FnOnce() -> T,
@@ -22,7 +21,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(self.get(key)?.is_some())
     }
 
-    pub fn hasAll<K: Into<ArrayKey>>(
+    pub fn has_all<K: Into<ArrayKey>>(
         &self,
         keys: impl IntoIterator<Item = K>,
     ) -> CollectionResult<bool> {
@@ -48,19 +47,19 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             .into_iter()
             .map(|key| key.into().normalized())
             .collect();
-        self.containsWhere(|_, key| keys.contains(key))
+        self.contains_where(|_, key| keys.contains(key))
     }
 
     pub fn last(&self) -> CollectionResult<Option<T>> {
-        self.lastWhere(|_, _| true)
+        self.last_where(|_, _| true)
     }
 
     /// Evaluates the fallback only when the source is empty.
-    pub fn lastOrElse(&self, fallback: impl FnOnce() -> T) -> CollectionResult<T> {
+    pub fn last_or_else(&self, fallback: impl FnOnce() -> T) -> CollectionResult<T> {
         Ok(self.last()?.unwrap_or_else(fallback))
     }
 
-    pub fn lastWhere(
+    pub fn last_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<Option<T>> {
@@ -75,22 +74,22 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 
     /// Evaluates the fallback only when no entry matches.
-    pub fn lastWhereOrElse(
+    pub fn last_where_or_else(
         &self,
         predicate: impl FnMut(&T, &ArrayKey) -> bool,
         fallback: impl FnOnce() -> T,
     ) -> CollectionResult<T> {
-        Ok(self.lastWhere(predicate)?.unwrap_or_else(fallback))
+        Ok(self.last_where(predicate)?.unwrap_or_else(fallback))
     }
 
     pub fn search(&self, value: &T) -> CollectionResult<Option<ArrayKey>>
     where
         T: PartialEq,
     {
-        self.searchWhere(|item, _| item == value)
+        self.search_where(|item, _| item == value)
     }
 
-    pub fn searchWhere(
+    pub fn search_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<Option<ArrayKey>> {
@@ -107,10 +106,10 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: PartialEq,
     {
-        self.beforeWhere(|item, _| item == value)
+        self.before_where(|item, _| item == value)
     }
 
-    pub fn beforeWhere(
+    pub fn before_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<Option<T>> {
@@ -129,14 +128,14 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: PartialEq,
     {
-        self.afterWhere(|item, _| item == value)
+        self.after_where(|item, _| item == value)
     }
 
-    pub fn afterWhere(
+    pub fn after_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<Option<T>> {
-        let mut source = self.getIterator();
+        let mut source = self.get_iterator();
         while let Some(entry) = source.next() {
             let (key, value) = entry?;
             if predicate(&value, &key) {

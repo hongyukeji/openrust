@@ -11,7 +11,7 @@ pub trait Hasher: Send + Sync {
         None
     }
 
-    fn info(&self, hashedValue: &str) -> HashResult<HashInfo>;
+    fn info(&self, hashed_value: &str) -> HashResult<HashInfo>;
     fn make<'a>(
         &'a self,
         value: &'a [u8],
@@ -20,11 +20,11 @@ pub trait Hasher: Send + Sync {
     fn check<'a>(
         &'a self,
         value: &'a [u8],
-        hashedValue: &'a str,
+        hashed_value: &'a str,
         options: &'a HashOptions,
     ) -> HashFuture<'a, HashResult<bool>>;
-    fn verifyConfiguration(&self, _hashedValue: &str) -> HashResult<bool> {
+    fn verify_configuration(&self, _hashed_value: &str) -> HashResult<bool> {
         Ok(true)
     }
-    fn needsRehash(&self, hashedValue: &str, options: &HashOptions) -> HashResult<bool>;
+    fn needs_rehash(&self, hashed_value: &str, options: &HashOptions) -> HashResult<bool>;
 }

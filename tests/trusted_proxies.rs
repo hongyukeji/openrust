@@ -12,14 +12,14 @@ use openrust::{
         HttpError, HttpFuture, Request, RequestSecurity, Response, StatusCode, TrustedProxyHeaders,
     },
     routing::Router,
-    support::facades::URL,
+    support::facades::Url,
 };
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 fn proxy_info(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let current = URL::current()?;
+        let current = Url::current()?;
         Response::json(
             StatusCode::OK,
             json!({

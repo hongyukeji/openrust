@@ -28,7 +28,7 @@ pub struct CustomPasskey(ModelState);
 impl Model for CustomPasskey {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("custom_passkeys")
-            .primaryKey("pk")
+            .primary_key("pk")
             .fillable(&["name", "credential_id", "credential"])
             .hidden(&["credential"])
             .appends(&["authenticator", "custom_marker"]);
@@ -84,8 +84,8 @@ impl openrust::database::eloquent::Observer<CustomPasskey> for Observe {
         >,
     > {
         Box::pin(async move {
-            assert_eq!(model.getKeyName(), "pk");
-            assert!(model.getKey().is_some());
+            assert_eq!(model.get_key_name(), "pk");
+            assert!(model.get_key().is_some());
             SAVED.fetch_add(1, Ordering::SeqCst);
             Ok(openrust::database::eloquent::concerns::ModelEventResponse::Continue)
         })
@@ -101,7 +101,7 @@ impl openrust::database::eloquent::Observer<CustomPasskey> for Observe {
         >,
     > {
         Box::pin(async move {
-            assert_eq!(model.getTable(), "custom_passkeys");
+            assert_eq!(model.get_table(), "custom_passkeys");
             DELETED.fetch_add(1, Ordering::SeqCst);
             Ok(openrust::database::eloquent::concerns::ModelEventResponse::Continue)
         })
@@ -123,12 +123,12 @@ impl<U: Authenticatable> Listener for ObserveEvents<U> {
                         let model = event
                             .passkey::<CustomPasskey>(context)
                             .expect("actual custom Eloquent context");
-                        assert_eq!(model.getTable(), "custom_passkeys");
+                        assert_eq!(model.get_table(), "custom_passkeys");
                         let actual = event
                             .passkey
                             .model::<CustomPasskey>()
                             .expect("preserved actual model");
-                        assert_eq!(actual.lock().await.getKey(), model.getKey());
+                        assert_eq!(actual.lock().await.get_key(), model.get_key());
                         assert!(event.passkey.sameInstance(&event.passkey.clone()));
                         $counter.fetch_add(1, Ordering::SeqCst);
                     }

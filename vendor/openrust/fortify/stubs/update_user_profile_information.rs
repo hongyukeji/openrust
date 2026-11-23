@@ -31,7 +31,7 @@ impl UpdatesUserProfileInformation for UpdateUserProfileInformation {
                 .validate_with_bag("updateProfileInformation")
                 .await?;
             let email = super::text(input, "email")?;
-            let changed = user.getAttribute("email") != Some(&Value::Text(email.into()));
+            let changed = user.get_attribute("email") != Some(&Value::Text(email.into()));
             let mut attributes = std::collections::BTreeMap::from([
                 ("name".into(), super::text(input, "name")?.into()),
                 ("email".into(), email.into()),
@@ -39,7 +39,7 @@ impl UpdatesUserProfileInformation for UpdateUserProfileInformation {
             if changed {
                 attributes.insert("email_verified_at".into(), Value::Null);
             }
-            user.forceFill(attributes)?.save().await?;
+            user.force_fill(attributes)?.save().await?;
             if changed {
                 user.send_email_verification_notification()
                     .await

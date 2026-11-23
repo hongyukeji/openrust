@@ -474,7 +474,7 @@ impl QueueManager {
         let queue = if queue.is_empty() { "default" } else { queue };
         let configured = self.resolve(connection)?;
         configured.queue_name(Some(queue))?;
-        Ok((configured.queue.getConnectionName().into(), queue.into()))
+        Ok((configured.queue.get_connection_name().into(), queue.into()))
     }
 
     pub async fn dispatch(
@@ -492,7 +492,7 @@ impl QueueManager {
         let unique = if payload.batch_id.is_none() && payload.chained_batch.is_none() {
             self.registry
                 .handler(payload.name())
-                .and_then(|handler| handler.uniqueJob(&payload))
+                .and_then(|handler| handler.unique_job(&payload))
         } else {
             None
         };
@@ -501,14 +501,14 @@ impl QueueManager {
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
         let selected = options.queue.as_deref();
-        let transaction = transaction.filter(|transaction| transaction.transactionLevel() != 0);
+        let transaction = transaction.filter(|transaction| transaction.transaction_level() != 0);
         if let Some(transaction) = transaction {
             if unique.is_some() && options.after_commit == Some(false) {
                 return Err(QueueError::InvalidConfiguration);
             }
             if unique.is_some() || options.after_commit.unwrap_or(configured.after_commit) {
                 transaction
-                    .afterCommit(move || {
+                    .after_commit(move || {
                         Box::pin(async move {
                             dispatch_unique(&*queue, payload, &options, owner, unique)
                                 .await
@@ -576,7 +576,7 @@ impl QueueManager {
         };
         let queue = Some(job.queue.as_str());
         if let BatchBackend::Database(connection) = &configured.batch_backend {
-            let mut transaction = connection.beginTransaction().await.map_err(backend)?;
+            let mut transaction = connection.begin_transaction().await.map_err(backend)?;
             match failures
                 .forget_retry_in_transaction(&claim, &mut transaction)
                 .await?
@@ -593,7 +593,7 @@ impl QueueManager {
                     transaction.commit().await.map_err(backend)?;
                     return Ok((claimed, id));
                 }
-                None => transaction.rollBack(None).await.map_err(backend)?,
+                None => transaction.roll_back(None).await.map_err(backend)?,
             }
         }
         let id = configured.queue.push(&payload, queue).await?;
@@ -801,7 +801,7 @@ impl QueueManager {
                 return Err(QueueError::InvalidPayload);
             }
             self.resolve_batch_destination(
-                &batch.options(destination.queue.getConnectionName(), queue),
+                &batch.options(destination.queue.get_connection_name(), queue),
             )?;
         }
         Ok(())
@@ -898,7 +898,7 @@ impl QueueManager {
             .append_in_transaction(&mut transaction, id, count)
             .await?
         else {
-            transaction.rollBack(None).await.map_err(backend)?;
+            transaction.roll_back(None).await.map_err(backend)?;
             return Ok(None);
         };
         if jobs.is_empty() {
@@ -1045,7 +1045,7 @@ impl QueueManager {
                 .upgrade()
                 .ok_or(QueueError::InvalidConfiguration)?;
             let queue = connector(&owner, name, &raw)?;
-            if queue.getConnectionName() != name
+            if queue.get_connection_name() != name
                 || settings
                     .queue
                     .as_deref()
@@ -1275,7 +1275,7 @@ async fn emit_queueing(
     let dispatcher = owner.make::<Dispatcher>()?;
     if dispatcher.observes(super::events::JobQueueing::NAME) {
         let event = super::events::JobQueueing {
-            connection_name: queue.getConnectionName().into(),
+            connection_name: queue.get_connection_name().into(),
             queue: super::queue_name(options.queue.as_deref(), queue.default_queue())?.into(),
             job: payload.clone(),
         };

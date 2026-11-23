@@ -15,7 +15,7 @@ use crate::{
     },
     http::{HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{Router, RoutingError, SignatureMode, SignatureQueryFilter, UrlError},
-    support::facades::{Storage, URL},
+    support::facades::{Storage, Url},
 };
 
 use super::{FilesystemError, filesystem_adapter::validate_path};
@@ -104,7 +104,7 @@ impl SignedFile {
         if self.public {
             return Ok(true);
         }
-        match URL::service()?.has_valid_signature(
+        match Url::service()?.has_valid_signature(
             request,
             SignatureMode::Relative,
             SignatureQueryFilter::Keys(&[]),

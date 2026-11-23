@@ -89,7 +89,7 @@ impl Migrator {
 
     /// Replaces the pending migrations excluded by this application.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutMigrations(&self, migrations: &[&str]) {
+    pub fn without_migrations(&self, migrations: &[&str]) {
         let names = migrations
             .iter()
             .filter_map(|migration| Path::new(migration).file_name()?.to_str())
@@ -114,7 +114,7 @@ impl Migrator {
 
     /// Resolves a migration connection, preferring a configured PostgreSQL direct endpoint.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn resolveConnection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
+    pub fn resolve_connection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
         self.manager.migration_connection(name)
     }
 
@@ -125,8 +125,8 @@ impl Migrator {
     ) -> DatabaseResult<Connection> {
         let name = entry
             .migration
-            .getConnection(self.manager.configuration())?;
-        self.resolveConnection(name.as_deref().or(database))
+            .get_connection(self.manager.configuration())?;
+        self.resolve_connection(name.as_deref().or(database))
     }
 
     fn repository(&self, database: Option<&str>) -> DatabaseMigrationRepository {
@@ -271,7 +271,7 @@ impl Migrator {
                 else {
                     return Err(error);
                 };
-                let connection = self.resolveConnection(database)?;
+                let connection = self.resolve_connection(database)?;
                 let Some(creation) = missing.prepare(&connection)? else {
                     return Err(error);
                 };
@@ -289,7 +289,7 @@ impl Migrator {
         };
         let mut loaded = false;
         if ran.is_empty() && !options.pretend {
-            let connection = self.resolveConnection(database)?;
+            let connection = self.resolve_connection(database)?;
             if let Some(path) =
                 self.schema_to_load(schema_connection_name(&connection), schema_path)?
             {
@@ -304,7 +304,7 @@ impl Migrator {
                 }
                 self.manager
                     .dispatch_migration_event(SchemaLoaded {
-                        connectionName: connection.get_name().to_owned(),
+                        connection_name: connection.get_name().to_owned(),
                         connection,
                         path,
                     })
@@ -402,7 +402,7 @@ impl Migrator {
     ) -> DatabaseResult<()> {
         let migration = entry.migration;
         context
-            .begin_transaction(!pretend && migration.withinTransaction())
+            .begin_transaction(!pretend && migration.within_transaction())
             .await
             .map_err(|error| migration_error(name, error))?;
         let result = self
@@ -467,7 +467,7 @@ impl Migrator {
         prune: bool,
     ) -> DatabaseResult<()> {
         let _guard = self.execution.lock().await;
-        let connection = self.resolveConnection(database)?;
+        let connection = self.resolve_connection(database)?;
         let path = match path {
             Some(path) => self.root.join(path),
             None => self.default_schema_path(schema_connection_name(&connection), "sql")?,
@@ -489,11 +489,11 @@ impl Migrator {
             None
         };
         schema_state::dump(&connection, &path, ledger).await?;
-        let connectionName = connection.get_name().to_owned();
+        let connection_name = connection.get_name().to_owned();
         self.manager
             .dispatch_migration_event(SchemaDumped {
                 connection: connection.clone(),
-                connectionName: connectionName.clone(),
+                connection_name: connection_name.clone(),
                 path,
             })
             .await?;
@@ -502,7 +502,7 @@ impl Migrator {
             self.manager
                 .dispatch_migration_event(MigrationsPruned {
                     connection,
-                    connectionName,
+                    connection_name,
                     path: self.root.join("database/migrations"),
                 })
                 .await?;
@@ -721,7 +721,7 @@ impl Migrator {
         options: WipeOptions,
     ) -> DatabaseResult<()> {
         let _guard = self.execution.lock().await;
-        Self::wipe_schema(&self.resolveConnection(database)?, options).await
+        Self::wipe_schema(&self.resolve_connection(database)?, options).await
     }
 
     pub async fn fresh(
@@ -757,7 +757,7 @@ impl Migrator {
     ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let _guard = self.execution.lock().await;
         self.files(paths)?;
-        let connection = self.resolveConnection(database)?;
+        let connection = self.resolve_connection(database)?;
         if wipe.drop_types && !connection.is_postgres() {
             return Err(DatabaseError::UnsupportedSchema(
                 "dropping types requires PostgreSQL",
@@ -785,7 +785,7 @@ impl Migrator {
 
     async fn wipe_schema(connection: &Connection, options: WipeOptions) -> DatabaseResult<()> {
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .drop_schema_objects(true, options.drop_views, options.drop_types)
             .await?;
         if connection.is_postgres() {

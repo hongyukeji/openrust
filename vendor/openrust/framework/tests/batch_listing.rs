@@ -19,7 +19,7 @@ async fn exercise(url: Option<String>) {
         .unwrap();
     let table = format!("batch_listing_{}", uuid::Uuid::now_v7().simple());
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create(&table, |table| {
             table.string("id", None).primary();
             table.string("name", None);
@@ -48,7 +48,7 @@ async fn exercise(url: Option<String>) {
     );
     assert_eq!(batches.get(2, Some(&second.id)).await.unwrap(), vec![first]);
     assert!(batches.get(0, None).await.unwrap().is_empty());
-    connection.getSchemaBuilder().drop(&table).await.unwrap();
+    connection.get_schema_builder().drop(&table).await.unwrap();
 }
 #[tokio::test]
 async fn batch_listing_paginates_on_sqlite() {

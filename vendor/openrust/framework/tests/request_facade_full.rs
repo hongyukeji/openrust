@@ -373,7 +373,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
         R::swap(Arc::new(RequestHandle::from_request(replacement)))?;
         R::clear_resolved_instances()?;
         assert!(
-            openrust::support::facades::URL::current()
+            openrust::support::facades::Url::current()
                 .unwrap()
                 .ends_with("/replacement")
         );
@@ -751,14 +751,14 @@ async fn facade_validation_redirects_web_requests_and_flashes_named_errors() {
 async fn signature_facade_uses_current_request_and_query_exclusions() {
     use openrust::{
         routing::{Router, SignatureMode},
-        support::facades::URL,
+        support::facades::Url,
     };
     fn register(_: &Application) -> Result<Router, openrust::routing::RoutingError> {
         let mut router = Router::new();
         router.get("/sign",|| async {
             Ok::<_,HttpError>(json!({
-                "absolute":URL::signed_route("signed",&[],None,SignatureMode::Absolute).map_err(|source|HttpError::Internal{source:source.into()})?,
-                "relative":URL::signed_route("signed",&[],None,SignatureMode::Relative).map_err(|source|HttpError::Internal{source:source.into()})?
+                "absolute":Url::signed_route("signed",&[],None,SignatureMode::Absolute).map_err(|source|HttpError::Internal{source:source.into()})?,
+                "relative":Url::signed_route("signed",&[],None,SignatureMode::Relative).map_err(|source|HttpError::Internal{source:source.into()})?
             }))
         })?;
         router
@@ -839,7 +839,7 @@ fn reinitialize(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             };
             assert!(value.is_null());
         }
-        let url = openrust::support::facades::URL::current().unwrap();
+        let url = openrust::support::facades::Url::current().unwrap();
         assert_eq!(url, "http://fresh.test/fresh");
         Response::json(StatusCode::OK, json!({"url":url,"path":request.path()}))
     })

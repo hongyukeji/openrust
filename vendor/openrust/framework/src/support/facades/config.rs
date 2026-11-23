@@ -122,7 +122,7 @@ impl Config {
     pub fn collection(key: &str) -> Result<Collection, ConfigError> {
         typed(key, "an array", |value| match value {
             Value::Array(items) => Some(items.into_iter().collect()),
-            Value::Object(items) => Some(Collection::fromEntries(items)),
+            Value::Object(items) => Some(Collection::from_entries(items)),
             _ => None,
         })
     }

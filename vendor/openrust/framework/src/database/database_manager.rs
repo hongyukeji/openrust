@@ -47,7 +47,6 @@ pub struct DatabaseManager {
     test_query_counts: Option<Weak<TestQueryCounts>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseManager {
     pub fn new(config: Arc<dyn Repository>, root: impl Into<PathBuf>) -> Self {
         Self {
@@ -139,7 +138,7 @@ impl DatabaseManager {
     }
 
     /// Uses the selected default connection while polling this future.
-    pub async fn usingConnection<T>(&self, name: &str, future: impl Future<Output = T>) -> T {
+    pub async fn using_connection<T>(&self, name: &str, future: impl Future<Output = T>) -> T {
         let mut overrides = CONNECTION_OVERRIDES
             .try_with(Clone::clone)
             .unwrap_or_default();
@@ -147,7 +146,7 @@ impl DatabaseManager {
         CONNECTION_OVERRIDES.scope(overrides, future).await
     }
 
-    pub fn getDefaultConnection(&self) -> DatabaseResult<String> {
+    pub fn get_default_connection(&self) -> DatabaseResult<String> {
         let identity = std::ptr::from_ref(self).addr();
         if let Ok(Some(name)) = CONNECTION_OVERRIDES.try_with(|overrides| {
             overrides
@@ -165,7 +164,7 @@ impl DatabaseManager {
         }
     }
 
-    pub fn setDefaultConnection(&self, name: &str) -> DatabaseResult<()> {
+    pub fn set_default_connection(&self, name: &str) -> DatabaseResult<()> {
         if name.is_empty() {
             return Err(DatabaseError::InvalidConfiguration("database.default"));
         }
@@ -183,7 +182,7 @@ impl DatabaseManager {
     fn resolve_name<'a>(&self, name: Option<&'a str>) -> DatabaseResult<Cow<'a, str>> {
         match name {
             Some(name) => Ok(Cow::Borrowed(name)),
-            None => self.getDefaultConnection().map(Cow::Owned),
+            None => self.get_default_connection().map(Cow::Owned),
         }
     }
 
@@ -194,7 +193,7 @@ impl DatabaseManager {
 
     pub(super) fn migration_connection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
         let connection = self.connection(name)?;
-        if connection.query_role.is_none() && connection.hasDirectConnection() {
+        if connection.query_role.is_none() && connection.has_direct_connection() {
             self.connection_named(&format!("{}::direct", connection.get_name()))
         } else {
             Ok(connection)
@@ -302,10 +301,10 @@ impl ConnectionResolverInterface for DatabaseManager {
     }
 
     fn get_default_connection(&self) -> DatabaseResult<String> {
-        self.getDefaultConnection()
+        self.get_default_connection()
     }
 
     fn set_default_connection(&self, name: &str) -> DatabaseResult<()> {
-        self.setDefaultConnection(name)
+        self.set_default_connection(name)
     }
 }

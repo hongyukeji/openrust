@@ -156,9 +156,9 @@ impl TestApp {
     /// Checks a model's primary key in its table, including soft-deleted rows.
     pub async fn assert_model_exists(&mut self, model: &impl Model) -> AssertionResult {
         self.assert_database_has_on(
-            model.getTable(),
+            model.get_table(),
             &model_key(model),
-            model.getConnectionName(),
+            model.get_connection_name(),
         )
         .await
     }
@@ -166,9 +166,9 @@ impl TestApp {
     /// Asserts that the model's primary key is absent from its table.
     pub async fn assert_model_missing(&mut self, model: &impl Model) -> AssertionResult {
         self.assert_database_missing_on(
-            model.getTable(),
+            model.get_table(),
             &model_key(model),
-            model.getConnectionName(),
+            model.get_connection_name(),
         )
         .await
     }
@@ -176,9 +176,9 @@ impl TestApp {
     /// Checks the model's primary key and configured soft-deletion column.
     pub async fn assert_soft_deleted_model(&mut self, model: &impl Model) -> AssertionResult {
         self.assert_soft_deleted_on(
-            model.getTable(),
+            model.get_table(),
             &model_key(model),
-            model.getConnectionName(),
+            model.get_connection_name(),
             model_deleted_at(model)?,
         )
         .await
@@ -187,9 +187,9 @@ impl TestApp {
     /// Asserts that the model has a matching live row in its table.
     pub async fn assert_not_soft_deleted_model(&mut self, model: &impl Model) -> AssertionResult {
         self.assert_not_soft_deleted_on(
-            model.getTable(),
+            model.get_table(),
             &model_key(model),
-            model.getConnectionName(),
+            model.get_connection_name(),
             model_deleted_at(model)?,
         )
         .await
@@ -203,15 +203,15 @@ impl TestApp {
     ) -> Result<Builder<'static>, Box<dyn Error + Send + Sync>> {
         let query = self.database_on(connection).await?.table(table);
         Ok(columns.iter().fold(query, |query, (column, value)| {
-            query.whereNullSafeEquals(column, value.clone())
+            query.where_null_safe_equals(column, value.clone())
         }))
     }
 }
 
 fn model_key(model: &impl Model) -> [(&'static str, Value); 1] {
     [(
-        model.getKeyName(),
-        model.getKey().cloned().unwrap_or(Value::Null),
+        model.get_key_name(),
+        model.get_key().cloned().unwrap_or(Value::Null),
     )]
 }
 
@@ -219,7 +219,7 @@ fn model_deleted_at<M: Model>(model: &M) -> io::Result<&'static str> {
     M::metadata().deleted_at_column().ok_or_else(|| {
         io::Error::other(format!(
             "model table {} has no soft-deletion column",
-            model.getTable()
+            model.get_table()
         ))
     })
 }

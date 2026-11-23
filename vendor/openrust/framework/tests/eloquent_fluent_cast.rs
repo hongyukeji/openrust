@@ -57,7 +57,7 @@ async fn verify(config: Json, id: &str) {
     )
     .await
     .unwrap();
-    let query = || Record::queryOn(&db);
+    let query = || Record::query_on(&db);
     let payload = json!({
         "z": {"enabled": null},
         "z.enabled": "literal",
@@ -69,9 +69,12 @@ async fn verify(config: Json, id: &str) {
         .create(Attributes::from([("options".into(), Value::Json(payload))]))
         .await
         .unwrap();
-    let key = record.getKey().unwrap().clone();
-    let mut record = query().findOrFail(key.clone()).await.unwrap();
-    let options = record.getValueObject::<Fluent>("options").unwrap().unwrap();
+    let key = record.get_key().unwrap().clone();
+    let mut record = query().find_or_fail(key.clone()).await.unwrap();
+    let options = record
+        .get_value_object::<Fluent>("options")
+        .unwrap()
+        .unwrap();
     assert!(
         options
             .to_json()
@@ -86,10 +89,10 @@ async fn verify(config: Json, id: &str) {
     assert_eq!(options.get("items.{last}.name"), Some(json!("last")));
     assert_eq!(options.scope("indexed").to_array(), json!(["item"]));
     assert_eq!(options.value("empty"), Some(&json!([])));
-    assert!(!record.isDirty().unwrap());
+    assert!(!record.is_dirty().unwrap());
 
     record
-        .editValueObject::<Fluent>("options", |options| {
+        .edit_value_object::<Fluent>("options", |options| {
             options.set("items.*.enabled", json!(true)).unwrap();
             let before = options.to_array();
             assert!(options.set(&"path.".repeat(128), json!(true)).is_err());
@@ -97,52 +100,52 @@ async fn verify(config: Json, id: &str) {
             Ok(())
         })
         .unwrap();
-    assert!(record.isDirty().unwrap());
+    assert!(record.is_dirty().unwrap());
     record
-        .setAttributeValue("options->z->enabled", true)
+        .set_attribute_value("options->z->enabled", true)
         .unwrap();
     assert_eq!(
         record
-            .getValueObject::<Fluent>("options")
+            .get_value_object::<Fluent>("options")
             .unwrap()
             .unwrap()
             .get("z.enabled"),
         Some(json!(true))
     );
     assert!(record.save().await.unwrap());
-    let mut record = query().findOrFail(key.clone()).await.unwrap();
+    let mut record = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(
         record.to_array().unwrap()["options"]["items"][1]["enabled"],
         true
     );
     assert_eq!(record.to_array().unwrap()["options"]["z"]["enabled"], true);
 
-    record.setAttributeValue("options", "scalar").unwrap();
+    record.set_attribute_value("options", "scalar").unwrap();
     assert!(record.save().await.unwrap());
-    let mut record = query().findOrFail(key.clone()).await.unwrap();
-    assert!(record.getValueObject::<Fluent>("options").is_err());
+    let mut record = query().find_or_fail(key.clone()).await.unwrap();
+    assert!(record.get_value_object::<Fluent>("options").is_err());
     assert!(
         record
-            .setAttributeValue("options", Value::Real(f64::NAN))
+            .set_attribute_value("options", Value::Real(f64::NAN))
             .is_err()
     );
-    assert!(record.getValueObject::<Fluent>("options").is_err());
+    assert!(record.get_value_object::<Fluent>("options").is_err());
     record
-        .setValueObject("options", Some(Fluent::default()))
+        .set_value_object("options", Some(Fluent::default()))
         .unwrap();
     assert!(record.save().await.unwrap());
-    let mut record = query().findOrFail(key.clone()).await.unwrap();
+    let mut record = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(record.to_array().unwrap()["options"], json!([]));
-    record.setAttributeValue("options", Value::Null).unwrap();
+    record.set_attribute_value("options", Value::Null).unwrap();
     assert!(record.save().await.unwrap());
-    let mut record = query().findOrFail(key).await.unwrap();
+    let mut record = query().find_or_fail(key).await.unwrap();
     assert!(
         record
-            .getValueObject::<Fluent>("options")
+            .get_value_object::<Fluent>("options")
             .unwrap()
             .is_none()
     );
-    assert_eq!(record.getAttribute("options"), Some(&Value::Null));
+    assert_eq!(record.get_attribute("options"), Some(&Value::Null));
     db.statement("DROP TABLE fluent_records", &[])
         .await
         .unwrap();

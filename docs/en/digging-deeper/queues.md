@@ -68,9 +68,9 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 ### Queued model relationships {#queued-model-relationships}
 
-Use `ModelIdentifier::capture` for one model or `ModelCollectionIdentifier::capture` for a collection. Declare the model type in the job’s Serde fields and store the identifiers in `Payload`. The JSON stores typed keys, the database connection name and loaded relation paths. Call `restore` inside the registered handler. The model query uses the write connection, bypasses global scopes, and then loads missing named relations. Declare those paths with `Model::namedRelations`. Previous relationship filters are not preserved.
+Use `ModelIdentifier::capture` for one model or `ModelCollectionIdentifier::capture` for a collection. Declare the model type in the job’s Serde fields and store the identifiers in `Payload`. The JSON stores typed keys, the database connection name and loaded relation paths. Call `restore` inside the registered handler. The model query uses the write connection, bypasses global scopes, and then loads missing named relations. Declare those paths with `Model::named_relations`. Previous relationship filters are not preserved.
 
-`withoutRelations` omits captured paths. Model defaults still apply. A missing single model returns `DatabaseError::ModelNotFound`. A collection skips missing rows and preserves payload order and duplicate keys. The handler decides how to handle a missing single model.
+`without_relations` omits captured paths. Model defaults still apply. A missing single model returns `DatabaseError::ModelNotFound`. A collection skips missing rows and preserves payload order and duplicate keys. The handler decides how to handle a missing single model.
 
 The model type comes from the compiled handler’s Rust type. This keeps the existing JSON job format and avoids resolving a class name from the payload.
 
@@ -100,7 +100,7 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 
 #### Missing models {#ignoring-missing-models}
 
-Call `ModelIdentifier::restoreForJob().await?` when the model is required by a queued job. A missing model normally fails the job immediately. Call `Payload::deleteWhenMissingModels()` when dispatching to acknowledge it quietly instead. The worker releases a unique lock in either case. Quiet acknowledgement records success for the affected batch member and stops that member’s chain. Other database errors keep their normal handling.
+Call `ModelIdentifier::restore_for_job().await?` when the model is required by a queued job. A missing model normally fails the job immediately. Call `Payload::deleteWhenMissingModels()` when dispatching to acknowledge it quietly instead. The worker releases a unique lock in either case. Quiet acknowledgement records success for the affected batch member and stops that member’s chain. Other database errors keep their normal handling.
 
 ```rust
 use openrust::{
@@ -115,13 +115,13 @@ pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
 pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
     let id: ModelIdentifier<M> = serde_json::from_value(payload.data().clone())
         .map_err(|_| QueueError::InvalidPayload)?;
-    id.restoreForJob().await
+    id.restore_for_job().await
 }
 ```
 
 #### Custom pivot models {#queued-custom-pivots}
 
-Declare the allowed relationship definitions in the custom model’s `Model::queueablePivots` method. Return `relation.queueablePivot()` for each relationship that hydrates this model, using the same table, keys and timestamp settings. Capture and restore it using the regular model identifier APIs. The payload uses the primary key when present. Otherwise, it stores both endpoint keys and, for polymorphic pivots, the type discriminator. The worker matches the definition against the compiled model before querying. The restored pivot retains its table and relationship keys for writes.
+Declare the allowed relationship definitions in the custom model’s `Model::queueable_pivots` method. Return `relation.queueable_pivot()` for each relationship that hydrates this model, using the same table, keys and timestamp settings. Capture and restore it using the regular model identifier APIs. The payload uses the primary key when present. Otherwise, it stores both endpoint keys and, for polymorphic pivots, the type discriminator. The worker matches the definition against the compiled model before querying. The restored pivot retains its table and relationship keys for writes.
 
 A pivot collection must come from a single relationship definition. Its restoration returns matching database rows, with repeated identifiers and missing rows omitted. Captured relation paths are not replayed for pivot collections.
 
@@ -130,13 +130,13 @@ use openrust::database::eloquent::{Model, QueueablePivot, relations::BelongsToMa
 
 pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
     BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
-        .queueablePivot()
+        .queueable_pivot()
 }
 ```
 
 ## Bus dispatch {#bus-dispatch}
 
-Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipeThrough` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.
+Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipe_through` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.
 
 Await `Bus::dispatchAfterResponse(payload, options)` within an HTTP request to register sync execution during termination. Use `withoutDispatchingAfterResponses` during application setup to execute inline instead. Durable workers resolve compiled handlers from the registered name and decode the JSON payload.
 
@@ -401,7 +401,7 @@ On Windows ARM64, crash recovery has also been verified with a MySQL queue and f
 
 #### Stopping retries by exception {#stopping-retries-by-exception}
 
-Register a rule in the application's `with_exceptions` callback when a queued job should fail immediately for a specific error. `dontRetry` matches the error type or one of its sources. `dontRetryWhen` evaluates a predicate against the exception.
+Register a rule in the application's `with_exceptions` callback when a queued job should fail immediately for a specific error. `dont_retry` matches the error type or one of its sources. `dont_retry_when` evaluates a predicate against the exception.
 
 ```rust
 use std::{io, num::ParseIntError};
@@ -409,8 +409,8 @@ use openrust::foundation::configuration::Exceptions;
 
 fn configure_exceptions(exceptions: &mut Exceptions) {
     exceptions
-        .dontRetry::<ParseIntError>()
-        .dontRetryWhen(|exception| {
+        .dont_retry::<ParseIntError>()
+        .dont_retry_when(|exception| {
             exception.downcast_ref::<io::Error>()
                 .is_some_and(|error| error.kind() == io::ErrorKind::InvalidData)
         });
@@ -529,7 +529,7 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
-    let name = connection.getConnectionName();
+    let name = connection.get_connection_name();
     Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
     assert!(Queue::isPaused(name, "default").await?);
     assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
@@ -838,8 +838,8 @@ use openrust::{
 };
 
 fn register_job_budget() -> CacheResult<()> {
-    RateLimiter::forJob("job-budget", |job| {
-        Limit::perMinute(1).by(job.data().as_str().unwrap_or_default())
+    RateLimiter::for_job("job-budget", |job| {
+        Limit::per_minute(1).by(job.data().as_str().unwrap_or_default())
     })
 }
 
@@ -848,7 +848,7 @@ fn job_rate_limit() -> RateLimited {
 }
 ```
 
-A denied job is released after the remaining window plus three seconds. Use `releaseAfter` to override the delay or `dontRelease` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
+A denied job is released after the remaining window plus three seconds. Use `release_after` to override the delay or `dontRelease` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
 
 ### Preventing job overlaps {#preventing-job-overlaps}
 
@@ -862,12 +862,12 @@ fn account_lock(account_id: u64) -> WithoutOverlapping {
     WithoutOverlapping::new(account_id.to_string())
         .withPrefix("account-update:")
         .shared()
-        .releaseAfter(Duration::from_secs(15))
+        .release_after(Duration::from_secs(15))
         .expireAfter(Duration::from_secs(120))
 }
 ```
 
-On contention, the job is released immediately by default. Use `releaseAfter` with a duration or an absolute time to defer it, or `dontRelease` to acknowledge it without executing the handler. The cache driver provides the default lock lease. Set `expireAfter` so another worker can acquire the lock if the original worker stops before releasing it.
+On contention, the job is released immediately by default. Use `release_after` with a duration or an absolute time to defer it, or `dontRelease` to acknowledge it without executing the handler. The cache driver provides the default lock lease. Set `expireAfter` so another worker can acquire the lock if the original worker stops before releasing it.
 
 ### Throttling exceptions {#throttling-exceptions}
 
@@ -971,7 +971,7 @@ Each job is put back on its original connection and queue with a fresh attempt c
 
 #### Refreshing a retry deadline {#refreshing-a-retry-deadline}
 
-Override `retryUntil` on a queued job generated by `make:job` to calculate an absolute deadline. OpenRust evaluates it when the generated job creates its payload and again when Artisan explicitly retries a failure.
+Override `retry_until` on a queued job generated by `make:job` to calculate an absolute deadline. OpenRust evaluates it when the generated job creates its payload and again when Artisan explicitly retries a failure.
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -981,7 +981,7 @@ struct ProcessUpload;
 
 impl ProcessUpload {
     #[allow(non_snake_case)]
-    fn retryUntil(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
+    fn retry_until(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
         Ok(SystemTime::now().checked_add(Duration::from_secs(300)))
     }
 }

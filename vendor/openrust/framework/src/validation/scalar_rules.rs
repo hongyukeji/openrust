@@ -323,16 +323,16 @@ impl ScalarRule {
                 } else if let Some(text) = standard_rules::text(value) {
                     let needles: Vec<_> = parameters.iter().map(String::as_str).collect();
                     let matched = if matches!(*name, "starts_with" | "doesnt_start_with") {
-                        crate::support::Str::startsWith(&text, &needles)
+                        crate::support::Str::starts_with(&text, &needles)
                     } else {
-                        crate::support::Str::endsWith(&text, &needles)
+                        crate::support::Str::ends_with(&text, &needles)
                     };
                     matched != name.starts_with("doesnt_")
                 } else {
                     false
                 }
             }
-            Self::Ulid => value.as_str().is_some_and(crate::support::Str::isUlid),
+            Self::Ulid => value.as_str().is_some_and(crate::support::Str::is_ulid),
             Self::Timezone { group, country } => value.as_str().is_some_and(|value| {
                 crate::support::calendar::identifiers::IDENTIFIERS
                     .iter()

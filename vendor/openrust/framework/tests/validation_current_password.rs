@@ -296,7 +296,7 @@ async fn current_password_missing_context_and_presence_are_explicit() {
         validator
             .errors()
             .get("current_password", None)
-            .intoMessages(),
+            .into_messages(),
         ["The password is incorrect."]
     );
 }

@@ -3,18 +3,17 @@ use super::{
     Stringable,
 };
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Stringable {
-    pub fn afterLast(self, search: &str) -> Self {
-        Self(Str::afterLast(&self.0, search).into())
+    pub fn after_last(self, search: &str) -> Self {
+        Self(Str::after_last(&self.0, search).into())
     }
 
-    pub fn beforeLast(self, search: &str) -> Self {
-        Self(Str::beforeLast(&self.0, search).into())
+    pub fn before_last(self, search: &str) -> Self {
+        Self(Str::before_last(&self.0, search).into())
     }
 
-    pub fn betweenFirst(self, from: &str, to: &str) -> Self {
-        Self(Str::betweenFirst(&self.0, from, to).into())
+    pub fn between_first(self, from: &str, to: &str) -> Self {
+        Self(Str::between_first(&self.0, from, to).into())
     }
 
     pub fn apa(self) -> Self {
@@ -69,32 +68,32 @@ impl Stringable {
         Self(Str::unwrap(&self.0, before, after).into())
     }
 
-    pub fn padLeft(self, length: usize, pad: &str) -> Self {
-        Self(Str::padLeft(&self.0, length, pad))
+    pub fn pad_left(self, length: usize, pad: &str) -> Self {
+        Self(Str::pad_left(&self.0, length, pad))
     }
 
-    pub fn padRight(self, length: usize, pad: &str) -> Self {
-        Self(Str::padRight(&self.0, length, pad))
+    pub fn pad_right(self, length: usize, pad: &str) -> Self {
+        Self(Str::pad_right(&self.0, length, pad))
     }
 
-    pub fn padBoth(self, length: usize, pad: &str) -> Self {
-        Self(Str::padBoth(&self.0, length, pad))
+    pub fn pad_both(self, length: usize, pad: &str) -> Self {
+        Self(Str::pad_both(&self.0, length, pad))
     }
 
     pub fn replace(self, replacements: &[(&str, &str)], case_sensitive: bool) -> Self {
         Self(Str::replace(&self.0, replacements, case_sensitive))
     }
 
-    pub fn replaceFirst(self, search: &str, replacement: &str) -> Self {
-        Self(Str::replaceFirst(search, replacement, &self.0))
+    pub fn replace_first(self, search: &str, replacement: &str) -> Self {
+        Self(Str::replace_first(search, replacement, &self.0))
     }
 
-    pub fn replaceLast(self, search: &str, replacement: &str) -> Self {
-        Self(Str::replaceLast(search, replacement, &self.0))
+    pub fn replace_last(self, search: &str, replacement: &str) -> Self {
+        Self(Str::replace_last(search, replacement, &self.0))
     }
 
-    pub fn replaceArray(self, search: &str, replacements: &[&str]) -> Self {
-        Self(Str::replaceArray(search, replacements, &self.0))
+    pub fn replace_array(self, search: &str, replacements: &[&str]) -> Self {
+        Self(Str::replace_array(search, replacements, &self.0))
     }
 
     pub fn remove(self, search: &[&str], case_sensitive: bool) -> Self {
@@ -105,44 +104,44 @@ impl Stringable {
         Self(Str::swap(&self.0, replacements))
     }
 
-    pub fn substrReplace(self, replacement: &str, offset: isize, length: Option<isize>) -> Self {
-        Self(Str::substrReplace(&self.0, replacement, offset, length))
+    pub fn substr_replace(self, replacement: &str, offset: isize, length: Option<isize>) -> Self {
+        Self(Str::substr_replace(&self.0, replacement, offset, length))
     }
 
     pub fn repeat(self, times: usize) -> Self {
         Self(self.0.repeat(times))
     }
 
-    pub fn toBase64(self) -> Self {
-        Self(Str::toBase64(&self.0))
+    pub fn to_base64(self) -> Self {
+        Self(Str::to_base64(&self.0))
     }
 
     pub fn contains(&self, needles: &[&str], ignore_case: bool) -> bool {
         Str::contains(&self.0, needles, ignore_case)
     }
 
-    pub fn containsAll(&self, needles: &[&str], ignore_case: bool) -> bool {
-        Str::containsAll(&self.0, needles, ignore_case)
+    pub fn contains_all(&self, needles: &[&str], ignore_case: bool) -> bool {
+        Str::contains_all(&self.0, needles, ignore_case)
     }
 
-    pub fn doesntContain(&self, needles: &[&str], ignore_case: bool) -> bool {
-        Str::doesntContain(&self.0, needles, ignore_case)
+    pub fn doesnt_contain(&self, needles: &[&str], ignore_case: bool) -> bool {
+        Str::doesnt_contain(&self.0, needles, ignore_case)
     }
 
-    pub fn endsWith(&self, needles: &[&str]) -> bool {
-        Str::endsWith(&self.0, needles)
+    pub fn ends_with(&self, needles: &[&str]) -> bool {
+        Str::ends_with(&self.0, needles)
     }
 
-    pub fn doesntEndWith(&self, needles: &[&str]) -> bool {
-        Str::doesntEndWith(&self.0, needles)
+    pub fn doesnt_end_with(&self, needles: &[&str]) -> bool {
+        Str::doesnt_end_with(&self.0, needles)
     }
 
-    pub fn startsWith(&self, needles: &[&str]) -> bool {
-        Str::startsWith(&self.0, needles)
+    pub fn starts_with(&self, needles: &[&str]) -> bool {
+        Str::starts_with(&self.0, needles)
     }
 
-    pub fn doesntStartWith(&self, needles: &[&str]) -> bool {
-        Str::doesntStartWith(&self.0, needles)
+    pub fn doesnt_start_with(&self, needles: &[&str]) -> bool {
+        Str::doesnt_start_with(&self.0, needles)
     }
 
     pub fn is(&self, patterns: &[&str], ignore_case: bool) -> bool {
@@ -153,16 +152,16 @@ impl Stringable {
         self.0 == expected
     }
 
-    pub fn isAscii(&self) -> bool {
-        Str::isAscii(&self.0)
+    pub fn is_ascii(&self) -> bool {
+        Str::is_ascii(&self.0)
     }
 
     pub fn is_json(&self) -> bool {
         Str::is_json(&self.0)
     }
 
-    pub fn isUrl(&self, protocols: &[&str]) -> bool {
-        Str::isUrl(&self.0, protocols)
+    pub fn is_url(&self, protocols: &[&str]) -> bool {
+        Str::is_url(&self.0, protocols)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -173,7 +172,7 @@ impl Stringable {
         !self.is_empty()
     }
 
-    pub fn whenContains(
+    pub fn when_contains(
         self,
         needles: &[&str],
         ignore_case: bool,
@@ -183,51 +182,55 @@ impl Stringable {
         self.when(condition, callback)
     }
 
-    pub fn whenContainsAll(
+    pub fn when_contains_all(
         self,
         needles: &[&str],
         ignore_case: bool,
         callback: impl FnOnce(Self) -> Self,
     ) -> Self {
-        let condition = self.containsAll(needles, ignore_case);
+        let condition = self.contains_all(needles, ignore_case);
         self.when(condition, callback)
     }
 
-    pub fn whenStartsWith(self, needles: &[&str], callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.startsWith(needles);
+    pub fn when_starts_with(self, needles: &[&str], callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.starts_with(needles);
         self.when(condition, callback)
     }
 
-    pub fn whenDoesntStartWith(
+    pub fn when_doesnt_start_with(
         self,
         needles: &[&str],
         callback: impl FnOnce(Self) -> Self,
     ) -> Self {
-        let condition = self.doesntStartWith(needles);
+        let condition = self.doesnt_start_with(needles);
         self.when(condition, callback)
     }
 
-    pub fn whenEndsWith(self, needles: &[&str], callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.endsWith(needles);
+    pub fn when_ends_with(self, needles: &[&str], callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.ends_with(needles);
         self.when(condition, callback)
     }
 
-    pub fn whenDoesntEndWith(self, needles: &[&str], callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.doesntEndWith(needles);
+    pub fn when_doesnt_end_with(
+        self,
+        needles: &[&str],
+        callback: impl FnOnce(Self) -> Self,
+    ) -> Self {
+        let condition = self.doesnt_end_with(needles);
         self.when(condition, callback)
     }
 
-    pub fn whenExactly(self, expected: &str, callback: impl FnOnce(Self) -> Self) -> Self {
+    pub fn when_exactly(self, expected: &str, callback: impl FnOnce(Self) -> Self) -> Self {
         let condition = self.exactly(expected);
         self.when(condition, callback)
     }
 
-    pub fn whenNotExactly(self, expected: &str, callback: impl FnOnce(Self) -> Self) -> Self {
+    pub fn when_not_exactly(self, expected: &str, callback: impl FnOnce(Self) -> Self) -> Self {
         let condition = !self.exactly(expected);
         self.when(condition, callback)
     }
 
-    pub fn whenIs(
+    pub fn when_is(
         self,
         patterns: &[&str],
         ignore_case: bool,
@@ -237,18 +240,18 @@ impl Stringable {
         self.when(condition, callback)
     }
 
-    pub fn whenIsAscii(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isAscii();
+    pub fn when_is_ascii(self, callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.is_ascii();
         self.when(condition, callback)
     }
 
-    pub fn whenIsUlid(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isUlid();
+    pub fn when_is_ulid(self, callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.is_ulid();
         self.when(condition, callback)
     }
 
-    pub fn whenIsUuid(self, version: Option<u8>, callback: impl FnOnce(Self) -> Self) -> Self {
-        let condition = self.isUuid(version);
+    pub fn when_is_uuid(self, version: Option<u8>, callback: impl FnOnce(Self) -> Self) -> Self {
+        let condition = self.is_uuid(version);
         self.when(condition, callback)
     }
 
@@ -257,7 +260,7 @@ impl Stringable {
         self.when(condition, callback)
     }
 
-    pub fn whenNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
+    pub fn when_not_empty(self, callback: impl FnOnce(Self) -> Self) -> Self {
         let condition = self.is_not_empty();
         self.when(condition, callback)
     }
@@ -266,7 +269,7 @@ impl Stringable {
         if condition { callback(self) } else { self }
     }
 
-    pub fn whenTest(
+    pub fn when_test(
         self,
         pattern: &str,
         callback: impl FnOnce(Self) -> Self,
@@ -299,13 +302,13 @@ impl Stringable {
         )
     }
 
-    pub fn newLine(mut self, times: usize) -> Self {
+    pub fn new_line(mut self, times: usize) -> Self {
         self.0.extend(std::iter::repeat_n('\n', times));
         self
     }
 
-    pub fn charAt(&self, index: isize) -> Option<char> {
-        Str::charAt(&self.0, index)
+    pub fn char_at(&self, index: isize) -> Option<char> {
+        Str::char_at(&self.0, index)
     }
 
     pub fn excerpt(&self, phrase: &str, radius: usize, omission: &str) -> Option<Self> {
@@ -316,8 +319,8 @@ impl Stringable {
         Str::ucsplit(&self.0)
     }
 
-    pub fn wordCount(&self, additional: Option<&str>) -> usize {
-        Str::wordCount(&self.0, additional)
+    pub fn word_count(&self, additional: Option<&str>) -> usize {
+        Str::word_count(&self.0, additional)
     }
 
     pub fn explode(&self, delimiter: &str) -> Vec<&str> {
@@ -333,21 +336,21 @@ impl Stringable {
     }
 
     pub fn test(&self, pattern: &str) -> Result<bool, regex::Error> {
-        self.isMatch(&[pattern])
+        self.is_match(&[pattern])
     }
 
-    pub fn fromBase64(&self) -> Result<Vec<u8>, base64::DecodeError> {
-        Str::fromBase64(&self.0)
+    pub fn from_base64(&self) -> Result<Vec<u8>, base64::DecodeError> {
+        Str::from_base64(&self.0)
     }
 
-    pub fn toHtmlString(self) -> HtmlString {
+    pub fn to_html_string(self) -> HtmlString {
         HtmlString::new(self.0)
     }
 
-    pub fn toUri(&self) -> Result<Uri, InvalidUri> {
+    pub fn to_uri(&self) -> Result<Uri, InvalidUri> {
         Uri::of(&self.0)
     }
-    pub fn classBasename(self) -> Self {
+    pub fn class_basename(self) -> Self {
         Self(self.0.rsplit('\\').next().unwrap_or_default().into())
     }
 
@@ -395,7 +398,7 @@ impl Stringable {
     ) -> Result<Vec<u8>, crate::encryption::DecryptException> {
         crate::encryption::Crypt::decrypt(&self.0, unserialize)
     }
-    pub fn stripTags(self, allowed: &[&str]) -> Self {
+    pub fn strip_tags(self, allowed: &[&str]) -> Self {
         Self(crate::support::strings::editing::strip_tags(
             &self.0, allowed,
         ))

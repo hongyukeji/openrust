@@ -68,9 +68,9 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 ### 佇列模型關聯 {#queued-model-relationships}
 
-單一模型用 `ModelIdentifier::capture`，集合用 `ModelCollectionIdentifier::capture`。在任務的 Serde 欄位宣告模型型別，將識別資料寫入 `Payload`。JSON 保存帶型別的鍵、資料庫連線名稱和已載入的關聯路徑。在已註冊的處理器呼叫 `restore`。模型查詢走寫入連線、略過全域作用域，再補載已登記的關聯。用 `Model::namedRelations` 登記這些路徑。派送前的關聯查詢條件不會保留。
+單一模型用 `ModelIdentifier::capture`，集合用 `ModelCollectionIdentifier::capture`。在任務的 Serde 欄位宣告模型型別，將識別資料寫入 `Payload`。JSON 保存帶型別的鍵、資料庫連線名稱和已載入的關聯路徑。在已註冊的處理器呼叫 `restore`。模型查詢走寫入連線、略過全域作用域，再補載已登記的關聯。用 `Model::named_relations` 登記這些路徑。派送前的關聯查詢條件不會保留。
 
-用 `withoutRelations` 省略擷取的關聯路徑，模型的預設關聯仍會載入。單一模型缺失時傳回 `DatabaseError::ModelNotFound`，由處理器決定如何處理。集合略過缺失資料列，保留承載資料中的順序和重複鍵。
+用 `without_relations` 省略擷取的關聯路徑，模型的預設關聯仍會載入。單一模型缺失時傳回 `DatabaseError::ModelNotFound`，由處理器決定如何處理。集合略過缺失資料列，保留承載資料中的順序和重複鍵。
 
 模型型別由編譯時的處理器決定。佇列沿用既有 JSON 格式，由 Rust 型別解析模型。
 
@@ -100,7 +100,7 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 
 #### 模型缺失 {#ignoring-missing-models}
 
-任務依賴特定模型時，呼叫 `ModelIdentifier::restoreForJob().await?`。模型缺失時預設立即將任務標記為失敗。派送時呼叫 `Payload::deleteWhenMissingModels()` 可靜默確認該任務。兩種情況都會釋放唯一任務鎖。靜默確認會將該成員記為批次成功，並停止其任務鏈。其他資料庫錯誤沿用既有處理。
+任務依賴特定模型時，呼叫 `ModelIdentifier::restore_for_job().await?`。模型缺失時預設立即將任務標記為失敗。派送時呼叫 `Payload::deleteWhenMissingModels()` 可靜默確認該任務。兩種情況都會釋放唯一任務鎖。靜默確認會將該成員記為批次成功，並停止其任務鏈。其他資料庫錯誤沿用既有處理。
 
 ```rust
 use openrust::{
@@ -115,13 +115,13 @@ pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
 pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
     let id: ModelIdentifier<M> = serde_json::from_value(payload.data().clone())
         .map_err(|_| QueueError::InvalidPayload)?;
-    id.restoreForJob().await
+    id.restore_for_job().await
 }
 ```
 
 #### 自訂 Pivot 模型 {#queued-custom-pivots}
 
-在自訂模型的 `Model::queueablePivots` 方法登記可還原的關聯。對每個產生該模型的關聯傳回 `relation.queueablePivot()`，沿用相同的中介表、鍵和時間戳記設定。擷取和還原仍使用模型識別介面。有主鍵時保存主鍵，否則保存兩端鍵，多型 Pivot 還會保存型別鑑別值。Worker 先比對編譯時登記的關聯，再查詢資料表。還原後仍可用原表和關聯鍵更新或刪除記錄。
+在自訂模型的 `Model::queueable_pivots` 方法登記可還原的關聯。對每個產生該模型的關聯傳回 `relation.queueable_pivot()`，沿用相同的中介表、鍵和時間戳記設定。擷取和還原仍使用模型識別介面。有主鍵時保存主鍵，否則保存兩端鍵，多型 Pivot 還會保存型別鑑別值。Worker 先比對編譯時登記的關聯，再查詢資料表。還原後仍可用原表和關聯鍵更新或刪除記錄。
 
 一個 Pivot 集合使用相同的關聯定義。還原傳回資料庫符合條件的記錄，略過缺失資料列及重複識別。Pivot 集合還原時不會重新載入擷取的關聯路徑。
 
@@ -130,13 +130,13 @@ use openrust::database::eloquent::{Model, QueueablePivot, relations::BelongsToMa
 
 pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
     BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
-        .queueablePivot()
+        .queueable_pivot()
 }
 ```
 
 ## Bus 派送 {#bus-dispatch}
 
-用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipeThrough` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。
+用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipe_through` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。
 
 在 HTTP 請求內等待 `Bus::dispatchAfterResponse(payload, options)` 完成登錄，工作在終止階段同步執行。可在應用程式組裝時用 `withoutDispatchingAfterResponses` 切換為立即執行。持久佇列的 Worker 依已登錄名稱解析編譯後的處理常式，並解碼 JSON 承載資料。
 
@@ -401,7 +401,7 @@ Windows ARM64 已補驗 MySQL 佇列搭配檔案快取、Redis 佇列搭配 Redi
 
 #### 依例外停止重試 {#stopping-retries-by-exception}
 
-佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `with_exceptions` 回呼中註冊規則。`dontRetry` 比對例外本身或來源鏈中的型別。`dontRetryWhen` 依條件函式判斷例外。
+佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `with_exceptions` 回呼中註冊規則。`dont_retry` 比對例外本身或來源鏈中的型別。`dont_retry_when` 依條件函式判斷例外。
 
 ```rust
 use std::{io, num::ParseIntError};
@@ -409,8 +409,8 @@ use openrust::foundation::configuration::Exceptions;
 
 fn configure_exceptions(exceptions: &mut Exceptions) {
     exceptions
-        .dontRetry::<ParseIntError>()
-        .dontRetryWhen(|exception| {
+        .dont_retry::<ParseIntError>()
+        .dont_retry_when(|exception| {
             exception.downcast_ref::<io::Error>()
                 .is_some_and(|error| error.kind() == io::ErrorKind::InvalidData)
         });
@@ -529,7 +529,7 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
-    let name = connection.getConnectionName();
+    let name = connection.get_connection_name();
     Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
     assert!(Queue::isPaused(name, "default").await?);
     assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
@@ -838,8 +838,8 @@ use openrust::{
 };
 
 fn register_job_budget() -> CacheResult<()> {
-    RateLimiter::forJob("job-budget", |job| {
-        Limit::perMinute(1).by(job.data().as_str().unwrap_or_default())
+    RateLimiter::for_job("job-budget", |job| {
+        Limit::per_minute(1).by(job.data().as_str().unwrap_or_default())
     })
 }
 
@@ -848,7 +848,7 @@ fn job_rate_limit() -> RateLimited {
 }
 ```
 
-達到限額後，工作預設在剩餘視窗再加三秒後可重新預約。使用 `releaseAfter` 可覆寫延遲，使用 `dontRelease` 則略過處理器並確認該工作。釋放仍會消耗一次嘗試。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 連線上原子套用限額。
+達到限額後，工作預設在剩餘視窗再加三秒後可重新預約。使用 `release_after` 可覆寫延遲，使用 `dontRelease` 則略過處理器並確認該工作。釋放仍會消耗一次嘗試。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 連線上原子套用限額。
 
 ### 防止工作重疊 {#preventing-job-overlaps}
 
@@ -862,12 +862,12 @@ fn account_lock(account_id: u64) -> WithoutOverlapping {
     WithoutOverlapping::new(account_id.to_string())
         .withPrefix("account-update:")
         .shared()
-        .releaseAfter(Duration::from_secs(15))
+        .release_after(Duration::from_secs(15))
         .expireAfter(Duration::from_secs(120))
 }
 ```
 
-發生競爭時預設立即釋放工作。用 `releaseAfter` 指定相對延遲或絕對時間，或用 `dontRelease` 確認工作並略過處理器。預設鎖租約由快取驅動程式決定。可設定 `expireAfter`，讓原 Worker 在釋放鎖前停止時，其他 Worker 能在租約到期後取得鎖。
+發生競爭時預設立即釋放工作。用 `release_after` 指定相對延遲或絕對時間，或用 `dontRelease` 確認工作並略過處理器。預設鎖租約由快取驅動程式決定。可設定 `expireAfter`，讓原 Worker 在釋放鎖前停止時，其他 Worker 能在租約到期後取得鎖。
 
 ### 例外節流 {#throttling-exceptions}
 
@@ -971,7 +971,7 @@ Worker 回呼在新的應用程式作用域中執行，並還原分派時的日�
 
 #### 更新重試截止時間 {#refreshing-a-retry-deadline}
 
-在 `make:job` 產生的佇列工作中覆寫 `retryUntil`，計算絕對截止時間。產生的工作建立酬載時會呼叫此方法，Artisan 手動重試失敗工作時會再次呼叫。
+在 `make:job` 產生的佇列工作中覆寫 `retry_until`，計算絕對截止時間。產生的工作建立酬載時會呼叫此方法，Artisan 手動重試失敗工作時會再次呼叫。
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -981,7 +981,7 @@ struct ProcessUpload;
 
 impl ProcessUpload {
     #[allow(non_snake_case)]
-    fn retryUntil(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
+    fn retry_until(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
         Ok(SystemTime::now().checked_add(Duration::from_secs(300)))
     }
 }

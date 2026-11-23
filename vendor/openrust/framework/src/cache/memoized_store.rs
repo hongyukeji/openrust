@@ -92,7 +92,7 @@ impl MemoizedStore {
     }
 
     fn backend(&self) -> &dyn Store {
-        self.repository.get_store()
+        crate::contracts::cache::Repository::get_store(self.repository.as_ref())
     }
 
     pub(super) fn flush_memoized_tags(&self, names: &[String]) {
@@ -104,7 +104,7 @@ impl MemoizedStore {
     async fn memo_namespace(&self) -> CacheResult<Option<String>> {
         match &self.tags {
             // RedisTagSet uses stable tag keys for memoized lookups.
-            Some(tags) if tags.redis.is_none() => tags.getNamespace().await.map(Some),
+            Some(tags) if tags.redis.is_none() => tags.get_namespace().await.map(Some),
             _ => Ok(None),
         }
     }
@@ -203,7 +203,7 @@ impl MemoizedStore {
         match &self.tags {
             Some(tags) => values
                 .tagged
-                .get_mut(tags.getNames())
+                .get_mut(tags.get_names())
                 .expect("registered memoized tags"),
             None => &mut values.plain,
         }
@@ -261,7 +261,7 @@ impl Store for MemoizedStore {
         let mut tagged = self.repository.tags(names)?;
         self.state()
             .tagged
-            .entry(tagged.tags.getNames().to_vec())
+            .entry(tagged.tags.get_names().to_vec())
             .or_default();
         let store = Arc::new(Self {
             repository: Arc::new(tagged.repository.clone()),

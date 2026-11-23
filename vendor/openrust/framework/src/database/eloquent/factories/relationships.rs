@@ -60,7 +60,7 @@ impl<M: Model, R: Model> FactoryParent<M, R> for BelongsTo<M, R> {
 
 impl<M: Model, R: Model> FactoryParent<M, R> for MorphTo<M> {
     fn associate(&self, model: &mut M, owner: &R) -> DatabaseResult<()> {
-        self.associateMapped(model, owner)
+        self.associate_mapped(model, owner)
     }
 
     fn factory_foreign_key(&self) -> Option<&str> {
@@ -68,7 +68,7 @@ impl<M: Model, R: Model> FactoryParent<M, R> for MorphTo<M> {
     }
 
     fn factory_morph_type(&self, owner: &R) -> DatabaseResult<Option<(&str, &'static str)>> {
-        let alias = owner.getMorphClass()?;
+        let alias = owner.get_morph_class()?;
         self.validate_target::<R>(alias)?;
         Ok(Some((self.type_column(), alias)))
     }

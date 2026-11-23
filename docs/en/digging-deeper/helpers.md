@@ -19,7 +19,7 @@ Use `data_has` to check a literal path, `data_set` to overwrite, `data_fill` to 
 
 ## Fluent URIs {#fluent-uris}
 
-Use `Uri::of` to parse an absolute or relative reference. Component setters return a new, validated URI. `query()` reads decoded parameters while preserving literal plus signs and dotted keys. Use `with_query`, `withQueryIfMissing`, `replaceQuery`, `pushOntoQuery`, and `withoutQuery` to edit the query. Pass a JSON map for named parameters. Application code can generate an address with `Uri::to`, `route`, `action`, `signed_route`, or `temporary_signed_route`, then call `redirect` to build a validated redirect response.
+Use `Uri::of` to parse an absolute or relative reference. Component setters return a new, validated URI. `query()` reads decoded parameters while preserving literal plus signs and dotted keys. Use `with_query`, `with_query_if_missing`, `replace_query`, `push_onto_query`, and `without_query` to edit the query. Pass a JSON map for named parameters. Application code can generate an address with `Uri::to`, `route`, `action`, `signed_route`, or `temporary_signed_route`, then call `redirect` to build a validated redirect response.
 
 ```rust
 use openrust::support::Uri;
@@ -47,32 +47,32 @@ assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 
 ## Numbers {#numbers}
 
-Use `Number::default()` for English and USD defaults. Set locale and currency on an instance with `useLocale` and `useCurrency`. Use `withLocale` and `withCurrency` to pass scoped settings to a callback. These settings belong to the instance and can be used concurrently across requests.
+Use `Number::default()` for English and USD defaults. Set locale and currency on an instance with `use_locale` and `use_currency`. Use `with_locale` and `with_currency` to pass scoped settings to a callback. These settings belong to the instance and can be used concurrently across requests.
 
-`format`, `percentage`, and `currency` use CLDR data. `parseInt` preserves 64-bit integers and `parseFloat` reads a localized numeric prefix. `fileSize`, `abbreviate`, `forHumans`, `clamp`, `pairs`, and `trim` follow numeric conventions.
+`format`, `percentage`, and `currency` use CLDR data. `parse_int` preserves 64-bit integers and `parse_float` reads a localized numeric prefix. `file_size`, `abbreviate`, `for_humans`, `clamp`, `pairs`, and `trim` follow numeric conventions.
 
 ```rust
 use openrust::support::Number;
 
 let number = Number::default();
-let localized = number.withLocale("de-DE", |de| de.format(1234.5, Some(2), None))??;
+let localized = number.with_locale("de-DE", |de| de.format(1234.5, Some(2), None))??;
 assert_eq!(localized, "1.234,50");
 assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
-assert_eq!(number.spellOrdinal(21)?, "twenty-first");
-assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
+assert_eq!(number.spell_ordinal(21)?, "twenty-first");
+assert_eq!(number.parse_int("9,223,372,036,854,775,807")?, i64::MAX);
 ```
 
 ### Localized number spellout {#localized-number-spellout}
 
-Use `spell` and `spellOrdinal` for localized integers and fractions. The Rust implementation uses the bundled ICU 76.1 / CLDR 46 rules. When a locale lacks a named spellout ordinal, `spellOrdinal` uses the locale’s default spellout rules. The optional `after` and `until` bounds are inclusive and return formatted digits. For finite floats outside the signed 64-bit range, decimal fallback uses the input’s round-trip decimal digits.
+Use `spell` and `spell_ordinal` for localized integers and fractions. The Rust implementation uses the bundled ICU 76.1 / CLDR 46 rules. When a locale lacks a named spellout ordinal, `spell_ordinal` uses the locale’s default spellout rules. The optional `after` and `until` bounds are inclusive and return formatted digits. For finite floats outside the signed 64-bit range, decimal fallback uses the input’s round-trip decimal digits.
 
 ```rust
 use openrust::support::Number;
 
 let number = Number::default();
-let german = number.withLocale("de-DE", |number| number.spell(1.25, None, None))??;
-let russian = number.withLocale("ru", |number| number.spell(1.25, None, None))??;
-let chinese = number.withLocale("zh-TW", |number| number.spell(1.25, None, None))??;
+let german = number.with_locale("de-DE", |number| number.spell(1.25, None, None))??;
+let russian = number.with_locale("ru", |number| number.spell(1.25, None, None))??;
+let chinese = number.with_locale("zh-TW", |number| number.spell(1.25, None, None))??;
 assert_eq!(german, "eins Komma zwei fünf");
 assert_eq!(russian, "одна целый двадцать пять сотых");
 assert_eq!(chinese, "一點二五");
@@ -80,11 +80,11 @@ assert_eq!(chinese, "一點二五");
 
 ## Timing tools {#timing-tools}
 
-`Benchmark::value` returns the result and elapsed milliseconds. `measure` averages a nonzero number of runs, and `measureMany` reports named callbacks in order. Use `valueAsync` to measure a future.
+`Benchmark::value` returns the result and elapsed milliseconds. `measure` averages a nonzero number of runs, and `measure_many` reports named callbacks in order. Use `value_async` to measure a future.
 
 `Sleep` uses `Duration` and waits when awaited. Use `and` to add time, `when` or `unless` to control eligibility, and `while` to repeat the interval. `Sleep::fake()` creates an instance-local log. Pass it to a delay with `using` and check the recorded durations.
 
-`Timebox::call` runs an async callback and pads its result to a minimum duration, including a returned error. `returnEarly` lets the same instance return without padding until `dontReturnEarly` resets it.
+`Timebox::call` runs an async callback and pads its result to a minimum duration, including a returned error. `return_early` lets the same instance return without padding until `dont_return_early` resets it.
 
 ```rust
 use openrust::support::{Benchmark, Sleep, Timebox};
@@ -97,7 +97,7 @@ assert!(milliseconds >= 0.0);
 let duration = Duration::from_millis(5);
 let fake = Sleep::fake();
 Sleep::r#for(duration).using(&fake).wait().await;
-fake.assertSequence(&[Some(duration)]);
+fake.assert_sequence(&[Some(duration)]);
 
 let mut timebox = Timebox::default();
 assert_eq!(timebox.call(async |_| Ok::<_, ()>(42), duration).await, Ok(42));
@@ -124,16 +124,16 @@ assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!
 
 Use `plus` or `minus` with a signed `DateInterval`. `MonthOverflow::Carry` carries extra days into the next month and `Clamp` stops at the last day. Helpers from `microseconds` to `years` construct intervals.
 
-`Date::timezone(name)` resolves IANA identifiers from the framework’s bundled 2025b database, independent of the operating system’s timezone data. `DateTimezone` is Jiff’s native `TimeZone`; passing a timezone obtained elsewhere uses that source. `Date::fromUtc` takes a `jiff::Timestamp`, `fromLocal` takes a `jiff::civil::DateTime`, and `asDateTime` borrows a `jiff::Zoned`. Dates and timezones can be cloned when reused. These native types support years −9999 through 9999; the PHP date-expression parser retains its wider supported year range.
+`Date::timezone(name)` resolves IANA identifiers from the framework’s bundled 2025b database, independent of the operating system’s timezone data. `DateTimezone` is Jiff’s native `TimeZone`; passing a timezone obtained elsewhere uses that source. `Date::from_utc` takes a `jiff::Timestamp`, `from_local` takes a `jiff::civil::DateTime`, and `as_date_time` borrows a `jiff::Zoned`. Dates and timezones can be cloned when reused. These native types support years −9999 through 9999; the PHP date-expression parser retains its wider supported year range.
 
 ```rust
 use openrust::support::{Date, DateTimezone, MonthOverflow, months, now};
 
-let zone = now(None)?.asDateTime().time_zone().clone();
-assert_eq!(now(Some(zone.clone()))?.asDateTime().time_zone().clone(), zone);
-let start = Date::fromLocal("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
+let zone = now(None)?.as_date_time().time_zone().clone();
+assert_eq!(now(Some(zone.clone()))?.as_date_time().time_zone().clone(), zone);
+let start = Date::from_local("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
 let end = start.plus(months(1), MonthOverflow::Clamp)?;
-let formatted = end.asDateTime().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
+let formatted = end.as_date_time().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
 
@@ -141,9 +141,9 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 `Pipeline::send` starts a typed async pipeline. `through` replaces the stages and `pipe` appends a stage. Call `next.run` to continue or return a result to short-circuit. Use `then` for a final projection, `thenReturn` to return the carried value, and `finally` for a callback that sees the original input.
 
-For database work, use `Pipeline<T, DatabaseError, R, Transaction>` and `withinTransaction`. Stages use `next.context()` to query the same transaction. Return an error to roll it back. Pass typed callables or resolve services explicitly.
+For database work, use `Pipeline<T, DatabaseError, R, Transaction>` and `within_transaction`. Stages use `next.context()` to query the same transaction. Return an error to roll it back. Pass typed callables or resolve services explicitly.
 
-Use `.withinTransaction(None)` for the default connection or `.withinTransaction(Some("audit"))` for a named connection. This only configures the pipeline; `.then(...)` or `.thenReturn()` opens the transaction and executes it. The destination receives `(value, &mut Transaction)`. `finally` runs once after commit or rollback, and also when execution panics or is cancelled.
+Use `.within_transaction(None)` for the default connection or `.within_transaction(Some("audit"))` for a named connection. This only configures the pipeline; `.then(...)` or `.thenReturn()` opens the transaction and executes it. The destination receives `(value, &mut Transaction)`. `finally` runs once after commit or rollback, and also when execution panics or is cancelled.
 
 ```rust
 use openrust::support::facades::Pipeline;
@@ -159,7 +159,7 @@ assert_eq!(result, 42);
 
 ## Blank values and retries {#blank-and-retry}
 
-`blank` and `filled` classify JSON values. Zero and false count as filled. `Retry::backoff` supplies the delays between attempts and `Retry::times` sets a fixed delay and attempt limit. `runWhen` retries only errors accepted by its predicate.
+`blank` and `filled` classify JSON values. Zero and false count as filled. `Retry::backoff` supplies the delays between attempts and `Retry::times` sets a fixed delay and attempt limit. `run_when` retries only errors accepted by its predicate.
 
 Use `Option` for optional values, `Result::unwrap_or_else` for a fallback, and a scoped `OnceLock` to memoize a value.
 
@@ -219,6 +219,6 @@ Serialization returns a `Result`: non-finite numbers fail. `fromArray` supports 
 
 ## Probability callbacks
 
-`Lottery::odds(1, 100)?` selects one winning integer opportunity out of 100. For a fractional probability use `Lottery::odds(0.02, None::<u64>)?`. Chain `winner(|| ...)` and `loser(|| ...)` to return a common Rust type from the selected callback; both default to booleans. `choose()` returns one result and `chooseTimes(n)` returns a vector. Values above the denominator always win; negative values always lose. Nonfinite probabilities are rejected.
+`Lottery::odds(1, 100)?` selects one winning integer opportunity out of 100. For a fractional probability use `Lottery::odds(0.02, None::<u64>)?`. Chain `winner(|| ...)` and `loser(|| ...)` to return a common Rust type from the selected callback; both default to booleans. `choose()` returns one result and `choose_times(n)` returns a vector. Values above the denominator always win; negative values always lose. Nonfinite probabilities are rejected.
 
-For deterministic tests use `alwaysWin`, `alwaysLose`, `fix(sequence)`, or `forceResultWithSequence(sequence, missing_callback)`. Exhausted sequences sample normally unless a fallback is supplied. `setResultFactory` accepts a custom sampler. Reset with `determineResultNormally()` or its plural alias. Run asynchronous controls inside `Lottery::scope(async { ... }).await`; controls outside a scope in an async runtime panic to prevent thread state leaking into another request. `scopeSync(|| ...)` provides a synchronous isolated scope. Scopes restore parent controls even after panic or cancellation. Callbacks capture inputs through closures; dynamic variadic invocation is not provided.
+For deterministic tests use `always_win`, `always_lose`, `fix(sequence)`, or `force_result_with_sequence(sequence, missing_callback)`. Exhausted sequences sample normally unless a fallback is supplied. `set_result_factory` accepts a custom sampler. Reset with `determine_result_normally()` or its plural alias. Run asynchronous controls inside `Lottery::scope(async { ... }).await`; controls outside a scope in an async runtime panic to prevent thread state leaking into another request. `scope_sync(|| ...)` provides a synchronous isolated scope. Scopes restore parent controls even after panic or cancellation. Callbacks capture inputs through closures; dynamic variadic invocation is not provided.

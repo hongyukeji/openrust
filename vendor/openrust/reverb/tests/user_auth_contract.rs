@@ -42,7 +42,7 @@ async fn user_routes_use_named_connections_request_identity_signatures_and_sessi
     app.app()
         .call(
             openrust::container::Callback::new(&[], |_| async {
-                Broadcast::resolveAuthenticatedUserUsing(
+                Broadcast::resolve_authenticated_user_using(
                     Arc::new(|request| {
                         Box::pin(async move {
                             Ok(request
@@ -55,7 +55,7 @@ async fn user_routes_use_named_connections_request_identity_signatures_and_sessi
                     None,
                 )
                 .unwrap();
-                Broadcast::resolveAuthenticatedUserUsing(
+                Broadcast::resolve_authenticated_user_using(
                     Arc::new(|_| Box::pin(async { Ok(Some(json!({"id":"named"}))) })),
                     Some("two"),
                 )

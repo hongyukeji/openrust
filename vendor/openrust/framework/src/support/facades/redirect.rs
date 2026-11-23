@@ -5,14 +5,14 @@ use crate::{
     routing::{RedirectOptions, Redirector, RouteParameter, UrlResult},
 };
 
-use super::URL;
+use super::Url;
 
 /// Creates redirect responses for the current application.
 pub struct Redirect;
 
 impl Redirect {
     pub fn redirector() -> UrlResult<Redirector> {
-        Ok(Redirector::new(URL::generator()?))
+        Ok(Redirector::new(Url::generator()?))
     }
 
     pub fn to(path: &str, options: RedirectOptions) -> UrlResult<RedirectResponse> {

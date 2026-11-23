@@ -68,7 +68,7 @@ impl From<String> for Response {
 
 impl From<Stringable> for Response {
     fn from(text: Stringable) -> Self {
-        Self::from(text.to_string())
+        Self::from(text.into_string())
     }
 }
 

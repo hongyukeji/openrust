@@ -20,7 +20,7 @@ pub trait Storage: Send + Sync {
         r#type: &'a str,
         aggregates: &'a [String],
         interval: i64,
-        orderBy: Option<&'a str>,
+        order_by: Option<&'a str>,
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>>;
@@ -29,7 +29,7 @@ pub trait Storage: Send + Sync {
         types: &'a [String],
         aggregate: &'a str,
         interval: i64,
-        orderBy: Option<&'a str>,
+        order_by: Option<&'a str>,
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>>;

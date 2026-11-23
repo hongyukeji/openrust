@@ -37,8 +37,8 @@ impl Fixture {
         // Registration and boot must remain usable before package tables exist.
         assert!(
             !connection
-                .getSchemaBuilder()
-                .hasTable("telescope_entries")
+                .get_schema_builder()
+                .has_table("telescope_entries")
                 .await
                 .unwrap()
         );
@@ -79,15 +79,15 @@ impl Fixture {
             assert!(
                 !self
                     .connection
-                    .getSchemaBuilder()
-                    .hasTable(table)
+                    .get_schema_builder()
+                    .has_table(table)
                     .await
                     .unwrap()
             );
         }
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists("telescope_test_migrations")
+            .get_schema_builder()
+            .drop_if_exists("telescope_test_migrations")
             .await
             .unwrap();
         self.connection.disconnect();

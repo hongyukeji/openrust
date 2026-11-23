@@ -180,13 +180,13 @@ impl Fixture {
     }
     pub async fn close(self) {
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists(&self.table)
+            .get_schema_builder()
+            .drop_if_exists(&self.table)
             .await
             .unwrap();
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists(&self.ledger)
+            .get_schema_builder()
+            .drop_if_exists(&self.ledger)
             .await
             .unwrap();
         self.connection.disconnect();

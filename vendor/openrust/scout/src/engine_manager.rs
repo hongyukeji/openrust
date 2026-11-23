@@ -129,7 +129,7 @@ impl EngineManager {
             Arc::new(crate::jobs::RemoveFromSearch::<M>::new(self.clone())),
         )?;
         if self.boolean("after_commit") {
-            M::observeAfterCommit(app, crate::ModelObserver::new(self.clone()))?;
+            M::observe_after_commit(app, crate::ModelObserver::new(self.clone()))?;
         } else {
             M::observe(app, crate::ModelObserver::new(self.clone()))?;
         }
@@ -190,7 +190,7 @@ impl EngineManager {
                 .collect::<Result<Vec<_>>>()?;
             let payload = openrust::queue::Payload::new(
                 crate::jobs::jobName::<M>(delete),
-                serde_json::json!({"keys":keys,"connection":first.getConnectionName()}),
+                serde_json::json!({"keys":keys,"connection":first.get_connection_name()}),
             )?;
             let connection = first.syncWithSearchUsing(self);
             let queue = first.syncWithSearchUsingQueue(self);

@@ -71,7 +71,10 @@ impl Conditional {
         attribute: &str,
         value: impl FnOnce() -> T,
     ) -> Option<T> {
-        Self::when(model.state().getAttributes().contains_key(attribute), value)
+        Self::when(
+            model.state().get_attributes().contains_key(attribute),
+            value,
+        )
     }
 
     pub fn when_not_null<T>(value: &Value, present: impl FnOnce() -> T) -> Option<T> {
@@ -87,14 +90,14 @@ impl Conditional {
         attribute: &str,
         value: impl FnOnce() -> T,
     ) -> Option<T> {
-        Self::when(model.hasAppended(attribute), value)
+        Self::when(model.has_appended(attribute), value)
     }
 
     pub fn when_loaded<'a, T: Send + Sync + 'static>(
         model: &'a impl Model,
         name: &str,
     ) -> Option<&'a T> {
-        model.getRelation(name)
+        model.get_relation(name)
     }
 
     /// The outer option indicates whether the relationship was loaded.
@@ -117,7 +120,7 @@ impl Conditional {
         relation: &str,
         aggregate: RelationAggregate<'_>,
     ) -> Option<&'a AttributeValue> {
-        model.getAttribute(&aggregate.alias(relation).ok()?)
+        model.get_attribute(&aggregate.alias(relation).ok()?)
     }
 
     pub fn when_exists_loaded<'a>(
@@ -159,7 +162,7 @@ impl Conditional {
         project: impl FnOnce(&P) -> T,
     ) -> Option<T> {
         model.state().loaded_pivot_table(accessor)?;
-        model.getRelation::<P>(accessor).map(project)
+        model.get_relation::<P>(accessor).map(project)
     }
 
     pub fn insert(fields: &mut Map<String, Value>, name: impl Into<String>, value: Option<Value>) {

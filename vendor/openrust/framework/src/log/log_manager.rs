@@ -87,7 +87,6 @@ struct ChannelDirectory {
     entries: HashMap<String, Arc<Logger>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl LogManager {
     fn channel_context(&self) -> Arc<super::channel_context::ChannelContext> {
         use crate::contracts::container::Container as _;
@@ -96,12 +95,12 @@ impl LogManager {
             .and_then(|owner| owner.make().ok())
             .unwrap_or_else(|| self.context_fallback.clone())
     }
-    pub fn withContext(&self, context: LogContext) -> LogResult<Arc<Logger>> {
+    pub fn with_context(&self, context: LogContext) -> LogResult<Arc<Logger>> {
         let channel = self.channel(None)?;
-        channel.withContext(context);
+        channel.with_context(context);
         Ok(channel)
     }
-    pub fn withoutContext(&self, keys: Option<&[&str]>) -> &Self {
+    pub fn without_context(&self, keys: Option<&[&str]>) -> &Self {
         let channels: Vec<_> = self
             .channels
             .lock()
@@ -111,11 +110,11 @@ impl LogManager {
             .cloned()
             .collect();
         for channel in channels {
-            channel.withoutContext(keys);
+            channel.without_context(keys);
         }
         self
     }
-    pub fn shareContext(&self, context: LogContext) -> &Self {
+    pub fn share_context(&self, context: LogContext) -> &Self {
         let channels: Vec<_> = self
             .channels
             .lock()
@@ -125,7 +124,7 @@ impl LogManager {
             .cloned()
             .collect();
         for channel in channels {
-            channel.withContext(context.clone());
+            channel.with_context(context.clone());
         }
         let state = self.channel_context();
         let mut fields = state.0.lock().expect("日志上下文锁中毒");
@@ -135,7 +134,7 @@ impl LogManager {
         fields.shared.extend(context);
         self
     }
-    pub fn sharedContext(&self) -> LogContext {
+    pub fn shared_context(&self) -> LogContext {
         self.channel_context()
             .0
             .lock()
@@ -143,7 +142,7 @@ impl LogManager {
             .shared
             .clone()
     }
-    pub fn flushSharedContext(&self) -> &Self {
+    pub fn flush_shared_context(&self) -> &Self {
         self.channel_context()
             .0
             .lock()
@@ -196,7 +195,7 @@ impl LogManager {
     }
 
     /// Registers a compiled factory referenced by a custom channel's `via` option.
-    pub fn registerFactory(
+    pub fn register_factory(
         &self,
         via: impl Into<String>,
         factory: impl Fn(&Self, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync + 'static,
@@ -205,7 +204,7 @@ impl LogManager {
     }
 
     /// Registers a compiled formatter factory for a channel's formatter and formatter_with.
-    pub fn registerFormatter(
+    pub fn register_formatter(
         &self,
         name: impl Into<String>,
         factory: impl Fn(&Value) -> LogResult<Arc<Formatter>> + Send + Sync + 'static,
@@ -214,7 +213,7 @@ impl LogManager {
     }
 
     /// Registers a compiled processor factory referenced by a channel's processors array.
-    pub fn registerProcessor(
+    pub fn register_processor(
         &self,
         name: impl Into<String>,
         factory: impl Fn(&Value) -> LogResult<Arc<Processor>> + Send + Sync + 'static,
@@ -223,7 +222,7 @@ impl LogManager {
     }
 
     /// Registers a logger customization referenced by a channel's tap list.
-    pub fn registerTap(
+    pub fn register_tap(
         &self,
         name: impl Into<String>,
         tap: impl Fn(&mut Logger, &[&str]) -> LogResult<()> + Send + Sync + 'static,
@@ -232,7 +231,7 @@ impl LogManager {
     }
 
     /// Registers a compiled handler factory referenced by a monolog channel.
-    pub fn registerHandler(
+    pub fn register_handler(
         &self,
         name: impl Into<String>,
         factory: impl Fn(&Value) -> LogResult<Arc<RecordHandler>> + Send + Sync + 'static,
@@ -257,18 +256,18 @@ impl LogManager {
         }
     }
 
-    pub fn setDefaultDriver(&self, name: &str) -> Result<(), crate::config::ConfigError> {
+    pub fn set_default_driver(&self, name: &str) -> Result<(), crate::config::ConfigError> {
         self.config
             .set("logging.default", Value::String(name.to_owned()))
     }
 
     /// 解析默认通道并返回其实际原生日志器句柄。
-    pub fn getLogger(&self) -> LogResult<Arc<super::NativeLogger>> {
-        Ok(self.channel(None)?.getLogger())
+    pub fn get_logger(&self) -> LogResult<Arc<super::NativeLogger>> {
+        Ok(self.channel(None)?.get_logger())
     }
 
     /// 返回已解析通道的快照，不触发尚未使用通道的解析。
-    pub fn getChannels(&self) -> HashMap<String, Arc<Logger>> {
+    pub fn get_channels(&self) -> HashMap<String, Arc<Logger>> {
         self.channels
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -276,7 +275,7 @@ impl LogManager {
             .clone()
     }
 
-    pub fn forgetChannel(&self, name: Option<&str>) {
+    pub fn forget_channel(&self, name: Option<&str>) {
         let Some(name) = self.channel_name(name) else {
             return;
         };
@@ -328,7 +327,7 @@ impl LogManager {
     }
 
     /// Creates a stack of named channels and existing loggers.
-    pub fn stackChannels(
+    pub fn stack_channels(
         &self,
         channels: &[StackChannel<'_>],
         name: Option<&str>,
@@ -386,7 +385,7 @@ impl LogManager {
     }
 
     /// Writes through the default channel and awaits request-aware observers.
-    pub async fn logWithRequest(
+    pub async fn log_with_request(
         &self,
         request: &mut crate::http::Request,
         level: Level,
@@ -394,12 +393,12 @@ impl LogManager {
         context: &LogContext,
     ) -> LogResult<()> {
         self.channel(None)?
-            .logWithRequest(request, level, message, context)
+            .log_with_request(request, level, message, context)
             .await
     }
 
     /// Registers a synchronous snapshot observer and its asynchronous request counterpart.
-    pub fn listenForRequest(
+    pub fn listen_for_request(
         &self,
         synchronous: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,
         request: Arc<super::events::RequestListener>,
@@ -418,7 +417,7 @@ impl LogManager {
         Ok(())
     }
 
-    pub fn logException<E: std::error::Error + Send + Sync + 'static>(
+    pub fn log_exception<E: std::error::Error + Send + Sync + 'static>(
         &self,
         level: Level,
         message: &str,
@@ -426,7 +425,7 @@ impl LogManager {
         context: &LogContext,
     ) -> LogResult<()> {
         self.channel(None)?
-            .logException(level, message, error, context)
+            .log_exception(level, message, error, context)
     }
 
     log_methods!(self);
@@ -483,8 +482,7 @@ impl crate::contracts::log::Logger for LogManager {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
     }
-    #[allow(non_snake_case)]
-    fn logWithExceptionForRequest<'a>(
+    fn log_with_exception_for_request<'a>(
         &'a self,
         request: &'a mut crate::http::Request,
         level: Level,
@@ -494,13 +492,12 @@ impl crate::contracts::log::Logger for LogManager {
     ) -> crate::http::HttpFuture<'a, LogResult<()>> {
         Box::pin(async move {
             self.channel(None)?
-                .logWithExceptionForRequest(request, level, message, context, exception)
+                .log_with_exception_for_request(request, level, message, context, exception)
                 .await
         })
     }
 
-    #[allow(non_snake_case)]
-    fn logWithException(
+    fn log_with_exception(
         &self,
         level: Level,
         message: &str,
@@ -509,10 +506,9 @@ impl crate::contracts::log::Logger for LogManager {
         exception: &Value,
     ) -> LogResult<()> {
         self.channel(None)?
-            .logWithException(level, message, context, extra, exception)
+            .log_with_exception(level, message, context, extra, exception)
     }
-    #[allow(non_snake_case)]
-    fn logWithContext(
+    fn log_with_context(
         &self,
         level: Level,
         message: &str,
@@ -520,7 +516,7 @@ impl crate::contracts::log::Logger for LogManager {
         extra: &LogContext,
     ) -> LogResult<()> {
         self.channel(None)?
-            .logWithContext(level, message, context, extra)
+            .log_with_context(level, message, context, extra)
     }
 }
 
@@ -654,7 +650,7 @@ impl Resolution<'_, '_> {
                 None if key == "json" => super::json::formatter(&options.formatter_with)?,
                 None => return Err(LogError::InvalidConfiguration),
             };
-            logger.setFormatter(formatter);
+            logger.set_formatter(formatter);
         }
         for entry in options.tap {
             let (key, arguments) = entry.split_once(':').unwrap_or((&entry, ""));

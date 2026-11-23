@@ -207,13 +207,13 @@ impl Store for StoreCore {
 }
 
 impl CanFlushLocks for StoreCore {
-    fn hasSeparateLockStore(&self) -> bool {
+    fn has_separate_lock_store(&self) -> bool {
         self.separate_locks
     }
 
-    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+    fn flush_locks(&self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async move {
-            if !self.hasSeparateLockStore() {
+            if !self.has_separate_lock_store() {
                 return Err(CacheError::LockStoreNotSeparate);
             }
             self.locks

@@ -15,4 +15,4 @@ async fn send_message(key: &str) -> CacheResult<Attempt<&'static str>> {
 }
 ```
 
-Use `hit` to consume an attempt directly, `attempts` and `remaining` to inspect the budget, `availableIn` to get the reset delay, and `clear` to remove the counter. The limiter uses the cache store selected by `cache.limiter`, or the default store. Select a store with atomic locks.
+Use `hit` to consume an attempt directly, `attempts` and `remaining` to inspect the budget, `available_in` to get the reset delay, and `clear` to remove the counter. The limiter uses the cache store selected by `cache.limiter`, or the default store. Select a store with atomic locks.

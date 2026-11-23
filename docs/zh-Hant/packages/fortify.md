@@ -38,7 +38,7 @@ Fortify 管理註冊、Session 登入與憑證變更。[Sanctum](sanctum.md) 的
 
 透過 `Fortify::authenticateUsing` 自訂身分查詢，`confirmPasswordsUsing` 自訂密碼確認，`authenticateThrough` 替換登入管線。預設管線處理限流、名稱正規化、雙因素導向、認證與工作階段準備。Web 回應可透過 `fortify.redirects` 設定導向。
 
-安裝的 `login` 限流器依轉寫後的小寫名稱與 IP 每分鐘允許五次請求，透過 `RateLimiter::forAsync` 讀取真實請求輸入。設定具名限流後會替換 Fortify 內建的失敗計數限流。具名策略可回傳 `Limit`、多個配額、`Unlimited` 或回應。
+安裝的 `login` 限流器依轉寫後的小寫名稱與 IP 每分鐘允許五次請求，透過 `RateLimiter::for_async` 讀取真實請求輸入。設定具名限流後會替換 Fortify 內建的失敗計數限流。具名策略可回傳 `Limit`、多個配額、`Unlimited` 或回應。
 
 ## 雙因素認證
 
@@ -86,7 +86,7 @@ Passkeys API 搭配 `@laravel/passkeys` 0.4.1 用戶端使用。`fortify:install
 | GET | `/passkeys/confirm/options` | 限定目前帳戶的確認選項 |
 | POST | `/passkeys/confirm` | 驗證並記錄密碼確認時間 |
 
-路由沿用 Fortify 的前綴、網域、中介軟體與 Guard。註冊與刪除預設要求近期密碼確認；`fortify-options.passkeys.confirm_password=false` 可關閉此管理門檻。產生的 `passkeys` 具名限流對選項按 Session、對提交按憑證 ID 每分鐘允許十次。套件未提供 GET 清單路由：在應用已認證的控制器使用原生關係 `user.passkeys().getResults(&user).await?`，只回傳介面所需欄位。
+路由沿用 Fortify 的前綴、網域、中介軟體與 Guard。註冊與刪除預設要求近期密碼確認；`fortify-options.passkeys.confirm_password=false` 可關閉此管理門檻。產生的 `passkeys` 具名限流對選項按 Session、對提交按憑證 ID 每分鐘允許十次。套件未提供 GET 清單路由：在應用已認證的控制器使用原生關係 `user.passkeys().get_results(&user).await?`，只回傳介面所需欄位。
 
 固定官方用戶端執行真實 WebAuthn 操作：
 
@@ -103,7 +103,7 @@ await Passkeys.verify({ routes: {
 
 註冊要求常駐憑證與使用者驗證，支援 ES256／RS256，證明類型為 none。伺服器端 Session 將挑戰綁定到操作與帳戶，並強制執行截止時間；原子快取宣告拒絕並行重用，MySQL 資料列鎖保護獨立挑戰間的計數器更新與回退檢查。多程序部署必須共用 Session 儲存與支援原子 `add` 的快取；array 驅動涵蓋單一程序。可探索憑證登入也會檢查已儲存的使用者控制代碼。伺服器端狀態遺失後須重新發起操作。
 
-在應用 Provider 中呼叫 `Passkeys::usePasskeyModel::<CustomPasskey>()` 選擇實際 Eloquent 模型。為實作 `Model + Clone` 且具備憑證轉換及必要欄位的型別實作 `PasskeyModel`；查詢、插入、資料列鎖驗證及刪除均使用其資料表、主鍵、存取器和觀察者。`Passkeys::passkeyModel()` 與 `userModel()` 傳回所選型別名稱。Rust 使用 `PasskeyRelation` 提供 `getResults`、`exists` 與 `create`，傳回 `PasskeyRecord`。記錄的 `getKey`、`getAttributeValue` 和 `to_array` 為非同步方法；`record.model::<CustomPasskey>()` 傳回非同步互斥鎖中的實際共用模型。呼叫其他記錄方法前先釋放該鎖。事件的 `passkey::<CustomPasskey>(context)` 讀取型別化快照，事件的 `passkey` 記錄保留實際共用模型。
+在應用 Provider 中呼叫 `Passkeys::usePasskeyModel::<CustomPasskey>()` 選擇實際 Eloquent 模型。為實作 `Model + Clone` 且具備憑證轉換及必要欄位的型別實作 `PasskeyModel`；查詢、插入、資料列鎖驗證及刪除均使用其資料表、主鍵、存取器和觀察者。`Passkeys::passkeyModel()` 與 `userModel()` 傳回所選型別名稱。Rust 使用 `PasskeyRelation` 提供 `get_results`、`exists` 與 `create`，傳回 `PasskeyRecord`。記錄的 `get_key`、`get_attribute_value` 和 `to_array` 為非同步方法；`record.model::<CustomPasskey>()` 傳回非同步互斥鎖中的實際共用模型。呼叫其他記錄方法前先釋放該鎖。事件的 `passkey::<CustomPasskey>(context)` 讀取型別化快照，事件的 `passkey` 記錄保留實際共用模型。
 
 預設模型附加 `authenticator`，依註冊 AAGUID 查詢名稱。`Aaguids::labelFor`、`iconFor(id, "light")`、`all` 與 `flush` 使用固定上游資源。需要圖示時，在模型 appends 中明確加入 `authenticator_icon_light` 與 `authenticator_icon_dark`。未知或缺少 AAGUID 傳回 null，舊儲存憑證缺少此欄位仍可使用。none 證明模式下，名稱和圖示僅展示所回報的 AAGUID，不認證製造商身分。
 

@@ -74,11 +74,11 @@ async fn database_reset_tokens(configured: serde_json::Value) {
         .unwrap()
         .connection(None)
         .unwrap();
-    db.getSchemaBuilder()
-        .dropIfExists("password_reset_tokens")
+    db.get_schema_builder()
+        .drop_if_exists("password_reset_tokens")
         .await
         .unwrap();
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("password_reset_tokens", |table| {
             table.string("email", 255).primary();
             table.string("token", 255);

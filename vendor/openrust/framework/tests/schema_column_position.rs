@@ -25,7 +25,7 @@ async fn non_mysql_position_modifiers_do_not_change_generated_sql() {
             let queries = db
                 .pretend(move |db| {
                     Box::pin(async move {
-                        let mut schema = db.getSchemaBuilder();
+                        let mut schema = db.get_schema_builder();
                         schema
                             .create("positioned", |table| {
                                 table.string("password", 80);
@@ -86,7 +86,7 @@ async fn mysql_keeps_position_clauses() {
     let queries = db
         .pretend(|db| {
             Box::pin(async move {
-                db.getSchemaBuilder()
+                db.get_schema_builder()
                     .table("users", |table| {
                         table.text("secret").nullable().after("password");
                         table.string("token", 80).first();
@@ -114,7 +114,7 @@ async fn postgres_migrates_positioned_auth_columns_without_reordering_or_data_lo
         return;
     };
     let db = connection(json!({"url":url}));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("positioned_auth", |table| {
             table.string("password", 80).first();
@@ -146,7 +146,7 @@ async fn postgres_migrates_positioned_auth_columns_without_reordering_or_data_lo
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnListing("positioned_auth").await.unwrap(),
+        schema.get_column_listing("positioned_auth").await.unwrap(),
         [
             "password",
             "marker",
@@ -157,7 +157,7 @@ async fn postgres_migrates_positioned_auth_columns_without_reordering_or_data_lo
         ]
     );
     let row = db
-        .selectOne(
+        .select_one(
             "select password, marker, two_factor_secret from positioned_auth",
             &[],
         )
@@ -169,7 +169,7 @@ async fn postgres_migrates_positioned_auth_columns_without_reordering_or_data_lo
     assert_eq!(row.get("two_factor_secret"), Some(&Value::Null));
     schema
         .table("positioned_auth", |table| {
-            table.dropColumn(&[
+            table.drop_column(&[
                 "two_factor_secret",
                 "token",
                 "two_factor_recovery_codes",
@@ -179,7 +179,7 @@ async fn postgres_migrates_positioned_auth_columns_without_reordering_or_data_lo
         .await
         .unwrap();
     assert_eq!(
-        schema.getColumnListing("positioned_auth").await.unwrap(),
+        schema.get_column_listing("positioned_auth").await.unwrap(),
         ["password", "marker"]
     );
     schema.drop("positioned_auth").await.unwrap();

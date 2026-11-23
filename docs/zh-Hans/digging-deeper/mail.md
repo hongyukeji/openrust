@@ -89,7 +89,7 @@ let image_src = logo.cid();
 
 ### 可附加对象 {#attachable-objects}
 
-领域对象负责选择附件时，实现 `Attachable`。在邮件类型返回附件来源时，用 `toMailAttachment()` 转换对象。
+领域对象负责选择附件时，实现 `Attachable`。在邮件类型返回附件来源时，用 `to_mail_attachment()` 转换对象。
 
 ```rust
 use openrust::{
@@ -101,7 +101,7 @@ struct Report(String);
 
 impl Attachable for Report {
     #[allow(non_snake_case)]
-    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+    fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
         Ok(Attachment::fromUrl(&self.0)?.r#as("report.pdf"))
     }
 }
@@ -122,7 +122,7 @@ fn envelope(&self) -> MailResult<Envelope> {
 }
 ```
 
-测试中可用 `assertHasTag` 和 `assertHasMetadata` 核对声明。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 头。Mailgun 的结构化 API 把标签映射为 `o:tag`，元数据映射为 `v:*`。Postmark 接受一个标签和一组元数据。SES 和 SES v2 将信封元数据追加到配置的供应商标签。Resend 将标签作为名称与值发送，元数据保留在邮件头中。Cloudflare 在邮件头中保存元数据和最后一个标签。
+测试中可用 `assert_has_tag` 和 `assert_has_metadata` 核对声明。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 头。Mailgun 的结构化 API 把标签映射为 `o:tag`，元数据映射为 `v:*`。Postmark 接受一个标签和一组元数据。SES 和 SES v2 将信封元数据追加到配置的供应商标签。Resend 将标签作为名称与值发送，元数据保留在邮件头中。Cloudflare 在邮件头中保存元数据和最后一个标签。
 
 ### 定制邮件消息 {#customizing-the-message}
 
@@ -272,7 +272,7 @@ CommonMark 和表格始终可用。在 `config/mail.rs` 的 `mail.markdown.exten
 
 ## 邮件入队
 
-让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`sendNow` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。
+让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`send_now` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。
 
 ## 渲染邮件 {#rendering-mailables}
 
@@ -298,7 +298,7 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## 扩展邮件传输和投递事件
 
-在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 和 `sendNow` 都返回 `Ok(None)`。
+在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 和 `send_now` 都返回 `Ok(None)`。
 
 ## 测试邮件
 
@@ -308,20 +308,20 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ```rust
 receipt
-    .assertHasSubject("Receipt for Sam")
+    .assert_has_subject("Receipt for Sam")
     .assertTo("sam@example.test", None)
-    .assertSeeInHtml("A & <Sam>", true)
+    .assert_see_in_html("A & <Sam>", true)
     .await
-    .assertSeeInOrderInText(&["Plain", "receipt"])
+    .assert_see_in_order_in_text(&["Plain", "receipt"])
     .await;
 ```
 
-可在邮件类型上断言附件声明，无需读取文件或请求存储服务。用 `assertHasAttachmentFromStorageDisk` 核对指定磁盘，用 `assertHasNoAttachments` 核对没有声明普通附件。
+可在邮件类型上断言附件声明，无需读取文件或请求存储服务。用 `assert_has_attachment_from_storage_disk` 核对指定磁盘，用 `assert_has_no_attachments` 核对没有声明普通附件。
 
 ```rust
 receipt
-    .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
-    .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
+    .assert_has_attachment_from_storage("reports/monthly.csv", None, None)
+    .assert_has_attached_data(b"total,42", "summary.csv", Some("text/csv"));
 ```
 
 ### 测试邮件发送 {#testing-mailable-sending}
@@ -330,7 +330,7 @@ receipt
 
 ```rust
 let mail = Mail::fake()?;
-Mail::to("ops@example.test")?.sendNow(&receipt).await?;
+Mail::to("ops@example.test")?.send_now(&receipt).await?;
 mail.assertSentMatching(receipt.kind(), |entry| {
     entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
 });
@@ -339,7 +339,7 @@ mail.assertNothingQueued();
 
 ## 默认地址与取消
 
-`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 配置当前邮件器。启动时设置的地址作为应用默认值；请求和队列作用域内的覆盖只影响当前执行。`alwaysTo` 在邮件定制完成后替换收件人并清空抄送、密送。配置支持 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消时 `send`、`sendNow` 和 `PendingMail` 都返回 `Ok(None)`，不调用传输、不派发 `MessageSent`；需要消息的旧调用端应显式处理 `Option<SentMessage>`。
+`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 配置当前邮件器。启动时设置的地址作为应用默认值；请求和队列作用域内的覆盖只影响当前执行。`alwaysTo` 在邮件定制完成后替换收件人并清空抄送、密送。配置支持 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消时 `send`、`send_now` 和 `PendingMail` 都返回 `Ok(None)`，不调用传输、不派发 `MessageSent`；需要消息的旧调用端应显式处理 `Option<SentMessage>`。
 
 
 ## 清除已解析的邮件实例

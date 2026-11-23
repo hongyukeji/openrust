@@ -69,7 +69,7 @@ async fn signed_email_verification_uses_native_mysql_sessions_and_rejects_wrong_
     client.send("GET", &url, "", 204).await;
     let verified = server
         .database
-        .selectOne(
+        .select_one(
             "SELECT email_verified_at FROM fortify_account_users WHERE identity='001'",
             &[],
         )
@@ -285,7 +285,7 @@ async fn fixed_php_email_verification_controllers_and_responses_match_native_htt
         );
         let row = server
             .database
-            .selectOne("SELECT email_verified_at FROM fortify_account_users", &[])
+            .select_one("SELECT email_verified_at FROM fortify_account_users", &[])
             .await
             .unwrap()
             .unwrap();
@@ -389,7 +389,7 @@ async fn verification_response_replacements_observe_updated_user_and_event_failu
     client.send("GET", &url, "", 500).await;
     let row = server
         .database
-        .selectOne("SELECT email_verified_at FROM fortify_account_users", &[])
+        .select_one("SELECT email_verified_at FROM fortify_account_users", &[])
         .await
         .unwrap()
         .unwrap();

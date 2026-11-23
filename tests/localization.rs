@@ -77,7 +77,7 @@ fn translate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     let locale = request.decoded_path().into_owned();
     Box::pin(async move {
         let outer = Lang::get_locale()?;
-        let body = Lang::withLocale(&locale, async {
+        let body = Lang::with_locale(&locale, async {
             // Yield while the override is installed to exercise task isolation.
             tokio::task::yield_now().await;
             let args = BTreeMap::from([("name".to_owned(), "ada".to_owned())]);
@@ -106,13 +106,13 @@ fn default_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 fn install_lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Lang::determineLocalesUsing(|locales| {
+        Lang::determine_locales_using(|locales| {
             ["zh-Hant".into(), "zh-Hant".into()]
                 .into_iter()
                 .chain(locales.iter().cloned())
                 .collect()
         })?;
-        Lang::handleMissingKeysUsing(|missing| {
+        Lang::handle_missing_keys_using(|missing| {
             if missing.key == "missing.plural" {
                 assert!(missing.replacements.is_empty());
                 return Some("{1} one|[2,*] :count selected".into());
@@ -133,8 +133,8 @@ fn lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 "literal": Lang::get("Hello", &replacements, Some("zh-Hans"))?,
                 "missing": Lang::get("missing.key", &replacements, None)?,
                 "missing_exists": Lang::has("missing.key", None, true)?,
-                "literal_zero_exists": Lang::hasForLocale("Literal Zero", Some("zh-Hans"))?,
-                "exact": Lang::hasForLocale("messages.welcome", None)?,
+                "literal_zero_exists": Lang::has_for_locale("Literal Zero", Some("zh-Hans"))?,
+                "exact": Lang::has_for_locale("messages.welcome", None)?,
                 "fallback": Lang::has("messages.welcome", None, true)?,
                 "plural": Lang::choice("missing.plural", 2_i64, &replacements, None)?,
             }))
@@ -156,7 +156,7 @@ fn install_translation_replacements(
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Lang::stringable(|label: &NoticeLabel| format!("custom {}", label.0))?;
-        Lang::handleMissingKeysUsing(|missing| match missing.key {
+        Lang::handle_missing_keys_using(|missing| match missing.key {
             "replacements.missing" => {
                 assert_eq!(missing.replacements.get("name").unwrap(), "Ada");
                 assert_eq!(
@@ -194,9 +194,9 @@ fn mixed_translation(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
         ];
         let result = (|| -> Result<Value, TranslationError> {
             Ok(json!({
-                "missing": Lang::getWith("replacements.missing", &args, None)?,
-                "choice": Lang::choiceWith("replacements.items", 2_i64, &args, None)?,
-                "label": Lang::getWith(":label", &args, None)?,
+                "missing": Lang::get_with("replacements.missing", &args, None)?,
+                "choice": Lang::choice_with("replacements.items", 2_i64, &args, None)?,
+                "label": Lang::get_with(":label", &args, None)?,
             }))
         })()?;
         Response::json(StatusCode::OK, result)
@@ -207,7 +207,7 @@ fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     Box::pin(async {
         use openrust::translation::Line;
         Lang::load(None, "messages", "zh-Hans")?;
-        Lang::addLines(
+        Lang::add_lines(
             [("messages.welcome".into(), Line::Text("运行期 :name".into()))],
             "zh-Hans",
             None,
@@ -219,7 +219,7 @@ fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, Ht
 fn load_external_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         use openrust::translation::TranslationResource;
-        Lang::loadFrom(
+        Lang::load_from(
             &ExternalLoader,
             &[TranslationResource {
                 locale: "zh-Hant",
@@ -455,7 +455,7 @@ async fn loads_package_overrides_and_keeps_invalid_catalogs_retryable() {
     )
     .unwrap();
     let mut loader = FileLoader::new(lang.clone());
-    loader.addNamespace("shop", package);
+    loader.add_namespace("shop", package);
     assert!(matches!(
         loader.load("../en", "cart", Some("shop")).await,
         Err(TranslationError::InvalidLocale)
@@ -532,14 +532,14 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
     let args = BTreeMap::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let count = Arc::clone(&calls);
-    translator.handleMissingKeysUsing(move |missing| {
+    translator.handle_missing_keys_using(move |missing| {
         assert_eq!(missing.locale, "en");
         assert!(missing.fallback);
         count.fetch_add(1, Ordering::Relaxed);
         None
     });
     for key in ["messages.identity", "messages.empty", "missing.key"] {
-        assert!(!translator.hasForLocale(key, None).unwrap());
+        assert!(!translator.has_for_locale(key, None).unwrap());
         assert!(!translator.has(key, None, true).unwrap());
     }
     assert!(
@@ -554,8 +554,8 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
     );
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 
-    translator.determineLocalesUsing(|_| vec!["../unsafe".into()]);
-    assert!(translator.hasForLocale("messages.welcome", None).unwrap());
+    translator.determine_locales_using(|_| vec!["../unsafe".into()]);
+    assert!(translator.has_for_locale("messages.welcome", None).unwrap());
     assert_eq!(
         translator.string("Hello", &args, Some("zh-Hans")).unwrap(),
         "你好"
@@ -564,8 +564,8 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
         translator.string("messages.welcome", &args, None),
         Err(TranslationError::InvalidLocale)
     ));
-    translator.clearLocaleResolver();
-    translator.handleMissingKeysUsing(|_| panic!("test-only hook panic"));
+    translator.clear_locale_resolver();
+    translator.handle_missing_keys_using(|_| panic!("test-only hook panic"));
     assert!(
         std::panic::catch_unwind(AssertUnwindSafe(|| translator.string(
             "missing.key",
@@ -574,12 +574,12 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
         )))
         .is_err()
     );
-    translator.handleMissingKeysUsing(|_| Some("restored".into()));
+    translator.handle_missing_keys_using(|_| Some("restored".into()));
     assert_eq!(
         translator.string("missing.key", &args, None).unwrap(),
         "restored"
     );
-    translator.clearMissingKeyHandler();
+    translator.clear_missing_key_handler();
     assert_eq!(
         translator.string("missing.key", &args, None).unwrap(),
         "missing.key"
@@ -655,9 +655,9 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
     let translator = Translator::new(FileLoader::new(lang), "en".into(), "en".into()).unwrap();
     let args = BTreeMap::new();
     translator.load(Some("*"), "messages", "EN").unwrap();
-    translator.addPath(extra);
-    translator.addJsonPath(json);
-    translator.addNamespace("shop", package).unwrap();
+    translator.add_path(extra);
+    translator.add_json_path(json);
+    translator.add_namespace("shop", package).unwrap();
     assert_eq!(
         translator.string("messages.welcome", &args, None).unwrap(),
         "Hi :Name / :NAME"
@@ -689,7 +689,7 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
         "local"
     );
     translator
-        .addLines(
+        .add_lines(
             [
                 ("cart.title".into(), Line::Text("runtime".into())),
                 ("cart.summary.stock".into(), Line::Text("ready".into())),
@@ -714,7 +714,7 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
     );
 
     translator
-        .addLines(
+        .add_lines(
             [
                 (
                     "layered.labels.1".into(),
@@ -743,10 +743,10 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
         translator.string("cold.runtime", &args, None).unwrap(),
         "registered"
     );
-    assert!(!translator.hasForLocale("cold.existing", None).unwrap());
+    assert!(!translator.has_for_locale("cold.existing", None).unwrap());
 
     let error = translator
-        .addLines(
+        .add_lines(
             [
                 (
                     "layered.view.title".into(),
@@ -822,7 +822,7 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
         "你好，Ada"
     );
     assert!(matches!(
-        translator.loadFrom(&loader, &resources).await,
+        translator.load_from(&loader, &resources).await,
         Err(TranslationError::Source(_))
     ));
     assert_eq!(
@@ -831,7 +831,7 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
     );
     assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
     fs::write(source.join("zh-Hans.json"), r#"{"Hello":"新字面鍵"}"#).unwrap();
-    translator.loadFrom(&loader, &resources).await.unwrap();
+    translator.load_from(&loader, &resources).await.unwrap();
     assert_eq!(
         translator.string("messages.welcome", &args, None).unwrap(),
         "新 Ada"
@@ -900,7 +900,7 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
     ];
     let loader = PausedLoader::default();
     let result = tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        tokio::join!(translator.loadFrom(&loader, &resources), async {
+        tokio::join!(translator.load_from(&loader, &resources), async {
             loader.started.notified().await;
             // An ordinary lazy read can race with a load without becoming a runtime write.
             assert_eq!(
@@ -910,7 +910,7 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
                 "你好，:name"
             );
             translator
-                .addLines(
+                .add_lines(
                     [("messages.welcome".into(), Line::Text("concurrent".into()))],
                     "zh-Hans",
                     None,
@@ -965,7 +965,7 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
     )
     .unwrap();
     translator
-        .addLines(
+        .add_lines(
             [
                 (
                     "render.leaves".into(),
@@ -996,7 +996,7 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
         ("name", "ada".into()),
         ("s", "some name".into()),
     ];
-    let rendered = translator.arrayWith("render.leaves", &args, None).unwrap();
+    let rendered = translator.array_with("render.leaves", &args, None).unwrap();
     assert_eq!(rendered["0"], Line::Text("[ada][x]".into()));
     assert_eq!(
         rendered["1"],
@@ -1005,7 +1005,7 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
     assert_eq!(calls.get(), 2);
     assert_eq!(
         translator
-            .stringWith(
+            .string_with(
                 ":name-long :name <mark>tail</mark> <mark>X<mark>Y</mark>Z</mark>",
                 &[
                     ("name", "<mark>literal</mark>".into()),
@@ -1019,12 +1019,12 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
     );
     assert_eq!(
         translator
-            .choiceWith("render.items", 2_i64, &[("count", "two".into())], None,)
+            .choice_with("render.items", 2_i64, &[("count", "two".into())], None,)
             .unwrap(),
         "two Two TWO"
     );
     assert!(matches!(
-        translator.stringWith(
+        translator.string_with(
             ":label",
             &[("label", Replacement::object(&NoticeLabel("x")))],
             None
@@ -1032,7 +1032,7 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
         Err(TranslationError::MissingStringable(_))
     ));
     assert!(matches!(
-        translator.stringWith("hello", &[("x.*", Replacement::tag(str::to_owned))], None),
+        translator.string_with("hello", &[("x.*", Replacement::tag(str::to_owned))], None),
         Err(TranslationError::InvalidTag)
     ));
 }
@@ -1059,8 +1059,11 @@ fn stringable_callbacks_can_reenter_the_translator() {
     let value = NoticeLabel("messages.fallback");
     let args = [("label", Replacement::object(&value))];
     assert_eq!(
-        translator.stringWith(":label", &args, None).unwrap(),
+        translator.string_with(":label", &args, None).unwrap(),
         "English fallback"
     );
-    assert_eq!(translator.stringWith(":label", &args, None).unwrap(), "new");
+    assert_eq!(
+        translator.string_with(":label", &args, None).unwrap(),
+        "new"
+    );
 }

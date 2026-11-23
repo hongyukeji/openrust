@@ -14,7 +14,7 @@ use tokio::sync::OnceCell;
 use crate::{
     contracts::container::Container as _,
     database::{
-        Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+        Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Db, Value,
     },
     support::{Str, calendar},
 };
@@ -208,13 +208,12 @@ pub trait FactoryDefinition: Sized + 'static {
         if attributes.is_empty() {
             Self::configure(Factory::new(Self::definition))
         } else {
-            Self::newWithState(move |_| attributes.clone())
+            Self::new_with_state(move |_| attributes.clone())
         }
     }
 
     /// Builds a factory with a computed initial state before configuration.
-    #[allow(non_snake_case, reason = "Matches the factory API naming")]
-    fn newWithState(
+    fn new_with_state(
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Factory<Self::Model> {
         Self::configure(Factory::new(Self::definition).state(state))
@@ -386,7 +385,7 @@ macro_rules! conditional_states {
         /// Transforms this factory when the condition is true.
         #[must_use]
         pub fn when(self, condition: bool, transform: impl FnOnce(Self) -> Self) -> Self {
-            self.whenElse(condition, transform, core::convert::identity)
+            self.when_else(condition, transform, core::convert::identity)
         }
 
         /// Transforms this factory when the condition is false.
@@ -397,7 +396,7 @@ macro_rules! conditional_states {
 
         /// Applies either the transformation or the fallback.
         #[must_use]
-        pub fn whenElse(
+        pub fn when_else(
             self,
             condition: bool,
             transform: impl FnOnce(Self) -> Self,
@@ -412,13 +411,13 @@ macro_rules! conditional_states {
 
         /// Applies the transformation on false and the fallback on true.
         #[must_use]
-        pub fn unlessElse(
+        pub fn unless_else(
             self,
             condition: bool,
             transform: impl FnOnce(Self) -> Self,
             fallback: impl FnOnce(Self) -> Self,
         ) -> Self {
-            self.whenElse(!condition, transform, fallback)
+            self.when_else(!condition, transform, fallback)
         }
     };
 }
@@ -440,7 +439,6 @@ pub struct Factory<M: Model> {
     after_creating: Vec<Box<CreateCallback<M>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Factory<M> {
     conditional_states!();
 
@@ -449,12 +447,12 @@ impl<M: Model> Factory<M> {
     }
 
     /// Defines model attributes using the application's configured Faker locale.
-    pub fn withFaker(definition: impl Fn(&Faker) -> Attributes + Send + Sync + 'static) -> Self {
-        Self::tryWithFaker(move |faker| Ok(definition(faker)))
+    pub fn with_faker(definition: impl Fn(&Faker) -> Attributes + Send + Sync + 'static) -> Self {
+        Self::try_with_faker(move |faker| Ok(definition(faker)))
     }
 
     /// Defines model attributes with a generator that can return an error.
-    pub fn tryWithFaker(
+    pub fn try_with_faker(
         definition: impl Fn(&Faker) -> DatabaseResult<Attributes> + Send + Sync + 'static,
     ) -> Self {
         Self::from_definition(move |connection, faker| {
@@ -494,7 +492,7 @@ impl<M: Model> Factory<M> {
     }
 
     /// Builds the factory explicitly bound to this model by the application.
-    pub fn factoryForModel() -> Self
+    pub fn factory_for_model() -> Self
     where
         M: HasFactory,
     {
@@ -502,25 +500,25 @@ impl<M: Model> Factory<M> {
     }
 
     /// The Rust type name of the model bound to this factory.
-    pub fn modelName(&self) -> &'static str {
+    pub fn model_name(&self) -> &'static str {
         type_name::<M>()
     }
 
     /// Constructs an unsaved model from caller attributes using normal mass assignment.
-    pub fn newModel(&self, attributes: Attributes) -> DatabaseResult<M> {
+    pub fn new_model(&self, attributes: Attributes) -> DatabaseResult<M> {
         M::new_instance(attributes)
     }
 
-    pub fn getConnectionName(&self) -> Option<&str> {
+    pub fn get_connection_name(&self) -> Option<&str> {
         self.connection.as_deref()
     }
 
     fn resolve_connection(&self) -> DatabaseResult<Connection> {
-        DB::connection(self.getConnectionName().or(M::metadata().connection))
+        Db::connection(self.get_connection_name().or(M::metadata().connection))
     }
 
     fn resolve_related_connection(&self, inherited: &Connection) -> DatabaseResult<Connection> {
-        let name = self.getConnectionName().or(M::metadata().connection);
+        let name = self.get_connection_name().or(M::metadata().connection);
         let Some(name) = name.filter(|name| *name != inherited.get_name()) else {
             return Ok(inherited.clone());
         };
@@ -528,19 +526,19 @@ impl<M: Model> Factory<M> {
             Some(container) => container
                 .get::<DatabaseManager>("db")?
                 .connection(Some(name)),
-            None => DB::connection(Some(name)),
+            None => Db::connection(Some(name)),
         }
     }
 
     /// Adds a persisted model to the pool used when resolving factory owners.
     #[must_use]
     pub fn recycle<R: Model>(self, model: R) -> Self {
-        self.recycleMany([model])
+        self.recycle_many([model])
     }
 
     /// Adds several persisted models of one type to the recycle pool.
     #[must_use]
-    pub fn recycleMany<R: Model>(mut self, models: impl IntoIterator<Item = R>) -> Self {
+    pub fn recycle_many<R: Model>(mut self, models: impl IntoIterator<Item = R>) -> Self {
         self.recycled.extend(models.into_iter().filter_map(|model| {
             if !model.state().exists() {
                 return None;
@@ -554,7 +552,7 @@ impl<M: Model> Factory<M> {
     }
 
     /// Selects a recycled model of the requested type without accessing the database.
-    pub fn getRandomRecycledModel<R: Model>(&self) -> Option<&R> {
+    pub fn get_random_recycled_model<R: Model>(&self) -> Option<&R> {
         recycled_owner::<R>(&self.recycled, None)?
             .model
             .downcast_ref()
@@ -576,7 +574,7 @@ impl<M: Model> Factory<M> {
 
     /// Appends a state that can read the enclosing relationship factory's parent.
     #[must_use]
-    pub fn stateWithParent<P: Model>(
+    pub fn state_with_parent<P: Model>(
         mut self,
         state: impl Fn(&Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
@@ -591,7 +589,7 @@ impl<M: Model> Factory<M> {
 
     /// Runs this transformation before the factory's existing states.
     #[must_use]
-    pub fn prependState(
+    pub fn prepend_state(
         mut self,
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
@@ -609,11 +607,11 @@ impl<M: Model> Factory<M> {
     }
 
     /// Appends the soft-deleted state using the supplied date or the previous local day.
-    pub fn trashed(mut self, deletedAt: Option<Value>) -> DatabaseResult<Self> {
+    pub fn trashed(mut self, deleted_at: Option<Value>) -> DatabaseResult<Self> {
         let column = M::metadata()
             .deleted_at
             .ok_or_else(soft_deletes::unsupported)?;
-        if let Some(value) = deletedAt.filter(|value| !matches!(value, Value::Null)) {
+        if let Some(value) = deleted_at.filter(|value| !matches!(value, Value::Null)) {
             return Ok(self.set(column, value));
         }
 
@@ -633,33 +631,33 @@ impl<M: Model> Factory<M> {
 
     #[must_use]
     pub fn sequence(self, sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static) -> Self {
-        self.sequenceWithState(move |index, _| sequence(index))
+        self.sequence_with_state(move |index, _| sequence(index))
     }
 
     /// Appends a sequence that can read the attributes assembled by earlier states.
     #[must_use]
-    pub fn sequenceWithState(
+    pub fn sequence_with_state(
         self,
         sequence: impl Fn(usize, &Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.sequenceWithParent::<M>(move |index, attributes, _| sequence(index, attributes))
+        self.sequence_with_parent::<M>(move |index, attributes, _| sequence(index, attributes))
     }
 
     /// Appends a sequence that can read current attributes and a typed parent.
     #[must_use]
-    pub fn sequenceWithParent<P: Model>(
+    pub fn sequence_with_parent<P: Model>(
         self,
         sequence: impl Fn(usize, &Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         let index = AtomicUsize::new(0);
-        self.stateWithParent(move |attributes, parent| {
+        self.state_with_parent(move |attributes, parent| {
             sequence(index.fetch_add(1, Ordering::Relaxed), attributes, parent)
         })
     }
 
     /// Cycles through attribute maps and contextual callbacks in declaration order.
     #[must_use]
-    pub fn sequenceEntries(mut self, entries: Vec<FactorySequence>) -> Self {
+    pub fn sequence_entries(mut self, entries: Vec<FactorySequence>) -> Self {
         let count = entries.len();
         if count == 0 {
             return self;
@@ -678,18 +676,18 @@ impl<M: Model> Factory<M> {
     }
 
     /// Sets the pending batch size to the number of mixed sequence entries.
-    pub fn forEachSequenceEntries(self, entries: Vec<FactorySequence>) -> FactoryBatch<M> {
+    pub fn for_each_sequence_entries(self, entries: Vec<FactorySequence>) -> FactoryBatch<M> {
         let count = entries.len();
-        self.sequenceEntries(entries).count(count)
+        self.sequence_entries(entries).count(count)
     }
 
     /// Sets a sequence of attribute maps and makes the batch as long as the sequence.
-    pub fn forEachSequence(self, states: Vec<Attributes>) -> FactoryBatch<M> {
-        self.forEachSequenceEntries(states.into_iter().map(FactorySequence::from).collect())
+    pub fn for_each_sequence(self, states: Vec<Attributes>) -> FactoryBatch<M> {
+        self.for_each_sequence_entries(states.into_iter().map(FactorySequence::from).collect())
     }
 
     /// Cycles through combinations in declaration order without allocating the product.
-    pub fn crossJoinSequence(self, sequences: Vec<Vec<Attributes>>) -> DatabaseResult<Self> {
+    pub fn cross_join_sequence(self, sequences: Vec<Vec<Attributes>>) -> DatabaseResult<Self> {
         if sequences.iter().any(Vec::is_empty) {
             return Err(DatabaseError::InvalidQuery(
                 "factory cross join sequence is empty",
@@ -721,7 +719,7 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn afterMaking(
+    pub fn after_making(
         mut self,
         callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
@@ -730,7 +728,7 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn afterCreating(
+    pub fn after_creating(
         mut self,
         callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
@@ -741,7 +739,7 @@ impl<M: Model> Factory<M> {
 
     /// Registers a creation callback that can read the enclosing relationship factory's parent.
     #[must_use]
-    pub fn afterCreatingWithParent<P: Model>(
+    pub fn after_creating_with_parent<P: Model>(
         mut self,
         callback: impl Fn(&mut M, Option<&P>) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
@@ -753,14 +751,14 @@ impl<M: Model> Factory<M> {
 
     /// Removes the current construction callbacks from this factory.
     #[must_use]
-    pub fn withoutAfterMaking(mut self) -> Self {
+    pub fn without_after_making(mut self) -> Self {
         self.after_making.clear();
         self
     }
 
     /// Removes the current post-creation callbacks from this factory.
     #[must_use]
-    pub fn withoutAfterCreating(mut self) -> Self {
+    pub fn without_after_creating(mut self) -> Self {
         self.after_creating.clear();
         self
     }
@@ -777,7 +775,7 @@ impl<M: Model> Factory<M> {
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
     #[must_use]
-    pub fn hasNamed<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+    pub fn has_named<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
         self,
         name: impl Into<String>,
         children: impl Into<FactoryChildren<R>>,
@@ -791,17 +789,17 @@ impl<M: Model> Factory<M> {
 
     /// Infers a child relationship from the related model type.
     #[must_use]
-    pub fn hasInferred<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+    pub fn has_inferred<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
         self,
         children: impl Into<FactoryChildren<R>>,
     ) -> Self {
         let plural = inferred_relation_name::<R>(2);
-        let name = if M::namedRelations().contains(&plural) {
+        let name = if M::named_relations().contains(&plural) {
             plural
         } else {
             pluralizer::pluralize(&plural, 1, false)
         };
-        self.hasNamed::<R, D>(name, children)
+        self.has_named::<R, D>(name, children)
     }
 
     fn has_resolved<R: Model, D: FactoryChild<M, R>>(
@@ -832,7 +830,7 @@ impl<M: Model> Factory<M> {
                     let models = match children {
                         FactoryChildren::Uncounted(factory) => {
                             single = factory
-                                .make_one(
+                                .make_one_prepared(
                                     &connection,
                                     &pool,
                                     &std::sync::OnceLock::new(),
@@ -870,7 +868,7 @@ impl<M: Model> Factory<M> {
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
     #[must_use]
-    pub fn forNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_named<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         name: impl Into<String>,
         owner: Factory<R>,
@@ -884,11 +882,11 @@ impl<M: Model> Factory<M> {
 
     /// Infers the owner relationship from the owner model type.
     #[must_use]
-    pub fn forInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_inferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         owner: Factory<R>,
     ) -> Self {
-        self.forNamed::<R, D>(inferred_relation_name::<R>(1), owner)
+        self.for_named::<R, D>(inferred_relation_name::<R>(1), owner)
     }
 
     fn for_resolved<R: Model, D: FactoryParent<M, R>>(
@@ -929,7 +927,7 @@ impl<M: Model> Factory<M> {
                                         .expect("factory owner type"));
                                 }
                                 let model = owner
-                                    .create_one(
+                                    .create_one_prepared(
                                         &owner_connection,
                                         &pool,
                                         &std::sync::OnceLock::new(),
@@ -965,21 +963,21 @@ impl<M: Model> Factory<M> {
 
     /// Projects an existing model attribute to its primary key.
     #[must_use]
-    pub fn modelAttribute<R: Model>(self, name: impl Into<String>, model: &R) -> Self {
-        let key = model.getKey().cloned().unwrap_or(Value::Null);
+    pub fn model_attribute<R: Model>(self, name: impl Into<String>, model: &R) -> Self {
+        let key = model.get_key().cloned().unwrap_or(Value::Null);
         self.attribute(name, move |_| Ok(key.clone()))
     }
 
     /// Declares a factory-valued foreign key in the model definition.
     #[must_use]
-    pub fn parentAttribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
+    pub fn parent_attribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
         let owner = Arc::new(owner);
         self.set_parent_attribute(name.into(), move |_| Arc::clone(&owner))
     }
 
     /// Computes a factory-valued foreign key from the current attribute values.
     #[must_use]
-    pub fn parentAttributeWith<R: Model>(
+    pub fn parent_attribute_with<R: Model>(
         self,
         name: impl Into<String>,
         owner: impl Fn(&Attributes) -> Factory<R> + Send + Sync + 'static,
@@ -1031,7 +1029,7 @@ impl<M: Model> Factory<M> {
                             .expect("factory owner type")
                     } else {
                         generated = owner
-                            .create_one(
+                            .create_one_prepared(
                                 &connection,
                                 &pool,
                                 &std::sync::OnceLock::new(),
@@ -1042,7 +1040,7 @@ impl<M: Model> Factory<M> {
                         &generated
                     };
                     related
-                        .getKey()
+                        .get_key()
                         .filter(|key| !matches!(key, Value::Null))
                         .cloned()
                         .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
@@ -1053,23 +1051,23 @@ impl<M: Model> Factory<M> {
     }
 
     /// Enables factory-valued parent expansion on newly constructed factories.
-    pub fn expandRelationshipsByDefault() {
+    pub fn expand_relationships_by_default() {
         EXPAND_RELATIONSHIPS_BY_DEFAULT.store(true, Ordering::Relaxed);
     }
 
     /// Disables factory-valued parent expansion on newly constructed factories.
-    pub fn dontExpandRelationshipsByDefault() {
+    pub fn dont_expand_relationships_by_default() {
         EXPAND_RELATIONSHIPS_BY_DEFAULT.store(false, Ordering::Relaxed);
     }
 
     /// Restores the process-wide factory defaults.
-    pub fn flushState() {
-        Self::expandRelationshipsByDefault();
+    pub fn flush_state() {
+        Self::expand_relationships_by_default();
     }
 
     /// Excludes the selected factory-valued attributes, or all when the list is empty.
     #[must_use]
-    pub fn withoutParents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
+    pub fn without_parents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
         if parents.is_empty() {
             self.expand_relationships = false;
         } else {
@@ -1079,14 +1077,14 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn forExisting<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
+    pub fn for_existing<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
         let relation = Arc::new(relation);
         self.for_existing_resolved(move |_| Ok(Arc::clone(&relation)), owner)
     }
 
     /// Associates an existing model using a registered relationship name and descriptor type.
     #[must_use]
-    pub fn forExistingNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_existing_named<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         name: impl Into<String>,
         owner: R,
@@ -1100,11 +1098,11 @@ impl<M: Model> Factory<M> {
 
     /// Infers the relationship to an existing owner from its model type.
     #[must_use]
-    pub fn forExistingInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_existing_inferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         owner: R,
     ) -> Self {
-        self.forExistingNamed::<R, D>(inferred_relation_name::<R>(1), owner)
+        self.for_existing_named::<R, D>(inferred_relation_name::<R>(1), owner)
     }
 
     fn for_existing_resolved<R: Model, D: FactoryParent<M, R>>(
@@ -1134,7 +1132,7 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn hasAttached<R: Model>(
+    pub fn has_attached<R: Model>(
         self,
         relation: impl Into<BelongsToMany<M, R>>,
         models: impl Into<FactoryAttachment<R>>,
@@ -1151,7 +1149,7 @@ impl<M: Model> Factory<M> {
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
     #[must_use]
-    pub fn hasAttachedNamed<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+    pub fn has_attached_named<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
         self,
         name: impl Into<String>,
         models: impl Into<FactoryAttachment<R>>,
@@ -1172,12 +1170,12 @@ impl<M: Model> Factory<M> {
 
     /// Infers the plural attachment relationship from the related model type.
     #[must_use]
-    pub fn hasAttachedInferred<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+    pub fn has_attached_inferred<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
         self,
         models: impl Into<FactoryAttachment<R>>,
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
-        self.hasAttachedNamed::<R, D>(inferred_relation_name::<R>(2), models, pivot)
+        self.has_attached_named::<R, D>(inferred_relation_name::<R>(2), models, pivot)
     }
 
     fn has_attached_resolved<R: Model>(
@@ -1235,7 +1233,7 @@ impl<M: Model> Factory<M> {
                         .iter()
                         .map(|model| {
                             model
-                                .getAttribute(relation.related_key())
+                                .get_attribute(relation.related_key())
                                 .filter(|key| !matches!(key, Value::Null))
                                 .cloned()
                                 .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
@@ -1243,7 +1241,7 @@ impl<M: Model> Factory<M> {
                         .collect::<DatabaseResult<Vec<_>>>()?;
                     if let FactoryPivot::Shared(attributes) = pivot {
                         relation
-                            .attachWith(parent, &keys, attributes.clone())
+                            .attach_with(parent, &keys, attributes.clone())
                             .await?;
                     } else {
                         for key in &keys {
@@ -1257,7 +1255,7 @@ impl<M: Model> Factory<M> {
                                 FactoryPivot::Resolve(resolve) => resolve(parent)?,
                             };
                             relation
-                                .attachWith(parent, std::slice::from_ref(key), attributes)
+                                .attach_with(parent, std::slice::from_ref(key), attributes)
                                 .await?;
                         }
                     }
@@ -1274,41 +1272,41 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn make(&self) -> DatabaseResult<M> {
-        self.makeOn(&self.resolve_connection()?).await
+        self.make_on(&self.resolve_connection()?).await
     }
 
-    pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.makeOneOn(connection, Attributes::new()).await
+    pub async fn make_on(&self, connection: &Connection) -> DatabaseResult<M> {
+        self.make_one_on(connection, Attributes::new()).await
     }
 
-    pub async fn makeOne(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.makeOneOn(&self.resolve_connection()?, attributes)
+    pub async fn make_one(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.make_one_on(&self.resolve_connection()?, attributes)
             .await
     }
 
-    pub async fn makeOneOn(
+    pub async fn make_one_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.makeWithStateOn(connection, |_| attributes).await
+        self.make_with_state_on(connection, |_| attributes).await
     }
 
     /// Applies a final state to the accumulated attributes for this operation.
-    pub async fn makeWithState(
+    pub async fn make_with_state(
         &self,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.makeWithStateOn(&self.resolve_connection()?, state)
+        self.make_with_state_on(&self.resolve_connection()?, state)
             .await
     }
 
-    pub async fn makeWithStateOn(
+    pub async fn make_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.make_one(
+        self.make_one_prepared(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
@@ -1319,42 +1317,42 @@ impl<M: Model> Factory<M> {
     }
 
     /// Constructs an unsaved model with a parent available to factory states.
-    pub async fn makeWithParent<P: Model>(
+    pub async fn make_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.makeWithParentOn(&self.resolve_connection()?, parent, attributes)
+        self.make_with_parent_on(&self.resolve_connection()?, parent, attributes)
             .await
     }
 
-    pub async fn makeWithParentOn<P: Model>(
+    pub async fn make_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.makeWithParentStateOn(connection, parent, |_, _| attributes)
+        self.make_with_parent_state_on(connection, parent, |_, _| attributes)
             .await
     }
 
     /// Builds unsaved models with a final state that can read the parent.
-    pub async fn makeWithParentState<P: Model>(
+    pub async fn make_with_parent_state<P: Model>(
         &self,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.makeWithParentStateOn(&self.resolve_connection()?, parent, state)
+        self.make_with_parent_state_on(&self.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn makeWithParentStateOn<P: Model>(
+    pub async fn make_with_parent_state_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.make_one(
+        self.make_one_prepared(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
@@ -1364,19 +1362,20 @@ impl<M: Model> Factory<M> {
         .await
     }
 
-    pub async fn makeMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.makeManyOn(&self.resolve_connection()?, records).await
+    pub async fn make_many(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
+        self.make_many_on(&self.resolve_connection()?, records)
+            .await
     }
 
-    pub async fn makeManyOn(
+    pub async fn make_many_on(
         &self,
         connection: &Connection,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
-        self.make_many(connection, records, 1).await
+        self.make_many_prepared(connection, records, 1).await
     }
 
-    async fn make_many(
+    async fn make_many_prepared(
         &self,
         connection: &Connection,
         records: FactoryRecords,
@@ -1386,7 +1385,7 @@ impl<M: Model> Factory<M> {
         let mut models = Vec::new();
         for attributes in records.into_attributes(default_count) {
             models.push(
-                self.make_one(connection, &self.recycled, &faker, None, |_| attributes)
+                self.make_one_prepared(connection, &self.recycled, &faker, None, |_| attributes)
                     .await?,
             );
         }
@@ -1398,46 +1397,46 @@ impl<M: Model> Factory<M> {
         &'a self,
         attributes: Attributes,
     ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<M>> + 'a {
-        move || Box::pin(self.createOne(attributes.clone()))
+        move || Box::pin(self.create_one(attributes.clone()))
     }
 
     /// Creates models with a parent available to states and afterCreating callbacks.
-    pub async fn createWithParent<P: Model>(
+    pub async fn create_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.createWithParentOn(&self.resolve_connection()?, parent, attributes)
+        self.create_with_parent_on(&self.resolve_connection()?, parent, attributes)
             .await
     }
 
-    pub async fn createWithParentOn<P: Model>(
+    pub async fn create_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.createWithParentStateOn(connection, parent, |_, _| attributes)
+        self.create_with_parent_state_on(connection, parent, |_, _| attributes)
             .await
     }
 
     /// Persists models with a final state that can read the parent.
-    pub async fn createWithParentState<P: Model>(
+    pub async fn create_with_parent_state<P: Model>(
         &self,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.createWithParentStateOn(&self.resolve_connection()?, parent, state)
+        self.create_with_parent_state_on(&self.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn createWithParentStateOn<P: Model>(
+    pub async fn create_with_parent_state_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.create_one(
+        self.create_one_prepared(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
@@ -1448,87 +1447,88 @@ impl<M: Model> Factory<M> {
     }
 
     /// Creates models with parent context while suppressing Eloquent events.
-    pub async fn createQuietlyWithParent<P: Model>(
+    pub async fn create_quietly_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        M::withoutEvents(self.createWithParent(parent, attributes)).await
+        M::without_events(self.create_with_parent(parent, attributes)).await
     }
 
-    pub async fn createQuietlyWithParentOn<P: Model>(
+    pub async fn create_quietly_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        M::withoutEvents(self.createWithParentOn(connection, parent, attributes)).await
+        M::without_events(self.create_with_parent_on(connection, parent, attributes)).await
     }
 
     /// Applies a final parent-aware state while suppressing model events.
-    pub async fn createQuietlyWithParentState<P: Model>(
+    pub async fn create_quietly_with_parent_state<P: Model>(
         &self,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.createQuietlyWithParentStateOn(&self.resolve_connection()?, parent, state)
+        self.create_quietly_with_parent_state_on(&self.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn createQuietlyWithParentStateOn<P: Model>(
+    pub async fn create_quietly_with_parent_state_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        M::withoutEvents(self.createWithParentStateOn(connection, parent, state)).await
+        M::without_events(self.create_with_parent_state_on(connection, parent, state)).await
     }
 
     /// Returns a reusable callback borrowing the parent until invocation.
-    pub fn lazyWithParent<'a, P: Model>(
+    pub fn lazy_with_parent<'a, P: Model>(
         &'a self,
         parent: &'a P,
         attributes: Attributes,
     ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<M>> + 'a {
-        move || Box::pin(self.createWithParent(parent, attributes.clone()))
+        move || Box::pin(self.create_with_parent(parent, attributes.clone()))
     }
 
     pub async fn create(&self) -> DatabaseResult<M> {
-        self.createOn(&self.resolve_connection()?).await
+        self.create_on(&self.resolve_connection()?).await
     }
 
     /// Inserts the generated model without saving relations or firing model persistence events.
     pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
-        self.insertOn(&self.resolve_connection()?, attributes).await
+        self.insert_on(&self.resolve_connection()?, attributes)
+            .await
     }
 
-    pub async fn insertOn(
+    pub async fn insert_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<()> {
-        let model = self.makeOneOn(connection, attributes).await?;
+        let model = self.make_one_on(connection, attributes).await?;
         Self::insert_models(connection, vec![model]).await
     }
 
     /// Inserts a model constructed with a parent available to factory states.
-    pub async fn insertWithParent<P: Model>(
+    pub async fn insert_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<()> {
-        self.insertWithParentOn(&self.resolve_connection()?, parent, attributes)
+        self.insert_with_parent_on(&self.resolve_connection()?, parent, attributes)
             .await
     }
 
-    pub async fn insertWithParentOn<P: Model>(
+    pub async fn insert_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<()> {
         let model = self
-            .makeWithParentOn(connection, parent, attributes)
+            .make_with_parent_on(connection, parent, attributes)
             .await?;
         Self::insert_models(connection, vec![model]).await
     }
@@ -1537,51 +1537,51 @@ impl<M: Model> Factory<M> {
         let rows = models
             .into_iter()
             .map(|mut model| {
-                model.setHidden(&[]);
+                model.set_hidden(&[]);
                 super::serialization::projected_attributes(&model)
                     .map(|(name, value)| Ok((name.clone(), value?)))
                     .collect::<DatabaseResult<Attributes>>()
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
-        M::queryOn(connection)
-            .withoutGlobalScopes()
-            .fillAndInsert(rows)
+        M::query_on(connection)
+            .without_global_scopes()
+            .fill_and_insert(rows)
             .await?;
         Ok(())
     }
 
-    pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.createOneOn(connection, Attributes::new()).await
+    pub async fn create_on(&self, connection: &Connection) -> DatabaseResult<M> {
+        self.create_one_on(connection, Attributes::new()).await
     }
 
-    pub async fn createOne(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.createOneOn(&self.resolve_connection()?, attributes)
+    pub async fn create_one(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.create_one_on(&self.resolve_connection()?, attributes)
             .await
     }
 
-    pub async fn createOneOn(
+    pub async fn create_one_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.createWithStateOn(connection, |_| attributes).await
+        self.create_with_state_on(connection, |_| attributes).await
     }
 
     /// Applies a final state to the accumulated attributes for this operation.
-    pub async fn createWithState(
+    pub async fn create_with_state(
         &self,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.createWithStateOn(&self.resolve_connection()?, state)
+        self.create_with_state_on(&self.resolve_connection()?, state)
             .await
     }
 
-    pub async fn createWithStateOn(
+    pub async fn create_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        self.create_one(
+        self.create_one_prepared(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
@@ -1591,47 +1591,47 @@ impl<M: Model> Factory<M> {
         .await
     }
 
-    pub async fn createOneQuietly(&self, attributes: Attributes) -> DatabaseResult<M> {
-        M::withoutEvents(self.createOne(attributes)).await
+    pub async fn create_one_quietly(&self, attributes: Attributes) -> DatabaseResult<M> {
+        M::without_events(self.create_one(attributes)).await
     }
 
-    pub async fn createOneQuietlyOn(
+    pub async fn create_one_quietly_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        M::withoutEvents(self.createOneOn(connection, attributes)).await
+        M::without_events(self.create_one_on(connection, attributes)).await
     }
 
-    pub async fn createMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.createManyOn(&self.resolve_connection()?, records)
+    pub async fn create_many(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
+        self.create_many_on(&self.resolve_connection()?, records)
             .await
     }
 
-    pub async fn createManyOn(
+    pub async fn create_many_on(
         &self,
         connection: &Connection,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
-        self.create_many(connection, records, 1).await
+        self.create_many_prepared(connection, records, 1).await
     }
 
-    pub async fn createManyQuietly(
+    pub async fn create_many_quietly(
         &self,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createMany(records)).await
+        M::without_events(self.create_many(records)).await
     }
 
-    pub async fn createManyQuietlyOn(
+    pub async fn create_many_quietly_on(
         &self,
         connection: &Connection,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createManyOn(connection, records)).await
+        M::without_events(self.create_many_on(connection, records)).await
     }
 
-    async fn create_many(
+    async fn create_many_prepared(
         &self,
         connection: &Connection,
         records: FactoryRecords,
@@ -1641,70 +1641,71 @@ impl<M: Model> Factory<M> {
         let mut models = Vec::new();
         for attributes in records.into_attributes(default_count) {
             models.push(
-                self.create_one(connection, &self.recycled, &faker, None, |_| attributes)
+                self.create_one_prepared(connection, &self.recycled, &faker, None, |_| attributes)
                     .await?,
             );
         }
         Ok(Collection::new(models).without_relationship_autoloading())
     }
 
-    pub async fn createQuietly(&self) -> DatabaseResult<M> {
-        M::withoutEvents(self.create()).await
+    pub async fn create_quietly(&self) -> DatabaseResult<M> {
+        M::without_events(self.create()).await
     }
 
-    pub async fn createQuietlyOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        M::withoutEvents(self.createOn(connection)).await
+    pub async fn create_quietly_on(&self, connection: &Connection) -> DatabaseResult<M> {
+        M::without_events(self.create_on(connection)).await
     }
 
     /// Applies a final state while suppressing model events.
-    pub async fn createQuietlyWithState(
+    pub async fn create_quietly_with_state(
         &self,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        M::withoutEvents(self.createWithState(state)).await
+        M::without_events(self.create_with_state(state)).await
     }
 
-    pub async fn createQuietlyWithStateOn(
+    pub async fn create_quietly_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
-        M::withoutEvents(self.createWithStateOn(connection, state)).await
+        M::without_events(self.create_with_state_on(connection, state)).await
     }
 
     /// Expands the factory definition and parent keys without applying model casts or callbacks.
     pub async fn raw(&self) -> DatabaseResult<Attributes> {
-        self.rawOn(&self.resolve_connection()?).await
+        self.raw_on(&self.resolve_connection()?).await
     }
 
-    pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Attributes> {
-        self.rawWithStateOn(connection, |_| Attributes::new()).await
-    }
-
-    /// Expands raw attributes with a one-time override after the configured states.
-    pub async fn rawWith(&self, attributes: Attributes) -> DatabaseResult<Attributes> {
-        self.rawWithOn(&self.resolve_connection()?, attributes)
+    pub async fn raw_on(&self, connection: &Connection) -> DatabaseResult<Attributes> {
+        self.raw_with_state_on(connection, |_| Attributes::new())
             .await
     }
 
-    pub async fn rawWithOn(
+    /// Expands raw attributes with a one-time override after the configured states.
+    pub async fn raw_with(&self, attributes: Attributes) -> DatabaseResult<Attributes> {
+        self.raw_with_on(&self.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn raw_with_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<Attributes> {
-        self.rawWithStateOn(connection, |_| attributes).await
+        self.raw_with_state_on(connection, |_| attributes).await
     }
 
     /// Computes the last state from the accumulated attributes before expansion.
-    pub async fn rawWithState(
+    pub async fn raw_with_state(
         &self,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        self.rawWithStateOn(&self.resolve_connection()?, state)
+        self.raw_with_state_on(&self.resolve_connection()?, state)
             .await
     }
 
-    pub async fn rawWithStateOn(
+    pub async fn raw_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
@@ -1714,16 +1715,16 @@ impl<M: Model> Factory<M> {
     }
 
     /// Expands raw attributes with a parent available to the configured and final states.
-    pub async fn rawWithParent<P: Model>(
+    pub async fn raw_with_parent<P: Model>(
         &self,
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        self.rawWithParentOn(&self.resolve_connection()?, parent, state)
+        self.raw_with_parent_on(&self.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn rawWithParentOn<P: Model>(
+    pub async fn raw_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
@@ -1763,7 +1764,7 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<M> {
         // Keep model-specific assignment hooks, including temporary attributes.
         model.state_mut().connection = Some(connection.clone());
-        model.forceFillAsync(attributes).await?;
+        model.force_fill_async(attributes).await?;
         Ok(model)
     }
 
@@ -1874,7 +1875,7 @@ impl<M: Model> Factory<M> {
         Ok(())
     }
 
-    async fn make_one(
+    async fn make_one_prepared(
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
@@ -1896,7 +1897,7 @@ impl<M: Model> Factory<M> {
         .await
     }
 
-    async fn create_one(
+    async fn create_one_prepared(
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
@@ -1905,7 +1906,7 @@ impl<M: Model> Factory<M> {
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
         let mut model = self
-            .make_one(connection, pool, faker, context, state)
+            .make_one_prepared(connection, pool, faker, context, state)
             .await?;
         self.store(connection, &mut model, pool).await?;
         self.run_after_creating(
@@ -1982,7 +1983,7 @@ fn inferred_relation_name<R: Model>(count: isize) -> String {
 fn named_descriptor<M: Model, D: Relation<Parent = M>>(model: &M, name: &str) -> DatabaseResult<D> {
     match super::dynamic_relations::RelationResolvers::resolve(model, name)? {
         Some(descriptor) => Ok(descriptor),
-        None => M::namedRelations().factory_descriptor(name),
+        None => M::named_relations().factory_descriptor(name),
     }
 }
 
@@ -1992,7 +1993,6 @@ pub struct FactoryBatch<M: Model> {
     count: AtomicUsize,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> FactoryBatch<M> {
     conditional_states!();
 
@@ -2016,61 +2016,61 @@ impl<M: Model> FactoryBatch<M> {
 
     /// Appends a context-aware sequence without changing the pending count.
     #[must_use]
-    pub fn sequenceWithState(
+    pub fn sequence_with_state(
         self,
         sequence: impl Fn(usize, &Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.map_factory(|factory| factory.sequenceWithState(sequence))
+        self.map_factory(|factory| factory.sequence_with_state(sequence))
     }
 
     /// Appends a typed parent-aware sequence without changing the pending count.
     #[must_use]
-    pub fn sequenceWithParent<P: Model>(
+    pub fn sequence_with_parent<P: Model>(
         self,
         sequence: impl Fn(usize, &Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.map_factory(|factory| factory.sequenceWithParent(sequence))
+        self.map_factory(|factory| factory.sequence_with_parent(sequence))
     }
 
     /// Appends a mixed sequence without changing the pending count.
     #[must_use]
-    pub fn sequenceEntries(self, entries: Vec<FactorySequence>) -> Self {
-        self.map_factory(|factory| factory.sequenceEntries(entries))
+    pub fn sequence_entries(self, entries: Vec<FactorySequence>) -> Self {
+        self.map_factory(|factory| factory.sequence_entries(entries))
     }
 
     /// Replaces the pending batch size with the number of mixed entries.
     #[must_use]
-    pub fn forEachSequenceEntries(self, entries: Vec<FactorySequence>) -> Self {
-        self.factory.forEachSequenceEntries(entries)
+    pub fn for_each_sequence_entries(self, entries: Vec<FactorySequence>) -> Self {
+        self.factory.for_each_sequence_entries(entries)
     }
 
     /// Sets the pending batch size to the sequence length.
     #[must_use]
-    pub fn forEachSequence(self, states: Vec<Attributes>) -> Self {
-        self.factory.forEachSequence(states)
+    pub fn for_each_sequence(self, states: Vec<Attributes>) -> Self {
+        self.factory.for_each_sequence(states)
     }
 
-    pub fn crossJoinSequence(self, sequences: Vec<Vec<Attributes>>) -> DatabaseResult<Self> {
+    pub fn cross_join_sequence(self, sequences: Vec<Vec<Attributes>>) -> DatabaseResult<Self> {
         Ok(Self {
-            factory: self.factory.crossJoinSequence(sequences)?,
+            factory: self.factory.cross_join_sequence(sequences)?,
             count: self.count,
         })
     }
 
     #[must_use]
-    pub fn afterMaking(
+    pub fn after_making(
         self,
         callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
-        self.map_factory(|factory| factory.afterMaking(callback))
+        self.map_factory(|factory| factory.after_making(callback))
     }
 
     #[must_use]
-    pub fn afterCreating(
+    pub fn after_creating(
         self,
         callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
-        self.map_factory(|factory| factory.afterCreating(callback))
+        self.map_factory(|factory| factory.after_creating(callback))
     }
 
     #[must_use]
@@ -2083,12 +2083,12 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     #[must_use]
-    pub fn hasNamed<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+    pub fn has_named<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
         self,
         name: impl Into<String>,
         children: impl Into<FactoryChildren<R>>,
     ) -> Self {
-        self.map_factory(|factory| factory.hasNamed::<R, D>(name, children))
+        self.map_factory(|factory| factory.has_named::<R, D>(name, children))
     }
 
     #[must_use]
@@ -2097,84 +2097,84 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     #[must_use]
-    pub fn forNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_named<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         name: impl Into<String>,
         owner: Factory<R>,
     ) -> Self {
-        self.map_factory(|factory| factory.forNamed::<R, D>(name, owner))
+        self.map_factory(|factory| factory.for_named::<R, D>(name, owner))
     }
 
     #[must_use]
-    pub fn forExisting<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
-        self.map_factory(|factory| factory.forExisting(relation, owner))
+    pub fn for_existing<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
+        self.map_factory(|factory| factory.for_existing(relation, owner))
     }
 
     /// Associates an existing model using a registered relationship name and descriptor type.
     #[must_use]
-    pub fn forExistingNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_existing_named<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         name: impl Into<String>,
         owner: R,
     ) -> Self {
-        self.map_factory(|factory| factory.forExistingNamed::<R, D>(name, owner))
+        self.map_factory(|factory| factory.for_existing_named::<R, D>(name, owner))
     }
 
     #[must_use]
-    pub fn hasAttached<R: Model>(
+    pub fn has_attached<R: Model>(
         self,
         relation: impl Into<BelongsToMany<M, R>>,
         models: impl Into<FactoryAttachment<R>>,
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
-        self.map_factory(|factory| factory.hasAttached(relation, models, pivot))
+        self.map_factory(|factory| factory.has_attached(relation, models, pivot))
     }
 
     #[must_use]
-    pub fn hasAttachedNamed<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+    pub fn has_attached_named<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
         self,
         name: impl Into<String>,
         models: impl Into<FactoryAttachment<R>>,
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
-        self.map_factory(|factory| factory.hasAttachedNamed::<R, D>(name, models, pivot))
+        self.map_factory(|factory| factory.has_attached_named::<R, D>(name, models, pivot))
     }
 
     /// Infers a child relationship from the related model type.
     #[must_use]
-    pub fn hasInferred<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+    pub fn has_inferred<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
         self,
         children: impl Into<FactoryChildren<R>>,
     ) -> Self {
-        self.map_factory(|factory| factory.hasInferred::<R, D>(children))
+        self.map_factory(|factory| factory.has_inferred::<R, D>(children))
     }
 
     /// Infers the owner relationship from the owner model type.
     #[must_use]
-    pub fn forInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_inferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         owner: Factory<R>,
     ) -> Self {
-        self.map_factory(|factory| factory.forInferred::<R, D>(owner))
+        self.map_factory(|factory| factory.for_inferred::<R, D>(owner))
     }
 
     /// Infers the relationship to an existing owner from its model type.
     #[must_use]
-    pub fn forExistingInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+    pub fn for_existing_inferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
         self,
         owner: R,
     ) -> Self {
-        self.map_factory(|factory| factory.forExistingInferred::<R, D>(owner))
+        self.map_factory(|factory| factory.for_existing_inferred::<R, D>(owner))
     }
 
     /// Infers the plural attachment relationship from the related model type.
     #[must_use]
-    pub fn hasAttachedInferred<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+    pub fn has_attached_inferred<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
         self,
         models: impl Into<FactoryAttachment<R>>,
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
-        self.map_factory(|factory| factory.hasAttachedInferred::<R, D>(models, pivot))
+        self.map_factory(|factory| factory.has_attached_inferred::<R, D>(models, pivot))
     }
 
     #[must_use]
@@ -2187,28 +2187,28 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     #[must_use]
-    pub fn modelAttribute<R: Model>(self, name: impl Into<String>, model: &R) -> Self {
-        self.map_factory(|factory| factory.modelAttribute(name, model))
+    pub fn model_attribute<R: Model>(self, name: impl Into<String>, model: &R) -> Self {
+        self.map_factory(|factory| factory.model_attribute(name, model))
     }
 
     #[must_use]
-    pub fn parentAttribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
-        self.map_factory(|factory| factory.parentAttribute(name, owner))
+    pub fn parent_attribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
+        self.map_factory(|factory| factory.parent_attribute(name, owner))
     }
 
     #[must_use]
-    pub fn parentAttributeWith<R: Model>(
+    pub fn parent_attribute_with<R: Model>(
         self,
         name: impl Into<String>,
         owner: impl Fn(&Attributes) -> Factory<R> + Send + Sync + 'static,
     ) -> Self {
-        self.map_factory(|factory| factory.parentAttributeWith(name, owner))
+        self.map_factory(|factory| factory.parent_attribute_with(name, owner))
     }
 
     #[must_use]
-    pub fn withoutParents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
+    pub fn without_parents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
         self.factory
-            .withoutParents(parents)
+            .without_parents(parents)
             .count(*self.count.get_mut())
     }
 
@@ -2218,23 +2218,23 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     /// The Rust type name of the model bound to this factory.
-    pub fn modelName(&self) -> &'static str {
-        self.factory.modelName()
+    pub fn model_name(&self) -> &'static str {
+        self.factory.model_name()
     }
 
     /// Constructs an unsaved model from caller attributes using normal mass assignment.
-    pub fn newModel(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.factory.newModel(attributes)
+    pub fn new_model(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.new_model(attributes)
     }
 
-    pub fn getConnectionName(&self) -> Option<&str> {
-        self.factory.getConnectionName()
+    pub fn get_connection_name(&self) -> Option<&str> {
+        self.factory.get_connection_name()
     }
 
-    pub fn trashed(mut self, deletedAt: Option<Value>) -> DatabaseResult<Self> {
+    pub fn trashed(mut self, deleted_at: Option<Value>) -> DatabaseResult<Self> {
         Ok(self
             .factory
-            .trashed(deletedAt)?
+            .trashed(deleted_at)?
             .count(*self.count.get_mut()))
     }
 
@@ -2247,32 +2247,32 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     #[must_use]
-    pub fn stateWithParent<P: Model>(
+    pub fn state_with_parent<P: Model>(
         mut self,
         state: impl Fn(&Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.factory
-            .stateWithParent(state)
+            .state_with_parent(state)
             .count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn afterCreatingWithParent<P: Model>(
+    pub fn after_creating_with_parent<P: Model>(
         mut self,
         callback: impl Fn(&mut M, Option<&P>) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
         self.factory
-            .afterCreatingWithParent(callback)
+            .after_creating_with_parent(callback)
             .count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn prependState(
+    pub fn prepend_state(
         mut self,
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.factory
-            .prependState(state)
+            .prepend_state(state)
             .count(*self.count.get_mut())
     }
 
@@ -2282,43 +2282,43 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     #[must_use]
-    pub fn withoutAfterMaking(mut self) -> Self {
+    pub fn without_after_making(mut self) -> Self {
         self.factory
-            .withoutAfterMaking()
+            .without_after_making()
             .count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn withoutAfterCreating(mut self) -> Self {
+    pub fn without_after_creating(mut self) -> Self {
         self.factory
-            .withoutAfterCreating()
+            .without_after_creating()
             .count(*self.count.get_mut())
     }
 
-    pub async fn makeOne(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.factory.makeOne(attributes).await
+    pub async fn make_one(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.make_one(attributes).await
     }
 
-    pub async fn makeOneOn(
+    pub async fn make_one_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.factory.makeOneOn(connection, attributes).await
+        self.factory.make_one_on(connection, attributes).await
     }
 
-    pub async fn makeMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.makeManyOn(&self.factory.resolve_connection()?, records)
+    pub async fn make_many(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
+        self.make_many_on(&self.factory.resolve_connection()?, records)
             .await
     }
 
-    pub async fn makeManyOn(
+    pub async fn make_many_on(
         &self,
         connection: &Connection,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
         self.factory
-            .make_many(connection, records, self.count.swap(1, Ordering::Relaxed))
+            .make_many_prepared(connection, records, self.count.swap(1, Ordering::Relaxed))
             .await
     }
 
@@ -2327,129 +2327,131 @@ impl<M: Model> FactoryBatch<M> {
         &'a self,
         attributes: Attributes,
     ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<Collection<M>>> + 'a {
-        move || Box::pin(self.createWith(attributes.clone()))
+        move || Box::pin(self.create_with(attributes.clone()))
     }
 
-    pub async fn createOne(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.factory.createOne(attributes).await
+    pub async fn create_one(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.create_one(attributes).await
     }
 
-    pub async fn createOneOn(
+    pub async fn create_one_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        self.factory.createOneOn(connection, attributes).await
+        self.factory.create_one_on(connection, attributes).await
     }
 
-    pub async fn createOneQuietly(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.factory.createOneQuietly(attributes).await
+    pub async fn create_one_quietly(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.create_one_quietly(attributes).await
     }
 
-    pub async fn createOneQuietlyOn(
+    pub async fn create_one_quietly_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
         self.factory
-            .createOneQuietlyOn(connection, attributes)
+            .create_one_quietly_on(connection, attributes)
             .await
     }
 
-    pub async fn createMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.createManyOn(&self.factory.resolve_connection()?, records)
+    pub async fn create_many(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
+        self.create_many_on(&self.factory.resolve_connection()?, records)
             .await
     }
 
-    pub async fn createManyOn(
+    pub async fn create_many_on(
         &self,
         connection: &Connection,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
         self.factory
-            .create_many(connection, records, self.count.swap(1, Ordering::Relaxed))
+            .create_many_prepared(connection, records, self.count.swap(1, Ordering::Relaxed))
             .await
     }
 
-    pub async fn createManyQuietly(
+    pub async fn create_many_quietly(
         &self,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createMany(records)).await
+        M::without_events(self.create_many(records)).await
     }
 
-    pub async fn createManyQuietlyOn(
+    pub async fn create_many_quietly_on(
         &self,
         connection: &Connection,
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createManyOn(connection, records)).await
+        M::without_events(self.create_many_on(connection, records)).await
     }
 
     pub async fn raw(&self) -> DatabaseResult<Vec<Attributes>> {
-        self.rawOn(&self.factory.resolve_connection()?).await
+        self.raw_on(&self.factory.resolve_connection()?).await
     }
 
-    pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Vec<Attributes>> {
-        self.rawWithStateOn(connection, |_| Attributes::new()).await
-    }
-
-    /// Expands each row with a one-time override after the configured states.
-    pub async fn rawWith(&self, attributes: Attributes) -> DatabaseResult<Vec<Attributes>> {
-        self.rawWithOn(&self.factory.resolve_connection()?, attributes)
+    pub async fn raw_on(&self, connection: &Connection) -> DatabaseResult<Vec<Attributes>> {
+        self.raw_with_state_on(connection, |_| Attributes::new())
             .await
     }
 
-    pub async fn rawWithOn(
+    /// Expands each row with a one-time override after the configured states.
+    pub async fn raw_with(&self, attributes: Attributes) -> DatabaseResult<Vec<Attributes>> {
+        self.raw_with_on(&self.factory.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn raw_with_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<Vec<Attributes>> {
-        self.rawWithStateOn(connection, |_| attributes.clone())
+        self.raw_with_state_on(connection, |_| attributes.clone())
             .await
     }
 
     /// Computes the last state separately for each row before expansion.
-    pub async fn rawWithState(
+    pub async fn raw_with_state(
         &self,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
-        self.rawWithStateOn(&self.factory.resolve_connection()?, state)
+        self.raw_with_state_on(&self.factory.resolve_connection()?, state)
             .await
     }
 
-    pub async fn rawWithStateOn(
+    pub async fn raw_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
-        self.raw_with_state(connection, None, state).await
+        self.raw_with_state_on_prepared(connection, None, state)
+            .await
     }
 
     /// Expands each row with a parent available to the configured and final states.
-    pub async fn rawWithParent<P: Model>(
+    pub async fn raw_with_parent<P: Model>(
         &self,
         parent: &P,
         state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
-        self.rawWithParentOn(&self.factory.resolve_connection()?, parent, state)
+        self.raw_with_parent_on(&self.factory.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn rawWithParentOn<P: Model>(
+    pub async fn raw_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
         let context = RelationContext::parent_only(parent);
-        self.raw_with_state(connection, Some(context), |attributes| {
+        self.raw_with_state_on_prepared(connection, Some(context), |attributes| {
             state(attributes, parent)
         })
         .await
     }
 
-    async fn raw_with_state(
+    async fn raw_with_state_on_prepared(
         &self,
         connection: &Connection,
         context: Option<RelationContext<'_>>,
@@ -2469,102 +2471,102 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     /// Selects a recycled model of the requested type without accessing the database.
-    pub fn getRandomRecycledModel<R: Model>(&self) -> Option<&R> {
-        self.factory.getRandomRecycledModel()
+    pub fn get_random_recycled_model<R: Model>(&self) -> Option<&R> {
+        self.factory.get_random_recycled_model()
     }
 
     #[must_use]
     pub fn recycle<R: Model>(self, model: R) -> Self {
-        self.recycleMany([model])
+        self.recycle_many([model])
     }
 
     #[must_use]
-    pub fn recycleMany<R: Model>(self, models: impl IntoIterator<Item = R>) -> Self {
+    pub fn recycle_many<R: Model>(self, models: impl IntoIterator<Item = R>) -> Self {
         Self {
-            factory: self.factory.recycleMany(models),
+            factory: self.factory.recycle_many(models),
             count: self.count,
         }
     }
 
     pub async fn make(&self) -> DatabaseResult<Collection<M>> {
-        self.makeOn(&self.factory.resolve_connection()?).await
+        self.make_on(&self.factory.resolve_connection()?).await
     }
 
-    pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
+    pub async fn make_on(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
         self.make_with_pool(connection, &self.factory.recycled, None)
             .await
     }
 
     /// Applies the same final attributes to every model in this operation.
     pub async fn make_with(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
-        self.makeWithOn(&self.factory.resolve_connection()?, attributes)
+        self.make_with_on(&self.factory.resolve_connection()?, attributes)
             .await
     }
 
-    pub async fn makeWithOn(
+    pub async fn make_with_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.makeWithStateOn(connection, |_| attributes.clone())
+        self.make_with_state_on(connection, |_| attributes.clone())
             .await
     }
 
     /// Computes the final state separately for every model in the batch.
-    pub async fn makeWithState(
+    pub async fn make_with_state(
         &self,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.makeWithStateOn(&self.factory.resolve_connection()?, state)
+        self.make_with_state_on(&self.factory.resolve_connection()?, state)
             .await
     }
 
-    pub async fn makeWithStateOn(
+    pub async fn make_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.make_with_state(connection, &self.factory.recycled, None, state)
+        self.make_with_state_on_prepared(connection, &self.factory.recycled, None, state)
             .await
     }
 
     /// Constructs unsaved models with a parent available to factory states.
-    pub async fn makeWithParent<P: Model>(
+    pub async fn make_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.makeWithParentOn(&self.factory.resolve_connection()?, parent, attributes)
+        self.make_with_parent_on(&self.factory.resolve_connection()?, parent, attributes)
             .await
     }
 
-    pub async fn makeWithParentOn<P: Model>(
+    pub async fn make_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.makeWithParentStateOn(connection, parent, |_, _| attributes.clone())
+        self.make_with_parent_state_on(connection, parent, |_, _| attributes.clone())
             .await
     }
 
     /// Builds unsaved models with a final state that can read the parent.
-    pub async fn makeWithParentState<P: Model>(
+    pub async fn make_with_parent_state<P: Model>(
         &self,
         parent: &P,
         state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.makeWithParentStateOn(&self.factory.resolve_connection()?, parent, state)
+        self.make_with_parent_state_on(&self.factory.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn makeWithParentStateOn<P: Model>(
+    pub async fn make_with_parent_state_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.make_with_state(
+        self.make_with_state_on_prepared(
             connection,
             &self.factory.recycled,
             Some(RelationContext::parent_only(parent)),
@@ -2579,11 +2581,11 @@ impl<M: Model> FactoryBatch<M> {
         pool: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
-        self.make_with_state(connection, pool, relation, |_| Attributes::new())
+        self.make_with_state_on_prepared(connection, pool, relation, |_| Attributes::new())
             .await
     }
 
-    async fn make_with_state(
+    async fn make_with_state_on_prepared(
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
@@ -2608,7 +2610,7 @@ impl<M: Model> FactoryBatch<M> {
                         .await?,
                 );
             }
-            let mut models = M::newCollection(models);
+            let mut models = M::new_collection(models);
             self.factory
                 .run_callbacks(models.models_mut(), &self.factory.after_making)?;
             Ok(models)
@@ -2617,42 +2619,42 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     /// Creates models with a parent available to states and afterCreating callbacks.
-    pub async fn createWithParent<P: Model>(
+    pub async fn create_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.createWithParentOn(&self.factory.resolve_connection()?, parent, attributes)
+        self.create_with_parent_on(&self.factory.resolve_connection()?, parent, attributes)
             .await
     }
 
-    pub async fn createWithParentOn<P: Model>(
+    pub async fn create_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.createWithParentStateOn(connection, parent, |_, _| attributes.clone())
+        self.create_with_parent_state_on(connection, parent, |_, _| attributes.clone())
             .await
     }
 
     /// Persists models with a final state that can read the parent.
-    pub async fn createWithParentState<P: Model>(
+    pub async fn create_with_parent_state<P: Model>(
         &self,
         parent: &P,
         state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.createWithParentStateOn(&self.factory.resolve_connection()?, parent, state)
+        self.create_with_parent_state_on(&self.factory.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn createWithParentStateOn<P: Model>(
+    pub async fn create_with_parent_state_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        Box::pin(self.create_with_state(
+        Box::pin(self.create_with_state_on_prepared(
             connection,
             &[],
             Some(RelationContext::parent_only(parent)),
@@ -2662,100 +2664,100 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     /// Creates models with parent context while suppressing Eloquent events.
-    pub async fn createQuietlyWithParent<P: Model>(
+    pub async fn create_quietly_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createWithParent(parent, attributes)).await
+        M::without_events(self.create_with_parent(parent, attributes)).await
     }
 
-    pub async fn createQuietlyWithParentOn<P: Model>(
+    pub async fn create_quietly_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createWithParentOn(connection, parent, attributes)).await
+        M::without_events(self.create_with_parent_on(connection, parent, attributes)).await
     }
 
     /// Applies a final parent-aware state while suppressing model events.
-    pub async fn createQuietlyWithParentState<P: Model>(
+    pub async fn create_quietly_with_parent_state<P: Model>(
         &self,
         parent: &P,
         state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.createQuietlyWithParentStateOn(&self.factory.resolve_connection()?, parent, state)
+        self.create_quietly_with_parent_state_on(&self.factory.resolve_connection()?, parent, state)
             .await
     }
 
-    pub async fn createQuietlyWithParentStateOn<P: Model>(
+    pub async fn create_quietly_with_parent_state_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createWithParentStateOn(connection, parent, state)).await
+        M::without_events(self.create_with_parent_state_on(connection, parent, state)).await
     }
 
     /// Returns a reusable callback borrowing the parent until invocation.
-    pub fn lazyWithParent<'a, P: Model>(
+    pub fn lazy_with_parent<'a, P: Model>(
         &'a self,
         parent: &'a P,
         attributes: Attributes,
     ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<Collection<M>>> + 'a {
-        move || Box::pin(self.createWithParent(parent, attributes.clone()))
+        move || Box::pin(self.create_with_parent(parent, attributes.clone()))
     }
 
     pub async fn create(&self) -> DatabaseResult<Collection<M>> {
-        self.createOn(&self.factory.resolve_connection()?).await
+        self.create_on(&self.factory.resolve_connection()?).await
     }
 
     /// Applies the same final attributes to every model in this operation.
-    pub async fn createWith(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
-        self.createWithOn(&self.factory.resolve_connection()?, attributes)
+    pub async fn create_with(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
+        self.create_with_on(&self.factory.resolve_connection()?, attributes)
             .await
     }
 
-    pub async fn createWithOn(
+    pub async fn create_with_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.createWithStateOn(connection, |_| attributes.clone())
+        self.create_with_state_on(connection, |_| attributes.clone())
             .await
     }
 
     /// Computes the final state separately for every model in the batch.
-    pub async fn createWithState(
+    pub async fn create_with_state(
         &self,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.createWithStateOn(&self.factory.resolve_connection()?, state)
+        self.create_with_state_on(&self.factory.resolve_connection()?, state)
             .await
     }
 
-    pub async fn createWithStateOn(
+    pub async fn create_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        Box::pin(self.create_with_state(connection, &[], None, state)).await
+        Box::pin(self.create_with_state_on_prepared(connection, &[], None, state)).await
     }
 
     /// Inserts the generated batch in one statement after running afterMaking callbacks.
     pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
-        self.insertOn(&self.factory.resolve_connection()?, attributes)
+        self.insert_on(&self.factory.resolve_connection()?, attributes)
             .await
     }
 
-    pub async fn insertOn(
+    pub async fn insert_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<()> {
         let models = self
-            .make_with_state(connection, &self.factory.recycled, None, |_| {
+            .make_with_state_on_prepared(connection, &self.factory.recycled, None, |_| {
                 attributes.clone()
             })
             .await?;
@@ -2763,69 +2765,75 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     /// Inserts a batch constructed with a parent available to factory states.
-    pub async fn insertWithParent<P: Model>(
+    pub async fn insert_with_parent<P: Model>(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<()> {
-        self.insertWithParentOn(&self.factory.resolve_connection()?, parent, attributes)
+        self.insert_with_parent_on(&self.factory.resolve_connection()?, parent, attributes)
             .await
     }
 
-    pub async fn insertWithParentOn<P: Model>(
+    pub async fn insert_with_parent_on<P: Model>(
         &self,
         connection: &Connection,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<()> {
         let models = self
-            .makeWithParentOn(connection, parent, attributes)
+            .make_with_parent_on(connection, parent, attributes)
             .await?;
         Factory::<M>::insert_models(connection, models.into_iter().collect()).await
     }
 
-    pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
+    pub async fn create_on(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
         Box::pin(self.create_with_pool(connection, &[], None)).await
     }
 
-    pub async fn createQuietly(&self) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.create()).await
+    pub async fn create_quietly(&self) -> DatabaseResult<Collection<M>> {
+        M::without_events(self.create()).await
     }
 
-    pub async fn createQuietlyOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createOn(connection)).await
+    pub async fn create_quietly_on(
+        &self,
+        connection: &Connection,
+    ) -> DatabaseResult<Collection<M>> {
+        M::without_events(self.create_on(connection)).await
     }
 
     /// Applies the same final attributes to every model in this operation.
-    pub async fn createQuietlyWith(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
-        self.createQuietlyWithOn(&self.factory.resolve_connection()?, attributes)
+    pub async fn create_quietly_with(
+        &self,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.create_quietly_with_on(&self.factory.resolve_connection()?, attributes)
             .await
     }
 
-    pub async fn createQuietlyWithOn(
+    pub async fn create_quietly_with_on(
         &self,
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.createQuietlyWithStateOn(connection, |_| attributes.clone())
+        self.create_quietly_with_state_on(connection, |_| attributes.clone())
             .await
     }
 
     /// Computes the final state separately for every model in the batch.
-    pub async fn createQuietlyWithState(
+    pub async fn create_quietly_with_state(
         &self,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        self.createQuietlyWithStateOn(&self.factory.resolve_connection()?, state)
+        self.create_quietly_with_state_on(&self.factory.resolve_connection()?, state)
             .await
     }
 
-    pub async fn createQuietlyWithStateOn(
+    pub async fn create_quietly_with_state_on(
         &self,
         connection: &Connection,
         state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
-        M::withoutEvents(self.createWithStateOn(connection, state)).await
+        M::without_events(self.create_with_state_on(connection, state)).await
     }
 
     async fn create_with_pool(
@@ -2834,11 +2842,11 @@ impl<M: Model> FactoryBatch<M> {
         inherited: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
-        self.create_with_state(connection, inherited, relation, |_| Attributes::new())
+        self.create_with_state_on_prepared(connection, inherited, relation, |_| Attributes::new())
             .await
     }
 
-    async fn create_with_state(
+    async fn create_with_state_on_prepared(
         &self,
         connection: &Connection,
         inherited: &[RecycledModel],
@@ -2847,7 +2855,7 @@ impl<M: Model> FactoryBatch<M> {
     ) -> DatabaseResult<Collection<M>> {
         let pool = self.factory.recycle_pool(inherited);
         let mut models = self
-            .make_with_state(connection, &pool, relation, state)
+            .make_with_state_on_prepared(connection, &pool, relation, state)
             .await?;
         self.store_models(
             connection,

@@ -253,7 +253,7 @@ fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool)
             })),
         ])
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|_, _| true);
+            exceptions.should_render_json_when(|_, _| true);
         })
         .with_routing(Routing::default().web(routes))
         .create()

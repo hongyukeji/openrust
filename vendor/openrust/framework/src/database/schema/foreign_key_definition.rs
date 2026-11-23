@@ -13,7 +13,6 @@ pub struct ForeignKeyDefinition {
     pub(super) lock: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ForeignKeyDefinition {
     pub(super) fn new(columns: &[&str], name: Option<&str>) -> Self {
         Self {
@@ -32,10 +31,10 @@ impl ForeignKeyDefinition {
     }
 
     pub fn references(&mut self, column: &str) -> &mut Self {
-        self.referencesColumns(&[column])
+        self.references_columns(&[column])
     }
 
-    pub fn referencesColumns(&mut self, columns: &[&str]) -> &mut Self {
+    pub fn references_columns(&mut self, columns: &[&str]) -> &mut Self {
         self.foreign_columns = columns.iter().map(|column| (*column).to_owned()).collect();
         self
     }
@@ -45,12 +44,12 @@ impl ForeignKeyDefinition {
         self
     }
 
-    pub fn onDelete(&mut self, action: &str) -> &mut Self {
+    pub fn on_delete(&mut self, action: &str) -> &mut Self {
         self.on_delete = Some(action.to_owned());
         self
     }
 
-    pub fn onUpdate(&mut self, action: &str) -> &mut Self {
+    pub fn on_update(&mut self, action: &str) -> &mut Self {
         self.on_update = Some(action.to_owned());
         self
     }
@@ -62,40 +61,40 @@ impl ForeignKeyDefinition {
     }
 
     /// Chooses the initial check timing for a deferrable PostgreSQL constraint.
-    pub fn initiallyImmediate(&mut self, enabled: bool) -> &mut Self {
+    pub fn initially_immediate(&mut self, enabled: bool) -> &mut Self {
         self.initially_immediate = Some(enabled);
         self
     }
 
     /// Skips validation of existing rows when PostgreSQL adds the foreign key.
-    pub fn notValid(&mut self) -> &mut Self {
+    pub fn not_valid(&mut self) -> &mut Self {
         self.not_valid = true;
         self
     }
 
-    pub fn cascadeOnDelete(&mut self) -> &mut Self {
-        self.onDelete("cascade")
+    pub fn cascade_on_delete(&mut self) -> &mut Self {
+        self.on_delete("cascade")
     }
-    pub fn restrictOnDelete(&mut self) -> &mut Self {
-        self.onDelete("restrict")
+    pub fn restrict_on_delete(&mut self) -> &mut Self {
+        self.on_delete("restrict")
     }
-    pub fn nullOnDelete(&mut self) -> &mut Self {
-        self.onDelete("set null")
+    pub fn null_on_delete(&mut self) -> &mut Self {
+        self.on_delete("set null")
     }
-    pub fn noActionOnDelete(&mut self) -> &mut Self {
-        self.onDelete("no action")
+    pub fn no_action_on_delete(&mut self) -> &mut Self {
+        self.on_delete("no action")
     }
-    pub fn cascadeOnUpdate(&mut self) -> &mut Self {
-        self.onUpdate("cascade")
+    pub fn cascade_on_update(&mut self) -> &mut Self {
+        self.on_update("cascade")
     }
-    pub fn restrictOnUpdate(&mut self) -> &mut Self {
-        self.onUpdate("restrict")
+    pub fn restrict_on_update(&mut self) -> &mut Self {
+        self.on_update("restrict")
     }
-    pub fn nullOnUpdate(&mut self) -> &mut Self {
-        self.onUpdate("set null")
+    pub fn null_on_update(&mut self) -> &mut Self {
+        self.on_update("set null")
     }
-    pub fn noActionOnUpdate(&mut self) -> &mut Self {
-        self.onUpdate("no action")
+    pub fn no_action_on_update(&mut self) -> &mut Self {
+        self.on_update("no action")
     }
 
     pub fn inplace(&mut self) -> &mut Self {

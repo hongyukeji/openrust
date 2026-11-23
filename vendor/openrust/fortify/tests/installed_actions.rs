@@ -87,7 +87,7 @@ async fn installed_password_action_checks_web_guard_independently_of_the_updated
             .unwrap();
         manager.via_request(driver, move |_| {
             let mut user = app::models::User::from_state(ModelState::default());
-            user.setAttribute("password", hash.clone());
+            user.set_attribute("password", hash.clone());
             Box::pin(async move { Ok(Some(Box::new(user) as Box<dyn Authenticatable>)) })
         });
     }

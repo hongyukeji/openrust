@@ -132,7 +132,7 @@ fn registerViews(
         }
         let path = openrust::support::facades::View::get_facade_root()
             .ok()
-            .and_then(|factory| factory.getFinder().find(view.name()).ok())
+            .and_then(|factory| factory.get_finder().find(view.name()).ok())
             .map(|path| {
                 path.strip_prefix(&base)
                     .map(std::path::Path::to_path_buf)
@@ -465,7 +465,7 @@ impl NativeWatcher {
                 .option("QueryWatcher", "slow")
                 .and_then(|v| v.as_f64())
                 .is_some_and(|limit| time >= limit);
-            let entry = IncomingEntry::make(json!({"connection":event.connection.get_name(),"driver":event.connection.getDriverName(),"bindings":[],"sql":event.toRawSql()?,"time":format!("{time:.2}"),"slow":slow,"file":null,"line":null,"hash":format!("{:x}",md5::compute(&event.sql))}).as_object().unwrap().clone())?;
+            let entry = IncomingEntry::make(json!({"connection":event.connection.get_name(),"driver":event.connection.get_driver_name(),"bindings":[],"sql":event.to_raw_sql()?,"time":format!("{time:.2}"),"slow":slow,"file":null,"line":null,"hash":format!("{:x}",md5::compute(&event.sql))}).as_object().unwrap().clone())?;
             telescope.recordQuery(if slow { entry.tags(["slow"]) } else { entry });
         } else if let Some(event) = event.downcast_ref::<openrust::log::events::MessageLogged>() {
             if let Some(exception) = event.exception.as_ref().and_then(Value::as_object)

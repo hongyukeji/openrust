@@ -147,7 +147,7 @@ impl<'tx> EventContext<'tx> {
 
     pub(super) fn active_transaction(&mut self) -> Option<&mut crate::database::Transaction> {
         self.transaction()
-            .filter(|transaction| transaction.transactionLevel() != 0)
+            .filter(|transaction| transaction.transaction_level() != 0)
     }
 
     pub fn transaction(&mut self) -> Option<&mut crate::database::Transaction> {

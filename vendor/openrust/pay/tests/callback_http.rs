@@ -115,7 +115,7 @@ async fn signed_http_callbacks_acknowledge_only_committed_business_and_recover_d
     );
 
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("callback_business", |t| {
             t.string("id", 32).primary();
         })
@@ -222,8 +222,8 @@ async fn signed_http_callbacks_acknowledge_only_committed_business_and_recover_d
         "pay_migrations",
     ] {
         connection
-            .getSchemaBuilder()
-            .dropIfExists(table)
+            .get_schema_builder()
+            .drop_if_exists(table)
             .await
             .unwrap();
     }

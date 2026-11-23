@@ -25,7 +25,7 @@ pub async fn verify(
 
 <span id="verification-after-email-change"></span>
 
-验证链接只适用于当前邮箱的准确写法，包括大小写。应用更换邮箱时，应在同一次数据库更新中清除 `email_verified_at`，并发送新链接。保存验证状态时，应以当前邮箱和未设置的验证时间作为更新条件。用 `whereExactText` 匹配邮箱可避免排序规则影响。并发请求中只有写入时间戳的一次会派送 `Verified`。
+验证链接只适用于当前邮箱的准确写法，包括大小写。应用更换邮箱时，应在同一次数据库更新中清除 `email_verified_at`，并发送新链接。保存验证状态时，应以当前邮箱和未设置的验证时间作为更新条件。用 `where_exact_text` 匹配邮箱可避免排序规则影响。并发请求中只有写入时间戳的一次会派送 `Verified`。
 
 <span id="default-email-verification-mail"></span>
 

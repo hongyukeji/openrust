@@ -256,7 +256,7 @@ async fn custom_renderers_precede_fallback_and_debug_sources_are_escaped() {
                     "/no-content" => Some(Response::empty(StatusCode::NO_CONTENT)),
                     _ => None,
                 })
-                .shouldRenderJsonWhen(|request, _| request.expects_json())
+                .should_render_json_when(|request, _| request.expects_json())
                 .respond(|mut response, _, _| {
                     response
                         .parts_mut()
@@ -459,7 +459,7 @@ async fn collection_dd_responds_to_the_current_request_only() {
 
     fn debug_dump(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            match LazyCollection::from(["<diagnostic>"]).ddWith(&[&"request stop"])? {}
+            match LazyCollection::from(["<diagnostic>"]).dd_with(&[&"request stop"])? {}
         })
     }
 

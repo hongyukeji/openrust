@@ -97,9 +97,9 @@ pub fn configure_resources(container: &Container) -> Result<(), BindingResolutio
 
 ### 模型默认资源 {#default-model-resources}
 
-为模型实现 `UseResource`，声明 `type Resource = AccountResource`。资源实现 `JsonResource` 和 `From<Account>`。`toResource()` 与 `to_resource_collection()` 据此选择默认资源，关联关系在编译期检查。
+为模型实现 `UseResource`，声明 `type Resource = AccountResource`。资源实现 `JsonResource` 和 `From<Account>`。`to_resource()` 与 `to_resource_collection()` 据此选择默认资源，关联关系在编译期检查。
 
-可覆盖 `UseResource::resource_collection`，根据原始集合或分页器创建自定义集合响应。默认推断遇到空集合时输出 `data: []`，并保留分页信息。用 `toResourceWith` 或 `to_resource_collection_with` 显式选择元素资源，用 `to_resource_collection_using` 传入显式集合工厂。
+可覆盖 `UseResource::resource_collection`，根据原始集合或分页器创建自定义集合响应。默认推断遇到空集合时输出 `data: []`，并保留分页信息。用 `to_resource_with` 或 `to_resource_collection_with` 显式选择元素资源，用 `to_resource_collection_using` 传入显式集合工厂。
 
 ```rust
 use openrust::{
@@ -109,7 +109,7 @@ use openrust::{
 };
 
 pub fn account_resource<M: UseResource>(account: M) -> M::Resource {
-    account.toResource()
+    account.to_resource()
 }
 
 pub fn account_resources<M: UseResource>(accounts: Collection<M>) -> impl JsonResource + Send {
@@ -183,8 +183,8 @@ use serde_json::{Map, Value};
 
 pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
     let level = Conditional::when_pivot_loaded(model, "memberships", || {
-        let value = model.getRelation::<Pivot>("pivot")
-            .and_then(|row| row.getAttribute("level"));
+        let value = model.get_relation::<Pivot>("pivot")
+            .and_then(|row| row.get_attribute("level"));
         match value {
             Some(AttributeValue::Text(level)) => Value::String(level.clone()),
             _ => Value::Null,
@@ -284,7 +284,7 @@ pub fn relationships<R: JsonApiResource + 'static>(visible: Vec<R>) -> JsonApiRe
 
 ### 自动加载关联 {#jsonapi-automatic-loading}
 
-实现 `include_path`，把允许的 JSON:API 路径映射到 `Model::namedRelations` 登记的路径，并通过 `model_mut` 返回模型。路由返回单资源、集合或分页时，框架会在序列化前批量补载缺失关联。`to_relationships` 中声明的闭包读取加载结果。手动构造响应时，使用 `to_response_async(request).await`。
+实现 `include_path`，把允许的 JSON:API 路径映射到 `Model::named_relations` 登记的路径，并通过 `model_mut` 返回模型。路由返回单资源、集合或分页时，框架会在序列化前批量补载缺失关联。`to_relationships` 中声明的闭包读取加载结果。手动构造响应时，使用 `to_response_async(request).await`。
 
 例如 `reports.reports` 可映射为 `directReports.directReports`。请显式映射每条允许自动加载的路径。
 

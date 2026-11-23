@@ -44,7 +44,7 @@ impl ServiceProvider for ProbeProvider {
                             Some(serde_json::json!("finished"))
                         );
                         assert_eq!(
-                            Context::getHidden("stage").unwrap(),
+                            Context::get_hidden("stage").unwrap(),
                             Some(serde_json::json!("private finished"))
                         );
                         assert_eq!(Context::get("old").unwrap(), None);

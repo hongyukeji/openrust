@@ -38,7 +38,7 @@ struct User(ModelState);
 impl Model for User {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("auth_test_users")
-            .primaryKey("identity")
+            .primary_key("identity")
             .incrementing(false)
             .timestamps(None, None);
         &META
@@ -59,7 +59,7 @@ impl Authenticatable for User {
         "identity"
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.getKey().unwrap().try_into().unwrap()
+        self.get_key().unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
@@ -71,19 +71,19 @@ impl Authenticatable for User {
         field(self, "remember_token")
     }
     fn set_remember_token(&mut self, token: Option<String>) {
-        self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
+        self.set_attribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
     fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name)
+        self.get_attribute_value(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
 }
 
 fn field<'a>(user: &'a User, name: &str) -> Option<&'a str> {
-    match user.getAttribute(name) {
+    match user.get_attribute(name) {
         Some(Value::Text(value)) => Some(value),
         _ => None,
     }
@@ -423,7 +423,7 @@ async fn verify(database: Json, database_sessions: bool) {
     assert_ne!(updated, &hash);
     assert!(
         !hasher
-            .needsRehash(updated, &HashOptions::default())
+            .needs_rehash(updated, &HashOptions::default())
             .unwrap()
     );
 
@@ -438,9 +438,9 @@ async fn verify(database: Json, database_sessions: bool) {
     let encrypted = percent_encoding::percent_decode_str(remember.split_once('=').unwrap().1)
         .decode_utf8()
         .unwrap();
-    let clear = encrypter.decryptString(&encrypted).unwrap();
+    let clear = encrypter.decrypt_string(&encrypted).unwrap();
     let clear =
-        CookieValuePrefix::validate("remember_web", &clear, encrypter.getAllKeys()).unwrap();
+        CookieValuePrefix::validate("remember_web", &clear, encrypter.get_all_keys()).unwrap();
     let recaller: Json = serde_json::from_slice(clear).unwrap();
     assert_eq!(recaller["id"], "001");
     assert!(

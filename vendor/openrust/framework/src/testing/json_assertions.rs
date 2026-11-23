@@ -350,7 +350,7 @@ fn is_php_list(value: &Value) -> bool {
 }
 
 fn sorted(value: &Value) -> Value {
-    Arr::sortRecursive(value, false).expect("JSON 深度超过支持范围")
+    Arr::sort_recursive(value, false).expect("JSON 深度超过支持范围")
 }
 
 pub(super) fn encode(value: &Value) -> String {

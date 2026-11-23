@@ -137,39 +137,38 @@ impl<R: Relation> DynamicRelation<R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<R: Relation> Relation for DynamicRelation<R> {
     type Parent = R::Parent;
     type Output = R::Output;
 
-    fn isEmptyCollection(output: &Self::Output) -> bool {
-        R::isEmptyCollection(output)
+    fn is_empty_collection(output: &Self::Output) -> bool {
+        R::is_empty_collection(output)
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::relations::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
-        R::pushLoaded(output, context)
+        R::push_loaded(output, context)
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
-        R::autoloadOutput(output)
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
+        R::autoload_output(output)
     }
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
-        R::attachAutoload(outputs);
+    fn attach_autoload(outputs: &mut [Self::Output]) {
+        R::attach_autoload(outputs);
     }
 
     fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
         R::serialize(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
-        R::queueableRelations(output)
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
+        R::queueable_relations(output)
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a Self::Parent],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
@@ -180,22 +179,21 @@ impl<R: Relation> Relation for DynamicRelation<R> {
                 .collect::<DatabaseResult<Vec<_>>>()?;
             let mut results = Vec::with_capacity(parents.len());
             for (parent, descriptor) in parents.iter().zip(descriptors) {
-                results.push(descriptor.getResults(parent).await?);
+                results.push(descriptor.get_results(parent).await?);
             }
             Ok(results)
         })
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<R: ExistenceRelation> ExistenceRelation for DynamicRelation<R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
     ) -> DatabaseResult<crate::database::query::Builder<'static>> {
-        let prototype = R::Parent::newInstanceOn(connection, Attributes::new())?;
+        let prototype = R::Parent::new_instance_on(connection, Attributes::new())?;
         self.resolve(&prototype)?
-            .getRelationExistenceQuery(connection, parent_table)
+            .get_relation_existence_query(connection, parent_table)
     }
 }

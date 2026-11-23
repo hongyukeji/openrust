@@ -160,7 +160,7 @@ impl<M: Model> JsonResource for ModelResource<M> {
     }
 
     fn status(&self) -> StatusCode {
-        if self.0.state().wasRecentlyCreated() {
+        if self.0.state().was_recently_created() {
             StatusCode::CREATED
         } else {
             StatusCode::OK

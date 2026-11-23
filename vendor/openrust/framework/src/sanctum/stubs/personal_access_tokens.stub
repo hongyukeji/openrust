@@ -13,7 +13,7 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("personal_access_tokens", |table| -> DatabaseResult<()> {
                     table.comment(__(
                         "schema.tables.personal_access_tokens",
@@ -52,7 +52,7 @@ impl Migration for Definition {
                         .nullable()
                         .comment(__("schema.columns.updated_at", &Default::default())?);
 
-                    for column in table.getColumnsMut() {
+                    for column in table.get_columns_mut() {
                         match column.get_name() {
                             "tokenable_type" => {
                                 column.comment(__(
@@ -81,8 +81,8 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
-                .dropIfExists("personal_access_tokens")
+                .get_schema_builder()
+                .drop_if_exists("personal_access_tokens")
                 .await
         })
     }

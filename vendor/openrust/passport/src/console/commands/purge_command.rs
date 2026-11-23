@@ -67,7 +67,7 @@ impl Command for PurgeCommand {
                 return Err(ConsoleError::new("Invalid purge hours"));
             }
             let current = Date::now(None).map_err(error)?;
-            let now = current.asDateTime();
+            let now = current.as_date_time();
             let cutoff = now
                 .checked_sub(jiff::SignedDuration::from_micros(
                     (hours * 3600. * 1_000_000.) as i64,
@@ -113,7 +113,7 @@ fn human_interval(start: jiff::Zoned, end: jiff::Zoned) -> Result<String, Consol
     };
     let mut months = i64::from(end.year() - start.year()) * 12 + i64::from(end.month())
         - i64::from(start.month());
-    let candidate = Date::fromUtc(start.timestamp(), start.time_zone().clone())
+    let candidate = Date::from_utc(start.timestamp(), start.time_zone().clone())
         .plus(
             openrust::support::DateInterval {
                 months,
@@ -122,7 +122,7 @@ fn human_interval(start: jiff::Zoned, end: jiff::Zoned) -> Result<String, Consol
             openrust::support::MonthOverflow::Clamp,
         )
         .map_err(error)?;
-    if candidate.asDateTime() > end {
+    if candidate.as_date_time() > end {
         months -= 1;
     }
     let plural = |n, unit: &str| format!("{n} {unit}{}", if n == 1 { "" } else { "s" });

@@ -3,7 +3,7 @@ use crate::{
     contracts::{http::Middleware, session::Session as _},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
     session::{PASSWORD_CONFIRMED_AT, unix_seconds},
-    support::facades::{Redirect, URL},
+    support::facades::{Redirect, Url},
 };
 
 /// Requires a recent confirmation of the authenticated user's password.
@@ -66,7 +66,7 @@ impl Middleware for RequirePassword {
                     serde_json::json!({"message": "Password confirmation required."}),
                 );
             }
-            let target = URL::route(
+            let target = Url::route(
                 self.route.as_deref().unwrap_or("password.confirm"),
                 &[],
                 true,

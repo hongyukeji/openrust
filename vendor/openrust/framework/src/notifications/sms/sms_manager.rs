@@ -81,7 +81,7 @@ impl SmsManager {
         Ok(name)
     }
 
-    /// Resolves each named profile once until `forgetDrivers` is called.
+    /// Resolves each named profile once until `forget_drivers` is called.
     /// Factories for different profiles can resolve independently.
     pub fn driver(&self, name: &str) -> NotificationResult<SmsSender> {
         let existing = self
@@ -124,15 +124,13 @@ impl SmsManager {
     }
 
     /// Returns the current configured default without creating a driver.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn get_default_driver(&self) -> NotificationResult<String> {
         self.profile_name(None)
     }
 
     /// Clears resolved profiles. Existing sender handles retain their original settings.
     /// Register replacement factories and update configuration before calling this method.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forgetDrivers(&self) -> &Self {
+    pub fn forget_drivers(&self) -> &Self {
         self.drivers
             .write()
             .expect("SMS driver cache lock poisoned")

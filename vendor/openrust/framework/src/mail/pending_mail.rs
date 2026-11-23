@@ -38,7 +38,6 @@ pub struct PendingMail {
     recipients: Recipients,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingMail {
     pub(super) fn new(manager: Arc<MailManager>, address: Address) -> Self {
         Self {
@@ -77,7 +76,7 @@ impl PendingMail {
             .await
     }
 
-    pub async fn sendNow(self, mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
+    pub async fn send_now(self, mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
         self.manager
             .mailer(mailable.mailer())?
             .send_now_to(mailable, self.recipients)

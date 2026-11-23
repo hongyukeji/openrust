@@ -39,7 +39,7 @@ async fn query_callbacks_consume_once_map_results_and_preserve_transactions_on_t
         let counter = before.clone();
         connection
             .table("alignment_rows")
-            .beforeQuery(move |query| {
+            .before_query(move |query| {
                 counter.fetch_add(1, Ordering::SeqCst);
                 Ok(query)
             })
@@ -58,20 +58,20 @@ async fn query_callbacks_consume_once_map_results_and_preserve_transactions_on_t
         let o = order.clone();
         let mut query = connection
             .table("alignment_rows")
-            .beforeQuery(move |query| {
+            .before_query(move |query| {
                 counter.fetch_add(1, Ordering::SeqCst);
                 o.lock().unwrap().push("before");
                 Ok(query.r#where("name", "=", "O'Reilly ?"))
             });
-        let sql = query.toSql().unwrap();
+        let sql = query.to_sql().unwrap();
         assert!(sql.contains('?'));
         assert!(!sql.contains("O'Reilly"));
-        let raw = query.toRawSql().unwrap();
+        let raw = query.to_raw_sql().unwrap();
         assert!(raw.contains("O''Reilly ?"));
         assert_eq!(before.load(Ordering::SeqCst), 2);
         let o = order.clone();
         let rows = query
-            .afterQuery(move |rows| {
+            .after_query(move |rows| {
                 o.lock().unwrap().push("after");
                 Ok(rows)
             })
@@ -84,7 +84,7 @@ async fn query_callbacks_consume_once_map_results_and_preserve_transactions_on_t
         assert_eq!(
             connection
                 .table("alignment_rows")
-                .beforeQuery(|query| Ok(query.r#where("id", "=", 2)))
+                .before_query(|query| Ok(query.r#where("id", "=", 2)))
                 .update(Record::from([("name".into(), "updated".into())]))
                 .await
                 .unwrap(),
@@ -92,8 +92,8 @@ async fn query_callbacks_consume_once_map_results_and_preserve_transactions_on_t
         );
         let rows = connection
             .table("alignment_rows")
-            .orderBy("id", "asc")
-            .afterQuery(|mut rows| {
+            .order_by("id", "asc")
+            .after_query(|mut rows| {
                 rows.reverse();
                 Ok(rows)
             })
@@ -106,14 +106,14 @@ async fn query_callbacks_consume_once_map_results_and_preserve_transactions_on_t
         let mut sub = connection
             .table("alignment_rows")
             .select(["id"])
-            .beforeQuery(move |query| {
+            .before_query(move |query| {
                 c.fetch_add(1, Ordering::SeqCst);
                 Ok(query.r#where("id", "=", 1))
             });
         for _ in 0..2 {
             let rows = connection
                 .table("alignment_rows")
-                .whereInSub("id", &mut sub)
+                .where_in_sub("id", &mut sub)
                 .unwrap()
                 .get()
                 .await
@@ -121,25 +121,25 @@ async fn query_callbacks_consume_once_map_results_and_preserve_transactions_on_t
             assert_eq!(rows.len(), 1);
         }
         assert_eq!(count.load(Ordering::SeqCst), 1);
-        let mut tx = connection.beginTransaction().await.unwrap();
+        let mut tx = connection.begin_transaction().await.unwrap();
         assert_eq!(
             tx.table("alignment_rows")
-                .beforeQuery(|query| Ok(query.r#where("id", "=", 1)))
+                .before_query(|query| Ok(query.r#where("id", "=", 1)))
                 .delete()
                 .await
                 .unwrap(),
             1
         );
-        tx.rollBack(None).await.unwrap();
+        tx.roll_back(None).await.unwrap();
         assert_eq!(
             connection.table("alignment_rows").count("*").await.unwrap(),
             2
         );
         let mut query = connection
             .table("alignment_rows")
-            .beforeQuery(|_| Err(openrust::database::DatabaseError::InvalidQuery("回调拒绝")));
-        assert!(query.toSql().is_err());
-        assert!(query.toSql().is_err());
+            .before_query(|_| Err(openrust::database::DatabaseError::InvalidQuery("回调拒绝")));
+        assert!(query.to_sql().is_err());
+        assert!(query.to_sql().is_err());
         assert_eq!(
             connection
                 .table("alignment_rows")

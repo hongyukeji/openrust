@@ -111,7 +111,7 @@ impl TokenGuard {
                 .get("provider")
                 .and_then(Value::as_str)
                 .ok_or(AuthError::Configuration("Passport provider"))?;
-            if matches!(client.getAttributeValue("provider").await.map_err(backend)?,Some(openrust::database::Value::Text(name)) if !name.is_empty() && name != provider)
+            if matches!(client.get_attribute_value("provider").await.map_err(backend)?,Some(openrust::database::Value::Text(name)) if !name.is_empty() && name != provider)
             {
                 return Ok(None);
             }

@@ -79,7 +79,7 @@ async fn runtime_additions_reset_on_set_data_but_append_rules_becomes_initial() 
         !validator
             .errors()
             .get("token", None)
-            .intoMessages()
+            .into_messages()
             .is_empty()
     );
     validator.set_value("token", json!("ok")).unwrap();
@@ -160,7 +160,7 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
         .unwrap(),
     );
     translator
-        .addLines(
+        .add_lines(
             BTreeMap::from([(
                 "validation.required".into(),
                 Line::Text("新的必填错误".into()),

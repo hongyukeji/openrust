@@ -103,13 +103,12 @@ struct SleepLog {
 #[derive(Clone, Default)]
 pub struct SleepFake(Arc<Mutex<SleepLog>>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SleepFake {
     pub fn sequence(&self) -> Vec<Duration> {
         self.0.lock().expect("sleep log mutex").durations.clone()
     }
 
-    pub fn whenFakingSleep(&self, callback: impl Fn(Duration) + Send + Sync + 'static) {
+    pub fn when_faking_sleep(&self, callback: impl Fn(Duration) + Send + Sync + 'static) {
         self.0
             .lock()
             .expect("sleep log mutex")
@@ -117,15 +116,15 @@ impl SleepFake {
             .push(Arc::new(callback));
     }
 
-    pub fn assertSlept(&self, predicate: impl FnMut(&Duration) -> bool, times: usize) {
+    pub fn assert_slept(&self, predicate: impl FnMut(&Duration) -> bool, times: usize) {
         assert_eq!(self.sequence().into_iter().filter(predicate).count(), times);
     }
 
-    pub fn assertSleptTimes(&self, expected: usize) {
+    pub fn assert_slept_times(&self, expected: usize) {
         assert_eq!(self.sequence().len(), expected);
     }
 
-    pub fn assertSequence(&self, expected: &[Option<Duration>]) {
+    pub fn assert_sequence(&self, expected: &[Option<Duration>]) {
         let actual = self.sequence();
         assert_eq!(actual.len(), expected.len());
         for (actual, expected) in actual.into_iter().zip(expected) {
@@ -135,11 +134,11 @@ impl SleepFake {
         }
     }
 
-    pub fn assertNeverSlept(&self) {
-        self.assertSleptTimes(0);
+    pub fn assert_never_slept(&self) {
+        self.assert_slept_times(0);
     }
 
-    pub fn assertInsomniac(&self) {
+    pub fn assert_insomniac(&self) {
         assert!(self.sequence().iter().all(Duration::is_zero));
     }
 

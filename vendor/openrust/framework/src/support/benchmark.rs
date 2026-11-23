@@ -3,7 +3,6 @@ use std::{future::Future, num::NonZeroU32, time::Instant};
 /// Measures work with a monotonic clock and reports milliseconds.
 pub struct Benchmark;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Benchmark {
     pub fn value<T>(callback: impl FnOnce() -> T) -> (T, f64) {
         let start = Instant::now();
@@ -18,7 +17,7 @@ impl Benchmark {
         total / f64::from(iterations.get())
     }
 
-    pub fn measureMany<'a>(
+    pub fn measure_many<'a>(
         callbacks: &mut [(&'a str, &mut dyn FnMut())],
         iterations: NonZeroU32,
     ) -> Vec<(&'a str, f64)> {
@@ -28,7 +27,7 @@ impl Benchmark {
             .collect()
     }
 
-    pub async fn valueAsync<F: Future>(future: F) -> (F::Output, f64) {
+    pub async fn value_async<F: Future>(future: F) -> (F::Output, f64) {
         let start = Instant::now();
         let output = future.await;
         (output, start.elapsed().as_secs_f64() * 1_000.0)

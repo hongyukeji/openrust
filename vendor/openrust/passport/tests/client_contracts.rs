@@ -72,9 +72,9 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let cases = reference();
         for case in cases["secrets"].as_array().unwrap() {
             let mut client = Client::default();
-            client.state_mut().setAttribute("secret", "stored");
-            assert!(client.setAttributeValue("secret", "before").is_err());
-            let failed = client.setAttributeValue("secret", input(case)).is_err();
+            client.state_mut().set_attribute("secret", "stored");
+            assert!(client.set_attribute_value("secret", "before").is_err());
+            let failed = client.set_attribute_value("secret", input(case)).is_err();
             assert_eq!(
                 failed,
                 case["expected"]["error"].as_bool().unwrap(),
@@ -84,7 +84,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             assert_eq!(plain, case["expected"]["plain"].as_str(), "{case}");
             if failed {
                 assert_eq!(
-                    client.getAttribute("secret"),
+                    client.get_attribute("secret"),
                     Some(&Value::Text("stored".into()))
                 );
             }
@@ -92,10 +92,10 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         for case in cases["secrets"].as_array().unwrap().iter().take(13) {
             let mut client = Client::default();
             client
-                .setAttributeValueAsync("secret", input(case))
+                .set_attribute_value_async("secret", input(case))
                 .await
                 .unwrap();
-            let Some(Value::Text(hash)) = client.getAttribute("secret") else {
+            let Some(Value::Text(hash)) = client.get_attribute("secret") else {
                 panic!("hash missing")
             };
             assert!(
@@ -112,13 +112,13 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         // Mass assignment preserves earlier successful setters when a later setter fails.
         let mut client = Client::default();
         client
-            .setAttributeValueAsync("secret", "old")
+            .set_attribute_value_async("secret", "old")
             .await
             .unwrap();
-        let old = client.getAttribute("secret").cloned();
+        let old = client.get_attribute("secret").cloned();
         assert!(
             client
-                .fillAsync(Attributes::from([
+                .fill_async(Attributes::from([
                     ("name".into(), "earlier".into()),
                     ("secret".into(), Value::Json(json!([]))),
                 ]))
@@ -126,14 +126,14 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .is_err()
         );
         assert_eq!(
-            client.getAttribute("name"),
+            client.get_attribute("name"),
             Some(&Value::Text("earlier".into()))
         );
-        assert_eq!(client.getAttribute("secret"), old.as_ref());
+        assert_eq!(client.get_attribute("secret"), old.as_ref());
         assert_eq!(client.plainSecret.as_ref().unwrap().as_str(), "old");
         assert!(
             client
-                .fillAsync(Attributes::from([
+                .fill_async(Attributes::from([
                     ("created_at".into(), "invalid date".into()),
                     ("secret".into(), "unreached".into()),
                 ]))
@@ -143,7 +143,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         assert_eq!(client.plainSecret.as_ref().unwrap().as_str(), "old");
         assert!(
             client
-                .fillAsync(Attributes::from([
+                .fill_async(Attributes::from([
                     ("secret".into(), "retained".into()),
                     ("updated_at".into(), "invalid date".into()),
                 ]))
@@ -151,7 +151,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .is_err()
         );
         assert_eq!(client.plainSecret.as_ref().unwrap().as_str(), "retained");
-        assert_ne!(client.getAttribute("secret"), old.as_ref());
+        assert_ne!(client.get_attribute("secret"), old.as_ref());
         Response::json(
             StatusCode::OK,
             json!({"passed":true,"secrets":538,"hashes":13}),

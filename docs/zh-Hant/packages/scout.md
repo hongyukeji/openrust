@@ -45,13 +45,13 @@ app.make::<EngineManager>().await?
 ```rust
 let page = Article::search("rust")?
     .where_in("category", vec![1_i64.into(), 2_i64.into()])
-    .orderBy("id", "asc")
+    .order_by("id", "asc")
     .paginate(15, 1).await?;
 ```
 
-支援 `where(field, operator, value)`、`where_in`、`where_not_in`、`orderBy`、`orderByDesc`、`latest`、`oldest` 和 `take`。Rust 使用明確運算子參數表達 PHP 兩參數 `where` 的多載。集合引擎未指定排序時按 Scout 鍵倒序。`with_trashed` 和 `only_trashed` 控制軟刪除結果。分頁使用原生分頁器，每頁筆數須為正數；集合分頁統計所有符合模型，設定 `take` 不改變該總數。
+支援 `where(field, operator, value)`、`where_in`、`where_not_in`、`order_by`、`order_by_desc`、`latest`、`oldest` 和 `take`。Rust 使用明確運算子參數表達 PHP 兩參數 `where` 的多載。集合引擎未指定排序時按 Scout 鍵倒序。`with_trashed` 和 `only_trashed` 控制軟刪除結果。分頁使用原生分頁器，每頁筆數須為正數；集合分頁統計所有符合模型，設定 `take` 不改變該總數。
 
-`raw` 回傳有序 ID、總數和提供方 JSON。`keys`、`first`、`get`、`paginate` 和 `simplePaginate` 回傳 ID、模型或分頁。`cursor` 回傳串流：集合比對先確定 ID，再透過原生 SQL 按結果順序串流讀取模型。`query(callback)` 修改模型載入查詢；`callback` 取代集合引擎初始資料庫篩選；`withRawResults` 在映射模型前調整原始結果。回呼回傳 `Result` 並保留錯誤。`within` 和 `options` 向自訂引擎傳遞設定；集合引擎沒有具名索引。
+`raw` 回傳有序 ID、總數和提供方 JSON。`keys`、`first`、`get`、`paginate` 和 `simple_paginate` 回傳 ID、模型或分頁。`cursor` 回傳串流：集合比對先確定 ID，再透過原生 SQL 按結果順序串流讀取模型。`query(callback)` 修改模型載入查詢；`callback` 取代集合引擎初始資料庫篩選；`withRawResults` 在映射模型前調整原始結果。回呼回傳 `Result` 並保留錯誤。`within` 和 `options` 向自訂引擎傳遞設定；集合引擎沒有具名索引。
 
 ## 同步與佇列 {#synchronization}
 

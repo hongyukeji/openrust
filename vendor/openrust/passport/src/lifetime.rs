@@ -30,10 +30,10 @@ impl GrantLifetime {
                 ..Default::default()
             },
         };
-        Date::fromUtc(start, timezone)
+        Date::from_utc(start, timezone)
             .plus(interval, MonthOverflow::Carry)
             .map(|d| {
-                d.asDateTime()
+                d.as_date_time()
                     .timestamp()
                     .as_nanosecond()
                     .div_euclid(1_000_000_000) as i64
@@ -42,7 +42,7 @@ impl GrantLifetime {
     }
     pub(crate) fn for_application(self, now: i64) -> Result<i64, OAuthError> {
         let current = Date::now(None).map_err(|_| invalid())?;
-        self.expires_at_in(now, current.asDateTime().time_zone().clone())
+        self.expires_at_in(now, current.as_date_time().time_zone().clone())
     }
 }
 fn invalid() -> OAuthError {

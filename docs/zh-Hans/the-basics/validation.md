@@ -183,13 +183,13 @@ fn mailbox_rules() -> ValidationResult<RuleSet> {
 
 ### 排除敏感输入
 
-密码字段会从旧输入中排除。可在 `with_exceptions` 中用 `dontFlash` 注册额外路径。
+密码字段会从旧输入中排除。可在 `with_exceptions` 中用 `dont_flash` 注册额外路径。
 
 ```rust
 use openrust::foundation::configuration::Exceptions;
 
 fn configure(exceptions: &mut Exceptions) {
-    exceptions.dontFlash(["profile.secret"]);
+    exceptions.dont_flash(["profile.secret"]);
 }
 ```
 ## 标准规则与验证钩子
@@ -208,24 +208,24 @@ FormRequest 顺序为 `prepare_for_validation`、`authorize`、`with_validator`�
 
 ## 消息包 {#message-bags}
 
-使用 `MessageBag` 收集有序字段错误，`ViewErrorBag` 管理命名包。`add` 去重，`merge(&other)` 保留重复。`first(key, format)` 在没有消息时返回空字符串。`get(key, format)` 返回 `MessageLookup::Exact` 或保留字段名的通配映射；仅在确实需要扁平消息时调用 `intoMessages()`。
+使用 `MessageBag` 收集有序字段错误，`ViewErrorBag` 管理命名包。`add` 去重，`merge(&other)` 保留重复。`first(key, format)` 在没有消息时返回空字符串。`get(key, format)` 返回 `MessageLookup::Exact` 或保留字段名的通配映射；仅在确实需要扁平消息时调用 `into_messages()`。
 
 ```rust
 use openrust::support::{MessageBag, ViewErrorBag};
 
 let mut messages = MessageBag::new([("email", ["Invalid email"])]);
-messages.addIf(true, "name", "Required");
+messages.add_if(true, "name", "Required");
 assert_eq!(messages.first(Some("email"), None), "Invalid email");
 assert!(messages.has_any(["email", "phone"]));
-messages.setFormat(":key: :message");
+messages.set_format(":key: :message");
 assert_eq!(messages.first(Some("name"), None), "name: Required");
 let mut errors = ViewErrorBag::new();
 errors.put("profile", messages);
-assert_eq!(errors.getBag("profile").count(), 2);
+assert_eq!(errors.get_bag("profile").count(), 2);
 assert_eq!(errors.count(), 0);
 ```
 
-命名包计数及转发的只读方法只针对 `default` 包。读取缺失包不会登记它；用 `getBagMut` 修改已有包，或用 `put` 添加包。JSON 保存原始消息，不受显示格式影响；反序列化恢复默认格式。消息列表使用连续的 Rust 索引，JSON 选项遵循 Serde，不提供 PHP 数组索引、JSON 位标志或运行期动态方法分派。
+命名包计数及转发的只读方法只针对 `default` 包。读取缺失包不会登记它；用 `get_bag_mut` 修改已有包，或用 `put` 添加包。JSON 保存原始消息，不受显示格式影响；反序列化恢复默认格式。消息列表使用连续的 Rust 索引，JSON 选项遵循 Serde，不提供 PHP 数组索引、JSON 位标志或运行期动态方法分派。
 
 
 ## 标量与数字位数规则

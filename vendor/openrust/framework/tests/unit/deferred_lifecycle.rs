@@ -128,15 +128,15 @@ async fn worker_flushes_each_attempt_after_event_with_original_scope_and_failure
         .unwrap()
         .connection(None)
         .unwrap();
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("defer_jobs", |table| {
             table.id();
             table.string("queue", 255);
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();
@@ -203,5 +203,5 @@ async fn worker_flushes_each_attempt_after_event_with_original_scope_and_failure
             (4, true)
         ]
     );
-    db.getSchemaBuilder().drop("defer_jobs").await.unwrap();
+    db.get_schema_builder().drop("defer_jobs").await.unwrap();
 }

@@ -75,11 +75,11 @@ impl<M: Searchable> Observer<M> for ModelObserver {
         Box::pin(async move {
             if self.manager.syncingDisabledFor::<M>()
                 || !model.wasSearchableBeforeDelete()
-                || (model.getDeletedAtColumn().is_some() && !model.state().exists())
+                || (model.get_deleted_at_column().is_some() && !model.state().exists())
             {
                 return Ok(ModelEventResponse::Continue);
             }
-            if self.manager.boolean("soft_delete") && model.getDeletedAtColumn().is_some() {
+            if self.manager.boolean("soft_delete") && model.get_deleted_at_column().is_some() {
                 self.saved(model, true).await
             } else {
                 self.manager

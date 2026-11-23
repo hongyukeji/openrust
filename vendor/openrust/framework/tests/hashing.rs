@@ -34,23 +34,23 @@ async fn supported_drivers_hash_verify_inspect_and_rehash() {
         let value = b"test\xff bytes";
         let stored = driver.make(value, &options).await.unwrap();
         let info = driver.info(&stored).unwrap();
-        assert_eq!(info.algoName, name);
+        assert_eq!(info.algo_name, name);
         assert!(driver.check(value, &stored, &options).await.unwrap());
         assert!(!driver.check(b"wrong", &stored, &options).await.unwrap());
         assert!(!driver.check(value, "", &options).await.unwrap());
-        assert!(driver.verifyConfiguration(&stored).unwrap());
-        assert!(!driver.needsRehash(&stored, &options).unwrap());
+        assert!(driver.verify_configuration(&stored).unwrap());
+        assert!(!driver.needs_rehash(&stored, &options).unwrap());
         assert!(
             driver
-                .needsRehash(&stored, override_options.as_object().unwrap())
+                .needs_rehash(&stored, override_options.as_object().unwrap())
                 .unwrap()
         );
         let changed = driver
             .make(value, override_options.as_object().unwrap())
             .await
             .unwrap();
-        assert!(!driver.verifyConfiguration(&changed).unwrap());
-        assert!(driver.needsRehash(&changed, &options).unwrap());
+        assert!(!driver.verify_configuration(&changed).unwrap());
+        assert!(driver.needs_rehash(&changed, &options).unwrap());
         assert!(matches!(
             driver.check(value, "malformed", &options).await,
             Err(HashError::AlgorithmMismatch)
@@ -66,7 +66,7 @@ async fn supported_drivers_hash_verify_inspect_and_rehash() {
         ..config
     });
     assert!(migration.check(b"hello", &stored, &options).await.unwrap());
-    assert!(migration.needsRehash(&stored, &options).unwrap());
+    assert!(migration.needs_rehash(&stored, &options).unwrap());
     let limited = BcryptHasher::new(BcryptConfig {
         rounds: 4,
         limit: Some(4),
@@ -102,7 +102,7 @@ async fn historical_2x_hashes_use_php_compatible_byte_verification() {
             row["valid"].as_bool().unwrap()
         );
         assert!(!hasher.check(b"wrong", hashed, &options).await.unwrap());
-        assert!(hasher.needsRehash(hashed, &options).unwrap());
+        assert!(hasher.needs_rehash(hashed, &options).unwrap());
         assert_eq!(hasher.info(hashed).unwrap().algo, None);
     }
 }
@@ -169,10 +169,10 @@ async fn historical_argon2_version_16_matches_php_verification() {
             .unwrap()
             .to_string();
         assert!(driver.check(b"sample", &encoded, &options).await.unwrap());
-        assert!(!driver.needsRehash(&encoded, &options).unwrap());
+        assert!(!driver.needs_rehash(&encoded, &options).unwrap());
         let legacy = encoded.replace("$v=16", "");
         assert!(driver.check(b"sample", &legacy, &options).await.unwrap());
-        assert!(driver.needsRehash(&legacy, &options).unwrap());
+        assert!(driver.needs_rehash(&legacy, &options).unwrap());
     }
 }
 
@@ -197,7 +197,7 @@ async fn custom_driver_is_lazy_cached_and_replaced_only_after_forgetting() {
         manager.driver(Some("bcrypt"))
     });
     assert_eq!(count.load(Ordering::Relaxed), 0);
-    assert!(manager.getDrivers().is_empty());
+    assert!(manager.get_drivers().is_empty());
     assert!(matches!(other.driver(None), Err(HashError::UnknownDriver)));
 
     let cached = manager.driver(None).unwrap();
@@ -206,17 +206,17 @@ async fn custom_driver_is_lazy_cached_and_replaced_only_after_forgetting() {
     assert_eq!(count.load(Ordering::Relaxed), 1);
     manager.extend("registered", |manager| manager.driver(Some("argon2id")));
     assert!(Arc::ptr_eq(&cached, &manager.driver(None).unwrap()));
-    manager.forgetDrivers();
+    manager.forget_drivers();
     let options = HashOptions::new();
     let encoded = manager.make(b"test password", &options).await.unwrap();
-    assert_eq!(manager.info(&encoded).unwrap().algoName, "argon2id");
+    assert_eq!(manager.info(&encoded).unwrap().algo_name, "argon2id");
     assert!(
         manager
             .check(b"test password", &encoded, &options)
             .await
             .unwrap()
     );
-    assert!(!manager.needsRehash(&encoded, &options).unwrap());
+    assert!(!manager.needs_rehash(&encoded, &options).unwrap());
 }
 
 #[test]
@@ -237,8 +237,8 @@ fn custom_driver_failures_and_cycles_leave_the_cache_retryable() {
     let owner = Arc::downgrade(&manager);
     peer.extend("custom", move |_| Ok(owner.upgrade().unwrap()));
     assert!(matches!(manager.driver(None), Err(HashError::DriverBusy)));
-    assert!(manager.getDrivers().is_empty());
-    assert!(peer.getDrivers().is_empty());
+    assert!(manager.get_drivers().is_empty());
+    assert!(peer.get_drivers().is_empty());
 
     let attempted = AtomicBool::new(false);
     peer.extend("custom", move |manager| {
@@ -252,7 +252,7 @@ fn custom_driver_failures_and_cycles_leave_the_cache_retryable() {
         manager.driver(None),
         Err(HashError::InvalidOptions)
     ));
-    assert!(manager.getDrivers().is_empty());
+    assert!(manager.get_drivers().is_empty());
     assert!(Arc::ptr_eq(
         &manager.driver(None).unwrap(),
         &peer.driver(None).unwrap()
@@ -270,18 +270,18 @@ fn concurrent_custom_resolution_and_forget_do_not_publish_an_old_instance() {
     manager.extend("custom", move |manager| {
         signals.0.wait();
         signals.1.wait();
-        Ok(Arc::new(manager.createBcryptDriver()?))
+        Ok(Arc::new(manager.create_bcrypt_driver()?))
     });
     let active = manager.clone();
     let task = std::thread::spawn(move || active.driver(None).unwrap());
     entered.wait();
     assert!(matches!(manager.driver(None), Err(HashError::DriverBusy)));
-    manager.forgetDrivers().extend("custom", |manager| {
-        Ok(Arc::new(manager.createArgon2idDriver()?))
+    manager.forget_drivers().extend("custom", |manager| {
+        Ok(Arc::new(manager.create_argon2id_driver()?))
     });
     resume.wait();
     let old = task.join().unwrap();
-    assert!(manager.getDrivers().is_empty());
+    assert!(manager.get_drivers().is_empty());
     assert!(!Arc::ptr_eq(&old, &manager.driver(None).unwrap()));
 }
 
@@ -308,7 +308,7 @@ async fn custom_hash_driver_resolves_its_own_application_over_http() {
             Box::pin(async move {
                 app.container().instance(Arc::new(Self(self.0)))?;
                 Hash::extend("tenant", |manager| {
-                    let container = manager.getContainer().expect("application container");
+                    let container = manager.get_container().expect("application container");
                     let kind = container
                         .make::<HashDriver>()
                         .map_err(HashError::Unavailable)?;
@@ -339,8 +339,8 @@ async fn custom_hash_driver_resolves_its_own_application_over_http() {
                     .await
                     .unwrap()
             );
-            assert!(!Hash::needsRehash(&stored, &options).unwrap());
-            Response::json(StatusCode::OK, Hash::info(&stored).unwrap().algoName)
+            assert!(!Hash::needs_rehash(&stored, &options).unwrap());
+            Response::json(StatusCode::OK, Hash::info(&stored).unwrap().algo_name)
         })
     }
 
@@ -410,17 +410,17 @@ async fn parameter_setters_change_defaults_preserve_overrides_and_enforce_limits
         ..Default::default()
     });
     let before = bcrypt.make(b"secret", &options).await.unwrap();
-    bcrypt.setRounds(5);
-    assert!(bcrypt.needsRehash(&before, &options).unwrap());
+    bcrypt.set_rounds(5);
+    assert!(bcrypt.needs_rehash(&before, &options).unwrap());
     let overridden = json!({"rounds":4});
     assert!(
         !bcrypt
-            .needsRehash(&before, overridden.as_object().unwrap())
+            .needs_rehash(&before, overridden.as_object().unwrap())
             .unwrap()
     );
     let after = bcrypt.make(b"secret", &options).await.unwrap();
     assert_eq!(bcrypt.info(&after).unwrap().options["cost"], json!(5));
-    bcrypt.setRounds(17);
+    bcrypt.set_rounds(17);
     assert!(matches!(
         bcrypt.make(b"secret", &options).await,
         Err(HashError::ExecutionLimit)
@@ -437,17 +437,17 @@ async fn parameter_setters_change_defaults_preserve_overrides_and_enforce_limits
         threads: 1,
         verify: false,
     });
-    argon.setMemory(2048).setTime(1).setThreads(2);
-    argon2.setMemory(2048).setTime(1).setThreads(2);
+    argon.set_memory(2048).set_time(1).set_threads(2);
+    argon2.set_memory(2048).set_time(1).set_threads(2);
     for driver in [&argon as &dyn Hasher, &argon2 as &dyn Hasher] {
         let hash = driver.make(b"secret", &options).await.unwrap();
         assert!(hash.contains("m=2048,t=1,p=2"));
         assert!(driver.check(b"secret", &hash, &options).await.unwrap());
-        assert!(!driver.needsRehash(&hash, &options).unwrap());
+        assert!(!driver.needs_rehash(&hash, &options).unwrap());
     }
-    argon.setMemory(0);
+    argon.set_memory(0);
     assert!(argon.make(b"secret", &options).await.is_err());
-    argon2.setThreads(5);
+    argon2.set_threads(5);
     assert!(matches!(
         argon2.make(b"secret", &options).await,
         Err(HashError::ExecutionLimit)

@@ -5,7 +5,7 @@ use openrust::support::{
 };
 
 fn local(text: &str, zone: DateTimezone) -> Date {
-    Date::fromLocal(text.parse::<DateTime>().unwrap(), zone).unwrap()
+    Date::from_local(text.parse::<DateTime>().unwrap(), zone).unwrap()
 }
 
 #[test]
@@ -14,7 +14,7 @@ fn month_and_year_arithmetic_respects_the_overflow_policy() -> Result<(), DateEr
     assert_eq!(
         original
             .plus(months(1), MonthOverflow::Carry)?
-            .asDateTime()
+            .as_date_time()
             .strftime("%F")
             .to_string(),
         "2024-03-02"
@@ -22,7 +22,7 @@ fn month_and_year_arithmetic_respects_the_overflow_policy() -> Result<(), DateEr
     assert_eq!(
         original
             .plus(months(1), MonthOverflow::Clamp)?
-            .asDateTime()
+            .as_date_time()
             .strftime("%F")
             .to_string(),
         "2024-02-29"
@@ -31,7 +31,7 @@ fn month_and_year_arithmetic_respects_the_overflow_policy() -> Result<(), DateEr
     assert_eq!(
         leap_day
             .plus(years(1), MonthOverflow::Carry)?
-            .asDateTime()
+            .as_date_time()
             .strftime("%F")
             .to_string(),
         "2025-03-01"
@@ -56,21 +56,21 @@ fn civil_days_and_nonexistent_local_times_follow_timezone_transitions() -> Resul
     let result = start.plus(days(1.0)?, MonthOverflow::Carry)?;
     assert_eq!(
         result
-            .asDateTime()
+            .as_date_time()
             .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
             .to_string(),
         "2024-03-10T12:00:00-04:00"
     );
     assert_eq!(
         result
-            .asDateTime()
-            .duration_since(start.asDateTime())
+            .as_date_time()
+            .duration_since(start.as_date_time())
             .as_hours(),
         23
     );
     let gap = local("2024-03-10T01:30:00", zone.clone()).plus(hours(1.0)?, MonthOverflow::Carry)?;
     assert_eq!(
-        gap.asDateTime()
+        gap.as_date_time()
             .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
             .to_string(),
         "2024-03-10T03:30:00-04:00"
@@ -79,7 +79,7 @@ fn civil_days_and_nonexistent_local_times_follow_timezone_transitions() -> Resul
         local("2024-03-10T01:30:00", zone.clone()).plus(hours(2.0)?, MonthOverflow::Carry)?;
     assert_eq!(
         elapsed
-            .asDateTime()
+            .as_date_time()
             .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
             .to_string(),
         "2024-03-10T04:30:00-04:00"
@@ -90,12 +90,12 @@ fn civil_days_and_nonexistent_local_times_follow_timezone_transitions() -> Resul
 #[test]
 fn clock_helpers_and_interval_boundaries() -> Result<(), DateError> {
     let zone = Date::timezone("Asia/Shanghai").unwrap();
-    assert_eq!(now(Some(zone.clone()))?.asDateTime().time_zone(), &zone);
+    assert_eq!(now(Some(zone.clone()))?.as_date_time().time_zone(), &zone);
     let today = today(Some(zone.clone()))?;
-    assert_eq!(today.asDateTime().time(), jiff::civil::Time::MIN);
+    assert_eq!(today.as_date_time().time(), jiff::civil::Time::MIN);
     let start = local("2024-03-09T12:00:00", zone.clone());
     let result = start.plus(milliseconds(1.5)?, MonthOverflow::Carry)?;
-    assert_eq!(result.asDateTime().subsec_nanosecond(), 1_500_000);
+    assert_eq!(result.as_date_time().subsec_nanosecond(), 1_500_000);
     assert_eq!(weeks(1)?.days, 7);
     assert_eq!(weeks(i64::MAX), Err(DateError::OutOfRange));
     assert_eq!(days(f64::NAN), Err(DateError::OutOfRange));
@@ -106,12 +106,12 @@ fn clock_helpers_and_interval_boundaries() -> Result<(), DateError> {
 fn fold_keeps_the_existing_offset_and_local_gap_moves_forward() -> Result<(), DateError> {
     let zone = Date::timezone("America/New_York").unwrap();
     let first = local("2024-11-03T01:30:00", zone.clone());
-    assert_eq!(first.asDateTime().offset().seconds(), -4 * 3600);
-    let second = Date::fromUtc("2024-11-03T06:30:00Z".parse().unwrap(), zone.clone());
+    assert_eq!(first.as_date_time().offset().seconds(), -4 * 3600);
+    let second = Date::from_utc("2024-11-03T06:30:00Z".parse().unwrap(), zone.clone());
     assert_eq!(
         second
             .plus(days(0.0)?, MonthOverflow::Carry)?
-            .asDateTime()
+            .as_date_time()
             .offset()
             .seconds(),
         -5 * 3600
@@ -120,14 +120,14 @@ fn fold_keeps_the_existing_offset_and_local_gap_moves_forward() -> Result<(), Da
     assert_eq!(
         previous_day
             .plus(days(1.0)?, MonthOverflow::Carry)?
-            .asDateTime()
+            .as_date_time()
             .offset()
             .seconds(),
         -4 * 3600
     );
     let gap = local("2024-03-10T02:30:00", zone);
-    assert_eq!(gap.asDateTime().hour(), 3);
-    assert_eq!(gap.asDateTime().minute(), 30);
+    assert_eq!(gap.as_date_time().hour(), 3);
+    assert_eq!(gap.as_date_time().minute(), 30);
     Ok(())
 }
 

@@ -97,9 +97,9 @@ pub fn configure_resources(container: &Container) -> Result<(), BindingResolutio
 
 ### 模型預設資源 {#default-model-resources}
 
-為模型實作 `UseResource`，宣告 `type Resource = AccountResource`。資源實作 `JsonResource` 和 `From<Account>`。`toResource()` 與 `to_resource_collection()` 據此選擇預設資源，型別關聯在編譯期檢查。
+為模型實作 `UseResource`，宣告 `type Resource = AccountResource`。資源實作 `JsonResource` 和 `From<Account>`。`to_resource()` 與 `to_resource_collection()` 據此選擇預設資源，型別關聯在編譯期檢查。
 
-可覆寫 `UseResource::resource_collection`，依原始集合或分頁器建立自訂集合回應。預設推斷遇到空集合時輸出 `data: []`，並保留分頁資訊。用 `toResourceWith` 或 `to_resource_collection_with` 明確選擇元素資源，用 `to_resource_collection_using` 傳入明確的集合工廠。
+可覆寫 `UseResource::resource_collection`，依原始集合或分頁器建立自訂集合回應。預設推斷遇到空集合時輸出 `data: []`，並保留分頁資訊。用 `to_resource_with` 或 `to_resource_collection_with` 明確選擇元素資源，用 `to_resource_collection_using` 傳入明確的集合工廠。
 
 ```rust
 use openrust::{
@@ -109,7 +109,7 @@ use openrust::{
 };
 
 pub fn account_resource<M: UseResource>(account: M) -> M::Resource {
-    account.toResource()
+    account.to_resource()
 }
 
 pub fn account_resources<M: UseResource>(accounts: Collection<M>) -> impl JsonResource + Send {
@@ -183,8 +183,8 @@ use serde_json::{Map, Value};
 
 pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
     let level = Conditional::when_pivot_loaded(model, "memberships", || {
-        let value = model.getRelation::<Pivot>("pivot")
-            .and_then(|row| row.getAttribute("level"));
+        let value = model.get_relation::<Pivot>("pivot")
+            .and_then(|row| row.get_attribute("level"));
         match value {
             Some(AttributeValue::Text(level)) => Value::String(level.clone()),
             _ => Value::Null,
@@ -284,7 +284,7 @@ pub fn relationships<R: JsonApiResource + 'static>(visible: Vec<R>) -> JsonApiRe
 
 ### 自動載入關聯 {#jsonapi-automatic-loading}
 
-實作 `include_path`，將允許的 JSON:API 路徑映射至 `Model::namedRelations` 登記的路徑，並透過 `model_mut` 傳回模型。路由回傳單一資源、集合或分頁時，框架會在序列化前批次補載缺少的關聯。`to_relationships` 宣告的閉包讀取載入結果。手動建立回應時，使用 `to_response_async(request).await`。
+實作 `include_path`，將允許的 JSON:API 路徑映射至 `Model::named_relations` 登記的路徑，並透過 `model_mut` 傳回模型。路由回傳單一資源、集合或分頁時，框架會在序列化前批次補載缺少的關聯。`to_relationships` 宣告的閉包讀取載入結果。手動建立回應時，使用 `to_response_async(request).await`。
 
 例如 `reports.reports` 可映射成 `directReports.directReports`。請明確映射每條允許自動載入的路徑。
 

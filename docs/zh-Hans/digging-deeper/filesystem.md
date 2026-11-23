@@ -24,11 +24,11 @@ Artisan 可以创建或移除 `filesystems.links` 配置的链接。默认链接
 默认 `routes/web.rs` 按以下顺序挂载：
 
 ```rust
-Route::staticDisk("web")?;
-Route::staticDisk("public")?;
+Route::static_disk("web")?;
+Route::static_disk("public")?;
 ```
 
-`web` 磁盘描述网站目录，根目录默认是 `public`，URL 默认是 `app.url`。在 `config/filesystems.rs` 中通过 `FILESYSTEM_WEB_ROOT` 和 `FILESYSTEM_WEB_URL` 覆盖默认值。`FILESYSTEM_WEB_ROOT` 优先指定网站磁盘根目录；未设置时使用 `APP_PUBLIC_PATH`（默认 `public`）。相对路径基于应用根目录，绝对路径直接使用。空字符串或全空白值会导致配置加载失败。应用使用 `web.root` 作为 `public_path()`；启动前调用 `use_public_path()` 会覆盖目录并同步 `web.root`。两个挂载统一使用 `staticDisk`，读取本地磁盘根目录，并从 `url` 提取完整挂载路径。例如，`FILESYSTEM_PUBLIC_URL=/storage/tmp/` 将 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。绝对 URL 必须与 `app.url` 同源，协议、主机或有效端口不同会导致 HTTP 引导失败。
+`web` 磁盘描述网站目录，根目录默认是 `public`，URL 默认是 `app.url`。在 `config/filesystems.rs` 中通过 `FILESYSTEM_WEB_ROOT` 和 `FILESYSTEM_WEB_URL` 覆盖默认值。`FILESYSTEM_WEB_ROOT` 优先指定网站磁盘根目录；未设置时使用 `APP_PUBLIC_PATH`（默认 `public`）。相对路径基于应用根目录，绝对路径直接使用。空字符串或全空白值会导致配置加载失败。应用使用 `web.root` 作为 `public_path()`；启动前调用 `use_public_path()` 会覆盖目录并同步 `web.root`。两个挂载统一使用 `static_disk`，读取本地磁盘根目录，并从 `url` 提取完整挂载路径。例如，`FILESYSTEM_PUBLIC_URL=/storage/tmp/` 将 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。绝对 URL 必须与 `app.url` 同源，协议、主机或有效端口不同会导致 HTTP 引导失败。
 
 两个磁盘挂载在 Unix 上都要求文件公开且各级目录可遍历，并拒绝符号链接、写入临时文件及具有多个硬链接的文件。如果 `public/storage` 是符号链接，`web` 磁盘会跳过它，由 `public` 磁盘直接从其配置的根目录提供文件。
 
@@ -108,11 +108,11 @@ use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Option<String>)> {
     let path = "reports/today.txt";
-    Ok((disk.size(path).await?, disk.mimeType(path).await?))
+    Ok((disk.size(path).await?, disk.mime_type(path).await?))
 }
 ```
 
-用 `mimeType` 检查内容签名，并回退到扩展名推断或 `application/octet-stream`。用 `checksum` 流式计算 MD5，或用 `checksumWith::<D>` 选用 Rust 摘要算法。这两项操作在关闭 `throw` 时将磁盘错误回退为 `None`。无效路径始终返回错误。
+用 `mime_type` 检查内容签名，并回退到扩展名推断或 `application/octet-stream`。用 `checksum` 流式计算 MD5，或用 `checksumWith::<D>` 选用 Rust 摘要算法。这两项操作在关闭 `throw` 时将磁盘错误回退为 `None`。无效路径始终返回错误。
 
 ## 存储文件
 

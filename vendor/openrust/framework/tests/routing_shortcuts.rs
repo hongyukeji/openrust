@@ -112,16 +112,16 @@ fn data() -> ViewData {
 
 fn facade_routes() -> Result<(), RoutingError> {
     Route::fallback(report)?;
-    Route::fallbackWith(report, |route| {
+    Route::fallback_with(report, |route| {
         route.name("root-fallback");
         Ok(())
     })?;
-    Route::getWith("/root", report, |route| {
+    Route::get_with("/root", report, |route| {
         route.name("root");
         Ok(())
     })?;
     Route::view("/welcome", "plain", Default::default())?;
-    Route::viewWith(
+    Route::view_with(
         "/welcome/{name}",
         "welcome",
         ViewRouteOptions {

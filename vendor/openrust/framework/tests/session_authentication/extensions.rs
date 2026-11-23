@@ -232,11 +232,11 @@ fn stateless(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
 async fn http_basic_supports_session_and_stateless_authentication() {
     let (address, server) = start(
         || {
-            Route::getWith("/basic", current, |route| {
+            Route::get_with("/basic", current, |route| {
                 route.middleware_name("auth.basic");
                 Ok(())
             })?;
-            Route::getWith("/basic-custom", current, |route| {
+            Route::get_with("/basic-custom", current, |route| {
                 route.middleware_name("auth.basic:web,username");
                 Ok(())
             })?;
@@ -409,7 +409,7 @@ async fn session_guard_emits_authentication_lifecycle_events() {
     let captured = recorded.clone();
     let (address, server) = start(
         || {
-            Route::getWith("/basic", current, |route| {
+            Route::get_with("/basic", current, |route| {
                 route.middleware_name("auth.basic");
                 Ok(())
             })?;
@@ -607,7 +607,7 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
     let (address, server) = start(
         || {
             Route::post("/remember", remember)?;
-            Route::getWith("/secure", current, |route| {
+            Route::get_with("/secure", current, |route| {
                 route
                     .middleware_name("auth")
                     .middleware_name("auth.session");

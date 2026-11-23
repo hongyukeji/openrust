@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::{
     database::{Connection, DatabaseError, Value},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 use super::{
@@ -41,7 +41,7 @@ pub(super) struct SmsDelivery<'a> {
 impl<'a> SmsDelivery<'a> {
     pub(super) fn new(id: &'a str) -> NotificationResult<Self> {
         Ok(Self {
-            connection: DB::connection(None).map_err(NotificationError::Database)?,
+            connection: Db::connection(None).map_err(NotificationError::Database)?,
             id,
         })
     }
@@ -168,7 +168,7 @@ impl<'a> SmsDelivery<'a> {
     fn row(&self) -> crate::database::query::Builder<'static> {
         self.connection
             .table(TABLE)
-            .useWritePdo()
+            .use_write_pdo()
             .r#where("id", "=", self.id)
     }
 }

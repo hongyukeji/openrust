@@ -68,7 +68,7 @@ fn password(value: &str) -> Attributes {
 }
 
 fn hash_of(model: &Account) -> &str {
-    let Some(Value::Text(hash)) = model.getAttribute("password") else {
+    let Some(Value::Text(hash)) = model.get_attribute("password") else {
         panic!("expected a stored password hash");
     };
     hash
@@ -87,11 +87,11 @@ async fn verify(config: Json, id: &str) {
         .await
         .unwrap();
     db.statement(&format!("CREATE TABLE hashed_accounts (id {id}, parent_id BIGINT, name VARCHAR(40), password TEXT)"), &[]).await.unwrap();
-    let query = || Account::queryOn(&db);
+    let query = || Account::query_on(&db);
     let account = query().create(password("plain password")).await.unwrap();
-    let key = account.getKey().unwrap().clone();
+    let key = account.get_key().unwrap().clone();
     assert!(!account.to_array().unwrap().contains_key("password"));
-    let mut account = query().findOrFail(key.clone()).await.unwrap();
+    let mut account = query().find_or_fail(key.clone()).await.unwrap();
     let first = hash_of(&account).to_owned();
     assert!(first.starts_with("$2y$05$"));
     assert!(
@@ -101,21 +101,27 @@ async fn verify(config: Json, id: &str) {
             .unwrap()
     );
     let old = php_bcrypt("old", 4);
-    account.setAttributeValue("password", old.clone()).unwrap();
+    account
+        .set_attribute_value("password", old.clone())
+        .unwrap();
     account.save().await.unwrap();
-    let persisted = query().findOrFail(key.clone()).await.unwrap();
+    let persisted = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(hash_of(&persisted), old);
-    assert!(account.setAttributeValue("password", "use async").is_err());
     assert!(
         account
-            .fillJsonAttribute("password->field", "cannot bypass hashing")
+            .set_attribute_value("password", "use async")
+            .is_err()
+    );
+    assert!(
+        account
+            .fill_json_attribute("password->field", "cannot bypass hashing")
             .is_err()
     );
     let too_costly = php_bcrypt("reject", 6);
-    let mut snapshot = account.state().getAttributes().clone();
+    let mut snapshot = account.state().get_attributes().clone();
     assert!(matches!(
         account
-            .fillAsync(Attributes::from([
+            .fill_async(Attributes::from([
                 ("name".into(), "changed".into()),
                 ("password".into(), too_costly.into())
             ]))
@@ -132,9 +138,9 @@ async fn verify(config: Json, id: &str) {
             .unwrap()
             .into(),
     );
-    assert_eq!(account.state().getAttributes(), &snapshot);
+    assert_eq!(account.state().get_attributes(), &snapshot);
     account.update(password("rotated")).await.unwrap();
-    let reloaded = query().findOrFail(key).await.unwrap();
+    let reloaded = query().find_or_fail(key).await.unwrap();
     assert!(
         hasher
             .check(b"rotated", hash_of(&reloaded), &HashOptions::new())
@@ -164,32 +170,32 @@ async fn verify(config: Json, id: &str) {
     );
 
     let (_other_app, other_db) = application(&config, "bcrypt", 4).await;
-    let other = Account::queryOn(&other_db)
+    let other = Account::query_on(&other_db)
         .make_async(password("plain password"))
         .await
         .unwrap();
     assert!(hash_of(&other).starts_with("$2y$04$"));
     let (_argon_app, argon_db) = application(&config, "argon2id", 4).await;
-    let argon = Account::queryOn(&argon_db);
+    let argon = Account::query_on(&argon_db);
     assert!(matches!(
         argon.make_async(password(&old)).await,
         Err(DatabaseError::AttributeHashing(HashError::InvalidOptions))
     ));
     let (_invalid_app, invalid_db) = application(&config, "unsupported", 4).await;
-    let mut invalid = Account::queryOn(&invalid_db)
+    let mut invalid = Account::query_on(&invalid_db)
         .make(Attributes::new())
         .unwrap();
     invalid
-        .setAttributeValueAsync("password", Value::Null)
+        .set_attribute_value_async("password", Value::Null)
         .await
         .unwrap();
     assert!(
         invalid
-            .setAttributeValueAsync("password", "no driver")
+            .set_attribute_value_async("password", "no driver")
             .await
             .is_err()
     );
-    assert_eq!(invalid.getAttribute("password"), Some(&Value::Null));
+    assert_eq!(invalid.get_attribute("password"), Some(&Value::Null));
     db.statement("DROP TABLE hashed_accounts", &[])
         .await
         .unwrap();

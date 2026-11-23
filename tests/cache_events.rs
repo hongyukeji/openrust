@@ -65,7 +65,7 @@ async fn cache_events_follow_operations_and_artisan_clear_order() {
     assert_eq!(cache.get("missing").await.unwrap(), None);
     assert!(
         cache
-            .putMany(
+            .put_many(
                 &[
                     ("key".into(), 3.into()),
                     ("null".into(), Value::from(serde_json::Value::Null))
@@ -168,7 +168,7 @@ async fn cache_event_payloads_follow_tags_opt_out_memo_and_failover() {
     assert_eq!(tags.get("latest").await.unwrap(), Some("ready".into()));
     let writes = events.dispatched(WritingKey::NAME);
     let write = writes[0].downcast_ref::<WritingKey>().unwrap();
-    assert_eq!(write.storeName.as_deref(), Some("array"));
+    assert_eq!(write.store_name.as_deref(), Some("array"));
     assert_eq!(write.key, "latest");
     assert_eq!(write.tags, ["reports", "reports", "daily"]);
     assert_eq!(write.seconds, Some(60));
@@ -192,7 +192,7 @@ async fn cache_event_payloads_follow_tags_opt_out_memo_and_failover() {
         .iter()
         .map(|event| {
             let miss = event.downcast_ref::<CacheMissed>().unwrap();
-            (miss.storeName.as_deref().unwrap(), miss.key.as_str())
+            (miss.store_name.as_deref().unwrap(), miss.key.as_str())
         })
         .collect();
     assert_eq!(
@@ -275,42 +275,42 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     let dispatcher: Arc<dyn EventDispatcher> = app.app().container().make::<Dispatcher>().unwrap();
     assert!(Arc::ptr_eq(
         &dispatcher,
-        &default.getEventDispatcher().unwrap()
+        &default.get_event_dispatcher().unwrap()
     ));
     assert_eq!(default.get_name(), Some("array"));
-    assert_eq!(default.getDefaultCacheTime(), Some(3600));
+    assert_eq!(default.get_default_cache_time(), Some(3600));
     let named = manager
         .build(serde_json::json!({"name":"isolated","driver":"array","events":false}))
         .unwrap();
     assert_eq!(named.get_name(), Some("isolated"));
-    assert!(named.getEventDispatcher().is_none());
+    assert!(named.get_event_dispatcher().is_none());
 
     let quiet = manager.store(Some("quiet")).unwrap();
     let mut copy = quiet.as_ref().clone();
     assert_eq!(quiet.get_name(), Some("quiet"));
-    assert!(quiet.getEventDispatcher().is_none());
-    assert!(Arc::ptr_eq(&quiet.getStore(), &copy.getStore()));
+    assert!(quiet.get_event_dispatcher().is_none());
+    assert!(Arc::ptr_eq(&quiet.get_store(), &copy.get_store()));
     let replacement: Arc<dyn Store> = Arc::new(ArrayStore::new());
     let events = Arc::new(Dispatcher::new());
     let recorded = events.fake(&[]);
     let explicit: Arc<dyn EventDispatcher> = events;
-    copy.setStore(replacement.clone())
-        .setDefaultCacheTime(Some(1));
-    copy.setEventDispatcher(explicit.clone());
-    assert!(Arc::ptr_eq(&copy.getStore(), &replacement));
-    assert_eq!(quiet.getDefaultCacheTime(), Some(3600));
-    assert!(quiet.getEventDispatcher().is_none());
+    copy.set_store(replacement.clone())
+        .set_default_cache_time(Some(1));
+    copy.set_event_dispatcher(explicit.clone());
+    assert!(Arc::ptr_eq(&copy.get_store(), &replacement));
+    assert_eq!(quiet.get_default_cache_time(), Some(3600));
+    assert!(quiet.get_event_dispatcher().is_none());
 
     let tagged = copy.tags(&["reports", "daily"]).unwrap();
     assert_eq!(tagged.get_name(), Some("quiet"));
     assert!(Arc::ptr_eq(
-        &tagged.getEventDispatcher().unwrap(),
+        &tagged.get_event_dispatcher().unwrap(),
         &explicit
     ));
-    assert_eq!(tagged.getDefaultCacheTime(), Some(1));
-    copy.setDefaultCacheTime(None);
-    assert!(copy.putWithDefault("forever", &1.into()).await.unwrap());
-    assert!(tagged.putWithDefault("latest", &2.into()).await.unwrap());
+    assert_eq!(tagged.get_default_cache_time(), Some(1));
+    copy.set_default_cache_time(None);
+    assert!(copy.put_with_default("forever", &1.into()).await.unwrap());
+    assert!(tagged.put_with_default("latest", &2.into()).await.unwrap());
     assert!(tagged.put("permanent", &3.into(), None).await.unwrap());
     assert!(quiet.missing("forever").await.unwrap());
     assert!(copy.missing("latest").await.unwrap());
@@ -318,7 +318,7 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     let writes = recorded.dispatched(WritingKey::NAME);
     let write = writes[1].downcast_ref::<WritingKey>().unwrap();
     assert_eq!(write.key, "latest");
-    assert_eq!(write.storeName.as_deref(), Some("quiet"));
+    assert_eq!(write.store_name.as_deref(), Some("quiet"));
     assert_eq!(write.tags, ["reports", "daily"]);
     assert_eq!(write.seconds, Some(1));
     app_events.assertNotDispatched(WritingKey::NAME);
@@ -326,7 +326,7 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     assert!(tagged.missing("latest").await.unwrap());
     assert_eq!(tagged.get("permanent").await.unwrap(), Some(3.into()));
     assert_eq!(copy.get("forever").await.unwrap(), Some(1.into()));
-    copy.setDefaultCacheTime(Some(0));
-    assert!(copy.putWithDefault("forever", &4.into()).await.unwrap());
+    copy.set_default_cache_time(Some(0));
+    assert!(copy.put_with_default("forever", &4.into()).await.unwrap());
     assert!(copy.missing("forever").await.unwrap());
 }

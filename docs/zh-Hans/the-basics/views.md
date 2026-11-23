@@ -67,7 +67,7 @@ fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<S
 }
 ```
 
-使用 `file` 时，文件须位于已配置的视图目录内。相对路径按应用视图目录顺序查找。`addNamespace` 和 `replaceNamespace` 管理命名空间目录。工厂的 creator 和 composer 支持一组视图名或通配模式。显式文件支持 `.blade.html`、`.html` 或 `.css`。
+使用 `file` 时，文件须位于已配置的视图目录内。相对路径按应用视图目录顺序查找。`add_namespace` 和 `replace_namespace` 管理命名空间目录。工厂的 creator 和 composer 支持一组视图名或通配模式。显式文件支持 `.blade.html`、`.html` 或 `.css`。
 
 Engine 契约要求显式提供视图根目录，用于限定文件读取范围。契约渲染是同步的。在异步处理器中，可将直接渲染交给阻塞线程，或返回视图并由框架渲染。
 
@@ -81,4 +81,4 @@ Blade 模板在首次使用时编译。源文件变化后，OpenRust 会在 `vie
 ```
 ## 条件与集合渲染
 
-`View::renderWhen` 条件为真才渲染，`renderUnless` 相反。`renderEach(view, data, iterator, empty)` 接收键值对，把键暴露为 `key`、值暴露为指定迭代变量，再拼接各项结果。空集合渲染空视图，或直接返回 `raw|` 后的文本。子视图继承共享数据，不自动继承父视图的局部变量。`getShared` 返回拥有所有权的快照。启动阶段的 `share` 值作为默认值；请求或队列作用域内的修改只影响该作用域，显式视图数据覆盖共享同名键。
+`View::render_when` 条件为真才渲染，`render_unless` 相反。`render_each(view, data, iterator, empty)` 接收键值对，把键暴露为 `key`、值暴露为指定迭代变量，再拼接各项结果。空集合渲染空视图，或直接返回 `raw|` 后的文本。子视图继承共享数据，不自动继承父视图的局部变量。`get_shared` 返回拥有所有权的快照。启动阶段的 `share` 值作为默认值；请求或队列作用域内的修改只影响该作用域，显式视图数据覆盖共享同名键。

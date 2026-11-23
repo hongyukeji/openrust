@@ -134,7 +134,7 @@ async fn named_account_configuration_is_lazy_snapshotted_and_explicitly_reloaded
         server.requests().last().unwrap().headers["authorization"],
         "Bearer api_secret_fixture"
     );
-    manager.forgetDrivers();
+    manager.forget_drivers();
     manager
         .driver("main")
         .unwrap()

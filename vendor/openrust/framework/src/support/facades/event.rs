@@ -24,7 +24,6 @@ impl Facade for Event {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Event {
     pub fn push(event: impl Payload) -> EventResult<()> {
         Self::dispatcher()?.push(Arc::new(event))
@@ -34,8 +33,8 @@ impl Event {
             .flush(name, &mut EventContext::new())
             .await
     }
-    pub fn forgetPushed() -> EventResult<()> {
-        Self::dispatcher()?.forgetPushed()
+    pub fn forget_pushed() -> EventResult<()> {
+        Self::dispatcher()?.forget_pushed()
     }
 
     pub fn dispatcher() -> EventResult<Arc<Dispatcher>> {
@@ -48,12 +47,12 @@ impl Event {
     }
 
     /// Records all events except those allowed to reach their listeners.
-    pub fn fakeExcept(events: &[&str]) -> EventResult<Arc<EventFake>> {
+    pub fn fake_except(events: &[&str]) -> EventResult<Arc<EventFake>> {
         Ok(Self::dispatcher()?.install_fake(EventFake::new(&[], events)))
     }
 
     /// Fakes events selected by their exact name or the given predicate.
-    pub fn fakeWhen(
+    pub fn fake_when(
         events: &[&str],
         predicate: impl Fn(&dyn Payload) -> bool + Send + Sync + 'static,
     ) -> EventResult<Arc<EventFake>> {
@@ -61,7 +60,7 @@ impl Event {
     }
 
     /// Fakes selected events while the callback runs in the current task.
-    pub async fn fakeFor<T>(
+    pub async fn fake_for<T>(
         callback: impl Future<Output = EventResult<T>>,
         events: &[&str],
     ) -> EventResult<T> {
@@ -71,7 +70,7 @@ impl Event {
     }
 
     /// Allows the named events and fakes all others during the callback.
-    pub async fn fakeExceptFor<T>(
+    pub async fn fake_except_for<T>(
         callback: impl Future<Output = EventResult<T>>,
         events: &[&str],
     ) -> EventResult<T> {
@@ -81,7 +80,7 @@ impl Event {
     }
 
     /// Fakes events selected by exact name or predicate while the callback runs.
-    pub async fn fakeForWhen<T>(
+    pub async fn fake_for_when<T>(
         callback: impl Future<Output = EventResult<T>>,
         events: &[&str],
         predicate: impl Fn(&dyn Payload) -> bool + Send + Sync + 'static,
@@ -96,16 +95,16 @@ impl Event {
     }
 
     /// Registers a listener resolved by the current application's container on delivery.
-    pub fn listenClass<L: Listener + 'static>(name: &str, delivery: Delivery) -> EventResult<()> {
-        Self::dispatcher()?.listenClass::<L>(name, delivery)
+    pub fn listen_class<L: Listener + 'static>(name: &str, delivery: Delivery) -> EventResult<()> {
+        Self::dispatcher()?.listen_class::<L>(name, delivery)
     }
 
     pub fn subscribe(subscriber: &dyn Subscriber) -> EventResult<()> {
         Self::dispatcher()?.subscribe(subscriber)
     }
 
-    pub fn hasListeners(name: &str) -> EventResult<bool> {
-        Ok(Self::dispatcher()?.hasListeners(name))
+    pub fn has_listeners(name: &str) -> EventResult<bool> {
+        Ok(Self::dispatcher()?.has_listeners(name))
     }
 
     pub fn forget(name: &str) -> EventResult<()> {
@@ -127,7 +126,7 @@ impl Event {
         Self::dispatcher()?.defer(names, callback).await
     }
 
-    pub async fn dispatchInTransaction(
+    pub async fn dispatch_in_transaction(
         event: impl Payload,
         transaction: &mut crate::database::Transaction,
     ) -> EventResult<DispatchResult> {
@@ -139,12 +138,12 @@ impl Event {
             .await
     }
 
-    pub async fn dispatchAfterCommit(
+    pub async fn dispatch_after_commit(
         event: impl ShouldDispatchAfterCommit,
         transaction: &mut crate::database::Transaction,
     ) -> EventResult<DispatchResult> {
         Self::dispatcher()?
-            .dispatchAfterCommit(event, &mut EventContext::in_transaction(transaction))
+            .dispatch_after_commit(event, &mut EventContext::in_transaction(transaction))
             .await
     }
 

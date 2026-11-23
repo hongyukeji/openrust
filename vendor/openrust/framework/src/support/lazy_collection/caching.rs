@@ -13,10 +13,9 @@ struct FullCache<T> {
     copy: fn(&T) -> T,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> LazyCachingIterator<'_, T> {
     /// Indicates whether another result, including a pending error, is available.
-    pub fn hasNext(&mut self) -> bool {
+    pub fn has_next(&mut self) -> bool {
         self.iterator.peek().is_some()
     }
 
@@ -43,18 +42,17 @@ impl<T> Iterator for LazyCachingIterator<'_, T> {
 
 impl<T> FusedIterator for LazyCachingIterator<'_, T> {}
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     /// Creates a traversal with one entry of lookahead.
-    pub fn getCachingIterator(&self) -> LazyCachingIterator<'source, T> {
+    pub fn get_caching_iterator(&self) -> LazyCachingIterator<'source, T> {
         LazyCachingIterator {
-            iterator: self.getIterator().peekable(),
+            iterator: self.get_iterator().peekable(),
             cache: None,
         }
     }
 
     /// Creates a traversal that also retains the last yielded value for each key.
-    pub fn getCachingIteratorWithFullCache(&self) -> LazyCachingIterator<'source, T>
+    pub fn get_caching_iterator_with_full_cache(&self) -> LazyCachingIterator<'source, T>
     where
         T: Clone,
     {
@@ -63,7 +61,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 entries: Collection::new(),
                 copy: T::clone,
             }),
-            ..self.getCachingIterator()
+            ..self.get_caching_iterator()
         }
     }
 }

@@ -133,8 +133,8 @@ async fn native_artisan_registers_payment_migration_without_merchant_keys_and_pr
     run(&["migrate", "--force"]);
     assert!(
         connection
-            .getSchemaBuilder()
-            .hasTable("payment_notifications")
+            .get_schema_builder()
+            .has_table("payment_notifications")
             .await
             .unwrap()
     );
@@ -163,8 +163,8 @@ async fn native_artisan_registers_payment_migration_without_merchant_keys_and_pr
     run(&["migrate:rollback", "--force"]);
     assert!(
         !connection
-            .getSchemaBuilder()
-            .hasTable("payment_notifications")
+            .get_schema_builder()
+            .has_table("payment_notifications")
             .await
             .unwrap()
     );

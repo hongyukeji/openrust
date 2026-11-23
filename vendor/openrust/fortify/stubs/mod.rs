@@ -49,7 +49,7 @@ fn validator(
 }
 async fn save_password(user: &mut User, input: &RequestValue) -> Result<(), HttpError> {
     let password = Hash::make(text(input, "password")?, &HashOptions::new()).await?;
-    user.forceFill([("password".into(), password.into())].into())?
+    user.force_fill([("password".into(), password.into())].into())?
         .save()
         .await?;
     Ok(())

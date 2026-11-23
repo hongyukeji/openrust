@@ -80,13 +80,13 @@ impl Authenticatable for User {
         "subject"
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.getAttribute("subject").unwrap().try_into().unwrap()
+        self.get_attribute("subject").unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
     }
     fn get_auth_password(&self) -> Option<&str> {
-        match self.getAttribute("password") {
+        match self.get_attribute("password") {
             Some(Value::Text(v)) => Some(v),
             _ => None,
         }
@@ -315,7 +315,7 @@ impl Fixture {
         )
         .await
         .unwrap();
-        db.getSchemaBuilder()
+        db.get_schema_builder()
             .create("users", |t| {
                 t.id();
                 t.bigInteger("subject").unique();
@@ -330,7 +330,7 @@ impl Fixture {
                     let hash = Hash::make("password", &Default::default()).await.unwrap();
                     for (id, subject, email) in [(1, 77, "alice@test"), (2, 88, "bob@test")] {
                         let mut user = User::new_instance(Attributes::new()).unwrap();
-                        user.forceFill(Attributes::from([
+                        user.force_fill(Attributes::from([
                             ("id".into(), Value::Integer(id)),
                             ("subject".into(), Value::Integer(subject)),
                             ("email".into(), email.into()),
@@ -376,8 +376,8 @@ impl Fixture {
                         .unwrap()
                         .to_string();
                     Ok((
-                        id(public.getKey().await.unwrap()),
-                        id(private.getKey().await.unwrap()),
+                        id(public.get_key().await.unwrap()),
+                        id(private.get_key().await.unwrap()),
                         secret,
                     ))
                 }),
@@ -551,8 +551,8 @@ impl Fixture {
             "history",
         ] {
             self.db
-                .getSchemaBuilder()
-                .dropIfExists(table)
+                .get_schema_builder()
+                .drop_if_exists(table)
                 .await
                 .unwrap();
         }
@@ -815,8 +815,8 @@ async fn mysql_code_bindings_revocation_and_database_failure_never_issue_tokens(
         .await;
     assert_eq!(tampered.status(), 400);
     // Force an actual SQL failure after access-token save. The transaction must retain the code and roll back the token.
-    f.db.getSchemaBuilder()
-        .dropIfExists("oauth_refresh_tokens")
+    f.db.get_schema_builder()
+        .drop_if_exists("oauth_refresh_tokens")
         .await
         .unwrap();
     let failed = f.token(&f.public, &code, Some(VERIFIER), None).await;
@@ -835,12 +835,12 @@ async fn mysql_code_bindings_revocation_and_database_failure_never_issue_tokens(
         1
     );
     // Restore the exact four production columns for the injected-failure fixture, then retry the same code.
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .create("oauth_refresh_tokens", |t| {
             t.char("id", 80).primary();
             t.char("access_token_id", 80).index();
             t.boolean("revoked");
-            t.dateTime("expires_at", None).nullable();
+            t.date_time("expires_at", None).nullable();
         })
         .await
         .unwrap();
@@ -1002,12 +1002,12 @@ async fn mysql_expired_envelope_and_other_application_reject_even_matching_rows_
         0
     );
     // The test authority backdates a correctly authenticated envelope; no wall-clock sleep or forged unauthenticated payload.
-    let plaintext = zeroize::Zeroizing::new(f.encryption.decryptString(&code).unwrap());
+    let plaintext = zeroize::Zeroizing::new(f.encryption.decrypt_string(&code).unwrap());
     let mut payload: J = serde_json::from_slice(&plaintext).unwrap();
     payload["expire_time"] = json!(1);
     let expired = f
         .encryption
-        .encryptString(payload.to_string().as_bytes())
+        .encrypt_string(payload.to_string().as_bytes())
         .unwrap();
     let response = f.token(&f.public, &expired, Some(VERIFIER), None).await;
     assert_eq!(response.status(), 400);
@@ -1082,7 +1082,7 @@ impl Model for SelectedToken {
     )] {
         openrust_passport::Token::casts()
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn from_state(state: ModelState) -> Self {
@@ -1315,7 +1315,7 @@ async fn mysql_refresh_rotates_credentials_and_guard_uses_real_user_and_scopes()
     );
     let plaintext = zeroize::Zeroizing::new(
         f.encryption
-            .decryptString(data["refresh_token"].as_str().unwrap())
+            .decrypt_string(data["refresh_token"].as_str().unwrap())
             .unwrap(),
     );
     let refresh: J = serde_json::from_slice(&plaintext).unwrap();
@@ -1464,12 +1464,12 @@ async fn mysql_refresh_rejects_wrong_client_expiry_corruption_and_other_applicat
         )
         .await;
     assert_eq!(cross.status(), 400);
-    let plaintext = zeroize::Zeroizing::new(f.encryption.decryptString(refresh).unwrap());
+    let plaintext = zeroize::Zeroizing::new(f.encryption.decrypt_string(refresh).unwrap());
     let mut payload: J = serde_json::from_slice(&plaintext).unwrap();
     payload["expire_time"] = json!(1);
     let expired = f
         .encryption
-        .encryptString(payload.to_string().as_bytes())
+        .encrypt_string(payload.to_string().as_bytes())
         .unwrap();
     let response = f.refresh(&expired, None).await;
     assert_eq!(response.status(), 400);
@@ -1592,17 +1592,17 @@ async fn mysql_resource_guard_checks_signatures_dates_provider_client_user_and_f
         .await
         .unwrap();
     assert_eq!(f.resource_token("/resource", token).await.status(), 401);
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("users", "hidden_users")
         .await
         .unwrap();
     assert_eq!(f.resource_token("/resource", token).await.status(), 401);
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("hidden_users", "users")
         .await
         .unwrap();
-    f.db.getSchemaBuilder()
-        .dropIfExists("oauth_access_tokens")
+    f.db.get_schema_builder()
+        .drop_if_exists("oauth_access_tokens")
         .await
         .unwrap();
     assert_eq!(f.resource_token("/resource", token).await.status(), 500);
@@ -1649,11 +1649,11 @@ async fn mysql_access_revocation_and_refresh_revocation_have_distinct_lifecycles
     .await;
     let plain = zeroize::Zeroizing::new(
         f.encryption
-            .decryptString(next["refresh_token"].as_str().unwrap())
+            .decrypt_string(next["refresh_token"].as_str().unwrap())
             .unwrap(),
     );
     let payload: J = serde_json::from_slice(&plain).unwrap();
-    let mut refresh = openrust_passport::RefreshToken::queryOn(&f.db)
+    let mut refresh = openrust_passport::RefreshToken::query_on(&f.db)
         .find(payload["refresh_token_id"].as_str().unwrap())
         .await
         .unwrap()
@@ -1924,7 +1924,7 @@ impl Model for AlternateAccess {
     )] {
         openrust_passport::Token::casts()
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn from_state(state: ModelState) -> Self {
@@ -1954,7 +1954,7 @@ impl Model for AlternateRefresh {
     )] {
         openrust_passport::RefreshToken::casts()
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn from_state(state: ModelState) -> Self {
@@ -1982,11 +1982,11 @@ async fn mysql_selected_tables_support_refresh_resource_and_purge_in_application
         .get::<dyn openrust::contracts::config::Repository>("config")
         .unwrap();
     config.set("app.timezone", json!("Asia/Shanghai")).unwrap();
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("oauth_access_tokens", "custom_access")
         .await
         .unwrap();
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("oauth_refresh_tokens", "custom_refresh")
         .await
         .unwrap();
@@ -2024,11 +2024,11 @@ async fn mysql_selected_tables_support_refresh_resource_and_purge_in_application
     assert_eq!(f.purge(&["--revoked"]).await.0, 0);
     assert_eq!(f.db.table("custom_access").count("*").await.unwrap(), 1);
     assert_eq!(f.db.table("custom_refresh").count("*").await.unwrap(), 1);
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("custom_access", "oauth_access_tokens")
         .await
         .unwrap();
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("custom_refresh", "oauth_refresh_tokens")
         .await
         .unwrap();

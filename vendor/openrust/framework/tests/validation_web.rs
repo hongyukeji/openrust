@@ -118,7 +118,7 @@ impl TestServer {
         self.http.abort();
         let _ = self.http.await;
         if let Some((db, table)) = self.mysql_session {
-            db.getSchemaBuilder().drop(&table).await.unwrap();
+            db.get_schema_builder().drop(&table).await.unwrap();
         }
     }
 }
@@ -147,7 +147,7 @@ async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
             Ok(config)
         })
         .with_exceptions(|exceptions| {
-            exceptions.dontFlash(["profile.secret", "users.*.pin"]);
+            exceptions.dont_flash(["profile.secret", "users.*.pin"]);
             exceptions.render::<ValidationException>(|_, request| {
                 request
                     .is("custom")
@@ -174,7 +174,7 @@ async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
             .unwrap()
             .connection(None)
             .unwrap();
-        db.getSchemaBuilder()
+        db.get_schema_builder()
             .create(&table, |table| {
                 table.string("id", 255).primary();
                 table.bigInteger("user_id").nullable();

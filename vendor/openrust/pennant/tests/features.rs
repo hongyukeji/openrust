@@ -94,14 +94,14 @@ impl Fixture {
         assert!(
             !self
                 .connection
-                .getSchemaBuilder()
-                .hasTable("features")
+                .get_schema_builder()
+                .has_table("features")
                 .await
                 .unwrap()
         );
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists("pennant_test_migrations")
+            .get_schema_builder()
+            .drop_if_exists("pennant_test_migrations")
             .await
             .unwrap();
         self.connection.disconnect();
@@ -255,7 +255,7 @@ async fn database_driver_bulk_races_persistence_and_native_migration() {
     let values = store.getAll(&features).await.unwrap();
     assert_eq!(values["race"], vec![json!("winner"), json!("winner")]);
     assert_eq!(values["missing"], vec![json!(false)]);
-    manager.forgetDriver(None).unwrap();
+    manager.forget_driver(None).unwrap();
     assert_eq!(
         manager
             .store(None)

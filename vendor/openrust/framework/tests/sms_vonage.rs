@@ -77,7 +77,7 @@ async fn vonage_profiles_own_credentials_and_refresh_with_the_manager() {
                 .set("sms.drivers.alpha.from", json!("BrandNew"))
                 .unwrap();
             first.send_text("+12025550123", "snapshot").await.unwrap();
-            manager.forgetDrivers();
+            manager.forget_drivers();
             manager
                 .driver("alpha")
                 .unwrap()

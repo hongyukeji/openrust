@@ -259,7 +259,7 @@ impl Store for RedisStore {
 }
 
 impl CanFlushLocks for RedisStore {
-    fn hasSeparateLockStore(&self) -> bool {
+    fn has_separate_lock_store(&self) -> bool {
         if Arc::ptr_eq(&self.data, &self.locks) {
             return false;
         }
@@ -272,9 +272,9 @@ impl CanFlushLocks for RedisStore {
         }
     }
 
-    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+    fn flush_locks(&self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async move {
-            if !self.hasSeparateLockStore() {
+            if !self.has_separate_lock_store() {
                 return Err(CacheError::LockStoreNotSeparate);
             }
             if self.data.is_cluster() || self.locks.is_cluster() {

@@ -390,7 +390,7 @@ impl TestApp {
         Ok(owners
             .0
             .get(connection.get_name())
-            .is_some_and(|owner| owner.is_schema(connection.getDatabaseName())))
+            .is_some_and(|owner| owner.is_schema(connection.get_database_name())))
     }
 
     pub(super) async fn wait_for_refresh(&mut self) {

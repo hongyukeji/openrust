@@ -71,15 +71,15 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
         .connection(None)
         .unwrap();
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();

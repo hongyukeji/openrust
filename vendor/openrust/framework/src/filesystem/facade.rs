@@ -116,8 +116,8 @@ impl Storage {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn mimeType(path: &str) -> FilesystemResult<Option<String>> {
-        Self::disk(None)?.mimeType(path).await
+    pub async fn mime_type(path: &str) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?.mime_type(path).await
     }
 
     pub async fn checksum(path: &str) -> FilesystemResult<Option<String>> {

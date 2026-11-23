@@ -2,7 +2,7 @@ use crate::{
     contracts::{http::Middleware, routing::UrlGenerator as _},
     http::{HttpError, HttpFuture, Next, Request, Response},
     routing::{SignatureMode, SignatureQueryFilter},
-    support::facades::URL,
+    support::facades::Url,
 };
 
 /// Rejects requests with invalid or expired URL signatures before the route handler.
@@ -56,7 +56,7 @@ impl Middleware for ValidateSignature {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let urls = URL::service()?;
+            let urls = Url::service()?;
             let ignore = |name: &str| self.ignored.iter().any(|ignored| ignored == name);
             if !urls.has_valid_signature(
                 request,

@@ -45,14 +45,14 @@ async fn email_rules_preserve_nullable_wildcards_and_error_messages() {
             !validator
                 .errors()
                 .get("users.1.email", None)
-                .intoMessages()
+                .into_messages()
                 .is_empty()
         );
         assert!(
             validator
                 .errors()
                 .get("users.0.email", None)
-                .intoMessages()
+                .into_messages()
                 .is_empty()
         );
     }

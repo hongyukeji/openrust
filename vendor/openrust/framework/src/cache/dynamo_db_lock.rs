@@ -62,7 +62,7 @@ impl Lock for DynamoDbLock {
                 None => self.lease,
             };
             self.store
-                .refreshIfOwned(&self.key, &self.owner, lease)
+                .refresh_if_owned(&self.key, &self.owner, lease)
                 .await
         })
     }

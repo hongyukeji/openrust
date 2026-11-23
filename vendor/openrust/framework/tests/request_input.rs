@@ -781,7 +781,7 @@ async fn start_with(
             ] {
                 Route::get(path, binary_file)?;
             }
-            Route::getWith("/file-cached", binary_file, |route| {
+            Route::get_with("/file-cached", binary_file, |route| {
                 route.middleware_name("cache.headers:private;max_age=60;etag=release");
                 Ok(())
             })?;
@@ -806,22 +806,22 @@ async fn start_with(
                     Ok(())
                 },
             )?;
-            Route::getWith("/cache-date", cache_response, |route| {
+            Route::get_with("/cache-date", cache_response, |route| {
                 route.middleware_name("cache.headers:last_modified=2024-01-01 00:00:00 UTC");
                 Ok(())
             })?;
-            Route::getWith("/cache-stream", stream, |route| {
+            Route::get_with("/cache-stream", stream, |route| {
                 route.middleware_name("cache.headers:s_maxage=600;etag");
                 Ok(())
             })?;
-            Route::getWith("/cache-manual", cache_response, |route| {
+            Route::get_with("/cache-manual", cache_response, |route| {
                 use openrust::http::middleware::SetCacheHeaders;
                 route.middleware_name(SetCacheHeaders::using(
                     "s_maxage=30;private;no_transform=0;etag=manual",
                 ));
                 Ok(())
             })?;
-            Route::getWith("/cache-invalid-status", cache_response, |route| {
+            Route::get_with("/cache-invalid-status", cache_response, |route| {
                 route.middleware_name("cache.headers:public;etag");
                 Ok(())
             })?;
@@ -861,7 +861,7 @@ async fn start_with(
             Route::get("/direct/vector", || async { vec!["hello", "世界"] })?;
             Route::get("/direct/json", || json!({"value": "中/😀<&"}))?;
             Route::get("/direct/sparse", || {
-                openrust::support::Collection::fromEntries([(2_i64, 9)])
+                openrust::support::Collection::from_entries([(2_i64, 9)])
             })?;
             Route::get("/direct/fluent", || {
                 openrust::support::Fluent::make(json!({"name":"Ada"})).unwrap()
@@ -871,7 +871,7 @@ async fn start_with(
                 ControllerDispatcher::new(EchoController::direct_json),
             )?;
             Route::get("/direct/error", || [Unserializable])?;
-            Route::getWith(
+            Route::get_with(
                 "/responsable/{slug}",
                 || ContextResponse("sync"),
                 |route| {

@@ -10,34 +10,34 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
     Some(match name {
         "nino" => |faker, _| faker.nino().map(Value::from),
         "cpr" => |faker, _| faker.cpr().map(Value::from),
-        "birthnumbermale" => |faker, _| faker.birthNumberMale().map(Value::from),
-        "birthnumberfemale" => |faker, _| faker.birthNumberFemale().map(Value::from),
+        "birthnumbermale" => |faker, _| faker.birth_number_male().map(Value::from),
+        "birthnumberfemale" => |faker, _| faker.birth_number_female().map(Value::from),
         "ahv13" => |faker, _| faker.ahv13().map(Value::from),
         "avs13" => |faker, _| faker.avs13().map(Value::from),
-        "nationalcode" => |faker, _| faker.nationalCode().map(Value::from),
-        "taxid" => |faker, _| faker.taxId().map(Value::from),
-        "foreigneridnumber" => |faker, _| faker.foreignerIdNumber().map(Value::from),
-        "governorateid" => |faker, _| faker.governorateId().map(Value::from),
-        "driverlicence" => |faker, _| faker.driverLicence().map(Value::from),
-        "passportnumber" => |faker, _| faker.passportNumber().map(Value::from),
-        "tcno" => |faker, _| faker.tcNo().map(Value::from),
+        "nationalcode" => |faker, _| faker.national_code().map(Value::from),
+        "taxid" => |faker, _| faker.tax_id().map(Value::from),
+        "foreigneridnumber" => |faker, _| faker.foreigner_id_number().map(Value::from),
+        "governorateid" => |faker, _| faker.governorate_id().map(Value::from),
+        "driverlicence" => |faker, _| faker.driver_licence().map(Value::from),
+        "passportnumber" => |faker, _| faker.passport_number().map(Value::from),
+        "tcno" => |faker, _| faker.tc_no().map(Value::from),
         "doy" => |faker, _| faker.doy().map(Value::from),
         "object" => |faker, _| faker.object().map(Value::from),
-        "companynumber" => |faker, _| faker.companyNumber().map(Value::from),
-        "companyidnumber" => |faker, _| faker.companyIdNumber().map(Value::from),
-        "companytaxidnumber" => |faker, _| faker.companyTaxIdNumber().map(Value::from),
+        "companynumber" => |faker, _| faker.company_number().map(Value::from),
+        "companyidnumber" => |faker, _| faker.company_id_number().map(Value::from),
+        "companytaxidnumber" => |faker, _| faker.company_tax_id_number().map(Value::from),
         "companytraderegisternumber" => {
-            |faker, _| faker.companyTradeRegisterNumber().map(Value::from)
+            |faker, _| faker.company_trade_register_number().map(Value::from)
         }
         "ico" => |faker, _| faker.ico().map(Value::from),
         "cvr" => |faker, _| faker.cvr().map(Value::from),
         "p" => |faker, _| faker.p().map(Value::from),
         "vsk" => |faker, _| faker.vsk().map(Value::from),
         "regon" => |faker, _| faker.regon().map(Value::from),
-        "regonlocal" => |faker, _| faker.regonLocal().map(Value::from),
+        "regonlocal" => |faker, _| faker.regon_local().map(Value::from),
         "ein" => |faker, _| faker.ein().map(Value::from),
         "dni" => |faker, _| faker.dni().map(Value::from),
-        "licencecode" => |faker, _| faker.licenceCode().map(Value::from),
+        "licencecode" => |faker, _| faker.licence_code().map(Value::from),
         "file" => copy_file,
         "cnp" => |faker, args| {
             let [gender, birth, county, resident] = arguments(args)?;
@@ -53,32 +53,37 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
                 value => (flag(value)?, None),
             };
             faker
-                .myKadNumber(text(gender)?, formatted, separator)
+                .my_kad_number(text(gender)?, formatted, separator)
                 .map(Value::from)
         },
         "countrycodeprefix" => |faker, args| {
             let [formatting] = arguments(args)?;
             let formatting = formatting.map_or(Ok(true), |value| flag(Some(value)))?;
-            faker.countryCodePrefix(formatting).map(Value::from)
+            faker.country_code_prefix(formatting).map(Value::from)
         },
         "calculateroutingnumberchecksum" => |_, args| {
-            Ok(i64::from(Faker::calculateRoutingNumberChecksum(required_text(args)?)?).into())
+            Ok(
+                i64::from(Faker::calculate_routing_number_checksum(required_text(
+                    args,
+                )?)?)
+                .into(),
+            )
         },
         "calculatemodulus97" => |_, args| {
             let [input, use_9755] = arguments(args)?;
             let input =
                 text(input)?.ok_or(DatabaseError::InvalidQuery("Faker formatter requires text"))?;
             let use_9755 = use_9755.map_or(Ok(true), |value| flag(Some(value)))?;
-            Ok(format!("{:02}", Faker::calculateModulus97(input, use_9755)?).into())
+            Ok(format!("{:02}", Faker::calculate_modulus97(input, use_9755)?).into())
         },
         "imageurl" => |faker, args| {
             faker
-                .imageUrl(&image_options(arguments(args)?)?)
+                .image_url(&image_options(arguments(args)?)?)
                 .map(Value::from)
         },
-        "getformats" => |_, _| Ok(Value::Json(serde_json::json!(Faker::getFormats()))),
+        "getformats" => |_, _| Ok(Value::Json(serde_json::json!(Faker::get_formats()))),
         "getformatconstants" => |_, _| {
-            let formats = Faker::getFormatConstants()
+            let formats = Faker::get_format_constants()
                 .into_iter()
                 .map(|(name, code)| (name.to_owned(), serde_json::Value::from(code)))
                 .collect();
@@ -87,14 +92,14 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "ssn" => |faker, args| {
             let [birth] = arguments(args)?;
             match date(birth)? {
-                Some(birth) => faker.ssnWithBirthdate(Some(birth)).map(Value::from),
+                Some(birth) => faker.ssn_with_birthdate(Some(birth)).map(Value::from),
                 None => faker.ssn().map(Value::from),
             }
         },
         "birthnumber" => |faker, args| {
             let [gender, min, max, slash] = arguments(args)?;
             faker
-                .birthNumber(
+                .birth_number(
                     text(gender)?,
                     unsigned(min, 0)?,
                     unsigned(max, 100)?,
@@ -105,13 +110,13 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "individualidentificationnumber" => |faker, args| {
             let [birth, gender] = arguments(args)?;
             faker
-                .individualIdentificationNumber(date(birth)?, text(gender)?)
+                .individual_identification_number(date(birth)?, text(gender)?)
                 .map(Value::from)
         },
         "businessidentificationnumber" => |faker, args| {
             let [registration] = arguments(args)?;
             faker
-                .businessIdentificationNumber(date(registration)?)
+                .business_identification_number(date(registration)?)
                 .map(Value::from)
         },
         "nik" => |faker, args| {
@@ -141,7 +146,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
                     ));
                 }
             };
-            faker.singaporeId(date(issue)?, foreigner).map(Value::from)
+            faker.singapore_id(date(issue)?, foreigner).map(Value::from)
         },
         "nric" => |faker, args| {
             let [birth] = arguments(args)?;
@@ -155,10 +160,10 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
             let [birth, citizen, gender] = arguments(args)?;
             if faker.provider_locale() == "en_ZA" {
                 faker
-                    .idNumberWithBirthdate(date(birth)?, optional_flag(citizen)?, text(gender)?)
+                    .id_number_with_birthdate(date(birth)?, optional_flag(citizen)?, text(gender)?)
                     .map(Value::from)
             } else if args.is_empty() {
-                faker.idNumber().map(Value::from)
+                faker.id_number().map(Value::from)
             } else {
                 Err(DatabaseError::InvalidQuery(
                     "Faker dated identity number is unsupported for this locale",
@@ -168,23 +173,23 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "nationalidnumber" => |faker, args| {
             let [gender] = arguments(args)?;
             match text(gender)? {
-                Some(gender) => faker.nationalIdNumberWithGender(Some(gender)),
-                None => faker.nationalIdNumber(),
+                Some(gender) => faker.national_id_number_with_gender(Some(gender)),
+                None => faker.national_id_number(),
             }
             .map(Value::from)
         },
         "personalidentitynumber" => personal_identity_number,
         "nationalid" => |faker, args| {
             let [separator] = arguments(args)?;
-            faker.nationalId(text(separator)?).map(Value::from)
+            faker.national_id(text(separator)?).map(Value::from)
         },
         "taxpayeridentificationnumber" => |faker, args| {
             let [separator] = arguments(args)?;
             match text(separator)? {
                 Some(separator) => faker
-                    .taxpayerIdentificationNumberWithSeparator(Some(separator))
+                    .taxpayer_identification_number_with_separator(Some(separator))
                     .map(Value::from),
-                None => faker.taxpayerIdentificationNumber().map(Value::from),
+                None => faker.taxpayer_identification_number().map(Value::from),
             }
         },
         "siret" => |faker, args| {
@@ -219,12 +224,14 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
             let [inn] = arguments(args)?;
             faker.kpp(text(inn)?).map(Value::from)
         },
-        "checksum" => |_, args| Ok(i64::from(Faker::checkSum(required_text(args)?)?).into()),
-        "tcnoisvalid" => |_, args| Faker::tcNoIsValid(required_text(args)?).map(Value::from),
-        "tcnochecksum" => |_, args| Faker::tcNoChecksum(required_text(args)?).map(Value::from),
-        "inn10isvalid" => |_, args| Ok(Faker::inn10IsValid(required_text(args)?).into()),
-        "inn10checksum" => |_, args| Faker::inn10Checksum(required_text(args)?).map(Value::from),
-        "dvcalcmod11" => |_, args| Ok(i64::from(Faker::dvCalcMod11(required_text(args)?)?).into()),
+        "checksum" => |_, args| Ok(i64::from(Faker::check_sum(required_text(args)?)?).into()),
+        "tcnoisvalid" => |_, args| Faker::tc_no_is_valid(required_text(args)?).map(Value::from),
+        "tcnochecksum" => |_, args| Faker::tc_no_checksum(required_text(args)?).map(Value::from),
+        "inn10isvalid" => |_, args| Ok(Faker::inn10_is_valid(required_text(args)?).into()),
+        "inn10checksum" => |_, args| Faker::inn10_checksum(required_text(args)?).map(Value::from),
+        "dvcalcmod11" => {
+            |_, args| Ok(i64::from(Faker::dv_calc_mod11(required_text(args)?)?).into())
+        }
         _ => return None,
     })
 }
@@ -291,7 +298,7 @@ fn personal_identity_number(faker: &Faker, args: &[Value]) -> DatabaseResult<Val
     match faker.provider_locale() {
         "lt_LT" => {
             let [gender, birth, serial] = arguments(args)?;
-            faker.personalIdentityNumberWithSerial(
+            faker.personal_identity_number_with_serial(
                 date(birth)?,
                 text(gender)?,
                 text(serial)?.filter(|value| !value.is_empty()),
@@ -299,15 +306,15 @@ fn personal_identity_number(faker: &Faker, args: &[Value]) -> DatabaseResult<Val
         }
         "lv_LV" => {
             let [birth] = arguments(args)?;
-            faker.personalIdentityNumberWithBirthdate(date(birth)?, None)
+            faker.personal_identity_number_with_birthdate(date(birth)?, None)
         }
         "fi_FI" | "nb_NO" | "sv_SE" => {
             let [birth, gender] = arguments(args)?;
-            faker.personalIdentityNumberWithBirthdate(date(birth)?, text(gender)?)
+            faker.personal_identity_number_with_birthdate(date(birth)?, text(gender)?)
         }
         _ => {
             let [gender] = arguments(args)?;
-            faker.personalIdentityNumber(text(gender)?)
+            faker.personal_identity_number(text(gender)?)
         }
     }
     .map(Value::from)

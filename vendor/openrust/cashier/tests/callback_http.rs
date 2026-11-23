@@ -52,7 +52,7 @@ async fn callback(
 async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subscription() {
     let db = Db::new(true).await;
     db.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("callback_business", |t| {
             t.string("id", 255).primary();
             t.string("status", 16);
@@ -137,8 +137,8 @@ async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subs
             .unwrap();
     }
     db.connection
-        .getSchemaBuilder()
-        .dropIfExists("callback_business")
+        .get_schema_builder()
+        .drop_if_exists("callback_business")
         .await
         .unwrap();
     db.migrator

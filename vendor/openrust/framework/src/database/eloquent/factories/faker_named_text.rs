@@ -9,7 +9,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "randomhtml" => |faker, args| {
             let [depth, width] = arguments(args)?;
             faker
-                .randomHtml(html_limit(depth)?, html_limit(width)?)
+                .random_html(html_limit(depth)?, html_limit(width)?)
                 .map(Value::from)
         },
         "word" => |faker, _| Ok(faker.word().into()),
@@ -18,7 +18,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "paragraphs" => |faker, args| series(faker, args, "\n\n", Faker::paragraphs),
         "sentence" => |faker, args| {
             let (count, variable) = length_and_variability(args, 6)?;
-            Ok(faker.sentenceWithWordCount(count, variable).into())
+            Ok(faker.sentence_with_word_count(count, variable).into())
         },
         "paragraph" => |faker, args| {
             let (count, variable) = length_and_variability(args, 3)?;
@@ -31,13 +31,13 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "realtext" => |faker, args| {
             let [max, order] = arguments(args)?;
             faker
-                .realText(Some(length(max, 200)?), Some(length(order, 2)?))
+                .real_text(Some(length(max, 200)?), Some(length(order, 2)?))
                 .map(Value::from)
         },
         "realtextbetween" => |faker, args| {
             let [min, max, order] = arguments(args)?;
             faker
-                .realTextBetween(
+                .real_text_between(
                     Some(length(min, 160)?),
                     Some(length(max, 200)?),
                     Some(length(order, 2)?),
@@ -54,30 +54,30 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
             let (count, variable) = length_and_variability(args, 6)?;
             Ok(faker.slug(Some(count), variable).into())
         },
-        "companyemail" => |faker, _| faker.companyEmail().map(Value::from),
-        "safeemaildomain" => |faker, _| Ok(faker.safeEmailDomain().into()),
-        "freeemaildomain" => |faker, _| Ok(faker.freeEmailDomain().into()),
-        "domainword" => |faker, _| faker.domainWord().map(Value::from),
-        "domainname" => |faker, _| faker.domainName().map(Value::from),
+        "companyemail" => |faker, _| faker.company_email().map(Value::from),
+        "safeemaildomain" => |faker, _| Ok(faker.safe_email_domain().into()),
+        "freeemaildomain" => |faker, _| Ok(faker.free_email_domain().into()),
+        "domainword" => |faker, _| faker.domain_word().map(Value::from),
+        "domainname" => |faker, _| faker.domain_name().map(Value::from),
         "tld" => |faker, _| Ok(faker.tld().into()),
         "url" => |faker, _| faker.url().map(Value::from),
         "ipv4" => |faker, _| Ok(faker.ipv4().into()),
         "ipv6" => |faker, _| Ok(faker.ipv6().into()),
-        "localipv4" => |faker, _| Ok(faker.localIpv4().into()),
-        "macaddress" => |faker, _| Ok(faker.macAddress().into()),
+        "localipv4" => |faker, _| Ok(faker.local_ipv4().into()),
+        "macaddress" => |faker, _| Ok(faker.mac_address().into()),
         "useragent" => |faker, _| faker.user_agent().map(Value::from),
         "firefox" => |faker, _| faker.firefox().map(Value::from),
         "chrome" => |faker, _| Ok(faker.chrome().into()),
         "msedge" => |faker, _| Ok(faker.msedge().into()),
         "safari" => |faker, _| Ok(faker.safari().into()),
         "opera" => |faker, _| Ok(faker.opera().into()),
-        "internetexplorer" => |faker, _| Ok(faker.internetExplorer().into()),
-        "macprocessor" => |faker, _| Ok(faker.macProcessor().into()),
-        "linuxprocessor" => |faker, _| Ok(faker.linuxProcessor().into()),
-        "windowsplatformtoken" => |faker, _| Ok(faker.windowsPlatformToken().into()),
-        "macplatformtoken" => |faker, _| Ok(faker.macPlatformToken().into()),
-        "linuxplatformtoken" => |faker, _| Ok(faker.linuxPlatformToken().into()),
-        "iosmobiletoken" => |faker, _| Ok(faker.iosMobileToken().into()),
+        "internetexplorer" => |faker, _| Ok(faker.internet_explorer().into()),
+        "macprocessor" => |faker, _| Ok(faker.mac_processor().into()),
+        "linuxprocessor" => |faker, _| Ok(faker.linux_processor().into()),
+        "windowsplatformtoken" => |faker, _| Ok(faker.windows_platform_token().into()),
+        "macplatformtoken" => |faker, _| Ok(faker.mac_platform_token().into()),
+        "linuxplatformtoken" => |faker, _| Ok(faker.linux_platform_token().into()),
+        "iosmobiletoken" => |faker, _| Ok(faker.ios_mobile_token().into()),
         _ => return None,
     })
 }

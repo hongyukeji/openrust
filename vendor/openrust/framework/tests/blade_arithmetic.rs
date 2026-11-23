@@ -107,21 +107,21 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
         factory.render("cache", &ViewData::new()).unwrap(),
         "INF|NAN|-0|3"
     );
-    let Engine::Blade(engine) = factory.getEngineResolver().resolve("blade").unwrap() else {
+    let Engine::Blade(engine) = factory.get_engine_resolver().resolve("blade").unwrap() else {
         panic!()
     };
-    let compiler = engine.getCompiler();
-    let artifact = compiler.getCompiledPath(&path).unwrap();
+    let compiler = engine.get_compiler();
+    let artifact = compiler.get_compiled_path(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
     assert_eq!(contents["compiler_version"], 45);
     contents["compiler_version"] = json!(44);
     fs::write(&artifact, contents.to_string()).unwrap();
-    assert!(compiler.isExpired(&path).unwrap());
+    assert!(compiler.is_expired(&path).unwrap());
     assert_eq!(
         factory.render("cache", &ViewData::new()).unwrap(),
         "INF|NAN|-0|3"
     );
-    assert!(!compiler.isExpired(&path).unwrap());
+    assert!(!compiler.is_expired(&path).unwrap());
     let rebuilt: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
     assert_eq!(rebuilt["compiler_version"], 45);
 }
@@ -177,7 +177,7 @@ async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
         .with_config(config)
         .with_routing(openrust::foundation::configuration::Routing::new(routes))
         .with_exceptions(|e| {
-            e.shouldRenderJsonWhen(|r, _| r.expects_json());
+            e.should_render_json_when(|r, _| r.expects_json());
         })
         .create()
         .unwrap();

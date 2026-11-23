@@ -15,8 +15,7 @@ pub trait JobHandler: Send + Sync {
     }
 
     /// Determines whether a dispatched payload holds an application cache lock.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn uniqueJob(&self, _payload: &Payload) -> Option<UniqueJob> {
+    fn unique_job(&self, _payload: &Payload) -> Option<UniqueJob> {
         None
     }
 
@@ -27,8 +26,7 @@ pub trait JobHandler: Send + Sync {
     ) -> QueueFuture<'a, QueueResult<()>>;
 
     /// Resolves the deadline for an explicit retry. The default keeps the stored deadline.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
+    fn retry_until(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
         Ok(payload.options().retry_until)
     }
 

@@ -126,8 +126,8 @@ async fn native_artisan_registers_billing_migration_without_api_keys_and_preserv
     run(&["migrate", "--force"], false);
     assert!(
         connection
-            .getSchemaBuilder()
-            .hasTable("cashier_events")
+            .get_schema_builder()
+            .has_table("cashier_events")
             .await
             .unwrap()
     );
@@ -159,8 +159,8 @@ async fn native_artisan_registers_billing_migration_without_api_keys_and_preserv
     run(&["migrate:rollback", "--force"], false);
     assert!(
         !connection
-            .getSchemaBuilder()
-            .hasTable("cashier_events")
+            .get_schema_builder()
+            .has_table("cashier_events")
             .await
             .unwrap()
     );

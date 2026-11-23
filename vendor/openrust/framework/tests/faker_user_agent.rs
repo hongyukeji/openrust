@@ -79,7 +79,7 @@ fn faker_user_agents_match_pinned_browser_and_platform_formats() {
 
         let sample = faker.opera();
         assert!((160..=355).contains(&number(&opera.captures(&sample).unwrap()[1])));
-        assert!(ie.is_match(&faker.internetExplorer()));
+        assert!(ie.is_match(&faker.internet_explorer()));
         let sample = faker.user_agent().unwrap();
         assert!(
             [&firefox, &chrome, &edge, &edge_ios, &safari, &opera, &ie]
@@ -95,26 +95,26 @@ fn faker_platform_tokens_preserve_catalogs_and_unique_history() {
     let faker = fake(None).unwrap();
     let unique = faker.unique(true);
     let windows: HashSet<_> = (0..12)
-        .map(|_| unique.windowsPlatformToken().unwrap())
+        .map(|_| unique.windows_platform_token().unwrap())
         .collect();
     assert_eq!(windows.len(), 12);
     let format = Regex::new(&format!("^{WINDOWS}$")).unwrap();
     assert!(windows.iter().all(|token| format.is_match(token)));
-    assert!(unique.windowsPlatformToken().is_err());
-    assert!(faker.unique(true).windowsPlatformToken().is_ok());
+    assert!(unique.windows_platform_token().is_err());
+    assert!(faker.unique(true).windows_platform_token().is_ok());
 
     let unique = faker.unique(true);
-    let linux: HashSet<_> = (0..2).map(|_| unique.linuxProcessor().unwrap()).collect();
+    let linux: HashSet<_> = (0..2).map(|_| unique.linux_processor().unwrap()).collect();
     assert_eq!(linux, HashSet::from(["i686", "x86_64"]));
-    assert!(unique.linuxProcessor().is_err());
-    let mac: HashSet<_> = (0..4).map(|_| unique.macProcessor().unwrap()).collect();
+    assert!(unique.linux_processor().is_err());
+    let mac: HashSet<_> = (0..4).map(|_| unique.mac_processor().unwrap()).collect();
     assert_eq!(mac, HashSet::from(["Intel", "PPC", "U; Intel", "U; PPC"]));
-    assert!(unique.macProcessor().is_err());
+    assert!(unique.mac_processor().is_err());
 
     for (format, sample) in [
-        (MAC, unique.macPlatformToken().unwrap()),
-        (LINUX, unique.linuxPlatformToken().unwrap()),
-        (IOS, unique.iosMobileToken().unwrap()),
+        (MAC, unique.mac_platform_token().unwrap()),
+        (LINUX, unique.linux_platform_token().unwrap()),
+        (IOS, unique.ios_mobile_token().unwrap()),
     ] {
         assert!(
             Regex::new(&format!("^{format}$"))

@@ -68,6 +68,6 @@ impl Passport {
     }
 }
 async fn client_id(client: &ClientRecord) -> AuthResult<String> {
-    let value = client.getKey().await.ok_or(AuthError::InvalidIdentity)?;
+    let value = client.get_key().await.ok_or(AuthError::InvalidIdentity)?;
     AuthIdentifier::try_from(&value).map(|v| v.to_string())
 }

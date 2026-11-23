@@ -39,7 +39,7 @@ use openrust::{
     },
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{Router, RoutingError},
-    support::facades::DB,
+    support::facades::Db,
 };
 use serde_json::json;
 
@@ -82,7 +82,7 @@ async fn sqlite_uses_default_file_and_rejects_bad_connections_and_driver_errors(
     let conn = db.connection(None).unwrap();
     assert_eq!(conn.get_name(), "sqlite");
     assert_eq!(
-        conn.getDatabaseName(),
+        conn.get_database_name(),
         root.0.join("database/database.sqlite").to_str().unwrap()
     );
     assert!(conn.unprepared("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, payload BLOB, note TEXT); CREATE TABLE links (item_id INTEGER REFERENCES items(id))").await.unwrap());
@@ -115,7 +115,7 @@ async fn sqlite_uses_default_file_and_rejects_bad_connections_and_driver_errors(
         .unwrap()
     );
     let row = conn
-        .selectOne(
+        .select_one(
             "SELECT name, payload, note FROM items WHERE id = ?",
             &[1.into()],
         )
@@ -234,7 +234,7 @@ async fn real_mysql_executes_prepared_queries_and_retires_cancelled_connections(
     };
     assert!(version.starts_with("8.4."));
     let cipher = conn
-        .selectOne("SHOW SESSION STATUS LIKE 'Ssl_cipher'", &[])
+        .select_one("SHOW SESSION STATUS LIKE 'Ssl_cipher'", &[])
         .await
         .unwrap()
         .unwrap();
@@ -257,7 +257,7 @@ async fn real_mysql_executes_prepared_queries_and_retires_cancelled_connections(
     .await
     .unwrap();
     let row = conn
-        .selectOne(
+        .select_one(
             "SELECT * FROM rust_probe WHERE id = ?",
             &[Value::Unsigned(u64::MAX)],
         )
@@ -323,8 +323,8 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, serde_json::Valu
 }
 
 async fn probe_value() -> Result<Value, DatabaseError> {
-    let id = DB::transaction(|transaction| Box::pin(interface_probe(transaction)), 1).await?;
-    let mut connection = DB::connection(None)?;
+    let id = Db::transaction(|transaction| Box::pin(interface_probe(transaction)), 1).await?;
+    let mut connection = Db::connection(None)?;
     assert_eq!(interface_probe(&mut connection).await?, id);
     Ok(id)
 }
@@ -332,7 +332,7 @@ async fn probe_value() -> Result<Value, DatabaseError> {
 async fn interface_probe(connection: &mut dyn ConnectionInterface) -> Result<Value, DatabaseError> {
     let id = connection
         .table("probe", Some("p"))
-        .useWritePdo()
+        .use_write_pdo()
         .value("p.id")
         .await?;
     let found = connection
@@ -352,13 +352,13 @@ fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
     Box::pin(async move {
         async fn read(write: bool, force_writer: bool) -> Result<Value, DatabaseError> {
             if write {
-                DB::table("probe")?
+                Db::table("probe")?
                     .increment("id", 1, Default::default())
                     .await?;
             }
-            let query = DB::table("probe")?;
+            let query = Db::table("probe")?;
             let query = if force_writer {
-                query.useWritePdo()
+                query.use_write_pdo()
             } else {
                 query
             };
@@ -611,24 +611,24 @@ async fn sqlite_manual_transactions_savepoints_and_cancellation_keep_the_writer_
         .statement("CREATE TABLE txn (id INTEGER PRIMARY KEY)", &[])
         .await
         .unwrap();
-    let mut transaction = connection.beginTransaction().await.unwrap();
+    let mut transaction = connection.begin_transaction().await.unwrap();
     transaction
         .insert("INSERT INTO txn VALUES (1)", &[])
         .await
         .unwrap();
-    transaction.beginTransaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     transaction
         .insert("INSERT INTO txn VALUES (2)", &[])
         .await
         .unwrap();
-    transaction.beginTransaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     transaction
         .insert("INSERT INTO txn VALUES (3)", &[])
         .await
         .unwrap();
-    assert_eq!(transaction.transactionLevel(), 3);
-    transaction.rollBack(Some(1)).await.unwrap();
-    assert_eq!(transaction.transactionLevel(), 1);
+    assert_eq!(transaction.transaction_level(), 3);
+    transaction.roll_back(Some(1)).await.unwrap();
+    assert_eq!(transaction.transaction_level(), 1);
     assert_eq!(
         transaction
             .scalar("SELECT COUNT(*) FROM txn", &[])
@@ -662,12 +662,12 @@ async fn sqlite_manual_transactions_savepoints_and_cancellation_keep_the_writer_
             ..
         }
     ));
-    let mut transaction = connection.beginTransaction().await.unwrap();
+    let mut transaction = connection.begin_transaction().await.unwrap();
     transaction
         .insert("INSERT INTO txn VALUES (5)", &[])
         .await
         .unwrap();
-    transaction.beginTransaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     transaction
         .insert("INSERT INTO txn VALUES (6)", &[])
         .await
@@ -714,7 +714,7 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
     let mut locker = db
         .connection(Some("locker"))
         .unwrap()
-        .beginTransaction()
+        .begin_transaction()
         .await
         .unwrap();
     locker
@@ -725,13 +725,13 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
     let release = Arc::new(std::sync::Mutex::new(Some(release)));
     let locker = tokio::spawn(async move {
         released.await.unwrap();
-        locker.rollBack(None).await.unwrap();
+        locker.roll_back(None).await.unwrap();
     });
     let attempts = Arc::new(AtomicUsize::new(0));
     let rollbacks = Arc::new(AtomicUsize::new(0));
     let before_calls = Arc::new(AtomicUsize::new(0));
     let starts = before_calls.clone();
-    writer.beforeStartingTransaction(move |_, _| {
+    writer.before_starting_transaction(move |_, _| {
         let starts = starts.clone();
         Box::pin(async move {
             starts.fetch_add(1, Ordering::SeqCst);
@@ -745,7 +745,7 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
                 let attempts = attempts.clone();
                 let rollbacks = rollbacks.clone();
                 Box::pin(async move {
-                    tx.afterRollBack(move || {
+                    tx.after_roll_back(move || {
                         Box::pin(async move {
                             rollbacks.fetch_add(1, Ordering::SeqCst);
                             Ok(())
@@ -790,7 +790,7 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
         1.into()
     );
 
-    let mut tx = writer.beginTransaction().await.unwrap();
+    let mut tx = writer.begin_transaction().await.unwrap();
     let before = tx.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap();
     tx.update("UPDATE rust_txn SET n = 900 WHERE id = 1", &[])
         .await
@@ -856,7 +856,7 @@ async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
     );
     let direct = db.connection(Some("split::direct")).unwrap();
     assert_eq!(direct.get_name(), "split::direct");
-    direct.enableQueryLog();
+    direct.enable_query_log();
     direct.unprepared("PRAGMA user_version = 21").await.unwrap();
     assert_eq!(
         direct.scalar("PRAGMA user_version", &[]).await.unwrap(),
@@ -864,7 +864,7 @@ async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
     );
     assert!(
         direct
-            .getQueryLog()
+            .get_query_log()
             .iter()
             .all(|entry| entry.read_write_type == QueryRole::Direct)
     );
@@ -875,7 +875,7 @@ async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
     );
     assert_eq!(
         regular
-            .selectFromWriteConnection("PRAGMA user_version", &[])
+            .select_from_write_connection("PRAGMA user_version", &[])
             .await
             .unwrap()[0]
             .get_at(0),
@@ -913,13 +913,13 @@ async fn postgres_direct_endpoint_and_migration_role_resolve_without_connecting(
         }}),
     ));
     let base = manager.connection(None).unwrap();
-    assert!(base.hasDirectConnection());
-    assert_eq!(base.getDatabaseName(), "write_db");
+    assert!(base.has_direct_connection());
+    assert_eq!(base.get_database_name(), "write_db");
     let direct = manager.connection(Some("split::direct")).unwrap();
-    assert!(direct.hasDirectConnection());
+    assert!(direct.has_direct_connection());
     assert_eq!(direct.get_name(), "split::direct");
-    assert_eq!(direct.getDatabaseName(), "direct_db");
-    assert_eq!(direct.getTablePrefix(), "app_");
+    assert_eq!(direct.get_database_name(), "direct_db");
+    assert_eq!(direct.get_table_prefix(), "app_");
 
     let migrator = Migrator::new(
         manager.clone(),
@@ -938,7 +938,10 @@ async fn postgres_direct_endpoint_and_migration_role_resolve_without_connecting(
         (Some("empty_url::direct"), "only_writer"),
     ] {
         assert_eq!(
-            migrator.resolveConnection(name).unwrap().getDatabaseName(),
+            migrator
+                .resolve_connection(name)
+                .unwrap()
+                .get_database_name(),
             database
         );
     }
@@ -946,13 +949,13 @@ async fn postgres_direct_endpoint_and_migration_role_resolve_without_connecting(
         !manager
             .connection(Some("fallback"))
             .unwrap()
-            .hasDirectConnection()
+            .has_direct_connection()
     );
     assert!(matches!(
-        migrator.resolveConnection(Some("invalid")),
+        migrator.resolve_connection(Some("invalid")),
         Err(DatabaseError::InvalidConfiguration("direct driver"))
     ));
-    assert_eq!(manager.getDefaultConnection().unwrap(), "split");
+    assert_eq!(manager.get_default_connection().unwrap(), "split");
 }
 
 #[tokio::test]
@@ -973,7 +976,7 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
     );
     let direct = db.connection(Some("split::direct")).unwrap();
     assert_eq!(direct.get_name(), "split::direct");
-    assert!(!direct.hasDirectConnection());
+    assert!(!direct.has_direct_connection());
     direct
         .statement("SET @openrust_direct_probe = 23", &[])
         .await
@@ -987,13 +990,13 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
     );
     let mut split = db.connection(None).unwrap();
     let writer = split
-        .selectFromWriteConnection("SELECT CONNECTION_ID()", &[])
+        .select_from_write_connection("SELECT CONNECTION_ID()", &[])
         .await
         .unwrap();
     let writer_id = writer[0].get_at(0).unwrap().clone();
     let reader_id = split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap();
     assert_ne!(writer_id, reader_id);
-    let mut transaction = split.beginTransaction().await.unwrap();
+    let mut transaction = split.begin_transaction().await.unwrap();
     assert_eq!(
         transaction
             .scalar("SELECT CONNECTION_ID()", &[])
@@ -1001,7 +1004,7 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
             .unwrap(),
         writer_id
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     let role_probe = "SELECT CONNECTION_ID()";
     for (read, expected) in [(true, &reader_id), (false, &writer_id)] {
         let connection: &mut dyn ConnectionInterface = &mut split;
@@ -1019,9 +1022,9 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
             .unwrap();
         assert_eq!(rows[0].get_at(0), Some(expected));
     }
-    let mut transaction = split.beginTransaction().await.unwrap();
+    let mut transaction = split.begin_transaction().await.unwrap();
     let connection: &mut dyn ConnectionInterface = &mut transaction;
-    assert_eq!(connection.getDatabaseName(), split.getDatabaseName());
+    assert_eq!(connection.get_database_name(), split.get_database_name());
     assert_eq!(
         connection
             .scalar(role_probe, (&[]).into(), true)
@@ -1029,18 +1032,18 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
             .unwrap(),
         writer_id
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
 
     split
         .statement("CREATE TABLE IF NOT EXISTS rust_split_probe (id INT)", &[])
         .await
         .unwrap();
-    let mut transaction = split.beginTransaction().await.unwrap();
+    let mut transaction = split.begin_transaction().await.unwrap();
     let connection: &mut dyn ConnectionInterface = &mut transaction;
     assert!(
         connection
-            .getSchemaBuilder()
-            .hasTable("rust_split_probe")
+            .get_schema_builder()
+            .has_table("rust_split_probe")
             .await
             .unwrap()
     );
@@ -1062,13 +1065,13 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
         .unwrap()
         .unwrap();
     assert_eq!(row.get("incremented"), Some(&32.into()));
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(split.table("rust_split_probe").count("*").await.unwrap(), 0);
     assert_eq!(
         split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
         writer_id
     );
-    split.forgetRecordModificationState();
+    split.forget_record_modification_state();
     assert_eq!(
         split
             .update("UPDATE rust_split_probe SET id = 1 WHERE 1 = 0", &[])
@@ -1080,12 +1083,12 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
         split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
         reader_id
     );
-    split.useWriteConnectionWhenReading(true);
+    split.use_write_connection_when_reading(true);
     assert_eq!(
         split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
         writer_id
     );
-    split.useWriteConnectionWhenReading(false);
+    split.use_write_connection_when_reading(false);
 
     let reader_number = match reader_id {
         Value::Unsigned(value) => value,
@@ -1137,7 +1140,7 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
     let mut locker = db
         .connection(Some("locker"))
         .unwrap()
-        .beginTransaction()
+        .begin_transaction()
         .await
         .unwrap();
     locker
@@ -1153,7 +1156,7 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
             .update("UPDATE rust_deadlock SET n = 100 WHERE id = 1", &[])
             .await
             .unwrap();
-        locker.rollBack(None).await.unwrap();
+        locker.roll_back(None).await.unwrap();
     };
     let run = writer.transaction(
         |tx| {
@@ -1161,7 +1164,7 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
             let attempts = attempts.clone();
             let rollbacks = rollbacks.clone();
             Box::pin(async move {
-                tx.afterRollBack(move || {
+                tx.after_roll_back(move || {
                     Box::pin(async move {
                         rollbacks.fetch_add(1, Ordering::SeqCst);
                         Ok(())
@@ -1234,14 +1237,14 @@ async fn verify_named_bindings(db: &Connection) {
     .unwrap();
     let integer_key = [("id", 7.into())];
     let key = Bindings::Named(&integer_key);
-    let row = db.selectFromWriteConnection(
+    let row = db.select_from_write_connection(
         "SELECT ':literal ? café' AS literal, note AS `:alias` /* :comment ? */ FROM named_binding_items WHERE id = :id -- :trailing ?",
         key,
     ).await.unwrap();
     assert_eq!(row[0].get("literal"), Some(&":literal ? café".into()));
     assert_eq!(row[0].get(":alias"), Some(&note));
 
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     assert_eq!(
         tx.update(
             "UPDATE named_binding_items SET note = :note WHERE id = :id",
@@ -1258,7 +1261,7 @@ async fn verify_named_bindings(db: &Connection) {
     );
     assert!(cursor.try_next().await.unwrap().is_none());
     drop(cursor);
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert_eq!(
         db.scalar("SELECT note FROM named_binding_items WHERE id = :id", key)
             .await
@@ -1357,7 +1360,7 @@ async fn mysql_supports_named_bindings_in_prepared_procedures() {
         "CREATE PROCEDURE openrust_named_rowsets(IN n INT) BEGIN SELECT n AS value; SELECT n + 1 AS value; END",
     ).await.unwrap();
     let results = db
-        .selectResultSets("CALL openrust_named_rowsets(:value)", value, true)
+        .select_result_sets("CALL openrust_named_rowsets(:value)", value, true)
         .await
         .unwrap();
     assert_eq!(results.iter().map(Vec::len).collect::<Vec<_>>(), [1, 1, 0]);
@@ -1460,12 +1463,12 @@ impl Listener for TransactionRecorder {
                 .or_else(|| payload!(TransactionRolledBack))
                 .ok_or(EventError::InvalidPayload)?;
             assert_eq!(
-                context.transaction().map(|tx| tx.transactionLevel()),
+                context.transaction().map(|tx| tx.transaction_level()),
                 (level > 0).then_some(level)
             );
-            let scoped = DB::connection(None).map_err(EventError::Transaction)?;
+            let scoped = Db::connection(None).map_err(EventError::Transaction)?;
             assert_eq!(connection.get_name(), scoped.get_name());
-            assert_eq!(connection.getDatabaseName(), scoped.getDatabaseName());
+            assert_eq!(connection.get_database_name(), scoped.get_database_name());
             self.calls.lock().unwrap().push((name, level));
             if *self.fail.lock().unwrap() == Some(name) {
                 return Err(EventError::Listener {
@@ -1523,21 +1526,21 @@ async fn verify_transaction_lifecycle(db: &Connection, recorder: &Arc<Transactio
     .await
     .unwrap();
 
-    let mut tx = db.beginTransaction().await.unwrap();
-    tx.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
     tx.insert("INSERT INTO transaction_event_records VALUES (1)", &[])
         .await
         .unwrap();
     tx.commit().await.unwrap();
-    tx.beginTransaction().await.unwrap();
-    tx.beginTransaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
     tx.insert("INSERT INTO transaction_event_records VALUES (2)", &[])
         .await
         .unwrap();
-    tx.rollBack(Some(1)).await.unwrap();
-    tx.rollBack(Some(1)).await.unwrap();
+    tx.roll_back(Some(1)).await.unwrap();
+    tx.roll_back(Some(1)).await.unwrap();
     let callbacks = recorder.clone();
-    tx.afterCommit(move || {
+    tx.after_commit(move || {
         Box::pin(async move {
             callbacks.calls.lock().unwrap().push(("afterCommit", 0));
             Ok(())
@@ -1647,10 +1650,10 @@ async fn sqlite_transaction_events_are_ordered_and_application_local() {
     verify_transaction_lifecycle(&connection, &events).await;
     assert!(other_events.take().is_empty());
     other
-        .beginTransaction()
+        .begin_transaction()
         .await
         .unwrap()
-        .rollBack(None)
+        .roll_back(None)
         .await
         .unwrap();
     assert_eq!(
@@ -1703,10 +1706,10 @@ impl Listener for EstablishmentListener {
                 .downcast_ref::<ConnectionEstablished>()
                 .ok_or(EventError::InvalidPayload)?;
             self.calls.fetch_add(1, Ordering::SeqCst);
-            let resolved = DB::connection(None).map_err(EventError::Transaction)?;
+            let resolved = Db::connection(None).map_err(EventError::Transaction)?;
             assert_eq!(
-                event.connection.getDatabaseName(),
-                resolved.getDatabaseName()
+                event.connection.get_database_name(),
+                resolved.get_database_name()
             );
             assert_eq!(
                 resolved
@@ -1882,12 +1885,12 @@ async fn verify_query_preview(connection: Connection) {
         .unprepared("CREATE TABLE query_preview_probe (n BIGINT)")
         .await
         .unwrap();
-    connection.forgetRecordModificationState();
-    connection.enableQueryLog();
+    connection.forget_record_modification_state();
+    connection.enable_query_log();
     connection.scalar("SELECT 1", &[]).await.unwrap();
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
-    connection.beforeExecuting(move |sql, _, _, _| {
+    connection.before_executing(move |sql, _, _, _| {
         let seen = seen.clone();
         Box::pin(async move {
             if sql.starts_with("INSERT INTO query_preview_probe") {
@@ -1905,9 +1908,9 @@ async fn verify_query_preview(connection: Connection) {
                 db.statement("INSERT INTO query_preview_probe VALUES (?)", &[8.into()])
                     .await?
             );
-            assert!(!db.hasModifiedRecords());
+            assert!(!db.has_modified_records());
             assert_eq!(
-                db.affectingStatement("DELETE FROM query_preview_probe", &[])
+                db.affecting_statement("DELETE FROM query_preview_probe", &[])
                     .await?,
                 0
             );
@@ -1919,7 +1922,7 @@ async fn verify_query_preview(connection: Connection) {
                     .is_empty()
             );
             assert!(matches!(
-                db.beginTransaction().await,
+                db.begin_transaction().await,
                 Err(DatabaseError::UnsupportedOperation(_))
             ));
             let nested = db
@@ -1934,7 +1937,7 @@ async fn verify_query_preview(connection: Connection) {
             assert_eq!(nested.len(), 1);
             assert!(db.pretending());
             assert_eq!(
-                db.withoutPretending(async {
+                db.without_pretending(async {
                     assert!(!db.pretending());
                     db.scalar("SELECT 12", &[]).await
                 })
@@ -1971,7 +1974,7 @@ async fn verify_query_preview(connection: Connection) {
     assert!(!connection.pretending());
     assert_eq!(
         connection
-            .getQueryLog()
+            .get_query_log()
             .iter()
             .map(|entry| entry.query.as_str())
             .collect::<Vec<_>>(),
@@ -1997,7 +2000,7 @@ async fn verify_query_preview(connection: Connection) {
     assert!(futures_util::poll!(&mut preview).is_pending());
     assert!(!connection.pretending());
 
-    let mut transaction = connection.beginTransaction().await.unwrap();
+    let mut transaction = connection.begin_transaction().await.unwrap();
     let held = connection
         .pretend(move |_| {
             Box::pin(async move {
@@ -2084,7 +2087,7 @@ async fn verify_before_executing(connection: Connection) {
         .unwrap();
     let calls = Arc::new(Mutex::new(Vec::new()));
     let recorded = calls.clone();
-    connection.beforeExecuting(move |sql, bindings, connection, transaction| {
+    connection.before_executing(move |sql, bindings, connection, transaction| {
         let recorded = recorded.clone();
         Box::pin(async move {
             assert_eq!(connection.get_name(), "fixture");
@@ -2113,7 +2116,7 @@ async fn verify_before_executing(connection: Connection) {
         })
     });
     let recorded = calls.clone();
-    connection.beforeExecuting(move |sql, _, _, _| {
+    connection.before_executing(move |sql, _, _, _| {
         let recorded = recorded.clone();
         Box::pin(async move {
             recorded.lock().unwrap().push(format!("second {sql}"));
@@ -2121,7 +2124,7 @@ async fn verify_before_executing(connection: Connection) {
         })
     });
     let clone = connection.clone();
-    connection.enableQueryLog();
+    connection.enable_query_log();
     let sql = "SELECT :bound AS marker";
     let named = [("bound", 23.into())];
     let cursor = clone.cursor(sql, Bindings::Named(&named));
@@ -2142,7 +2145,7 @@ async fn verify_before_executing(connection: Connection) {
             "query rejected by hook"
         ))
     ));
-    assert_eq!(connection.getQueryLog().len(), 1);
+    assert_eq!(connection.get_query_log().len(), 1);
     assert_eq!(calls.lock().unwrap().len(), 3);
     assert_eq!(
         clone
@@ -2152,7 +2155,7 @@ async fn verify_before_executing(connection: Connection) {
         0.into()
     );
 
-    let mut transaction = clone.beginTransaction().await.unwrap();
+    let mut transaction = clone.begin_transaction().await.unwrap();
     assert!(transaction.unprepared(rejected).await.is_err());
     transaction
         .unprepared("INSERT INTO query_hook_probe VALUES (41)")
@@ -2165,7 +2168,7 @@ async fn verify_before_executing(connection: Connection) {
         .await
         .unwrap();
     assert_eq!(rows[0].get_at(0), Some(&41.into()));
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         clone
             .scalar("SELECT COUNT(*) FROM query_hook_probe", &[])
@@ -2264,7 +2267,7 @@ async fn verify_query_observation(mut app: Application) {
     let records = Arc::new(QueryRecorder::default());
     let threshold = Arc::new(QueryRecorder::default());
     db.listen(records.clone()).unwrap();
-    db.whenQueryingForLongerThan(Duration::ZERO, threshold.clone())
+    db.when_querying_for_longer_than(Duration::ZERO, threshold.clone())
         .unwrap();
 
     let named = Bindings::Named(&[("number", 11.into())]);
@@ -2282,20 +2285,20 @@ async fn verify_query_observation(mut app: Application) {
         .await
         .unwrap();
     assert_eq!(threshold.records.lock().unwrap().len(), 1);
-    let before_error = db.totalQueryDuration();
+    let before_error = db.total_query_duration();
     assert!(
         db.scalar("SELECT unknown_column_from_query_probe", &[])
             .await
             .is_err()
     );
-    assert_eq!(db.totalQueryDuration(), before_error);
+    assert_eq!(db.total_query_duration(), before_error);
 
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     assert_eq!(tx.scalar("SELECT 7", &[]).await.unwrap(), 7.into());
     tx.commit().await.unwrap();
     assert_eq!(
         read_alias
-            .selectFromWriteConnection("SELECT 8", &[])
+            .select_from_write_connection("SELECT 8", &[])
             .await
             .unwrap()[0]
             .get_at(0),
@@ -2333,12 +2336,12 @@ async fn verify_query_observation(mut app: Application) {
             .filter(|(sql, _, _, _)| sql != "SELECT 8")
             .map(|(_, _, _, time)| *time)
             .sum();
-        assert_eq!(db.totalQueryDuration(), duration);
+        assert_eq!(db.total_query_duration(), duration);
     }
     assert_eq!(threshold.records.lock().unwrap().len(), 1);
-    db.resetTotalQueryDuration();
-    assert_eq!(db.totalQueryDuration(), Duration::ZERO);
-    db.allowQueryDurationHandlersToRunAgain();
+    db.reset_total_query_duration();
+    assert_eq!(db.total_query_duration(), Duration::ZERO);
+    db.allow_query_duration_handlers_to_run_again();
     let (a, b) = tokio::join!(db.scalar("SELECT 10", &[]), db.scalar("SELECT 11", &[]));
     assert_eq!(a.unwrap(), 10.into());
     assert_eq!(b.unwrap(), 11.into());
@@ -2391,11 +2394,11 @@ impl Listener for RawSqlRecorder {
                 .downcast_ref::<QueryExecuted>()
                 .ok_or(EventError::InvalidPayload)?;
             if event.sql == DIAGNOSTIC_QUERY {
-                let rendered = event.toRawSql().map_err(EventError::Transaction)?;
+                let rendered = event.to_raw_sql().map_err(EventError::Transaction)?;
                 self.0
                     .lock()
                     .unwrap()
-                    .push((rendered, event.connection.getQueryLog().len()));
+                    .push((rendered, event.connection.get_query_log().len()));
             }
             Ok(None)
         })
@@ -2411,10 +2414,10 @@ async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
     db.listen(recorder.clone()).unwrap();
     assert!(!db.logging());
     db.select("SELECT 1", &[]).await.unwrap();
-    assert!(db.getQueryLog().is_empty());
+    assert!(db.get_query_log().is_empty());
 
     let label = r"O'Reilly\notes";
-    db.enableQueryLog();
+    db.enable_query_log();
     assert!(db.logging());
     let original = db
         .select(
@@ -2430,8 +2433,8 @@ async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
             .is_err()
     );
     other.select("SELECT 1", &[]).await.unwrap();
-    assert!(other.getQueryLog().is_empty());
-    let log = db.getQueryLog();
+    assert!(other.get_query_log().is_empty());
+    let log = db.get_query_log();
     assert_eq!(log.len(), 1);
     assert_eq!(log[0].query, DIAGNOSTIC_QUERY);
     assert_eq!(log[0].read_write_type, QueryRole::Write);
@@ -2445,20 +2448,20 @@ async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
         r"O''Reilly\notes"
     };
     let expected = DIAGNOSTIC_QUERY.replace(":label AS", &format!("'{escaped}' AS"));
-    let rendered = db.getRawQueryLog().unwrap();
+    let rendered = db.get_raw_query_log().unwrap();
     assert_eq!(rendered[0].raw_query, expected);
     assert_eq!(rendered[0].time, log[0].time);
     assert_eq!(*recorder.0.lock().unwrap(), [(expected, 0)]);
-    db.disableQueryLog();
+    db.disable_query_log();
     assert_eq!(
         db.select(&rendered[0].raw_query, &[]).await.unwrap(),
         original
     );
-    assert_eq!(db.getQueryLog().len(), 1);
-    db.flushQueryLog();
-    assert!(db.getQueryLog().is_empty());
+    assert_eq!(db.get_query_log().len(), 1);
+    db.flush_query_log();
+    assert!(db.get_query_log().is_empty());
 
-    db.enableQueryLog();
+    db.enable_query_log();
     let original = db
         .select(
             "SELECT ? AS data_value, ? AS nil, ? AS flag_value, ? AS exact_number",
@@ -2488,8 +2491,8 @@ async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
             .await
             .unwrap();
     }
-    db.disableQueryLog();
-    let log = db.getRawQueryLog().unwrap();
+    db.disable_query_log();
+    let log = db.get_raw_query_log().unwrap();
     assert_eq!(
         log[0].raw_query,
         "SELECT x'00ff10' AS data_value, null AS nil, 1 AS flag_value, 19 AS exact_number"
@@ -2528,18 +2531,18 @@ async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
         }
     }
 
-    db.flushQueryLog();
-    db.enableQueryLog();
+    db.flush_query_log();
+    db.enable_query_log();
     db.select("SELECT ?", &[Value::Text("embedded\0nul".into())])
         .await
         .unwrap();
     assert!(matches!(
-        db.getRawQueryLog(),
+        db.get_raw_query_log(),
         Err(DatabaseError::InvalidQuery(
             "text binding contains a null byte"
         ))
     ));
-    assert_eq!(db.getQueryLog().len(), 1);
+    assert_eq!(db.get_query_log().len(), 1);
 }
 
 #[tokio::test]
@@ -2597,12 +2600,12 @@ async fn sqlite_reconnect_reloads_pools_and_purge_replaces_the_logical_connectio
     ));
     let manager = DatabaseManager::new(repository.clone(), &root.0);
     let connection = manager.connection(None).unwrap();
-    connection.enableQueryLog();
+    connection.enable_query_log();
     connection
         .unprepared("PRAGMA user_version = 17")
         .await
         .unwrap();
-    let mut active = connection.beginTransaction().await.unwrap();
+    let mut active = connection.begin_transaction().await.unwrap();
     active.unprepared("PRAGMA user_version = 19").await.unwrap();
 
     repository
@@ -2613,7 +2616,7 @@ async fn sqlite_reconnect_reloads_pools_and_purge_replaces_the_logical_connectio
         .unwrap();
     let reconnected = manager.reconnect(None).await.unwrap();
     assert!(reconnected.logging());
-    assert_eq!(connection.getDatabaseName(), original.to_string_lossy());
+    assert_eq!(connection.get_database_name(), original.to_string_lossy());
     let (a, b) = tokio::join!(
         connection.scalar("PRAGMA user_version", &[]),
         reconnected.scalar("PRAGMA user_version", &[]),
@@ -2639,8 +2642,8 @@ async fn sqlite_reconnect_reloads_pools_and_purge_replaces_the_logical_connectio
         19.into()
     );
     assert_eq!(
-        connection.getQueryLog().len(),
-        reconnected.getQueryLog().len()
+        connection.get_query_log().len(),
+        reconnected.get_query_log().len()
     );
 
     manager.disconnect(None).unwrap();
@@ -2650,12 +2653,12 @@ async fn sqlite_reconnect_reloads_pools_and_purge_replaces_the_logical_connectio
     );
     manager.purge(None).unwrap();
     let fresh = manager.connection(None).unwrap();
-    assert_eq!(fresh.getDatabaseName(), replacement.to_string_lossy());
+    assert_eq!(fresh.get_database_name(), replacement.to_string_lossy());
     assert!(!fresh.logging());
-    assert!(fresh.getQueryLog().is_empty());
+    assert!(fresh.get_query_log().is_empty());
     assert!(connection.logging());
     assert_eq!(connection.scalar("SELECT 5", &[]).await.unwrap(), 5.into());
-    assert!(fresh.getQueryLog().is_empty());
+    assert!(fresh.get_query_log().is_empty());
 
     manager.disconnect(Some("unknown")).unwrap();
     manager.purge(Some("unknown")).unwrap();
@@ -2690,12 +2693,12 @@ async fn mysql_reconnect_replaces_read_write_sessions_with_an_active_transaction
     let connection = manager.connection(None).unwrap();
     let id = "SELECT CONNECTION_ID()";
     let read_id = connection.scalar(id, &[]).await.unwrap();
-    let mut old_tx = connection.beginTransaction().await.unwrap();
+    let mut old_tx = connection.begin_transaction().await.unwrap();
     let old_writer = old_tx.scalar(id, &[]).await.unwrap();
     assert_ne!(read_id, old_writer);
     assert_eq!(observer.calls.load(Ordering::SeqCst), 1);
 
-    let mut pending = Box::pin(connection.selectFromWriteConnection(id, &[]));
+    let mut pending = Box::pin(connection.select_from_write_connection(id, &[]));
     tokio::select! {
         _ = &mut pending => panic!("the original single-connection write pool must be busy"),
         () = tokio::time::sleep(Duration::from_millis(50)) => {},
@@ -2714,7 +2717,7 @@ async fn mysql_reconnect_replaces_read_write_sessions_with_an_active_transaction
     let reconnect = manager.reconnect(None).await.unwrap();
     assert_ne!(reconnect.scalar(id, &[]).await.unwrap(), new_read);
     assert_eq!(observer.calls.load(Ordering::SeqCst), 3);
-    old_tx.rollBack(None).await.unwrap();
+    old_tx.roll_back(None).await.unwrap();
     let old_ids = [old_writer, read_id];
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {
@@ -2746,7 +2749,7 @@ fn record_rollback(
     label: &'static str,
 ) {
     let observed = observed.clone();
-    tx.afterRollBack(move || {
+    tx.after_roll_back(move || {
         Box::pin(async move {
             observed.lock().unwrap().push(label);
             Ok(())
@@ -2769,11 +2772,11 @@ async fn verify_transaction_callbacks(db: Connection) {
     let observed = Arc::new(Mutex::new(Vec::new()));
     let starts = Arc::new(Mutex::new(Vec::new()));
     let hook_starts = starts.clone();
-    db.beforeStartingTransaction(move |connection, active| {
+    db.before_starting_transaction(move |connection, active| {
         let starts = hook_starts.clone();
         Box::pin(async move {
             let (level, rows) = if let Some(active) = active {
-                (active.transactionLevel(), active.scalar(COUNT, &[]).await?)
+                (active.transaction_level(), active.scalar(COUNT, &[]).await?)
             } else {
                 (0, connection.scalar(COUNT, &[]).await?)
             };
@@ -2782,14 +2785,14 @@ async fn verify_transaction_callbacks(db: Connection) {
         })
     });
 
-    let mut tx = tokio::time::timeout(Duration::from_secs(5), db.beginTransaction())
+    let mut tx = tokio::time::timeout(Duration::from_secs(5), db.begin_transaction())
         .await
         .unwrap()
         .unwrap();
     let released = db.clone();
     let result = Arc::new(Mutex::new(None));
     let visible = result.clone();
-    tx.afterRollBack(move || {
+    tx.after_roll_back(move || {
         Box::pin(async move {
             let visible_count = released.scalar(COUNT, &[]).await?;
             *visible.lock().unwrap() = Some(visible_count);
@@ -2801,27 +2804,27 @@ async fn verify_transaction_callbacks(db: Connection) {
     tx.insert("INSERT INTO transaction_callbacks_test VALUES (1)", &[])
         .await
         .unwrap();
-    tx.beginTransaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
     record_rollback(&mut tx, &observed, "parent");
-    tx.beginTransaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
     record_rollback(&mut tx, &observed, "committed-grandchild");
     tx.insert("INSERT INTO transaction_callbacks_test VALUES (2)", &[])
         .await
         .unwrap();
     tx.commit().await.unwrap();
-    tx.rollBack(Some(1)).await.unwrap();
+    tx.roll_back(Some(1)).await.unwrap();
     assert_eq!(
         *observed.lock().unwrap(),
         ["committed-grandchild", "parent"]
     );
     assert_eq!(tx.scalar(COUNT, &[]).await.unwrap(), 1.into());
 
-    tx.beginTransaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
     record_rollback(&mut tx, &observed, "committed-child");
     tx.commit().await.unwrap();
-    tx.beginTransaction().await.unwrap();
+    tx.begin_transaction().await.unwrap();
     record_rollback(&mut tx, &observed, "active-child");
-    tokio::time::timeout(Duration::from_secs(5), tx.rollBack(Some(0)))
+    tokio::time::timeout(Duration::from_secs(5), tx.roll_back(Some(0)))
         .await
         .unwrap()
         .unwrap();
@@ -2847,35 +2850,35 @@ async fn verify_transaction_callbacks(db: Connection) {
         ]
     );
     assert!(matches!(
-        tx.afterRollBack(|| Box::pin(async { Ok(()) })),
+        tx.after_roll_back(|| Box::pin(async { Ok(()) })),
         Err(DatabaseError::TransactionClosed)
     ));
 
-    let mut committed = db.beginTransaction().await.unwrap();
+    let mut committed = db.begin_transaction().await.unwrap();
     record_rollback(&mut committed, &observed, "discarded-on-commit");
     committed.commit().await.unwrap();
     assert_eq!(observed.lock().unwrap().len(), 5);
 
-    let mut failed = db.beginTransaction().await.unwrap();
+    let mut failed = db.begin_transaction().await.unwrap();
     failed
         .insert("INSERT INTO transaction_callbacks_test VALUES (3)", &[])
         .await
         .unwrap();
     failed
-        .afterRollBack(|| Box::pin(async { Err(DatabaseError::InvalidQuery("rollback probe")) }))
+        .after_roll_back(|| Box::pin(async { Err(DatabaseError::InvalidQuery("rollback probe")) }))
         .unwrap();
     assert!(matches!(
-        failed.rollBack(None).await,
+        failed.roll_back(None).await,
         Err(DatabaseError::AfterRollback { .. })
     ));
-    assert_eq!(failed.transactionLevel(), 0);
+    assert_eq!(failed.transaction_level(), 0);
     assert_eq!(db.scalar(COUNT, &[]).await.unwrap(), 0.into());
 
-    db.beforeStartingTransaction(|_, _| {
+    db.before_starting_transaction(|_, _| {
         Box::pin(async { Err(DatabaseError::InvalidQuery("blocked begin")) })
     });
     assert!(matches!(
-        db.beginTransaction().await,
+        db.begin_transaction().await,
         Err(DatabaseError::InvalidQuery("blocked begin"))
     ));
     assert_eq!(db.scalar(COUNT, &[]).await.unwrap(), 0.into());
@@ -2930,7 +2933,7 @@ async fn sqlite_schema_rollback_callbacks_observe_restored_session_settings() {
                 let connection = event.connection.clone();
                 let observed = self.0.clone();
                 transaction
-                    .afterRollBack(move || {
+                    .after_roll_back(move || {
                         Box::pin(async move {
                             let foreign_keys =
                                 connection.scalar("PRAGMA foreign_keys", &[]).await?;
@@ -2973,7 +2976,7 @@ async fn sqlite_schema_rollback_callbacks_observe_restored_session_settings() {
         )
         .unwrap();
 
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let failed = tokio::time::timeout(
         Duration::from_secs(5),
         schema.table("callback_schema", |table| {
@@ -3046,13 +3049,13 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
         .unwrap()
         .connection(None)
         .unwrap();
-    db.enableQueryLog();
+    db.enable_query_log();
     db.unprepared("DROP TABLE IF EXISTS sql_replay_probe; CREATE TABLE sql_replay_probe (id INTEGER PRIMARY KEY, n INTEGER NOT NULL); INSERT INTO sql_replay_probe VALUES (1, 0)").await.unwrap();
 
     let read_marker = "fixture_replay_running_read";
     let attempts = Arc::new(AtomicUsize::new(0));
     let count = attempts.clone();
-    db.beforeExecuting(move |sql, _, _, _| {
+    db.before_executing(move |sql, _, _, _| {
         let count = count.clone();
         Box::pin(async move {
             if sql.contains(read_marker) {
@@ -3073,14 +3076,14 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
     .unwrap();
     assert_eq!(result.unwrap(), 17.into());
     assert_eq!(listener.calls.load(Ordering::SeqCst), 2);
-    let log = db.getQueryLog();
+    let log = db.get_query_log();
     let replayed: Vec<_> = log.iter().filter(|entry| entry.query == sql).collect();
     assert_eq!(replayed.len(), 1);
     assert_eq!(replayed[0].read_write_type, QueryRole::Read);
     assert_eq!(attempts.load(Ordering::SeqCst), 1);
 
     let write_id = db
-        .selectFromWriteConnection("SELECT CONNECTION_ID()", &[])
+        .select_from_write_connection("SELECT CONNECTION_ID()", &[])
         .await
         .unwrap();
     let write_ids = [write_id[0].get_at(0).unwrap().clone()];
@@ -3102,7 +3105,7 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
     );
     assert_eq!(listener.calls.load(Ordering::SeqCst), 3);
 
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     tx.update("UPDATE sql_replay_probe SET n = 99 WHERE id = 1", &[])
         .await
         .unwrap();
@@ -3143,7 +3146,7 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
     assert!(matches!(failed, Err(DatabaseError::Driver { .. })));
     assert_eq!(listener.calls.load(Ordering::SeqCst), 4);
     assert!(
-        db.getQueryLog()
+        db.get_query_log()
             .iter()
             .all(|entry| !entry.query.contains("fixture_replay_fails_twice"))
     );
@@ -3188,7 +3191,7 @@ async fn mysql_cursor_only_replays_before_delivering_a_row() {
     );
     let control = manager.connection(Some("control")).unwrap();
     let db = manager.connection(None).unwrap();
-    db.enableQueryLog();
+    db.enable_query_log();
     let id = [db.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap()];
     let sql =
         "SELECT IF(CONNECTION_ID() = ?, SLEEP(20), 29) /* fixture_cursor_replay_before_row */";
@@ -3202,7 +3205,7 @@ async fn mysql_cursor_only_replays_before_delivering_a_row() {
     .unwrap();
     assert_eq!(rows.unwrap()[0].get_at(0), Some(&29.into()));
     assert_eq!(
-        db.getQueryLog()
+        db.get_query_log()
             .iter()
             .filter(|entry| entry.query == sql)
             .count(),
@@ -3223,6 +3226,6 @@ async fn mysql_cursor_only_replays_before_delivering_a_row() {
         .unwrap();
     assert!(matches!(failed, Err(DatabaseError::Driver { .. })));
     drop(cursor);
-    assert!(db.getQueryLog().iter().all(|entry| entry.query != sql));
+    assert!(db.get_query_log().iter().all(|entry| entry.query != sql));
     assert_eq!(db.scalar("SELECT 1", &[]).await.unwrap(), 1.into());
 }

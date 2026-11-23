@@ -38,7 +38,7 @@ impl Tags {
         Ok(tags)
     }
     pub fn forModel<M: openrust::database::eloquent::Model>(model: &M) -> Result<String> {
-        let key = match model.getKey().ok_or(Error::InvalidRecord)? {
+        let key = match model.get_key().ok_or(Error::InvalidRecord)? {
             openrust::database::Value::Text(value) => value.clone(),
             openrust::database::Value::Integer(value) => value.to_string(),
             openrust::database::Value::Unsigned(value) => value.to_string(),

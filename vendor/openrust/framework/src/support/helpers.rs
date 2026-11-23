@@ -81,7 +81,6 @@ pub struct Retry {
     fake: Option<SleepFake>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Retry {
     pub fn times(attempts: NonZeroUsize, delay: Duration) -> Self {
         Self {
@@ -107,10 +106,10 @@ impl Retry {
         self,
         callback: impl FnMut(usize) -> F,
     ) -> Result<T, E> {
-        self.runWhen(callback, |_| true).await
+        self.run_when(callback, |_| true).await
     }
 
-    pub async fn runWhen<T, E, F: Future<Output = Result<T, E>>>(
+    pub async fn run_when<T, E, F: Future<Output = Result<T, E>>>(
         self,
         mut callback: impl FnMut(usize) -> F,
         mut predicate: impl FnMut(&E) -> bool,

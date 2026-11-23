@@ -24,7 +24,7 @@ impl Migration for CreateSettingsTable {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             context
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create(self.table, |table| {
                     table.id();
                     table.string("group", None);
@@ -41,6 +41,11 @@ impl Migration for CreateSettingsTable {
         &'a self,
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async move { context.getSchemaBuilder().dropIfExists(self.table).await })
+        Box::pin(async move {
+            context
+                .get_schema_builder()
+                .drop_if_exists(self.table)
+                .await
+        })
     }
 }

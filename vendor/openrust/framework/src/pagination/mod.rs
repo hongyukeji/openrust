@@ -30,64 +30,62 @@ pub type PageSizeResolver<'a> = dyn Fn(u64) -> DatabaseResult<Option<u64>> + Sen
 /// Supplies a precomputed total. Returning `None` allows the query to count rows.
 pub type PageTotalResolver<'a> = dyn Fn() -> DatabaseResult<Option<u64>> + Send + Sync + 'a;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct PageOptions<'a> {
-    pub perPage: Option<u64>,
+    pub per_page: Option<u64>,
     pub columns: &'a [&'a str],
-    pub pageName: &'a str,
+    pub page_name: &'a str,
     pub page: Option<u64>,
     /// Supplies the total for length-aware pagination and skips its count query.
     pub total: Option<u64>,
     /// Computes the length-aware page size using the resolved total.
-    pub perPageUsing: Option<&'a PageSizeResolver<'a>>,
+    pub per_page_using: Option<&'a PageSizeResolver<'a>>,
     /// Computes the length-aware total when no numeric total was supplied.
-    pub totalUsing: Option<&'a PageTotalResolver<'a>>,
+    pub total_using: Option<&'a PageTotalResolver<'a>>,
 }
 
 impl Default for PageOptions<'_> {
     fn default() -> Self {
         Self {
-            perPage: None,
+            per_page: None,
             columns: &["*"],
-            pageName: "page",
+            page_name: "page",
             page: None,
             total: None,
-            perPageUsing: None,
-            totalUsing: None,
+            per_page_using: None,
+            total_using: None,
         }
     }
 }
 
 impl PageOptions<'_> {
     pub(crate) fn resolve_total(&self) -> DatabaseResult<Option<u64>> {
-        match (self.total, self.totalUsing) {
+        match (self.total, self.total_using) {
             (None, Some(resolve)) => resolve(),
             (total, _) => Ok(total),
         }
     }
 
     pub(crate) fn resolve_per_page(&self, total: u64) -> DatabaseResult<Option<u64>> {
-        match self.perPageUsing {
-            Some(resolve) => Ok(resolve(total)?.or(self.perPage)),
-            None => Ok(self.perPage),
+        match self.per_page_using {
+            Some(resolve) => Ok(resolve(total)?.or(self.per_page)),
+            None => Ok(self.per_page),
         }
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CursorOptions<'a> {
-    pub perPage: Option<u64>,
+    pub per_page: Option<u64>,
     pub columns: &'a [&'a str],
-    pub cursorName: &'a str,
+    pub cursor_name: &'a str,
     pub cursor: Option<&'a Cursor>,
 }
 
 impl Default for CursorOptions<'_> {
     fn default() -> Self {
         Self {
-            perPage: None,
+            per_page: None,
             columns: &["*"],
-            cursorName: "cursor",
+            cursor_name: "cursor",
             cursor: None,
         }
     }
@@ -95,13 +93,12 @@ impl Default for CursorOptions<'_> {
 
 /// Link options for in-memory pagination. Omitted values use the current request.
 #[derive(Clone, Copy, Debug, Default)]
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct PaginatorOptions<'a> {
     pub path: Option<&'a str>,
     pub query: &'a [(String, String)],
     pub fragment: Option<&'a str>,
-    pub pageName: Option<&'a str>,
-    pub cursorName: Option<&'a str>,
+    pub page_name: Option<&'a str>,
+    pub cursor_name: Option<&'a str>,
 }
 
 pub(crate) const DEFAULT_PER_PAGE: u64 = 15;
@@ -123,7 +120,6 @@ pub(crate) fn page_offset(page: u64, size: u64) -> PaginationResult<u64> {
 
 macro_rules! paginator_json {
     ($type:ident) => {
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl<T: serde::Serialize> $type<T> {
             pub fn to_array(&self) -> serde_json::Result<serde_json::Value> {
                 serde_json::to_value(self)
@@ -144,10 +140,9 @@ pub(super) use paginator_json;
 
 macro_rules! paginator_morph {
     ($paginator:ident) => {
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl<M: crate::database::eloquent::Model> $paginator<M> {
             /// Loads a nested relation for a typed morph target on this page.
-            pub async fn loadMorph<T: crate::database::eloquent::Model>(
+            pub async fn load_morph<T: crate::database::eloquent::Model>(
                 &mut self,
                 name: &str,
                 morph: &crate::database::eloquent::relations::MorphTo<M>,
@@ -168,7 +163,7 @@ macro_rules! paginator_morph {
             }
 
             /// Loads a nested relation count for a typed morph target on this page.
-            pub async fn loadMorphCount<T: crate::database::eloquent::Model>(
+            pub async fn load_morph_count<T: crate::database::eloquent::Model>(
                 &mut self,
                 name: &str,
                 morph: &crate::database::eloquent::relations::MorphTo<M>,
@@ -228,7 +223,7 @@ pub(crate) struct Links {
 impl Links {
     pub(crate) fn current(name: &str) -> Self {
         Self {
-            path: Paginator::resolveCurrentPath("/"),
+            path: Paginator::resolve_current_path("/"),
             name: name.into(),
             query: Vec::new(),
             fragment: None,
@@ -253,14 +248,14 @@ impl Links {
     }
 
     pub(crate) fn current_page(&self, page: Option<u64>) -> u64 {
-        page.unwrap_or_else(|| Paginator::resolveCurrentPage(&self.name, 1))
+        page.unwrap_or_else(|| Paginator::resolve_current_page(&self.name, 1))
             .max(1)
     }
 
     pub(crate) fn current_cursor(&self, cursor: Option<&Cursor>) -> Option<Cursor> {
         cursor
             .cloned()
-            .or_else(|| CursorPaginator::resolveCurrentCursor(&self.name, None))
+            .or_else(|| CursorPaginator::resolve_current_cursor(&self.name, None))
     }
 
     fn options(&self, cursor: bool) -> PaginatorOptions<'_> {
@@ -268,8 +263,8 @@ impl Links {
             path: Some(&self.path),
             query: &self.query,
             fragment: self.fragment.as_deref(),
-            pageName: (!cursor).then_some(self.name.as_str()),
-            cursorName: cursor.then_some(self.name.as_str()),
+            page_name: (!cursor).then_some(self.name.as_str()),
+            cursor_name: cursor.then_some(self.name.as_str()),
         }
     }
 
@@ -302,7 +297,7 @@ impl Links {
     }
 
     fn with_query_string(&mut self) {
-        if let Some(query) = Paginator::resolveQueryString(None) {
+        if let Some(query) = Paginator::resolve_query_string(None) {
             self.appends(&query);
         }
     }

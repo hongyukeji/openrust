@@ -17,21 +17,21 @@ assert_eq!(Str::transliterate("München"), "Munchen");
 
 ## Markdown and English inflection {#markdown-and-inflection}
 
-`Str::markdown` renders GitHub-flavored Markdown, including tables, strikethrough and task lists. For inline text, use `inlineMarkdown` to omit paragraph wrappers. The default escapes input HTML and clears unsafe link and image URLs. `markdownWith` and `inlineMarkdownWith` take `MarkdownOptions` to strip HTML or allow HTML from a trusted source.
+`Str::markdown` renders GitHub-flavored Markdown, including tables, strikethrough and task lists. For inline text, use `inline_markdown` to omit paragraph wrappers. The default escapes input HTML and clears unsafe link and image URLs. `markdown_with` and `inline_markdown_with` take `MarkdownOptions` to strip HTML or allow HTML from a trusted source.
 
-`plural`, `singular`, `pluralStudly` and `pluralPascal` use English inflection. `counted` adds an integer count with English digit grouping. The Rust renderer uses pulldown-cmark. Word inflection uses Doctrine rules and defaults to English.
+`plural`, `singular`, `plural_studly` and `plural_pascal` use English inflection. `counted` adds an integer count with English digit grouping. The Rust renderer uses pulldown-cmark. Word inflection uses Doctrine rules and defaults to English.
 
 ```rust
 use openrust::support::Str;
 
-assert_eq!(Str::of("**你好**").inlineMarkdown().value(), "<strong>你好</strong>");
-assert_eq!(Str::of("UserChild").pluralStudly(2).value(), "UserChildren");
+assert_eq!(Str::of("**你好**").inline_markdown().value(), "<strong>你好</strong>");
+assert_eq!(Str::of("UserChild").plural_studly(2).value(), "UserChildren");
 assert_eq!(Str::counted("person", 1_234), "1,234 people");
 ```
 
 ## Literal and Unicode editing {#literal-unicode-editing}
 
-`chopStart` and `chopEnd` remove the first matching prefix or suffix from the supplied candidates. `replaceStart` and `replaceEnd` edit only the selected edge. `position` returns a Unicode scalar index or `None`. Both `mask` and `take` support negative offsets or limits. Use `deduplicate` with literal characters, `trim`, `ltrim`, or `rtrim` for edges, and `squish` to collapse whitespace. Each editing operation also has a fluent counterpart.
+`chop_start` and `chop_end` remove the first matching prefix or suffix from the supplied candidates. `replace_start` and `replace_end` edit only the selected edge. `position` returns a Unicode scalar index or `None`. Both `mask` and `take` support negative offsets or limits. Use `deduplicate` with literal characters, `trim`, `ltrim`, or `rtrim` for edges, and `squish` to collapse whitespace. Each editing operation also has a fluent counterpart.
 
 ```rust
 use openrust::support::Str;
@@ -43,46 +43,46 @@ assert_eq!(Str::of("  你好   🙂 ").squish().value(), "你好 🙂");
 
 ## Random strings and identifiers {#random-and-identifiers}
 
-`Str::random` generates an alphanumeric string using the system-seeded random generator. `Str::password` accepts explicit character pools and includes one character from each enabled pool when the requested length permits. `uuid`, `uuid7`, and `ulid` return typed identifiers. Use `isUuid` with an optional numeric version, or `isUlid`, to validate text. UUID and ULID generation uses Rust randomness and the current clock.
+`Str::random` generates an alphanumeric string using the system-seeded random generator. `Str::password` accepts explicit character pools and includes one character from each enabled pool when the requested length permits. `uuid`, `uuid7`, and `ulid` return typed identifiers. Use `is_uuid` with an optional numeric version, or `is_ulid`, to validate text. UUID and ULID generation uses Rust randomness and the current clock.
 
 ```rust
 use openrust::support::{PasswordOptions, Str};
 
 let password = Str::password(24, PasswordOptions::default())?;
 assert_eq!(password.len(), 24);
-assert!(Str::isUuid(&Str::uuid7().to_string(), Some(7)));
-assert!(Str::isUlid(&Str::ulid().to_string()));
+assert!(Str::is_uuid(&Str::uuid7().to_string(), Some(7)));
+assert!(Str::is_ulid(&Str::ulid().to_string()));
 ```
 
 ## Regular expressions and text layout {#regex-and-text-layout}
 
-`match` returns the first capture when it participates, then falls back to the whole match. `matchAll` returns the first capture for each match when the pattern declares one, using an empty string for an unmatched group. Supply Rust regex syntax, such as `(?i)` for case insensitivity. Replacements use `$1` or named captures. Use `replaceMatchesWith` for a Rust callback. Invalid patterns return `regex::Error`.
+`match` returns the first capture when it participates, then falls back to the whole match. `match_all` returns the first capture for each match when the pattern declares one, using an empty string for an unmatched group. Supply Rust regex syntax, such as `(?i)` for case insensitivity. Replacements use `$1` or named captures. Use `replace_matches_with` for a Rust callback. Invalid patterns return `regex::Error`.
 
-`width` and `limit` use the PHP 8.5 East Asian width table. `wordWrap` follows scalar-counting wrap and breaks at spaces or cuts long words on request. `limit` can preserve words, trimming basic HTML markup before truncating.
+`width` and `limit` use the PHP 8.5 East Asian width table. `word_wrap` follows scalar-counting wrap and breaks at spaces or cuts long words on request. `limit` can preserve words, trimming basic HTML markup before truncating.
 
 ```rust
 use openrust::support::Str;
 
-assert_eq!(Str::matchAll(r"(\d+)", "甲12 乙34")?, ["12", "34"]);
-assert_eq!(Str::replaceMatches(r"(\d+)", "[$1]", "甲12 乙34", Some(1))?, "甲[12] 乙34");
+assert_eq!(Str::match_all(r"(\d+)", "甲12 乙34")?, ["12", "34"]);
+assert_eq!(Str::replace_matches(r"(\d+)", "[$1]", "甲12 乙34", Some(1))?, "甲[12] 乙34");
 assert_eq!(Str::limit("中文🙂", 4, "…", false), "中文…");
-assert_eq!(Str::wordWrap("中a 🙂b 中c", 3, "|", false)?, "中a|🙂b|中c");
+assert_eq!(Str::word_wrap("中a 🙂b 中c", 3, "|", false)?, "中a|🙂b|中c");
 ```
 
 ## Slug and strict transliteration {#slug-and-transliteration}
 
-`Str::slug` uses the English portable-ascii map, a hyphen separator and the default `@` → `at` dictionary. Use `slugWith` to select a separator, pass `None` to retain Unicode letters and numbers, or supply dictionary entries in replacement order. `ascii` exposes the same locale-specific mapping directly.
+`Str::slug` uses the English portable-ascii map, a hyphen separator and the default `@` → `at` dictionary. Use `slug_with` to select a separator, pass `None` to retain Unicode letters and numbers, or supply dictionary entries in replacement order. `ascii` exposes the same locale-specific mapping directly.
 
-`transliterateWithOptions` accepts the unknown-character replacement and a strict flag. Strict mode normalizes the text, removes nonspacing marks, then applies ICU4X script-to-Latin and Latin-to-ASCII rules before portable-ascii fallback. Script detection and the version of the CLDR data can affect results relative to PHP Intl.
+`transliterate_with_options` accepts the unknown-character replacement and a strict flag. Strict mode normalizes the text, removes nonspacing marks, then applies ICU4X script-to-Latin and Latin-to-ASCII rules before portable-ascii fallback. Script detection and the version of the CLDR data can affect results relative to PHP Intl.
 
 ```rust
 use openrust::support::Str;
 
 assert_eq!(Str::slug("Über Café @ Home"), "uber-cafe-at-home");
-assert_eq!(Str::slugWith("Köln", "-", Some("de"), &[]), "koeln");
+assert_eq!(Str::slug_with("Köln", "-", Some("de"), &[]), "koeln");
 assert_eq!(
     Str::of("Привет 你好")
-        .transliterateWithOptions(Some("?"), true)
+        .transliterate_with_options(Some("?"), true)
         .to_string(),
     "Privet ni hao"
 );
@@ -90,13 +90,13 @@ assert_eq!(
 
 ## Word inflection by language {#word-inflection}
 
-Pass an `InflectionLanguage` to `pluralIn`, `singularIn`, `pluralStudlyIn`, `pluralPascalIn`, or `countedIn`. Rules cover English, Esperanto, French, Italian, Norwegian Bokmål, Portuguese, Spanish, and Turkish. Both `Str` and `Stringable` accept the language per call.
+Pass an `InflectionLanguage` to `plural_in`, `singular_in`, `plural_studly_in`, `plural_pascal_in`, or `counted_in`. Rules cover English, Esperanto, French, Italian, Norwegian Bokmål, Portuguese, Spanish, and Turkish. Both `Str` and `Stringable` accept the language per call.
 
 ```rust
 use openrust::support::{InflectionLanguage, Str};
 
-let french = Str::of("cheval").pluralIn(2, InflectionLanguage::French).to_string();
-let turkish = Str::pluralIn("araba", 2, InflectionLanguage::Turkish);
+let french = Str::of("cheval").plural_in(2, InflectionLanguage::French).to_string();
+let turkish = Str::plural_in("araba", 2, InflectionLanguage::Turkish);
 assert_eq!(french, "chevaux");
 assert_eq!(turkish, "arabalar");
 assert_eq!(Str::plural("child", 2), "children");
@@ -104,14 +104,14 @@ assert_eq!(Str::plural("child", 2), "children");
 
 ## Timestamp-first COMB UUIDs {#ordered-comb-uuid}
 
-`Str::orderedUuid` creates a UUID v4 with the first six bytes set to Unix time in 10-microsecond ticks. `orderedUuidAt` accepts an explicit `SystemTime`. Identifiers from different ticks sort by timestamp. Identifiers in the same tick have random ordering.
+`Str::ordered_uuid` creates a UUID v4 with the first six bytes set to Unix time in 10-microsecond ticks. `ordered_uuid_at` accepts an explicit `SystemTime`. Identifiers from different ticks sort by timestamp. Identifiers in the same tick have random ordering.
 
 ```rust
 use openrust::support::Str;
 use std::time::{Duration, UNIX_EPOCH};
 
-let first = Str::orderedUuidAt(UNIX_EPOCH + Duration::from_micros(10))?;
-let second = Str::orderedUuidAt(UNIX_EPOCH + Duration::from_micros(20))?;
+let first = Str::ordered_uuid_at(UNIX_EPOCH + Duration::from_micros(10))?;
+let second = Str::ordered_uuid_at(UNIX_EPOCH + Duration::from_micros(20))?;
 assert_eq!(first.get_version_num(), 4);
 assert!(first < second);
 let prefix = first.to_string()[..13].to_owned();
@@ -122,18 +122,18 @@ assert_eq!(prefix, "00000000-0001");
 
 Use `title`, `headline`, `apa` and `initials` for casing and labels. The padding and substring methods count Unicode scalar values. `replace` applies ordered literal pairs, while `swap` chooses the longest match without reprocessing replacements. `excerpt` takes a radius around the first match.
 
-`isUrl` validates an absolute URL with a host and a permitted scheme using the Rust URL parser. Fluent conditions take typed closures, regex splitting uses Rust regex syntax, and Base64 decoding and decryption return bytes. Select a Rust digest type with `hash::<D>()` to get lowercase hexadecimal text.
+`is_url` validates an absolute URL with a host and a permitted scheme using the Rust URL parser. Fluent conditions take typed closures, regex splitting uses Rust regex syntax, and Base64 decoding and decryption return bytes. Select a Rust digest type with `hash::<D>()` to get lowercase hexadecimal text.
 
 ```rust
 use openrust::support::Str;
 
 let title = Str::of("helloWorld__École")
-    .whenContains(&["World"], false, |value| value.headline())
+    .when_contains(&["World"], false, |value| value.headline())
     .swap(&[("World", "世界")])
     .to_string();
 
 assert_eq!(title, "Hello 世界 École");
-assert_eq!(Str::padBoth("中", 6, "é🙂"), "é🙂中é🙂é");
+assert_eq!(Str::pad_both("中", 6, "é🙂"), "é🙂中é🙂é");
 assert_eq!(Str::excerpt("甲乙中心丙丁", "中心", 1, "…").as_deref(), Some("…乙中心丙…"));
 ```
 

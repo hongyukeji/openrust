@@ -87,7 +87,7 @@ pub(crate) async fn serve(
             context.stop_retries = Some(
                 container
                     .make::<dyn ExceptionHandler>()
-                    .is_ok_and(|handler| handler.shouldStopRetries(&Exception::Error(error))),
+                    .is_ok_and(|handler| handler.should_stop_retries(&Exception::Error(error))),
             );
         }
         result
@@ -167,8 +167,8 @@ pub(super) async fn execute(
             _ => None,
         },
         payload: job.payload().clone(),
-        connection: job.getConnectionName().into(),
-        queue: job.getQueue().into(),
+        connection: job.get_connection_name().into(),
+        queue: job.get_queue().into(),
         attempts: job.attempts(),
         environment,
     };

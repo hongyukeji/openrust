@@ -31,7 +31,7 @@ use openrust::{
     },
     foundation::Application,
     http::HttpFuture,
-    support::{ProviderResult, ServiceProvider, facades::DB},
+    support::{ProviderResult, ServiceProvider, facades::Db},
     testing::TestApp,
 };
 use serde_json::{Value as Json, json};
@@ -44,7 +44,7 @@ impl Migration for Create {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async {
             context
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("seed_items", |table| {
                     table.id();
                     table.string("name", 60);
@@ -57,7 +57,12 @@ impl Migration for Create {
         &'a self,
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async { context.getSchemaBuilder().dropIfExists("seed_items").await })
+        Box::pin(async {
+            context
+                .get_schema_builder()
+                .drop_if_exists("seed_items")
+                .await
+        })
     }
 }
 
@@ -70,11 +75,11 @@ impl Seeder for DatabaseSeeder {
         Box::pin(async {
             context.call(&["FirstSeeder", "SecondSeeder"]).await?;
             context
-                .callOnce(&["Database\\Seeders\\FirstSeeder"])
+                .call_once(&["Database\\Seeders\\FirstSeeder"])
                 .await?;
-            context.callSilent(&["SilentSeeder"]).await?;
+            context.call_silent(&["SilentSeeder"]).await?;
             context
-                .callWith(
+                .call_with(
                     "ParameterSeeder",
                     Record::from([("name".into(), "parameter".into())]),
                 )
@@ -93,13 +98,13 @@ impl Seeder for SeederCalls {
         Box::pin(async {
             let params = |name: &str| Record::from([("name".into(), name.into())]);
             context
-                .callWithMany(&["FirstSeeder", "SecondSeeder"], params("shared"))
+                .call_with_many(&["FirstSeeder", "SecondSeeder"], params("shared"))
                 .await?;
             context
-                .callSilentWith(&["SilentSeeder"], params("quiet"))
+                .call_silent_with(&["SilentSeeder"], params("quiet"))
                 .await?;
             context
-                .callOnceWith(
+                .call_once_with(
                     &[
                         "SilentSeeder",
                         "ParameterSeeder",
@@ -112,12 +117,12 @@ impl Seeder for SeederCalls {
 
             assert!(
                 context
-                    .callOnceWith(&["RetrySeeder", "UnreachedSeeder"], true, params("fail"))
+                    .call_once_with(&["RetrySeeder", "UnreachedSeeder"], true, params("fail"))
                     .await
                     .is_err()
             );
             context
-                .callOnceWith(&["RetrySeeder"], false, params("recovered"))
+                .call_once_with(&["RetrySeeder"], false, params("recovered"))
                 .await?;
             context.call(&["FirstSeeder"]).await
         })
@@ -153,7 +158,7 @@ impl Seeder for Insert {
                 .cloned()
                 .unwrap_or(self.0.into());
             assert_eq!(
-                DB::connection(None)?.get_name(),
+                Db::connection(None)?.get_name(),
                 context.connection().get_name()
             );
             let attributes = Attributes::from([("name".into(), name)]);
@@ -180,7 +185,7 @@ impl Seeder for Failing {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async {
             assert_eq!(
-                DB::connection(None)?.get_name(),
+                Db::connection(None)?.get_name(),
                 context.connection().get_name()
             );
             SeedItem::new_instance(Attributes::from([("name".into(), "unsaved".into())]))?;
@@ -210,7 +215,7 @@ macro_rules! factory_model {
                 &METADATA
             }
 
-            fn namedRelations() -> NamedRelations<Self> {
+            fn named_relations() -> NamedRelations<Self> {
                 $relations
             }
 
@@ -247,7 +252,7 @@ factory_model!(
 factory_model!(
     FactoryChild,
     "seed_factory_children",
-    NamedRelations::default().morphTo("owner", || {
+    NamedRelations::default().morph_to("owner", || {
         MorphTo::<FactoryChild>::new("owner_type", "owner_id")
             .target::<FactoryOwner>("seed-owner", "id")
     })
@@ -262,14 +267,14 @@ impl Model for BulkSeed {
         static METADATA: ModelMetadata = ModelMetadata::new("seed_bulk")
             .guarded(&["*"])
             .hidden(&["score"])
-            .uniqueId(UniqueId::Uuid)
-            .uniqueIds(&["external_id"]);
+            .unique_id(UniqueId::Uuid)
+            .unique_ids(&["external_id"]);
         &METADATA
     }
 
     fn from_state(state: ModelState) -> Self {
         let mut model = Self(state);
-        model.setAttribute("label", "model-default");
+        model.set_attribute("label", "model-default");
         model
     }
 
@@ -321,7 +326,7 @@ impl ModelEventListener<FactoryChild> for CancelFactoryChild {
         _: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
-            if model.getAttribute("generated_name") == Some(&"quiet-fixture".into()) {
+            if model.get_attribute("generated_name") == Some(&"quiet-fixture".into()) {
                 Ok(ModelEventResponse::Cancel)
             } else {
                 Ok(ModelEventResponse::Continue)
@@ -333,12 +338,12 @@ impl ModelEventListener<FactoryChild> for CancelFactoryChild {
 async fn verify_parent_attributes(connection: &Connection) -> DatabaseResult<()> {
     let factory = || {
         Factory::<FactoryChild>::new(Attributes::new)
-            .parentAttribute("owner_id", Factory::<FactoryOwner>::new(Attributes::new))
+            .parent_attribute("owner_id", Factory::<FactoryOwner>::new(Attributes::new))
     };
     let omitted = factory()
         .count(2)
-        .withoutParents(vec![])
-        .rawOn(connection)
+        .without_parents(vec![])
+        .raw_on(connection)
         .await?;
     assert!(
         omitted
@@ -346,41 +351,41 @@ async fn verify_parent_attributes(connection: &Connection) -> DatabaseResult<()>
             .all(|attributes| attributes["owner_id"] == Value::Null)
     );
     let selected = factory()
-        .withoutParents(vec![FactoryParentSelector::model::<FactoryOwner>()])
-        .rawOn(connection)
+        .without_parents(vec![FactoryParentSelector::model::<FactoryOwner>()])
+        .raw_on(connection)
         .await?;
     assert_eq!(selected["owner_id"], Value::Null);
     let selected = factory()
-        .withoutParents(vec![FactoryParentSelector::attribute("owner_id")])
-        .rawOn(connection)
+        .without_parents(vec![FactoryParentSelector::attribute("owner_id")])
+        .raw_on(connection)
         .await?;
     assert_eq!(selected["owner_id"], Value::Null);
     let explicit = factory()
-        .makeOneOn(
+        .make_one_on(
             connection,
             Attributes::from([("owner_id".into(), 99_i64.into())]),
         )
         .await?;
-    assert_eq!(explicit.getAttribute("owner_id"), Some(&99_i64.into()));
+    assert_eq!(explicit.get_attribute("owner_id"), Some(&99_i64.into()));
     assert_eq!(connection.table("seed_factory_owners").count("*").await?, 0);
 
-    let generated = factory().count(2).createOn(connection).await?;
+    let generated = factory().count(2).create_on(connection).await?;
     assert_ne!(
-        generated[0].getAttribute("owner_id"),
-        generated[1].getAttribute("owner_id")
+        generated[0].get_attribute("owner_id"),
+        generated[1].get_attribute("owner_id")
     );
     let owner = Factory::<FactoryOwner>::new(Attributes::new)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
-    let key = owner.getKey().unwrap().clone();
-    let recycled = factory().recycle(owner).rawOn(connection).await?;
+    let key = owner.get_key().unwrap().clone();
+    let recycled = factory().recycle(owner).raw_on(connection).await?;
     assert_eq!(recycled["owner_id"], key);
     let relation = MorphTo::<FactoryChild>::new("owner_type", "owner_id")
         .target::<FactoryOwner>("seed-owner", "id");
     let explicit_relation = Factory::<FactoryChild>::new(Attributes::new)
         .r#for(relation, Factory::<FactoryOwner>::new(Attributes::new))
-        .withoutParents(vec![])
-        .rawOn(connection)
+        .without_parents(vec![])
+        .raw_on(connection)
         .await?;
     assert_eq!(explicit_relation["owner_type"], "seed-owner".into());
     assert_eq!(connection.table("seed_factory_children").delete().await?, 2);
@@ -398,27 +403,27 @@ async fn verify_existing_attachments(
     let existing = children()
         .set("generated_name", "existing")
         .count(2)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
-    let existing_keys = existing.modelKeys();
-    let single = children().createOn(connection).await?;
-    let single_key = single.getKey().unwrap().clone();
+    let existing_keys = existing.model_keys();
+    let single = children().create_on(connection).await?;
+    let single_key = single.get_key().unwrap().clone();
     owners()
-        .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+        .has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
             "attached",
             existing,
             vec![pivot("existing-first"), pivot("existing-second")],
         )
-        .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+        .has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
             "attached",
             single,
             pivot("existing-single"),
         )
-        .createOn(connection)
+        .create_on(connection)
         .await?;
     let links = connection
         .table("seed_factory_links")
-        .orderBy("child_id", "asc")
+        .order_by("child_id", "asc")
         .get()
         .await?;
     assert_eq!(links.len(), 3);
@@ -433,13 +438,13 @@ async fn verify_existing_attachments(
         connection.table("seed_factory_children").count("*").await?,
         3
     );
-    let invalid = owners().hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+    let invalid = owners().has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
         "attached",
-        children().makeOn(connection).await?,
+        children().make_on(connection).await?,
         pivot("invalid"),
     );
     assert!(matches!(
-        invalid.createOn(connection).await,
+        invalid.create_on(connection).await,
         Err(DatabaseError::InvalidQuery(
             "factory attachment requires a persisted model"
         ))
@@ -450,14 +455,14 @@ async fn verify_existing_attachments(
             &[],
         )
         .await?;
-    let remote = children().createOn(sqlite).await?;
-    let invalid = owners().hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+    let remote = children().create_on(sqlite).await?;
+    let invalid = owners().has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
         "attached",
         remote,
         pivot("invalid"),
     );
     assert!(matches!(
-        invalid.createOn(connection).await,
+        invalid.create_on(connection).await,
         Err(DatabaseError::InvalidQuery(
             "mixed relationship connections"
         ))
@@ -476,7 +481,7 @@ impl Seeder for PolymorphicFactories {
         Box::pin(async {
             let connection = context.connection();
             assert_eq!(connection.get_name(), "alternate");
-            let sqlite = DB::connection(Some("sqlite"))?;
+            let sqlite = Db::connection(Some("sqlite"))?;
             sqlite
                 .statement(
                     "CREATE TABLE seed_factory_owners (id INTEGER PRIMARY KEY)",
@@ -484,32 +489,35 @@ impl Seeder for PolymorphicFactories {
                 )
                 .await?;
             let factory = Factory::<FactoryOwner>::new(Attributes::new).connection(Some("sqlite"));
-            assert_eq!(factory.getConnectionName(), Some("sqlite"));
-            assert_eq!(factory.create().await?.getConnectionName(), Some("sqlite"));
+            assert_eq!(factory.get_connection_name(), Some("sqlite"));
             assert_eq!(
-                factory.createOn(connection).await?.getConnectionName(),
+                factory.create().await?.get_connection_name(),
+                Some("sqlite")
+            );
+            assert_eq!(
+                factory.create_on(connection).await?.get_connection_name(),
                 Some("alternate")
             );
             let counted = factory.count(2);
-            assert_eq!(counted.getConnectionName(), Some("sqlite"));
+            assert_eq!(counted.get_connection_name(), Some("sqlite"));
             let deferred = counted.lazy(Attributes::new());
             assert!(
                 deferred()
                     .await?
                     .iter()
-                    .all(|model| model.getConnectionName() == Some("sqlite"))
+                    .all(|model| model.get_connection_name() == Some("sqlite"))
             );
             drop(deferred);
             assert_eq!(sqlite.table("seed_factory_owners").count("*").await?, 3);
             assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
             let counted = counted.connection(None);
-            assert_eq!(counted.getConnectionName(), None);
+            assert_eq!(counted.get_connection_name(), None);
             assert!(
                 counted
                     .make()
                     .await?
                     .iter()
-                    .all(|model| model.getConnectionName() == Some("alternate"))
+                    .all(|model| model.get_connection_name() == Some("alternate"))
             );
             let missing = Factory::<FactoryOwner>::new(Attributes::new).connection(Some("missing"));
             assert!(
@@ -522,7 +530,7 @@ impl Seeder for PolymorphicFactories {
             let nested =
                 Factory::<FactoryChild>::new(Attributes::new).r#for(owner_relation(), missing);
             assert!(matches!(
-                nested.rawOn(connection).await,
+                nested.raw_on(connection).await,
                 Err(DatabaseError::UnknownConnection(name)) if name == "missing"
             ));
             let nested = Factory::<FactoryChild>::new(Attributes::new).r#for(
@@ -530,12 +538,12 @@ impl Seeder for PolymorphicFactories {
                 Factory::<FactoryOwner>::new(Attributes::new).connection(Some("alternate")),
             );
             assert!(matches!(
-                nested.rawOn(connection).await?.get("owner_id"),
+                nested.raw_on(connection).await?.get("owner_id"),
                 Some(Value::Integer(_) | Value::Unsigned(_))
             ));
             assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
             let query = || {
-                BulkSeed::queryOn(connection).with_attributes(
+                BulkSeed::query_on(connection).with_attributes(
                     Attributes::from([("label".into(), "query-default".into())]),
                     false,
                 )
@@ -546,12 +554,12 @@ impl Seeder for PolymorphicFactories {
                     ("score".into(), "42".into()),
                 ])
             };
-            let rows = BulkSeed::queryOn(connection)
-                .fillForInsert(vec![Attributes::new()])
+            let rows = BulkSeed::query_on(connection)
+                .fill_for_insert(vec![Attributes::new()])
                 .await?;
             assert_eq!(rows[0]["label"], "model-default".into());
             let rows = query()
-                .fillForInsert(vec![Attributes::from([
+                .fill_for_insert(vec![Attributes::from([
                     ("score".into(), "42".into()),
                     ("options".into(), true.into()),
                 ])])
@@ -560,24 +568,24 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(rows[0]["score"], "42".into());
             assert_eq!(rows[0]["options"], Value::Json(json!(true)));
             assert!(
-                matches!(&rows[0]["external_id"], Value::Text(id) if BulkSeed::isValidUniqueId(id))
+                matches!(&rows[0]["external_id"], Value::Text(id) if BulkSeed::is_valid_unique_id(id))
             );
             assert_eq!(rows[0]["created_at"], rows[0]["updated_at"]);
-            assert!(query().fillAndInsert(vec![]).await?);
+            assert!(query().fill_and_insert(vec![]).await?);
             let mut explicit = record(" BULK-A ");
             explicit.insert("created_at".into(), "2001-01-01 00:00:00".into());
             assert!(
                 query()
-                    .fillAndInsert(vec![explicit, record("bulk-b")])
+                    .fill_and_insert(vec![explicit, record("bulk-b")])
                     .await?
             );
             assert_eq!(
                 query()
-                    .fillAndInsertOrIgnore(vec![record("bulk-a"), record("bulk-c")])
+                    .fill_and_insert_or_ignore(vec![record("bulk-a"), record("bulk-c")])
                     .await?,
                 1
             );
-            let id = query().fillAndInsertGetId(record("bulk-d")).await?;
+            let id = query().fill_and_insert_get_id(record("bulk-d")).await?;
             let row = connection
                 .table("seed_bulk")
                 .r#where("id", "=", id)
@@ -603,38 +611,38 @@ impl Seeder for PolymorphicFactories {
             };
             bulk_factory()
                 .count(0)
-                .insertOn(connection, Attributes::new())
+                .insert_on(connection, Attributes::new())
                 .await?;
             bulk_factory().insert(Attributes::new()).await?;
             bulk_factory()
                 .sequence(|index| {
                     Attributes::from([("label".into(), format!("factory-{index}").into())])
                 })
-                .afterMaking(|model| {
-                    model.setAttribute("score", 52_i64);
+                .after_making(|model| {
+                    model.set_attribute("score", 52_i64);
                     Ok(())
                 })
                 .has(
                     openrust::database::eloquent::relations::HasMany::new("id", "owner_id"),
                     Factory::<FactoryChild>::new(Attributes::new)
-                        .afterMaking(|_| Err(DatabaseError::InvalidQuery("bulk created a child")))
+                        .after_making(|_| Err(DatabaseError::InvalidQuery("bulk created a child")))
                         .count(1),
                 )
-                .afterCreating(|_| Err(DatabaseError::InvalidQuery("bulk ran afterCreating")))
+                .after_creating(|_| Err(DatabaseError::InvalidQuery("bulk ran afterCreating")))
                 .count(2)
-                .insertOn(connection, Attributes::new())
+                .insert_on(connection, Attributes::new())
                 .await?;
             let rows = connection
                 .table("seed_bulk")
                 .r#where("label", "like", "factory-%")
-                .orderBy("label", "asc")
+                .order_by("label", "asc")
                 .get()
                 .await?;
             assert_eq!(rows.len(), 3);
             assert_eq!(rows[0].get("score"), Some(&52_i64.into()));
             assert_eq!(rows[2].get("score"), Some(&51_i64.into()));
             assert!(rows.iter().all(|row| matches!(row.get("external_id"),
-                Some(Value::Text(id)) if BulkSeed::isValidUniqueId(id))));
+                Some(Value::Text(id)) if BulkSeed::is_valid_unique_id(id))));
             assert!(
                 rows.iter()
                     .all(|row| row.get("created_at") == row.get("updated_at"))
@@ -642,7 +650,7 @@ impl Seeder for PolymorphicFactories {
             assert!(
                 bulk_factory()
                     .count(2)
-                    .insertOn(
+                    .insert_on(
                         connection,
                         Attributes::from([("label".into(), "factory-duplicate".into())])
                     )
@@ -654,16 +662,16 @@ impl Seeder for PolymorphicFactories {
                 Factory::<FactoryChild>::new(|| {
                     Attributes::from([("generated_name".into(), "quiet-fixture".into())])
                 })
-                .afterMaking(|_| Err(DatabaseError::InvalidQuery("raw invoked callback")))
+                .after_making(|_| Err(DatabaseError::InvalidQuery("raw invoked callback")))
             };
             let records = quiet()
                 .sequence(|index| Attributes::from([("index".into(), index.to_string().into())]))
                 .count(2)
-                .rawOn(connection)
+                .raw_on(connection)
                 .await?;
             assert_eq!(records[0]["generated_name"], "quiet-fixture".into());
             assert_eq!(records[1]["index"], "1".into());
-            assert!(quiet().count(0).rawOn(connection).await?.is_empty());
+            assert!(quiet().count(0).raw_on(connection).await?.is_empty());
             let expanded = quiet()
                 .r#for(
                     MorphTo::<FactoryChild>::new("owner_type", "owner_id")
@@ -671,7 +679,7 @@ impl Seeder for PolymorphicFactories {
                     Factory::<FactoryOwner>::new(Attributes::new),
                 )
                 .count(2)
-                .rawOn(connection)
+                .raw_on(connection)
                 .await?;
             assert_eq!(expanded[0]["owner_type"], "seed-owner".into());
             assert_eq!(expanded[0]["owner_id"], expanded[1]["owner_id"]);
@@ -685,7 +693,7 @@ impl Seeder for PolymorphicFactories {
             let factory = Factory::<FactoryChild>::new(|| {
                 Attributes::from([("generated_name".into(), "quiet-fixture".into())])
             })
-            .afterCreating({
+            .after_creating({
                 let callbacks = Arc::clone(&callbacks);
                 move |_| {
                     callbacks.fetch_add(1, Ordering::Relaxed);
@@ -698,11 +706,11 @@ impl Seeder for PolymorphicFactories {
                     "factory model creation cancelled"
                 ))
             ));
-            factory.createQuietly().await?;
+            factory.create_quietly().await?;
             let batch = factory.count(2);
-            assert_eq!(batch.createQuietlyOn(connection).await?.len(), 2);
+            assert_eq!(batch.create_quietly_on(connection).await?.len(), 2);
             assert_eq!(callbacks.load(Ordering::Relaxed), 3);
-            assert!(batch.createOn(connection).await.is_err());
+            assert!(batch.create_on(connection).await.is_err());
             assert_eq!(
                 connection
                     .table("seed_factory_children")
@@ -720,8 +728,8 @@ impl Seeder for PolymorphicFactories {
                 }
             };
             let batch = Factory::<FactoryChild>::new(Attributes::new)
-                .afterMaking(record_phase("making"))
-                .afterCreating(record_phase("created"))
+                .after_making(record_phase("making"))
+                .after_creating(record_phase("created"))
                 .sequence(|index| {
                     Attributes::from([("generated_name".into(), format!("many-{index}").into())])
                 })
@@ -734,12 +742,12 @@ impl Seeder for PolymorphicFactories {
                     assert_eq!(attributes["generated_score"], 41_i64.into());
                     Attributes::from([("generated_score".into(), 42_i64.into())])
                 })
-                .prependState(|attributes| {
+                .prepend_state(|attributes| {
                     assert_eq!(attributes["generated_score"], 40_i64.into());
                     Attributes::from([("generated_score".into(), 41_i64.into())])
                 })
                 .count(2)
-                .prependState(|attributes| {
+                .prepend_state(|attributes| {
                     assert_eq!(attributes["generated_name"], "definition".into());
                     Attributes::from([("generated_score".into(), 40_i64.into())])
                 })
@@ -749,11 +757,11 @@ impl Seeder for PolymorphicFactories {
                     assert_eq!(attributes["generated_score"], 42_i64.into());
                     Attributes::new()
                 });
-            let raw = configured.rawOn(connection).await?;
+            let raw = configured.raw_on(connection).await?;
             assert_eq!(raw.len(), 2);
             assert_eq!(raw[0]["generated_name"], "batch-set".into());
             let rows = configured
-                .createManyOn(
+                .create_many_on(
                     connection,
                     FactoryRecords::Attributes(vec![
                         overrides("override-one"),
@@ -764,7 +772,7 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(rows.len(), 2);
             let rows = connection
                 .table("seed_factory_children")
-                .orderBy("id", "asc")
+                .order_by("id", "asc")
                 .get()
                 .await?;
             assert_eq!(rows[0].get("generated_name"), Some(&"override-one".into()));
@@ -775,82 +783,82 @@ impl Seeder for PolymorphicFactories {
             );
             assert_eq!(connection.table("seed_factory_children").delete().await?, 2);
             let created = Factory::<FactoryChild>::new(move || overrides("before-callback"))
-                .afterMaking(|_| Err(DatabaseError::InvalidQuery("removed making callback")))
-                .withoutAfterMaking()
-                .afterMaking(|model| {
-                    model.setAttribute("generated_name", "callback-readded");
+                .after_making(|_| Err(DatabaseError::InvalidQuery("removed making callback")))
+                .without_after_making()
+                .after_making(|model| {
+                    model.set_attribute("generated_name", "callback-readded");
                     Ok(())
                 })
-                .afterCreating(|model| {
+                .after_creating(|model| {
                     assert!(model.state().exists());
                     assert_eq!(
-                        model.getAttribute("generated_name"),
+                        model.get_attribute("generated_name"),
                         Some(&"callback-readded".into())
                     );
-                    model.setAttribute("generated_name", "callback-created");
+                    model.set_attribute("generated_name", "callback-created");
                     Ok(())
                 })
-                .createOn(connection)
+                .create_on(connection)
                 .await?;
             assert_eq!(
-                created.getAttribute("generated_name"),
+                created.get_attribute("generated_name"),
                 Some(&"callback-created".into())
             );
             let created = Factory::<FactoryChild>::new(Attributes::new)
-                .afterMaking(|model| {
-                    model.setAttribute("generated_name", "callback-batch");
+                .after_making(|model| {
+                    model.set_attribute("generated_name", "callback-batch");
                     Ok(())
                 })
-                .afterCreating(|_| Err(DatabaseError::InvalidQuery("removed creating callback")))
+                .after_creating(|_| Err(DatabaseError::InvalidQuery("removed creating callback")))
                 .count(2)
-                .withoutAfterCreating()
-                .createOn(connection)
+                .without_after_creating()
+                .create_on(connection)
                 .await?;
             assert_eq!(created.len(), 2);
             assert!(created.iter().all(
-                |model| model.getAttribute("generated_name") == Some(&"callback-batch".into())
+                |model| model.get_attribute("generated_name") == Some(&"callback-batch".into())
             ));
             assert_eq!(connection.table("seed_factory_children").delete().await?, 3);
             assert!(matches!(
                 Factory::<FactoryChild>::new(move || overrides("quiet-fixture"))
                     .count(1)
-                    .withoutAfterMaking()
-                    .withoutAfterCreating()
-                    .createOn(connection)
+                    .without_after_making()
+                    .without_after_creating()
+                    .create_on(connection)
                     .await,
                 Err(DatabaseError::InvalidQuery(
                     "factory model creation cancelled"
                 ))
             ));
             let preview = batch
-                .makeOneOn(connection, overrides("preview-one"))
+                .make_one_on(connection, overrides("preview-one"))
                 .await?;
             assert!(!preview.state().exists());
             assert_eq!(
-                preview.getAttribute("generated_name"),
+                preview.get_attribute("generated_name"),
                 Some(&"preview-one".into())
             );
-            let previews = batch.makeMany(FactoryRecords::Default).await?;
+            let previews = batch.make_many(FactoryRecords::Default).await?;
             assert_eq!(previews.len(), 3);
             assert!(previews.iter().all(|model| !model.state().exists()));
             assert_eq!(
-                previews[2].getAttribute("generated_name"),
+                previews[2].get_attribute("generated_name"),
                 Some(&"many-3".into())
             );
             let previews = batch
-                .makeManyOn(
+                .make_many_on(
                     connection,
                     FactoryRecords::Attributes(vec![overrides("preview-many")]),
                 )
                 .await?;
             assert_eq!(previews.len(), 1);
             assert_eq!(
-                previews[0].getAttribute("generated_name"),
+                previews[0].get_attribute("generated_name"),
                 Some(&"preview-many".into())
             );
             assert!(
                 batch
-                    .makeManyOn(connection, FactoryRecords::Count(0))
+                    .make_many_on(connection, FactoryRecords::Count(0))
                     .await?
                     .is_empty()
             );
@@ -864,43 +872,43 @@ impl Seeder for PolymorphicFactories {
             let created = deferred().await?;
             assert_eq!(created.len(), 1);
             assert!(created.iter().all(
-                |model| model.getAttribute("generated_name") == Some(&"deferred-batch".into())
+                |model| model.get_attribute("generated_name") == Some(&"deferred-batch".into())
             ));
             assert!(deferred_one().await?.state().exists());
             assert!(deferred_one().await?.state().exists());
             assert_eq!(connection.table("seed_factory_children").delete().await?, 3);
             let each = Factory::<FactoryChild>::new(Attributes::new)
-                .forEachSequence(vec![overrides("sequence-one"), overrides("sequence-two")])
-                .createOn(connection)
+                .for_each_sequence(vec![overrides("sequence-one"), overrides("sequence-two")])
+                .create_on(connection)
                 .await?;
             assert_eq!(each.len(), 2);
             assert_eq!(
-                each[1].getAttribute("generated_name"),
+                each[1].get_attribute("generated_name"),
                 Some(&"sequence-two".into())
             );
             assert!(
                 Factory::<FactoryChild>::new(Attributes::new)
-                    .forEachSequence(vec![])
-                    .createOn(connection)
+                    .for_each_sequence(vec![])
+                    .create_on(connection)
                     .await?
                     .is_empty()
             );
             let score = |value: i64| Attributes::from([("generated_score".into(), value.into())]);
             let crossed = Factory::<FactoryChild>::new(Attributes::new)
-                .crossJoinSequence(vec![
+                .cross_join_sequence(vec![
                     vec![overrides("cross-a"), overrides("cross-b")],
                     vec![score(31), score(32)],
                     vec![score(40), score(41)],
                 ])?
                 .count(9)
-                .createOn(connection)
+                .create_on(connection)
                 .await?;
             let order: Vec<_> = crossed
                 .iter()
                 .map(|model| {
                     (
-                        model.getAttribute("generated_name").cloned(),
-                        model.getAttribute("generated_score").cloned(),
+                        model.get_attribute("generated_name").cloned(),
+                        model.get_attribute("generated_score").cloned(),
                     )
                 })
                 .collect();
@@ -914,7 +922,7 @@ impl Seeder for PolymorphicFactories {
             .collect();
             assert_eq!(order, expected);
             assert!(matches!(
-                Factory::<FactoryChild>::new(Attributes::new).crossJoinSequence(vec![vec![]]),
+                Factory::<FactoryChild>::new(Attributes::new).cross_join_sequence(vec![vec![]]),
                 Err(DatabaseError::InvalidQuery(
                     "factory cross join sequence is empty"
                 ))
@@ -923,29 +931,34 @@ impl Seeder for PolymorphicFactories {
                 connection.table("seed_factory_children").delete().await?,
                 11
             );
-            let one = batch.createOneOn(connection, overrides("many-one")).await?;
-            assert_eq!(one.getAttribute("generated_name"), Some(&"many-one".into()));
+            let one = batch
+                .create_one_on(connection, overrides("many-one"))
+                .await?;
+            assert_eq!(
+                one.get_attribute("generated_name"),
+                Some(&"many-one".into())
+            );
             phases.lock().unwrap().clear();
-            let defaults = batch.createMany(FactoryRecords::Default).await?;
+            let defaults = batch.create_many(FactoryRecords::Default).await?;
             assert_eq!(defaults.len(), 1);
             assert_eq!(*phases.lock().unwrap(), ["making", "created"]);
             assert_eq!(
-                defaults[0].getAttribute("generated_name"),
+                defaults[0].get_attribute("generated_name"),
                 Some(&"many-7".into())
             );
             let counted = batch
-                .createManyOn(connection, FactoryRecords::Count(1))
+                .create_many_on(connection, FactoryRecords::Count(1))
                 .await?;
             assert_eq!(counted.len(), 1);
             assert!(
                 batch
-                    .createManyOn(connection, FactoryRecords::Count(0))
+                    .create_many_on(connection, FactoryRecords::Count(0))
                     .await?
                     .is_empty()
             );
             assert!(matches!(
                 batch
-                    .createManyOn(
+                    .create_many_on(
                         connection,
                         FactoryRecords::Attributes(vec![
                             overrides("many-before-error"),
@@ -974,9 +987,9 @@ impl Seeder for PolymorphicFactories {
                     .await?,
                 0
             );
-            batch.createOneQuietly(overrides("quiet-fixture")).await?;
+            batch.create_one_quietly(overrides("quiet-fixture")).await?;
             let quiet = batch
-                .createManyQuietlyOn(
+                .create_many_quietly_on(
                     connection,
                     FactoryRecords::Attributes(vec![
                         overrides("quiet-fixture"),
@@ -986,7 +999,7 @@ impl Seeder for PolymorphicFactories {
                 .await?;
             assert_eq!(quiet.len(), 2);
             assert_eq!(
-                quiet[1].getAttribute("generated_name"),
+                quiet[1].get_attribute("generated_name"),
                 Some(&"many-quiet".into())
             );
             assert_eq!(connection.table("seed_factory_children").delete().await?, 7);
@@ -1003,74 +1016,74 @@ impl Seeder for PolymorphicFactories {
             let utc = jiff::tz::TimeZone::UTC;
             let faker = fake(None)?;
             let other = fake(Some("fr-fr"))?;
-            assert_eq!(faker.getDefaultTimezone(), None);
+            assert_eq!(faker.get_default_timezone(), None);
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T08:00:00+0800");
             assert_eq!(
                 other
-                    .dateTimeInTimezone(Some(epoch), None)
+                    .date_time_in_timezone(Some(epoch), None)
                     .time_zone()
                     .clone(),
                 taipei
             );
-            other.setDefaultTimezone(Some(new_york.clone()));
-            assert_eq!(other.getDefaultTimezone(), Some(new_york.clone()));
+            other.set_default_timezone(Some(new_york.clone()));
+            assert_eq!(other.get_default_timezone(), Some(new_york.clone()));
             assert_eq!(other.date(None, Some(epoch))?, "1969-12-31");
             assert_eq!(other.year(Some(epoch)), "1969");
-            assert_eq!(other.dayOfWeek(Some(epoch)), "Wednesday");
+            assert_eq!(other.day_of_week(Some(epoch)), "Wednesday");
             assert_eq!(
                 other
                     .unique(false)
-                    .dateTimeInTimezone(Some(epoch), Some(utc.clone()))?
+                    .date_time_in_timezone(Some(epoch), Some(utc.clone()))?
                     .time_zone()
                     .clone(),
                 utc
             );
             assert_eq!(
                 faker
-                    .dateTimeInTimezone(Some(epoch), None)
+                    .date_time_in_timezone(Some(epoch), None)
                     .time_zone()
                     .clone(),
                 taipei
             );
-            other.setDefaultTimezone(None);
+            other.set_default_timezone(None);
             assert_eq!(
                 other
-                    .dateTimeInTimezone(Some(epoch), None)
+                    .date_time_in_timezone(Some(epoch), None)
                     .time_zone()
                     .clone(),
                 taipei
             );
             assert_eq!(
                 openrust::database::eloquent::factories::Faker::new("en")?
-                    .dateTimeInTimezone(Some(epoch), None)
+                    .date_time_in_timezone(Some(epoch), None)
                     .time_zone()
                     .clone(),
                 utc
             );
-            faker.setDefaultTimezone(Some(utc.clone()));
+            faker.set_default_timezone(Some(utc.clone()));
             assert_eq!(
-                fake(Some("zh-Hant"))?.getDefaultTimezone(),
+                fake(Some("zh-Hant"))?.get_default_timezone(),
                 Some(utc.clone())
             );
             for value in [
-                faker.firstName(),
-                faker.lastName(),
-                faker.userName(),
-                faker.streetName(),
+                faker.first_name(),
+                faker.last_name(),
+                faker.user_name(),
+                faker.street_name(),
                 faker.postcode(),
-                faker.phoneNumber(),
+                faker.phone_number(),
                 faker.company(),
                 faker.word(),
             ] {
                 assert!(!value.trim().is_empty());
             }
-            assert!(faker.freeEmail().contains('@'));
+            assert!(faker.free_email().contains('@'));
 
             let start = jiff::Timestamp::new(-1, 0).unwrap();
             let end = jiff::Timestamp::new(1, 0).unwrap();
-            let max = Some(faker.resolveDateMax("0")?);
-            assert_eq!(faker.unixTime(max), 0);
-            assert_eq!(faker.dateTime(max), epoch);
+            let max = Some(faker.resolve_date_max("0")?);
+            assert_eq!(faker.unix_time(max), 0);
+            assert_eq!(faker.date_time(max), epoch);
             assert_eq!(faker.date(None, max)?, "1970-01-01");
             assert_eq!(faker.time(None, max)?, "00:00:00");
             assert_eq!(
@@ -1079,46 +1092,46 @@ impl Seeder for PolymorphicFactories {
             );
             assert!(faker.unique(false).iso8601(Some(epoch)).is_err());
             faker.unique(true);
-            assert_eq!(faker.resolveDateMax(" -1.9 ")?.as_second(), -1);
-            assert_eq!(faker.resolveDateMax("1e1")?.as_second(), 10);
+            assert_eq!(faker.resolve_date_max(" -1.9 ")?.as_second(), -1);
+            assert_eq!(faker.resolve_date_max("1e1")?.as_second(), 10);
             assert_eq!(
-                faker.resolveDateMax("2024-01-02 12:00")?.as_second(),
+                faker.resolve_date_max("2024-01-02 12:00")?.as_second(),
                 1_704_168_000
             );
             assert_eq!(
-                faker.resolveDateMax("2024-01-02 12:00 UTC")?.as_second(),
+                faker.resolve_date_max("2024-01-02 12:00 UTC")?.as_second(),
                 1_704_196_800
             );
             let before = jiff::Timestamp::now();
-            let resolved = faker.resolveDateMax("")?;
+            let resolved = faker.resolve_date_max("")?;
             assert!(
                 (before.as_second()..=jiff::Timestamp::now().as_second())
                     .contains(&resolved.as_second())
             );
             assert!(matches!(
-                faker.resolveDateMax("bad date"),
+                faker.resolve_date_max("bad date"),
                 Err(DatabaseError::InvalidQuery("invalid Faker date expression"))
             ));
-            assert!(faker.resolveDateMax(" ").is_err());
-            assert_eq!(faker.resolveDateMax("\u{b}1e999\u{c}")?, epoch);
-            assert_eq!(faker.resolveDateMax("-1e999")?, epoch);
-            assert_eq!(faker.unique(false).unixTimeExpression("1e999")?, 0);
-            assert!(faker.unique(false).unixTime(Some(epoch)).is_err());
+            assert!(faker.resolve_date_max(" ").is_err());
+            assert_eq!(faker.resolve_date_max("\u{b}1e999\u{c}")?, epoch);
+            assert_eq!(faker.resolve_date_max("-1e999")?, epoch);
+            assert_eq!(faker.unique(false).unix_time_expression("1e999")?, 0);
+            assert!(faker.unique(false).unix_time(Some(epoch)).is_err());
             faker.unique(true);
-            assert!(faker.unixTimeExpression("+1000000-01-01")? >= 0);
-            assert!(faker.unixTimeExpression("@-9223372036854775808")? <= 0);
-            assert!(faker.unixTimeExpression("9223372036854775808")? >= 0);
+            assert!(faker.unix_time_expression("+1000000-01-01")? >= 0);
+            assert!(faker.unix_time_expression("@-9223372036854775808")? <= 0);
+            assert!(faker.unix_time_expression("9223372036854775808")? >= 0);
 
             assert!(matches!(
-                faker.resolveDateMax("1e100"),
+                faker.resolve_date_max("1e100"),
                 Err(DatabaseError::InvalidQuery(
                     "Faker timestamp is out of range"
                 ))
             ));
-            assert_eq!(faker.unixTime(Some(epoch)), 0);
-            assert!((-1..=0).contains(&faker.unixTime(Some(start))));
-            assert!((0..=jiff::Timestamp::now().as_second()).contains(&faker.unixTime(None)));
-            assert_eq!(faker.dateTime(Some(epoch)), epoch);
+            assert_eq!(faker.unix_time(Some(epoch)), 0);
+            assert!((-1..=0).contains(&faker.unix_time(Some(start))));
+            assert!((0..=jiff::Timestamp::now().as_second()).contains(&faker.unix_time(None)));
+            assert_eq!(faker.date_time(Some(epoch)), epoch);
             let mut china = [
                 faker.unique(false).timezone(Some("CN"))?,
                 faker.unique(false).timezone(Some("CN"))?,
@@ -1141,22 +1154,22 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(faker.date(Some("%d/%m/%Y"), Some(epoch))?, "01/01/1970");
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T00:00:00+0000");
             let first_ad = jiff::Timestamp::new(-62_135_597_361, 0).unwrap();
-            assert_eq!(faker.dateTimeAD(Some(first_ad)), first_ad);
-            assert_eq!(faker.amPm(Some(epoch)), "上午");
-            assert_eq!(faker.dayOfMonth(Some(epoch)), "01");
-            assert_eq!(faker.dayOfWeek(Some(epoch)), "星期四");
+            assert_eq!(faker.date_time_ad(Some(first_ad)), first_ad);
+            assert_eq!(faker.am_pm(Some(epoch)), "上午");
+            assert_eq!(faker.day_of_month(Some(epoch)), "01");
+            assert_eq!(faker.day_of_week(Some(epoch)), "星期四");
             assert_eq!(faker.month(Some(epoch)), "01");
-            assert_eq!(faker.monthName(Some(epoch)), "一月");
+            assert_eq!(faker.month_name(Some(epoch)), "一月");
             assert_eq!(faker.year(Some(epoch)), "1970");
             let calendar_unique = faker.unique(false);
-            assert_eq!(calendar_unique.dateTimeAD(Some(first_ad))?, first_ad);
-            assert_eq!(calendar_unique.amPm(Some(epoch))?, "上午");
-            assert_eq!(calendar_unique.dayOfMonth(Some(epoch))?, "01");
-            assert_eq!(calendar_unique.dayOfWeek(Some(epoch))?, "星期四");
+            assert_eq!(calendar_unique.date_time_ad(Some(first_ad))?, first_ad);
+            assert_eq!(calendar_unique.am_pm(Some(epoch))?, "上午");
+            assert_eq!(calendar_unique.day_of_month(Some(epoch))?, "01");
+            assert_eq!(calendar_unique.day_of_week(Some(epoch))?, "星期四");
             assert_eq!(calendar_unique.month(Some(epoch))?, "01");
-            assert_eq!(calendar_unique.monthName(Some(epoch))?, "一月");
+            assert_eq!(calendar_unique.month_name(Some(epoch))?, "一月");
             assert_eq!(calendar_unique.year(Some(epoch))?, "1970");
-            assert!(calendar_unique.amPm(Some(epoch)).is_err());
+            assert!(calendar_unique.am_pm(Some(epoch)).is_err());
             let mut centuries = (0..21)
                 .map(|_| calendar_unique.century())
                 .collect::<DatabaseResult<Vec<_>>>()?;
@@ -1178,8 +1191,8 @@ impl Seeder for PolymorphicFactories {
                 Err(DatabaseError::InvalidQuery("Faker 日期格式无效"))
             ));
             let unique = faker.unique(false);
-            assert_eq!(unique.unixTime(Some(epoch))?, 0);
-            assert_eq!(unique.dateTime(Some(epoch))?, epoch);
+            assert_eq!(unique.unix_time(Some(epoch))?, 0);
+            assert_eq!(unique.date_time(Some(epoch))?, epoch);
             assert_eq!(unique.date(None, Some(epoch))?, "1970-01-01");
             assert_eq!(unique.time(None, Some(epoch))?, "00:00:00");
             assert_eq!(unique.iso8601(Some(epoch))?, "1970-01-01T00:00:00+0000");
@@ -1188,13 +1201,13 @@ impl Seeder for PolymorphicFactories {
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
             for _ in 0..20 {
-                assert!((-2..=3).contains(&faker.numberBetween(3, -2)));
-                assert!(faker.randomDigit() <= 9);
-                assert!((1..=9).contains(&faker.randomDigitNotNull()));
-                assert!((start..=end).contains(&faker.dateTimeBetween(start, end)?));
+                assert!((-2..=3).contains(&faker.number_between(3, -2)));
+                assert!(faker.random_digit() <= 9);
+                assert!((1..=9).contains(&faker.random_digit_not_null()));
+                assert!((start..=end).contains(&faker.date_time_between(start, end)?));
             }
             assert!(matches!(
-                faker.unique(false).dateTimeBetween(end, start),
+                faker.unique(false).date_time_between(end, start),
                 Err(DatabaseError::InvalidQuery(
                     "Faker start date exceeds end date"
                 ))
@@ -1216,42 +1229,47 @@ impl Seeder for PolymorphicFactories {
                 let expected = expected.parse::<jiff::Timestamp>().unwrap();
                 let upper = expected.as_second().to_string();
                 assert_eq!(
-                    faker.dateTimeBetweenExpressions(expression, &upper)?,
+                    faker.date_time_between_expressions(expression, &upper)?,
                     expected
                 );
             }
-            assert_eq!(faker.unixTimeExpression("bad date")?, 0);
-            assert_eq!(faker.dateTimeBetweenExpressions("bad date", "0")?, epoch);
-            assert_eq!(faker.dateTimeBetweenExpressions("@0", "bad date")?, epoch);
+            assert_eq!(faker.unix_time_expression("bad date")?, 0);
+            assert_eq!(faker.date_time_between_expressions("bad date", "0")?, epoch);
+            assert_eq!(
+                faker.date_time_between_expressions("@0", "bad date")?,
+                epoch
+            );
             assert!(matches!(
-                faker.dateTimeBetweenExpressions("@1", "bad date"),
+                faker.date_time_between_expressions("@1", "bad date"),
                 Err(DatabaseError::InvalidQuery(
                     "Faker start date exceeds end date"
                 ))
             ));
             assert!(
                 faker
-                    .dateTimeInIntervalExpressions(Some("bad date"), Some("1 day"))
+                    .date_time_in_interval_expressions(Some("bad date"), Some("1 day"))
                     .is_err()
             );
             assert!(matches!(
-                faker.unixTimeExpression(&" ".repeat(20 * 1024 * 1024 + 1)),
+                faker.unix_time_expression(&" ".repeat(20 * 1024 * 1024 + 1)),
                 Err(DatabaseError::InvalidQuery(
                     "Faker date expression exceeds parser limits"
                 ))
             ));
             assert!(matches!(
-                faker.dateTimeBetweenExpressions("tomorrow", "today"),
+                faker.date_time_between_expressions("tomorrow", "today"),
                 Err(DatabaseError::InvalidQuery(
                     "Faker start date exceeds end date"
                 ))
             ));
-            assert_eq!(faker.unique(false).dateTimeBetween(start, start)?, start);
+            assert_eq!(faker.unique(false).date_time_between(start, start)?, start);
             assert!(matches!(
-                faker.unique(false).dateTimeBetweenExpressions("@-1", "-1"),
+                faker
+                    .unique(false)
+                    .date_time_between_expressions("@-1", "-1"),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
-            let expression_interval = faker.dateTimeInIntervalExpressions(
+            let expression_interval = faker.date_time_in_interval_expressions(
                 Some("2024-03-09 12:00 America/New_York"),
                 Some("+1 day"),
             )?;
@@ -1264,18 +1282,18 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(
                 faker
                     .unique(false)
-                    .dateTimeInIntervalExpressions(Some("@0"), Some("today"))?,
+                    .date_time_in_interval_expressions(Some("@0"), Some("today"))?,
                 epoch
             );
             assert!(matches!(
                 faker
                     .unique(false)
-                    .dateTimeInInterval(Some(epoch), Some(jiff::SignedDuration::ZERO)),
+                    .date_time_in_interval(Some(epoch), Some(jiff::SignedDuration::ZERO)),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
             faker.unique(true);
             assert!(matches!(
-                faker.dateTimeInIntervalExpressions(Some("now"), Some("1 day UTC")),
+                faker.date_time_in_interval_expressions(Some("now"), Some("1 day UTC")),
                 Err(DatabaseError::InvalidQuery(
                     "invalid Faker date or interval expression"
                 ))
@@ -1283,29 +1301,29 @@ impl Seeder for PolymorphicFactories {
             let second = jiff::SignedDuration::from_secs(1);
             for interval in [second, -second] {
                 let other = epoch + interval;
-                let sampled = faker.dateTimeInInterval(Some(epoch), Some(interval))?;
+                let sampled = faker.date_time_in_interval(Some(epoch), Some(interval))?;
                 assert!((epoch.min(other)..=epoch.max(other)).contains(&sampled));
             }
             assert!(matches!(
-                faker.dateTimeInInterval(Some(jiff::Timestamp::MAX), Some(second)),
+                faker.date_time_in_interval(Some(jiff::Timestamp::MAX), Some(second)),
                 Err(DatabaseError::InvalidQuery(
                     "Faker timestamp is out of range"
                 ))
             ));
             assert_eq!(
-                unique.dateTimeInInterval(Some(epoch), Some(jiff::SignedDuration::ZERO))?,
+                unique.date_time_in_interval(Some(epoch), Some(jiff::SignedDuration::ZERO))?,
                 epoch
             );
             assert!(matches!(
-                unique.dateTimeInInterval(Some(epoch), Some(jiff::SignedDuration::ZERO)),
+                unique.date_time_in_interval(Some(epoch), Some(jiff::SignedDuration::ZERO)),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
             for date in [
-                unique.dateTimeThisCentury(Some(epoch))?,
-                unique.dateTimeThisDecade(None)?,
-                unique.dateTimeThisYear(None)?,
-                unique.dateTimeThisMonth(None)?,
-                faker.dateTimeInInterval(None, None)?,
+                unique.date_time_this_century(Some(epoch))?,
+                unique.date_time_this_decade(None)?,
+                unique.date_time_this_year(None)?,
+                unique.date_time_this_month(None)?,
+                faker.date_time_in_interval(None, None)?,
             ] {
                 assert!(date <= jiff::Timestamp::now());
                 assert_eq!(date.subsec_nanosecond(), 0);
@@ -1320,12 +1338,12 @@ impl Seeder for PolymorphicFactories {
             .to_zoned(taipei.clone())
             .unwrap()
             .timestamp();
-            assert_eq!(faker.dateTimeThisYear(Some(year_start))?, year_start);
+            assert_eq!(faker.date_time_this_year(Some(year_start))?, year_start);
             for date in [
-                faker.dateTimeThisCentury(Some(jiff::Timestamp::MIN)),
-                faker.dateTimeThisDecade(Some(epoch)),
-                faker.dateTimeThisYear(Some(epoch)),
-                faker.dateTimeThisMonth(Some(epoch)),
+                faker.date_time_this_century(Some(jiff::Timestamp::MIN)),
+                faker.date_time_this_decade(Some(epoch)),
+                faker.date_time_this_year(Some(epoch)),
+                faker.date_time_this_month(Some(epoch)),
             ] {
                 assert!(matches!(
                     date,
@@ -1335,56 +1353,58 @@ impl Seeder for PolymorphicFactories {
                 ));
             }
             assert_eq!(
-                faker.unique(false).numberBetween(i64::MIN, i64::MIN)?,
+                faker.unique(false).number_between(i64::MIN, i64::MIN)?,
                 i64::MIN
             );
             assert_eq!(
-                faker.unique(false).numberBetween(i64::MAX, i64::MAX)?,
+                faker.unique(false).number_between(i64::MAX, i64::MAX)?,
                 i64::MAX
             );
             assert!(matches!(
-                faker.unique(false).numberBetween(i64::MIN, i64::MIN),
+                faker.unique(false).number_between(i64::MIN, i64::MIN),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
-            assert!(faker.unique(false).randomDigit()? <= 9);
-            assert!((1..=9).contains(&faker.unique(false).randomDigitNotNull()?));
-            assert_ne!(faker.unique(false).randomDigitNot(4)?, 4);
-            assert_eq!(faker.randomFloat(Some(2), 1.005, Some(1.005))?, 1.01);
-            assert_eq!(faker.randomFloat(Some(2), -1.005, Some(-1.005))?, -1.01);
-            assert_eq!(faker.randomFloat(Some(-1), -25.0, Some(-25.0))?, -30.0);
+            assert!(faker.unique(false).random_digit()? <= 9);
+            assert!((1..=9).contains(&faker.unique(false).random_digit_not_null()?));
+            assert_ne!(faker.unique(false).random_digit_not(4)?, 4);
+            assert_eq!(faker.random_float(Some(2), 1.005, Some(1.005))?, 1.01);
+            assert_eq!(faker.random_float(Some(2), -1.005, Some(-1.005))?, -1.01);
+            assert_eq!(faker.random_float(Some(-1), -25.0, Some(-25.0))?, -30.0);
             assert_eq!(
-                faker.randomFloat(Some(0), 1_000_000_000.0, None)?,
+                faker.random_float(Some(0), 1_000_000_000.0, None)?,
                 1_000_000_000.0
             );
             for _ in 0..20 {
-                assert!((-2.0..=2.0).contains(&faker.randomFloat(None, 2.0, Some(-2.0))?));
+                assert!((-2.0..=2.0).contains(&faker.random_float(None, 2.0, Some(-2.0))?));
             }
-            assert!(faker.randomFloat(Some(2), f64::NAN, None).is_err());
+            assert!(faker.random_float(Some(2), f64::NAN, None).is_err());
             assert_eq!(
-                faker.unique(false).randomFloat(Some(0), -0.0, Some(-0.0))?,
+                faker
+                    .unique(false)
+                    .random_float(Some(0), -0.0, Some(-0.0))?,
                 0.0
             );
             assert!(matches!(
-                faker.unique(false).randomFloat(Some(0), 0.0, Some(0.0)),
+                faker.unique(false).random_float(Some(0), 0.0, Some(0.0)),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
-            assert!((100_000_000..=999_999_999).contains(&faker.randomNumber(Some(9), true)?));
-            assert!((0..=999_999_999).contains(&faker.randomNumber(None, false)?));
+            assert!((100_000_000..=999_999_999).contains(&faker.random_number(Some(9), true)?));
+            assert!((0..=999_999_999).contains(&faker.random_number(None, false)?));
             assert!(matches!(
-                faker.randomNumber(Some(10), false),
+                faker.random_number(Some(10), false),
                 Err(DatabaseError::InvalidQuery(
                     "Faker random number exceeds digit limit"
                 ))
             ));
             assert!(matches!(
-                faker.randomNumber(Some(0), true),
+                faker.random_number(Some(0), true),
                 Err(DatabaseError::InvalidQuery(
                     "Faker strict digit count is zero"
                 ))
             ));
-            assert_eq!(faker.unique(false).randomNumber(Some(0), false)?, 0);
+            assert_eq!(faker.unique(false).random_number(Some(0), false)?, 0);
             assert!(matches!(
-                faker.unique(false).randomNumber(Some(0), false),
+                faker.unique(false).random_number(Some(0), false),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
 
@@ -1395,7 +1415,7 @@ impl Seeder for PolymorphicFactories {
             ));
             assert_eq!(faker.unique(true).sentence(0..1)?, ".");
 
-            let exhausted = Factory::<FactoryChild>::tryWithFaker(|faker| {
+            let exhausted = Factory::<FactoryChild>::try_with_faker(|faker| {
                 Ok(Attributes::from([(
                     "generated_name".into(),
                     faker.unique(false).sentence(0..1)?.into(),
@@ -1404,7 +1424,7 @@ impl Seeder for PolymorphicFactories {
             .count(2);
             for _ in 0..2 {
                 assert!(matches!(
-                    exhausted.createOn(connection).await,
+                    exhausted.create_on(connection).await,
                     Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
                 ));
                 assert_eq!(
@@ -1421,25 +1441,25 @@ impl Seeder for PolymorphicFactories {
             ));
             assert_eq!(other.unique(true).sentence(0..1)?, ".");
             faker.unique(true);
-            faker.setDefaultTimezone(None);
+            faker.set_default_timezone(None);
             let owners = || Factory::<FactoryOwner>::new(Attributes::new);
             let children = || Factory::<FactoryChild>::new(Attributes::new);
             let pivot = |label: &str| Attributes::from([("label".into(), label.into())]);
             let pivot_calls = Arc::new(AtomicUsize::new(0));
             owners()
-                .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+                .has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
                     "attached",
                     children().count(3),
                     vec![pivot("first"), pivot("second")],
                 )
-                .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+                .has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
                     "attached",
                     children().count(2),
                     FactoryPivot::resolve({
                         let pivot_calls = Arc::clone(&pivot_calls);
                         move |owner: &FactoryOwner| {
                             assert!(owner.state().exists());
-                            assert!(owner.getKey().is_some());
+                            assert!(owner.get_key().is_some());
                             let index = pivot_calls.fetch_add(1, Ordering::Relaxed);
                             Ok(Attributes::from([(
                                 "label".into(),
@@ -1448,11 +1468,11 @@ impl Seeder for PolymorphicFactories {
                         }
                     }),
                 )
-                .createOn(connection)
+                .create_on(connection)
                 .await?;
             let labels = connection
                 .table("seed_factory_links")
-                .orderBy("child_id", "asc")
+                .order_by("child_id", "asc")
                 .pluck("label")
                 .await?;
             assert_eq!(
@@ -1465,16 +1485,16 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
             Box::pin(verify_parent_attributes(connection)).await?;
             Box::pin(verify_existing_attachments(connection, &sqlite)).await?;
-            let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
+            let localized = Factory::<FactoryChild>::try_with_faker(move |faker| {
                 assert_eq!(faker.locale(), "zh-Hant");
                 assert_eq!(
                     faker
-                        .dateTimeInTimezone(Some(epoch), None)
+                        .date_time_in_timezone(Some(epoch), None)
                         .time_zone()
                         .clone(),
                     taipei
                 );
-                let name = faker.unique(false).firstName()?;
+                let name = faker.unique(false).first_name()?;
                 assert!(
                     name.chars()
                         .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))
@@ -1483,12 +1503,12 @@ impl Seeder for PolymorphicFactories {
                     ("generated_name".into(), name.into()),
                     (
                         "generated_score".into(),
-                        faker.unique(false).numberBetween(10, 11)?.into(),
+                        faker.unique(false).number_between(10, 11)?.into(),
                     ),
                     (
                         "generated_at".into(),
                         faker
-                            .dateTimeBetween(start, start)?
+                            .date_time_between(start, start)?
                             .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
                             .to_string()
                             .into(),
@@ -1496,44 +1516,44 @@ impl Seeder for PolymorphicFactories {
                 ]))
             })
             .count(2)
-            .createOn(connection)
+            .create_on(connection)
             .await?;
             assert!(localized.iter().all(|model| model.state().exists()));
             assert_ne!(
-                localized[0].getAttribute("generated_name"),
-                localized[1].getAttribute("generated_name")
+                localized[0].get_attribute("generated_name"),
+                localized[1].get_attribute("generated_name")
             );
             let subject = || {
                 MorphTo::<FactoryChild>::new("owner_type", "owner_id")
                     .target::<FactoryOwner>("seed-owner", "id")
             };
             for name in ["missing", "owner"] {
-                let invalid = children().forNamed::<FactoryOwner, openrust::database::eloquent::relations::BelongsTo<FactoryChild, FactoryOwner>>(name, owners());
+                let invalid = children().for_named::<FactoryOwner, openrust::database::eloquent::relations::BelongsTo<FactoryChild, FactoryOwner>>(name, owners());
                 assert!(matches!(
-                    invalid.makeOn(connection).await,
+                    invalid.make_on(connection).await,
                     Err(DatabaseError::InvalidQuery(_))
                 ));
             }
             assert_eq!(connection.table("seed_factory_owners").count("*").await?, 0);
             let parented = children()
-                .forNamed::<_, MorphTo<FactoryChild>>("owner", owners())
+                .for_named::<_, MorphTo<FactoryChild>>("owner", owners())
                 .count(2);
-            let first = parented.createOn(connection).await?;
-            let second = parented.createOn(connection).await?;
+            let first = parented.create_on(connection).await?;
+            let second = parented.create_on(connection).await?;
             assert_eq!(
-                first[0].getAttribute("owner_id"),
-                first[1].getAttribute("owner_id")
+                first[0].get_attribute("owner_id"),
+                first[1].get_attribute("owner_id")
             );
             assert_eq!(
-                first[0].getAttribute("owner_id"),
-                second[0].getAttribute("owner_id")
+                first[0].get_attribute("owner_id"),
+                second[0].get_attribute("owner_id")
             );
             assert_eq!(
-                second[0].getAttribute("owner_id"),
-                second[1].getAttribute("owner_id")
+                second[0].get_attribute("owner_id"),
+                second[1].get_attribute("owner_id")
             );
             assert_eq!(
-                first[0].getAttribute("owner_type"),
+                first[0].get_attribute("owner_type"),
                 Some(&"seed-owner".into())
             );
 
@@ -1541,64 +1561,67 @@ impl Seeder for PolymorphicFactories {
             let url = std::env::var("SEED_FIXTURE_MYSQL").unwrap();
             // 验证同库的独立连接，不另建隔离数据库。
             let foreign_connection = foreign.connect(json!({"url":url}));
-            let foreign_owner = FactoryOwner::queryOn(&foreign_connection)
-                .findOrFail(first[0].getAttribute("owner_id").unwrap().clone())
+            let foreign_owner = FactoryOwner::query_on(&foreign_connection)
+                .find_or_fail(first[0].get_attribute("owner_id").unwrap().clone())
                 .await?;
             let independent = children()
                 .r#for(subject(), owners())
                 .recycle(foreign_owner)
-                .makeOn(connection)
+                .make_on(connection)
                 .await?;
             assert_ne!(
-                independent.getAttribute("owner_id"),
-                first[0].getAttribute("owner_id")
+                independent.get_attribute("owner_id"),
+                first[0].get_attribute("owner_id")
             );
 
-            let owner_pool = FactoryOwner::queryOn(connection).get().await?;
-            let reusable_ids = owner_pool.modelKeys();
+            let owner_pool = FactoryOwner::query_on(connection).get().await?;
+            let reusable_ids = owner_pool.model_keys();
             let drafts = children()
                 .r#for(subject(), owners())
                 .count(3)
-                .recycleMany(owner_pool)
-                .makeOn(connection)
+                .recycle_many(owner_pool)
+                .make_on(connection)
                 .await?;
-            let reused = drafts[0].getAttribute("owner_id").unwrap();
+            let reused = drafts[0].get_attribute("owner_id").unwrap();
             assert!(reusable_ids.contains(reused));
             assert!(
                 drafts.iter().all(|draft| !draft.state().exists()
-                    && draft.getAttribute("owner_id") == Some(reused))
+                    && draft.get_attribute("owner_id") == Some(reused))
             );
 
-            let recycled = FactoryOwner::queryOn(connection)
-                .findOrFail(reusable_ids[0].clone())
+            let recycled = FactoryOwner::query_on(connection)
+                .find_or_fail(reusable_ids[0].clone())
                 .await?;
-            let recycled_id = recycled.getKey().unwrap().clone();
+            let recycled_id = recycled.get_key().unwrap().clone();
             let owner = owners()
                 .recycle(recycled)
-                .hasNamed::<_, MorphMany<FactoryOwner, FactoryChild>>(
+                .has_named::<_, MorphMany<FactoryOwner, FactoryChild>>(
                     "children",
                     children().count(2),
                 )
-                .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+                .has_attached_named::<_, MorphToMany<FactoryOwner, FactoryChild>>(
                     "attached",
                     children().r#for(subject(), owners()).count(1),
                     Attributes::from([("label".into(), "attached".into())]),
                 )
-                .createOn(connection)
+                .create_on(connection)
                 .await?;
             let attached = connection
                 .table("seed_factory_links")
                 .pluck("child_id")
                 .await?;
-            let linked = FactoryChild::queryOn(connection)
-                .findOrFail(attached[0].clone())
+            let linked = FactoryChild::query_on(connection)
+                .find_or_fail(attached[0].clone())
                 .await?;
-            assert_eq!(linked.getAttribute("owner_id"), Some(&recycled_id));
+            assert_eq!(linked.get_attribute("owner_id"), Some(&recycled_id));
             let draft = children()
-                .forExisting(subject(), owner)
-                .makeOn(connection)
+                .for_existing(subject(), owner)
+                .make_on(connection)
                 .await?;
-            assert_eq!(draft.getAttribute("owner_type"), Some(&"seed-owner".into()));
+            assert_eq!(
+                draft.get_attribute("owner_type"),
+                Some(&"seed-owner".into())
+            );
             assert!(!draft.state().exists());
             Ok(())
         })
@@ -1620,7 +1643,7 @@ impl Seeder for EventModelSeeder {
             Factory::<FactoryChild>::new(|| {
                 Attributes::from([("generated_name".into(), "quiet-fixture".into())])
             })
-            .createOn(context.connection())
+            .create_on(context.connection())
             .await?;
             Ok(())
         })
@@ -1689,7 +1712,7 @@ impl Seeder for ParentCreationSeeder {
 }
 
 async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("seed_factory_owners", |table| {
             table.id();
@@ -1698,31 +1721,31 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
     schema
         .create("seed_factory_children", |table| {
             table.id();
-            table.unsignedBigInteger("owner_id").nullable();
+            table.unsigned_big_integer("owner_id").nullable();
             table.string("generated_name", 80);
         })
         .await?;
     let parent = Factory::<FactoryOwner>::new(Attributes::new)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
     let calls = Arc::new(AtomicUsize::new(0));
     let factory = || {
         let calls = Arc::clone(&calls);
         Factory::<FactoryChild>::new(Attributes::new)
-            .stateWithParent::<FactoryOwner>(|_, parent| {
-                let key = parent.and_then(Model::getKey).unwrap();
+            .state_with_parent::<FactoryOwner>(|_, parent| {
+                let key = parent.and_then(Model::get_key).unwrap();
                 Attributes::from([("generated_name".into(), format!("parent-{key:?}").into())])
             })
-            .afterCreatingWithParent::<FactoryOwner>(move |model, parent| {
+            .after_creating_with_parent::<FactoryOwner>(move |model, parent| {
                 assert!(model.state().exists());
-                assert!(parent.and_then(Model::getKey).is_some());
+                assert!(parent.and_then(Model::get_key).is_some());
                 calls.fetch_add(1, Ordering::Relaxed);
                 Ok(())
             })
     };
     let final_state = |attributes: &Attributes, model: &FactoryOwner| {
-        let key = model.getKey().unwrap();
-        assert_eq!(model.getKey(), parent.getKey());
+        let key = model.get_key().unwrap();
+        assert_eq!(model.get_key(), parent.get_key());
         assert_eq!(
             attributes["generated_name"],
             format!("parent-{key:?}").into()
@@ -1730,11 +1753,11 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
         Attributes::from([("generated_name".into(), "computed".into())])
     };
     let child = factory()
-        .createWithParentStateOn(connection, &parent, final_state)
+        .create_with_parent_state_on(connection, &parent, final_state)
         .await?;
-    assert!(child.getAttribute("owner_id").is_none());
+    assert!(child.get_attribute("owner_id").is_none());
     assert_eq!(
-        child.getAttribute("generated_name"),
+        child.get_attribute("generated_name"),
         Some(&"computed".into())
     );
     assert_eq!(
@@ -1747,7 +1770,7 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
     let cancelled = || Attributes::from([("generated_name".into(), "quiet-fixture".into())]);
     assert!(
         factory()
-            .createWithParentOn(connection, &parent, cancelled())
+            .create_with_parent_on(connection, &parent, cancelled())
             .await
             .is_err()
     );
@@ -1756,12 +1779,12 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
         cancelled()
     };
     factory()
-        .createQuietlyWithParentStateOn(connection, &parent, quiet_state)
+        .create_quietly_with_parent_state_on(connection, &parent, quiet_state)
         .await?;
     let batch = factory().count(2);
     let mut quiet_calls = 0;
     batch
-        .createQuietlyWithParentStateOn(connection, &parent, |attributes, owner| {
+        .create_quietly_with_parent_state_on(connection, &parent, |attributes, owner| {
             quiet_calls += 1;
             quiet_state(attributes, owner)
         })
@@ -1769,13 +1792,13 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
     assert_eq!(quiet_calls, 2);
     assert!(
         batch
-            .createWithParentOn(connection, &parent, cancelled())
+            .create_with_parent_on(connection, &parent, cancelled())
             .await
             .is_err()
     );
     let single = factory();
-    let lazy_one = single.lazyWithParent(&parent, Attributes::new());
-    let lazy_batch = batch.lazyWithParent(&parent, Attributes::new());
+    let lazy_one = single.lazy_with_parent(&parent, Attributes::new());
+    let lazy_batch = batch.lazy_with_parent(&parent, Attributes::new());
     assert_eq!(
         connection.table("seed_factory_children").count("*").await?,
         4
@@ -1818,15 +1841,15 @@ impl ServiceProvider for Provider {
                 SeederEntry::new("FailingSeeder", &Failing),
                 SeederEntry::new("RecursiveSeeder", &Recursive),
                 SeederEntry::new("SeederEventFlow", &SeederEventFlow),
-                SeederEntry::new("MutedSeeder", &MutedSeeder).withoutModelEvents(),
+                SeederEntry::new("MutedSeeder", &MutedSeeder).without_model_events(),
                 SeederEntry::new("EventModelSeeder", &EventModelSeeder),
-                SeederEntry::new("FailingEventSeeder", &FailingEventSeeder).withoutModelEvents(),
+                SeederEntry::new("FailingEventSeeder", &FailingEventSeeder).without_model_events(),
                 SeederEntry::new("FailedSeederEventFlow", &FailedSeederEventFlow),
                 SeederEntry::new("ParentCreationSeeder", &ParentCreationSeeder),
                 SeederEntry::new("PolymorphicFactories", &PolymorphicFactories),
                 SeederEntry::new("FakerApplicationScope", &FakerApplicationScope),
             ];
-            FactoryOwner::resolveRelationUsing(app, "children", |_| {
+            FactoryOwner::resolve_relation_using(app, "children", |_| {
                 MorphMany::<FactoryOwner, FactoryChild>::new(
                     "id",
                     "owner_id",
@@ -1834,9 +1857,9 @@ impl ServiceProvider for Provider {
                     "seed-owner",
                 )
             })?;
-            FactoryChild::registerModelEvent(app, ModelEvent::Creating, CancelFactoryChild)?;
-            BulkSeed::registerModelEvent(app, ModelEvent::Creating, CancelFactoryChild)?;
-            MorphMap::morphMap(
+            FactoryChild::register_model_event(app, ModelEvent::Creating, CancelFactoryChild)?;
+            BulkSeed::register_model_event(app, ModelEvent::Creating, CancelFactoryChild)?;
+            MorphMap::morph_map(
                 app,
                 [MorphMapEntry::model::<FactoryOwner>("seed-owner")],
                 true,
@@ -1891,7 +1914,7 @@ async fn seeder_command_fixture() {
         SeedItem::new_instance(Attributes::from([("name".into(), "outside".into())])),
         Err(DatabaseError::MassAssignment(name)) if name == "name"
     ));
-    assert_eq!(manager.getDefaultConnection().unwrap(), "sqlite");
+    assert_eq!(manager.get_default_connection().unwrap(), "sqlite");
     std::process::exit(status);
 }
 
@@ -2040,7 +2063,7 @@ async fn verify(mysql: Option<&str>, allow_fresh: bool) {
     let root = Root::new();
     let db = root.connection(mysql, "database/alternate.sqlite");
     for table in ["seed_items", "seed_migrations"] {
-        db.getSchemaBuilder().dropIfExists(table).await.unwrap();
+        db.get_schema_builder().drop_if_exists(table).await.unwrap();
     }
     let run = |args: &[&str]| root.fixture("local", mysql, args);
     let pretend = success(run(&[
@@ -2050,11 +2073,16 @@ async fn verify(mysql: Option<&str>, allow_fresh: bool) {
         "--seed",
     ]));
     assert!(!pretend.contains("Seeding database"));
-    assert!(!db.getSchemaBuilder().hasTable("seed_items").await.unwrap());
+    assert!(
+        !db.get_schema_builder()
+            .has_table("seed_items")
+            .await
+            .unwrap()
+    );
     let seeded = success(run(&["migrate", "--database=alternate", "--seed"]));
     assert!(seeded.contains("FirstSeeder DONE") && seeded.contains("ParameterSeeder DONE"));
     assert!(!seeded.contains("SilentSeeder"));
-    let rows = || db.table("seed_items").orderBy("id", "asc");
+    let rows = || db.table("seed_items").order_by("id", "asc");
     assert_eq!(
         rows().pluck("name").await.unwrap(),
         ["first", "second", "silent", "parameter"].map(Value::from)
@@ -2062,8 +2090,8 @@ async fn verify(mysql: Option<&str>, allow_fresh: bool) {
     let default = root.connection(None, "database/database.sqlite");
     assert!(
         !default
-            .getSchemaBuilder()
-            .hasTable("seed_items")
+            .get_schema_builder()
+            .has_table("seed_items")
             .await
             .unwrap()
     );
@@ -2132,7 +2160,7 @@ async fn verify(mysql: Option<&str>, allow_fresh: bool) {
         assert_eq!(rows().pluck("name").await.unwrap(), ["first".into()]);
     }
     for table in ["seed_items", "seed_migrations"] {
-        db.getSchemaBuilder().drop(table).await.unwrap();
+        db.get_schema_builder().drop(table).await.unwrap();
     }
     root.close().await;
 }
@@ -2161,8 +2189,8 @@ async fn mysql_seed_fixtures_isolate_tables_and_cleanup_owned_databases() {
     let second = Root::new();
     let first_db = first.connection(Some(&url), "");
     let second_db = second.connection(Some(&url), "");
-    assert_ne!(first_db.getDatabaseName(), second_db.getDatabaseName());
-    let second_name = second_db.getDatabaseName().to_owned();
+    assert_ne!(first_db.get_database_name(), second_db.get_database_name());
+    let second_name = second_db.get_database_name().to_owned();
     let migrate = ["migrate", "--database=alternate", "--seed"];
     success(first.fixture("local", Some(&url), &migrate));
     success(second.fixture("local", Some(&url), &migrate));
@@ -2197,14 +2225,14 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
     };
     let root = Root::new();
     let db = root.connection(Some(&url), "");
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     for table in [
         "seed_bulk",
         "seed_factory_links",
         "seed_factory_children",
         "seed_factory_owners",
     ] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
     for sql in [
         "CREATE TABLE seed_bulk (id BIGINT AUTO_INCREMENT PRIMARY KEY, external_id VARCHAR(36) NOT NULL, label VARCHAR(80) NOT NULL UNIQUE, score BIGINT NOT NULL, options JSON, created_at VARCHAR(40) NOT NULL, updated_at VARCHAR(40) NOT NULL)",
@@ -2330,7 +2358,7 @@ fn faker_float_rounding_matches_upstream_decimal_boundaries() -> DatabaseResult<
         (0.285, 10, 0.285),
     ] {
         assert_eq!(
-            faker.randomFloat(Some(decimals), value, Some(value))?,
+            faker.random_float(Some(decimals), value, Some(value))?,
             expected
         );
     }
@@ -2341,24 +2369,24 @@ fn faker_float_rounding_matches_upstream_decimal_boundaries() -> DatabaseResult<
 fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResult<()> {
     let faker = openrust::database::eloquent::factories::Faker::new("en-US")?;
     assert!(faker.words(0).is_empty());
-    assert!(faker.sentenceWithWordCount(0, true).is_empty());
+    assert!(faker.sentence_with_word_count(0, true).is_empty());
     assert!(faker.paragraph(0, true).is_empty());
     assert_eq!(faker.words(4).len(), 4);
-    assert_eq!(faker.wordsAsText(4).split_whitespace().count(), 4);
-    let sentence = faker.sentenceWithWordCount(4, false);
+    assert_eq!(faker.words_as_text(4).split_whitespace().count(), 4);
+    let sentence = faker.sentence_with_word_count(4, false);
     assert_eq!(sentence.split_whitespace().count(), 4);
     assert!(sentence.starts_with(char::is_uppercase));
     assert!(sentence.ends_with('.'));
     assert_eq!(faker.paragraph(4, false).matches('.').count(), 4);
     assert_eq!(faker.sentences(4).len(), 4);
-    assert_eq!(faker.sentencesAsText(4).matches('.').count(), 4);
+    assert_eq!(faker.sentences_as_text(4).matches('.').count(), 4);
     assert_eq!(faker.paragraphs(4).len(), 4);
-    assert_eq!(faker.paragraphsAsText(4).split("\n\n").count(), 4);
+    assert_eq!(faker.paragraphs_as_text(4).split("\n\n").count(), 4);
     for _ in 0..16 {
         assert!(
             (7..=15).contains(
                 &faker
-                    .sentenceWithWordCount(10, true)
+                    .sentence_with_word_count(10, true)
                     .split_whitespace()
                     .count()
             )
@@ -2372,8 +2400,8 @@ fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResu
     let unique = faker.unique(false);
     assert!(unique.words(0)?.is_empty());
     assert!(unique.words(0).is_err());
-    assert!(unique.wordsAsText(0)?.is_empty());
-    assert!(unique.wordsAsText(0).is_err());
+    assert!(unique.words_as_text(0)?.is_empty());
+    assert!(unique.words_as_text(0).is_err());
     assert!(unique.paragraphs(0)?.is_empty());
     assert!(unique.paragraphs(0).is_err());
     assert!(faker.unique(true).words(0)?.is_empty());
@@ -2412,8 +2440,8 @@ fn faker_placeholders_preserve_classes_literals_and_unique_history() -> Database
         let ascii = faker.asciify(Some("****-樣品#%?"));
         assert!(ascii[..4].bytes().all(|byte| byte.is_ascii_graphic()));
         assert_eq!(&ascii[4..], "-樣品#%?");
-        assert!(faker.randomLetter().is_ascii_lowercase());
-        assert!(faker.randomAscii().is_ascii_graphic());
+        assert!(faker.random_letter().is_ascii_lowercase());
+        assert!(faker.random_ascii().is_ascii_graphic());
     }
     assert_eq!(faker.numerify(None).len(), 3);
     assert_eq!(faker.lexify(None).len(), 4);
@@ -2433,58 +2461,62 @@ fn faker_placeholders_preserve_classes_literals_and_unique_history() -> Database
 fn faker_sampling_and_shuffle_follow_collection_boundaries() -> DatabaseResult<()> {
     let faker = openrust::database::eloquent::factories::Faker::new("en-US")?;
     let values = [4, 4, 9];
-    assert_eq!(faker.randomElement::<i32>(&[]), None);
-    assert_eq!(faker.randomKey::<i32>(&[]), None);
-    assert!(faker.randomElements::<i32>(&[], Some(0), false)?.is_empty());
-    assert!(faker.randomElements::<i32>(&[], None, false).is_err());
-    assert!(faker.randomElements::<i32>(&[], Some(1), true).is_err());
-    assert!(faker.randomElements(&values, Some(4), false).is_err());
+    assert_eq!(faker.random_element::<i32>(&[]), None);
+    assert_eq!(faker.random_key::<i32>(&[]), None);
+    assert!(
+        faker
+            .random_elements::<i32>(&[], Some(0), false)?
+            .is_empty()
+    );
+    assert!(faker.random_elements::<i32>(&[], None, false).is_err());
+    assert!(faker.random_elements::<i32>(&[], Some(1), true).is_err());
+    assert!(faker.random_elements(&values, Some(4), false).is_err());
     for _ in 0..64 {
-        let mut selected = faker.randomElements(&values, Some(3), false)?;
+        let mut selected = faker.random_elements(&values, Some(3), false)?;
         selected.sort_unstable();
         assert_eq!(selected, [&4, &4, &9]);
-        assert!((1..=3).contains(&faker.randomElements(&values, None, false)?.len()));
+        assert!((1..=3).contains(&faker.random_elements(&values, None, false)?.len()));
         assert_eq!(
-            faker.randomElements(&values[..1], Some(5), true)?,
+            faker.random_elements(&values[..1], Some(5), true)?,
             vec![&4; 5]
         );
         assert!(
             faker
-                .randomKey(&values)
+                .random_key(&values)
                 .is_some_and(|index| index < values.len())
         );
         assert!(
             faker
-                .randomElement(&values)
+                .random_element(&values)
                 .is_some_and(|item| values.contains(item))
         );
         assert!(!faker.boolean(Some(0)));
         assert!(faker.boolean(Some(100)));
     }
-    let mut shuffled = faker.shuffleArray(&values);
+    let mut shuffled = faker.shuffle_array(&values);
     shuffled.sort_unstable();
     assert_eq!(shuffled, values);
-    let mut shuffled: Vec<_> = faker.shuffleString("中a😊中").chars().collect();
+    let mut shuffled: Vec<_> = faker.shuffle_string("中a😊中").chars().collect();
     shuffled.sort_unstable();
     assert_eq!(shuffled, ['a', '中', '中', '😊']);
-    assert_eq!(faker.shuffleString(""), "");
+    assert_eq!(faker.shuffle_string(""), "");
     let unique = faker.unique(false);
     assert!(!unique.boolean(Some(0))?);
     assert!(unique.boolean(Some(0)).is_err());
-    assert_eq!(unique.randomKey(&values[..1])?, Some(0));
-    assert!(unique.randomKey(&values[..1]).is_err());
-    assert_eq!(unique.randomElement(&values[..1])?, Some(&4));
-    assert!(unique.randomElement(&values[1..2]).is_err());
-    assert_eq!(unique.randomElements(&values[..1], Some(1), false)?, [&4]);
+    assert_eq!(unique.random_key(&values[..1])?, Some(0));
+    assert!(unique.random_key(&values[..1]).is_err());
+    assert_eq!(unique.random_element(&values[..1])?, Some(&4));
+    assert!(unique.random_element(&values[1..2]).is_err());
+    assert_eq!(unique.random_elements(&values[..1], Some(1), false)?, [&4]);
     assert!(
         unique
-            .randomElements(&values[1..2], Some(1), false)
+            .random_elements(&values[1..2], Some(1), false)
             .is_err()
     );
-    assert_eq!(unique.shuffleArray(&values[..1])?, [4]);
-    assert!(unique.shuffleArray(&values[..1]).is_err());
-    assert_eq!(unique.shuffleString("中")?, "中");
-    assert!(unique.shuffleString("中").is_err());
+    assert_eq!(unique.shuffle_array(&values[..1])?, [4]);
+    assert!(unique.shuffle_array(&values[..1]).is_err());
+    assert_eq!(unique.shuffle_string("中")?, "中");
+    assert!(unique.shuffle_string("中").is_err());
     Ok(())
 }
 
@@ -2496,20 +2528,20 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
     let unique = faker.unique(false);
     let mut language_codes = std::collections::HashSet::new();
     for _ in 0..184 {
-        let language = unique.languageCode()?;
+        let language = unique.language_code()?;
         assert_eq!(language.len(), 2);
         assert!(language.bytes().all(|byte| byte.is_ascii_lowercase()));
         assert!(language_codes.insert(language));
     }
     assert!(language_codes.contains("en"));
     assert!(language_codes.contains("zh"));
-    assert!(unique.languageCode().is_err());
+    assert!(unique.language_code().is_err());
 
     let mut locales = std::collections::HashSet::new();
     // 固定 provider 的 255 项经 CLDR 规范化后有 252 个不同标签：
     // sh_CS／sh_YU 合并，sr_CS／sr_RS／sr_YU 合并。
     for _ in 0..252 {
-        let locale = unique.randomLocale()?;
+        let locale = unique.random_locale()?;
         assert_eq!(
             openrust::translation::canonical_locale(locale)
                 .as_deref()
@@ -2521,7 +2553,7 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
     for locale in ["en-GB", "en-US", "zh-CN", "zh-HK", "zh-TW"] {
         assert!(locales.contains(locale));
     }
-    assert!(unique.randomLocale().is_err());
+    assert!(unique.random_locale().is_err());
 
     fn check_codes(
         next: impl Fn() -> DatabaseResult<&'static str>,
@@ -2539,9 +2571,9 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
         Ok(())
     }
 
-    check_codes(|| unique.countryCode(), 247, 2)?;
-    check_codes(|| unique.countryISOAlpha3(), 249, 3)?;
-    check_codes(|| unique.currencyCode(), 154, 3)?;
+    check_codes(|| unique.country_code(), 247, 2)?;
+    check_codes(|| unique.country_iso_alpha3(), 249, 3)?;
+    check_codes(|| unique.currency_code(), 154, 3)?;
     let mut emoji = (0..56)
         .map(|_| unique.emoji())
         .collect::<DatabaseResult<Vec<_>>>()?;
@@ -2599,7 +2631,7 @@ fn faker_network_addresses_follow_expected_formats_and_ranges() -> DatabaseResul
         assert!((0x0100_0000..=0xffff_fffe).contains(&address));
         assert!(addresses.insert(sample));
 
-        let sample = unique.localIpv4()?;
+        let sample = unique.local_ipv4()?;
         assert!(sample.parse::<Ipv4Addr>().unwrap().is_private());
         assert!(addresses.insert(format!("private:{sample}")));
 
@@ -2615,7 +2647,7 @@ fn faker_network_addresses_follow_expected_formats_and_ranges() -> DatabaseResul
         }
         assert!(addresses.insert(sample));
 
-        let sample = unique.macAddress()?;
+        let sample = unique.mac_address()?;
         let octets: Vec<_> = sample.split(':').collect();
         assert_eq!(octets.len(), 6);
         for octet in octets {
@@ -2639,7 +2671,7 @@ fn faker_internet_formats_use_localized_suffixes_and_upstream_slug_counts() -> D
     for _ in 0..64 {
         assert_eq!(faker.slug(Some(3), false).split('-').count(), 3);
         assert!((4..=9).contains(&faker.slug(None, true).split('-').count()));
-        let domain = faker.domainName()?;
+        let domain = faker.domain_name()?;
         let (name, suffix) = domain.rsplit_once('.').unwrap();
         assert!(!name.is_empty());
         assert!(
@@ -2682,8 +2714,8 @@ fn faker_internet_formats_use_localized_suffixes_and_upstream_slug_counts() -> D
     let unique = faker.unique(false);
     assert_eq!(unique.slug(Some(0), false)?, "");
     assert!(unique.slug(Some(0), true).is_err());
-    assert!(unique.domainWord().is_ok());
-    assert!(unique.domainName().is_ok());
+    assert!(unique.domain_word().is_ok());
+    assert!(unique.domain_name().is_ok());
     assert!(unique.url().is_ok());
     Ok(())
 }
@@ -2704,24 +2736,24 @@ fn faker_mail_and_password_follow_internet_formatter_contracts() -> DatabaseResu
         "sina.com",
     ];
     for _ in 0..64 {
-        let username = faker.userName();
+        let username = faker.user_name();
         assert!(!username.trim_matches(['.', '_']).is_empty());
         assert!(
             username
                 .bytes()
                 .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_'))
         );
-        for sample in [faker.freeEmail(), faker.email()?] {
+        for sample in [faker.free_email(), faker.email()?] {
             let (name, domain) = sample.split_once('@').unwrap();
             assert!(!name.is_empty());
             assert!(free_domains.contains(&domain));
         }
-        for sample in [faker.safeEmail(), faker.companyEmail()?] {
+        for sample in [faker.safe_email(), faker.company_email()?] {
             assert_eq!(sample.matches('@').count(), 1);
             assert!(!sample.contains(char::is_whitespace));
         }
         assert!(matches!(
-            faker.safeEmailDomain(),
+            faker.safe_email_domain(),
             "example.com" | "example.org" | "example.net"
         ));
         let password = faker.password(None, None)?;
@@ -2735,18 +2767,18 @@ fn faker_mail_and_password_follow_internet_formatter_contracts() -> DatabaseResu
 
     let unique = faker.unique(false);
     let mut sampled = (0..free_domains.len())
-        .map(|_| unique.freeEmailDomain())
+        .map(|_| unique.free_email_domain())
         .collect::<DatabaseResult<Vec<_>>>()?;
     sampled.sort_unstable();
     let mut expected = free_domains;
     expected.sort_unstable();
     assert_eq!(sampled, expected);
-    assert!(unique.freeEmailDomain().is_err());
+    assert!(unique.free_email_domain().is_err());
     assert!(unique.email().is_ok());
-    assert!(unique.companyEmail().is_ok());
-    assert!(unique.safeEmail().is_ok());
-    assert!(unique.freeEmail().is_ok());
-    assert!(unique.userName().is_ok());
+    assert!(unique.company_email().is_ok());
+    assert!(unique.safe_email().is_ok());
+    assert!(unique.free_email().is_ok());
+    assert!(unique.user_name().is_ok());
     assert_eq!(unique.password(Some(0), Some(0))?, "");
     assert!(unique.password(Some(0), Some(0)).is_err());
     assert!(faker.unique(true).password(Some(0), Some(0)).is_ok());
@@ -2760,10 +2792,10 @@ fn faker_phone_numbers_and_imei_follow_pinned_formats() -> DatabaseResult<()> {
     let cn = Faker::new("zh-Hans-CN")?;
     let tw = Faker::new("zh-Hant-TW")?;
     for _ in 0..128 {
-        let number = cn.phoneNumber();
+        let number = cn.phone_number();
         assert_eq!(number.len(), 11);
         assert!(number.starts_with("1") && number.bytes().all(|byte| byte.is_ascii_digit()));
-        let number = tw.phoneNumber();
+        let number = tw.phone_number();
         assert!(number.starts_with("0") || number.starts_with("(0") || number.starts_with("+886"));
         assert!(
             number
@@ -2796,14 +2828,14 @@ fn faker_phone_numbers_and_imei_follow_pinned_formats() -> DatabaseResult<()> {
         let unique = faker.unique(false);
         let mut numbers = std::collections::HashSet::new();
         for _ in 0..128 {
-            let number = unique.e164PhoneNumber()?;
+            let number = unique.e164_phone_number()?;
             assert!(number.starts_with(prefix));
             assert!(lengths.contains(&number.len()), "{locale}: {number}");
             assert!(number[1..].bytes().all(|byte| byte.is_ascii_digit()));
             assert!(numbers.insert(number));
         }
     }
-    assert!(tw.unique(false).phoneNumber().is_ok());
+    assert!(tw.unique(false).phone_number().is_ok());
     assert!(tw.unique(true).imei().is_ok());
     Ok(())
 }
@@ -2828,8 +2860,8 @@ fn faker_address_and_title_formats_follow_locale_contracts() -> DatabaseResult<(
             zip.bytes()
                 .all(|byte| byte.is_ascii_digit() || byte == b'-')
         );
-        assert!(matches!(us.buildingNumber().len(), 3..=5));
-        assert!(us.secondaryAddress().starts_with(['A', 'S']));
+        assert!(matches!(us.building_number().len(), 3..=5));
+        assert!(us.secondary_address().starts_with(['A', 'S']));
 
         let address = cn.address();
         assert!(address.ends_with('区') && !address.contains('\n'));
@@ -2839,11 +2871,11 @@ fn faker_address_and_title_formats_follow_locale_contracts() -> DatabaseResult<(
         assert!((1..=85).contains(&postcode[..2].parse::<u8>().unwrap()));
         assert!((10..=88).contains(&postcode[2..4].parse::<u8>().unwrap()));
 
-        let street = tw.streetAddress();
+        let street = tw.street_address();
         assert!(street.contains('號'));
         assert!(street.ends_with(['號', '樓']));
         assert!(tw.address().contains('號'));
-        assert!(tw.secondaryAddress().ends_with(['室', '房']));
+        assert!(tw.secondary_address().ends_with(['室', '房']));
 
         let address = fr.address();
         let (_, locality) = address.split_once('\n').unwrap();
@@ -2852,7 +2884,7 @@ fn faker_address_and_title_formats_follow_locale_contracts() -> DatabaseResult<(
         assert!(postcode.bytes().all(|byte| byte.is_ascii_digit()));
 
         assert!(["先生", "博士", "教授"].contains(&tw.title(Some("male"))));
-        assert!(["小姐", "太太", "博士", "教授"].contains(&tw.titleFemale()));
+        assert!(["小姐", "太太", "博士", "教授"].contains(&tw.title_female()));
         assert!(
             [
                 "女士", "小姐", "夫人", "太太", "医生", "老师", "教授", "律师", "经理"
@@ -2860,21 +2892,21 @@ fn faker_address_and_title_formats_follow_locale_contracts() -> DatabaseResult<(
             .contains(&cn.title(Some("female")))
         );
         assert!(!us.country().is_empty());
-        assert!(!us.cityPrefix().is_empty());
-        assert!(!us.citySuffix().is_empty());
-        assert!(!us.streetSuffix().is_empty());
+        assert!(!us.city_prefix().is_empty());
+        assert!(!us.city_suffix().is_empty());
+        assert!(!us.street_suffix().is_empty());
         assert!(!us.state().is_empty());
     }
     let unique = tw.unique(false);
     let mut titles = (0..3)
-        .map(|_| unique.titleMale())
+        .map(|_| unique.title_male())
         .collect::<DatabaseResult<Vec<_>>>()?;
     titles.sort_unstable();
     assert_eq!(titles, ["先生", "博士", "教授"]);
-    assert!(unique.titleMale().is_err());
+    assert!(unique.title_male().is_err());
     assert!(unique.title(None).is_ok());
     assert!(unique.address().is_ok());
-    assert!(tw.unique(true).titleMale().is_ok());
+    assert!(tw.unique(true).title_male().is_ok());
     Ok(())
 }
 
@@ -2888,10 +2920,10 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
     ] {
         let faker = Faker::new(locale)?;
         for _ in 0..64 {
-            assert!(!faker.firstNameMale().is_empty());
-            assert!(!faker.firstNameFemale().is_empty());
+            assert!(!faker.first_name_male().is_empty());
+            assert!(!faker.first_name_female().is_empty());
             for gender in [Some("male"), Some("female"), None, Some("other")] {
-                let name = faker.nameWithGender(gender);
+                let name = faker.name_with_gender(gender);
                 assert!(!name.trim().is_empty());
                 if matches!(locale, "zh-Hans" | "zh-Hant") {
                     assert!(name.chars().all(|character| !character.is_ascii()));
@@ -2903,7 +2935,7 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
     let faker = Faker::new("zh-Hant-TW")?;
     let unique = faker.unique(false);
     let names = (0..64)
-        .map(|_| unique.firstNameWithGender(Some("female")))
+        .map(|_| unique.first_name_with_gender(Some("female")))
         .collect::<DatabaseResult<std::collections::HashSet<_>>>()?;
     assert_eq!(names.len(), 64);
     assert!(
@@ -2911,11 +2943,11 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
             .iter()
             .all(|name| (1..=2).contains(&name.chars().count()))
     );
-    assert!(unique.firstNameMale().is_ok());
-    assert!(unique.firstNameFemale().is_ok());
-    assert!(unique.nameWithGender(Some("male")).is_ok());
+    assert!(unique.first_name_male().is_ok());
+    assert!(unique.first_name_female().is_ok());
+    assert!(unique.name_with_gender(Some("male")).is_ok());
     assert!(unique.name().is_ok());
-    assert!(faker.unique(true).firstNameWithGender(None).is_ok());
+    assert!(faker.unique(true).first_name_with_gender(None).is_ok());
     Ok(())
 }
 
@@ -2934,7 +2966,7 @@ fn faker_coordinates_preserve_bounds_precision_and_unique_history() -> DatabaseR
             (&hungary, 46.262740..=47.564721, 17.077949..=20.604560),
             (&montenegro, 42.43..=42.45, 19.16..=19.27),
         ] {
-            let sample = faker.localCoordinates()?;
+            let sample = faker.local_coordinates()?;
             assert!(latitude.contains(&sample.latitude));
             assert!(longitude.contains(&sample.longitude));
             for coordinate in [sample.latitude, sample.longitude] {
@@ -2944,8 +2976,8 @@ fn faker_coordinates_preserve_bounds_precision_and_unique_history() -> DatabaseR
                 );
             }
         }
-        assert!((22.0..=25.0).contains(&taiwan.localLatitude()?));
-        assert!((120.0..=122.0).contains(&taiwan.localLongitude()?));
+        assert!((22.0..=25.0).contains(&taiwan.local_latitude()?));
+        assert!((120.0..=122.0).contains(&taiwan.local_longitude()?));
         assert!((10.0..=12.0).contains(&global.latitude(Some(12.0), Some(10.0))?));
     }
     assert_eq!(
@@ -2958,9 +2990,9 @@ fn faker_coordinates_preserve_bounds_precision_and_unique_history() -> DatabaseR
     assert_eq!(unique.latitude(Some(-0.0), Some(-0.0))?, 0.0);
     assert!(unique.latitude(Some(0.0), Some(0.0)).is_err());
     assert_eq!(unique.longitude(Some(0.0), Some(0.0))?, 0.0);
-    assert!(unique.localCoordinates().is_ok());
-    assert!(taiwan.unique(false).localLatitude().is_ok());
-    assert!(taiwan.unique(false).localLongitude().is_ok());
+    assert!(unique.local_coordinates().is_ok());
+    assert!(taiwan.unique(false).local_latitude().is_ok());
+    assert!(taiwan.unique(false).local_longitude().is_ok());
     Ok(())
 }
 
@@ -2970,7 +3002,7 @@ impl Model for TrashedProbe {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("trashed_factory_probe")
             .timestamps(None, None)
-            .softDeletes("removed_at");
+            .soft_deletes("removed_at");
         &METADATA
     }
     fn from_state(state: ModelState) -> Self {
@@ -2985,11 +3017,11 @@ impl Model for TrashedProbe {
 }
 
 async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("trashed_factory_probe", |table| {
             table.id();
             table.string("name", 60);
-            table.dateTime("removed_at", 0).nullable();
+            table.date_time("removed_at", 0).nullable();
         })
         .await?;
     let definition = || Attributes::from([("name".into(), "sample".into())]);
@@ -2997,12 +3029,12 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
     let batch = Factory::<TrashedProbe>::new(definition)
         .count(2)
         .trashed(None)?;
-    let previews = batch.makeOn(db).await?;
+    let previews = batch.make_on(db).await?;
     assert_eq!(previews.len(), 2);
     let mut previous = None;
     for model in previews.iter() {
         assert!(model.trashed());
-        let Some(Value::Text(value)) = model.getAttributeValue("removed_at")? else {
+        let Some(Value::Text(value)) = model.get_attribute_value("removed_at")? else {
             panic!("expected date text");
         };
         let raw = value.parse::<jiff::Timestamp>().unwrap();
@@ -3013,18 +3045,18 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
         previous = Some(value);
     }
     assert!(
-        TrashedProbe::queryOn(db)
+        TrashedProbe::query_on(db)
             .with_trashed()
             .get()
             .await?
             .is_empty()
     );
-    assert_eq!(batch.createOn(db).await?.len(), 2);
+    assert_eq!(batch.create_on(db).await?.len(), 2);
 
     let explicit = "2020-02-03 04:05:06";
     let model = Factory::<TrashedProbe>::new(definition)
         .trashed(Some(explicit.into()))?
-        .createOn(db)
+        .create_on(db)
         .await?;
     assert!(model.trashed());
     assert!(
@@ -3037,15 +3069,17 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
     let restored = Factory::<TrashedProbe>::new(definition)
         .trashed(Some(Value::Null))?
         .set("removed_at", Value::Null)
-        .createOn(db)
+        .create_on(db)
         .await?;
     assert!(!restored.trashed());
-    assert_eq!(TrashedProbe::queryOn(db).get().await?.len(), 1);
+    assert_eq!(TrashedProbe::query_on(db).get().await?.len(), 1);
     assert_eq!(
-        TrashedProbe::queryOn(db).only_trashed().get().await?.len(),
+        TrashedProbe::query_on(db).only_trashed().get().await?.len(),
         3
     );
-    db.getSchemaBuilder().drop("trashed_factory_probe").await?;
+    db.get_schema_builder()
+        .drop("trashed_factory_probe")
+        .await?;
     Ok(())
 }
 
@@ -3091,7 +3125,7 @@ impl Model for ConditionalProbe {
 }
 
 async fn verify_conditional_factory(db: &Connection) -> DatabaseResult<()> {
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("conditional_factory_probe", |table| {
             table.id();
             table.string("name", 60);
@@ -3102,7 +3136,7 @@ async fn verify_conditional_factory(db: &Connection) -> DatabaseResult<()> {
         .when(false, |_| panic!("false when callback"))
         .unless(true, |_| panic!("true unless callback"))
         .when(true, |factory| factory.set("name", "when"))
-        .unlessElse(
+        .unless_else(
             true,
             |_| panic!("true unless callback"),
             |factory| {
@@ -3113,14 +3147,14 @@ async fn verify_conditional_factory(db: &Connection) -> DatabaseResult<()> {
             },
         );
     assert_eq!(
-        single.rawOn(db).await?.get("name"),
+        single.raw_on(db).await?.get("name"),
         Some(&"unless fallback".into())
     );
-    single.createOn(db).await?;
+    single.create_on(db).await?;
 
     let batch = Factory::<ConditionalProbe>::new(definition)
         .count(2)
-        .whenElse(
+        .when_else(
             false,
             |_| panic!("false when callback"),
             |batch| batch.set("name", "when fallback"),
@@ -3134,20 +3168,20 @@ async fn verify_conditional_factory(db: &Connection) -> DatabaseResult<()> {
         .when(true, |batch| batch.set("name", "batch"));
     assert!(
         batch
-            .makeOn(db)
+            .make_on(db)
             .await?
             .iter()
-            .all(|model| model.getAttribute("name") == Some(&"batch".into()))
+            .all(|model| model.get_attribute("name") == Some(&"batch".into()))
     );
-    assert_eq!(batch.createOn(db).await?.len(), 2);
+    assert_eq!(batch.create_on(db).await?.len(), 2);
     assert_eq!(
         db.table("conditional_factory_probe")
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .pluck("name")
             .await?,
         ["unless fallback".into(), "batch".into(), "batch".into()]
     );
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .drop("conditional_factory_probe")
         .await?;
     Ok(())
@@ -3200,16 +3234,16 @@ async fn model_factory_binding_configures_each_fresh_builder() {
     let configured = FactoryChild::factory();
     let overridden = FactoryChild::factory().set("label", "explicit");
     assert_eq!(
-        configured.rawOn(&connection).await.unwrap().get("label"),
+        configured.raw_on(&connection).await.unwrap().get("label"),
         Some(&"configured".into())
     );
     assert_eq!(
-        overridden.rawOn(&connection).await.unwrap().get("label"),
+        overridden.raw_on(&connection).await.unwrap().get("label"),
         Some(&"explicit".into())
     );
     assert_eq!(
         BoundFactory::factory()
-            .rawOn(&connection)
+            .raw_on(&connection)
             .await
             .unwrap()
             .get("label"),
@@ -3243,7 +3277,7 @@ probe_model!(ParentProbe, "factory_parent_probe");
 probe_model!(ChildProbe, "factory_child_probe");
 
 async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("factory_parent_probe", |table| {
             table.id();
@@ -3253,58 +3287,58 @@ async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
     schema
         .create("factory_child_probe", |table| {
             table.id();
-            table.unsignedBigInteger("parent_id").nullable();
+            table.unsigned_big_integer("parent_id").nullable();
             table.string("name", 60);
         })
         .await?;
     schema
         .create("factory_parent_links", |table| {
-            table.unsignedBigInteger("parent_id");
-            table.unsignedBigInteger("child_id");
+            table.unsigned_big_integer("parent_id");
+            table.unsigned_big_integer("child_id");
         })
         .await?;
 
     let standalone =
         Factory::<ChildProbe>::new(|| Attributes::from([("name".into(), "standalone".into())]))
-            .stateWithParent::<ParentProbe>(|_, parent| {
+            .state_with_parent::<ParentProbe>(|_, parent| {
                 assert!(parent.is_none());
                 Attributes::new()
             })
-            .afterCreatingWithParent::<ParentProbe>(|_, parent| {
+            .after_creating_with_parent::<ParentProbe>(|_, parent| {
                 assert!(parent.is_none());
                 Ok(())
             });
-    standalone.createOn(db).await?;
+    standalone.create_on(db).await?;
 
     let children = |attached| {
         Factory::<ChildProbe>::new(|| Attributes::from([("name".into(), "base".into())]))
-            .stateWithParent::<ChildProbe>(|_, parent| {
+            .state_with_parent::<ChildProbe>(|_, parent| {
                 assert!(parent.is_none());
                 Attributes::new()
             })
             .count(2)
-            .stateWithParent::<ParentProbe>(move |attributes, parent| {
+            .state_with_parent::<ParentProbe>(move |attributes, parent| {
                 assert_eq!(attributes.get("name"), Some(&"base".into()));
                 let parent = parent.unwrap();
-                assert!(parent.getAttribute("id").is_some());
+                assert!(parent.get_attribute("id").is_some());
                 let name = if attached { "attached" } else { "direct" };
-                assert_eq!(parent.getAttribute("name"), Some(&"owner".into()));
+                assert_eq!(parent.get_attribute("name"), Some(&"owner".into()));
                 Attributes::from([("name".into(), name.into())])
             })
-            .sequenceWithParent::<ParentProbe>(|index, attributes, parent| {
+            .sequence_with_parent::<ParentProbe>(|index, attributes, parent| {
                 assert!(parent.is_some_and(|model| model.state().exists()));
                 let Value::Text(name) = &attributes["name"] else {
                     panic!("earlier state did not set the child name");
                 };
                 Attributes::from([("name".into(), format!("{name}-{index}").into())])
             })
-            .afterCreatingWithParent::<ParentProbe>(move |child, parent| {
+            .after_creating_with_parent::<ParentProbe>(move |child, parent| {
                 let parent = parent.unwrap();
-                assert!(child.getAttribute("id").is_some());
+                assert!(child.get_attribute("id").is_some());
                 if !attached {
-                    assert_eq!(child.getAttribute("parent_id"), parent.getAttribute("id"));
+                    assert_eq!(child.get_attribute("parent_id"), parent.get_attribute("id"));
                 }
-                assert_eq!(parent.getAttribute("name"), Some(&"owner".into()));
+                assert_eq!(parent.get_attribute("name"), Some(&"owner".into()));
                 Ok(())
             })
     };
@@ -3317,7 +3351,7 @@ async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
             ),
             children(false),
         )
-        .hasAttached(
+        .has_attached(
             openrust::database::eloquent::relations::BelongsToMany::<ParentProbe, ChildProbe>::new(
                 "factory_parent_links",
                 "parent_id",
@@ -3328,11 +3362,11 @@ async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
             children(true),
             Attributes::new(),
         )
-        .createOn(db)
+        .create_on(db)
         .await?;
     assert_eq!(
         db.table("factory_child_probe")
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .pluck("name")
             .await?,
         [
@@ -3386,7 +3420,7 @@ factory_model!(
 );
 
 async fn verify_expansion(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
@@ -3395,72 +3429,78 @@ async fn verify_expansion(connection: &Connection) -> DatabaseResult<()> {
     schema
         .create("expansion_children", |table| {
             table.id();
-            table.unsignedBigInteger("owner_id").nullable();
+            table.unsigned_big_integer("owner_id").nullable();
         })
         .await?;
 
     let factory = || {
         Factory::<ExpansionChild>::new(Attributes::new)
-            .parentAttribute("owner_id", Factory::<ExpansionOwner>::new(Attributes::new))
+            .parent_attribute("owner_id", Factory::<ExpansionOwner>::new(Attributes::new))
     };
     let before = factory();
-    Factory::<ExpansionOwner>::dontExpandRelationshipsByDefault();
+    Factory::<ExpansionOwner>::dont_expand_relationships_by_default();
     let disabled = factory()
         .count(2)
-        .withoutParents(vec![FactoryParentSelector::attribute("other")]);
+        .without_parents(vec![FactoryParentSelector::attribute("other")]);
     let enabled = {
-        Factory::<ExpansionChild>::expandRelationshipsByDefault();
+        Factory::<ExpansionChild>::expand_relationships_by_default();
         factory()
     };
     let owner = Factory::<ExpansionOwner>::new(Attributes::new)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
-    let key = owner.getKey().unwrap().clone();
+    let key = owner.get_key().unwrap().clone();
     assert!(
         disabled
             .recycle(owner)
-            .rawOn(connection)
+            .raw_on(connection)
             .await?
             .iter()
             .all(|row| row["owner_id"] == Value::Null)
     );
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
 
-    Factory::<ExpansionOwner>::dontExpandRelationshipsByDefault();
+    Factory::<ExpansionOwner>::dont_expand_relationships_by_default();
     let overridden = factory()
         .set("owner_id", key.clone())
-        .createOn(connection)
+        .create_on(connection)
         .await?;
-    assert_eq!(overridden.getAttribute("owner_id"), Some(&key));
+    assert_eq!(overridden.get_attribute("owner_id"), Some(&key));
     let relation = BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id");
-    let owner = ExpansionOwner::queryOn(connection)
+    let owner = ExpansionOwner::query_on(connection)
         .get()
         .await?
         .into_iter()
         .next()
         .unwrap();
-    let stored_key = owner.getKey().unwrap().clone();
+    let stored_key = owner.get_key().unwrap().clone();
     let explicit = Factory::<ExpansionChild>::new(Attributes::new)
-        .forExisting(relation, owner)
-        .createOn(connection)
+        .for_existing(relation, owner)
+        .create_on(connection)
         .await?;
-    assert_eq!(explicit.getAttribute("owner_id"), Some(&stored_key));
+    assert_eq!(explicit.get_attribute("owner_id"), Some(&stored_key));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
 
     let suppressed = enabled
-        .withoutParents(vec![])
-        .withoutParents(vec![FactoryParentSelector::attribute("other")]);
-    assert_eq!(suppressed.rawOn(connection).await?["owner_id"], Value::Null);
+        .without_parents(vec![])
+        .without_parents(vec![FactoryParentSelector::attribute("other")]);
+    assert_eq!(
+        suppressed.raw_on(connection).await?["owner_id"],
+        Value::Null
+    );
     assert_ne!(
-        before.createOn(connection).await?.getAttribute("owner_id"),
+        before
+            .create_on(connection)
+            .await?
+            .get_attribute("owner_id"),
         Some(&Value::Null)
     );
-    Factory::<ExpansionChild>::flushState();
+    Factory::<ExpansionChild>::flush_state();
     assert_ne!(
         factory()
-            .createOn(connection)
+            .create_on(connection)
             .await?
-            .getAttribute("owner_id"),
+            .get_attribute("owner_id"),
         Some(&Value::Null)
     );
     assert_eq!(connection.table("expansion_owners").count("*").await?, 3);
@@ -3500,7 +3540,7 @@ async fn factory_relationship_expansion_defaults_are_snapshotted() {
 }
 
 async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
@@ -3509,7 +3549,7 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
     schema
         .create("expansion_children", |table| {
             table.id();
-            table.unsignedBigInteger("owner_id").nullable();
+            table.unsigned_big_integer("owner_id").nullable();
             table.string("owner_type", 120).nullable();
         })
         .await?;
@@ -3524,21 +3564,21 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
     let skipped = children()
         .r#for(relation(), owners().connection(Some("missing")))
         .set("owner_id", Value::Null)
-        .rawOn(connection)
+        .raw_on(connection)
         .await?;
     assert_eq!(skipped["owner_id"], Value::Null);
 
     let overridden = children()
         .r#for(relation(), owners())
-        .makeOneOn(
+        .make_one_on(
             connection,
             Attributes::from([("owner_id".into(), 5_i64.into())]),
         )
         .await?;
-    assert_eq!(overridden.getAttribute("owner_id"), Some(&5_i64.into()));
+    assert_eq!(overridden.get_attribute("owner_id"), Some(&5_i64.into()));
     assert!(!overridden.relation_loaded("owner"));
 
-    let morph_class = ExpansionOwner::from_state(ModelState::default()).getMorphClass()?;
+    let morph_class = ExpansionOwner::from_state(ModelState::default()).get_morph_class()?;
     let morph = MorphTo::<ExpansionChild>::new("owner_type", "owner_id")
         .target::<ExpansionOwner>(morph_class, "id");
     let morph_preview = children()
@@ -3547,14 +3587,14 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
             assert_eq!(attributes["owner_type"], morph_class.into());
             Attributes::from([("owner_id".into(), Value::Null)])
         })
-        .rawOn(connection)
+        .raw_on(connection)
         .await?;
     assert_eq!(morph_preview["owner_id"], Value::Null);
     assert_eq!(morph_preview["owner_type"], morph_class.into());
     assert_eq!(connection.table("expansion_owners").count("*").await?, 0);
 
     let records = children()
-        .parentAttribute("owner_id", owners().connection(Some("missing")))
+        .parent_attribute("owner_id", owners().connection(Some("missing")))
         .r#for(relation(), owners().connection(Some("missing")))
         .r#for(relation(), owners())
         .sequence(|index| {
@@ -3565,25 +3605,25 @@ async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResul
             }
         })
         .count(3)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
-    assert_eq!(records[0].getAttribute("owner_id"), Some(&5_i64.into()));
+    assert_eq!(records[0].get_attribute("owner_id"), Some(&5_i64.into()));
     assert!(!records[0].relation_loaded("owner"));
-    let generated_key = records[1].getAttribute("owner_id").unwrap();
+    let generated_key = records[1].get_attribute("owner_id").unwrap();
     assert_ne!(*generated_key, 98_i64.into());
-    assert_eq!(Some(generated_key), records[2].getAttribute("owner_id"));
+    assert_eq!(Some(generated_key), records[2].get_attribute("owner_id"));
     assert!(records[1].relation_loaded("owner"));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
 
-    let owner = ExpansionOwner::queryOn(connection)
-        .findOrFail(generated_key.clone())
+    let owner = ExpansionOwner::query_on(connection)
+        .find_or_fail(generated_key.clone())
         .await?;
     let replaced = children()
-        .forExisting(relation(), owner)
+        .for_existing(relation(), owner)
         .set("owner_id", Value::Null)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
-    assert_eq!(replaced.getAttribute("owner_id"), Some(&Value::Null));
+    assert_eq!(replaced.get_attribute("owner_id"), Some(&Value::Null));
     assert!(!replaced.relation_loaded("owner"));
     assert_eq!(connection.table("expansion_children").count("*").await?, 4);
     schema.drop("expansion_children").await?;
@@ -3621,29 +3661,29 @@ async fn verify_factory_parent_cache(
 
     // A failed asynchronous resolution must be retryable on the same builder.
     let factory = factory();
-    assert!(factory.rawOn(connection).await.is_err());
-    let mut schema = connection.getSchemaBuilder();
+    assert!(factory.raw_on(connection).await.is_err());
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
         })
         .await?;
-    let (raw, model) = tokio::join!(factory.rawOn(connection), factory.makeOn(connection));
+    let (raw, model) = tokio::join!(factory.raw_on(connection), factory.make_on(connection));
     let raw = raw?;
     let model = model?;
-    assert_eq!(Some(&raw["owner_id"]), model.getAttribute("owner_id"));
+    assert_eq!(Some(&raw["owner_id"]), model.get_attribute("owner_id"));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
 
     let batch = factory.count(2);
     assert!(
         batch
-            .rawOn(connection)
+            .raw_on(connection)
             .await?
             .iter()
             .all(|row| row["owner_id"] == raw["owner_id"])
     );
-    assert!(batch.rawOn(independent).await.is_err());
-    let mut independent_schema = independent.getSchemaBuilder();
+    assert!(batch.raw_on(independent).await.is_err());
+    let mut independent_schema = independent.get_schema_builder();
     independent_schema
         .create("expansion_owners", |table| {
             table.id();
@@ -3653,7 +3693,7 @@ async fn verify_factory_parent_cache(
         .table("expansion_owners")
         .insert(&[Attributes::from([("id".into(), 100_i64.into())])])
         .await?;
-    let independent_result = batch.rawOn(independent).await?;
+    let independent_result = batch.raw_on(independent).await?;
     assert_ne!(independent_result[0]["owner_id"], raw["owner_id"]);
     assert_eq!(
         independent_result[0]["owner_id"],
@@ -3661,28 +3701,28 @@ async fn verify_factory_parent_cache(
     );
     assert_eq!(independent.table("expansion_owners").count("*").await?, 2);
     assert_eq!(
-        batch.rawOn(connection).await?[0]["owner_id"],
+        batch.raw_on(connection).await?[0]["owner_id"],
         raw["owner_id"]
     );
 
-    let local_owner = ExpansionOwner::queryOn(connection)
-        .findOrFail(raw["owner_id"].clone())
+    let local_owner = ExpansionOwner::query_on(connection)
+        .find_or_fail(raw["owner_id"].clone())
         .await?;
-    let local_key = local_owner.getKey().unwrap().clone();
-    let remote_owner = ExpansionOwner::queryOn(independent)
-        .findOrFail(independent_result[0]["owner_id"].clone())
+    let local_key = local_owner.get_key().unwrap().clone();
+    let remote_owner = ExpansionOwner::query_on(independent)
+        .find_or_fail(independent_result[0]["owner_id"].clone())
         .await?;
-    let remote_key = remote_owner.getKey().unwrap().clone();
+    let remote_key = remote_owner.get_key().unwrap().clone();
     let recycled = Factory::<ExpansionChild>::new(Attributes::new);
     assert!(
         recycled
-            .getRandomRecycledModel::<ExpansionOwner>()
+            .get_random_recycled_model::<ExpansionOwner>()
             .is_none()
     );
     let recycled = recycled.recycle(ExpansionOwner::from_state(ModelState::default()));
     assert!(
         recycled
-            .getRandomRecycledModel::<ExpansionOwner>()
+            .get_random_recycled_model::<ExpansionOwner>()
             .is_none()
     );
     let recycled = recycled
@@ -3695,29 +3735,29 @@ async fn verify_factory_parent_cache(
         .count(2);
     assert!(
         recycled
-            .getRandomRecycledModel::<ExpansionChild>()
+            .get_random_recycled_model::<ExpansionChild>()
             .is_none()
     );
     let keys = [&local_key, &remote_key];
     assert!(
         keys.contains(
             &recycled
-                .getRandomRecycledModel::<ExpansionOwner>()
+                .get_random_recycled_model::<ExpansionOwner>()
                 .unwrap()
-                .getKey()
+                .get_key()
                 .unwrap()
         )
     );
     assert!(
         recycled
-            .rawOn(connection)
+            .raw_on(connection)
             .await?
             .iter()
             .all(|row| row["owner_id"] == local_key)
     );
     assert!(
         recycled
-            .rawOn(independent)
+            .raw_on(independent)
             .await?
             .iter()
             .all(|row| row["owner_id"] == remote_key)
@@ -3789,47 +3829,47 @@ impl FactoryDefinition for ShortcutFactory {
 
 async fn verify_factory_shortcuts(connection: &Connection) -> DatabaseResult<()> {
     let initial = ShortcutFactory::new(Attributes::from([("label".into(), "initial".into())]));
-    assert_eq!(initial.modelName(), std::any::type_name::<ShortcutModel>());
+    assert_eq!(initial.model_name(), std::any::type_name::<ShortcutModel>());
     let attributes = Attributes::from([("label".into(), "direct".into())]);
-    let unsaved = initial.newModel(attributes.clone())?;
+    let unsaved = initial.new_model(attributes.clone())?;
     assert!(!unsaved.state().exists());
-    assert_eq!(unsaved.getAttribute("label"), Some(&"direct".into()));
+    assert_eq!(unsaved.get_attribute("label"), Some(&"direct".into()));
     assert!(
         initial
-            .newModel(Attributes::new())?
-            .getAttribute("label")
+            .new_model(Attributes::new())?
+            .get_attribute("label")
             .is_none()
     );
-    let guarded = initial.newModel(Attributes::from([
+    let guarded = initial.new_model(Attributes::from([
         ("label".into(), "direct".into()),
         ("id".into(), 9_i64.into()),
     ]))?;
-    assert!(guarded.getAttribute("id").is_none());
-    let computed = ShortcutFactory::newWithState(|attributes| {
+    assert!(guarded.get_attribute("id").is_none());
+    let computed = ShortcutFactory::new_with_state(|attributes| {
         assert_eq!(attributes["label"], "definition".into());
         Attributes::from([("label".into(), "computed".into())])
     });
     assert_eq!(
-        computed.rawOn(connection).await?["label"],
+        computed.raw_on(connection).await?["label"],
         "computed-configured".into()
     );
 
     assert_eq!(
-        initial.rawOn(connection).await?["label"],
+        initial.raw_on(connection).await?["label"],
         "initial-configured".into()
     );
     assert_eq!(
-        initial.set("label", "override").rawOn(connection).await?["label"],
+        initial.set("label", "override").raw_on(connection).await?["label"],
         "override".into()
     );
 
     let batch = ShortcutFactory::times(2);
-    assert_eq!(batch.modelName(), std::any::type_name::<ShortcutModel>());
+    assert_eq!(batch.model_name(), std::any::type_name::<ShortcutModel>());
     assert_eq!(
-        batch.newModel(attributes)?.getAttribute("label"),
+        batch.new_model(attributes)?.get_attribute("label"),
         Some(&"direct".into())
     );
-    let previews = batch.rawOn(connection).await?;
+    let previews = batch.raw_on(connection).await?;
     assert_eq!(previews.len(), 2);
     assert!(
         previews
@@ -3837,7 +3877,7 @@ async fn verify_factory_shortcuts(connection: &Connection) -> DatabaseResult<()>
             .all(|row| row["label"] == "definition-configured".into())
     );
 
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("factory_shortcuts", |table| {
             table.id();
@@ -3846,16 +3886,16 @@ async fn verify_factory_shortcuts(connection: &Connection) -> DatabaseResult<()>
         .await?;
     assert!(
         ShortcutFactory::times(0)
-            .createOn(connection)
+            .create_on(connection)
             .await?
             .is_empty()
     );
     assert_eq!(connection.table("factory_shortcuts").count("*").await?, 0);
-    assert_eq!(batch.createOn(connection).await?.len(), 2);
+    assert_eq!(batch.create_on(connection).await?.len(), 2);
     assert_eq!(
         connection
             .table("factory_shortcuts")
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .pluck("label")
             .await?,
         [
@@ -3884,29 +3924,29 @@ async fn named_factory_shortcuts_preserve_configuration_and_model_construction()
 }
 
 async fn verify_factory_raw_overrides(connection: &Connection) -> DatabaseResult<()> {
-    let factory = Factory::<FactoryChild>::factoryForModel();
+    let factory = Factory::<FactoryChild>::factory_for_model();
     assert_eq!(
-        factory.rawOn(connection).await?["label"],
+        factory.raw_on(connection).await?["label"],
         "configured".into()
     );
     let overrides = Attributes::from([("label".into(), "temporary".into())]);
     assert_eq!(
-        factory.rawWithOn(connection, overrides.clone()).await?["label"],
+        factory.raw_with_on(connection, overrides.clone()).await?["label"],
         "temporary".into()
     );
     let raw = factory
-        .rawWithStateOn(connection, |attributes| {
+        .raw_with_state_on(connection, |attributes| {
             assert_eq!(attributes["label"], "configured".into());
             overrides.clone()
         })
         .await?;
     assert_eq!(raw["label"], "temporary".into());
     assert_eq!(
-        factory.rawOn(connection).await?["label"],
+        factory.raw_on(connection).await?["label"],
         "configured".into()
     );
 
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
@@ -3917,11 +3957,11 @@ async fn verify_factory_raw_overrides(connection: &Connection) -> DatabaseResult
             BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
             Factory::<ExpansionOwner>::new(Attributes::new),
         )
-        .afterMaking(|_| panic!("raw invoked afterMaking"))
+        .after_making(|_| panic!("raw invoked afterMaking"))
         .sequence(|index| Attributes::from([("position".into(), index.to_string().into())]))
         .count(2);
     let rows = batch
-        .rawWithStateOn(connection, |attributes| {
+        .raw_with_state_on(connection, |attributes| {
             assert!(attributes.contains_key("position"));
             Attributes::from([("owner_id".into(), Value::Null)])
         })
@@ -3932,14 +3972,14 @@ async fn verify_factory_raw_overrides(connection: &Connection) -> DatabaseResult
     assert!(rows.iter().all(|row| row["owner_id"] == Value::Null));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 0);
 
-    let rows = batch.rawWithOn(connection, overrides).await?;
+    let rows = batch.raw_with_on(connection, overrides).await?;
     assert_eq!(rows[0]["owner_id"], rows[1]["owner_id"]);
     assert!(rows.iter().all(|row| row["label"] == "temporary".into()));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
-    assert_eq!(batch.rawOn(connection).await?[0].get("label"), None);
+    assert_eq!(batch.raw_on(connection).await?[0].get("label"), None);
     let empty = Factory::<ExpansionChild>::new(|| panic!("empty batch evaluated definition"))
         .count(0)
-        .rawWithStateOn(connection, |_| panic!("empty batch evaluated state"))
+        .raw_with_state_on(connection, |_| panic!("empty batch evaluated state"))
         .await?;
     assert!(empty.is_empty());
     schema.drop("expansion_owners").await?;
@@ -3963,22 +4003,22 @@ async fn factory_raw_overrides_are_temporary_and_resolve_parents_after_state() {
 }
 
 async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
         })
         .await?;
     let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
-    let parent = owners().createOn(connection).await?;
-    let key = parent.getKey().unwrap().clone();
+    let parent = owners().create_on(connection).await?;
+    let key = parent.get_key().unwrap().clone();
     let children = || {
-        Factory::<ExpansionChild>::new(Attributes::new).stateWithParent::<ExpansionOwner>(
+        Factory::<ExpansionChild>::new(Attributes::new).state_with_parent::<ExpansionOwner>(
             |_, parent| {
                 Attributes::from([(
                     "context_key".into(),
                     parent
-                        .and_then(Model::getKey)
+                        .and_then(Model::get_key)
                         .cloned()
                         .unwrap_or(Value::Null),
                 )])
@@ -3986,7 +4026,7 @@ async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()
         )
     };
     let only_context = children()
-        .rawWithParentOn(connection, &parent, |_, _| Attributes::new())
+        .raw_with_parent_on(connection, &parent, |_, _| Attributes::new())
         .await?;
     assert_eq!(only_context["context_key"], key);
     assert!(!only_context.contains_key("owner_id"));
@@ -3996,7 +4036,7 @@ async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()
         owners(),
     );
     let attributes = factory
-        .rawWithParentOn(connection, &parent, |attributes, model| {
+        .raw_with_parent_on(connection, &parent, |attributes, model| {
             assert!(std::ptr::eq(model, &parent));
             assert_eq!(attributes["context_key"], key);
             Attributes::from([("owner_id".into(), Value::Null)])
@@ -4008,7 +4048,7 @@ async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()
     let batch = factory.count(2);
     let mut calls = 0;
     let rows = batch
-        .rawWithParentOn(connection, &parent, |attributes, model| {
+        .raw_with_parent_on(connection, &parent, |attributes, model| {
             assert!(std::ptr::eq(model, &parent));
             assert_eq!(attributes["context_key"], key);
             calls += 1;
@@ -4018,7 +4058,7 @@ async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()
     assert_eq!(calls, 2);
     assert!(rows.iter().all(|row| row["owner_id"] == key));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
-    let without_parent = batch.rawOn(connection).await?;
+    let without_parent = batch.raw_on(connection).await?;
     assert_eq!(without_parent[0]["context_key"], Value::Null);
     assert_ne!(without_parent[0]["owner_id"], key);
     assert_eq!(connection.table("expansion_owners").count("*").await?, 2);
@@ -4043,7 +4083,7 @@ async fn factory_raw_parent_is_state_context_without_automatic_association() {
 }
 
 async fn verify_make_and_insert_parent(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
@@ -4052,21 +4092,21 @@ async fn verify_make_and_insert_parent(connection: &Connection) -> DatabaseResul
     schema
         .create("expansion_children", |table| {
             table.id();
-            table.unsignedBigInteger("owner_id").nullable();
-            table.unsignedBigInteger("context_key");
+            table.unsigned_big_integer("owner_id").nullable();
+            table.unsigned_big_integer("context_key");
             table.string("label", 80);
         })
         .await?;
     let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
-    let parent = owners().createOn(connection).await?;
-    let key = parent.getKey().unwrap().clone();
+    let parent = owners().create_on(connection).await?;
+    let key = parent.get_key().unwrap().clone();
     let factory = || {
         Factory::<ExpansionChild>::new(Attributes::new)
-            .stateWithParent::<ExpansionOwner>(|_, parent| {
+            .state_with_parent::<ExpansionOwner>(|_, parent| {
                 Attributes::from([(
                     "context_key".into(),
                     parent
-                        .and_then(Model::getKey)
+                        .and_then(Model::get_key)
                         .cloned()
                         .unwrap_or(Value::Null),
                 )])
@@ -4075,63 +4115,63 @@ async fn verify_make_and_insert_parent(connection: &Connection) -> DatabaseResul
                 BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
                 owners(),
             )
-            .afterMaking(|model| {
+            .after_making(|model| {
                 assert!(!model.state().exists());
-                model.setAttribute("label", "made");
+                model.set_attribute("label", "made");
                 Ok(())
             })
-            .afterCreating(|_| panic!("insert ran afterCreating"))
+            .after_creating(|_| panic!("insert ran afterCreating"))
     };
     let overrides = || Attributes::from([("owner_id".into(), Value::Null)]);
     let final_state = |attributes: &Attributes, parent: &ExpansionOwner| {
-        assert_eq!(parent.getKey(), Some(&key));
+        assert_eq!(parent.get_key(), Some(&key));
         assert_eq!(attributes["context_key"], key);
         overrides()
     };
     let single = factory();
     let model = single
-        .makeWithParentStateOn(connection, &parent, final_state)
+        .make_with_parent_state_on(connection, &parent, final_state)
         .await?;
-    assert_eq!(model.getAttribute("context_key"), Some(&key));
-    assert_eq!(model.getAttribute("owner_id"), Some(&Value::Null));
-    assert_eq!(model.getAttribute("label"), Some(&"made".into()));
+    assert_eq!(model.get_attribute("context_key"), Some(&key));
+    assert_eq!(model.get_attribute("owner_id"), Some(&Value::Null));
+    assert_eq!(model.get_attribute("label"), Some(&"made".into()));
     let batch = factory().count(2);
     let drafts = batch
-        .makeWithParentStateOn(connection, &parent, final_state)
+        .make_with_parent_state_on(connection, &parent, final_state)
         .await?;
     assert_eq!(drafts.len(), 2);
     assert!(
         drafts
             .iter()
-            .all(|model| model.getAttribute("context_key") == Some(&key))
+            .all(|model| model.get_attribute("context_key") == Some(&key))
     );
     assert_eq!(connection.table("expansion_children").count("*").await?, 0);
 
     Factory::<ExpansionChild>::new(|| panic!("empty batch evaluated definition"))
         .count(0)
-        .insertWithParentOn(connection, &parent, overrides())
+        .insert_with_parent_on(connection, &parent, overrides())
         .await?;
     assert_eq!(connection.table("expansion_children").count("*").await?, 0);
     single
-        .insertWithParentOn(connection, &parent, overrides())
+        .insert_with_parent_on(connection, &parent, overrides())
         .await?;
     batch
-        .insertWithParentOn(connection, &parent, overrides())
+        .insert_with_parent_on(connection, &parent, overrides())
         .await?;
     let rows = connection.table("expansion_children");
     assert_eq!(rows.count("*").await?, 3);
-    let rows = ExpansionChild::queryOn(connection).get().await?;
+    let rows = ExpansionChild::query_on(connection).get().await?;
     assert!(rows.iter().all(|model| {
         matches!(
-            model.getAttribute("context_key"),
+            model.get_attribute("context_key"),
             Some(Value::Integer(1) | Value::Unsigned(1))
-        ) && model.getAttribute("owner_id") == Some(&Value::Null)
-            && model.getAttribute("label") == Some(&"made".into())
+        ) && model.get_attribute("owner_id") == Some(&Value::Null)
+            && model.get_attribute("label") == Some(&"made".into())
     }));
     assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
-    let without_parent = single.makeOneOn(connection, overrides()).await?;
+    let without_parent = single.make_one_on(connection, overrides()).await?;
     assert_eq!(
-        without_parent.getAttribute("context_key"),
+        without_parent.get_attribute("context_key"),
         Some(&Value::Null)
     );
     schema.drop("expansion_children").await?;
@@ -4156,7 +4196,7 @@ async fn factory_make_and_insert_share_parent_state_without_associating_it() {
 }
 
 async fn verify_attachment_pivot_count(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
@@ -4169,8 +4209,8 @@ async fn verify_attachment_pivot_count(connection: &Connection) -> DatabaseResul
         .await?;
     schema
         .create("expansion_links", |table| {
-            table.unsignedBigInteger("owner_id");
-            table.unsignedBigInteger("child_id");
+            table.unsigned_big_integer("owner_id");
+            table.unsigned_big_integer("child_id");
             table.string("label", 40).nullable();
         })
         .await?;
@@ -4189,34 +4229,34 @@ async fn verify_attachment_pivot_count(connection: &Connection) -> DatabaseResul
         ]
     };
     let inferred = owners()
-        .hasAttached(relation(), children(), pivots())
-        .createOn(connection)
+        .has_attached(relation(), children(), pivots())
+        .create_on(connection)
         .await?;
     let explicit = owners()
-        .hasAttached(relation(), children().count(3), pivots())
-        .createOn(connection)
+        .has_attached(relation(), children().count(3), pivots())
+        .create_on(connection)
         .await?;
     let empty = owners()
-        .hasAttached(relation(), children().count(0), pivots())
-        .createOn(connection)
+        .has_attached(relation(), children().count(0), pivots())
+        .create_on(connection)
         .await?;
     let default = owners()
-        .hasAttached(relation(), children(), Vec::<Attributes>::new())
-        .createOn(connection)
+        .has_attached(relation(), children(), Vec::<Attributes>::new())
+        .create_on(connection)
         .await?;
     let shared = owners()
-        .hasAttached(
+        .has_attached(
             relation(),
             children(),
             Attributes::from([("label".into(), "shared".into())]),
         )
-        .createOn(connection)
+        .create_on(connection)
         .await?;
     let labels = |owner: &ExpansionOwner| {
         connection
             .table("expansion_links")
-            .r#where("owner_id", "=", owner.getKey().unwrap().clone())
-            .orderBy("child_id", "asc")
+            .r#where("owner_id", "=", owner.get_key().unwrap().clone())
+            .order_by("child_id", "asc")
     };
     assert_eq!(
         labels(&inferred).pluck("label").await?,
@@ -4254,7 +4294,7 @@ async fn factory_attachment_infers_count_only_for_uncounted_factories() {
 
 async fn verify_seeder_events(root: &Root, mysql: Option<&str>) {
     let connection = root.connection(mysql, "database/alternate.sqlite");
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("seed_factory_children", |table| {
             table.id();
@@ -4449,7 +4489,7 @@ async fn application_default_seeder_creates_the_verified_example_user_on_mysql()
 }
 
 async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_owners", |table| {
             table.id();
@@ -4463,8 +4503,8 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
         .await?;
     schema
         .create("expansion_links", |table| {
-            table.unsignedBigInteger("owner_id");
-            table.unsignedBigInteger("child_id");
+            table.unsigned_big_integer("owner_id");
+            table.unsigned_big_integer("child_id");
             table.string("label", 40);
         })
         .await?;
@@ -4474,44 +4514,44 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
             .sequence(|index| Attributes::from([("label".into(), index.to_string().into())]))
     };
     let builder = factory();
-    assert_eq!(builder.rawOn(connection).await?["label"], "0".into());
+    assert_eq!(builder.raw_on(connection).await?["label"], "0".into());
     let batch = builder.count(2);
     assert_eq!(
-        batch.makeOn(connection).await?[1].getAttribute("label"),
+        batch.make_on(connection).await?[1].get_attribute("label"),
         Some(&"2".into())
     );
-    batch.insertOn(connection, Attributes::new()).await?;
+    batch.insert_on(connection, Attributes::new()).await?;
     assert_eq!(
-        batch.createOn(connection).await?[0].getAttribute("label"),
+        batch.create_on(connection).await?[0].get_attribute("label"),
         Some(&"5".into())
     );
-    assert_eq!(factory().rawOn(connection).await?["label"], "0".into());
+    assert_eq!(factory().raw_on(connection).await?["label"], "0".into());
     let each = Factory::<ExpansionChild>::new(Attributes::new)
-        .forEachSequence(vec![label("first"), label("second")]);
+        .for_each_sequence(vec![label("first"), label("second")]);
     assert_eq!(
-        each.makeOneOn(connection, Attributes::new())
+        each.make_one_on(connection, Attributes::new())
             .await?
-            .getAttribute("label"),
+            .get_attribute("label"),
         Some(&"first".into())
     );
-    assert_eq!(each.rawOn(connection).await?[0]["label"], "second".into());
+    assert_eq!(each.raw_on(connection).await?[0]["label"], "second".into());
     let product = Factory::<ExpansionChild>::new(Attributes::new)
-        .crossJoinSequence(vec![vec![label("x"), label("y")]])?;
-    assert_eq!(product.rawOn(connection).await?["label"], "x".into());
-    assert_eq!(product.rawOn(connection).await?["label"], "y".into());
+        .cross_join_sequence(vec![vec![label("x"), label("y")]])?;
+    assert_eq!(product.raw_on(connection).await?["label"], "x".into());
+    assert_eq!(product.raw_on(connection).await?["label"], "y".into());
 
     let parent = Factory::<ExpansionOwner>::new(Attributes::new)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
     let contextual =
         Factory::<ExpansionChild>::new(|| Attributes::from([("label".into(), "base".into())]))
             .set("label", "earlier")
             .count(2)
-            .sequenceWithState(|index, attributes| {
+            .sequence_with_state(|index, attributes| {
                 assert_eq!(attributes["label"], "earlier".into());
                 Attributes::from([("label".into(), format!("step-{index}").into())])
             })
-            .sequenceWithParent::<ExpansionOwner>(|index, attributes, parent| {
+            .sequence_with_parent::<ExpansionOwner>(|index, attributes, parent| {
                 assert_eq!(attributes["label"], format!("step-{index}").into());
                 let suffix = if parent.is_some_and(|model| model.state().exists()) {
                     "saved"
@@ -4520,33 +4560,37 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
                 };
                 Attributes::from([("label".into(), format!("step-{index}-{suffix}").into())])
             });
-    let draft = contextual.makeOneOn(connection, Attributes::new()).await?;
-    assert_eq!(draft.getAttribute("label"), Some(&"step-0-none".into()));
+    let draft = contextual
+        .make_one_on(connection, Attributes::new())
+        .await?;
+    assert_eq!(draft.get_attribute("label"), Some(&"step-0-none".into()));
     let created = contextual
-        .createWithParentOn(connection, &parent, Attributes::new())
+        .create_with_parent_on(connection, &parent, Attributes::new())
         .await?;
     assert_eq!(created.len(), 2);
     assert_eq!(
-        created[0].getAttribute("label"),
+        created[0].get_attribute("label"),
         Some(&"step-1-saved".into())
     );
     assert_eq!(
-        created[1].getAttribute("label"),
+        created[1].get_attribute("label"),
         Some(&"step-2-saved".into())
     );
-    let preview = contextual.makeOneOn(connection, label("override")).await?;
-    assert_eq!(preview.getAttribute("label"), Some(&"override".into()));
+    let preview = contextual
+        .make_one_on(connection, label("override"))
+        .await?;
+    assert_eq!(preview.get_attribute("label"), Some(&"override".into()));
     assert_eq!(
         contextual
-            .makeOneOn(connection, Attributes::new())
+            .make_one_on(connection, Attributes::new())
             .await?
-            .getAttribute("label"),
+            .get_attribute("label"),
         Some(&"step-4-none".into())
     );
 
     let mixed = Factory::<ExpansionChild>::new(move || label("earlier"))
         .count(9)
-        .forEachSequenceEntries(vec![
+        .for_each_sequence_entries(vec![
             label("fixed").into(),
             FactorySequence::resolve::<ExpansionOwner>(|position, attributes, parent| {
                 assert_eq!(position.count, 2);
@@ -4562,48 +4606,48 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
                 )])
             }),
         ])
-        .sequenceEntries(vec![]);
+        .sequence_entries(vec![]);
     assert_eq!(
         mixed
-            .makeOneOn(connection, Attributes::new())
+            .make_one_on(connection, Attributes::new())
             .await?
-            .getAttribute("label"),
+            .get_attribute("label"),
         Some(&"fixed".into())
     );
     let models = mixed
-        .createWithParentOn(connection, &parent, Attributes::new())
+        .create_with_parent_on(connection, &parent, Attributes::new())
         .await?;
     assert_eq!(models.len(), 2);
     assert_eq!(
-        models[0].getAttribute("label"),
+        models[0].get_attribute("label"),
         Some(&"mixed-1-saved".into())
     );
-    assert_eq!(models[1].getAttribute("label"), Some(&"fixed".into()));
-    let rows = mixed.rawOn(connection).await?;
+    assert_eq!(models[1].get_attribute("label"), Some(&"fixed".into()));
+    let rows = mixed.raw_on(connection).await?;
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["label"], "mixed-3-none".into());
     assert_eq!(rows[1]["label"], "fixed".into());
 
     let empty = Factory::<ExpansionChild>::new(|| panic!("zero count evaluated the definition"))
         .count(3)
-        .forEachSequenceEntries(vec![]);
-    assert!(empty.rawOn(connection).await?.is_empty());
+        .for_each_sequence_entries(vec![]);
+    assert!(empty.raw_on(connection).await?.is_empty());
 
     let relation = openrust::database::eloquent::relations::BelongsToMany::<
         ExpansionOwner,
         ExpansionChild,
     >::new("expansion_links", "owner_id", "child_id", "id", "id");
-    let parents = Factory::<ExpansionOwner>::new(Attributes::new).hasAttached(
+    let parents = Factory::<ExpansionOwner>::new(Attributes::new).has_attached(
         relation,
         Factory::<ExpansionChild>::new(Attributes::new).count(1),
         vec![label("first"), label("second")],
     );
-    parents.createOn(connection).await?;
-    parents.createOn(connection).await?;
+    parents.create_on(connection).await?;
+    parents.create_on(connection).await?;
     assert_eq!(
         connection
             .table("expansion_links")
-            .orderBy("owner_id", "asc")
+            .order_by("owner_id", "asc")
             .pluck("label")
             .await?,
         ["first".into(), "second".into()]
@@ -4611,7 +4655,7 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
     assert_eq!(
         connection
             .table("expansion_children")
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .pluck("label")
             .await?,
         [
@@ -4650,7 +4694,7 @@ async fn factory_sequences_continue_across_operations_and_attachments() {
 }
 
 async fn verify_factory_many_count(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("expansion_children", |table| {
             table.id();
@@ -4658,53 +4702,53 @@ async fn verify_factory_many_count(connection: &Connection) -> DatabaseResult<()
         .await?;
     let factory = || Factory::<ExpansionChild>::new(Attributes::new).count(3);
     let batch = factory();
-    assert_eq!(batch.rawOn(connection).await?.len(), 3);
+    assert_eq!(batch.raw_on(connection).await?.len(), 3);
     assert_eq!(
         batch
-            .makeManyOn(connection, FactoryRecords::Default)
+            .make_many_on(connection, FactoryRecords::Default)
             .await?
             .len(),
         3
     );
     assert_eq!(
         batch
-            .makeManyOn(connection, FactoryRecords::Default)
+            .make_many_on(connection, FactoryRecords::Default)
             .await?
             .len(),
         1
     );
-    assert_eq!(batch.makeOn(connection).await?.len(), 1);
-    assert_eq!(batch.rawOn(connection).await?.len(), 1);
+    assert_eq!(batch.make_on(connection).await?.len(), 1);
+    assert_eq!(batch.raw_on(connection).await?.len(), 1);
     assert_eq!(connection.table("expansion_children").count("*").await?, 0);
 
     let explicit = factory();
     assert!(
         explicit
-            .makeManyOn(connection, FactoryRecords::Count(0))
+            .make_many_on(connection, FactoryRecords::Count(0))
             .await?
             .is_empty()
     );
-    assert_eq!(explicit.rawOn(connection).await?.len(), 1);
+    assert_eq!(explicit.raw_on(connection).await?.len(), 1);
 
     let create = factory();
     assert_eq!(
         create
-            .createManyQuietlyOn(connection, FactoryRecords::Default)
+            .create_many_quietly_on(connection, FactoryRecords::Default)
             .await?
             .len(),
         3
     );
-    assert_eq!(create.createOn(connection).await?.len(), 1);
+    assert_eq!(create.create_on(connection).await?.len(), 1);
     let failed = Factory::<ExpansionChild>::new(Attributes::new)
-        .afterMaking(|_| Err(DatabaseError::InvalidQuery("factory count fixture error")))
+        .after_making(|_| Err(DatabaseError::InvalidQuery("factory count fixture error")))
         .count(3);
     assert!(
         failed
-            .makeManyOn(connection, FactoryRecords::Default)
+            .make_many_on(connection, FactoryRecords::Default)
             .await
             .is_err()
     );
-    assert_eq!(failed.rawOn(connection).await?.len(), 1);
+    assert_eq!(failed.raw_on(connection).await?.len(), 1);
     assert_eq!(connection.table("expansion_children").count("*").await?, 4);
     schema.drop("expansion_children").await?;
     Ok(())
@@ -4795,7 +4839,7 @@ impl Model for InsertProjection {
 }
 
 async fn verify_factory_insert_projection(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("factory_insert_projection", |table| {
             table.id();
@@ -4816,7 +4860,12 @@ async fn verify_factory_insert_projection(connection: &Connection) -> DatabaseRe
         })
     };
     let batch = factory().count(2);
-    assert!(batch.insertOn(connection, Attributes::new()).await.is_err());
+    assert!(
+        batch
+            .insert_on(connection, Attributes::new())
+            .await
+            .is_err()
+    );
     assert_eq!(
         connection
             .table("factory_insert_projection")
@@ -4824,7 +4873,7 @@ async fn verify_factory_insert_projection(connection: &Connection) -> DatabaseRe
             .await?,
         0
     );
-    factory().insertOn(connection, Attributes::new()).await?;
+    factory().insert_on(connection, Attributes::new()).await?;
     let row = connection
         .table("factory_insert_projection")
         .first()
@@ -4832,18 +4881,18 @@ async fn verify_factory_insert_projection(connection: &Connection) -> DatabaseRe
         .unwrap();
     assert_eq!(row.get("label"), Some(&"write-read-write-sample".into()));
     assert_eq!(row.get("secret"), Some(&"retained".into()));
-    let model = InsertProjection::queryOn(connection)
+    let model = InsertProjection::query_on(connection)
         .get()
         .await?
         .into_iter()
         .next()
         .unwrap();
     assert_eq!(
-        model.getAttributeValue("options")?,
+        model.get_attribute_value("options")?,
         Some(Value::Json(json!({"ok":true})))
     );
     assert!(
-        matches!(model.getAttributeValue("published_at")?, Some(Value::Text(date)) if date.starts_with("2020-01-02T03:04:05"))
+        matches!(model.get_attribute_value("published_at")?, Some(Value::Text(date)) if date.starts_with("2020-01-02T03:04:05"))
     );
     schema.drop("factory_insert_projection").await?;
     Ok(())
@@ -4922,7 +4971,7 @@ fn faker_bank_identifiers_follow_fixed_layouts_and_checksums() -> DatabaseResult
         let iban = unique.iban(None, "", None)?;
         assert_test_iban(&iban);
         assert!(ibans.insert(iban));
-        let bic = unique.swiftBicNumber()?;
+        let bic = unique.swift_bic_number()?;
         assert!(matches!(bic.len(), 8 | 11));
         assert!(bic[..6].bytes().all(|byte| byte.is_ascii_uppercase()));
         assert!(bic[6..].bytes().all(|byte| byte.is_ascii_alphanumeric()));
@@ -4950,7 +4999,7 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
         (&brazil, "Aura", &[16][..], &["50"][..]),
     ] {
         for _ in 0..16 {
-            let formatted = generator.creditCardNumber(Some(vendor), true, Some("::"))?;
+            let formatted = generator.credit_card_number(Some(vendor), true, Some("::"))?;
             let groups: Vec<_> = formatted.split("::").collect();
             assert_eq!(groups.len(), 4);
             assert!(groups[..3].iter().all(|group| group.len() == 4));
@@ -4974,17 +5023,21 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
             assert_eq!(sum % 10, 0);
         }
     }
-    assert!(faker.creditCardNumber(Some("Elo"), false, None).is_err());
-    assert!(brazil.creditCardNumber(Some("JCB"), false, None).is_err());
-    assert!(faker.creditCardNumber(Some("bogus"), false, None).is_err());
+    assert!(faker.credit_card_number(Some("Elo"), false, None).is_err());
+    assert!(brazil.credit_card_number(Some("JCB"), false, None).is_err());
+    assert!(
+        faker
+            .credit_card_number(Some("bogus"), false, None)
+            .is_err()
+    );
     let start = jiff::Timestamp::now().as_second();
-    let upper = faker.resolveDateMax("+36 months")?.as_second() + 1;
-    let lower = faker.resolveDateMax("-36 months")?.as_second() - 1;
+    let upper = faker.resolve_date_max("+36 months")?.as_second() + 1;
+    let lower = faker.resolve_date_max("-36 months")?.as_second() - 1;
     for _ in 0..16 {
         assert!(
             (start..=upper).contains(
                 &faker
-                    .creditCardExpirationDate(true)?
+                    .credit_card_expiration_date(true)?
                     .timestamp()
                     .as_second()
             )
@@ -4992,26 +5045,26 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
         assert!(
             (lower..=upper).contains(
                 &faker
-                    .creditCardExpirationDate(false)?
+                    .credit_card_expiration_date(false)?
                     .timestamp()
                     .as_second()
             )
         );
     }
-    let default_date = faker.creditCardExpirationDateString(true, None)?;
+    let default_date = faker.credit_card_expiration_date_string(true, None)?;
     assert!(jiff::civil::Date::strptime("%d/%m/%y", format!("01/{default_date}")).is_ok());
     assert!(
         faker
-            .creditCardExpirationDateString(true, Some("%"))
+            .credit_card_expiration_date_string(true, Some("%"))
             .is_err()
     );
     let unique = faker.unique(true);
     let mut vendors = std::collections::HashSet::new();
     for _ in 0..6 {
-        assert!(vendors.insert(unique.creditCardType()?));
+        assert!(vendors.insert(unique.credit_card_type()?));
     }
-    assert!(unique.creditCardType().is_err());
-    let details = unique.creditCardDetails(true)?;
+    assert!(unique.credit_card_type().is_err());
+    let details = unique.credit_card_details(true)?;
     assert!(vendors.contains(details.r#type));
     assert!(!details.name.is_empty());
     assert!(!details.number.contains('-'));
@@ -5021,19 +5074,19 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
     );
     assert!(
         unique
-            .creditCardExpirationDate(true)?
+            .credit_card_expiration_date(true)?
             .timestamp()
             .as_second()
             >= start
     );
     assert_eq!(
         unique
-            .creditCardExpirationDateString(true, Some("%Y-%m"))?
+            .credit_card_expiration_date_string(true, Some("%Y-%m"))?
             .len(),
         7
     );
-    let first = unique.creditCardNumber(None, false, None)?;
-    assert_ne!(unique.creditCardNumber(None, false, None)?, first);
+    let first = unique.credit_card_number(None, false, None)?;
+    assert_ne!(unique.credit_card_number(None, false, None)?, first);
     Ok(())
 }
 
@@ -5086,20 +5139,20 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
         ("tr-TR", "TR"),
         ("ar-EG", "EG"),
     ] {
-        let account = fake(Some(locale))?.bankAccountNumber("", None, None)?;
+        let account = fake(Some(locale))?.bank_account_number("", None, None)?;
         assert!(account.starts_with(country), "{locale}: {account}");
         assert_test_iban(&account);
     }
     let uk = fake(Some("en-GB"))?;
-    let gb = uk.bankAccountNumber("BANK", None, None)?;
+    let gb = uk.bank_account_number("BANK", None, None)?;
     assert_eq!(&gb[4..8], "BANK");
     assert_eq!(gb.len(), 22);
-    let override_account = uk.bankAccountNumber("00", Some("ZZ"), Some(7))?;
+    let override_account = uk.bank_account_number("00", Some("ZZ"), Some(7))?;
     assert_eq!(override_account.len(), 11);
     assert_eq!(&override_account[4..6], "00");
     assert_eq!(
         fake(Some("me-ME"))?
-            .bankAccountNumber("", Some("ZZ"), None)?
+            .bank_account_number("", Some("ZZ"), None)?
             .len(),
         22
     );
@@ -5110,13 +5163,13 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
     let unique = usa.unique(true);
     let mut routes = std::collections::HashSet::new();
     for _ in 0..128 {
-        let account = usa.bankAccountNumber("", None, None)?;
+        let account = usa.bank_account_number("", None, None)?;
         assert!((5..=17).contains(&account.len()));
         assert!(account.bytes().all(|byte| byte.is_ascii_digit()));
-        let account = malaysia.bankAccountNumber("", None, None)?;
+        let account = malaysia.bank_account_number("", None, None)?;
         assert!((10..=16).contains(&account.len()));
         assert!(account.bytes().all(|byte| byte.is_ascii_digit()));
-        let account = nepal.bankAccountNumber("", None, None)?;
+        let account = nepal.bank_account_number("", None, None)?;
         let digits = if let Some(digits) = account.strip_prefix("00") {
             digits
         } else {
@@ -5125,7 +5178,7 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
         };
         assert!((9..=20).contains(&account.len()));
         assert!(digits.bytes().all(|byte| (b'1'..=b'9').contains(&byte)));
-        let route = unique.bankRoutingNumber()?;
+        let route = unique.bank_routing_number()?;
         assert_eq!(route.len(), 9);
         let district: u8 = route[..2].parse().unwrap();
         assert!(matches!(district, 1..=12 | 21..=32 | 61..=72));
@@ -5139,34 +5192,34 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
         assert_eq!(checksum % 10, 0);
         assert!(routes.insert(route));
     }
-    assert_eq!(Faker::calculateRoutingNumberChecksum("02100002")?, 1);
-    assert_eq!(Faker::calculateRoutingNumberChecksum("021000021")?, 1);
-    assert!(Faker::calculateRoutingNumberChecksum("0210000x").is_err());
-    assert!(Faker::calculateRoutingNumberChecksum("123").is_err());
-    assert!(usa.bankAccountNumber("00", None, None).is_err());
+    assert_eq!(Faker::calculate_routing_number_checksum("02100002")?, 1);
+    assert_eq!(Faker::calculate_routing_number_checksum("021000021")?, 1);
+    assert!(Faker::calculate_routing_number_checksum("0210000x").is_err());
+    assert!(Faker::calculate_routing_number_checksum("123").is_err());
+    assert!(usa.bank_account_number("00", None, None).is_err());
     for locale in ["en-CA", "ja-JP", "zz-ZZ"] {
         let fallback = fake(Some(locale))?;
-        let account = fallback.bankAccountNumber("", None, None)?;
+        let account = fallback.bank_account_number("", None, None)?;
         assert!((5..=17).contains(&account.len()));
         assert!(account.bytes().all(|byte| byte.is_ascii_digit()));
-        let route = fallback.unique(true).bankRoutingNumber()?;
-        let check = Faker::calculateRoutingNumberChecksum(&route)?;
+        let route = fallback.unique(true).bank_routing_number()?;
+        let check = Faker::calculate_routing_number_checksum(&route)?;
         assert_eq!(route.len(), 9);
         assert_eq!(route.as_bytes()[8] - b'0', check);
-        assert!(fallback.bankAccountNumber("00", None, None).is_err());
+        assert!(fallback.bank_account_number("00", None, None).is_err());
     }
     let alias = fake(Some("at-AT"))?;
     assert!(alias.vat(Some(false))?.starts_with("ATU"));
-    assert!(alias.bankRoutingNumber().is_err());
-    assert!(uk.bankRoutingNumber().is_err());
+    assert!(alias.bank_routing_number().is_err());
+    assert!(uk.bank_routing_number().is_err());
     assert!(
         fake(Some("zh-Hant"))?
-            .bankAccountNumber("", None, None)
+            .bank_account_number("", None, None)
             .is_err()
     );
     assert_ne!(
-        unique.bankAccountNumber("", None, None)?,
-        unique.bankAccountNumber("", None, None)?
+        unique.bank_account_number("", None, None)?,
+        unique.bank_account_number("", None, None)?
     );
     Ok(())
 }
@@ -5202,37 +5255,37 @@ fn faker_institutions_and_local_swift_follow_provider_contract() -> DatabaseResu
     }
     let malaysia = fake(Some("ms-MY"))?;
     let unique = malaysia.unique(true);
-    assert_eq!(unique.currencySymbol()?, "RM");
-    assert!(unique.currencySymbol().is_err());
+    assert_eq!(unique.currency_symbol()?, "RM");
+    assert!(unique.currency_symbol().is_err());
     assert!(!unique.insurance()?.is_empty());
     let nepali = fake(Some("ne-NP"))?;
     for _ in 0..64 {
         assert!(!malaysia.bank()?.is_empty());
-        assert!(!malaysia.localBank()?.is_empty());
-        assert!(!malaysia.foreignBank()?.is_empty());
-        assert!(!malaysia.governmentBank()?.is_empty());
-        let swift = malaysia.swiftCode()?;
+        assert!(!malaysia.local_bank()?.is_empty());
+        assert!(!malaysia.foreign_bank()?.is_empty());
+        assert!(!malaysia.government_bank()?.is_empty());
+        let swift = malaysia.swift_code()?;
         assert_eq!(swift.len(), 11);
         assert_eq!(&swift[4..6], "MY");
-        let swift = nepali.swiftCode()?;
+        let swift = nepali.swift_code()?;
         assert!(matches!(swift.len(), 8 | 11));
         assert_eq!(&swift[4..6], "NP");
         assert!(
             nepali
-                .microFinance()?
+                .micro_finance()?
                 .ends_with(" Laghubitta Bittiya Sanstha")
         );
-        assert!(!nepali.commercialBank()?.is_empty());
-        assert!(!nepali.developmentBank()?.is_empty());
-        assert!(!nepali.financeCompany()?.is_empty());
-        assert!(!nepali.digitalWallet()?.is_empty());
+        assert!(!nepali.commercial_bank()?.is_empty());
+        assert!(!nepali.development_bank()?.is_empty());
+        assert!(!nepali.finance_company()?.is_empty());
+        assert!(!nepali.digital_wallet()?.is_empty());
     }
-    assert_ne!(unique.swiftCode()?, unique.swiftCode()?);
-    assert!(malaysia.commercialBank().is_err());
-    assert!(nepali.localBank().is_err());
+    assert_ne!(unique.swift_code()?, unique.swift_code()?);
+    assert!(malaysia.commercial_bank().is_err());
+    assert!(nepali.local_bank().is_err());
     let traditional = fake(Some("zh-Hant"))?;
     assert!(traditional.bank().is_err());
-    assert!(traditional.swiftCode().is_err());
+    assert!(traditional.swift_code().is_err());
     Ok(())
 }
 
@@ -5341,13 +5394,13 @@ fn faker_vat_samples_match_regional_provider_contracts() -> DatabaseResult<()> {
             (12 + 3 * (siren % 97)) % 97
         );
         assert_eq!(french.siren(true)?.split(' ').count(), 3);
-        verify_luhn(&italian.unique(false).vatId()?[2..]);
+        verify_luhn(&italian.unique(false).vat_id()?[2..]);
         let be = belgian.vat(Some(false))?;
         assert_eq!(
             be[10..].parse::<u32>().unwrap(),
             97 - be[2..10].parse::<u32>().unwrap() % 97
         );
-        let branch = uk.vatWithType(Some("branch"))?;
+        let branch = uk.vat_with_type(Some("branch"))?;
         let blocks: Vec<_> = branch[2..].split(' ').collect();
         assert_eq!(blocks.len(), 4);
         let body = [blocks[0], blocks[1]].concat();
@@ -5358,21 +5411,21 @@ fn faker_vat_samples_match_regional_provider_contracts() -> DatabaseResult<()> {
             .sum();
         assert_eq!((weighted + 55 + blocks[2].parse::<u16>().unwrap()) % 97, 0);
         assert_eq!(blocks[3].len(), 3);
-        let government = uk.vatWithType(Some("gov"))?;
+        let government = uk.vat_with_type(Some("gov"))?;
         assert!(government.starts_with("GBGD"));
         assert_eq!(government.len(), 7);
         assert!(government[4..].parse::<u16>().unwrap() < 500);
-        let health = uk.vatWithType(Some("health"))?;
+        let health = uk.vat_with_type(Some("health"))?;
         assert!(health.starts_with("GBHA"));
         assert!((500..=999).contains(&health[4..].parse::<u16>().unwrap()));
     }
-    assert_eq!(Faker::calculateModulus97("0000000", false)?, 0);
-    assert_eq!(Faker::calculateModulus97("0000000", true)?, 42);
-    assert!(Faker::calculateModulus97("123456x", true).is_err());
-    assert!(Faker::calculateModulus97("123", true).is_err());
+    assert_eq!(Faker::calculate_modulus97("0000000", false)?, 0);
+    assert_eq!(Faker::calculate_modulus97("0000000", true)?, 42);
+    assert!(Faker::calculate_modulus97("123456x", true).is_err());
+    assert!(Faker::calculate_modulus97("123", true).is_err());
     assert!(
         uk.unique(true)
-            .vatWithType(Some("branch"))?
+            .vat_with_type(Some("branch"))?
             .starts_with("GB")
     );
     assert!(fake(Some("nl-NL"))?.unique(true).btw()?.starts_with("NL"));
@@ -5380,11 +5433,11 @@ fn faker_vat_samples_match_regional_provider_contracts() -> DatabaseResult<()> {
     assert_eq!(taiwanese.len(), 8);
     assert!(taiwanese.bytes().all(|digit| digit.is_ascii_digit()));
     assert!(fake(Some("en-US"))?.vat(None).is_err());
-    assert!(french.vatWithType(Some("gov")).is_err());
+    assert!(french.vat_with_type(Some("gov")).is_err());
     Ok(())
 }
 async fn verify_deferred_factory_attributes(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("seed_factory_owners", |table| {
             table.id();
@@ -5396,7 +5449,7 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
             table.id();
             table.string("generated_name", 120);
             table.string("derived_name", 120);
-            table.unsignedBigInteger("owner_id").nullable();
+            table.unsigned_big_integer("owner_id").nullable();
         })
         .await?;
 
@@ -5408,14 +5461,14 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
             };
             Ok(format!("{name}-derived").into())
         })
-        .parentAttributeWith("owner_id", |values| {
+        .parent_attribute_with("owner_id", |values| {
             let name = values["derived_name"].clone();
             Factory::<FactoryOwner>::new(move || {
                 Attributes::from([("generated_name".into(), name.clone())])
             })
         });
     let preview = factory
-        .rawWithOn(
+        .raw_with_on(
             connection,
             Attributes::from([
                 ("generated_name".into(), "preview".into()),
@@ -5426,13 +5479,13 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
     assert_eq!(preview["derived_name"], "preview-derived".into());
     assert_eq!(connection.table("seed_factory_owners").count("*").await?, 0);
     let made = factory
-        .createOneOn(
+        .create_one_on(
             connection,
             Attributes::from([("generated_name".into(), "saved".into())]),
         )
         .await?;
     assert_eq!(
-        made.getAttribute("derived_name"),
+        made.get_attribute("derived_name"),
         Some(&"saved-derived".into())
     );
     assert_eq!(
@@ -5445,7 +5498,7 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
 
     let batch = factory.count(2);
     let made = batch
-        .createWithParentOn(
+        .create_with_parent_on(
             connection,
             &FactoryOwner::from_state(Default::default()),
             Attributes::from([
@@ -5456,7 +5509,7 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
         .await?;
     assert!(
         made.iter()
-            .all(|model| model.getAttribute("derived_name") == Some(&"override".into()))
+            .all(|model| model.get_attribute("derived_name") == Some(&"override".into()))
     );
     assert_eq!(
         connection.table("seed_factory_children").count("*").await?,
@@ -5466,11 +5519,11 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
 
     let disabled = Factory::<FactoryChild>::new(Attributes::new)
         .attribute("computed", |_| Ok("kept".into()))
-        .parentAttributeWith::<FactoryOwner>("owner_id", |_| {
+        .parent_attribute_with::<FactoryOwner>("owner_id", |_| {
             panic!("excluded owner factory was called")
         })
-        .withoutParents(Vec::new());
-    let row = disabled.rawOn(connection).await?;
+        .without_parents(Vec::new());
+    let row = disabled.raw_on(connection).await?;
     assert_eq!(row["computed"], "kept".into());
     assert_eq!(row["owner_id"], Value::Null);
 
@@ -5478,9 +5531,9 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
         .attribute("computed", |_| {
             Err(DatabaseError::InvalidQuery("probe failed"))
         })
-        .parentAttributeWith::<FactoryOwner>("owner_id", |_| panic!("later resolver was called"));
+        .parent_attribute_with::<FactoryOwner>("owner_id", |_| panic!("later resolver was called"));
     assert!(matches!(
-        failed.createOn(connection).await,
+        failed.create_on(connection).await,
         Err(DatabaseError::InvalidQuery("probe failed"))
     ));
     assert_eq!(
@@ -5522,7 +5575,7 @@ async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResul
         relations::{BelongsTo, HasMany},
     };
 
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
     schema
         .create("seed_factory_owners", |table| {
             table.id();
@@ -5531,21 +5584,21 @@ async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResul
     schema
         .create("seed_factory_children", |table| {
             table.id();
-            table.unsignedBigInteger("owner_id").nullable();
+            table.unsigned_big_integer("owner_id").nullable();
         })
         .await?;
     let existing = Factory::<FactoryOwner>::new(Attributes::new)
-        .createOn(connection)
+        .create_on(connection)
         .await?;
     let child = Factory::<FactoryChild>::new(Attributes::new)
-        .modelAttribute("owner_id", &existing)
-        .makeOn(connection)
+        .model_attribute("owner_id", &existing)
+        .make_on(connection)
         .await?;
-    assert_eq!(child.getAttribute("owner_id"), existing.getKey());
+    assert_eq!(child.get_attribute("owner_id"), existing.get_key());
     let unsaved = FactoryOwner::from_state(Default::default());
     let raw = Factory::<FactoryChild>::new(Attributes::new)
-        .modelAttribute("owner_id", &unsaved)
-        .rawOn(connection)
+        .model_attribute("owner_id", &unsaved)
+        .raw_on(connection)
         .await?;
     assert_eq!(raw["owner_id"], Value::Null);
     assert_eq!(connection.table("seed_factory_owners").count("*").await?, 1);
@@ -5558,41 +5611,43 @@ async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResul
     type Single = BelongsTo<FactoryOwner, FactoryOwner>;
     let known_child = std::sync::Arc::new(child);
     let factory = Factory::<FactoryOwner>::new(Attributes::new)
-        .afterMaking(move |owner| {
-            owner.setRelation::<Children>("children", RelatedCollection::fromShared(Vec::new()));
-            owner.setRelation::<Children>(
+        .after_making(move |owner| {
+            owner.set_relation::<Children>("children", RelatedCollection::from_shared(Vec::new()));
+            owner.set_relation::<Children>(
                 "known",
-                RelatedCollection::fromShared(vec![known_child.clone()]),
+                RelatedCollection::from_shared(vec![known_child.clone()]),
             );
-            owner.setRelation::<Single>("single", None);
+            owner.set_relation::<Single>("single", None);
             Ok(())
         })
         .has(
             Children::new("id", "owner_id"),
             Factory::<FactoryChild>::new(Attributes::new)
-                .afterMaking(|child| {
+                .after_making(|child| {
                     type Nested = HasMany<FactoryChild, FactoryChild>;
-                    child
-                        .setRelation::<Nested>("nested", RelatedCollection::fromShared(Vec::new()));
+                    child.set_relation::<Nested>(
+                        "nested",
+                        RelatedCollection::from_shared(Vec::new()),
+                    );
                     Ok(())
                 })
-                .afterCreating(|child| {
+                .after_creating(|child| {
                     assert!(!child.relation_loaded("nested"));
                     Ok(())
                 })
                 .count(2),
         )
-        .afterCreating(|owner| {
+        .after_creating(|owner| {
             assert!(!owner.relation_loaded("children"));
             assert!(owner.relation_loaded("known"));
             assert!(owner.relation_loaded("single"));
             Ok(())
         });
-    let preview = factory.makeOn(connection).await?;
+    let preview = factory.make_on(connection).await?;
     assert!(preview.relation_loaded("children"));
-    let mut owner = factory.createOn(connection).await?;
+    let mut owner = factory.create_on(connection).await?;
     let relation = Children::new("id", "owner_id");
-    let children = owner.getRelationOrLoad("children", &relation).await?;
+    let children = owner.get_relation_or_load("children", &relation).await?;
     assert_eq!(children.len(), 2);
     assert_eq!(connection.table("seed_factory_owners").count("*").await?, 2);
     assert_eq!(
@@ -5639,17 +5694,17 @@ macro_rules! pivot_model {
 fn pivot_members() -> PivotMembers {
     PivotMembers::new("factory_touch_pivot", "owner_id", "member_id", "id", "id")
         .using::<CustomFactoryPivot>()
-        .withPivot(["label", "meta"])
+        .with_pivot(["label", "meta"])
 }
 
 pivot_model!(
     PivotOwner,
     ModelMetadata::new("factory_touch_owners").timestamps(None, None),
-    fn namedRelations() -> NamedRelations<Self> {
+    fn named_relations() -> NamedRelations<Self> {
         NamedRelations::default().nested("members", pivot_members)
     },
     fn touches() -> openrust::database::eloquent::Touches<Self> {
-        openrust::database::eloquent::Touches::default().belongsToMany(pivot_members())
+        openrust::database::eloquent::Touches::default().belongs_to_many(pivot_members())
     }
 );
 pivot_model!(
@@ -5670,7 +5725,7 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
     use openrust::database::eloquent::{RelatedCollection, relations::Relation as _};
 
     const OLD: &str = "2000-01-01 00:00:00";
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("factory_touch_owners", |table| {
             table.id();
@@ -5684,26 +5739,26 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
         .await?;
     schema
         .create("factory_touch_pivot", |table| {
-            table.unsignedBigInteger("owner_id");
-            table.unsignedBigInteger("member_id");
+            table.unsigned_big_integer("owner_id");
+            table.unsigned_big_integer("member_id");
             table.string("label", 32);
             table.json("meta").nullable();
         })
         .await?;
     let member = || Factory::<PivotMember>::new(Attributes::new).set("updated_at", OLD);
-    let first = member().createOn(db).await?;
-    let second = member().createOn(db).await?;
-    let third = member().createOn(db).await?;
-    let untouched = third.getKey().cloned().unwrap();
-    let prior = RelatedCollection::fromShared(vec![std::sync::Arc::new(PivotMember::from_state(
+    let first = member().create_on(db).await?;
+    let second = member().create_on(db).await?;
+    let third = member().create_on(db).await?;
+    let untouched = third.get_key().cloned().unwrap();
+    let prior = RelatedCollection::from_shared(vec![std::sync::Arc::new(PivotMember::from_state(
         first.state().clone(),
     ))]);
     let owner = Factory::<PivotOwner>::new(Attributes::new)
-        .afterMaking(move |owner| {
-            owner.setRelation::<PivotMembers>("members", prior.clone());
+        .after_making(move |owner| {
+            owner.set_relation::<PivotMembers>("members", prior.clone());
             Ok(())
         })
-        .hasAttachedNamed::<PivotMember, PivotMembers>(
+        .has_attached_named::<PivotMember, PivotMembers>(
             "members",
             vec![first, second],
             vec![
@@ -5711,22 +5766,22 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
                 Attributes::from([("label".into(), "second".into())]),
             ],
         )
-        .afterCreating(|owner| {
+        .after_creating(|owner| {
             let members = owner
-                .getRelation::<RelatedCollection<PivotMember>>("members")
+                .get_relation::<RelatedCollection<PivotMember>>("members")
                 .unwrap();
             assert_eq!(members.len(), 2);
             let mut labels = Vec::new();
             for member in members.iter() {
-                assert_ne!(member.getAttribute("updated_at"), Some(&OLD.into()));
-                let pivot = member.getRelation::<CustomFactoryPivot>("pivot").unwrap();
-                labels.push(pivot.getAttribute("label").cloned().unwrap());
+                assert_ne!(member.get_attribute("updated_at"), Some(&OLD.into()));
+                let pivot = member.get_relation::<CustomFactoryPivot>("pivot").unwrap();
+                labels.push(pivot.get_attribute("label").cloned().unwrap());
             }
             assert!(labels.contains(&"first".into()));
             assert!(labels.contains(&"second".into()));
             Ok(())
         })
-        .createOn(db)
+        .create_on(db)
         .await?;
     assert!(owner.relation_loaded("members"));
     assert_eq!(db.table("factory_touch_pivot").count("*").await?, 2);
@@ -5739,7 +5794,7 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
         OLD.into()
     );
     let appended = Factory::<PivotOwner>::new(Attributes::new)
-        .hasAttachedNamed::<PivotMember, PivotMembers>(
+        .has_attached_named::<PivotMember, PivotMembers>(
             "members",
             member(),
             Attributes::from([
@@ -5747,23 +5802,23 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
                 ("meta".into(), Value::Json(json!({"shared": true}))),
             ]),
         )
-        .createOn(db)
+        .create_on(db)
         .await?;
     let members = appended
-        .getRelation::<RelatedCollection<PivotMember>>("members")
+        .get_relation::<RelatedCollection<PivotMember>>("members")
         .unwrap();
     assert_eq!(members.len(), 1);
-    assert_ne!(members[0].getAttribute("updated_at"), Some(&OLD.into()));
+    assert_ne!(members[0].get_attribute("updated_at"), Some(&OLD.into()));
     let pivot = members[0]
-        .getRelation::<CustomFactoryPivot>("pivot")
+        .get_relation::<CustomFactoryPivot>("pivot")
         .unwrap();
     assert_eq!(
-        pivot.getAttributeValue("meta")?,
+        pivot.get_attribute_value("meta")?,
         Some(Value::Json(json!({"shared": true})))
     );
     let before = db.table("factory_touch_members").count("*").await?;
     let generated = Factory::<PivotOwner>::new(Attributes::new)
-        .hasAttachedNamed::<PivotMember, PivotMembers>(
+        .has_attached_named::<PivotMember, PivotMembers>(
             "members",
             member(),
             vec![
@@ -5777,16 +5832,16 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
                 ]),
             ],
         )
-        .createOn(db)
+        .create_on(db)
         .await?;
-    let members = pivot_members().getResults(&generated).await?;
+    let members = pivot_members().get_results(&generated).await?;
     let mut meta = BTreeMap::new();
     for member in members.iter() {
-        let pivot = member.getRelation::<CustomFactoryPivot>("pivot").unwrap();
-        let Some(Value::Text(label)) = pivot.getAttribute("label") else {
+        let pivot = member.get_relation::<CustomFactoryPivot>("pivot").unwrap();
+        let Some(Value::Text(label)) = pivot.get_attribute("label") else {
             panic!("expected a pivot label");
         };
-        meta.insert(label.clone(), pivot.getAttributeValue("meta")?);
+        meta.insert(label.clone(), pivot.get_attribute_value("meta")?);
     }
     assert_eq!(meta["plain"], Some(Value::Null));
     assert_eq!(
@@ -5811,16 +5866,16 @@ fn faker_seed_restarts_formats_without_touching_other_generators() -> DatabaseRe
                 faker.address(),
                 faker.company(),
                 faker.sentence(5..6),
-                faker.phoneNumber(),
-                faker.safeEmail(),
+                faker.phone_number(),
+                faker.safe_email(),
                 faker.regexify("([A-Z]{2}|[0-9]{3})")?,
-                faker.safeHexColor(),
+                faker.safe_hex_color(),
                 faker.chrome(),
                 faker.uuid().to_string(),
                 faker.numerify(Some("#%#-###")),
-                faker.randomHtml(Some(2), Some(3))?,
+                faker.random_html(Some(2), Some(3))?,
                 faker
-                    .dateTimeBetweenExpressions("2020-01-01", "2020-02-01")?
+                    .date_time_between_expressions("2020-01-01", "2020-02-01")?
                     .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
                     .to_string(),
             ]);
@@ -5848,10 +5903,10 @@ fn faker_seed_restarts_formats_without_touching_other_generators() -> DatabaseRe
 
     let faker = Faker::new("en-US")?;
     faker.seed(5);
-    assert_eq!(faker.unique(false).numberBetween(1, 1)?, 1);
+    assert_eq!(faker.unique(false).number_between(1, 1)?, 1);
     faker.seed(5);
-    assert!(faker.unique(false).numberBetween(1, 1).is_err());
-    assert_eq!(faker.unique(true).numberBetween(1, 1)?, 1);
+    assert!(faker.unique(false).number_between(1, 1).is_err());
+    assert_eq!(faker.unique(true).number_between(1, 1)?, 1);
     Ok(())
 }
 
@@ -5863,7 +5918,7 @@ fn faker_providers_resolve_latest_case_insensitive_callbacks() -> DatabaseResult
     independent.seed(42);
     assert_eq!(faker.format("name", &[])?, Value::from(independent.name()));
 
-    faker.addProvider(
+    faker.add_provider(
         FakerProvider::new()
             .formatter("name", |_, _| Ok("initial".into()))
             .formatter("reference", |faker, arguments| {
@@ -5874,8 +5929,8 @@ fn faker_providers_resolve_latest_case_insensitive_callbacks() -> DatabaseResult
             })
             .formatter("mimeType", |_, _| Ok("overridden".into())),
     );
-    let resolved = faker.getFormatter("NAME")?;
-    faker.addProvider(FakerProvider::new().formatter("NaMe", |_, _| Ok("latest".into())));
+    let resolved = faker.get_formatter("NAME")?;
+    faker.add_provider(FakerProvider::new().formatter("NaMe", |_, _| Ok("latest".into())));
     assert_eq!(resolved(&[])?, Value::from("initial"));
     assert_eq!(faker.format("name", &[])?, Value::from("latest"));
     assert_ne!(faker.format("mimeType", &[])?, Value::from("overridden"));
@@ -5905,23 +5960,23 @@ fn faker_providers_resolve_latest_case_insensitive_callbacks() -> DatabaseResult
 #[test]
 fn faker_taiwanese_company_resolves_provider_and_propagates_errors() -> DatabaseResult<()> {
     let faker = Faker::new("zh-TW")?;
-    faker.addProvider(FakerProvider::new().formatter("lastNameEn", |_, _| Ok("Lin".into())));
-    assert!(faker.companyEn()?.starts_with("Lin"));
+    faker.add_provider(FakerProvider::new().formatter("lastNameEn", |_, _| Ok("Lin".into())));
+    assert!(faker.company_en()?.starts_with("Lin"));
     assert!(
         matches!(faker.format("companyEn", &[])?, Value::Text(name) if name.starts_with("Lin"))
     );
-    faker.addProvider(FakerProvider::new().formatter("lastNameEn", |_, _| Ok(false.into())));
+    faker.add_provider(FakerProvider::new().formatter("lastNameEn", |_, _| Ok(false.into())));
     assert!(matches!(
-        faker.companyEn(),
+        faker.company_en(),
         Err(DatabaseError::InvalidQuery(
             "Faker lastNameEn must return text"
         ))
     ));
-    faker.addProvider(FakerProvider::new().formatter("lastNameEn", |_, _| {
+    faker.add_provider(FakerProvider::new().formatter("lastNameEn", |_, _| {
         Err(DatabaseError::UnknownFakerFormatter("upstreamName".into()))
     }));
     assert!(matches!(
-        faker.companyEn(),
+        faker.company_en(),
         Err(DatabaseError::UnknownFakerFormatter(name)) if name == "upstreamName"
     ));
     Ok(())
@@ -5930,7 +5985,7 @@ fn faker_taiwanese_company_resolves_provider_and_propagates_errors() -> Database
 #[test]
 fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
-    faker.addProvider(
+    faker.add_provider(
         FakerProvider::new()
             .formatter("numberBetween", |_, _| Ok((-1).into()))
             .formatter("bothify", |_, _| Ok("custom".into())),
@@ -5990,7 +6045,7 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
     assert_eq!(faker.format("asciify", &[Value::Null])?, "".into());
     assert_eq!(faker.format("regexify", &["^X{2}$".into()])?, "XX".into());
     assert_eq!(faker.format("regexify", &[])?, "".into());
-    let regex = faker.getFormatter("regexify")?;
+    let regex = faker.get_formatter("regexify")?;
     assert_eq!(regex(&["^x$".into()])?, "x".into());
 
     assert!(faker.format("randomDigitNot", &[]).is_err());
@@ -6026,8 +6081,8 @@ fn faker_named_colors_keep_local_provider_and_core_catalogs_distinct() -> Databa
     let english = Faker::new("en-US")?;
     let core = chinese.ext(COLOR)?;
     for (method, typed) in [
-        ("colorName", Faker::colorName as fn(&Faker) -> &'static str),
-        ("safeColorName", Faker::safeColorName),
+        ("colorName", Faker::color_name as fn(&Faker) -> &'static str),
+        ("safeColorName", Faker::safe_color_name),
     ] {
         chinese.seed(94);
         let expected = typed(&chinese);
@@ -6041,12 +6096,12 @@ fn faker_named_colors_keep_local_provider_and_core_catalogs_distinct() -> Databa
         assert_eq!(core.format(method, &[])?, default.into());
     }
     for (method, typed) in [
-        ("hexColor", Faker::hexColor as fn(&Faker) -> String),
-        ("safeHexColor", Faker::safeHexColor),
-        ("rgbColor", Faker::rgbColor),
-        ("rgbCssColor", Faker::rgbCssColor),
-        ("rgbaCssColor", Faker::rgbaCssColor),
-        ("hslColor", Faker::hslColor),
+        ("hexColor", Faker::hex_color as fn(&Faker) -> String),
+        ("safeHexColor", Faker::safe_hex_color),
+        ("rgbColor", Faker::rgb_color),
+        ("rgbCssColor", Faker::rgb_css_color),
+        ("rgbaCssColor", Faker::rgba_css_color),
+        ("hslColor", Faker::hsl_color),
     ] {
         chinese.seed(94);
         let expected = typed(&chinese);
@@ -6056,17 +6111,17 @@ fn faker_named_colors_keep_local_provider_and_core_catalogs_distinct() -> Databa
         assert_eq!(core.format(method, &[])?, expected.into());
     }
     chinese.seed(94);
-    let rgb = Value::Json(json!(chinese.rgbColorAsArray()));
+    let rgb = Value::Json(json!(chinese.rgb_color_as_array()));
     chinese.seed(94);
     assert_eq!(chinese.format("rgbColorAsArray", &[])?, rgb);
     chinese.seed(94);
-    let hsl = Value::Json(json!(chinese.hslColorAsArray()));
+    let hsl = Value::Json(json!(chinese.hsl_color_as_array()));
     chinese.seed(94);
     assert_eq!(chinese.format("hslColorAsArray", &[])?, hsl);
     chinese.seed(94);
     assert_eq!(core.format("hslColorAsArray", &[])?, hsl);
 
-    chinese.addProvider(FakerProvider::new().formatter("colorName", |_, _| Ok("override".into())));
+    chinese.add_provider(FakerProvider::new().formatter("colorName", |_, _| Ok("override".into())));
     assert_eq!(chinese.parse("{{colorName}}")?, "override");
     assert_ne!(core.format("colorName", &[])?, "override".into());
     assert!(core.format("unknownColor", &[]).is_err());
@@ -6089,7 +6144,7 @@ fn faker_named_dates_preserve_provider_locales_and_instance_zones() -> DatabaseR
     assert_eq!(core.format("dayOfMonth", &epoch)?, "01".into());
     assert!(other.format("formattedDate", &[]).is_err());
 
-    czech.addProvider(FakerProvider::new().formatter("dayOfMonth", |_, _| Ok("7".into())));
+    czech.add_provider(FakerProvider::new().formatter("dayOfMonth", |_, _| Ok("7".into())));
     assert!(
         matches!(czech.format("formattedDate", &[])?, Value::Text(value) if value.starts_with("7. "))
     );
@@ -6136,11 +6191,11 @@ fn faker_named_dates_preserve_provider_locales_and_instance_zones() -> DatabaseR
 fn faker_named_miscellaneous_and_base_match_typed_values() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     for (method, sample) in [
-        ("locale", Faker::randomLocale as fn(&Faker) -> &'static str),
-        ("languageCode", Faker::languageCode),
-        ("countryCode", Faker::countryCode),
-        ("countryISOAlpha3", Faker::countryISOAlpha3),
-        ("currencyCode", Faker::currencyCode),
+        ("locale", Faker::random_locale as fn(&Faker) -> &'static str),
+        ("languageCode", Faker::language_code),
+        ("countryCode", Faker::country_code),
+        ("countryISOAlpha3", Faker::country_iso_alpha3),
+        ("currencyCode", Faker::currency_code),
         ("emoji", Faker::emoji),
     ] {
         faker.seed(94);
@@ -6159,7 +6214,7 @@ fn faker_named_miscellaneous_and_base_match_typed_values() -> DatabaseResult<()>
     assert!(faker.format("toUpper", &[7_i64.into()]).is_err());
 
     faker.seed(94);
-    let expected = faker.biasedNumberBetween(Some(-5), Some(5), None)?;
+    let expected = faker.biased_number_between(Some(-5), Some(5), None)?;
     faker.seed(94);
     assert_eq!(
         faker.format(
@@ -6192,7 +6247,7 @@ fn faker_named_miscellaneous_and_base_match_typed_values() -> DatabaseResult<()>
 fn faker_named_company_and_person_reuse_regional_generators() -> DatabaseResult<()> {
     let malaysia = Faker::new("ms-MY")?;
     malaysia.seed(94);
-    let name = malaysia.firstNameMaleChinese()?;
+    let name = malaysia.first_name_male_chinese()?;
     malaysia.seed(94);
     assert_eq!(malaysia.format("firstNameMaleChinese", &[])?, name.into());
     malaysia.seed(94);
@@ -6210,7 +6265,7 @@ fn faker_named_company_and_person_reuse_regional_generators() -> DatabaseResult<
     );
     let france = Faker::new("fr-FR")?;
     france.seed(94);
-    let slogan = france.catchPhrase()?;
+    let slogan = france.catch_phrase()?;
     france.seed(94);
     assert_eq!(france.format("catchPhrase", &[])?, slogan.into());
     assert!(
@@ -6286,7 +6341,7 @@ fn faker_named_address_and_plate_components_follow_provider_contracts() -> Datab
 
     let poland = Faker::new("pl-PL")?;
     poland.seed(94);
-    let default = poland.licensePlate()?;
+    let default = poland.license_plate()?;
     poland.seed(94);
     assert_eq!(poland.format("licensePlate", &[])?, default.clone().into());
     poland.seed(94);
@@ -6330,12 +6385,12 @@ fn faker_named_address_and_plate_components_follow_provider_contracts() -> Datab
     for (name, generate) in [
         (
             "peninsularPrefix",
-            Faker::peninsularPrefix as fn(&Faker) -> DatabaseResult<&'static str>,
+            Faker::peninsular_prefix as fn(&Faker) -> DatabaseResult<&'static str>,
         ),
-        ("sabahPrefix", Faker::sabahPrefix),
-        ("sarawakPrefix", Faker::sarawakPrefix),
-        ("specialPrefix", Faker::specialPrefix),
-        ("validAlphabet", Faker::validAlphabet),
+        ("sabahPrefix", Faker::sabah_prefix),
+        ("sarawakPrefix", Faker::sarawak_prefix),
+        ("specialPrefix", Faker::special_prefix),
+        ("validAlphabet", Faker::valid_alphabet),
     ] {
         malaysia.seed(94);
         let expected = generate(&malaysia)?;
@@ -6343,7 +6398,7 @@ fn faker_named_address_and_plate_components_follow_provider_contracts() -> Datab
         assert_eq!(malaysia.format(name, &[])?, expected.into());
     }
     malaysia.seed(94);
-    let expected = malaysia.jpjNumberPlate()?;
+    let expected = malaysia.jpj_number_plate()?;
     malaysia.seed(94);
     assert_eq!(malaysia.format("jpjNumberPlate", &[])?, expected.into());
     assert!(matches!(
@@ -6370,18 +6425,18 @@ fn faker_named_phone_formatters_preserve_regional_signatures() -> DatabaseResult
     for (name, default, with_options) in [
         (
             "mobileNumber",
-            Faker::mobileNumber as fn(&Faker) -> DatabaseResult<String>,
-            Faker::mobileNumberWithOptions as fn(&Faker, bool, bool) -> DatabaseResult<String>,
+            Faker::mobile_number as fn(&Faker) -> DatabaseResult<String>,
+            Faker::mobile_number_with_options as fn(&Faker, bool, bool) -> DatabaseResult<String>,
         ),
         (
             "fixedLineNumber",
-            Faker::fixedLineNumber,
-            Faker::fixedLineNumberWithOptions,
+            Faker::fixed_line_number,
+            Faker::fixed_line_number_with_options,
         ),
         (
             "voipNumber",
-            Faker::voipNumber,
-            Faker::voipNumberWithOptions,
+            Faker::voip_number,
+            Faker::voip_number_with_options,
         ),
     ] {
         malaysia.seed(94);
@@ -6410,9 +6465,9 @@ fn faker_named_phone_formatters_preserve_regional_signatures() -> DatabaseResult
     for (name, generate) in [
         (
             "cellphoneNumber",
-            Faker::cellphoneNumber as fn(&Faker, Option<bool>) -> DatabaseResult<String>,
+            Faker::cellphone_number as fn(&Faker, Option<bool>) -> DatabaseResult<String>,
         ),
-        ("landlineNumber", Faker::landlineNumber),
+        ("landlineNumber", Faker::landline_number),
         ("cellphone", Faker::cellphone),
         ("landline", Faker::landline),
         ("phone", Faker::phone),
@@ -6430,26 +6485,26 @@ fn faker_named_phone_formatters_preserve_regional_signatures() -> DatabaseResult
         (
             "en-CA",
             "phoneNumberWithExtension",
-            Faker::phoneNumberWithExtension as fn(&Faker) -> DatabaseResult<String>,
+            Faker::phone_number_with_extension as fn(&Faker) -> DatabaseResult<String>,
         ),
-        ("ko-KR", "CELLphoneNUMBER", Faker::cellPhoneNumber),
+        ("ko-KR", "CELLphoneNUMBER", Faker::cell_phone_number),
         (
             "fr-FR",
             "phoneNumber06WithSeparator",
-            Faker::phoneNumber06WithSeparator,
+            Faker::phone_number06_with_separator,
         ),
         (
             "en-SG",
             "tollFreeInternationalNumber",
-            Faker::tollFreeInternationalNumber,
+            Faker::toll_free_international_number,
         ),
-        ("el-GR", "premiumRateNumber", Faker::premiumRateNumber),
+        ("el-GR", "premiumRateNumber", Faker::premium_rate_number),
         (
             "fi-FI",
             "e164MobileNetworkAreaCode",
-            Faker::e164MobileNetworkAreaCode,
+            Faker::e164_mobile_network_area_code,
         ),
-        ("en-US", "areaCode", Faker::areaCode),
+        ("en-US", "areaCode", Faker::area_code),
     ] {
         let faker = Faker::new(locale)?;
         faker.seed(94);
@@ -6618,10 +6673,10 @@ async fn faker_named_identity_checks_and_image_parameters_are_typed() -> Databas
         "bmp".into(),
     ];
     assert!(
-        matches!(faker.formatAsync("image", &invalid).await, Err(DatabaseError::FakerIo(error)) if error.kind() == std::io::ErrorKind::InvalidInput)
+        matches!(faker.format_async("image", &invalid).await, Err(DatabaseError::FakerIo(error)) if error.kind() == std::io::ErrorKind::InvalidInput)
     );
-    faker.addProvider(FakerProvider::new().formatter("image", |_, _| Ok("custom.png".into())));
-    assert_eq!(faker.formatAsync("IMAGE", &[]).await?, "custom.png".into());
+    faker.add_provider(FakerProvider::new().formatter("image", |_, _| Ok("custom.png".into())));
+    assert_eq!(faker.format_async("IMAGE", &[]).await?, "custom.png".into());
     Ok(())
 }
 
@@ -6629,7 +6684,7 @@ async fn faker_named_identity_checks_and_image_parameters_are_typed() -> Databas
 fn faker_named_regional_address_person_and_payment_follow_the_locale() -> DatabaseResult<()> {
     let ru = Faker::new("ru-RU")?;
     ru.seed(331);
-    let surname = ru.lastNameWithGender(Some("female"));
+    let surname = ru.last_name_with_gender(Some("female"));
     ru.seed(331);
     assert_eq!(ru.format("lastName", &["female".into()])?, surname.into());
     let ja = Faker::new("ja-JP")?;
@@ -6690,7 +6745,7 @@ fn faker_named_regional_address_person_and_payment_follow_the_locale() -> Databa
         uk.format("vat", &["gov".into()])?,
         Value::Text(value) if value.starts_with("GBGD")
     ));
-    ja.addProvider(FakerProvider::new().formatter("prefecture", |_, _| Ok("override".into())));
+    ja.add_provider(FakerProvider::new().formatter("prefecture", |_, _| Ok("override".into())));
     assert_eq!(ja.format("PREFECTURE", &[])?, "override".into());
     Ok(())
 }
@@ -6699,7 +6754,7 @@ fn faker_named_regional_address_person_and_payment_follow_the_locale() -> Databa
 fn faker_named_text_and_internet_reuse_typed_generators() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     faker.seed(91);
-    let expected = faker.sentenceWithWordCount(2, false);
+    let expected = faker.sentence_with_word_count(2, false);
     faker.seed(91);
     assert_eq!(
         faker.format("sentence", &[2.into(), false.into()])?,
@@ -6738,14 +6793,14 @@ fn faker_named_text_and_internet_reuse_typed_generators() -> DatabaseResult<()> 
     };
     assert_eq!(slug.split('-').count(), 2);
     assert!(matches!(
-        faker.getFormatter("IPv4")?(&[])?,
+        faker.get_formatter("IPv4")?(&[])?,
         Value::Text(ip) if ip.parse::<std::net::Ipv4Addr>().is_ok()
     ));
     assert!(matches!(
         faker.format("userAgent", &[])?,
         Value::Text(agent) if agent.contains('/')
     ));
-    faker.addProvider(FakerProvider::new().formatter("word", |_, _| Ok("override".into())));
+    faker.add_provider(FakerProvider::new().formatter("word", |_, _| Ok("override".into())));
     assert_eq!(faker.format("word", &[])?, "override".into());
     Ok(())
 }
@@ -6995,7 +7050,7 @@ fn faker_datetime_version_and_file_extensions_use_seeded_and_real_outputs() -> D
     let Value::Text(path) = faker.format(r"Faker\Extension\FileExtension->filePath", &[])? else {
         panic!("file path must be text");
     };
-    let typed = faker.filePath().unwrap();
+    let typed = faker.file_path().unwrap();
     let metadata = fs::metadata(&path).unwrap();
     fs::remove_file(&path).unwrap();
     fs::remove_file(&typed).unwrap();
@@ -7012,7 +7067,7 @@ fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseRe
     const CUSTOM: &str = r"App\Faker\Code";
     const CODE: &str = r"App\Faker\Code->value";
     let faker = Faker::new("en-US")?;
-    let previous = faker.getFormatter("numberBetween")?;
+    let previous = faker.get_formatter("numberBetween")?;
     assert_eq!(
         faker
             .ext(NUMBER)?
@@ -7043,13 +7098,13 @@ fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseRe
         12.into()
     );
     assert_eq!(previous(&[3.into(), 3.into()])?, 3.into());
-    assert_eq!(faker.numberBetween(3, 3), 3);
+    assert_eq!(faker.number_between(3, 3), 3);
     assert!(matches!(
         faker.format("randomDigit", &[]),
         Err(DatabaseError::UnknownFakerFormatter(name)) if name == "randomDigit"
     ));
 
-    faker.addProvider(FakerProvider::new().formatter(CODE, |_, _| Ok("provider".into())));
+    faker.add_provider(FakerProvider::new().formatter(CODE, |_, _| Ok("provider".into())));
     assert!(
         matches!(faker.format(CODE, &[]), Err(DatabaseError::UnknownFakerExtension(id)) if id == CUSTOM)
     );
@@ -7071,11 +7126,11 @@ fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseRe
         Err(DatabaseError::UnknownFakerFormatter(_))
     ));
     assert_eq!(
-        faker.uniqueWithRetries(false, 1).format(CODE, &[])?,
+        faker.unique_with_retries(false, 1).format(CODE, &[])?,
         "extension".into()
     );
     assert!(matches!(
-        faker.uniqueWithRetries(false, 1).format(CODE, &[]),
+        faker.unique_with_retries(false, 1).format(CODE, &[]),
         Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
     ));
     assert_eq!(
@@ -7112,13 +7167,13 @@ fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResu
     let faker = Faker::new("en-US")?;
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&calls);
-    faker.addProvider(
+    faker.add_provider(
         FakerProvider::new().formatter("constant", move |_, arguments| {
             counter.fetch_add(1, Ordering::Relaxed);
             Ok(arguments.first().cloned().unwrap_or_else(|| 7.into()))
         }),
     );
-    let unique = faker.uniqueWithRetries(false, 2);
+    let unique = faker.unique_with_retries(false, 2);
     assert_eq!(unique.format("constant", &[])?, 7.into());
     assert_eq!(unique.format("constant", &["7".into()])?, "7".into());
     assert_eq!(unique.format("Constant", &[])?, 7.into());
@@ -7128,7 +7183,7 @@ fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResu
     ));
     assert_eq!(calls.load(Ordering::Relaxed), 6);
 
-    faker.addProvider(FakerProvider::new().formatter("constant", |_, _| Ok(7.into())));
+    faker.add_provider(FakerProvider::new().formatter("constant", |_, _| Ok(7.into())));
     assert!(unique.format("constant", &[]).is_err());
     assert_eq!(faker.unique(true).format("constant", &[])?, 7.into());
     assert!(matches!(
@@ -7147,7 +7202,7 @@ fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResu
 
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&calls);
-    faker.addProvider(FakerProvider::new().formatter("sequence", move |_, _| {
+    faker.add_provider(FakerProvider::new().formatter("sequence", move |_, _| {
         Ok((counter.fetch_add(1, Ordering::Relaxed) as i64).into())
     }));
     assert_eq!(
@@ -7169,12 +7224,12 @@ fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResu
 #[test]
 fn faker_named_uniqueness_claims_results_across_threads() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
-    faker.addProvider(
+    faker.add_provider(
         FakerProvider::new().formatter("fixed", |_, _| Ok(Value::Json(json!({"ok":true})))),
     );
     let (first, second) = std::thread::scope(|scope| {
-        let first = scope.spawn(|| faker.uniqueWithRetries(false, 1).format("fixed", &[]));
-        let second = scope.spawn(|| faker.uniqueWithRetries(false, 1).format("fixed", &[]));
+        let first = scope.spawn(|| faker.unique_with_retries(false, 1).format("fixed", &[]));
+        let second = scope.spawn(|| faker.unique_with_retries(false, 1).format("fixed", &[]));
         (first.join().unwrap(), second.join().unwrap())
     });
     assert_ne!(first.is_ok(), second.is_ok());
@@ -7203,7 +7258,7 @@ impl Seeder for FakerApplicationScope {
                 default.format("registeredHere", &[]),
                 Err(DatabaseError::UnknownFakerFormatter(_))
             ));
-            default.addProvider(
+            default.add_provider(
                 FakerProvider::new().formatter("registeredHere", |_, _| Ok(21.into())),
             );
             assert_eq!(alias.format("registeredHere", &[])?, Value::from(21));
@@ -7211,17 +7266,17 @@ impl Seeder for FakerApplicationScope {
             default.seed(813);
             independent.seed(813);
             assert_eq!(default.address(), independent.address());
-            assert_eq!(alias.phoneNumber(), independent.phoneNumber());
+            assert_eq!(alias.phone_number(), independent.phone_number());
             fake(Some("en-US"))?.seed(814);
             assert_eq!(default.company(), independent.company());
             let value = |generator: &openrust::database::eloquent::factories::Faker| {
-                generator.unique(false).numberBetween(760, 760)
+                generator.unique(false).number_between(760, 760)
             };
             assert_eq!(value(&default)?, 760);
             assert!(value(&alias).is_err());
             assert_eq!(value(fake(Some("en-US"))?.as_ref())?, 760);
             let factory = || {
-                Factory::<FactoryChild>::tryWithFaker(move |generator| {
+                Factory::<FactoryChild>::try_with_faker(move |generator| {
                     Ok(Attributes::from([(
                         "generated_score".into(),
                         value(generator)?.into(),
@@ -7230,15 +7285,15 @@ impl Seeder for FakerApplicationScope {
             };
             let connection = context.connection();
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("seed_factory_children", |table| {
                     table.id();
                     table.integer("generated_score");
                 })
                 .await?;
-            assert!(factory().createOn(connection).await?.state().exists());
+            assert!(factory().create_on(connection).await?.state().exists());
             assert!(matches!(
-                factory().createOn(connection).await,
+                factory().create_on(connection).await,
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
             assert_eq!(
@@ -7249,7 +7304,7 @@ impl Seeder for FakerApplicationScope {
                 [760.into()]
             );
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .drop("seed_factory_children")
                 .await?;
             *FAKER_SEEDER_GENERATOR.lock().unwrap() = Some(default);
@@ -7350,12 +7405,12 @@ fn verify_faker_file(root: &std::path::Path) -> std::io::Result<()> {
     );
     let unique = faker.unique(true);
     let types = (0..461)
-        .map(|_| unique.mimeType().unwrap())
+        .map(|_| unique.mime_type().unwrap())
         .collect::<std::collections::HashSet<_>>();
     assert_eq!(types.len(), 461);
     assert!(types.contains("application/json"));
-    assert!(unique.mimeType().is_err());
-    let extension = unique.fileExtension().unwrap();
+    assert!(unique.mime_type().is_err());
+    let extension = unique.file_extension().unwrap();
     assert!(!extension.is_empty() && !extension.starts_with('.'));
     let id = unique.uuid().unwrap();
     assert_ne!(unique.uuid().unwrap(), id);
@@ -7374,7 +7429,7 @@ fn faker_date_formats_report_errors_through_public_consumers() -> DatabaseResult
         assert!(faker.unique(true).date(Some(format), Some(epoch)).is_err());
         assert!(
             faker
-                .creditCardExpirationDateString(true, Some(format))
+                .credit_card_expiration_date_string(true, Some(format))
                 .is_err()
         );
     }
@@ -7382,7 +7437,7 @@ fn faker_date_formats_report_errors_through_public_consumers() -> DatabaseResult
     assert!(
         jiff::civil::Date::strptime(
             "%Y-%m-%d",
-            faker.creditCardExpirationDateString(true, Some("%Y-%m-%d"))?
+            faker.credit_card_expiration_date_string(true, Some("%Y-%m-%d"))?
         )
         .is_ok()
     );

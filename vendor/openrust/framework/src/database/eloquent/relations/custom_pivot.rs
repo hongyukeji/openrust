@@ -77,8 +77,8 @@ pub(super) struct CustomPivot {
 impl CustomPivot {
     pub fn new<M: Model>() -> Self {
         Self {
-            inverse_relations: M::pivotInverseRelations(),
-            primary_key: M::getIncrementing().then_some(M::metadata().primary_key),
+            inverse_relations: M::pivot_inverse_relations(),
+            primary_key: M::get_incrementing().then_some(M::metadata().primary_key),
             hydrate: |relations, accessor, attributes, connection, identity, inverses| {
                 let mut model = hydrated::<M>(attributes, connection, identity)?;
                 model.state_mut().relations = inverses;
@@ -92,30 +92,30 @@ impl CustomPivot {
                     let mut model = new_pivot::<M>(connection, identity)?;
                     for (column, value) in attributes {
                         if identity.columns().any(|key| key == column) {
-                            model.state_mut().setAttribute(column, value);
+                            model.state_mut().set_attribute(column, value);
                         } else {
-                            model.setAttributeValueAsync(&column, value).await?;
+                            model.set_attribute_value_async(&column, value).await?;
                         }
                     }
                     let state = model.state_mut();
                     state.original = state.attributes.clone();
-                    model.saveInTransaction(transaction).await
+                    model.save_in_transaction(transaction).await
                 })
             },
             update: |transaction, connection, identity, raw, attributes| {
                 Box::pin(async move {
                     let mut model = hydrated::<M>(raw, connection, identity)?;
-                    model.fillAsync(attributes).await?;
-                    if model.getDirty()?.is_empty() {
+                    model.fill_async(attributes).await?;
+                    if model.get_dirty()?.is_empty() {
                         return Ok(false);
                     }
-                    model.saveInTransaction(transaction).await
+                    model.save_in_transaction(transaction).await
                 })
             },
             delete: |transaction, connection, identity, raw| {
                 Box::pin(async move {
                     hydrated::<M>(raw, connection, identity)?
-                        .deleteInTransaction(transaction)
+                        .delete_in_transaction(transaction)
                         .await
                 })
             },
@@ -149,7 +149,7 @@ fn new_pivot<M: Model>(connection: &Connection, identity: PivotIdentity) -> Data
             "custom pivot models cannot use soft deletes",
         ));
     }
-    let mut model = M::newInstanceOn(connection, Attributes::new())?;
+    let mut model = M::new_instance_on(connection, Attributes::new())?;
     model.state_mut().pivot_identity = Some(identity);
     Ok(model)
 }

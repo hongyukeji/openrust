@@ -7,13 +7,12 @@ use crate::database::query::{Record, UpdateValue, UpsertUpdate, ValueOperand, gr
 
 mod json;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     pub async fn insert(mut self, rows: &[Record]) -> DatabaseResult<bool> {
         if rows.is_empty() {
             return Ok(true);
         }
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let (sql, bindings) = self.compile_insert(rows, false)?;
         match &mut self.executor {
             Executor::Connection(connection) => connection.insert(&sql, &bindings).await,
@@ -22,16 +21,16 @@ impl Builder<'_> {
         }
     }
 
-    pub async fn insertOrIgnore(mut self, rows: &[Record]) -> DatabaseResult<u64> {
+    pub async fn insert_or_ignore(mut self, rows: &[Record]) -> DatabaseResult<u64> {
         if rows.is_empty() {
             return Ok(0);
         }
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let (sql, bindings) = self.compile_insert(rows, true)?;
         self.affect(&sql, &bindings).await
     }
 
-    pub async fn insertOrIgnoreReturning(
+    pub async fn insert_or_ignore_returning(
         mut self,
         rows: &[Record],
         returning: &[&str],
@@ -48,7 +47,7 @@ impl Builder<'_> {
                 "insert or ignore returning",
             ));
         }
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let (mut sql, bindings) = self.compile_insert(rows, false)?;
         sql.push_str(" on conflict");
         if let Some(columns) = unique_by {
@@ -71,13 +70,13 @@ impl Builder<'_> {
         }
     }
 
-    pub async fn insertGetId(self, values: Record) -> DatabaseResult<Value> {
-        self.insertGetIdFor(values, "id").await
+    pub async fn insert_get_id(self, values: Record) -> DatabaseResult<Value> {
+        self.insert_get_id_for(values, "id").await
     }
 
     /// Uses a named PostgreSQL return column or the driver's native generated ID.
-    pub async fn insertGetIdFor(mut self, values: Record, key: &str) -> DatabaseResult<Value> {
-        self.applyBeforeQueryCallbacks()?;
+    pub async fn insert_get_id_for(mut self, values: Record, key: &str) -> DatabaseResult<Value> {
+        self.apply_before_query_callbacks()?;
         let (mut sql, bindings) = self.compile_insert(&[values], false)?;
         if self.grammar.is_postgres() {
             sql.push_str(" returning ");
@@ -92,29 +91,29 @@ impl Builder<'_> {
         }
     }
 
-    pub async fn insertUsing(
+    pub async fn insert_using(
         self,
         columns: &[&str],
         source: &mut Builder<'_>,
     ) -> DatabaseResult<u64> {
-        self.insert_using(columns, source, false).await
+        self.insert_using_with_ignore(columns, source, false).await
     }
 
-    pub async fn insertOrIgnoreUsing(
+    pub async fn insert_or_ignore_using(
         self,
         columns: &[&str],
         source: &mut Builder<'_>,
     ) -> DatabaseResult<u64> {
-        self.insert_using(columns, source, true).await
+        self.insert_using_with_ignore(columns, source, true).await
     }
 
-    async fn insert_using(
+    async fn insert_using_with_ignore(
         mut self,
         columns: &[&str],
         source: &mut Builder<'_>,
         ignore: bool,
     ) -> DatabaseResult<u64> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let mut sql = self.insert_target(ignore)?;
         let source = self.subquery_expression(source)?;
         if !columns.is_empty() && columns != ["*"] {
@@ -146,7 +145,7 @@ impl Builder<'_> {
     }
 
     /// Inserts rows or applies the supplied assignments to rows that conflict.
-    pub async fn upsertWith(
+    pub async fn upsert_with(
         self,
         rows: &[Record],
         unique_by: &[&str],
@@ -184,7 +183,7 @@ impl Builder<'_> {
         if update.is_empty() {
             return Err(DatabaseError::InvalidQuery("upsert update columns"));
         }
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         if self.grammar.is_sql_server() {
             return self.sql_server_upsert(rows, unique_by, update).await;
         }
@@ -296,11 +295,15 @@ impl Builder<'_> {
         self.affect(&sql, &bindings).await
     }
 
-    pub async fn updateOrInsert(self, attributes: Record, values: Record) -> DatabaseResult<bool> {
-        self.updateOrInsertWith(attributes, |_| values).await
+    pub async fn update_or_insert(
+        self,
+        attributes: Record,
+        values: Record,
+    ) -> DatabaseResult<bool> {
+        self.update_or_insert_with(attributes, |_| values).await
     }
 
-    pub async fn updateOrInsertWith(
+    pub async fn update_or_insert_with(
         mut self,
         mut attributes: Record,
         values: impl FnOnce(bool) -> Record,
@@ -325,7 +328,7 @@ impl Builder<'_> {
     }
 
     /// Updates column values using bound data, expressions, or scalar subqueries.
-    pub async fn updateWith(
+    pub async fn update_with(
         self,
         values: BTreeMap<String, UpdateValue<'_, '_>>,
     ) -> DatabaseResult<u64> {
@@ -347,14 +350,14 @@ impl Builder<'_> {
     }
 
     /// Updates a PostgreSQL target using joined sources in the FROM clause.
-    pub async fn updateFrom<V: Into<ValueOperand>>(
+    pub async fn update_from<V: Into<ValueOperand>>(
         mut self,
         values: BTreeMap<String, V>,
     ) -> DatabaseResult<u64> {
         if !self.grammar.is_postgres() {
             return Err(DatabaseError::UnsupportedOperation("updateFrom"));
         }
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let target = self.source.table_name()?;
         let table = self.grammar.table(target)?;
         let qualifier = self.grammar.table(table_reference(target))?;
@@ -426,7 +429,7 @@ impl Builder<'_> {
         amount: impl Into<Value>,
         extra: Record,
     ) -> DatabaseResult<u64> {
-        self.incrementEach(Record::from([(column.into(), amount.into())]), extra)
+        self.increment_each(Record::from([(column.into(), amount.into())]), extra)
             .await
     }
 
@@ -436,15 +439,15 @@ impl Builder<'_> {
         amount: impl Into<Value>,
         extra: Record,
     ) -> DatabaseResult<u64> {
-        self.decrementEach(Record::from([(column.into(), amount.into())]), extra)
+        self.decrement_each(Record::from([(column.into(), amount.into())]), extra)
             .await
     }
 
-    pub async fn incrementEach(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
+    pub async fn increment_each(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
         self.update_values(extra, columns, "+").await
     }
 
-    pub async fn decrementEach(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
+    pub async fn decrement_each(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
         self.update_values(extra, columns, "-").await
     }
 
@@ -454,7 +457,7 @@ impl Builder<'_> {
         arithmetic: Record,
         operator: &str,
     ) -> DatabaseResult<u64> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         self.validate_write_query()?;
         let table = self.source.table_name()?;
         let mut sql = format!("update {}", self.grammar.table(table)?);
@@ -499,7 +502,7 @@ impl Builder<'_> {
     }
 
     pub async fn delete(mut self) -> DatabaseResult<u64> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         self.validate_write_query()?;
         let table = self.source.table_name()?;
         let mut bindings = Vec::new();
@@ -521,7 +524,7 @@ impl Builder<'_> {
     }
 
     pub async fn truncate(mut self) -> DatabaseResult<()> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let table = self.source.table_name()?;
         let target = self.grammar.table(table)?;
         if table_alias(table).is_some() {
@@ -745,9 +748,9 @@ impl Builder<'_> {
 
     async fn affect(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
         match &mut self.executor {
-            Executor::Connection(connection) => connection.affectingStatement(sql, bindings).await,
+            Executor::Connection(connection) => connection.affecting_statement(sql, bindings).await,
             Executor::Transaction(transaction) => {
-                transaction.affectingStatement(sql, bindings).await
+                transaction.affecting_statement(sql, bindings).await
             }
             Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
         }
@@ -793,7 +796,7 @@ async fn truncate_sqlite(
     let schema = query.grammar.quote(schema)?;
     let name = query.grammar.quote(&query.name)?;
     let exists = transaction
-        .selectOne(
+        .select_one(
             &format!("select 1 from {schema}.sqlite_schema where name = 'sqlite_sequence'"),
             &[],
         )

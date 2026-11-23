@@ -5,7 +5,7 @@ use crate::{
     contracts::auth::CanResetPassword,
     notifications::messages::MailDelivery,
     routing::RouteParameter,
-    support::facades::{Config, URL},
+    support::facades::{Config, Url},
 };
 
 use super::{LinkMail, MailCallbacks, send_mail};
@@ -21,7 +21,7 @@ impl<'a> ResetPassword<'a> {
     }
 
     pub fn url(&self, email: &str) -> AuthResult<String> {
-        URL::route(
+        Url::route(
             "password.reset",
             &[
                 RouteParameter::named("token", self.token),

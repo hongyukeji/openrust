@@ -12,7 +12,7 @@ Slack 渠道的默认显示名称为应用名称加 ` Log`，例如 `ExampleStor
 
 `channels` 支持列表或逗号分隔字符串。成员按顺序执行。`bubble: false` 的处理器接收记录后停止后续处理。`null` 丢弃达到阈值的记录并停止后续处理。设置 `ignore_exceptions: true` 后，组内尝试每个处理器并抑制写入错误。
 
-`Log::stack(&["single", "stderr"], None)` 创建临时日志栈。命名渠道按应用惰性解析和缓存。更新命名渠道配置后，可用 `forgetChannel(Some(name))` 重新解析。
+`Log::stack(&["single", "stderr"], None)` 创建临时日志栈。命名渠道按应用惰性解析和缓存。更新命名渠道配置后，可用 `forget_channel(Some(name))` 重新解析。
 
 ## 写入日志
 
@@ -39,9 +39,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 临时渠道与自定义渠道
 
-`Log::build(&settings)?` 创建临时日志渠道。使用 `Log::stackChannels` 及 `StackChannel::Named`、`StackChannel::Logger` 可组合配置渠道和临时渠道。组合后的日志栈有自己的标签。
+`Log::build(&settings)?` 创建临时日志渠道。使用 `Log::stack_channels` 及 `StackChannel::Named`、`StackChannel::Logger` 可组合配置渠道和临时渠道。组合后的日志栈有自己的标签。
 
-配置 `driver: "custom"` 时，将 `via` 指向通过 `LogManager::registerFactory` 登记的工厂。使用 `LogManager::extend` 可注册具名驱动。工厂是编译后的 Rust 闭包，接收管理器和渠道配置，返回实现日志契约的对象。首次并发解析时可能同时调用工厂，初始化应可安全重复。成功解析的具名渠道共用发布后的实例。工厂失败时使用紧急日志，后续调用可重试。
+配置 `driver: "custom"` 时，将 `via` 指向通过 `LogManager::register_factory` 登记的工厂。使用 `LogManager::extend` 可注册具名驱动。工厂是编译后的 Rust 闭包，接收管理器和渠道配置，返回实现日志契约的对象。首次并发解析时可能同时调用工厂，初始化应可安全重复。成功解析的具名渠道共用发布后的实例。工厂失败时使用紧急日志，后续调用可重试。
 
 ```rust
 use openrust::{config::Repository, log::{LogContext, LogManager, StackChannel}};
@@ -51,12 +51,12 @@ use std::sync::Arc;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::env::current_dir()?;
     let manager = LogManager::new(Arc::new(Repository::new(Default::default())), root);
-    manager.registerFactory("audit", |manager, config| {
+    manager.register_factory("audit", |manager, config| {
         let logger = manager.build(&json!({"driver":"monthly", "path":config["path"]}))?;
         Ok(logger)
     });
     let audit = manager.build(&json!({"driver":"custom", "via":"audit", "path":"audit.log"}))?;
-    let stack = manager.stackChannels(
+    let stack = manager.stack_channels(
         &[StackChannel::Named("single"), StackChannel::Logger(&audit)],
         Some("orders"),
     )?;
@@ -67,11 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 定制日志记录 {#customizing-channel-records}
 
-在服务 Provider 中用 `LogManager::registerFormatter`、`registerProcessor` 和 `registerTap` 注册名称。通过 `formatter` 选择格式化器，用 `formatter_with` 传入选项。将 `formatter` 设为 `"default"` 使用内置格式。文件、轮转文件及标准错误处理器按格式化器返回的字节写入，记录分隔符也由格式化器提供。自定义日志工厂管理自己的输出。
+在服务 Provider 中用 `LogManager::register_formatter`、`register_processor` 和 `register_tap` 注册名称。通过 `formatter` 选择格式化器，用 `formatter_with` 传入选项。将 `formatter` 设为 `"default"` 使用内置格式。文件、轮转文件及标准错误处理器按格式化器返回的字节写入，记录分隔符也由格式化器提供。自定义日志工厂管理自己的输出。
 
 `processors` 的成员可以是名称，也可以是带 `processor` 和 `with` 的对象。处理器按配置顺序在格式化前执行，可通过 `LogRecord` 修改消息、记录上下文和公开作用域元数据。日志栈按成员顺序合并处理器，各成员沿用自己的格式化器。
 
-`"audit:orders,prod"` 这样的 tap 会收到日志器及两个参数。tap 在缓存渠道前按列表顺序执行。用 `setFormatter` 替换渠道格式化器，用 `pushProcessor` 在队首插入处理器。
+`"audit:orders,prod"` 这样的 tap 会收到日志器及两个参数。tap 在缓存渠道前按列表顺序执行。用 `set_formatter` 替换渠道格式化器，用 `push_processor` 在队首插入处理器。
 
 ```rust
 use openrust::{
@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(Repository::new(Default::default())),
         std::env::current_dir()?,
     );
-    manager.registerFormatter("message", |_| {
+    manager.register_formatter("message", |_| {
         Ok(Arc::new(|record| Ok(format!("{}\n", record.message()))))
     });
     let channel = manager.build(&json!({
@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 处理器渠道 {#handler-channels}
 
-通过 `driver: "monolog"` 指定具名 Rust 处理器。内置 `stream` 处理器接受文件路径、`stderr` 或 `stdout`。用 `LogManager::registerHandler` 注册其他处理器。工厂收到合并后的设置，返回接收结构化记录和格式化文本的回调。设置按渠道 `level`、`with`、`handler_with` 的顺序合并，后者覆盖前者。
+通过 `driver: "monolog"` 指定具名 Rust 处理器。内置 `stream` 处理器接受文件路径、`stderr` 或 `stdout`。用 `LogManager::register_handler` 注册其他处理器。工厂收到合并后的设置，返回接收结构化记录和格式化文本的回调。设置按渠道 `level`、`with`、`handler_with` 的顺序合并，后者覆盖前者。
 
 设置 `action_level` 后，渠道累积记录，达到指定级别时写出整批。底层处理器仍按自己的最低 `level` 逐条过滤。第一次写出后，后续记录直接进入底层处理器。设置 `stop_buffering: false` 可在每次写出后开始累积下一批。缓冲状态属于解析后的渠道，渠道释放时丢弃尚未触发的批次。
 
@@ -177,7 +177,7 @@ Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
 
 设置 `formatter: "json"` 输出结构化记录。可通过 `formatter_with` 设置 `append_newline`、`ignore_empty_context_and_extra` 和 `max_normalize_depth`（默认 9）。
 
-使用 `Log::logException(level, message, &error, &context)` 将错误写入 `context.exception`，来源链记录在 `previous` 中。在 `with_exceptions` 中注册 `exceptionContext::<E>`，为匹配的错误类型添加字段，来源错误也适用。现有 `context` 回调会补充直接记录的根错误。应用通过报告机制记录时，根错误的字段只出现在记录的上下文中，来源错误的字段仍留在对应节点。Rust 会保留直接传入和已注册错误的类型名，类型被擦除的来源可能显示为 `Error`。标准错误接口不提供原始文件或调用栈。
+使用 `Log::log_exception(level, message, &error, &context)` 将错误写入 `context.exception`，来源链记录在 `previous` 中。在 `with_exceptions` 中注册 `exception_context::<E>`，为匹配的错误类型添加字段，来源错误也适用。现有 `context` 回调会补充直接记录的根错误。应用通过报告机制记录时，根错误的字段只出现在记录的上下文中，来源错误的字段仍留在对应节点。Rust 会保留直接传入和已注册错误的类型名，类型被擦除的来源可能显示为 `Error`。标准错误接口不提供原始文件或调用栈。
 
 ```rust
 use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
@@ -195,20 +195,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "formatter": "json",
     }))?;
     let error = io::Error::other("storage offline");
-    logger.logException(Level::Error, "Import failed", &error, &LogContext::new())?;
+    logger.log_exception(Level::Error, "Import failed", &error, &LogContext::new())?;
     Ok(())
 }
 ```
 
 ## 上下文信息
 
-[Context Facade](../digging-deeper/context.md) 捕获的公开字段以独立 JSON 元数据写在单条日志字段之后。自定义写入端可以实现 `logWithContext` 接收两组字段。隐藏字段保存在上下文仓库中。
+[Context Facade](../digging-deeper/context.md) 捕获的公开字段以独立 JSON 元数据写在单条日志字段之后。自定义写入端可以实现 `log_with_context` 接收两组字段。隐藏字段保存在上下文仓库中。
 
 ## 监听日志消息
 
 在服务提供者的 `boot` 方法中注册 `Log::listen`。渠道接受并写入记录后，同步执行监听闭包，闭包返回 `LogResult<()>`。`LogManager::listen` 和 `Logger::listen` 共享当前应用的监听器，覆盖命名渠道、日志栈、临时渠道和重命名 Logger。
 
-`MessageLogged` 包含原消息、级别和 context。占位符插值及渠道处理器作用于写出的记录。`logException` 还提供规范化的 `context["exception"]`。低于所有处理器阈值的记录跳过通知。应急回退记录和诊断也会通知监听器。
+`MessageLogged` 包含原消息、级别和 context。占位符插值及渠道处理器作用于写出的记录。`log_exception` 还提供规范化的 `context["exception"]`。低于所有处理器阈值的记录跳过通知。应急回退记录和诊断也会通知监听器。
 
 闭包按注册顺序执行。回调错误在日志写入后向调用者传播，并停止后续回调。闭包可以再次写日志或注册监听器，新增注册在下一次通知生效。同步日志监听在调用者的应用作用域内执行，通用异步事件分发采用显式调用。
 
@@ -236,18 +236,18 @@ fn register_log_listener() -> Result<(), LogError> {
 同步 `Log::info` 等既有方法捕获当前 guard 已解析的身份，未解析用户为 null。在异步 HTTP 处理器中，需要本次日志解析认证时，使用请求日志入口：
 
 ```rust
-Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
+Log::log_with_request(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
 ```
 
 `LogManager` 和已解析的 `Logger` 渠道也提供同名方法。渠道先写日志，再按注册顺序通知监听器。存在活跃 Pail 会话时，Pail 等待当前选中 guard，在本次调用返回前捕获 ID 和邮箱。已缓存用户直接复用；登录、登出和 guard 切换影响后续日志。没有活跃会话、级别未被渠道接受或被抑制的弃用警告不会触发认证。内置 HTTP 异常报告也使用请求日志入口。
 
-显式 await 对应 PHP 在同步日志监听器中解析 guard 的能力。容器回调等同步代码继续使用身份快照。`LogManager::listenForRequest` 注册同步监听器及其异步请求版本，普通 `listen` 回调仍同步运行。执行回调时不持有监听器注册表锁。guard 解析期间产生的日志读取已有快照，不再递归解析认证。
+显式 await 对应 PHP 在同步日志监听器中解析 guard 的能力。容器回调等同步代码继续使用身份快照。`LogManager::listen_for_request` 注册同步监听器及其异步请求版本，普通 `listen` 回调仍同步运行。执行回调时不持有监听器注册表锁。guard 解析期间产生的日志读取已有快照，不再递归解析认证。
 
 认证或监听器错误在普通渠道完成写入后沿日志结果返回。取消 future 因而可能留下已有渠道记录而没有 Pail 捕获。取消会释放请求借用与解析作用域，后续调用可以重试。请求和应用分别保存认证状态；HTTP 中程序化调用 Artisan 保留该 HTTP 来源，独立 Artisan 使用命令来源。
 
 ### 读取与筛选捕获记录
 
-`openrust_pail::value_objects::MessageLogged::fromJson` 读取一行捕获数据，可获取消息、级别、日期／时间、异常类与文件、trace，以及类型化的 HTTP、命令或队列来源。解析、日期转换和来源解码的失败通过 `Result` 返回。`context()` 排除保留字段 `__pail`、`exception` 和 `userId`。
+`openrust_pail::value_objects::MessageLogged::from_json` 读取一行捕获数据，可获取消息、级别、日期／时间、异常类与文件、trace，以及类型化的 HTTP、命令或队列来源。解析、日期转换和来源解码的失败通过 `Result` 返回。`context()` 排除保留字段 `__pail`、`exception` 和 `userId`。
 
 `Options::accepts` 要求所有已设置条件同时匹配。级别比较和子串搜索使用 ASCII 大小写折叠。message 条件只搜索消息文本；通用 filter 搜索包含来源和 context 的四字段 JSON 表示。该表示跟随 PHP 的 Unicode 转义、对象顺序和浮点格式，因此通用 Unicode 搜索可能需要使用 `\u` 表示。认证 ID 按字符串精确比较，`12` 与 `012` 不同。`fromCommand(&Input)` 保留 auth 优先于 user 的规则，包括显式空值，以及 PHP 的 timeout 转换；Rust 的命令输入对象与命令实现分开传入。
 
@@ -255,7 +255,7 @@ Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogCon
 use openrust_pail::{Options, value_objects::MessageLogged};
 
 fn select(line: &str) -> Result<bool, serde_json::Error> {
-    let message = MessageLogged::fromJson(line)?;
+    let message = MessageLogged::from_json(line)?;
     let options = Options::new(3600, None, Some("ERROR".into()), None, Some("payment".into()));
     Ok(options.accepts(&message))
 }
@@ -307,24 +307,24 @@ Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 test
 每次解析进程列表都会检查 Provider 的加载状态，因此在 Pail 注册之前查询列表，不会导致后续永久漏掉 `logs`。
 ## 频道上下文
 
-使用 `withContext`、`withoutContext` 设置或移除频道上下文。`shareContext` 合并到已解析及未来的频道，每条日志的同名字段优先。`sharedContext` 读取未来频道的默认值。`flushSharedContext` 只清空这些默认值，不删除已合并到频道的字段；移除频道字段使用 `withoutContext`。启动阶段默认值由请求或队列任务继承，动态上下文按作用域隔离，复用频道句柄也不会跨请求共享。
+使用 `with_context`、`without_context` 设置或移除频道上下文。`share_context` 合并到已解析及未来的频道，每条日志的同名字段优先。`shared_context` 读取未来频道的默认值。`flush_shared_context` 只清空这些默认值，不删除已合并到频道的字段；移除频道字段使用 `without_context`。启动阶段默认值由请求或队列任务继承，动态上下文按作用域隔离，复用频道句柄也不会跨请求共享。
 
 
 ## 读取已解析通道
 
-`LogManager::getChannels()` 与 `Log::getChannels()` 返回已解析通道名称到 `Arc<Logger>` 句柄的快照，不创建尚未使用的通道。`forgetChannel` 移除通道后，影响后续解析；先前返回的快照和日志句柄仍可使用。
+`LogManager::get_channels()` 与 `Log::get_channels()` 返回已解析通道名称到 `Arc<Logger>` 句柄的快照，不创建尚未使用的通道。`forget_channel` 移除通道后，影响后续解析；先前返回的快照和日志句柄仍可使用。
 
 ## 访问原生日志器
 
-`Logger::getLogger()` 返回通道实际使用的 `Arc<NativeLogger>` 句柄。`LogManager::getLogger()` 与 `Log::getLogger()` 解析默认通道，通过 `Result` 返回同一个原生实例。读取已解析句柄不会创建其他通道；`forgetChannel` 后，已持有的句柄仍可使用。
+`Logger::get_logger()` 返回通道实际使用的 `Arc<NativeLogger>` 句柄。`LogManager::get_logger()` 与 `Log::get_logger()` 解析默认通道，通过 `Result` 返回同一个原生实例。读取已解析句柄不会创建其他通道；`forget_channel` 后，已持有的句柄仍可使用。
 
 ```rust
 use openrust::{log::LogContext, support::facades::Log};
 
 let channel = Log::channel(None)?;
-let native = channel.getLogger();
+let native = channel.get_logger();
 native.info("Worker started", &LogContext::new())?;
-let default_native = Log::getLogger()?;
+let default_native = Log::get_logger()?;
 ```
 
 原生写入复用配置的级别过滤、处理器、格式器和输出目标，只接收调用时传入的上下文，跳过应用频道上下文、Context 元数据、MessageLogged 监听器及 Pail 捕获。原生写入或处理器失败会直接返回错误。需要应用上下文、事件和应急恢复时，使用通道或 Log Facade 的级别写入方法。原生句柄实现现有 Rust 日志契约；共享通道的处理器和格式器继续通过既有注册与 tap 接口配置。

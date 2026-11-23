@@ -11,7 +11,7 @@ type TimeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 impl TestApp {
     /// Freezes the fixture's clock at the given instant.
     pub fn travel_to(&self, time: Date) {
-        self.clock.set(Some(time.asDateTime().timestamp()));
+        self.clock.set(Some(time.as_date_time().timestamp()));
     }
 
     /// Freezes the fixture's clock at its current time and returns that time.
@@ -48,7 +48,7 @@ impl TestApp {
         let clock = self.clock.clone();
         let container = self.app().container_handle();
         clock
-            .scope(time.asDateTime().timestamp(), async {
+            .scope(time.as_date_time().timestamp(), async {
                 self.boot().await?;
                 application_scope(container, callback(self, time)).await
             })
@@ -80,11 +80,11 @@ impl TestApp {
 
     async fn current_second(&mut self) -> TimeResult<Date> {
         let now = self.current_time().await?;
-        let instant = now.asDateTime();
+        let instant = now.as_date_time();
         let whole_second =
             Timestamp::from_second(crate::support::timestamp_seconds(instant.timestamp()))
                 .map_err(|_| DateError::OutOfRange)?;
-        Ok(Date::fromUtc(whole_second, instant.time_zone().clone()))
+        Ok(Date::from_utc(whole_second, instant.time_zone().clone()))
     }
 }
 

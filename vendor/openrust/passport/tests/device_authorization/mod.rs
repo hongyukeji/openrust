@@ -25,7 +25,7 @@ impl Fixture {
                         .createDeviceAuthorizationGrantClient("Device", confidential, None)
                         .await
                         .unwrap();
-                    let id = match client.getKey().await.unwrap() {
+                    let id = match client.get_key().await.unwrap() {
                         Value::Text(v) => v,
                         _ => panic!("UUID expected"),
                     };
@@ -554,7 +554,7 @@ impl openrust::database::eloquent::Observer<openrust_passport::DeviceCode> for F
             use openrust::database::eloquent::concerns::ModelEventResponse;
             let attempt = self.attempts.fetch_add(1, Ordering::Relaxed);
             if self.always || attempt == 0 {
-                model.forceFill(Attributes::from([(
+                model.force_fill(Attributes::from([(
                     "user_code".into(),
                     self.code.clone().into(),
                 )]))?;
@@ -668,7 +668,7 @@ async fn mysql_device_database_errors_and_other_application_never_issue_credenti
         .await;
     assert_eq!(response.status(), 400);
     assert_eq!(json_body(response).await["error"], "invalid_grant");
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("oauth_device_codes", "hidden_device_codes")
         .await
         .unwrap();
@@ -687,7 +687,7 @@ async fn mysql_device_database_errors_and_other_application_never_issue_credenti
             .status(),
         500
     );
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .rename("hidden_device_codes", "oauth_device_codes")
         .await
         .unwrap();

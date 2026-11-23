@@ -90,7 +90,7 @@ impl ImageManager {
         Ok(self)
     }
 
-    pub fn getContainer(&self) -> Option<Arc<Container>> {
+    pub fn get_container(&self) -> Option<Arc<Container>> {
         self.container
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -105,7 +105,7 @@ impl ImageManager {
         self
     }
 
-    pub fn forgetDrivers(&self) -> &Self {
+    pub fn forget_drivers(&self) -> &Self {
         let previous = {
             let mut state = self.driver_state();
             state.generation = Arc::new(());
@@ -156,7 +156,7 @@ impl ImageManager {
             .unwrap_or_else(|| self.default.to_string())
     }
 
-    pub fn getDrivers(&self) -> HashMap<String, Arc<dyn Driver>> {
+    pub fn get_drivers(&self) -> HashMap<String, Arc<dyn Driver>> {
         self.driver_state().drivers.clone()
     }
 
@@ -244,7 +244,7 @@ impl ImageManager {
         Ok(self.fromBytes(read_bounded(reader, self.limits).await?))
     }
 
-    pub fn fromBase64(&self, encoded: impl Into<Arc<str>>) -> Image {
+    pub fn from_base64(&self, encoded: impl Into<Arc<str>>) -> Image {
         Image::new(self.clone(), Source::Base64(encoded.into()))
     }
 
@@ -272,7 +272,7 @@ impl ImageManager {
     }
 
     pub(super) fn storage(&self, disk: Option<&str>) -> Result<Arc<FilesystemAdapter>> {
-        match self.getContainer() {
+        match self.get_container() {
             Some(container) => container
                 .get::<FilesystemManager>("filesystem")
                 .map_err(Error::Unavailable)?
@@ -283,7 +283,7 @@ impl ImageManager {
     }
 
     pub(super) fn http(&self) -> Result<Arc<Factory>> {
-        match self.getContainer() {
+        match self.get_container() {
             Some(container) => container.make::<Factory>().map_err(Error::Unavailable),
             None => match &self.http {
                 Some(factory) => Ok(factory.clone()),
@@ -314,8 +314,8 @@ impl ImageFacade {
         Self::get_facade_root()?.fromStream(reader).await
     }
 
-    pub fn fromBase64(encoded: impl Into<Arc<str>>) -> Result<Image> {
-        Ok(Self::get_facade_root()?.fromBase64(encoded))
+    pub fn from_base64(encoded: impl Into<Arc<str>>) -> Result<Image> {
+        Ok(Self::get_facade_root()?.from_base64(encoded))
     }
 
     pub fn fromPath(path: impl Into<PathBuf>) -> Result<Image> {
@@ -356,12 +356,12 @@ impl ImageFacade {
         Ok(Self::get_facade_root()?.get_default_driver())
     }
 
-    pub fn getDrivers() -> Result<HashMap<String, Arc<dyn Driver>>> {
-        Ok(Self::get_facade_root()?.getDrivers())
+    pub fn get_drivers() -> Result<HashMap<String, Arc<dyn Driver>>> {
+        Ok(Self::get_facade_root()?.get_drivers())
     }
 
-    pub fn getContainer() -> Result<Option<Arc<Container>>> {
-        Ok(Self::get_facade_root()?.getContainer())
+    pub fn get_container() -> Result<Option<Arc<Container>>> {
+        Ok(Self::get_facade_root()?.get_container())
     }
 
     pub fn setContainer(container: Arc<Container>) -> Result<()> {
@@ -369,8 +369,8 @@ impl ImageFacade {
         Ok(())
     }
 
-    pub fn forgetDrivers() -> Result<()> {
-        Self::get_facade_root()?.forgetDrivers();
+    pub fn forget_drivers() -> Result<()> {
+        Self::get_facade_root()?.forget_drivers();
         Ok(())
     }
 

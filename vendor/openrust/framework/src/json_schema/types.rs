@@ -144,7 +144,7 @@ impl Type {
         attributes.insert("type".into(), kind);
         Ok(attributes.into())
     }
-    pub fn toString(&self) -> Result<String, SchemaError> {
+    pub fn to_string(&self) -> Result<String, SchemaError> {
         serde_json::to_string_pretty(&self.to_array()?)
             .map_err(|error| SchemaError::new(error.to_string()))
     }
@@ -201,8 +201,8 @@ macro_rules! schema_type {
             pub fn to_array(&self) -> Result<Value, SchemaError> {
                 self.0.to_array()
             }
-            pub fn toString(&self) -> Result<String, SchemaError> {
-                self.0.toString()
+            pub fn to_string(&self) -> Result<String, SchemaError> {
+                self.0.to_string()
             }
         }
         impl serde::Serialize for $name {
@@ -267,7 +267,7 @@ macro_rules! numeric_type {
                 self.0.numeric.insert("maximum".into(), value.into());
                 self
             }
-            pub fn multipleOf(mut self, value: $value) -> Self {
+            pub fn multiple_of(mut self, value: $value) -> Self {
                 self.0.numeric.insert("multipleOf".into(), value.into());
                 self
             }

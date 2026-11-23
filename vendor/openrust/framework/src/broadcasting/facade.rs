@@ -53,25 +53,25 @@ impl Broadcast {
             },
         )
     }
-    pub fn resolveAuthenticatedUserUsing(
+    pub fn resolve_authenticated_user_using(
         callback: Arc<super::AuthenticatedUserResolver>,
         connection: Option<&str>,
     ) -> BroadcastResult<()> {
-        Self::connection(connection)?.resolveAuthenticatedUserUsing(callback)
+        Self::connection(connection)?.resolve_authenticated_user_using(callback)
     }
-    pub async fn resolveAuthenticatedUser(
+    pub async fn resolve_authenticated_user(
         request: &mut crate::http::Request,
         connection: Option<&str>,
     ) -> BroadcastResult<Option<crate::http::Response>> {
         Self::connection(connection)?
-            .resolveAuthenticatedUser(request)
+            .resolve_authenticated_user(request)
             .await
     }
     pub async fn authenticateUser(
         request: &mut crate::http::Request,
         connection: Option<&str>,
     ) -> BroadcastResult<crate::http::Response> {
-        Self::resolveAuthenticatedUser(request, connection)
+        Self::resolve_authenticated_user(request, connection)
             .await?
             .ok_or(BroadcastException::AccessDenied)
     }

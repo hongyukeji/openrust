@@ -200,21 +200,21 @@ async fn generate_for(
         .get::<DatabaseManager>("db")
         .map_err(error)?;
     let connection = manager.connection(database).map_err(error)?;
-    let mut schema = connection.getSchemaBuilder();
-    let columns = schema.getColumns(table).await.map_err(error)?;
+    let mut schema = connection.get_schema_builder();
+    let columns = schema.get_columns(table).await.map_err(error)?;
     let (namespace, logical_name) = schema
-        .parseSchemaAndTable(table, SchemaFallback::None)
+        .parse_schema_and_table(table, SchemaFallback::None)
         .map_err(error)?;
-    let physical_name = format!("{}{logical_name}", connection.getTablePrefix());
+    let physical_name = format!("{}{logical_name}", connection.get_table_prefix());
     let namespaces = namespace.map_or_else(
-        || schema.getCurrentSchemaListing(),
+        || schema.get_current_schema_listing(),
         |name| vec![name.to_owned()],
     );
     let mut table_comment = None;
     // 按连接的 schema 查找顺序读取同一张表，避免拿到其他 schema 的同名表说明。
     for namespace in namespaces {
         if let Some(info) = schema
-            .getTables(Some(&namespace))
+            .get_tables(Some(&namespace))
             .await
             .map_err(error)?
             .into_iter()
@@ -605,7 +605,7 @@ fn table_literals(
             continue;
         }
         if item.items.iter().any(
-            |member| matches!(member, syn::ImplItem::Fn(method) if method.sig.ident == "getTable"),
+            |member| matches!(member, syn::ImplItem::Fn(method) if method.sig.ident == "get_table"),
         ) {
             continue;
         }

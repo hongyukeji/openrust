@@ -78,10 +78,9 @@ fn concurrency_error(error: &DatabaseError) -> bool {
         })
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Connection {
     /// Registers a hook before starting a transaction or savepoint.
-    pub fn beforeStartingTransaction(
+    pub fn before_starting_transaction(
         &self,
         callback: impl for<'a> Fn(
             &'a Connection,
@@ -122,7 +121,7 @@ impl Connection {
         }
     }
 
-    pub async fn beginTransaction(&self) -> DatabaseResult<Transaction> {
+    pub async fn begin_transaction(&self) -> DatabaseResult<Transaction> {
         self.ensure_real_operation()?;
         self.run_before_transaction(None).await?;
         let mut replayed = false;
@@ -207,7 +206,7 @@ impl Connection {
         .await
         .map_err(|_| DatabaseError::InvalidSchema("SQLite schema task interrupted"))?;
         if result.is_ok() {
-            self.setRecordModificationState(true);
+            self.set_record_modification_state(true);
         }
         result
     }
@@ -226,7 +225,7 @@ impl Connection {
         }
         let mut remaining = attempts;
         loop {
-            let result = self.beginTransaction().await?.run(&mut callback).await;
+            let result = self.begin_transaction().await?.run(&mut callback).await;
             remaining -= 1;
             match result {
                 Err(ref error) if remaining > 0 && concurrency_error(error) => continue,
@@ -257,9 +256,8 @@ macro_rules! observed_transaction_query {
     }};
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Transaction {
-    pub fn getSchemaBuilder(&mut self) -> super::schema::Builder<'_> {
+    pub fn get_schema_builder(&mut self) -> super::schema::Builder<'_> {
         super::schema::Builder::transaction(self)
     }
 
@@ -269,8 +267,7 @@ impl Transaction {
     }
 
     /// Returns the connection whose transaction this handle borrows.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getConnection(&self) -> &Connection {
+    pub fn get_connection(&self) -> &Connection {
         &self.connection
     }
 
@@ -294,7 +291,7 @@ impl Transaction {
                 bindings,
                 select_one,
                 Value::Null,
-                || self.connection.setRecordModificationState(true),
+                || self.connection.set_record_modification_state(true),
                 |_| ()
             )
             .and_then(|row| row.map_or(Ok(Value::Null), Row::scalar));
@@ -305,7 +302,7 @@ impl Transaction {
             bindings,
             execute_statement,
             Value::Null,
-            || self.connection.setRecordModificationState(true),
+            || self.connection.set_record_modification_state(true),
             |_| ()
         )
         .map(|result| result.insert_id)
@@ -351,11 +348,11 @@ impl Transaction {
         }
     }
 
-    pub fn transactionLevel(&self) -> u32 {
+    pub fn transaction_level(&self) -> u32 {
         self.level
     }
 
-    pub async fn beginTransaction(&mut self) -> DatabaseResult<()> {
+    pub async fn begin_transaction(&mut self) -> DatabaseResult<()> {
         self.connection.ensure_real_operation()?;
         self.physical()?;
         self.connection
@@ -401,7 +398,7 @@ impl Transaction {
     }
 
     /// Runs an owned callback after the outermost successful commit.
-    pub fn afterCommit(
+    pub fn after_commit(
         &mut self,
         callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
     ) -> DatabaseResult<()> {
@@ -413,7 +410,7 @@ impl Transaction {
     /// A callback registered on level 1 retains registration order with other
     /// level-1 callbacks. Pair it with a current-level commit marker when work
     /// must be discarded on savepoint rollback but saved in its original order.
-    pub fn afterCommitAtLevel(
+    pub fn after_commit_at_level(
         &mut self,
         level: u32,
         callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
@@ -426,7 +423,7 @@ impl Transaction {
     }
 
     /// Runs an owned callback if the current transaction level is rolled back.
-    pub fn afterRollBack(
+    pub fn after_roll_back(
         &mut self,
         callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
     ) -> DatabaseResult<()> {
@@ -466,16 +463,16 @@ impl Transaction {
         })
     }
 
-    pub async fn rollBack(&mut self, toLevel: Option<u32>) -> DatabaseResult<()> {
+    pub async fn roll_back(&mut self, to_level: Option<u32>) -> DatabaseResult<()> {
         self.connection.ensure_real_operation()?;
-        let toLevel = toLevel.unwrap_or_else(|| self.level.saturating_sub(1));
-        if self.level <= toLevel {
+        let to_level = to_level.unwrap_or_else(|| self.level.saturating_sub(1));
+        if self.level <= to_level {
             return Ok(());
         }
         let original_level = self.level;
         let sql_server = self.connection.grammar.is_sql_server();
         let result = async {
-            while self.level > toLevel {
+            while self.level > to_level {
                 let physical = self.physical()?;
                 physical
                     .control("roll back", TransactionCommand::RollBack)
@@ -553,7 +550,7 @@ impl Transaction {
                 self.transactions.discard();
             }
         } else {
-            self.rollBack(Some(level - 1)).await?;
+            self.roll_back(Some(level - 1)).await?;
         }
         Err(error)
     }
@@ -566,7 +563,7 @@ impl Transaction {
     where
         T: Send,
     {
-        self.beginTransaction().await?;
+        self.begin_transaction().await?;
         self.run(callback).await
     }
 
@@ -654,14 +651,14 @@ impl Transaction {
             || (),
             |rows: &Vec<Row>| {
                 if !rows.is_empty() {
-                    self.connection.setRecordModificationState(true);
+                    self.connection.set_record_modification_state(true);
                 }
             }
         )
     }
 
     /// Returns all rowsets on the transaction's pinned connection.
-    pub async fn selectResultSets<'a>(
+    pub async fn select_result_sets<'a>(
         &mut self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -677,7 +674,7 @@ impl Transaction {
         )
     }
 
-    pub async fn selectOne<'a>(
+    pub async fn select_one<'a>(
         &mut self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -690,7 +687,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Value> {
-        self.selectOne(sql, bindings)
+        self.select_one(sql, bindings)
             .await?
             .map_or(Ok(Value::Null), Row::scalar)
     }
@@ -708,7 +705,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        self.affectingStatement(sql, bindings).await
+        self.affecting_statement(sql, bindings).await
     }
 
     pub async fn delete<'a>(
@@ -716,7 +713,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        self.affectingStatement(sql, bindings).await
+        self.affecting_statement(sql, bindings).await
     }
 
     pub async fn statement<'a>(
@@ -730,13 +727,13 @@ impl Transaction {
             bindings,
             affecting_statement,
             true,
-            || self.connection.setRecordModificationState(true),
+            || self.connection.set_record_modification_state(true),
             |_| ()
         )
         .map(|_| true)
     }
 
-    pub async fn affectingStatement<'a>(
+    pub async fn affecting_statement<'a>(
         &mut self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -750,7 +747,7 @@ impl Transaction {
             || (),
             |count: &u64| {
                 if *count > 0 {
-                    self.connection.setRecordModificationState(true);
+                    self.connection.set_record_modification_state(true);
                 }
             }
         )
@@ -767,7 +764,7 @@ impl Transaction {
         self.physical()?.validate(sql, false)?;
         let result = self.physical()?.unprepared(sql).await?;
         let elapsed = start.elapsed();
-        self.connection.setRecordModificationState(true);
+        self.connection.set_record_modification_state(true);
         self.dispatch_query(sql, (&[]).into(), elapsed).await?;
         Ok(result)
     }

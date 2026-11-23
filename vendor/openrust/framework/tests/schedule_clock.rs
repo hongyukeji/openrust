@@ -16,7 +16,7 @@ type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 fn date(value: &str) -> Date {
     let time = value.parse::<Timestamp>().unwrap();
-    Date::fromUtc(time, DateTimezone::UTC)
+    Date::from_utc(time, DateTimezone::UTC)
 }
 
 fn configure(builder: ApplicationBuilder) -> ApplicationBuilder {

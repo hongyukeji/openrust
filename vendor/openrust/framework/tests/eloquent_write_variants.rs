@@ -48,7 +48,7 @@ impl Record {
             .lock()
             .unwrap()
             .push((event, transaction.is_some()));
-        let label = model.getAttribute("label").cloned();
+        let label = model.get_attribute("label").cloned();
         match (event, label.as_ref()) {
             (Saving, Some(Value::Text(label))) if label == "cancel_saving" => {
                 return Ok(ModelEventResponse::Cancel);
@@ -73,14 +73,14 @@ impl Record {
                 return Err(DatabaseError::InvalidQuery("删除后监听器失败"));
             }
             (Saved, Some(Value::Text(label))) if label == "mutate_saved" => {
-                model.setAttribute("label", "listener_label");
+                model.set_attribute("label", "listener_label");
             }
             _ => {}
         }
         if event == Created
             && let Some(tx) = transaction
         {
-            assert_eq!(tx.transactionLevel(), 1);
+            assert_eq!(tx.transaction_level(), 1);
             tx.statement(
                 "insert into parity_write_audits (label) values (?)",
                 &[label.unwrap_or(Value::Null)],
@@ -99,7 +99,7 @@ impl ModelEventListener<Item> for Record {
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(self.event(event, model, None))
     }
-    fn handleInTransaction<'a>(
+    fn handle_in_transaction<'a>(
         &'a self,
         event: ModelEvent,
         model: &'a mut Item,
@@ -168,7 +168,7 @@ async fn model_write_variants_preserve_transactions_cancellation_events_and_igno
     for event in [
         Saving, Creating, Created, Saved, Updating, Updated, Deleting, Deleted,
     ] {
-        Item::registerModelEvent(
+        Item::register_model_event(
             &app,
             event,
             Record {
@@ -199,111 +199,115 @@ async fn model_write_variants_preserve_transactions_cancellation_events_and_igno
         let recorded = take();
         assert!(recorded.iter().all(|(_, tx)| *tx == transaction));
         let actual = json!({"result":result,"events":recorded.iter().map(|(event,_)|event.as_str()).collect::<Vec<_>>(),
-            "exists":model.state().exists(),"recent":model.state().wasRecentlyCreated(),"dirty":model.isDirty().unwrap()});
+            "exists":model.state().exists(),"recent":model.state().was_recently_created(),"dirty":model.is_dirty().unwrap()});
         let mut expected = reference[name].clone();
         expected.as_object_mut().unwrap().remove("rows");
         assert_eq!(actual, expected, "{name}");
     };
-    let mut item = Item::newInstanceOn(&db, attributes("first", "first_alt")).unwrap();
-    let result = item.saveOrFail().await;
+    let mut item = Item::new_instance_on(&db, attributes("first", "first_alt")).unwrap();
+    let result = item.save_or_fail().await;
     compare("save_success", &item, result, true);
     assert_eq!(count(&db, "parity_write_items", "first").await, 1);
     assert_eq!(count(&db, "parity_write_audits", "first").await, 1);
-    let result = item.updateOrFail(attributes("updated", "first_alt")).await;
+    let result = item
+        .update_or_fail(attributes("updated", "first_alt"))
+        .await;
     compare("update_success", &item, result, true);
     let result = item
-        .updateOrFail(attributes("cancel_updating", "first_alt"))
+        .update_or_fail(attributes("cancel_updating", "first_alt"))
         .await;
     compare("update_cancel", &item, result, true);
-    let result = item.updateQuietly(attributes("quiet", "first_alt")).await;
+    let result = item.update_quietly(attributes("quiet", "first_alt")).await;
     compare("update_quiet", &item, result, false);
     assert_eq!(count(&db, "parity_write_items", "quiet").await, 1);
     let result = item
-        .updateOrFail(attributes("post_error", "first_alt"))
+        .update_or_fail(attributes("post_error", "first_alt"))
         .await;
     compare("update_listener_error", &item, result, true);
     assert_eq!(count(&db, "parity_write_items", "quiet").await, 1);
     assert!(
-        item.updateQuietly(attributes("quiet", "first_alt"))
+        item.update_quietly(attributes("quiet", "first_alt"))
             .await
             .unwrap()
     );
     take();
-    let mut occupied = Item::newInstanceOn(&db, attributes("occupied", "occupied")).unwrap();
-    assert!(occupied.saveOrFail().await.unwrap());
+    let mut occupied = Item::new_instance_on(&db, attributes("occupied", "occupied")).unwrap();
+    assert!(occupied.save_or_fail().await.unwrap());
     take();
-    let result = item.updateOrFail(attributes("occupied", "first_alt")).await;
+    let result = item
+        .update_or_fail(attributes("occupied", "first_alt"))
+        .await;
     compare("update_sql_error", &item, result, true);
     assert_eq!(count(&db, "parity_write_items", "quiet").await, 1);
     assert!(
-        item.updateQuietly(attributes("quiet", "first_alt"))
+        item.update_quietly(attributes("quiet", "first_alt"))
             .await
             .unwrap()
     );
     take();
-    let mut absent = Item::newInstanceOn(&db, attributes("absent", "absent")).unwrap();
+    let mut absent = Item::new_instance_on(&db, attributes("absent", "absent")).unwrap();
     assert!(
         !absent
-            .updateOrFail(attributes("unused", "unused"))
+            .update_or_fail(attributes("unused", "unused"))
             .await
             .unwrap()
     );
     assert!(
         !absent
-            .updateQuietly(attributes("unused", "unused"))
+            .update_quietly(attributes("unused", "unused"))
             .await
             .unwrap()
     );
-    assert!(!absent.deleteOrFail().await.unwrap());
+    assert!(!absent.delete_or_fail().await.unwrap());
     assert!(take().is_empty());
-    assert_eq!(absent.getAttribute("label"), Some(&"absent".into()));
+    assert_eq!(absent.get_attribute("label"), Some(&"absent".into()));
     for label in ["cancel_saving", "cancel_creating"] {
-        let mut cancelled = Item::newInstanceOn(&db, attributes(label, label)).unwrap();
-        let result = cancelled.saveOrFail().await;
+        let mut cancelled = Item::new_instance_on(&db, attributes(label, label)).unwrap();
+        let result = cancelled.save_or_fail().await;
         compare(label, &cancelled, result, true);
         assert_eq!(count(&db, "parity_write_items", label).await, 0);
     }
-    let mut failing = Item::newInstanceOn(&db, attributes("post_error", "post_error")).unwrap();
-    let result = failing.saveOrFail().await;
+    let mut failing = Item::new_instance_on(&db, attributes("post_error", "post_error")).unwrap();
+    let result = failing.save_or_fail().await;
     compare("post_error", &failing, result, true);
     assert_eq!(count(&db, "parity_write_items", "post_error").await, 0);
     assert_eq!(count(&db, "parity_write_audits", "post_error").await, 0);
     let mut mutation =
-        Item::newInstanceOn(&db, attributes("mutate_saved", "mutate_saved")).unwrap();
-    let result = mutation.saveOrFail().await;
+        Item::new_instance_on(&db, attributes("mutate_saved", "mutate_saved")).unwrap();
+    let result = mutation.save_or_fail().await;
     compare("mutate_saved", &mutation, result, true);
     assert_eq!(
-        mutation.getAttribute("label"),
+        mutation.get_attribute("label"),
         Some(&"listener_label".into())
     );
     assert_eq!(
-        mutation.getRawOriginal("label"),
+        mutation.get_raw_original("label"),
         Some(&"listener_label".into())
     );
     assert_eq!(count(&db, "parity_write_items", "mutate_saved").await, 1);
-    let mut duplicate = Item::newInstanceOn(&db, attributes("quiet", "duplicate_alt")).unwrap();
-    let result = duplicate.saveOrFail().await;
+    let mut duplicate = Item::new_instance_on(&db, attributes("quiet", "duplicate_alt")).unwrap();
+    let result = duplicate.save_or_fail().await;
     compare("duplicate", &duplicate, result, true);
     assert_eq!(count(&db, "parity_write_items", "quiet").await, 1);
     let mut cancelled_delete =
-        Item::newInstanceOn(&db, attributes("cancel_delete", "cancel_delete")).unwrap();
-    assert!(cancelled_delete.saveOrFail().await.unwrap());
+        Item::new_instance_on(&db, attributes("cancel_delete", "cancel_delete")).unwrap();
+    assert!(cancelled_delete.save_or_fail().await.unwrap());
     take();
-    let result = cancelled_delete.deleteOrFail().await;
+    let result = cancelled_delete.delete_or_fail().await;
     compare("delete_cancel", &cancelled_delete, result, true);
     assert_eq!(count(&db, "parity_write_items", "cancel_delete").await, 1);
     let mut failed_delete =
-        Item::newInstanceOn(&db, attributes("delete_error", "delete_error")).unwrap();
-    assert!(failed_delete.saveOrFail().await.unwrap());
+        Item::new_instance_on(&db, attributes("delete_error", "delete_error")).unwrap();
+    assert!(failed_delete.save_or_fail().await.unwrap());
     take();
-    let result = failed_delete.deleteOrFail().await;
+    let result = failed_delete.delete_or_fail().await;
     compare("delete_error", &failed_delete, result, true);
     assert_eq!(count(&db, "parity_write_items", "delete_error").await, 1);
-    let result = item.deleteOrFail().await;
+    let result = item.delete_or_fail().await;
     compare("delete_success", &item, result, true);
     assert_eq!(count(&db, "parity_write_items", "quiet").await, 0);
-    let mut paused_model = Item::newInstanceOn(&db, attributes("pause", "pause")).unwrap();
-    let task = tokio::spawn(async move { paused_model.saveOrFail().await });
+    let mut paused_model = Item::new_instance_on(&db, attributes("pause", "pause")).unwrap();
+    let task = tokio::spawn(async move { paused_model.save_or_fail().await });
     tokio::time::timeout(std::time::Duration::from_secs(5), paused.notified())
         .await
         .unwrap();
@@ -319,19 +323,19 @@ async fn model_write_variants_preserve_transactions_cancellation_events_and_igno
         .unwrap(),
         0
     );
-    let mut empty = Item::newInstanceOn(&db, Attributes::new()).unwrap();
-    let result = empty.saveOrIgnore(None).await;
+    let mut empty = Item::new_instance_on(&db, Attributes::new()).unwrap();
+    let result = empty.save_or_ignore(None).await;
     compare("ignore_empty", &empty, result, false);
     for label in ["cancel_saving", "cancel_creating"] {
         let mut cancelled =
-            Item::newInstanceOn(&db, attributes(label, &format!("ignore_{label}"))).unwrap();
-        let result = cancelled.saveOrIgnore(None).await;
+            Item::new_instance_on(&db, attributes(label, &format!("ignore_{label}"))).unwrap();
+        let result = cancelled.save_or_ignore(None).await;
         compare(&format!("ignore_{label}"), &cancelled, result, false);
     }
     if !mysql {
         let mut failed =
-            Item::newInstanceOn(&db, attributes("post_error", "ignore_post_error")).unwrap();
-        let result = failed.saveOrIgnore(None).await;
+            Item::new_instance_on(&db, attributes("post_error", "ignore_post_error")).unwrap();
+        let result = failed.save_or_ignore(None).await;
         compare("ignore_post_error", &failed, result, false);
         assert_eq!(
             count(&db, "parity_write_items", "post_error").await,
@@ -339,26 +343,26 @@ async fn model_write_variants_preserve_transactions_cancellation_events_and_igno
             "忽略冲突入口不会自动开启事务"
         );
     }
-    let mut ignored = Item::newInstanceOn(&db, attributes("ignored", "ignored")).unwrap();
+    let mut ignored = Item::new_instance_on(&db, attributes("ignored", "ignored")).unwrap();
     if mysql {
         assert!(matches!(
-            ignored.saveOrIgnore(None).await,
+            ignored.save_or_ignore(None).await,
             Err(DatabaseError::UnsupportedOperation(
                 "insert or ignore returning"
             ))
         ));
         assert_eq!(take(), [(Saving, false), (Creating, false)]);
     } else {
-        let result = ignored.saveOrIgnore(None).await;
+        let result = ignored.save_or_ignore(None).await;
         compare("ignore_success", &ignored, result, false);
-        let result = ignored.saveOrIgnore(None).await;
+        let result = ignored.save_or_ignore(None).await;
         compare("ignore_existing", &ignored, result, false);
-        let mut conflict = Item::newInstanceOn(&db, attributes("ignored", "different")).unwrap();
-        let result = conflict.saveOrIgnore(Some(&["label"])).await;
+        let mut conflict = Item::new_instance_on(&db, attributes("ignored", "different")).unwrap();
+        let result = conflict.save_or_ignore(Some(&["label"])).await;
         compare("ignore_conflict", &conflict, result, false);
         let mut other_unique =
-            Item::newInstanceOn(&db, attributes("new_label", "ignored")).unwrap();
-        let result = other_unique.saveOrIgnore(Some(&["label"])).await;
+            Item::new_instance_on(&db, attributes("new_label", "ignored")).unwrap();
+        let result = other_unique.save_or_ignore(Some(&["label"])).await;
         compare("ignore_other_constraint", &other_unique, result, false);
         assert_eq!(count(&db, "parity_write_items", "ignored").await, 1);
     }

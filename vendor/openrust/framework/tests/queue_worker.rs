@@ -25,7 +25,7 @@ use openrust::{
         queue::{Interruptible, JobHandler},
     },
     database::{
-        Connection, DB, DatabaseError, DatabaseManager, Value,
+        Connection, DatabaseError, DatabaseManager, Db, Value,
         eloquent::{
             Collection, Model, ModelCollectionIdentifier, ModelIdentifier, ModelMetadata,
             ModelState, NamedRelations, QueueablePivot,
@@ -109,8 +109,8 @@ struct QueuedModel(ModelState);
 
 impl Model for QueuedModel {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn newCollection(models: Vec<Self>) -> Collection<Self> {
-        Collection::fromEntries(
+    fn new_collection(models: Vec<Self>) -> Collection<Self> {
+        Collection::from_entries(
             models
                 .into_iter()
                 .enumerate()
@@ -120,7 +120,7 @@ impl Model for QueuedModel {
 
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata =
-            ModelMetadata::new("queued_models").softDeletes("deleted_at");
+            ModelMetadata::new("queued_models").soft_deletes("deleted_at");
         &METADATA
     }
 
@@ -136,7 +136,7 @@ impl Model for QueuedModel {
         &mut self.0
     }
 
-    fn namedRelations() -> NamedRelations<Self> {
+    fn named_relations() -> NamedRelations<Self> {
         NamedRelations::default()
             .nested("children", || HasMany::<Self, Self>::new("id", "parent_id"))
     }
@@ -162,11 +162,11 @@ impl JobHandler for RestoreModels {
             let job: ModelJob = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
             let restored = job.single.restore().await.map_err(execution)?;
-            assert_eq!(restored.getConnectionName(), Some("models"));
-            assert_eq!(restored.getAttribute("label"), Some(&"updated".into()));
+            assert_eq!(restored.get_connection_name(), Some("models"));
+            assert_eq!(restored.get_attribute("label"), Some(&"updated".into()));
             assert_eq!(
                 restored
-                    .getRelation::<RelatedCollection<QueuedModel>>("children")
+                    .get_relation::<RelatedCollection<QueuedModel>>("children")
                     .unwrap()
                     .len(),
                 2
@@ -178,13 +178,13 @@ impl JobHandler for RestoreModels {
                 Err(DatabaseError::ModelNotFound("queued_models"))
             ));
             let collection = job.collection.restore().await.map_err(execution)?;
-            assert_eq!(collection.modelKeys(), [2.into(), 1.into(), 2.into()]);
+            assert_eq!(collection.model_keys(), [2.into(), 1.into(), 2.into()]);
             assert_eq!(
-                collection.getByKey("queued-1").unwrap().getKey(),
+                collection.get_by_key("queued-1").unwrap().get_key(),
                 Some(&1.into())
             );
             assert_eq!(
-                collection.getByKey("queued-2").unwrap().getKey(),
+                collection.get_by_key("queued-2").unwrap().get_key(),
                 Some(&2.into())
             );
             assert!(
@@ -192,7 +192,7 @@ impl JobHandler for RestoreModels {
                     .iter()
                     .all(|model| model.relation_loaded("children"))
             );
-            let connection = DB::connection(None).map_err(execution)?;
+            let connection = Db::connection(None).map_err(execution)?;
             connection
                 .statement(
                     "INSERT INTO receipts (name, value) VALUES ('restored-models', 1)",
@@ -209,8 +209,8 @@ struct QueuedPivot(ModelState);
 
 impl Model for QueuedPivot {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn newCollection(models: Vec<Self>) -> Collection<Self> {
-        Collection::fromEntries(
+    fn new_collection(models: Vec<Self>) -> Collection<Self> {
+        Collection::from_entries(
             models
                 .into_iter()
                 .enumerate()
@@ -235,10 +235,10 @@ impl Model for QueuedPivot {
         &mut self.0
     }
 
-    fn queueablePivots() -> Vec<QueueablePivot> {
+    fn queueable_pivots() -> Vec<QueueablePivot> {
         vec![
-            QUEUE_LINK.queueablePivot(),
-            QUEUE_MORPH_LINK.queueablePivot(),
+            QUEUE_LINK.queueable_pivot(),
+            QUEUE_MORPH_LINK.queueable_pivot(),
         ]
     }
 }
@@ -275,21 +275,21 @@ impl JobHandler for RestorePivots {
         Box::pin(async move {
             let job: PivotJob = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
-            let mut model = job.single.restoreForJob().await?;
-            assert_eq!(model.getTable(), "queued_links");
-            assert_eq!(model.getAttribute("label"), Some(&"fresh".into()));
-            model.setAttribute("label", "saved by worker");
+            let mut model = job.single.restore_for_job().await?;
+            assert_eq!(model.get_table(), "queued_links");
+            assert_eq!(model.get_attribute("label"), Some(&"fresh".into()));
+            model.set_attribute("label", "saved by worker");
             assert!(model.save().await.map_err(execution)?);
             assert!(
-                matches!(job.missing.restoreForJob().await, Err(QueueError::MissingModel(table)) if table == "queued_links")
+                matches!(job.missing.restore_for_job().await, Err(QueueError::MissingModel(table)) if table == "queued_links")
             );
-            let mut morph = job.morph.restoreForJob().await?;
-            assert_eq!(morph.getAttribute("kind"), Some(&"owner".into()));
-            assert_eq!(morph.getAttribute("label"), Some(&"morph".into()));
+            let mut morph = job.morph.restore_for_job().await?;
+            assert_eq!(morph.get_attribute("kind"), Some(&"owner".into()));
+            assert_eq!(morph.get_attribute("label"), Some(&"morph".into()));
             assert!(morph.delete().await.map_err(execution)?);
-            let keyed = job.keyed.restoreForJob().await?;
-            assert_eq!(keyed.getKey(), Some(&19.into()));
-            assert_eq!(keyed.getTable(), "queued_links");
+            let keyed = job.keyed.restore_for_job().await?;
+            assert_eq!(keyed.get_key(), Some(&19.into()));
+            assert_eq!(keyed.get_table(), "queued_links");
             let mut forged = payload.data()["single"].clone();
             forged["pivot"]["table"] = json!("queued_models");
             let forged: ModelIdentifier<QueuedPivot> =
@@ -301,10 +301,13 @@ impl JobHandler for RestorePivots {
             let restored = job.collection.restore().await.map_err(execution)?;
             assert_eq!(restored.len(), 1);
             assert_eq!(
-                restored.getByKey("pivot-0").unwrap().getAttribute("label"),
+                restored
+                    .get_by_key("pivot-0")
+                    .unwrap()
+                    .get_attribute("label"),
                 Some(&"saved by worker".into())
             );
-            DB::connection(None)
+            Db::connection(None)
                 .map_err(execution)?
                 .statement(
                     "INSERT INTO receipts (name, value) VALUES ('restored-pivots', 1)",
@@ -320,7 +323,7 @@ impl JobHandler for RestorePivots {
 struct RestoreRequiredModel;
 
 impl JobHandler for RestoreRequiredModel {
-    fn uniqueJob(&self, _: &Payload) -> Option<UniqueJob> {
+    fn unique_job(&self, _: &Payload) -> Option<UniqueJob> {
         Some(UniqueJob {
             id: "required-model".into(),
             ..Default::default()
@@ -335,7 +338,7 @@ impl JobHandler for RestoreRequiredModel {
         Box::pin(async move {
             let id: ModelIdentifier<QueuedModel> = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
-            id.restoreForJob().await?;
+            id.restore_for_job().await?;
             panic!("the required model should be missing")
         })
     }
@@ -375,17 +378,17 @@ impl JobHandler for Handler {
                 Some(json!("tagged"))
             );
             assert_eq!(
-                Context::getHidden("protected").map_err(execution)?,
+                Context::get_hidden("protected").map_err(execution)?,
                 Some(json!("hidden"))
             );
-            assert!(Context::getHidden("secret").map_err(execution)?.is_none());
+            assert!(Context::get_hidden("secret").map_err(execution)?.is_none());
             assert!(
                 Context::get("previous_attempt")
                     .map_err(execution)?
                     .is_none()
             );
             Context::add("previous_attempt", json!(context.attempts())).map_err(execution)?;
-            let db = DB::connection(None).map_err(execution)?;
+            let db = Db::connection(None).map_err(execution)?;
             db.statement(
                 "insert into receipts (name, value) values (?, ?)",
                 &[payload.name().into(), i64::from(context.attempts()).into()],
@@ -400,7 +403,7 @@ impl JobHandler for Handler {
                         .map_err(execution)?;
                 }
                 "mysql_disconnect" if context.attempts() == 1 => {
-                    let mut transaction = db.beginTransaction().await.map_err(execution)?;
+                    let mut transaction = db.begin_transaction().await.map_err(execution)?;
                     let id = transaction
                         .scalar("SELECT CONNECTION_ID()", &[])
                         .await
@@ -594,7 +597,7 @@ impl Listener for InvoiceListener {
                 .ok_or(EventError::InvalidPayload)?;
             assert_eq!(Context::get("trace").unwrap(), Some(json!("invoice")));
             assert_eq!(Context::get("hydrated").unwrap(), Some(json!(true)));
-            let db = DB::connection(None).map_err(EventError::Transaction)?;
+            let db = Db::connection(None).map_err(EventError::Transaction)?;
             db.statement(
                 "insert into receipts (name, value) values ('invoice', ?)",
                 &[i64::from(invoice.0).into()],
@@ -651,7 +654,7 @@ impl Listener for ControlListener {
             } else {
                 (event.name().to_owned(), value)
             };
-            let db = DB::connection(None).map_err(EventError::Transaction)?;
+            let db = Db::connection(None).map_err(EventError::Transaction)?;
             db.statement(
                 "insert into receipts (name, value) values (?, ?)",
                 &[name.into(), value.into()],
@@ -689,7 +692,7 @@ impl Listener for LoopListener {
             } else {
                 "loop:allowed"
             };
-            DB::connection(None)
+            Db::connection(None)
                 .map_err(EventError::Transaction)?
                 .statement(
                     "insert into receipts (name, value) values (?, 1)",
@@ -859,7 +862,7 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
 struct FixtureLostConnectionDetector;
 
 impl LostConnectionDetector for FixtureLostConnectionDetector {
-    fn causedByLostConnection(&self, error: &(dyn std::error::Error + 'static)) -> bool {
+    fn caused_by_lost_connection(&self, error: &(dyn std::error::Error + 'static)) -> bool {
         let mut current = Some(error);
         while let Some(error) = current {
             if error
@@ -887,7 +890,7 @@ impl JobHandler for LimitedHandler {
                     .connection("default")
                     .dontRelease(),
             ),
-            _ => Arc::new(RateLimited::new("job-budget").releaseAfter(Duration::from_secs(1))),
+            _ => Arc::new(RateLimited::new("job-budget").release_after(Duration::from_secs(1))),
         };
         vec![limiter, Arc::new(Tag)]
     }
@@ -1006,7 +1009,9 @@ impl JobHandler for OverlapHandler {
         };
         let middleware = match self.name {
             "overlap_holder" | "overlap_after_error" | "overlap_error" => shared(),
-            "overlap_deferred" => shared().releaseAfter(SystemTime::now() + Duration::from_secs(3)),
+            "overlap_deferred" => {
+                shared().release_after(SystemTime::now() + Duration::from_secs(3))
+            }
             "overlap_discard" => shared().dontRelease(),
             "overlap_isolated" => base.withPrefix("fixture-overlap:"),
             "overlap_other_prefix" => base.shared().withPrefix("fixture-other:"),
@@ -1197,17 +1202,17 @@ impl ServiceProvider for Providers {
             let cache_error = |source| HttpError::Internal {
                 source: Box::new(source),
             };
-            RateLimiter::r#for("job-budget", |_| Limit::perMinute(0)).map_err(cache_error)?;
-            RateLimiter::forJob("job-budget", |job| {
-                Limit::perSecond(1).by(job.data().as_str().unwrap())
+            RateLimiter::r#for("job-budget", |_| Limit::per_minute(0)).map_err(cache_error)?;
+            RateLimiter::for_job("job-budget", |job| {
+                Limit::per_second(1).by(job.data().as_str().unwrap())
             })
             .map_err(cache_error)?;
-            RateLimiter::forJob("job-drop", |_| Limit::perMinute(0)).map_err(cache_error)?;
-            RateLimiter::forJob("job-unlimited", |_| Limit::none()).map_err(cache_error)?;
-            RateLimiter::forJob("job-redis", |job| {
+            RateLimiter::for_job("job-drop", |_| Limit::per_minute(0)).map_err(cache_error)?;
+            RateLimiter::for_job("job-unlimited", |_| Limit::none()).map_err(cache_error)?;
+            RateLimiter::for_job("job-redis", |job| {
                 vec![
-                    Limit::perMinute(1).by(job.data().as_str().unwrap()),
-                    Limit::perMinute(2).by("all"),
+                    Limit::per_minute(1).by(job.data().as_str().unwrap()),
+                    Limit::per_minute(2).by("all"),
                 ]
             })
             .map_err(cache_error)?;
@@ -1244,7 +1249,7 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             }
         } else if kind == "timed_pause" {
             let connection = Queue::connection(None)?;
-            let name = connection.getConnectionName();
+            let name = connection.get_connection_name();
             Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
             assert!(Queue::isPaused(name, "default").await?);
             assert_eq!(
@@ -1252,10 +1257,10 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 ["default"]
             );
         } else if matches!(kind, "invoice" | "rollback") {
-            let mut transaction = DB::beginTransaction().await?;
-            Event::dispatchInTransaction(Invoice(42), &mut transaction).await?;
+            let mut transaction = Db::begin_transaction().await?;
+            Event::dispatch_in_transaction(Invoice(42), &mut transaction).await?;
             if kind == "rollback" {
-                transaction.rollBack(None).await
+                transaction.roll_back(None).await
             } else {
                 transaction.commit().await
             }?;
@@ -1325,7 +1330,10 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             };
             Queue::dispatch(payload, options, None).await?;
         }
-        assert_eq!(Context::getHidden("secret").unwrap(), Some(json!("remove")));
+        assert_eq!(
+            Context::get_hidden("secret").unwrap(),
+            Some(json!("remove"))
+        );
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -1381,7 +1389,7 @@ fn application(root: &Path) -> Application {
         .with_exceptions(|exceptions| {
             if std::env::var_os("QUEUE_WORKER_POLICY_DISABLED").is_none() {
                 exceptions
-                    .dontRetryWhen(|exception| {
+                    .dont_retry_when(|exception| {
                         assert!(exception.downcast_ref::<RetryDenied>().is_none());
                         exception
                             .downcast_ref::<std::io::Error>()
@@ -1390,7 +1398,7 @@ fn application(root: &Path) -> Application {
                                     && error.to_string() == "queue fixture invalid payload"
                             })
                     })
-                    .dontRetry::<RetryDenied>();
+                    .dont_retry::<RetryDenied>();
             }
             exceptions.report::<RetryDenied>(|_| {
                 println!("queue-policy:reported");
@@ -1549,9 +1557,9 @@ async fn verify_pivot_restoration(
         .unwrap()
         .connection(Some("models::write"))
         .unwrap();
-    let mut schema = models.getSchemaBuilder();
+    let mut schema = models.get_schema_builder();
     for table in ["queued_links", "queued_morph_links"] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
     let identity = if sql_server {
         "BIGINT"
@@ -1575,34 +1583,34 @@ async fn verify_pivot_restoration(
     ] {
         models.statement(sql, &[]).await.unwrap();
     }
-    let owner = QueuedModel::queryOn(&writer)
-        .withoutGlobalScopes()
-        .findOrFail(1)
+    let owner = QueuedModel::query_on(&writer)
+        .without_global_scopes()
+        .find_or_fail(1)
         .await
         .unwrap();
     let links = QUEUE_LINK
         .using::<QueuedPivot>()
-        .withPivot(["id", "label"])
-        .getResults(&owner)
+        .with_pivot(["id", "label"])
+        .get_results(&owner)
         .await
         .unwrap();
     let morphs = QUEUE_MORPH_LINK
         .using::<QueuedPivot>()
-        .withPivot(["label"])
-        .getResults(&owner)
+        .with_pivot(["label"])
+        .get_results(&owner)
         .await
         .unwrap();
     let pivot = |id| {
         links
             .iter()
-            .find(|link| link.getKey() == Some(&id))
+            .find(|link| link.get_key() == Some(&id))
             .unwrap()
-            .getRelation::<QueuedPivot>("pivot")
+            .get_relation::<QueuedPivot>("pivot")
             .unwrap()
     };
     let first = pivot(2.into());
     let missing = pivot(4.into());
-    let morph = morphs[0].getRelation::<QueuedPivot>("pivot").unwrap();
+    let morph = morphs[0].get_relation::<QueuedPivot>("pivot").unwrap();
     let payload = Payload::new(
         "restore-pivots",
         PivotJob {
@@ -1673,7 +1681,7 @@ async fn verify_pivot_restoration(
         "other".into()
     );
     for table in ["queued_links", "queued_morph_links"] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
 }
 
@@ -1689,8 +1697,8 @@ async fn verify_model_restoration(
         .unwrap()
         .connection(Some("models"))
         .unwrap();
-    let mut schema = models.getSchemaBuilder();
-    schema.dropIfExists("queued_models").await.unwrap();
+    let mut schema = models.get_schema_builder();
+    schema.drop_if_exists("queued_models").await.unwrap();
     schema
         .create("queued_models", |table| {
             table.bigInteger("id").primary();
@@ -1720,22 +1728,24 @@ async fn verify_model_restoration(
             &[],
         ).await.unwrap();
     }
-    let captured = QueuedModel::queryOn(&models)
-        .withPaths(&["children"])
+    let captured = QueuedModel::query_on(&models)
+        .with_paths(&["children"])
         .unwrap()
         .get()
         .await
         .unwrap();
-    let single = captured.findOrFail(&1.into()).unwrap();
-    let missing = captured.findOrFail(&3.into()).unwrap();
+    let single = captured.find_or_fail(&1.into()).unwrap();
+    let missing = captured.find_or_fail(&3.into()).unwrap();
     let ordered = [2, 3, 1, 2].map(|id| {
-        QueuedModel::from_state(captured.findOrFail(&id.into()).unwrap().state().clone())
+        QueuedModel::from_state(captured.find_or_fail(&id.into()).unwrap().state().clone())
     });
     let payload = Payload::new(
         "restore-models",
         ModelJob {
             single: ModelIdentifier::capture(single).unwrap(),
-            omitted: ModelIdentifier::capture(single).unwrap().withoutRelations(),
+            omitted: ModelIdentifier::capture(single)
+                .unwrap()
+                .without_relations(),
             missing: ModelIdentifier::capture(missing).unwrap(),
             collection: ModelCollectionIdentifier::capture(&Collection::new(Vec::from(ordered)))
                 .unwrap(),
@@ -1787,11 +1797,11 @@ async fn verify_model_restoration(
             .await
             .unwrap();
         assert_eq!(
-            QueuedModel::queryOn(&reader)
-                .findOrFail(1)
+            QueuedModel::query_on(&reader)
+                .find_or_fail(1)
                 .await
                 .unwrap()
-                .getAttribute("label"),
+                .get_attribute("label"),
             Some(&"stale".into())
         );
     }
@@ -1845,7 +1855,7 @@ async fn verify_model_restoration(
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
     }
     run(root, &["queue:flush"]).await;
-    schema.dropIfExists("queued_models").await.unwrap();
+    schema.drop_if_exists("queued_models").await.unwrap();
 }
 
 async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
@@ -1909,9 +1919,9 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
         .unwrap();
     let manager = app.container().make::<QueueManager>().unwrap();
     let queue = manager.connection(None).unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     for table in ["receipts", "jobs", "failed_jobs"] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
     schema
         .create("receipts", |table| {
@@ -1925,10 +1935,10 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();
@@ -2216,7 +2226,7 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
     }
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
 }
 

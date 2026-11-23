@@ -33,8 +33,8 @@ impl Command for NotificationTableCommand {
             let directory = app.base_path().join("database/migrations");
             let path = tokio::task::spawn_blocking(move || {
                 MigrationCreator.create_with_body("create_notifications_table", &directory, Some("notifications"), true, Some((
-                    "connection.getSchemaBuilder().create(\"notifications\", |table| {\n                openrust::notifications::DatabaseNotification::schema(table, |table| {\n                    table.unsignedBigInteger(\"notifiable_id\");\n                });\n            }).await",
-                    "connection.getSchemaBuilder().dropIfExists(\"notifications\").await",
+                    "connection.get_schema_builder().create(\"notifications\", |table| {\n                openrust::notifications::DatabaseNotification::schema(table, |table| {\n                    table.unsigned_big_integer(\"notifiable_id\");\n                });\n            }).await",
+                    "connection.get_schema_builder().drop_if_exists(\"notifications\").await",
                 )))
             }).await.map_err(|error| ConsoleError::new(error.to_string()))?
                 .map_err(|error| ConsoleError::new(error.to_string()))?;

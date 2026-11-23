@@ -8,7 +8,6 @@ use crate::{
 };
 
 /// Accesses the state loaded for an HTTP request.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Session: Send + Sync {
     fn get_name(&self) -> &str;
     fn set_name(&mut self, name: &str) -> SessionResult<()>;
@@ -28,7 +27,7 @@ pub trait Session: Send + Sync {
     fn flush(&mut self);
 
     /// Stores each key and value using the same path rules as `put`.
-    fn putMany(&mut self, values: &[(String, Value)]) -> SessionResult<()> {
+    fn put_many(&mut self, values: &[(String, Value)]) -> SessionResult<()> {
         for (key, value) in values {
             self.put(key, value.clone())?;
         }
@@ -37,7 +36,7 @@ pub trait Session: Send + Sync {
 
     /// Replaces the supplied attributes and keeps all other attributes.
     fn replace(&mut self, values: &[(String, Value)]) -> SessionResult<()> {
-        self.putMany(values)
+        self.put_many(values)
     }
 
     /// Returns matching top-level keys, including explicitly null values.

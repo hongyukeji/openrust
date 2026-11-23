@@ -14,7 +14,7 @@ pub fn load(environment: &Environment) -> Result<Value, ConfigError> {
     let name = environment.get_utf8("APP_NAME")?.unwrap_or("laravel");
     let prefix = format!(
         "{}_horizon:",
-        openrust::support::Str::slugWith(name, "_", Some("en"), &[("@", "at")])
+        openrust::support::Str::slug_with(name, "_", Some("en"), &[("@", "at")])
     );
     Ok(serde_json::json!({
         "domain":environment.get_utf8("HORIZON_DOMAIN")?,

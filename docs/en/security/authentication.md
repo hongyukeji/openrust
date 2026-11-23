@@ -39,11 +39,11 @@ Attach `auth.basic` to a web route to authenticate with a session guard. The def
 use openrust::{routing::RoutingError, support::facades::Route, view::view};
 
 fn register_basic_routes() -> Result<(), RoutingError> {
-    Route::getWith("/profile", || view("profile"), |route| {
+    Route::get_with("/profile", || view("profile"), |route| {
         route.middleware_name("auth.basic");
         Ok(())
     })?;
-    Route::getWith("/profile/by-name", || view("profile"), |route| {
+    Route::get_with("/profile/by-name", || view("profile"), |route| {
         route.middleware_name("auth.basic:web,username");
         Ok(())
     })
@@ -97,7 +97,7 @@ Add `auth.session` after `auth` on routes that should enforce session invalidati
 use openrust::{routing::RoutingError, support::facades::Route, view::view};
 
 fn register_account_routes() -> Result<(), RoutingError> {
-    Route::getWith("/account", || view("account"), |route| {
+    Route::get_with("/account", || view("account"), |route| {
         route.middleware_name("auth").middleware_name("auth.session");
         Ok(())
     })
@@ -132,7 +132,7 @@ fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 }
 
 fn register_password_routes() -> Result<(), RoutingError> {
-    Route::getWith("/confirm-password", || view("auth.confirm-password"), |route| {
+    Route::get_with("/confirm-password", || view("auth.confirm-password"), |route| {
         route.name("password.confirm").middleware_name("auth");
         Ok(())
     })?;
@@ -143,7 +143,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
             Ok(())
         },
     )?;
-    Route::getWith("/settings", || view("settings"), |route| {
+    Route::get_with("/settings", || view("settings"), |route| {
         route.middleware_name("auth").middleware_name("password.confirm");
         Ok(())
     })
@@ -166,6 +166,6 @@ let providers = serde_json::json!({
 
 Declare `Admin` in your application's models module before using it. Adding a model class reference requires rebuilding. `AUTH_MODEL` can select any referenced, compiled model; an unknown class fails when its Eloquent provider is resolved. The linker retains factories even when configuration caching skips the loader. Factories are resolved lazily without querying user tables, and mutable authentication state stays within its application. An explicit second argument, such as `model!(Admin, "app::models::Admin")`, sets a stable class alias. `AuthManager::register_model` remains available for explicit runtime extensions. Alternatively, configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `via_request`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.
 
-For an identity registered with `AuthManager::register_model`, `manager.user_morph_class(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `getMorphClass` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
+For an identity registered with `AuthManager::register_model`, `manager.user_morph_class(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `get_morph_class` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
 
 Synchronous callbacks can use `manager.resolved_user(None)` or `Auth::resolved_user(None)?` to read an identity already resolved in the current HTTP request, without enabling log listeners. `None` follows `should_use` and the default guard; `Some("web")` selects that guard explicitly. These Rust adapters do not run asynchronous authentication or query a user provider. An unresolved guard, guest, or call outside the owning request scope returns `None`; callbacks needing lazy authentication must resolve the guard first in asynchronous middleware.

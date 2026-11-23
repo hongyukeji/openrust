@@ -7,7 +7,6 @@ use crate::{
 };
 
 /// Builds a response for the request that produced this object.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Responsable: Send {
     fn to_response(
         self,
@@ -22,9 +21,8 @@ impl<T: ResponseOutput + Send> Responsable for T {
 }
 
 /// Provides the original HTML markup.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Htmlable {
-    fn toHtml(&self) -> &str;
+    fn to_html(&self) -> &str;
 }
 
 /// Static service metadata for a compiled deferred provider factory.

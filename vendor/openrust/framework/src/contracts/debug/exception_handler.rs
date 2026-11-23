@@ -72,7 +72,7 @@ impl Exception<'_> {
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Send + Sync {
     /// Builds a serializable snapshot of the original exception and its sources.
-    fn buildLogException(
+    fn build_log_exception(
         &self,
         exception: &Exception<'_>,
         name: Option<&'static str>,
@@ -87,13 +87,13 @@ pub trait ExceptionHandler: Send + Sync {
     }
 
     /// Determines whether a queued attempt should fail instead of being retried.
-    fn shouldStopRetries(&self, _exception: &Exception<'_>) -> bool {
+    fn should_stop_retries(&self, _exception: &Exception<'_>) -> bool {
         false
     }
 
     /// Checks report eligibility, consuming an attempt for a rate-limited report.
-    fn shouldReport<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
+    fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response;
-    fn renderForConsole(&self, output: &mut Output, exception: &Exception<'_>);
+    fn render_for_console(&self, output: &mut Output, exception: &Exception<'_>);
 }

@@ -45,7 +45,6 @@ pub struct HashManager {
     state: Mutex<DriverState>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl HashManager {
     pub fn new(config: Arc<dyn Repository>) -> HashResult<Self> {
         Self::for_container(config, Weak::new())
@@ -85,15 +84,15 @@ impl HashManager {
     }
 
     /// Returns the application container, when this manager belongs to an application.
-    pub fn getContainer(&self) -> Option<Arc<Container>> {
+    pub fn get_container(&self) -> Option<Arc<Container>> {
         self.container.upgrade()
     }
 
-    pub fn getDrivers(&self) -> HashMap<String, Arc<dyn Hasher>> {
+    pub fn get_drivers(&self) -> HashMap<String, Arc<dyn Hasher>> {
         self.driver_state().drivers.clone()
     }
 
-    pub fn forgetDrivers(&self) -> &Self {
+    pub fn forget_drivers(&self) -> &Self {
         let previous = {
             let mut state = self.driver_state();
             state.cache_generation = Arc::new(());
@@ -119,9 +118,9 @@ impl HashManager {
             }
             let Some(factory) = state.factories.get(name).cloned() else {
                 let driver: Arc<dyn Hasher> = match name {
-                    "bcrypt" => Arc::new(self.createBcryptDriver()?),
-                    "argon" => Arc::new(self.createArgonDriver()?),
-                    "argon2id" => Arc::new(self.createArgon2idDriver()?),
+                    "bcrypt" => Arc::new(self.create_bcrypt_driver()?),
+                    "argon" => Arc::new(self.create_argon_driver()?),
+                    "argon2id" => Arc::new(self.create_argon2id_driver()?),
                     _ => return Err(HashError::UnknownDriver),
                 };
                 state.drivers.insert(name.to_owned(), Arc::clone(&driver));
@@ -151,21 +150,21 @@ impl HashManager {
         Ok(driver)
     }
 
-    pub fn createBcryptDriver(&self) -> HashResult<BcryptHasher> {
+    pub fn create_bcrypt_driver(&self) -> HashResult<BcryptHasher> {
         Ok(BcryptHasher::with_pool(
             read(self.config.as_ref(), "hashing.bcrypt")?.unwrap_or_default(),
             self.pool.clone(),
         ))
     }
 
-    pub fn createArgonDriver(&self) -> HashResult<ArgonHasher> {
+    pub fn create_argon_driver(&self) -> HashResult<ArgonHasher> {
         Ok(ArgonHasher::with_pool(
             read(self.config.as_ref(), "hashing.argon")?.unwrap_or_default(),
             self.pool.clone(),
         ))
     }
 
-    pub fn createArgon2idDriver(&self) -> HashResult<Argon2IdHasher> {
+    pub fn create_argon2id_driver(&self) -> HashResult<Argon2IdHasher> {
         Ok(Argon2IdHasher::with_pool(
             read(self.config.as_ref(), "hashing.argon")?.unwrap_or_default(),
             self.pool.clone(),
@@ -178,12 +177,11 @@ impl HashManager {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    pub fn isHashed(&self, value: &str) -> HashResult<bool> {
+    pub fn is_hashed(&self, value: &str) -> HashResult<bool> {
         Ok(self.info(value)?.algo.is_some())
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Hasher for HashManager {
     fn as_hash_manager(&self) -> Option<&HashManager> {
         Some(self)
@@ -210,12 +208,12 @@ impl Hasher for HashManager {
         Box::pin(async move { self.driver(None)?.check(value, hashed, options).await })
     }
 
-    fn needsRehash(&self, hashed: &str, options: &HashOptions) -> HashResult<bool> {
-        self.driver(None)?.needsRehash(hashed, options)
+    fn needs_rehash(&self, hashed: &str, options: &HashOptions) -> HashResult<bool> {
+        self.driver(None)?.needs_rehash(hashed, options)
     }
 
-    fn verifyConfiguration(&self, hashed: &str) -> HashResult<bool> {
-        self.driver(None)?.verifyConfiguration(hashed)
+    fn verify_configuration(&self, hashed: &str) -> HashResult<bool> {
+        self.driver(None)?.verify_configuration(hashed)
     }
 }
 

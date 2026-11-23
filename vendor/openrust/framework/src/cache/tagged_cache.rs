@@ -14,7 +14,6 @@ pub struct TaggedCache {
     pub(super) tags: Arc<TagSet>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TaggedCache {
     pub fn new(store: Arc<dyn Store>, names: &[&str]) -> Self {
         let tags = Arc::new(TagSet::new(store, names));
@@ -34,14 +33,14 @@ impl TaggedCache {
         }
     }
 
-    pub fn getTags(&self) -> &TagSet {
+    pub fn get_tags(&self) -> &TagSet {
         &self.tags
     }
 
     /// Discards the selected tag group's memoized results without touching the store.
-    pub fn flushMemoized(&self) {
+    pub fn flush_memoized(&self) {
         if let Some(parent) = &self.memoized_parent {
-            parent.flush_memoized_tags(self.tags.getNames());
+            parent.flush_memoized_tags(self.tags.get_names());
         }
     }
 
@@ -58,7 +57,7 @@ impl TaggedCache {
     }
 
     /// Removes stale references from the selected Redis tags without clearing live values.
-    pub async fn flushStale(&self) -> CacheResult<bool> {
+    pub async fn flush_stale(&self) -> CacheResult<bool> {
         self.tags
             .redis
             .as_ref()
@@ -68,11 +67,11 @@ impl TaggedCache {
         Ok(true)
     }
 
-    pub async fn taggedItemKey(&self, key: &str) -> CacheResult<String> {
+    pub async fn tagged_item_key(&self, key: &str) -> CacheResult<String> {
         if let Some(redis) = &self.tags.redis {
             return redis.item_key(key).await;
         }
-        Ok(item_key(&self.tags.getNamespace().await?, key))
+        Ok(item_key(&self.tags.get_namespace().await?, key))
     }
 }
 
@@ -101,7 +100,7 @@ macro_rules! tagged_operation {
             $($name: $kind),*
         ) -> CacheFuture<'a, CacheResult<$output>> {
             Box::pin(async move {
-                let key = item_key(&self.0.getNamespace().await?, key);
+                let key = item_key(&self.0.get_namespace().await?, key);
                 self.0.store.$method(&key, $($name),*).await
             })
         }
@@ -121,7 +120,7 @@ impl Store for TaggedStore {
 
     fn many<'a>(&'a self, keys: &'a [&'a str]) -> CacheFuture<'a, CacheResult<Vec<Option<Value>>>> {
         Box::pin(async move {
-            let namespace = self.0.getNamespace().await?;
+            let namespace = self.0.get_namespace().await?;
             let keys: Vec<String> = keys.iter().map(|key| item_key(&namespace, key)).collect();
             let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
             self.0.store.many(&keys).await
@@ -134,7 +133,7 @@ impl Store for TaggedStore {
         seconds: NonZeroU64,
     ) -> CacheFuture<'a, CacheResult<bool>> {
         Box::pin(async move {
-            let namespace = self.0.getNamespace().await?;
+            let namespace = self.0.get_namespace().await?;
             let values: Vec<_> = values
                 .iter()
                 .map(|(key, value)| (item_key(&namespace, key), value.clone()))

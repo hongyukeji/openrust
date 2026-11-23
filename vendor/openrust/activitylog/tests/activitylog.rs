@@ -54,7 +54,7 @@ impl Fixture {
         // These models use string keys; customize the package's numeric morph columns
         // exactly as applications with non-numeric primary keys must do.
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .table("activity_log", |t| {
                 t.string("subject_id", 255).nullable().change();
                 t.string("causer_id", 255).nullable().change();
@@ -62,7 +62,7 @@ impl Fixture {
             .await
             .unwrap();
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("business", |t| {
                 t.string("id", 36).primary();
                 t.string("value", 255);
@@ -83,8 +83,8 @@ impl Fixture {
     }
     async fn close(self) {
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists("business")
+            .get_schema_builder()
+            .drop_if_exists("business")
             .await
             .unwrap();
         assert_eq!(
@@ -94,14 +94,14 @@ impl Fixture {
         assert!(
             !self
                 .connection
-                .getSchemaBuilder()
-                .hasTable("activity_log")
+                .get_schema_builder()
+                .has_table("activity_log")
                 .await
                 .unwrap()
         );
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists("activitylog_test_migrations")
+            .get_schema_builder()
+            .drop_if_exists("activitylog_test_migrations")
             .await
             .unwrap();
         self.connection.disconnect();
@@ -523,7 +523,7 @@ async fn eloquent_events_select_changes_preserve_transaction_rollback_and_scope_
     )));
     logger
         .scope(async {
-            let mut model = Business::newInstanceOn(
+            let mut model = Business::new_instance_on(
                 &f.connection,
                 BTreeMap::from([
                     ("id".into(), "one".into()),
@@ -560,7 +560,7 @@ async fn eloquent_events_select_changes_preserve_transaction_rollback_and_scope_
                         let mut model = model.clone();
                         Box::pin(async move {
                             model
-                                .updateInTransaction(
+                                .update_in_transaction(
                                     BTreeMap::from([("value".into(), "rolled back".into())]),
                                     tx,
                                 )
@@ -579,7 +579,7 @@ async fn eloquent_events_select_changes_preserve_transaction_rollback_and_scope_
                 f.connection.table("business").value("value").await.unwrap(),
                 Value::from("after")
             );
-            let mut suppressed = Business::newInstanceOn(
+            let mut suppressed = Business::new_instance_on(
                 &f.connection,
                 BTreeMap::from([
                     ("id".into(), "two".into()),
@@ -675,14 +675,14 @@ async fn buffer_retries_failed_flush_and_serializes_concurrent_flushes() {
     assert!(buffer.hasPending());
     assert!(repository.query().get().await.unwrap().is_empty());
     f.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .rename("activity_log", "activity_log_unavailable")
         .await
         .unwrap();
     assert!(buffer.flush().await.is_err());
     assert_eq!(buffer.count(), 2);
     f.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .rename("activity_log_unavailable", "activity_log")
         .await
         .unwrap();
@@ -712,7 +712,7 @@ impl openrust::database::eloquent::Model for SoftBusiness {
                 .incrementing(false)
                 .fillable(&["id", "value", "data", "flag"])
                 .timestamps(None, None)
-                .softDeletes("removed_on");
+                .soft_deletes("removed_on");
         &METADATA
     }
     fn from_state(state: openrust::database::eloquent::ModelState) -> Self {
@@ -756,7 +756,7 @@ async fn model_json_raw_casts_and_custom_soft_delete_column_restore() {
     let f = Fixture::new().await;
     let repository = f.app.make::<ActivityRepository>().await.unwrap();
     SoftBusiness::bootLogsActivity(&f.app, repository.clone()).unwrap();
-    let mut model = SoftBusiness::newInstanceOn(
+    let mut model = SoftBusiness::new_instance_on(
         &f.connection,
         BTreeMap::from([
             ("id".into(), "soft".into()),
@@ -831,7 +831,7 @@ impl openrust::database::eloquent::Model for RelatedBusiness {
     fn state_mut(&mut self) -> &mut openrust::database::eloquent::ModelState {
         &mut self.0
     }
-    fn namedRelations() -> openrust::database::eloquent::NamedRelations<Self> {
+    fn named_relations() -> openrust::database::eloquent::NamedRelations<Self> {
         openrust::database::eloquent::NamedRelations::default().nested("owner", || {
             openrust::database::eloquent::relations::BelongsTo::<Self, Owner>::new("owner_id", "id")
         })
@@ -853,7 +853,7 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
     use openrust_activitylog::models::concerns::LogsActivity;
     let f = Fixture::new().await;
     f.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("activity_owners", |table| {
             table.id();
             table.string("name", 255);
@@ -876,16 +876,16 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
         .unwrap();
     let repository = Arc::new(ActivityRepository::new(f.connection.clone()));
     RelatedBusiness::bootLogsActivity(&f.app, repository.clone()).unwrap();
-    let mut model = RelatedBusiness::newInstanceOn(&f.connection, Default::default()).unwrap();
-    model.setAttribute("id", "related");
-    model.setAttribute("value", "value");
-    model.setAttribute("owner_id", 1_i64);
+    let mut model = RelatedBusiness::new_instance_on(&f.connection, Default::default()).unwrap();
+    model.set_attribute("id", "related");
+    model.set_attribute("value", "value");
+    model.set_attribute("owner_id", 1_i64);
     model.save().await.unwrap();
     assert_eq!(
         repository.query().get().await.unwrap()[0].attribute_changes["attributes"]["owner.name"],
         "first owner"
     );
-    model.setAttribute("owner_id", 2_i64);
+    model.set_attribute("owner_id", 2_i64);
     model.save().await.unwrap();
     let changes = &repository.query().get().await.unwrap()[0].attribute_changes;
     assert_eq!(changes["old"]["owner.name"], "first owner");
@@ -895,10 +895,10 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
     other.enableLogging();
     assert!(!model.enableLoggingModelsEvents());
     assert!(other.enableLoggingModelsEvents());
-    model.setAttribute("owner_id", 1_i64);
+    model.set_attribute("owner_id", 1_i64);
     model.save().await.unwrap();
     assert_eq!(repository.query().get().await.unwrap().len(), 2);
-    model.enableLogging().setAttribute("owner_id", Value::Null);
+    model.enableLogging().set_attribute("owner_id", Value::Null);
     model.save().await.unwrap();
     let records = repository.query().get().await.unwrap();
     assert_eq!(records.len(), 3);
@@ -908,10 +908,10 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
     );
     assert!(records[0].attribute_changes["attributes"]["owner.name"].is_null());
     let mut transactional =
-        RelatedBusiness::newInstanceOn(&f.connection, Default::default()).unwrap();
-    transactional.setAttribute("id", "transactional");
-    transactional.setAttribute("value", "value");
-    transactional.setAttribute("owner_id", 3_i64);
+        RelatedBusiness::new_instance_on(&f.connection, Default::default()).unwrap();
+    transactional.set_attribute("id", "transactional");
+    transactional.set_attribute("value", "value");
+    transactional.set_attribute("owner_id", 3_i64);
     f.connection
         .transaction(
             move |tx| {
@@ -923,7 +923,7 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
                             ("name".to_owned(), Value::from("Uncommitted owner")),
                         ])])
                         .await?;
-                    model.saveInTransaction(tx).await?;
+                    model.save_in_transaction(tx).await?;
                     Ok(())
                 })
             },
@@ -938,8 +938,8 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
         "Uncommitted owner"
     );
     f.connection
-        .getSchemaBuilder()
-        .dropIfExists("activity_owners")
+        .get_schema_builder()
+        .drop_if_exists("activity_owners")
         .await
         .unwrap();
     f.close().await;
@@ -950,9 +950,9 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
     use openrust::database::eloquent::{Model, relations::Relation};
     use openrust_activitylog::{ActivityLogger, models::Activity as ActivityModel};
     let f = Fixture::new().await;
-    let mut subject = SoftBusiness::newInstanceOn(&f.connection, Default::default()).unwrap();
-    subject.setAttribute("id", "soft-subject");
-    subject.setAttribute("value", "value");
+    let mut subject = SoftBusiness::new_instance_on(&f.connection, Default::default()).unwrap();
+    subject.set_attribute("id", "soft-subject");
+    subject.set_attribute("value", "value");
     subject.save().await.unwrap();
     let mut logger = ActivityLogger::new(f.connection.clone());
     let record = logger
@@ -965,7 +965,7 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
         .await
         .unwrap()
         .unwrap();
-    let entry = ActivityModel::queryOn(&f.connection)
+    let entry = ActivityModel::query_on(&f.connection)
         .find(record.id.unwrap())
         .await
         .unwrap()
@@ -986,7 +986,7 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
                 let relation = entry.subject::<SoftBusiness>().unwrap();
                 assert!(
                     relation
-                        .getResults(&entry)
+                        .get_results(&entry)
                         .await
                         .unwrap()
                         .unwrap()
@@ -1007,7 +1007,7 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
                     entry
                         .subject::<SoftBusiness>()
                         .unwrap()
-                        .getResults(&entry)
+                        .get_results(&entry)
                         .await
                         .unwrap()
                         .is_none()
@@ -1021,7 +1021,7 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
                     entry
                         .subject::<SoftBusiness>()
                         .unwrap()
-                        .getResults(&entry)
+                        .get_results(&entry)
                         .await
                         .unwrap()
                         .is_some()
@@ -1030,7 +1030,7 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
                     entry
                         .causer::<SoftBusiness>()
                         .unwrap()
-                        .getResults(&entry)
+                        .get_results(&entry)
                         .await
                         .unwrap()
                         .is_none()
@@ -1064,8 +1064,8 @@ async fn buffered_model_events_wait_for_commit_and_discard_rolled_back_savepoint
                         move |tx| {
                             let pending = pending.clone();
                             Box::pin(async move {
-                                let mut model = Business::newInstanceOn(
-                                    tx.getConnection(),
+                                let mut model = Business::new_instance_on(
+                                    tx.get_connection(),
                                     BTreeMap::from([
                                         (
                                             "id".into(),
@@ -1074,7 +1074,7 @@ async fn buffered_model_events_wait_for_commit_and_discard_rolled_back_savepoint
                                         ("value".into(), "outer".into()),
                                     ]),
                                 )?;
-                                model.saveInTransaction(tx).await?;
+                                model.save_in_transaction(tx).await?;
                                 assert_eq!(pending.count(), 0);
                                 assert_eq!(pending.flush().await.unwrap(), 0);
                                 let mut rolled = model.clone();
@@ -1082,7 +1082,7 @@ async fn buffered_model_events_wait_for_commit_and_discard_rolled_back_savepoint
                                     .transaction(|nested| {
                                         Box::pin(async move {
                                             rolled
-                                                .updateInTransaction(
+                                                .update_in_transaction(
                                                     BTreeMap::from([(
                                                         "value".into(),
                                                         "nested".into(),
@@ -1101,20 +1101,20 @@ async fn buffered_model_events_wait_for_commit_and_discard_rolled_back_savepoint
                                 assert!(result.is_err());
                                 tx.transaction(|nested| {
                                     Box::pin(async move {
-                                        let mut inner = Business::newInstanceOn(
-                                            nested.getConnection(),
+                                        let mut inner = Business::new_instance_on(
+                                            nested.get_connection(),
                                             BTreeMap::from([
                                                 ("id".into(), "nested-committed".into()),
                                                 ("value".into(), "inner".into()),
                                             ]),
                                         )?;
-                                        inner.saveInTransaction(nested).await?;
+                                        inner.save_in_transaction(nested).await?;
                                         Ok(())
                                     })
                                 })
                                 .await?;
                                 model
-                                    .updateInTransaction(
+                                    .update_in_transaction(
                                         BTreeMap::from([("value".into(), "last".into())]),
                                         tx,
                                     )

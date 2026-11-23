@@ -62,24 +62,27 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
         let table = || db.table("result_items");
         let item =
             |code: &str, label: &str| record([("code", code.into()), ("label", label.into())]);
-        db.enableQueryLog();
+        db.enable_query_log();
         assert_eq!(
             table()
-                .insertGetIdFor(item("a", "one"), "item_key")
+                .insert_get_id_for(item("a", "one"), "item_key")
                 .await
                 .unwrap(),
             1.into()
         );
         if key_type.starts_with("bigint") {
             assert!(
-                db.getQueryLog()[0]
+                db.get_query_log()[0]
                     .query
                     .ends_with(r#" returning "item_key""#)
             );
         }
-        assert_eq!(table().insertOrIgnore(&[item("a", "q")]).await.unwrap(), 0);
         assert_eq!(
-            table().insertOrIgnore(&[item("b", "two")]).await.unwrap(),
+            table().insert_or_ignore(&[item("a", "q")]).await.unwrap(),
+            0
+        );
+        assert_eq!(
+            table().insert_or_ignore(&[item("b", "two")]).await.unwrap(),
             1
         );
 
@@ -90,31 +93,31 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
             .r#where("code", "=", "a");
         assert_eq!(
             archive
-                .insertOrIgnoreUsing(&["code"], &mut source)
+                .insert_or_ignore_using(&["code"], &mut source)
                 .await
                 .unwrap(),
             1
         );
         assert_eq!(
             db.table("result_archive")
-                .insertOrIgnoreUsing(&["code"], &mut source)
+                .insert_or_ignore_using(&["code"], &mut source)
                 .await
                 .unwrap(),
             0
         );
 
-        db.forgetRecordModificationState();
+        db.forget_record_modification_state();
         assert!(
             table()
-                .insertOrIgnoreReturning(&[item("a", "unused")], &["item_key"], None)
+                .insert_or_ignore_returning(&[item("a", "unused")], &["item_key"], None)
                 .await
                 .unwrap()
                 .is_empty()
         );
-        assert!(!db.hasModifiedRecords());
-        db.flushQueryLog();
+        assert!(!db.has_modified_records());
+        db.flush_query_log();
         let rows = table()
-            .insertOrIgnoreReturning(
+            .insert_or_ignore_returning(
                 &[item("a", "ignored"), item("c", "three")],
                 &["item_key as key", "code"],
                 Some(&["code"]),
@@ -124,11 +127,11 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
         assert_eq!(rows.len(), 1);
         assert!(matches!(rows[0].get("key"), Some(Value::Integer(_))));
         assert_eq!(rows[0].get("code"), Some(&"c".into()));
-        assert!(db.hasModifiedRecords());
-        assert_eq!(db.getQueryLog()[0].read_write_type, QueryRole::Write);
+        assert!(db.has_modified_records());
+        assert_eq!(db.get_query_log()[0].read_write_type, QueryRole::Write);
         assert!(
             table()
-                .insertOrIgnoreReturning(&[item("d", "three")], &["item_key"], Some(&["code"]))
+                .insert_or_ignore_returning(&[item("d", "three")], &["item_key"], Some(&["code"]))
                 .await
                 .is_err()
         );
@@ -137,23 +140,23 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
             0
         );
 
-        db.forgetRecordModificationState();
-        let mut transaction = db.beginTransaction().await.unwrap();
+        db.forget_record_modification_state();
+        let mut transaction = db.begin_transaction().await.unwrap();
         let rows = transaction
             .table("result_items")
-            .insertOrIgnoreReturning(&[item("e", "rollback")], &["code"], None)
+            .insert_or_ignore_returning(&[item("e", "rollback")], &["code"], None)
             .await
             .unwrap();
         assert_eq!(rows[0].get("code"), Some(&"e".into()));
-        assert!(db.hasModifiedRecords());
-        transaction.rollBack(None).await.unwrap();
+        assert!(db.has_modified_records());
+        transaction.roll_back(None).await.unwrap();
         assert_eq!(
             table().r#where("code", "=", "e").count("*").await.unwrap(),
             0
         );
         assert!(matches!(
             table()
-                .insertOrIgnoreReturning(&[item("x", "invalid")], &[], None)
+                .insert_or_ignore_returning(&[item("x", "invalid")], &[], None)
                 .await,
             Err(DatabaseError::InvalidQuery("insert returning columns"))
         ));
@@ -166,13 +169,13 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
     let rows = &[record([("code", "untouched".into())])];
     let mut source = sql_server.table("source");
     assert!(matches!(
-        sql_server.table("dest").insertOrIgnore(rows).await,
+        sql_server.table("dest").insert_or_ignore(rows).await,
         Err(DatabaseError::UnsupportedOperation("insert or ignore"))
     ));
     assert!(matches!(
         sql_server
             .table("dest")
-            .insertOrIgnoreUsing(&["code"], &mut source)
+            .insert_or_ignore_using(&["code"], &mut source)
             .await,
         Err(DatabaseError::UnsupportedOperation("insert or ignore"))
     ));
@@ -181,7 +184,7 @@ async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
         assert!(matches!(
             mysql
                 .table("unused")
-                .insertOrIgnoreReturning(rows, &["code"], None)
+                .insert_or_ignore_returning(rows, &["code"], None)
                 .await,
             Err(DatabaseError::UnsupportedOperation(
                 "insert or ignore returning"
@@ -228,20 +231,20 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
         ] {
             db.unprepared(&sql).await.unwrap();
         }
-        let mut transaction = db.beginTransaction().await.unwrap();
+        let mut transaction = db.begin_transaction().await.unwrap();
         let accounts = transaction.table("credit_accounts as a");
         let mut credits = accounts
             .subquery("credit_events as e")
-            .selectRaw("sum(amount)", vec![])
-            .whereColumn("e.account_id", "=", "a.id")
+            .select_raw("sum(amount)", vec![])
+            .where_column("e.account_id", "=", "a.id")
             .r#where("e.state", "=", "posted");
-        db.enableQueryLog();
+        db.enable_query_log();
         assert_eq!(
             accounts
                 .r#where("a.id", ">", 1)
-                .orderBy("a.id", "asc")
+                .order_by("a.id", "asc")
                 .limit(1)
-                .updateWith(BTreeMap::from([
+                .update_with(BTreeMap::from([
                     ("credits".into(), UpdateValue::Subquery(&mut credits)),
                     ("enabled".into(), 1.into()),
                     (
@@ -256,7 +259,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
             1,
             "{driver}"
         );
-        let log = &db.getQueryLog()[0];
+        let log = &db.get_query_log()[0];
         assert!(log.query.contains(" = (select sum(amount)"), "{driver}");
         assert!(matches!(&log.bindings, QueryBindings::Positional(values)
             if values == &["posted".into(), 1.into(), "posted total".into(), 1.into()]));
@@ -279,7 +282,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
                 .unwrap(),
             0.into()
         );
-        transaction.rollBack(None).await.unwrap();
+        transaction.roll_back(None).await.unwrap();
         assert_eq!(
             db.table("credit_accounts")
                 .r#where("id", "=", 2)
@@ -293,9 +296,9 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
         let mut empty = account
             .subquery("credit_events as e")
             .select(["e.amount"])
-            .whereColumn("e.account_id", "=", "a.id");
+            .where_column("e.account_id", "=", "a.id");
         account
-            .updateWith(BTreeMap::from([(
+            .update_with(BTreeMap::from([(
                 "credits".into(),
                 UpdateValue::Subquery(&mut empty),
             )]))
@@ -313,7 +316,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
         let foreign = connection(json!({"driver":"sqlite","database":":memory:"}));
         assert!(matches!(
             db.table("credit_accounts")
-                .updateWith(BTreeMap::from([(
+                .update_with(BTreeMap::from([(
                     "credits".into(),
                     UpdateValue::Subquery(&mut foreign.table("outside"))
                 ),]))
@@ -330,7 +333,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
             assert_eq!(
                 db.table("credit_accounts")
                     .r#where("id", "=", 2)
-                    .updateWith(BTreeMap::from([
+                    .update_with(BTreeMap::from([
                         (
                             "options->label".into(),
                             Expression::new(expression)
@@ -345,7 +348,7 @@ async fn update_assignments_accept_values_expressions_and_scalar_queries() {
             );
             assert_eq!(
                 db.table("credit_accounts")
-                    .whereJsonContains("options->label", json!("posted"))
+                    .where_json_contains("options->label", json!("posted"))
                     .value("id")
                     .await
                     .unwrap(),
@@ -366,9 +369,9 @@ async fn native_query_locks_skip_and_revisit_rows() {
         sqlite
             .table("lock_rows")
             .lock("for update skip locked")
-            .toSql()
+            .to_sql()
             .unwrap(),
-        sqlite.table("lock_rows").toSql().unwrap()
+        sqlite.table("lock_rows").to_sql().unwrap()
     );
     let postgres = std::env::var("OPENRUST_TEST_POSTGRES_LOCK_URL").ok();
     assert!(postgres.is_some() || std::env::var_os("OPENRUST_REQUIRE_POSTGRES_LOCK").is_none());
@@ -391,10 +394,13 @@ async fn native_query_locks_skip_and_revisit_rows() {
             db.unprepared("create index idx_lock_id on lock_rows (id)")
                 .await
                 .unwrap();
-            let mut combination = db.table("lock_rows").forceIndex("idx_lock_id").lock(native);
+            let mut combination = db
+                .table("lock_rows")
+                .force_index("idx_lock_id")
+                .lock(native);
             assert!(
                 combination
-                    .toSql()
+                    .to_sql()
                     .unwrap()
                     .contains("with (updlock, rowlock, readpast, index([idx_lock_id]))")
             );
@@ -404,9 +410,9 @@ async fn native_query_locks_skip_and_revisit_rows() {
             );
             assert!(matches!(
                 db.table("lock_rows")
-                    .forceIndex("idx_lock_id")
+                    .force_index("idx_lock_id")
                     .lock("not a hint list")
-                    .toSql(),
+                    .to_sql(),
                 Err(DatabaseError::InvalidQuery(
                     "SQL Server combined table hints"
                 ))
@@ -415,20 +421,20 @@ async fn native_query_locks_skip_and_revisit_rows() {
                 .await
                 .unwrap();
         }
-        let default = db.table("lock_rows").lockForUpdate().toSql().unwrap();
+        let default = db.table("lock_rows").lock_for_update().to_sql().unwrap();
         assert_eq!(
             db.table("lock_rows")
                 .lock(native)
                 .lock(true)
-                .toSql()
+                .to_sql()
                 .unwrap(),
             default
         );
         assert_eq!(
-            db.table("lock_rows").lock(false).toSql().unwrap(),
-            db.table("lock_rows").sharedLock().toSql().unwrap()
+            db.table("lock_rows").lock(false).to_sql().unwrap(),
+            db.table("lock_rows").shared_lock().to_sql().unwrap()
         );
-        let mut holder = db.beginTransaction().await.unwrap();
+        let mut holder = db.begin_transaction().await.unwrap();
         assert_eq!(
             holder
                 .table("lock_rows")
@@ -439,13 +445,13 @@ async fn native_query_locks_skip_and_revisit_rows() {
                 .unwrap(),
             1.into()
         );
-        let mut reader = db.beginTransaction().await.unwrap();
+        let mut reader = db.begin_transaction().await.unwrap();
         let mut query = reader
             .table("lock_rows")
             .lock(native)
             .r#where("id", ">", 0)
-            .orderBy("id", "asc");
-        let sql = query.toSql().unwrap();
+            .order_by("id", "asc");
+        let sql = query.to_sql().unwrap();
         assert_eq!(
             sql.find(native).unwrap() < sql.find(" where ").unwrap(),
             before_where
@@ -458,14 +464,14 @@ async fn native_query_locks_skip_and_revisit_rows() {
                 .unwrap(),
             2.into()
         );
-        reader.rollBack(None).await.unwrap();
-        holder.rollBack(None).await.unwrap();
-        let mut reader = db.beginTransaction().await.unwrap();
+        reader.roll_back(None).await.unwrap();
+        holder.roll_back(None).await.unwrap();
+        let mut reader = db.begin_transaction().await.unwrap();
         assert_eq!(
             reader
                 .table("lock_rows")
                 .lock(native.to_owned())
-                .orderBy("id", "asc")
+                .order_by("id", "asc")
                 .value("id")
                 .await
                 .unwrap(),
@@ -489,34 +495,34 @@ async fn query_index_hints_follow_driver_rules() {
         .unwrap();
     let table = || sqlite.table("index_items as i");
     let mut query = table()
-        .useIndex("unused")
-        .forceIndex(" idx_score ")
+        .use_index("unused")
+        .force_index(" idx_score ")
         .r#where("i.score", "=", 7);
     assert!(
         query
-            .toSql()
+            .to_sql()
             .unwrap()
             .contains(r#"as "i" indexed by idx_score where"#)
     );
     assert_eq!(query.get_bindings().unwrap(), [7.into()]);
     assert_eq!(query.value("i.id").await.unwrap(), 1.into());
     for mut query in [
-        table().useIndex("ignored"),
-        table().forceIndex("idx_score").ignoreIndex("ignored"),
-        table().forceIndex("PRIMARY"),
-        table().forceIndex("idx_score, other"),
+        table().use_index("ignored"),
+        table().force_index("idx_score").ignore_index("ignored"),
+        table().force_index("PRIMARY"),
+        table().force_index("idx_score, other"),
     ] {
-        assert_eq!(query.toSql().unwrap(), table().toSql().unwrap());
+        assert_eq!(query.to_sql().unwrap(), table().to_sql().unwrap());
     }
     assert!(matches!(
-        table().forceIndex("idx_score, invalid-name").toSql(),
+        table().force_index("idx_score, invalid-name").to_sql(),
         Err(DatabaseError::InvalidQuery("index name"))
     ));
-    sqlite.enableQueryLog();
+    sqlite.enable_query_log();
     assert_eq!(
         sqlite
             .table("index_items")
-            .forceIndex("idx_score")
+            .force_index("idx_score")
             .r#where("score", "=", 8)
             .limit(1)
             .update(record([("score", 9.into())]))
@@ -525,7 +531,7 @@ async fn query_index_hints_follow_driver_rules() {
         1
     );
     assert!(
-        sqlite.getQueryLog()[0]
+        sqlite.get_query_log()[0]
             .query
             .contains(r#"from "index_items" indexed by idx_score"#)
     );
@@ -534,10 +540,10 @@ async fn query_index_hints_follow_driver_rules() {
     assert_eq!(
         postgres
             .table("index_items")
-            .forceIndex("idx_score")
-            .toSql()
+            .force_index("idx_score")
+            .to_sql()
             .unwrap(),
-        postgres.table("index_items").toSql().unwrap()
+        postgres.table("index_items").to_sql().unwrap()
     );
 
     for url in [
@@ -559,22 +565,25 @@ async fn query_index_hints_follow_driver_rules() {
         let table = || db.table("index_items as i").r#where("i.score", "=", 7);
         for (mut query, expected) in [
             (
-                table().useIndex("PRIMARY,idx_score"),
+                table().use_index("PRIMARY,idx_score"),
                 "use index (PRIMARY,idx_score)",
             ),
             (
-                table().useIndex("PRIMARY").forceIndex("idx_score"),
+                table().use_index("PRIMARY").force_index("idx_score"),
                 "force index (idx_score)",
             ),
-            (table().ignoreIndex("idx_score"), "ignore index (idx_score)"),
+            (
+                table().ignore_index("idx_score"),
+                "ignore index (idx_score)",
+            ),
         ] {
-            assert!(query.toSql().unwrap().contains(expected));
+            assert!(query.to_sql().unwrap().contains(expected));
             assert_eq!(query.get_bindings().unwrap(), [7.into()]);
             assert_eq!(query.value("i.id").await.unwrap(), 1.into());
         }
         for invalid in ["", "idx_score,", "idx.score", "idx_score --"] {
             assert!(matches!(
-                table().forceIndex(invalid).toSql(),
+                table().force_index(invalid).to_sql(),
                 Err(DatabaseError::InvalidQuery("index name"))
             ));
         }
@@ -598,39 +607,39 @@ async fn sql_server_combines_index_and_lock_hints() {
     .unwrap();
     let table = || db.table("dbo.index_items as i").r#where("i.score", "=", 7);
     assert_eq!(
-        table().useIndex("ignored").toSql().unwrap(),
-        table().toSql().unwrap()
+        table().use_index("ignored").to_sql().unwrap(),
+        table().to_sql().unwrap()
     );
     assert_eq!(
-        table().ignoreIndex("ignored").toSql().unwrap(),
-        table().toSql().unwrap()
+        table().ignore_index("ignored").to_sql().unwrap(),
+        table().to_sql().unwrap()
     );
     assert!(matches!(
-        table().forceIndex("idx_score, another").toSql(),
+        table().force_index("idx_score, another").to_sql(),
         Err(DatabaseError::InvalidQuery("index name"))
     ));
-    let mut query = table().forceIndex("idx_score");
+    let mut query = table().force_index("idx_score");
     assert!(
         query
-            .toSql()
+            .to_sql()
             .unwrap()
             .contains("as [app_i] with (index([idx_score])) where")
     );
     assert_eq!(query.value("i.id").await.unwrap(), 1.into());
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let mut query = transaction
         .table("dbo.index_items as i")
-        .forceIndex("idx_score")
-        .lockForUpdate()
+        .force_index("idx_score")
+        .lock_for_update()
         .r#where("i.score", "=", 7);
     assert!(
         query
-            .toSql()
+            .to_sql()
             .unwrap()
             .contains("with (rowlock, updlock, holdlock, index([idx_score]))")
     );
     assert_eq!(query.value("i.id").await.unwrap(), 1.into());
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     db.unprepared("drop table dbo.app_index_items")
         .await
         .unwrap();
@@ -662,20 +671,20 @@ async fn cross_and_straight_join_variants() {
             .subquery("join_labels")
             .r#where("code", "=", "blue");
         let mut cross = orders()
-            .crossJoinSub(&mut labels, "b")
+            .cross_join_sub(&mut labels, "b")
             .unwrap()
             .r#where("o.id", ">", 1)
-            .orderBy("o.id", "asc");
-        assert!(cross.toSql().unwrap().contains(" cross join (select"));
+            .order_by("o.id", "asc");
+        assert!(cross.to_sql().unwrap().contains(" cross join (select"));
         assert_eq!(cross.get_bindings().unwrap(), ["blue".into(), 1.into()]);
         assert_eq!(
             cross.pluck("o.id").await.unwrap(),
             [2.into(), 2.into(), 3.into(), 3.into()]
         );
 
-        let mut straight = orders().straightJoin("join_labels as b", "o.id", "=", "b.order_id");
+        let mut straight = orders().straight_join("join_labels as b", "o.id", "=", "b.order_id");
         let straight_sub = orders()
-            .straightJoinSub(&mut labels, "b", |join| {
+            .straight_join_sub(&mut labels, "b", |join| {
                 join.on("o.id", "=", "b.order_id")
                     .r#where("b.order_id", ">", 1)
             })
@@ -684,7 +693,7 @@ async fn cross_and_straight_join_variants() {
         if mysql_family {
             assert!(
                 straight
-                    .toSql()
+                    .to_sql()
                     .unwrap()
                     .contains(" straight_join `app_join_labels` as `app_b` on ")
             );
@@ -696,7 +705,7 @@ async fn cross_and_straight_join_variants() {
             assert_eq!(straight_sub.pluck("o.id").await.unwrap(), [2.into()]);
             assert_eq!(
                 orders()
-                    .straightJoinWhere("join_labels as b", "b.code", "=", "red")
+                    .straight_join_where("join_labels as b", "b.code", "=", "red")
                     .r#where("o.id", "=", 1)
                     .count("*")
                     .await
@@ -705,7 +714,7 @@ async fn cross_and_straight_join_variants() {
             );
             assert_eq!(
                 orders()
-                    .straightJoinWith("join_labels as b", |join| {
+                    .straight_join_with("join_labels as b", |join| {
                         join.on("o.id", "=", "b.order_id")
                             .r#where("b.code", "=", "red")
                     })
@@ -716,7 +725,7 @@ async fn cross_and_straight_join_variants() {
             );
         } else {
             assert!(matches!(
-                straight.toSql(),
+                straight.to_sql(),
                 Err(DatabaseError::UnsupportedOperation("straight joins"))
             ));
             assert!(matches!(
@@ -735,7 +744,7 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
     assert!(matches!(
         sqlite
             .table("unused")
-            .updateFrom(record([("score", 1.into())]))
+            .update_from(record([("score", 1.into())]))
             .await,
         Err(DatabaseError::UnsupportedOperation("updateFrom"))
     ));
@@ -754,25 +763,25 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
          INSERT INTO update_probe.app_regions VALUES (1, 'west'), (2, 'east');",
     ).await.unwrap();
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let orders = transaction.table("update_probe.orders as o");
     let mut prices = orders
         .subquery("update_probe.prices")
         .r#where("currency", "=", "USD");
-    db.enableQueryLog();
+    db.enable_query_log();
     assert_eq!(
         orders
-            .selectRaw("?", vec![999.into()])
-            .joinSub(&mut prices, "p", |join| join
+            .select_raw("?", vec![999.into()])
+            .join_sub(&mut prices, "p", |join| join
                 .on("o.id", "=", "p.order_id")
                 .r#where("p.amount", ">", 9))
             .unwrap()
-            .joinWith("update_probe.regions as r", |join| join
+            .join_with("update_probe.regions as r", |join| join
                 .on("o.region", "=", "r.id")
                 .r#where("r.name", "=", "west"))
             .r#where("o.id", ">", 0)
             .limit(0)
-            .updateFrom(BTreeMap::from([
+            .update_from(BTreeMap::from([
                 (
                     "o.score".into(),
                     ValueOperand::from(
@@ -791,7 +800,7 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
             .unwrap(),
         1
     );
-    let logged = &db.getQueryLog()[0];
+    let logged = &db.get_query_log()[0];
     assert!(logged.query.contains(r#"update "update_probe"."app_orders" as "app_o" set "score" = "app_p"."amount" + ?, "options" = jsonb_set(jsonb_set("app_o"."options"::jsonb"#));
     assert!(logged.query.contains(r#"from (select * from "update_probe"."app_prices" where "currency" = ?) as "app_p", "update_probe"."app_regions" as "app_r" where "app_o"."id" > ? and "app_o"."id" = "app_p"."order_id""#));
     assert!(
@@ -811,7 +820,7 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
         updated[0].get("options"),
         Some(&Value::Json(json!({"active": true, "note": "checked"})))
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         db.table("update_probe.orders")
             .r#where("score", "=", 0)
@@ -823,10 +832,10 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
 
     assert_eq!(
         db.table("update_probe.orders as o")
-            .joinWith("update_probe.regions as r", |join| join
+            .join_with("update_probe.regions as r", |join| join
                 .on("o.region", "=", "r.id")
                 .r#where("r.name", "=", "east"))
-            .updateFrom(record([("score", 5.into())]))
+            .update_from(record([("score", 5.into())]))
             .await
             .unwrap(),
         1
@@ -841,11 +850,11 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
     );
     assert_eq!(
         db.table("update_probe.orders as o")
-            .joinWith("update_probe.regions as r", |join| join
-                .orOn("o.region", "=", "r.id")
+            .join_with("update_probe.regions as r", |join| join
+                .or_on("o.region", "=", "r.id")
                 .r#where("r.name", "=", "east"))
             .r#where("o.id", "=", 999)
-            .updateFrom(record([("score", 7.into())]))
+            .update_from(record([("score", 7.into())]))
             .await
             .unwrap(),
         1
@@ -861,14 +870,14 @@ async fn postgres_update_from_sources_conditions_and_rollback() {
     assert_eq!(
         db.table("update_probe.orders")
             .r#where("id", "=", 2)
-            .updateFrom(record([("score", 6.into())]))
+            .update_from(record([("score", 6.into())]))
             .await
             .unwrap(),
         1
     );
     assert!(matches!(
         db.table("update_probe.orders")
-            .updateFrom(Record::new())
+            .update_from(Record::new())
             .await,
         Err(DatabaseError::InvalidQuery("update assignments"))
     ));
@@ -910,20 +919,20 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
         let groups = || {
             db.table("lateral_groups as g")
                 .select(["g.id", "best.item_id"])
-                .selectRaw("cast(? as int) as marker", vec![123.into()])
+                .select_raw("cast(? as int) as marker", vec![123.into()])
                 .r#where("g.id", ">", 0)
-                .orderBy("g.id", "asc")
+                .order_by("g.id", "asc")
         };
         let mut items = groups()
             .subquery("lateral_items as i")
             .select(["i.id as item_id"])
-            .whereColumn("i.group_id", "=", "g.id")
+            .where_column("i.group_id", "=", "g.id")
             .r#where("i.score", ">", 5)
-            .orderByDesc("i.score")
+            .order_by_desc("i.score")
             .limit(1);
 
-        let mut inner = groups().joinLateral(&mut items, "best").unwrap();
-        let sql = inner.toSql().unwrap();
+        let mut inner = groups().join_lateral(&mut items, "best").unwrap();
+        let sql = inner.to_sql().unwrap();
         assert!(sql.contains(inner_operator));
         assert_eq!(
             sql.contains(" on true"),
@@ -938,8 +947,8 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
             [12.into(), 21.into()]
         );
 
-        let mut left = groups().leftJoinLateral(&mut items, "best").unwrap();
-        assert!(left.toSql().unwrap().contains(left_operator));
+        let mut left = groups().left_join_lateral(&mut items, "best").unwrap();
+        assert!(left.to_sql().unwrap().contains(left_operator));
         let rows = left.get().await.unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[2].get("id"), Some(&3.into()));
@@ -948,11 +957,11 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
 
         let other = connection(json!({"url":url, "prefix":"app_"}));
         assert!(matches!(
-            groups().joinLateral(&mut other.table("lateral_items"), "best"),
+            groups().join_lateral(&mut other.table("lateral_items"), "best"),
             Err(DatabaseError::InvalidQuery("subquery connection"))
         ));
 
-        let mut transaction = db.beginTransaction().await.unwrap();
+        let mut transaction = db.begin_transaction().await.unwrap();
         transaction
             .insert("INSERT INTO app_lateral_items VALUES (32, 3, 12)", &[])
             .await
@@ -963,19 +972,19 @@ async fn correlated_lateral_joins_on_postgres_and_sql_server() {
         let mut item = group
             .subquery("lateral_items as i")
             .select(["i.id as item_id"])
-            .whereColumn("i.group_id", "=", "g.id")
-            .orderByDesc("i.score")
+            .where_column("i.group_id", "=", "g.id")
+            .order_by_desc("i.score")
             .limit(1);
         assert_eq!(
             group
-                .joinLateral(&mut item, "best")
+                .join_lateral(&mut item, "best")
                 .unwrap()
                 .value("best.item_id")
                 .await
                 .unwrap(),
             32.into()
         );
-        transaction.rollBack(None).await.unwrap();
+        transaction.roll_back(None).await.unwrap();
         assert_eq!(
             db.table("lateral_items")
                 .r#where("id", "=", 32)
@@ -1007,30 +1016,30 @@ async fn sql_server_joined_and_bounded_writes() {
     let table = || db.table("dbo.write_probe");
     let joined = || {
         db.table("dbo.write_probe AS p")
-            .joinWith("dbo.write_groups as g", |join| {
+            .join_with("dbo.write_groups as g", |join| {
                 join.on("p.group_id", "=", "g.id")
                     .r#where("g.active", "=", 1)
             })
             .r#where("p.id", ">", 1)
     };
 
-    db.enableQueryLog();
+    db.enable_query_log();
     assert_eq!(
         joined()
-            .selectRaw("?", vec![99.into()])
+            .select_raw("?", vec![99.into()])
             .limit(1)
             .increment("p.score", 7, record([("p.group_id", 1.into())]))
             .await
             .unwrap(),
         2
     );
-    let logged = &db.getQueryLog()[0];
+    let logged = &db.get_query_log()[0];
     assert!(logged.query.starts_with("update [app_p] set [score] = [app_p].[score] + ?, [group_id] = ? from [dbo].[app_write_probe] as [app_p] inner join "));
     assert!(!logged.query.contains("top ("));
     assert!(matches!(&logged.bindings, QueryBindings::Positional(values)
         if values == &[7.into(), 1.into(), 1.into(), 1.into()]));
 
-    db.flushQueryLog();
+    db.flush_query_log();
     assert_eq!(
         table()
             .join(
@@ -1046,16 +1055,16 @@ async fn sql_server_joined_and_bounded_writes() {
         1
     );
     assert!(
-        db.getQueryLog()[0]
+        db.get_query_log()[0]
             .query
             .starts_with("update [dbo].[app_write_probe] set ")
     );
 
-    db.flushQueryLog();
+    db.flush_query_log();
     assert_eq!(
         table()
             .r#where("id", ">", 2)
-            .orderByRaw(
+            .order_by_raw(
                 "case when [id] = ? then 0 else 1 end, [id] desc",
                 vec![3.into()]
             )
@@ -1065,7 +1074,7 @@ async fn sql_server_joined_and_bounded_writes() {
             .unwrap(),
         1
     );
-    let logged = &db.getQueryLog()[0];
+    let logged = &db.get_query_log()[0];
     assert_eq!(
         logged.query,
         "update [app_write_probe] set [score] = ? from (select top (1) * from [dbo].[app_write_probe] where [id] > ? order by case when [id] = ? then 0 else 1 end, [id] desc) as [app_write_probe]"
@@ -1106,12 +1115,12 @@ async fn sql_server_joined_and_bounded_writes() {
         2
     );
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     assert_eq!(
         transaction
             .table("dbo.write_probe as p")
             .r#where("p.id", ">", 1)
-            .orderBy("p.id", "desc")
+            .order_by("p.id", "desc")
             .limit(1)
             .delete()
             .await
@@ -1127,7 +1136,7 @@ async fn sql_server_joined_and_bounded_writes() {
             .unwrap(),
         0
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(table().count("*").await.unwrap(), 5);
 
     assert_eq!(joined().delete().await.unwrap(), 2);
@@ -1182,15 +1191,15 @@ async fn sql_server_truncate_and_json_write_boundary() {
         ])
     };
     assert_eq!(
-        db.table(events).insertGetId(insert()).await.unwrap(),
+        db.table(events).insert_get_id(insert()).await.unwrap(),
         51.into()
     );
     assert_eq!(
-        db.table(events).insertGetId(insert()).await.unwrap(),
+        db.table(events).insert_get_id(insert()).await.unwrap(),
         52.into()
     );
 
-    db.enableQueryLog();
+    db.enable_query_log();
     assert!(matches!(
         db.table(events)
             .r#where("id", "=", 51)
@@ -1200,7 +1209,7 @@ async fn sql_server_truncate_and_json_write_boundary() {
             "SQL Server JSON path update"
         ))
     ));
-    assert!(db.getQueryLog().is_empty());
+    assert!(db.get_query_log().is_empty());
     assert_eq!(
         db.table(events)
             .r#where("id", "=", 51)
@@ -1211,7 +1220,7 @@ async fn sql_server_truncate_and_json_write_boundary() {
     );
     assert_eq!(
         db.table(events)
-            .whereJsonContains("options", json!(true))
+            .where_json_contains("options", json!(true))
             .value("id")
             .await
             .unwrap(),
@@ -1232,30 +1241,30 @@ async fn sql_server_truncate_and_json_write_boundary() {
         .await
         .unwrap();
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction.table(events).truncate().await.unwrap();
     assert_eq!(transaction.table(events).count("*").await.unwrap(), 0);
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(db.table(events).count("*").await.unwrap(), 2);
     assert_eq!(
-        db.table(events).insertGetId(insert()).await.unwrap(),
+        db.table(events).insert_get_id(insert()).await.unwrap(),
         53.into()
     );
 
-    db.flushQueryLog();
+    db.flush_query_log();
     db.table(events)
         .r#where("id", "=", 51)
         .truncate()
         .await
         .unwrap();
     assert_eq!(
-        db.getQueryLog()[0].query,
+        db.get_query_log()[0].query,
         "truncate table [truncate_probe].[app_events]"
     );
     assert_eq!(db.table(events).count("*").await.unwrap(), 0);
     assert_eq!(db.table("dbo.events").value("id").await.unwrap(), 71.into());
     assert_eq!(
-        db.table(events).insertGetId(insert()).await.unwrap(),
+        db.table(events).insert_get_id(insert()).await.unwrap(),
         51.into()
     );
     assert!(matches!(
@@ -1320,33 +1329,33 @@ async fn postgres_truncate_restarts_identities_with_configured_cascade_and_rollb
     assert_eq!(db.table(parents).count("*").await.unwrap(), 2);
     assert_eq!(db.table(children).count("*").await.unwrap(), 2);
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction.table(parents).truncate().await.unwrap();
     assert_eq!(transaction.table(parents).count("*").await.unwrap(), 0);
     assert_eq!(transaction.table(children).count("*").await.unwrap(), 0);
     assert_eq!(
         transaction
             .table(parents)
-            .insertGetId(record([("label", "rolled back".into())]))
+            .insert_get_id(record([("label", "rolled back".into())]))
             .await
             .unwrap(),
         11.into(),
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(db.table(parents).count("*").await.unwrap(), 2);
     assert_eq!(db.table(children).count("*").await.unwrap(), 2);
     assert_eq!(
         db.table(parents)
-            .insertGetId(record([("label", "next".into())]))
+            .insert_get_id(record([("label", "next".into())]))
             .await
             .unwrap(),
         13.into(),
     );
 
-    db.enableQueryLog();
+    db.enable_query_log();
     db.table(parents).truncate().await.unwrap();
     assert_eq!(
-        db.getQueryLog()[0].query,
+        db.get_query_log()[0].query,
         r#"truncate table "truncate_probe"."app_parents" restart identity cascade"#,
     );
     assert_eq!(db.table(parents).count("*").await.unwrap(), 0);
@@ -1357,14 +1366,14 @@ async fn postgres_truncate_restarts_identities_with_configured_cascade_and_rollb
     );
     assert_eq!(
         db.table(parents)
-            .insertGetId(record([("label", "restart".into())]))
+            .insert_get_id(record([("label", "restart".into())]))
             .await
             .unwrap(),
         11.into(),
     );
     assert_eq!(
         db.table(children)
-            .insertGetId(record([("parent_id", 11.into())]))
+            .insert_get_id(record([("parent_id", 11.into())]))
             .await
             .unwrap(),
         101.into(),
@@ -1393,7 +1402,7 @@ async fn verify(db: Connection, mysql: bool) {
     let items = || db.table("q_items");
 
     let id = items()
-        .insertGetId(record([
+        .insert_get_id(record([
             ("code", "a".into()),
             ("group_id", 1.into()),
             ("stock", 4.into()),
@@ -1403,7 +1412,7 @@ async fn verify(db: Connection, mysql: bool) {
     assert_eq!(id, 1.into());
     assert_eq!(
         items()
-            .insertOrIgnore(&[record([("code", "a".into())])])
+            .insert_or_ignore(&[record([("code", "a".into())])])
             .await
             .unwrap(),
         0
@@ -1480,7 +1489,7 @@ async fn verify(db: Connection, mysql: bool) {
 
     assert!(
         items()
-            .updateOrInsert(
+            .update_or_insert(
                 record([("code", "extra".into())]),
                 record([("stock", 1.into())])
             )
@@ -1489,7 +1498,7 @@ async fn verify(db: Connection, mysql: bool) {
     );
     assert!(
         items()
-            .updateOrInsertWith(record([("code", "extra".into())]), |exists| {
+            .update_or_insert_with(record([("code", "extra".into())]), |exists| {
                 assert!(exists);
                 record([("stock", 2.into())])
             })
@@ -1561,12 +1570,12 @@ async fn verify(db: Connection, mysql: bool) {
 
     let joined = db
         .table("q_items as i")
-        .joinWith("q_groups as g", |join| {
+        .join_with("q_groups as g", |join| {
             join.on("i.group_id", "=", "g.id")
                 .r#where("g.region", "=", "east")
         })
         .r#where("i.stock", ">", 6)
-        .orderBy("i.code", "asc");
+        .order_by("i.code", "asc");
     assert_eq!(joined.get_bindings().unwrap(), ["east".into(), 6.into()]);
     assert_eq!(
         joined.pluck("i.code").await.unwrap(),
@@ -1579,9 +1588,9 @@ async fn verify(db: Connection, mysql: bool) {
         .select(["g.id"])
         .r#where("g.region", "=", "east");
     assert_eq!(
-        base.joinSub(&mut sub, "s", |join| join.on("i.group_id", "=", "s.id"))
+        base.join_sub(&mut sub, "s", |join| join.on("i.group_id", "=", "s.id"))
             .unwrap()
-            .orderBy("i.code", "asc")
+            .order_by("i.code", "asc")
             .pluck("i.code")
             .await
             .unwrap(),
@@ -1591,10 +1600,10 @@ async fn verify(db: Connection, mysql: bool) {
     let base = db.table("q_items as i");
     let mut exists = base
         .subquery("q_groups as g")
-        .whereColumn("g.id", "=", "i.group_id")
+        .where_column("g.id", "=", "i.group_id")
         .r#where("g.region", "=", "west");
     assert_eq!(
-        base.whereExists(&mut exists)
+        base.where_exists(&mut exists)
             .unwrap()
             .pluck("i.code")
             .await
@@ -1608,10 +1617,10 @@ async fn verify(db: Connection, mysql: bool) {
         .select(["code"])
         .r#where("code", "=", "c");
     let union = base
-        .orderBy("code", "asc")
-        .unionAll(&mut other)
+        .order_by("code", "asc")
+        .union_all(&mut other)
         .unwrap()
-        .orderBy("code", "desc");
+        .order_by("code", "desc");
     assert_eq!(union.get_bindings().unwrap(), [8.into(), "c".into()]);
     assert_eq!(
         union.limit(2).pluck("code").await.unwrap(),
@@ -1624,7 +1633,7 @@ async fn verify(db: Connection, mysql: bool) {
         .select(["code"])
         .r#where("stock", ">", 8);
     let outer = base
-        .fromSub(&mut inner, "high")
+        .from_sub(&mut inner, "high")
         .unwrap()
         .select(["high.code"]);
     assert_eq!(outer.get_bindings().unwrap(), [8.into()]);
@@ -1634,14 +1643,14 @@ async fn verify(db: Connection, mysql: bool) {
     let mut inner = base
         .subquery("q_items as i")
         .select(["i.code"])
-        .whereColumn("i.group_id", "=", "g.id")
-        .orderByDesc("i.stock")
+        .where_column("i.group_id", "=", "g.id")
+        .order_by_desc("i.stock")
         .limit(1);
     if mysql {
         assert_eq!(
-            base.joinLateral(&mut inner, "top_item")
+            base.join_lateral(&mut inner, "top_item")
                 .unwrap()
-                .orderBy("g.id", "asc")
+                .order_by("g.id", "asc")
                 .pluck("top_item.code")
                 .await
                 .unwrap(),
@@ -1649,14 +1658,14 @@ async fn verify(db: Connection, mysql: bool) {
         );
     } else {
         assert!(matches!(
-            base.joinLateral(&mut inner, "top_item"),
+            base.join_lateral(&mut inner, "top_item"),
             Err(DatabaseError::InvalidQuery("lateral join dialect"))
         ));
     }
 
     let mut foreign = connection(json!({"driver":"sqlite","database":":memory:"})).table("q_items");
     assert!(matches!(
-        items().whereExists(&mut foreign),
+        items().where_exists(&mut foreign),
         Err(DatabaseError::InvalidQuery("subquery connection"))
     ));
 
@@ -1666,30 +1675,30 @@ async fn verify(db: Connection, mysql: bool) {
         .select(["code"])
         .r#where("code", "=", "a");
     assert_eq!(
-        archive.insertUsing(&["code"], &mut source).await.unwrap(),
+        archive.insert_using(&["code"], &mut source).await.unwrap(),
         1
     );
     assert_eq!(
         db.table("q_archive")
-            .insertOrIgnoreUsing(&["code"], &mut source)
+            .insert_or_ignore_using(&["code"], &mut source)
             .await
             .unwrap(),
         0
     );
 
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     let inserted = tx
         .table("q_items")
-        .insertGetId(record([("code", "tx".into()), ("group_id", 2.into())]))
+        .insert_get_id(record([("code", "tx".into()), ("group_id", 2.into())]))
         .await
         .unwrap();
     assert_ne!(inserted, 0.into());
-    let lock_sql = tx.table("q_items").lockForUpdate().toSql().unwrap();
+    let lock_sql = tx.table("q_items").lock_for_update().to_sql().unwrap();
     assert_eq!(lock_sql.ends_with(" for update"), mysql);
     assert!(
         tx.table("q_items")
             .r#where("id", "=", inserted)
-            .lockForUpdate()
+            .lock_for_update()
             .exists()
             .await
             .unwrap()
@@ -1703,11 +1712,11 @@ async fn verify(db: Connection, mysql: bool) {
             .unwrap(),
         2
     );
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert!(
         items()
             .r#where("code", "=", "tx")
-            .doesntExist()
+            .doesnt_exist()
             .await
             .unwrap()
     );
@@ -1730,7 +1739,7 @@ async fn verify(db: Connection, mysql: bool) {
     );
     assert_eq!(
         items()
-            .orderBy("code", "desc")
+            .order_by("code", "desc")
             .limit(1)
             .delete()
             .await
@@ -1738,7 +1747,7 @@ async fn verify(db: Connection, mysql: bool) {
         1
     );
     assert_eq!(items().pluck("code").await.unwrap(), ["a".into()]);
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     if mysql {
         assert!(matches!(
             tx.table("q_items").truncate().await,
@@ -1750,15 +1759,15 @@ async fn verify(db: Connection, mysql: bool) {
         tx.table("q_items").truncate().await.unwrap();
         assert_eq!(tx.table("q_items").count("*").await.unwrap(), 0);
     }
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert_eq!(items().count("*").await.unwrap(), 1);
     if !mysql {
-        let mut tx = db.beginTransaction().await.unwrap();
+        let mut tx = db.begin_transaction().await.unwrap();
         tx.unprepared("CREATE TEMP TABLE app_q_items (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT); INSERT INTO app_q_items VALUES (10, 'temporary')").await.unwrap();
         tx.table("q_items").truncate().await.unwrap();
         assert_eq!(
             tx.table("q_items")
-                .insertGetId(record([("code", "temp reset".into())]))
+                .insert_get_id(record([("code", "temp reset".into())]))
                 .await
                 .unwrap(),
             1.into()
@@ -1767,12 +1776,12 @@ async fn verify(db: Connection, mysql: bool) {
             tx.table("main.q_items").value("code").await.unwrap(),
             "a".into()
         );
-        tx.rollBack(None).await.unwrap();
+        tx.roll_back(None).await.unwrap();
     }
     items().truncate().await.unwrap();
     assert_eq!(
         items()
-            .insertGetId(record([("code", "reset".into())]))
+            .insert_get_id(record([("code", "reset".into())]))
             .await
             .unwrap(),
         1.into()
@@ -1807,17 +1816,17 @@ async fn mysql_pessimistic_locks_block_a_competing_writer_until_commit() {
     let db = connection(json!({"url":url,"max_connections":3,"acquire_timeout":5}));
     db.unprepared("DROP TABLE IF EXISTS query_lock_probe; CREATE TABLE query_lock_probe (id BIGINT PRIMARY KEY, n BIGINT); INSERT INTO query_lock_probe VALUES (1, 0)").await.unwrap();
     for shared in [false, true] {
-        let mut holder = db.beginTransaction().await.unwrap();
-        let mut waiter = db.beginTransaction().await.unwrap();
+        let mut holder = db.begin_transaction().await.unwrap();
+        let mut waiter = db.begin_transaction().await.unwrap();
         waiter
             .unprepared("SET SESSION innodb_lock_wait_timeout = 1")
             .await
             .unwrap();
         let query = holder.table("query_lock_probe").r#where("id", "=", 1);
         let query = if shared {
-            query.sharedLock()
+            query.shared_lock()
         } else {
-            query.lockForUpdate()
+            query.lock_for_update()
         };
         assert!(query.first().await.unwrap().is_some());
         let result = waiter
@@ -1863,7 +1872,7 @@ async fn verify_upsert_assignments(db: Connection) {
         .insert(&[record([("code", "a".into()), ("stock", 1.into())])])
         .await
         .unwrap();
-    db.enableQueryLog();
+    db.enable_query_log();
     let assignments = [
         UpsertUpdate::FromInsert("stock"),
         UpsertUpdate::Value("note", "customer's stock".into()),
@@ -1873,7 +1882,7 @@ async fn verify_upsert_assignments(db: Connection) {
         ),
     ];
     table()
-        .upsertWith(
+        .upsert_with(
             &[
                 record([("stock", 9.into()), ("code", "a".into())]),
                 record([("code", "b".into()), ("stock", 5.into())]),
@@ -1883,14 +1892,14 @@ async fn verify_upsert_assignments(db: Connection) {
         )
         .await
         .unwrap();
-    let entries = db.getQueryLog();
+    let entries = db.get_query_log();
     assert!(matches!(
         &entries[0].bindings,
         QueryBindings::Positional(values) if values == &[
             "a".into(), 9.into(), "b".into(), 5.into(), "customer's stock".into(), 3.into()
         ]
     ));
-    let rows = table().orderBy("code", "asc").get().await.unwrap();
+    let rows = table().order_by("code", "asc").get().await.unwrap();
     assert_eq!(rows[0].get("stock"), Some(&9.into()));
     assert_eq!(rows[0].get("note"), Some(&"customer's stock".into()));
     assert_eq!(rows[0].get("history"), Some(&7.into()));
@@ -1899,9 +1908,9 @@ async fn verify_upsert_assignments(db: Connection) {
     assert_eq!(rows[1].get("history"), Some(&4.into()));
 
     let a = record([("code", "a".into()), ("stock", 13.into())]);
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     tx.table("q_upsert_assignments")
-        .upsertWith(
+        .upsert_with(
             std::slice::from_ref(&a),
             &["code"],
             &[UpsertUpdate::Value("note", Value::Null)],
@@ -1917,7 +1926,7 @@ async fn verify_upsert_assignments(db: Connection) {
         .unwrap();
     assert_eq!(row.get("stock"), Some(&9.into()));
     assert_eq!(row.get("note"), Some(&Value::Null));
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert_eq!(
         table()
             .r#where("code", "=", "a")
@@ -1929,7 +1938,7 @@ async fn verify_upsert_assignments(db: Connection) {
 
     assert!(matches!(
         table()
-            .upsertWith(
+            .upsert_with(
                 std::slice::from_ref(&a),
                 &["code"],
                 &[UpsertUpdate::FromInsert("note")]
@@ -1938,17 +1947,17 @@ async fn verify_upsert_assignments(db: Connection) {
         Err(DatabaseError::InvalidQuery("upsert update columns"))
     ));
     assert!(matches!(
-        table().upsertWith(&[], &[], &[]).await,
+        table().upsert_with(&[], &[], &[]).await,
         Err(DatabaseError::InvalidQuery("upsert conflict columns"))
     ));
     assert_eq!(
         table()
-            .upsertWith(&[], &["code"], &assignments)
+            .upsert_with(&[], &["code"], &assignments)
             .await
             .unwrap(),
         0
     );
-    assert!(table().upsertWith(&[a], &["code"], &[]).await.is_err());
+    assert!(table().upsert_with(&[a], &["code"], &[]).await.is_err());
     db.unprepared("DROP TABLE q_upsert_assignments")
         .await
         .unwrap();
@@ -2024,7 +2033,7 @@ async fn mysql_family_reports_changed_rows_by_default() {
             1
         );
         assert_eq!(
-            db.affectingStatement(
+            db.affecting_statement(
                 "update q_affected_rows set stock = ? where id = ?",
                 &[12.into(), 1.into()]
             )
@@ -2032,7 +2041,7 @@ async fn mysql_family_reports_changed_rows_by_default() {
             .unwrap(),
             0
         );
-        let mut tx = db.beginTransaction().await.unwrap();
+        let mut tx = db.begin_transaction().await.unwrap();
         assert_eq!(
             tx.table("q_affected_rows")
                 .r#where("id", "=", 1)
@@ -2049,7 +2058,7 @@ async fn mysql_family_reports_changed_rows_by_default() {
                 .unwrap(),
             1
         );
-        tx.rollBack(None).await.unwrap();
+        tx.roll_back(None).await.unwrap();
         assert_eq!(
             table().r#where("id", "=", 1).value("stock").await.unwrap(),
             12.into()
@@ -2085,21 +2094,21 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     let mut source = catalog
         .table("COLUMNS as c")
         .select(["c.COLUMN_NAME"])
-        .r#where("c.TABLE_SCHEMA", "=", db.getDatabaseName())
+        .r#where("c.TABLE_SCHEMA", "=", db.get_database_name())
         .r#where("c.TABLE_NAME", "=", "q_cross_catalog");
     let mut outer = db
         .table("q_cross_catalog")
-        .whereInSub("column_name", &mut source)
+        .where_in_sub("column_name", &mut source)
         .unwrap();
     assert!(
         outer
-            .toSql()
+            .to_sql()
             .unwrap()
             .contains("`information_schema`.`COLUMNS` as `c`")
     );
     assert_eq!(
         outer.get_bindings().unwrap(),
-        vec![db.getDatabaseName().into(), "q_cross_catalog".into()]
+        vec![db.get_database_name().into(), "q_cross_catalog".into()]
     );
     assert_eq!(
         outer.pluck("column_name").await.unwrap(),
@@ -2107,17 +2116,17 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     );
     assert_eq!(
         source
-            .toSql()
+            .to_sql()
             .unwrap()
             .matches("`information_schema`")
             .count(),
         0
     );
 
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     assert_eq!(
         tx.table("q_cross_catalog_archive")
-            .insertUsing(&["name"], &mut source)
+            .insert_using(&["name"], &mut source)
             .await
             .unwrap(),
         1
@@ -2129,7 +2138,7 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
             .unwrap(),
         "column_name".into()
     );
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert_eq!(
         db.table("q_cross_catalog_archive")
             .count("*")
@@ -2143,9 +2152,9 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
         .select(["c.COLUMN_NAME"]);
     let sql = db
         .table("q_cross_catalog")
-        .whereInSub("column_name", &mut qualified)
+        .where_in_sub("column_name", &mut qualified)
         .unwrap()
-        .toSql()
+        .to_sql()
         .unwrap();
     assert_eq!(sql.matches("`information_schema`").count(), 1);
 
@@ -2153,9 +2162,9 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     let mut query = prefixed.table("COLUMNS AS c").select(["c.COLUMN_NAME"]);
     let sql = db
         .table("q_cross_catalog")
-        .selectSub(&mut query, "matched")
+        .select_sub(&mut query, "matched")
         .unwrap()
-        .toSql()
+        .to_sql()
         .unwrap();
     assert!(sql.contains("`information_schema`.`p_COLUMNS` as `p_c`"));
 
@@ -2165,7 +2174,7 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
         .select(["column_name"]);
     assert_eq!(
         db.table("q_cross_catalog")
-            .whereInSub("column_name", &mut source)
+            .where_in_sub("column_name", &mut source)
             .unwrap()
             .count("*")
             .await
@@ -2180,7 +2189,7 @@ async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_in
     let foreign = connection(json!({"url":catalog_url.as_str(),"acquire_timeout":1}));
     assert!(matches!(
         db.table("q_cross_catalog")
-            .whereExists(&mut foreign.table("COLUMNS")),
+            .where_exists(&mut foreign.table("COLUMNS")),
         Err(DatabaseError::InvalidQuery("subquery connection"))
     ));
     db.unprepared("DROP TABLE q_cross_catalog_archive; DROP TABLE q_cross_catalog")

@@ -67,7 +67,7 @@ fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<S
 }
 ```
 
-Use `file` with a path inside a configured view directory. Relative paths search application view directories in order. Use `addNamespace` and `replaceNamespace` to manage namespace directories. The factory’s creators and composers accept a list of view names or wildcard patterns. Explicit files may use `.blade.html`, `.html`, or `.css`.
+Use `file` with a path inside a configured view directory. Relative paths search application view directories in order. Use `add_namespace` and `replace_namespace` to manage namespace directories. The factory’s creators and composers accept a list of view names or wildcard patterns. Explicit files may use `.blade.html`, `.html`, or `.css`.
 
 The Engine contract takes an explicit view root for file access. Rendering through these contracts is synchronous. In an async handler, run direct rendering on a blocking worker, or return a view from the handler and let the framework render it.
 
@@ -81,4 +81,4 @@ Blade templates compile on first use. When the source changes, OpenRust regenera
 ```
 ## Conditional and Collection Rendering
 
-`View::renderWhen` renders only when its condition is true; `renderUnless` reverses it. `renderEach(view, data, iterator, empty)` accepts key/value pairs, exposes each key as `key` and each value under the iterator name, and concatenates rendered views. An empty collection renders the empty view, or returns the text following `raw|`. Item views inherit shared data, not arbitrary parent-view locals. `getShared` returns an owned snapshot. Boot-time `share` values are defaults; changes inside a request or queue scope stay in that scope, and explicit view data overrides shared keys.
+`View::render_when` renders only when its condition is true; `render_unless` reverses it. `render_each(view, data, iterator, empty)` accepts key/value pairs, exposes each key as `key` and each value under the iterator name, and concatenates rendered views. An empty collection renders the empty view, or returns the text following `raw|`. Item views inherit shared data, not arbitrary parent-view locals. `get_shared` returns an owned snapshot. Boot-time `share` values are defaults; changes inside a request or queue scope stay in that scope, and explicit view data overrides shared keys.

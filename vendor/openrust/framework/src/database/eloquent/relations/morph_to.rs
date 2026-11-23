@@ -55,12 +55,12 @@ impl SoftDeleteMacros {
             && self.remove_scope
         {
             query = query.with_trashed();
-            let column = query.qualifyColumn(column);
+            let column = query.qualify_column(column);
             if self.require_live {
-                query.whereNested(|conditions| conditions.where_null(&column));
+                query.where_nested(|conditions| conditions.where_null(&column));
             }
             if self.require_deleted {
-                query.whereNested(|conditions| conditions.where_not_null(&column));
+                query.where_nested(|conditions| conditions.where_not_null(&column));
             }
         }
         query
@@ -100,11 +100,10 @@ impl MorphTarget {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model> MorphTo<P> {
     /// Resolves the stored morph alias before comparing the owner key.
     pub fn is<R: Model>(&self, parent: &P, related: Option<&R>) -> bool {
-        let Some(Value::Text(alias)) = parent.getAttribute(self.type_column) else {
+        let Some(Value::Text(alias)) = parent.get_attribute(self.type_column) else {
             return false;
         };
         let Some(target) = self.targets.get(alias.as_str()) else {
@@ -114,7 +113,7 @@ impl<P: Model> MorphTo<P> {
             && super::BelongsTo::<P, R>::new(self.id_column, target.owner_key()).is(parent, related)
     }
 
-    pub fn isNot<R: Model>(&self, parent: &P, related: Option<&R>) -> bool {
+    pub fn is_not<R: Model>(&self, parent: &P, related: Option<&R>) -> bool {
         !self.is(parent, related)
     }
 
@@ -129,7 +128,7 @@ impl<P: Model> MorphTo<P> {
         if rows.is_empty() {
             return Ok(0);
         }
-        let alias = match parent.getAttribute(self.type_column) {
+        let alias = match parent.get_attribute(self.type_column) {
             Some(Value::Text(alias)) if !alias.is_empty() => alias,
             None | Some(Value::Null | Value::Text(_)) => {
                 return Err(DatabaseError::InvalidQuery("missing morph type"));
@@ -151,7 +150,7 @@ impl<P: Model> MorphTo<P> {
             .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?;
         let owner_key = target.owner_key();
         let key = model
-            .getAttribute(owner_key)
+            .get_attribute(owner_key)
             .cloned()
             .unwrap_or(Value::Null);
         Ok(MorphIdentity {
@@ -216,17 +215,17 @@ impl<P: Model> MorphTo<P> {
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<LengthAwarePaginator<MorphTarget>> {
-        self.paginateWith(
+        self.paginate_with(
             parent,
             PageOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..Default::default()
             },
         )
         .await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
@@ -239,22 +238,22 @@ impl<P: Model> MorphTo<P> {
             .await
     }
 
-    pub async fn simplePaginate(
+    pub async fn simple_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<Paginator<MorphTarget>> {
-        self.simplePaginateWith(
+        self.simple_paginate_with(
             parent,
             PageOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..Default::default()
             },
         )
         .await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
@@ -267,22 +266,22 @@ impl<P: Model> MorphTo<P> {
             .await
     }
 
-    pub async fn cursorPaginate(
+    pub async fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<CursorPaginator<MorphTarget>> {
-        self.cursorPaginateWith(
+        self.cursor_paginate_with(
             parent,
             CursorOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..Default::default()
             },
         )
         .await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
@@ -322,7 +321,7 @@ impl<P: Model> MorphTo<P> {
         query::visit_batches(batches, |_, key| Ok(key), callback).await
     }
 
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(MorphTarget, i64) -> Fut,
@@ -377,7 +376,7 @@ impl<P: Model> MorphTo<P> {
 
     super::key_chunks::key_chunks!(Collection<MorphTarget>);
 
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -473,7 +472,7 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Selects a configured default for parents without a morph type.
-    pub fn defaultForMissingType(mut self, alias: &'static str) -> DatabaseResult<Self> {
+    pub fn default_for_missing_type(mut self, alias: &'static str) -> DatabaseResult<Self> {
         if !self.defaults.contains_key(alias) {
             return Err(DatabaseError::InvalidQuery(
                 "morph type has no default model",
@@ -512,7 +511,7 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Registers a compiled target under the alias selected by this connection's morph map.
-    pub fn targetMapped<R: Model>(
+    pub fn target_mapped<R: Model>(
         mut self,
         connection: &Connection,
         owner_key: &'static str,
@@ -540,11 +539,11 @@ impl<P: Model> MorphTo<P> {
         owner_key: &'static str,
         configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
     ) -> Self {
-        self.tryConstrain::<R>(alias, owner_key, move |query| Ok(configure(query)))
+        self.try_constrain::<R>(alias, owner_key, move |query| Ok(configure(query)))
     }
 
     #[must_use]
-    pub fn tryConstrain<R: Model>(
+    pub fn try_constrain<R: Model>(
         mut self,
         alias: &'static str,
         owner_key: &'static str,
@@ -570,7 +569,7 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Adds typed eager loads to an already registered morph target.
-    pub fn morphWith<R: Model>(
+    pub fn morph_with<R: Model>(
         mut self,
         alias: &str,
         configure: impl FnOnce(EagerLoads<R>) -> EagerLoads<R>,
@@ -590,20 +589,20 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Adds registered relationship paths to an already registered morph target.
-    pub fn morphWithPaths<R: Model>(self, alias: &str, paths: &[&str]) -> DatabaseResult<Self> {
+    pub fn morph_with_paths<R: Model>(self, alias: &str, paths: &[&str]) -> DatabaseResult<Self> {
         let loads = NamedRelations::<R>::prepare(paths)?;
-        self.morphWith(alias, |_| loads)
+        self.morph_with(alias, |_| loads)
     }
 
     #[must_use]
-    pub fn morphWithCount<R: Model>(
+    pub fn morph_with_count<R: Model>(
         mut self,
         alias: &'static str,
         owner_key: &'static str,
         name: &'static str,
         relation: impl ExistenceRelation<Parent = R>,
     ) -> Self {
-        let configure = move |query: Builder<'static, R>| query.withCount(name, &relation);
+        let configure = move |query: Builder<'static, R>| query.with_count(name, &relation);
         if let Some(keys) = self
             .targets
             .get_mut(alias)
@@ -669,7 +668,7 @@ impl<P: Model> MorphTo<P> {
             .iter()
             .map(|model| {
                 model
-                    .getRelation::<Option<MorphTarget>>(name)
+                    .get_relation::<Option<MorphTarget>>(name)
                     .cloned()
                     .ok_or(DatabaseError::InvalidQuery("relationship output type"))
             })
@@ -812,8 +811,8 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Associates a model using its mapped alias.
-    pub fn associateMapped<R: Model>(&self, parent: &mut P, related: &R) -> DatabaseResult<()> {
-        self.associate(parent, related.getMorphClass()?, related)
+    pub fn associate_mapped<R: Model>(&self, parent: &mut P, related: &R) -> DatabaseResult<()> {
+        self.associate(parent, related.get_morph_class()?, related)
     }
 
     pub fn associate<R: Model>(
@@ -844,7 +843,7 @@ impl<P: Model> MorphTo<P> {
             ));
         }
         let key = related
-            .getAttribute(target.owner_key())
+            .get_attribute(target.owner_key())
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship owner key"))?;
         dictionary_key(Some(key))?;
@@ -855,16 +854,16 @@ impl<P: Model> MorphTo<P> {
             }))
         });
         model
-            .setAttribute(self.type_column, alias)
-            .setAttribute(self.id_column, key.clone());
+            .set_attribute(self.type_column, alias)
+            .set_attribute(self.id_column, key.clone());
         Ok(())
     }
 
     pub fn dissociate(&self, model: &mut P) {
         update_association_cache::<Self>(model, self.relation_name, || Some(None));
         model
-            .setAttribute(self.type_column, Value::Null)
-            .setAttribute(self.id_column, Value::Null);
+            .set_attribute(self.type_column, Value::Null)
+            .set_attribute(self.id_column, Value::Null);
     }
 
     pub(in crate::database::eloquent) async fn touch_owner(
@@ -890,10 +889,10 @@ impl<P: Model> MorphTo<P> {
     }
 
     fn query_alias<'a>(&self, parent: &'a P) -> DatabaseResult<Option<&'a str>> {
-        if dictionary_key(parent.getAttribute(self.id_column))?.is_none() {
+        if dictionary_key(parent.get_attribute(self.id_column))?.is_none() {
             return Ok(None);
         }
-        match parent.getAttribute(self.type_column) {
+        match parent.get_attribute(self.type_column) {
             None | Some(Value::Null) => Ok(None),
             Some(Value::Text(alias)) if alias.is_empty() => Ok(None),
             Some(Value::Text(alias)) => Ok(Some(alias)),
@@ -944,7 +943,7 @@ impl<P: Model> MorphTo<P> {
     }
 
     fn default_target(&self, parent: &P) -> DatabaseResult<Option<MorphTarget>> {
-        let alias = match parent.getAttribute(self.type_column) {
+        let alias = match parent.get_attribute(self.type_column) {
             None | Some(Value::Null) => self.untyped_default,
             Some(Value::Text(alias)) if alias.is_empty() => self.untyped_default,
             Some(Value::Text(alias)) => Some(alias.as_str()),
@@ -1025,7 +1024,7 @@ impl<M: Model> ProjectableModel for M {
     }
 
     fn queueable_relations(&self) -> Vec<String> {
-        self.getQueueableRelations()
+        self.get_queueable_relations()
     }
 }
 
@@ -1143,7 +1142,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
         Box::pin(async move {
             let connection = self.connection(parent)?;
-            let query = self.configure(R::queryOn(&connection))?;
+            let query = self.configure(R::query_on(&connection))?;
             soft_deletes
                 .apply(query)
                 .upsert(rows, unique_by, update)
@@ -1257,7 +1256,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
                 return Ok(query);
             };
             let qualifier = query.relation_qualifier().to_owned();
-            Ok(query.whereNested(|conditions| constraint(conditions, &qualifier)))
+            Ok(query.where_nested(|conditions| constraint(conditions, &qualifier)))
         } else {
             let predicate = NamedRelations::<R>::filter(
                 connection, &query, child, comparison, discovered, constraint,
@@ -1276,11 +1275,11 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         Box::pin(async move {
             let Some(query) = self.owner_query(parent)? else {
                 return super::pagination::empty_length(PageOptions {
-                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    per_page: options.per_page.or(Some(R::metadata().per_page)),
                     ..options
                 });
             };
-            let page = soft_deletes.apply(query).paginateWith(options).await?;
+            let page = soft_deletes.apply(query).paginate_with(options).await?;
             Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
         })
     }
@@ -1295,13 +1294,13 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         Box::pin(async move {
             let Some(query) = self.owner_query(parent)? else {
                 return super::pagination::empty_simple(PageOptions {
-                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    per_page: options.per_page.or(Some(R::metadata().per_page)),
                     ..options
                 });
             };
             let page = soft_deletes
                 .apply(query)
-                .simplePaginateWith(options)
+                .simple_paginate_with(options)
                 .await?;
             Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
         })
@@ -1317,13 +1316,13 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         Box::pin(async move {
             let Some(query) = self.owner_query(parent)? else {
                 return super::pagination::empty_cursor(CursorOptions {
-                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    per_page: options.per_page.or(Some(R::metadata().per_page)),
                     ..options
                 });
             };
             let page = soft_deletes
                 .apply(query)
-                .cursorPaginateWith(options)
+                .cursor_paginate_with(options)
                 .await?;
             Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
         })
@@ -1363,10 +1362,10 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
                 });
                 let mut batches = query.chunk_collections(count, key, |_, _| Ok(()));
                 while let Some(models) = batches.try_next().await? {
-                    let targets = models.toBase().into_iter().map(|(key, model)| {
+                    let targets = models.to_base().into_iter().map(|(key, model)| {
                         (key, MorphTarget::from_model(alias, Arc::new(model)))
                     });
-                    yield Collection::fromEntries(targets);
+                    yield Collection::from_entries(targets);
                 }
             }
         })
@@ -1406,12 +1405,11 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model> Relation for MorphTo<P> {
     type Parent = P;
     type Output = Option<MorphTarget>;
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         let mut groups = IndexMap::<_, Vec<_>>::new();
         for target in outputs.iter_mut().flatten() {
             groups.entry(target.alias()).or_default().push(target);
@@ -1422,7 +1420,7 @@ impl<P: Model> Relation for MorphTo<P> {
         }
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -1441,7 +1439,7 @@ impl<P: Model> Relation for MorphTo<P> {
         })
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -1452,13 +1450,16 @@ impl<P: Model> Relation for MorphTo<P> {
             .map(Some)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         output
             .as_ref()
             .map_or_else(Vec::new, |target| target.model.queueable_relations())
     }
 
-    fn getResults<'a>(&'a self, parent: &'a P) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
+    fn get_results<'a>(
+        &'a self,
+        parent: &'a P,
+    ) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
         Box::pin(async move {
             if let Some((alias, target)) = self.selected_target(parent)?
                 && let Some(model) = target.load_first(parent, self.soft_deletes).await?
@@ -1469,14 +1470,14 @@ impl<P: Model> Relation for MorphTo<P> {
         })
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,

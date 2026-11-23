@@ -764,7 +764,7 @@ fn input_is_empty(value: &Value) -> bool {
 fn input_collection(value: Value) -> Collection {
     match value {
         Value::Null => Collection::new(),
-        Value::Object(entries) => Collection::fromEntries(entries),
+        Value::Object(entries) => Collection::from_entries(entries),
         Value::Array(items) => Collection::make(items),
         scalar => Collection::make([scalar]),
     }

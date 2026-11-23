@@ -27,11 +27,11 @@ fn check(name: &str, query: &mut Builder<'_>, driver: &str, reference: &Json) {
     let expected = &reference[format!("{driver}_{name}")];
     assert!(!expected.is_null(), "缺少参考 {driver}_{name}");
     assert_eq!(
-        query.toSql().unwrap(),
+        query.to_sql().unwrap(),
         expected["sql"].as_str().unwrap(),
         "{driver}_{name}"
     );
-    let raw = query.getRawBindings().unwrap();
+    let raw = query.get_raw_bindings().unwrap();
     assert_eq!(
         raw.keys().copied().collect::<Vec<_>>(),
         [
@@ -72,11 +72,11 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
         check(
             "nested_having",
             &mut new()
-                .groupBy(&["id"])
+                .group_by(&["id"])
                 .having("id", ">", 1)
-                .havingNested(|q| {
+                .having_nested(|q| {
                     q.having("id", "<", 2)
-                        .setBindings(vec![9.into()], Some("having"))
+                        .set_bindings(vec![9.into()], Some("having"))
                         .unwrap()
                 }),
             driver,
@@ -96,7 +96,7 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
             check(
                 &format!("set_{kind}"),
                 &mut new()
-                    .setBindings(vec![11.into(), 12.into()], Some(kind))
+                    .set_bindings(vec![11.into(), 12.into()], Some(kind))
                     .unwrap(),
                 driver,
                 &reference,
@@ -104,9 +104,9 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
             check(
                 &format!("add_{kind}"),
                 &mut new()
-                    .addBinding(11, Some(kind))
+                    .add_binding(11, Some(kind))
                     .unwrap()
-                    .addBinding([12, 13], Some(kind))
+                    .add_binding([12, 13], Some(kind))
                     .unwrap(),
                 driver,
                 &reference,
@@ -116,7 +116,7 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
             "append",
             &mut new()
                 .r#where("id", ">", 1)
-                .setBindings(vec![2.into()], None)
+                .set_bindings(vec![2.into()], None)
                 .unwrap()
                 .r#where("id", "<", 9),
             driver,
@@ -125,8 +125,8 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
         check(
             "add_append",
             &mut new()
-                .whereRaw("id > ?", vec![])
-                .addBinding(1, None)
+                .where_raw("id > ?", vec![])
+                .add_binding(1, None)
                 .unwrap()
                 .r#where("id", "<", 9),
             driver,
@@ -135,62 +135,62 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
         check(
             "clear_select",
             &mut new()
-                .selectRaw("? as marker", vec![1.into()])
-                .setBindings(vec![2.into()], Some("select"))
+                .select_raw("? as marker", vec![1.into()])
+                .set_bindings(vec![2.into()], Some("select"))
                 .unwrap()
                 .select(["id"])
-                .selectRaw("? as marker", vec![3.into()]),
+                .select_raw("? as marker", vec![3.into()]),
             driver,
             &reference,
         );
         check(
             "clear_order",
             &mut new()
-                .orderByRaw("?", vec![1.into()])
-                .setBindings(vec![2.into()], Some("order"))
+                .order_by_raw("?", vec![1.into()])
+                .set_bindings(vec![2.into()], Some("order"))
                 .unwrap()
                 .reorder()
-                .orderByRaw("?", vec![3.into()]),
+                .order_by_raw("?", vec![3.into()]),
             driver,
             &reference,
         );
         check(
             "source_replace",
             &mut new()
-                .fromRaw("(select ? as id) as one", vec![1.into()])
-                .fromRaw("(select ? as id) as two", vec![2.into()])
+                .from_raw("(select ? as id) as one", vec![1.into()])
+                .from_raw("(select ? as id) as two", vec![2.into()])
                 .from("binding_items"),
             driver,
             &reference,
         );
         let other = new()
             .r#where("id", "<", 9)
-            .havingRaw("? = 1", vec![4.into()]);
+            .having_raw("? = 1", vec![4.into()]);
         check(
             "merge",
             &mut new()
-                .whereRaw("id > ? and id < ?", vec![1.into()])
-                .mergeBindings(&other)
+                .where_raw("id > ? and id < ?", vec![1.into()])
+                .merge_bindings(&other)
                 .unwrap()
-                .orderByRaw("?", vec![5.into()]),
+                .order_by_raw("?", vec![5.into()]),
             driver,
             &reference,
         );
         let all = || {
             let mut part = new()
-                .selectRaw("? as marker", vec![8.into()])
+                .select_raw("? as marker", vec![8.into()])
                 .r#where("id", "<", 9);
             new()
-                .selectRaw("? as marker", vec![1.into()])
-                .fromRaw("(select ? as id) as source", vec![2.into()])
-                .joinWhere("other", "other.id", "=", 3)
+                .select_raw("? as marker", vec![1.into()])
+                .from_raw("(select ? as id) as source", vec![2.into()])
+                .join_where("other", "other.id", "=", 3)
                 .r#where("source.id", ">", 4)
-                .groupByRaw("?", vec![5.into()])
-                .havingRaw("? = 1", vec![6.into()])
-                .orderByRaw("?", vec![7.into()])
-                .unionAll(&mut part)
+                .group_by_raw("?", vec![5.into()])
+                .having_raw("? = 1", vec![6.into()])
+                .order_by_raw("?", vec![7.into()])
+                .union_all(&mut part)
                 .unwrap()
-                .orderByRaw("?", vec![10.into()])
+                .order_by_raw("?", vec![10.into()])
         };
         check("all", &mut all(), driver, &reference);
         let changed = || {
@@ -210,21 +210,21 @@ async fn binding_categories_and_mutation_sequences_match_fixed_upstream() {
             .enumerate()
             {
                 q = q
-                    .setBindings(vec![(i as i64 + 101).into()], Some(kind))
+                    .set_bindings(vec![(i as i64 + 101).into()], Some(kind))
                     .unwrap();
             }
             q.r#where("source.id", "<", 200)
-                .selectRaw("? as extra", vec![201.into()])
-                .orderByRaw("?", vec![202.into()])
+                .select_raw("? as extra", vec![201.into()])
+                .order_by_raw("?", vec![202.into()])
         };
         check("all_changed", &mut changed(), driver, &reference);
         check("original", &mut changed(), driver, &reference);
         // beforeQuery消费独立快照，绑定改动不会共享可变状态。
-        let mut copied = changed().beforeQuery(|q| q.addBinding(303, None));
-        copied.applyBeforeQueryCallbacks().unwrap();
+        let mut copied = changed().before_query(|q| q.add_binding(303, None));
+        copied.apply_before_query_callbacks().unwrap();
         check("copy", &mut copied, driver, &reference);
-        assert!(new().setBindings(vec![1.into()], Some("invalid")).is_err());
-        assert!(new().addBinding(1, Some("invalid")).is_err());
+        assert!(new().set_bindings(vec![1.into()], Some("invalid")).is_err());
+        assert!(new().add_binding(1, Some("invalid")).is_err());
         assert_eq!(reference[format!("{driver}_invalid")], true);
     }
 }
@@ -247,8 +247,8 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     .await?;
     let base = || db.table("parity_binding_items");
     let projected = base()
-        .selectRaw("coalesce(?, 0) as marker", vec![1.into()])
-        .setBindings(vec![44.into()], Some("select"))?
+        .select_raw("coalesce(?, 0) as marker", vec![1.into()])
+        .set_bindings(vec![44.into()], Some("select"))?
         .first()
         .await?
         .unwrap();
@@ -260,8 +260,8 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
         .await?;
     assert_eq!(
         base()
-            .whereRaw("note = ?", vec![])
-            .addBinding(payload, None)?
+            .where_raw("note = ?", vec![])
+            .add_binding(payload, None)?
             .count("*")
             .await?,
         1
@@ -270,9 +270,9 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     let combined = base()
         .select(["id"])
         .r#where("id", "=", 1)
-        .unionAll(&mut part)?
-        .setBindings(vec![3.into()], Some("union"))?
-        .orderBy("id", "asc")
+        .union_all(&mut part)?
+        .set_bindings(vec![3.into()], Some("union"))?
+        .order_by("id", "asc")
         .get()
         .await?;
     assert_eq!(
@@ -284,19 +284,19 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     );
     let having = base()
         .select(["group_id"])
-        .groupBy(&["group_id"])
-        .havingRaw("sum(score) > ?", vec![0.into()])
-        .setBindings(vec![50.into()], Some("having"))?
+        .group_by(&["group_id"])
+        .having_raw("sum(score) > ?", vec![0.into()])
+        .set_bindings(vec![50.into()], Some("having"))?
         .get()
         .await?;
     assert_eq!(having.len(), 1);
     assert_eq!(having[0].get("group_id"), Some(&2.into()));
 
     let ids = base()
-        .whereRaw("id > ? and id < ?", vec![0.into()])
-        .addBinding(4, None)?
+        .where_raw("id > ? and id < ?", vec![0.into()])
+        .add_binding(4, None)?
         .r#where("group_id", "=", 1)
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await?;
     assert_eq!(
@@ -308,19 +308,19 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     assert_eq!(
         base()
             .r#where("id", "=", 1)
-            .setBindings(vec![2.into()], None)?
+            .set_bindings(vec![2.into()], None)?
             .value("score")
             .await?,
         20.into()
     );
     assert_eq!(
         base()
-            .selectRaw("? as unused", vec![777.into()])
-            .setBindings(vec![888.into()], Some("select"))?
+            .select_raw("? as unused", vec![777.into()])
+            .set_bindings(vec![888.into()], Some("select"))?
             .r#where("group_id", "=", 1)
-            .setBindings(vec![2.into()], None)?
-            .orderByRaw("case when id = ? then 0 else 1 end", vec![1.into()])
-            .setBindings(vec![4.into()], Some("order"))?
+            .set_bindings(vec![2.into()], None)?
+            .order_by_raw("case when id = ? then 0 else 1 end", vec![1.into()])
+            .set_bindings(vec![4.into()], Some("order"))?
             .count("*")
             .await?,
         2
@@ -328,7 +328,7 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     assert_eq!(
         base()
             .r#where("id", "=", 1)
-            .setBindings(vec![3.into()], None)?
+            .set_bindings(vec![3.into()], None)?
             .update(BTreeMap::from([("score".into(), 99.into())]))
             .await?,
         1
@@ -339,27 +339,27 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     );
     let mut callbacks = base()
         .r#where("id", "=", 1)
-        .setBindings(vec![3.into()], None)?
-        .beforeQuery(|q| Ok(q.r#where("score", "=", 99)));
-    callbacks.applyBeforeQueryCallbacks()?;
+        .set_bindings(vec![3.into()], None)?
+        .before_query(|q| Ok(q.r#where("score", "=", 99)));
+    callbacks.apply_before_query_callbacks()?;
     assert_eq!(callbacks.get_bindings()?, [3.into(), 99.into()]);
     assert_eq!(callbacks.get().await?.len(), 1);
     let page = base()
         .r#where("group_id", "=", 1)
-        .setBindings(vec![2.into()], None)?
-        .orderByRaw("case when id = ? then 0 else 1 end", vec![1.into()])
-        .setBindings(vec![4.into()], Some("order"))?
+        .set_bindings(vec![2.into()], None)?
+        .order_by_raw("case when id = ? then 0 else 1 end", vec![1.into()])
+        .set_bindings(vec![4.into()], Some("order"))?
         .paginate(1)
         .await?;
     assert_eq!(page.total(), 2);
     assert_eq!(page.items()[0].get("id"), Some(&4.into()));
     let grouped = base()
         .r#where("score", ">", 1000)
-        .setBindings(vec![0.into()], None)?
-        .orderByRaw("case when id = ? then 0 else 1 end", vec![1.into()])
-        .setBindings(vec![4.into()], Some("order"))?
-        .orderBy("id", "asc")
-        .groupLimit(1, "group_id")
+        .set_bindings(vec![0.into()], None)?
+        .order_by_raw("case when id = ? then 0 else 1 end", vec![1.into()])
+        .set_bindings(vec![4.into()], Some("order"))?
+        .order_by("id", "asc")
+        .group_limit(1, "group_id")
         .get()
         .await?;
     let selected = grouped
@@ -371,23 +371,23 @@ async fn changed_bindings_execute_reads_aggregates_writes_and_pagination() -> Da
     assert_eq!(
         base()
             .r#where("id", "=", 1)
-            .setBindings(vec![4.into()], None)?
+            .set_bindings(vec![4.into()], None)?
             .delete()
             .await?,
         1
     );
     assert_eq!(base().count("*").await?, 3);
-    if db.getDriverName() == "pgsql" {
+    if db.get_driver_name() == "pgsql" {
         let mut source = base().select(["id"]).r#where("id", "=", 1);
         let changed = base()
-            .joinSub(&mut source, "joined", |join| {
+            .join_sub(&mut source, "joined", |join| {
                 join.on("parity_binding_items.id", "=", "joined.id")
                     .r#where("joined.id", "=", 1)
             })?
             .r#where("parity_binding_items.id", "=", 2)
-            .setBindings(vec![3.into(), 3.into()], Some("join"))?
-            .setBindings(vec![3.into()], None)?
-            .updateFrom(BTreeMap::from([("score".into(), Value::from(101))]))
+            .set_bindings(vec![3.into(), 3.into()], Some("join"))?
+            .set_bindings(vec![3.into()], None)?
+            .update_from(BTreeMap::from([("score".into(), Value::from(101))]))
             .await?;
         assert_eq!(changed, 1);
         assert_eq!(

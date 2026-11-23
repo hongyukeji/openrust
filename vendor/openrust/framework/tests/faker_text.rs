@@ -10,7 +10,7 @@ fn text_respects_bounds_and_locale_fallback() {
     ] {
         let faker = fake(Some(locale)).unwrap();
         let text = faker
-            .realTextBetween(Some(50), Some(120), None)
+            .real_text_between(Some(50), Some(120), None)
             .unwrap_or_else(|error| panic!("{locale}: {error}"));
         assert!(
             (51..=120).contains(&text.chars().count()),
@@ -26,31 +26,31 @@ fn text_respects_bounds_and_locale_fallback() {
 
     let faker = fake(None).unwrap();
     for index in 1..=5 {
-        let text = faker.realText(Some(150), Some(index)).unwrap();
+        let text = faker.real_text(Some(150), Some(index)).unwrap();
         assert!((121..=150).contains(&text.chars().count()));
     }
     for (min, max, index) in [(0, 20, 2), (2, 9, 2), (20, 20, 2), (2, 20, 0), (2, 20, 6)] {
         assert!(
             faker
-                .realTextBetween(Some(min), Some(max), Some(index))
+                .real_text_between(Some(min), Some(max), Some(index))
                 .is_err()
         );
     }
     let unique = faker.unique(true);
-    let first = unique.realText(None, None).unwrap();
-    assert_ne!(unique.realText(None, None).unwrap(), first);
+    let first = unique.real_text(None, None).unwrap();
+    assert_ne!(unique.real_text(None, None).unwrap(), first);
 }
 
 #[test]
 fn real_text_keeps_the_persian_byte_limit_and_czech_quote_cleanup() {
     let persian = fake(Some("fa-IR")).unwrap();
-    assert!(persian.realTextBetween(None, None, None).is_err());
+    assert!(persian.real_text_between(None, None, None).is_err());
     for _ in 0..20 {
-        let text = persian.realText(Some(80), None).unwrap();
+        let text = persian.real_text(Some(80), None).unwrap();
         assert!(text.ends_with('.') && text.len() <= 80);
     }
     let czech = fake(Some("cs-CZ")).unwrap();
     for _ in 0..20 {
-        assert!(!czech.realText(None, None).unwrap().contains(['„', '“']));
+        assert!(!czech.real_text(None, None).unwrap().contains(['„', '“']));
     }
 }

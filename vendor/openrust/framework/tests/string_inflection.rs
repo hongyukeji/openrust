@@ -19,31 +19,31 @@ fn pinned_doctrine_matrix_covers_all_languages() {
             unknown => panic!("unknown fixture language {unknown}"),
         };
         assert_eq!(
-            Str::pluralIn(&word, 2, language),
+            Str::plural_in(&word, 2, language),
             plural,
             "{language:?} {word}"
         );
         assert_eq!(
-            Str::singularIn(&plural, language),
+            Str::singular_in(&plural, language),
             singular,
             "{language:?} {plural}"
         );
-        assert_eq!(Str::pluralIn(&word, -1, language), word);
+        assert_eq!(Str::plural_in(&word, -1, language), word);
     }
 }
 
 #[test]
 fn fluent_and_counted_calls_use_explicit_language() {
     assert_eq!(
-        Str::of("cheval").pluralIn(2, Language::French).to_string(),
+        Str::of("cheval").plural_in(2, Language::French).to_string(),
         "chevaux"
     );
     assert_eq!(
-        Str::pluralPascalIn("TeamCheval", 2, Language::French),
+        Str::plural_pascal_in("TeamCheval", 2, Language::French),
         "TeamChevaux"
     );
     assert_eq!(
-        Str::countedIn("cheval", 1250, Language::French),
+        Str::counted_in("cheval", 1250, Language::French),
         "1,250 chevaux"
     );
     assert_eq!(Str::plural("child", 2), "children");

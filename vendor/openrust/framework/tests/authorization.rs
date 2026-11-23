@@ -114,7 +114,7 @@ impl Policy<Document> for DocumentPolicy {
                 "create" => Decision::from(document.is_none() && identity(user, "owner")),
                 "update"
                     if document.is_some_and(|document| {
-                        document.getAttribute("owner") == Some(&Value::from("owner"))
+                        document.get_attribute("owner") == Some(&Value::from("owner"))
                     }) && identity(user, "owner")
                         && args
                             .first()
@@ -148,31 +148,31 @@ fn explicit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 
 fn api() -> Result<(), RoutingError> {
-    Route::getWith("/public", status, |route| {
+    Route::get_with("/public", status, |route| {
         route.can("public", &[]);
         Ok(())
     })?;
     Route::get("/user", explicit)?;
     for ability in ["before", "after", "denied", "unknown", "status"] {
-        Route::getWith(&format!("/{ability}"), status, |route| {
+        Route::get_with(&format!("/{ability}"), status, |route| {
             route.can(ability, &[]);
             Ok(())
         })?;
     }
-    Route::getWith("/update/{document}", status, |route| {
+    Route::get_with("/update/{document}", status, |route| {
         route
             .model::<Document>("document")?
             .can("update", &["document", "'internal'"])
             .middleware_name("auth");
         Ok(())
     })?;
-    Route::getWith("/conceal/{document}", status, |route| {
+    Route::get_with("/conceal/{document}", status, |route| {
         route
             .model::<Document>("document")?
             .can("conceal", &["document"]);
         Ok(())
     })?;
-    Route::getWith("/create", status, |route| {
+    Route::get_with("/create", status, |route| {
         route.middleware(Arc::new(
             Authorize::new("create", std::iter::empty::<String>())
                 .with_argument(PolicyTarget::of::<Document>()),

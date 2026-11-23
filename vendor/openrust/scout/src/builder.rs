@@ -59,7 +59,7 @@ impl<M: Searchable> Clone for Builder<M> {
 impl<M: Searchable> Builder<M> {
     pub fn new(model: M, query: impl Into<String>, manager: Arc<EngineManager>) -> Self {
         let mut wheres = Vec::new();
-        if manager.boolean("soft_delete") && model.getDeletedAtColumn().is_some() {
+        if manager.boolean("soft_delete") && model.get_deleted_at_column().is_some() {
             wheres.push(Where {
                 field: "__soft_deleted".into(),
                 operator: "=".into(),
@@ -125,7 +125,7 @@ impl<M: Searchable> Builder<M> {
         self.limit = Some(limit);
         self
     }
-    pub fn orderBy(mut self, column: impl Into<String>, direction: &str) -> Self {
+    pub fn order_by(mut self, column: impl Into<String>, direction: &str) -> Self {
         self.orders.push((
             column.into(),
             if direction.eq_ignore_ascii_case("asc") {
@@ -137,20 +137,20 @@ impl<M: Searchable> Builder<M> {
         ));
         self
     }
-    pub fn orderByDesc(self, column: impl Into<String>) -> Self {
-        self.orderBy(column, "desc")
+    pub fn order_by_desc(self, column: impl Into<String>) -> Self {
+        self.order_by(column, "desc")
     }
     pub fn latest(self, column: Option<&str>) -> Self {
         let column = column
-            .unwrap_or_else(|| self.model.getCreatedAtColumn().unwrap_or("created_at"))
+            .unwrap_or_else(|| self.model.get_created_at_column().unwrap_or("created_at"))
             .to_owned();
-        self.orderBy(column, "desc")
+        self.order_by(column, "desc")
     }
     pub fn oldest(self, column: Option<&str>) -> Self {
         let column = column
-            .unwrap_or_else(|| self.model.getCreatedAtColumn().unwrap_or("created_at"))
+            .unwrap_or_else(|| self.model.get_created_at_column().unwrap_or("created_at"))
             .to_owned();
-        self.orderBy(column, "asc")
+        self.order_by(column, "asc")
     }
     pub fn options(mut self, options: serde_json::Value) -> Self {
         self.options = options;
@@ -245,8 +245,8 @@ impl<M: Searchable> Builder<M> {
     pub async fn first(&self) -> Result<Option<M>> {
         Ok(self.get().await?.into_iter().next())
     }
-    pub async fn paginate(&self, perPage: u64, page: u64) -> Result<LengthAwarePaginator<M>> {
-        if perPage == 0 {
+    pub async fn paginate(&self, per_page: u64, page: u64) -> Result<LengthAwarePaginator<M>> {
+        if per_page == 0 {
             return Err(Error::InvalidConfiguration(
                 "Scout page size must be positive".into(),
             ));
@@ -256,12 +256,12 @@ impl<M: Searchable> Builder<M> {
         LengthAwarePaginator::<M>::new(
             vec![],
             0,
-            perPage,
+            per_page,
             Some(page),
             PaginatorOptions::default(),
         )?;
         let results =
-            self.applyAfterRawSearchCallback(engine.paginate(self, perPage, page).await?)?;
+            self.applyAfterRawSearchCallback(engine.paginate(self, per_page, page).await?)?;
         let models = engine.map(self, &results).await?;
         let total = if self.queryCallback.is_some() {
             let mut all = self.clone();
@@ -274,30 +274,31 @@ impl<M: Searchable> Builder<M> {
         let mut paginator = LengthAwarePaginator::new(
             models,
             total,
-            perPage,
+            per_page,
             Some(page),
             PaginatorOptions::default(),
         )?;
         paginator.appends(&[("query".into(), self.query.clone())]);
         Ok(paginator)
     }
-    pub async fn simplePaginate(&self, perPage: u64, page: u64) -> Result<Paginator<M>> {
-        if perPage == 0 {
+    pub async fn simple_paginate(&self, per_page: u64, page: u64) -> Result<Paginator<M>> {
+        if per_page == 0 {
             return Err(Error::InvalidConfiguration(
                 "Scout page size must be positive".into(),
             ));
         }
         let engine = self.engine()?;
-        Paginator::<M>::new(vec![], perPage, Some(page), PaginatorOptions::default())?;
+        Paginator::<M>::new(vec![], per_page, Some(page), PaginatorOptions::default())?;
         let results =
-            self.applyAfterRawSearchCallback(engine.paginate(self, perPage, page).await?)?;
+            self.applyAfterRawSearchCallback(engine.paginate(self, per_page, page).await?)?;
         let mut paginator = Paginator::new(
             engine.map(self, &results).await?,
-            perPage,
+            per_page,
             Some(page),
             PaginatorOptions::default(),
         )?;
-        paginator.hasMorePagesWhen(perPage.saturating_mul(page) < engine.getTotalCount(&results));
+        paginator
+            .has_more_pages_when(per_page.saturating_mul(page) < engine.getTotalCount(&results));
         paginator.appends(&[("query".into(), self.query.clone())]);
         Ok(paginator)
     }
@@ -316,10 +317,10 @@ impl<M: Searchable> Builder<M> {
         .boxed()
     }
     pub fn modelConnectionType(&self) -> Result<String> {
-        Ok(self.model.getConnection()?.getDriverName().into())
+        Ok(self.model.get_connection()?.get_driver_name().into())
     }
     pub(crate) fn collectionQuery(&self) -> Result<EloquentBuilder<'static, M>> {
-        let mut query = M::queryOn(&self.model.getConnection()?);
+        let mut query = M::query_on(&self.model.get_connection()?);
         if let Some(callback) = &self.callback {
             query = callback(query)?;
         } else {
@@ -332,17 +333,17 @@ impl<M: Searchable> Builder<M> {
                 query.where_in(field, values.clone());
             }
             for (field, values) in &self.whereNotIns {
-                query.whereNested(|conditions| conditions.where_not_in(field, values.clone()));
+                query.where_nested(|conditions| conditions.where_not_in(field, values.clone()));
             }
         }
         for (column, direction) in &self.orders {
-            query = query.orderBy(column, direction);
+            query = query.order_by(column, direction);
         }
         if self.orders.is_empty() {
-            query = query.orderBy(&self.model.getScoutKeyName(), "desc");
+            query = query.order_by(&self.model.getScoutKeyName(), "desc");
         }
         let soft = self.wheres.iter().find(|w| w.field == "__soft_deleted");
-        if self.model.getDeletedAtColumn().is_some() {
+        if self.model.get_deleted_at_column().is_some() {
             query = match soft.map(|w| &w.value) {
                 Some(Value::Integer(1)) => query.only_trashed(),
                 Some(Value::Integer(0)) => query.without_trashed(),

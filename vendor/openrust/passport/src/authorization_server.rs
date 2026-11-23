@@ -249,7 +249,7 @@ impl AuthorizationServer {
             .active_scopes(
                 &connection,
                 client
-                    .getKey()
+                    .get_key()
                     .await
                     .ok_or_else(|| OAuthError::invalid_client(None))?,
                 Value::from(user.clone()),
@@ -291,7 +291,7 @@ impl AuthorizationServer {
         }
         let client = self.client(&request.client_id, None).await?;
         let connection = client.connection().await.map_err(internal)?;
-        let mut transaction = connection.beginTransaction().await.map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         client
             .refresh_for_update(&mut transaction)
             .await
@@ -336,7 +336,7 @@ impl AuthorizationServer {
                 (
                     "client_id".into(),
                     client
-                        .getKey()
+                        .get_key()
                         .await
                         .ok_or_else(|| OAuthError::invalid_client(None))?,
                 ),
@@ -404,7 +404,7 @@ impl AuthorizationServer {
             .map_err(internal)?
             .ok_or_else(|| OAuthError::invalid_client(authorization))?;
         let connection = client.connection().await.map_err(internal)?;
-        let mut transaction = connection.beginTransaction().await.map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         client
             .refresh_for_update(&mut transaction)
             .await
@@ -415,7 +415,11 @@ impl AuthorizationServer {
             let secret = parameters
                 .secret_parameter("client_secret", basic_secret.as_deref().map(Vec::as_slice))?
                 .ok_or_else(|| OAuthError::invalid_request("client_secret", None))?;
-            let stored = match client.getAttributeValue("secret").await.map_err(internal)? {
+            let stored = match client
+                .get_attribute_value("secret")
+                .await
+                .map_err(internal)?
+            {
                 Some(Value::Text(value)) => Zeroizing::new(value),
                 _ => return Err(OAuthError::invalid_client(authorization)),
             };
@@ -452,7 +456,7 @@ impl AuthorizationServer {
         let encoded = parameters
             .parameter("code", None)?
             .ok_or_else(|| OAuthError::invalid_request("code", None))?;
-        let plaintext = Zeroizing::new(self.encryption.decryptString(&encoded).map_err(|_| {
+        let plaintext = Zeroizing::new(self.encryption.decrypt_string(&encoded).map_err(|_| {
             OAuthError::invalid_grant("Cannot validate the provided authorization code")
         })?);
         let payload: CodePayload = serde_json::from_slice(&plaintext).map_err(|_| {
@@ -498,7 +502,7 @@ impl AuthorizationServer {
             .ok_or_else(|| OAuthError::invalid_grant("Authorization code has been revoked"))?;
         code.lock(&mut transaction).await.map_err(internal)?;
         if code.value("revoked").map_err(internal)? != Some(Value::Bool(false))
-            || code.value("client_id").map_err(internal)? != client.getKey().await
+            || code.value("client_id").map_err(internal)? != client.get_key().await
             || code.value("scopes").map_err(internal)?
                 != Some(
                     serde_json::to_string(&payload.scopes)
@@ -553,7 +557,7 @@ impl AuthorizationServer {
         let encoded = parameters
             .parameter("refresh_token", None)?
             .ok_or_else(|| OAuthError::invalid_request("refresh_token", None))?;
-        let plaintext = Zeroizing::new(self.encryption.decryptString(&encoded).map_err(|_| {
+        let plaintext = Zeroizing::new(self.encryption.decrypt_string(&encoded).map_err(|_| {
             OAuthError::invalid_refresh_token(Some("Cannot decrypt the refresh token"))
         })?);
         let payload: RefreshPayload = serde_json::from_slice(&plaintext).map_err(|_| {
@@ -561,7 +565,7 @@ impl AuthorizationServer {
         })?;
         let id = AuthIdentifier::try_from(
             &client
-                .getKey()
+                .get_key()
                 .await
                 .ok_or_else(|| OAuthError::invalid_client(None))?,
         )
@@ -707,7 +711,7 @@ impl AuthorizationServer {
                     (
                         "client_id".into(),
                         client
-                            .getKey()
+                            .get_key()
                             .await
                             .ok_or_else(|| OAuthError::invalid_client(None))?,
                     ),
@@ -752,7 +756,7 @@ impl AuthorizationServer {
         grant: &str,
     ) -> Result<(), OAuthError> {
         if client
-            .getAttributeValue("revoked")
+            .get_attribute_value("revoked")
             .await
             .map_err(internal)?
             == Some(Value::Bool(true))
@@ -766,7 +770,7 @@ impl AuthorizationServer {
     }
     fn encrypt(&self, payload: &impl Serialize) -> Result<String, OAuthError> {
         let plaintext = Zeroizing::new(serde_json::to_vec(payload).map_err(internal)?);
-        self.encryption.encryptString(&plaintext).map_err(internal)
+        self.encryption.encrypt_string(&plaintext).map_err(internal)
     }
     fn sign(
         &self,
@@ -817,7 +821,7 @@ fn redirect_error(error: crate::RedirectUriError) -> OAuthError {
 fn now() -> Result<i64, OAuthError> {
     Ok(Date::now(None)
         .map_err(internal)?
-        .asDateTime()
+        .as_date_time()
         .timestamp()
         .as_nanosecond()
         .div_euclid(1_000_000_000) as i64)
@@ -826,7 +830,7 @@ fn sql_date(value: i64) -> Result<String, OAuthError> {
     let current = Date::now(None).map_err(internal)?;
     Ok(jiff::Timestamp::from_second(value)
         .map_err(|_| OAuthError::server_error("Invalid OAuth expiry"))?
-        .to_zoned(current.asDateTime().time_zone().clone())
+        .to_zoned(current.as_date_time().time_zone().clone())
         .strftime("%Y-%m-%d %H:%M:%S")
         .to_string())
 }

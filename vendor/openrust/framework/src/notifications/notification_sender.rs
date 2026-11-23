@@ -152,7 +152,7 @@ impl Delivery {
         operation: impl Future<Output = NotificationResult<T>>,
     ) -> NotificationResult<T> {
         match &self.locale {
-            Some(locale) => Lang::withLocale(locale, operation)
+            Some(locale) => Lang::with_locale(locale, operation)
                 .await
                 .map_err(delivery)?,
             None => operation.await,
@@ -209,7 +209,7 @@ impl<'a> NotificationSender<'a> {
         Ok(())
     }
 
-    pub async fn sendNow(
+    pub async fn send_now(
         &self,
         recipients: &[&dyn Notifiable],
         notification: &dyn Notification,

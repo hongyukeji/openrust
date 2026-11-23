@@ -27,7 +27,7 @@ impl CompilerEngine {
         self.0.render(path, source, data)
     }
 
-    pub fn getCompiler(&self) -> &BladeCompiler {
+    pub fn get_compiler(&self) -> &BladeCompiler {
         &self.0
     }
 }

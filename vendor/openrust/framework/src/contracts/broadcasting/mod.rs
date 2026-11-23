@@ -18,13 +18,13 @@ pub trait Factory: Send + Sync {
 }
 
 pub trait Broadcaster: Send + Sync {
-    fn resolveAuthenticatedUserUsing(
+    fn resolve_authenticated_user_using(
         &self,
         _: Arc<crate::broadcasting::AuthenticatedUserResolver>,
     ) -> BroadcastResult<()> {
         Err(crate::broadcasting::BroadcastException::UnsupportedUserAuthentication)
     }
-    fn resolveAuthenticatedUser<'a>(
+    fn resolve_authenticated_user<'a>(
         &'a self,
         _: &'a mut Request,
     ) -> BroadcastFuture<'a, BroadcastResult<Option<Response>>> {
@@ -39,7 +39,7 @@ pub trait Broadcaster: Send + Sync {
         &'a self,
         request: &'a mut Request,
     ) -> BroadcastFuture<'a, BroadcastResult<Response>>;
-    fn validAuthenticationResponse<'a>(
+    fn valid_authentication_response<'a>(
         &'a self,
         request: &'a mut Request,
         result: ChannelAuthorization,
@@ -63,7 +63,7 @@ pub trait ChannelHandler: Send + Sync {
         Box::pin(async { Ok(ChannelAuthorization::Denied) })
     }
 
-    fn joinBound<'a>(
+    fn join_bound<'a>(
         &'a self,
         user: &'a dyn Authenticatable,
         parameters: &'a ChannelParameters,
@@ -89,36 +89,36 @@ where
 }
 
 pub trait ShouldBroadcast: Event {
-    fn broadcastOn(&self) -> Vec<BroadcastChannel>;
-    fn broadcastAs(&self) -> Option<&str> {
+    fn broadcast_on(&self) -> Vec<BroadcastChannel>;
+    fn broadcast_as(&self) -> Option<&str> {
         None
     }
-    fn broadcastWith(&self) -> Option<BroadcastPayload> {
+    fn broadcast_with(&self) -> Option<BroadcastPayload> {
         None
     }
     /// Fields exposed when the event has no explicit broadcast payload.
-    fn broadcastData(&self) -> BroadcastPayload {
+    fn broadcast_data(&self) -> BroadcastPayload {
         BroadcastPayload::new()
     }
-    fn broadcastWhen(&self) -> bool {
+    fn broadcast_when(&self) -> bool {
         true
     }
-    fn broadcastConnections(&self) -> Vec<String> {
+    fn broadcast_connections(&self) -> Vec<String> {
         Vec::new()
     }
-    fn broadcastQueue(&self) -> Option<&str> {
+    fn broadcast_queue(&self) -> Option<&str> {
         None
     }
-    fn broadcastQueueConnection(&self) -> Option<&str> {
+    fn broadcast_queue_connection(&self) -> Option<&str> {
         None
     }
-    fn broadcastSocket(&self) -> Option<&str> {
+    fn broadcast_socket(&self) -> Option<&str> {
         None
     }
-    fn shouldBroadcastNow(&self) -> bool {
+    fn should_broadcast_now(&self) -> bool {
         false
     }
-    fn broadcastAfterCommit(&self) -> Option<bool> {
+    fn broadcast_after_commit(&self) -> Option<bool> {
         None
     }
 }
@@ -127,15 +127,15 @@ pub trait ShouldBroadcastNow: ShouldBroadcast {}
 
 /// A queued broadcast that allows only one pending delivery per event type and ID.
 pub trait ShouldBeUnique: ShouldBroadcast {
-    fn uniqueId(&self) -> &str {
+    fn unique_id(&self) -> &str {
         ""
     }
 
-    fn uniqueFor(&self) -> Option<u64> {
+    fn unique_for(&self) -> Option<u64> {
         None
     }
 
-    fn uniqueVia(&self) -> Option<&str> {
+    fn unique_via(&self) -> Option<&str> {
         None
     }
 }

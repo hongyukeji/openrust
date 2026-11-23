@@ -8,26 +8,25 @@ use std::{fmt, ops::Deref, sync::OnceLock};
 #[serde(transparent)]
 pub struct ViewErrorBag(IndexMap<String, MessageBag>);
 
-#[allow(non_snake_case)]
 impl ViewErrorBag {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn hasBag(&self, key: &str) -> bool {
+    pub fn has_bag(&self, key: &str) -> bool {
         self.0.contains_key(key)
     }
     /// 缺失包只返回空消息，不登记一个新包。
-    pub fn getBag(&self, key: &str) -> &MessageBag {
+    pub fn get_bag(&self, key: &str) -> &MessageBag {
         static EMPTY: OnceLock<MessageBag> = OnceLock::new();
         self.0
             .get(key)
             .unwrap_or_else(|| EMPTY.get_or_init(MessageBag::default))
     }
     /// Rust 的显式可变借用；缺失包由调用方通过 put 添加。
-    pub fn getBagMut(&mut self, key: &str) -> Option<&mut MessageBag> {
+    pub fn get_bag_mut(&mut self, key: &str) -> Option<&mut MessageBag> {
         self.0.get_mut(key)
     }
-    pub fn getBags(&self) -> &IndexMap<String, MessageBag> {
+    pub fn get_bags(&self) -> &IndexMap<String, MessageBag> {
         &self.0
     }
     pub fn put(&mut self, key: impl Into<String>, bag: MessageBag) -> &mut Self {
@@ -35,7 +34,7 @@ impl ViewErrorBag {
         self
     }
     pub fn count(&self) -> usize {
-        self.getBag("default").count()
+        self.get_bag("default").count()
     }
     pub fn any(&self) -> bool {
         self.count() > 0
@@ -45,12 +44,12 @@ impl ViewErrorBag {
 impl Deref for ViewErrorBag {
     type Target = MessageBag;
     fn deref(&self) -> &Self::Target {
-        self.getBag("default")
+        self.get_bag("default")
     }
 }
 impl fmt::Display for ViewErrorBag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.getBag("default").fmt(f)
+        self.get_bag("default").fmt(f)
     }
 }
 

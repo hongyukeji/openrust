@@ -97,6 +97,6 @@ let response = notification.success();
 
 ## 閘道生命週期 {#gateway-lifecycle}
 
-`PayManager::driver(name)` 懶解析並重用商戶設定和金鑰快照。`get_default_driver` 讀取目前預設名稱，`Pay::defaultDriver()` 解析它。`forgetDrivers` 讓後續解析使用新設定，已持有的 `Gateway` 複本保留原快照。管理器依應用隔離。輪換金鑰時重新整理相關實例，不從未驗證回呼取得驗章公鑰。
+`PayManager::driver(name)` 懶解析並重用商戶設定和金鑰快照。`get_default_driver` 讀取目前預設名稱，`Pay::defaultDriver()` 解析它。`forget_drivers` 讓後續解析使用新設定，已持有的 `Gateway` 複本保留原快照。管理器依應用隔離。輪換金鑰時重新整理相關實例，不從未驗證回呼取得驗章公鑰。
 
 真實商戶進件、產品權限開通、公開 HTTPS 回呼及廠商端到端驗證由部署方完成。協定測試通過不代表商戶帳號已經可以實際收付款。

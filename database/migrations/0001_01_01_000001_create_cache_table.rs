@@ -12,7 +12,7 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = connection.getSchemaBuilder();
+            let mut schema = connection.get_schema_builder();
             schema
                 .create("cache", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.cache", &Default::default())?);
@@ -55,9 +55,9 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = connection.getSchemaBuilder();
-            schema.dropIfExists("cache").await?;
-            schema.dropIfExists("cache_locks").await
+            let mut schema = connection.get_schema_builder();
+            schema.drop_if_exists("cache").await?;
+            schema.drop_if_exists("cache_locks").await
         })
     }
 }

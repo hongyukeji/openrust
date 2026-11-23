@@ -53,17 +53,17 @@ impl FileLoader {
         }
     }
 
-    pub fn addPath(&self, path: PathBuf) {
+    pub fn add_path(&self, path: PathBuf) {
         self.paths.write().unwrap().push(path);
     }
 
     /// Add an anonymous JSON translation directory before the application roots.
-    pub fn addJsonPath(&self, path: PathBuf) {
+    pub fn add_json_path(&self, path: PathBuf) {
         self.json_paths.write().unwrap().push(path);
     }
 
-    pub fn addNamespace(&mut self, namespace: impl Into<String>, path: PathBuf) {
-        self.add_namespace(namespace.into(), path);
+    pub fn add_namespace(&mut self, namespace: impl Into<String>, path: PathBuf) {
+        self.register_namespace_path(namespace.into(), path);
     }
 
     /// 发现应用资源中的语言，按规范标签排序并去重；不枚举包命名空间。
@@ -71,7 +71,7 @@ impl FileLoader {
     /// 识别 `<语言>.json` 和包含分组 JSON 文件的语言目录；名称须与规范
     /// BCP 47 标签完全一致。忽略空目录、隐藏项及符号链接，不预加载翻译内容。
     /// 缺失的根目录视为空来源，其他读取错误保留；结果由调用方决定何时刷新。
-    pub fn availableLocales(&self) -> TranslationResult<Vec<String>> {
+    pub fn available_locales(&self) -> TranslationResult<Vec<String>> {
         let paths = self.paths.read().unwrap().clone();
         let json_paths = self.json_paths.read().unwrap().clone();
         let mut locales = BTreeSet::new();
@@ -89,7 +89,7 @@ impl FileLoader {
         Ok(locales.into_iter().collect())
     }
 
-    pub(super) fn add_namespace(&self, namespace: String, path: PathBuf) {
+    pub(super) fn register_namespace_path(&self, namespace: String, path: PathBuf) {
         self.namespaces.write().unwrap().insert(namespace, path);
     }
 

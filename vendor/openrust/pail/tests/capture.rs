@@ -212,7 +212,7 @@ fn capture_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .unwrap();
         Auth::user(request).await.unwrap();
         Log::info("other identity", &LogContext::new()).unwrap();
-        Artisan::callSilently("capture:log", &[]).await.unwrap();
+        Artisan::call_silently("capture:log", &[]).await.unwrap();
         Log::info("back to HTTP", &LogContext::new()).unwrap();
         Ok(Response::new(StatusCode::OK, Body::from("captured")))
     })
@@ -223,7 +223,7 @@ fn commands() -> Result<(), ConsoleError> {
         Log::info("command captured", &LogContext::new()).unwrap();
         Log::warning("Deprecated hidden", &LogContext::new()).unwrap();
         Log::error("Deprecated error visible", &LogContext::new()).unwrap();
-        Log::logException(
+        Log::log_exception(
             Level::Error,
             "exception captured",
             &std::io::Error::other("exception details"),
@@ -249,8 +249,8 @@ impl Command for ConcurrentCommand {
             let name = self.0.name();
             if name == "capture:parallel" {
                 let (left, right) = tokio::join!(
-                    Artisan::callSilently("capture:left", &[]),
-                    Artisan::callSilently("capture:right", &[])
+                    Artisan::call_silently("capture:left", &[]),
+                    Artisan::call_silently("capture:right", &[])
                 );
                 assert_eq!(left?, 0);
                 assert_eq!(right?, 0);
@@ -299,7 +299,7 @@ impl Command for Inspect {
                 std::fs::read_to_string(app.base_path().join("storage/pail/one.pail")).unwrap();
             let selected: Vec<_> = contents
                 .lines()
-                .map(|line| MessageLogged::fromJson(line).unwrap())
+                .map(|line| MessageLogged::from_json(line).unwrap())
                 .filter(|message| options.accepts(message))
                 .map(|message| message.to_string())
                 .collect();
@@ -308,7 +308,7 @@ impl Command for Inspect {
             if input.matches().get_flag("print") {
                 let mut printer = CliPrinter::new(output, app.base_path());
                 for record in &selected {
-                    printer.print(&MessageLogged::fromJson(record).unwrap())?;
+                    printer.print(&MessageLogged::from_json(record).unwrap())?;
                 }
             } else {
                 output
@@ -467,7 +467,7 @@ async fn run_acceptance() {
                 .unwrap();
         assert_eq!(result["timeout"], 100);
         assert_eq!(result["selected"].as_array().unwrap().len(), 1);
-        let message = MessageLogged::fromJson(result["selected"][0].as_str().unwrap()).unwrap();
+        let message = MessageLogged::from_json(result["selected"][0].as_str().unwrap()).unwrap();
         assert_eq!(message.authId().as_deref(), Some(id));
         assert_eq!(message.message(), "after identity");
     }
@@ -601,18 +601,18 @@ async fn worker_acceptance(root: &Root) {
         .unwrap()
         .connection(None)
         .unwrap();
-    let mut schema = database.getSchemaBuilder();
-    schema.dropIfExists("jobs").await.unwrap();
-    schema.dropIfExists("failed_jobs").await.unwrap();
+    let mut schema = database.get_schema_builder();
+    schema.drop_if_exists("jobs").await.unwrap();
+    schema.drop_if_exists("failed_jobs").await.unwrap();
     schema
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();
@@ -624,7 +624,7 @@ async fn worker_acceptance(root: &Root) {
             table.text("queue");
             table.longText("payload");
             table.longText("exception");
-            table.timestamp("failed_at", None).useCurrent();
+            table.timestamp("failed_at", None).use_current();
         })
         .await
         .unwrap();
@@ -698,8 +698,8 @@ async fn worker_acceptance(root: &Root) {
         manager.connection(None).unwrap().size(None).await.unwrap(),
         0
     );
-    schema.dropIfExists("jobs").await.unwrap();
-    schema.dropIfExists("failed_jobs").await.unwrap();
+    schema.drop_if_exists("jobs").await.unwrap();
+    schema.drop_if_exists("failed_jobs").await.unwrap();
     println!(
         "Pail real MySQL Worker, isolated job, failed callback and following consumption passed"
     );

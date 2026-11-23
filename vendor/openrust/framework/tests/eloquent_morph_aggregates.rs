@@ -57,7 +57,7 @@ impl Model for Rating {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("positive", &Positive)]
     }
 }
@@ -116,48 +116,48 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
     for case in reference.as_array().unwrap() {
         let id = case["id"].as_i64().unwrap();
         let attribute = case["attribute"].as_str().unwrap();
-        let mut activity = Activity::queryOn(&db)
+        let mut activity = Activity::query_on(&db)
             .with("subject", morph())
-            .findOrFail(id)
+            .find_or_fail(id)
             .await
             .unwrap();
         match case["method"].as_str().unwrap() {
             "max" => {
                 activity
-                    .loadMorphMax("subject", &subjects, "post", "ratings", &ratings, "score")
+                    .load_morph_max("subject", &subjects, "post", "ratings", &ratings, "score")
                     .await
             }
             "min" => {
                 activity
-                    .loadMorphMin("subject", &subjects, "post", "ratings", &ratings, "score")
+                    .load_morph_min("subject", &subjects, "post", "ratings", &ratings, "score")
                     .await
             }
             "sum" => {
                 activity
-                    .loadMorphSum("subject", &subjects, "post", "ratings", &ratings, "score")
+                    .load_morph_sum("subject", &subjects, "post", "ratings", &ratings, "score")
                     .await
             }
             "avg" => {
                 activity
-                    .loadMorphAvg("subject", &subjects, "post", "ratings", &ratings, "score")
+                    .load_morph_avg("subject", &subjects, "post", "ratings", &ratings, "score")
                     .await
             }
             _ => unreachable!(),
         }
         .unwrap();
         let target = activity
-            .getRelation::<Option<MorphTarget>>("subject")
+            .get_relation::<Option<MorphTarget>>("subject")
             .unwrap();
         if id <= 2 {
             let model = target.as_ref().unwrap().downcast_ref::<Post>().unwrap();
-            let value = model.getAttribute(attribute);
+            let value = model.get_attribute(attribute);
             assert_eq!(
                 value.is_some(),
                 case["present"].as_bool().unwrap(),
                 "{case}"
             );
             assert_eq!(value.and_then(numeric), case["value"].as_f64(), "{case}");
-            assert_eq!(model.getRawOriginal(attribute), value);
+            assert_eq!(model.get_raw_original(attribute), value);
         } else if id == 3 {
             assert!(
                 target
@@ -165,20 +165,20 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
                     .unwrap()
                     .downcast_ref::<Other>()
                     .unwrap()
-                    .getAttribute(attribute)
+                    .get_attribute(attribute)
                     .is_none()
             );
         } else {
             assert!(target.is_none());
         }
     }
-    let mut activity = Activity::queryOn(&db)
+    let mut activity = Activity::query_on(&db)
         .with("subject", morph())
-        .findOrFail(1)
+        .find_or_fail(1)
         .await
         .unwrap();
     activity
-        .loadMorphMax(
+        .load_morph_max(
             "subject",
             &subjects,
             "post",
@@ -191,13 +191,13 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
     assert_eq!(
         numeric(
             activity
-                .getRelation::<Option<MorphTarget>>("subject")
+                .get_relation::<Option<MorphTarget>>("subject")
                 .unwrap()
                 .as_ref()
                 .unwrap()
                 .downcast_ref::<Post>()
                 .unwrap()
-                .getAttribute("peak")
+                .get_attribute("peak")
                 .unwrap()
         ),
         Some(20.)
@@ -205,7 +205,7 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
     let before = activity.to_array().unwrap();
     assert!(
         activity
-            .loadMorphSum(
+            .load_morph_sum(
                 "subject",
                 &subjects,
                 "post",
@@ -223,7 +223,7 @@ async fn morph_aggregate_helpers_preserve_scopes_null_targets_aliases_and_cached
     );
     assert!(
         activity
-            .loadMorphAvg("subject", &subjects, "other", "ratings", &ratings, "score")
+            .load_morph_avg("subject", &subjects, "other", "ratings", &ratings, "score")
             .await
             .is_err()
     );

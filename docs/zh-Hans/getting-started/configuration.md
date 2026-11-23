@@ -6,7 +6,7 @@
 
 `app.url` 优先使用显式设置的 `APP_URL`。未设置时，使用具体的 `APP_HOST` 和 `APP_PORT` 生成 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未设置主机，或使用 `127.0.0.1`、`::1` 等回环地址或 `0.0.0.0`、`::` 等通配监听地址时，使用 `http://localhost:{port}`。环境模板设置了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用模板默认值时展开为 `http://127.0.0.1:8000`。
 
-HTTP 请求内生成 URL 时，包括使用 `URL::for_request(request)`，优先使用显式设置的 `APP_URL`，其次是当前请求的来源。请求没有来源时，使用从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。
+HTTP 请求内生成 URL 时，包括使用 `Url::for_request(request)`，优先使用显式设置的 `APP_URL`，其次是当前请求的来源。请求没有来源时，使用从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。
 
 设置 `APP_VERSION` 可覆盖 `app.version` 中的应用版本。未设置时，默认取编译时由 `env!("CARGO_PKG_VERSION")` 读取的 Cargo 包版本。欢迎页显示 `app.version`。
 
@@ -148,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `FILESYSTEM_WEB_ROOT` 优先指定网站磁盘根目录；未设置时使用 `APP_PUBLIC_PATH`（默认 `public`）。相对路径基于应用根目录，绝对路径直接使用。空字符串或全空白值会导致配置加载失败。
 
-未设置 `APP_PUBLIC_PATH` 时，`config/app.rs` 明确将 `app.public_path` 设为 `public`，`web` 磁盘复用该值作为默认根目录。网站文件配置在 `filesystems.disks.web`，公开上传文件配置在 `filesystems.disks.public`。默认路由按顺序调用 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引导前调用 `use_public_path()` 会覆盖网站目录并同步 `web.root`。相对目录以应用根目录为基准。挂载前缀取磁盘 URL 的完整路径，例如 `/storage/tmp/` 挂到 `/storage/tmp`。绝对 URL 必须与 `app.url` 同源。修改挂载配置后重启应用。 显式设置为空字符串或全空白的 `APP_PUBLIC_PATH` 会导致配置加载失败。
+未设置 `APP_PUBLIC_PATH` 时，`config/app.rs` 明确将 `app.public_path` 设为 `public`，`web` 磁盘复用该值作为默认根目录。网站文件配置在 `filesystems.disks.web`，公开上传文件配置在 `filesystems.disks.public`。默认路由按顺序调用 `Route::static_disk("web")` 和 `Route::static_disk("public")`。引导前调用 `use_public_path()` 会覆盖网站目录并同步 `web.root`。相对目录以应用根目录为基准。挂载前缀取磁盘 URL 的完整路径，例如 `/storage/tmp/` 挂到 `/storage/tmp`。绝对 URL 必须与 `app.url` 同源。修改挂载配置后重启应用。 显式设置为空字符串或全空白的 `APP_PUBLIC_PATH` 会导致配置加载失败。
 
 ## 维护模式 {#maintenance-mode}
 

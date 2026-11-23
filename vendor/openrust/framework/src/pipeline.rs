@@ -2,7 +2,7 @@
 
 use std::{future::Future, pin::Pin};
 
-use crate::database::{DB, DatabaseError, DatabaseResult, Transaction};
+use crate::database::{DatabaseError, DatabaseResult, Db, Transaction};
 
 pub type PipelineFuture<'a, R, E> = Pin<Box<dyn Future<Output = Result<R, E>> + Send + 'a>>;
 pub type PipelinePipe<T, R, E, C = ()> =
@@ -81,7 +81,7 @@ impl<T, E, R, C> Pipeline<T, E, R, C> {
         self
     }
 
-    pub async fn thenWith(
+    pub async fn then_with(
         self,
         context: &mut C,
         destination: impl for<'a> FnOnce(T, &'a mut C) -> PipelineFuture<'a, R, E> + Send + 'static,
@@ -103,7 +103,7 @@ impl<T, R: Send + 'static, E: Send + 'static> Pipeline<T, E, R> {
         self,
         destination: impl FnOnce(T) -> Result<R, E> + Send + 'static,
     ) -> Result<R, E> {
-        self.thenWith(&mut (), |value, _| {
+        self.then_with(&mut (), |value, _| {
             Box::pin(std::future::ready(destination(value)))
         })
         .await
@@ -120,7 +120,7 @@ impl<T: Send + 'static, E: Send + 'static> Pipeline<T, E> {
 #[allow(non_snake_case, reason = "保留管道公开方法名")]
 impl<T: Send + 'static, R: Send + 'static> Pipeline<T, DatabaseError, R, Transaction> {
     /// 仅配置事务；直到 then/thenReturn 才解析连接、开启事务并执行管道。
-    pub fn withinTransaction(self, connection: Option<&str>) -> TransactionalPipeline<T, R> {
+    pub fn within_transaction(self, connection: Option<&str>) -> TransactionalPipeline<T, R> {
         TransactionalPipeline {
             pipeline: self,
             connection: connection.map(str::to_owned),
@@ -171,14 +171,14 @@ impl<T: Send + 'static, R: Send + 'static> TransactionalPipeline<T, R> {
         + 'static,
     ) -> DatabaseResult<R> {
         let _finalizer = Finalizer(self.pipeline.finalizer.take());
-        match DB::connection(self.connection.as_deref()) {
+        match Db::connection(self.connection.as_deref()) {
             Ok(connection) => {
                 let mut run = Some((self.pipeline, destination));
                 connection
                     .transaction(
                         move |transaction| {
                             let (pipeline, destination) = run.take().expect("事务管道仅执行一次");
-                            Box::pin(pipeline.thenWith(transaction, destination))
+                            Box::pin(pipeline.then_with(transaction, destination))
                         },
                         1,
                     )
@@ -200,6 +200,6 @@ impl<T: Send + 'static> TransactionalPipeline<T> {
 #[allow(non_snake_case, reason = "保留管道公开方法名")]
 impl<T: Send + 'static> Pipeline<T, DatabaseError, T, Transaction> {
     pub async fn thenReturnWithinTransaction(self, connection: Option<&str>) -> DatabaseResult<T> {
-        self.withinTransaction(connection).thenReturn().await
+        self.within_transaction(connection).thenReturn().await
     }
 }

@@ -55,7 +55,7 @@ pub(super) async fn email(
     } else {
         String::from_utf8_lossy(output).into_owned()
     };
-    crate::support::facades::Mail::sendNow(&ScheduledOutput(
+    crate::support::facades::Mail::send_now(&ScheduledOutput(
         Envelope {
             to: recipients.to_vec(),
             subject,

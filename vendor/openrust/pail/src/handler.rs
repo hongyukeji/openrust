@@ -37,8 +37,7 @@ impl Handler {
     }
 
     /// Resolves authentication only at an explicitly awaited request log boundary.
-    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
-    pub async fn logWithRequest(
+    pub async fn log_with_request(
         &self,
         event: &MessageLogged,
         request: &mut openrust::http::Request,

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, future::Future};
 
 use crate::{
-    database::{Connection, DB, DatabaseError, DatabaseResult, Value},
+    database::{Connection, DatabaseError, DatabaseResult, Db, Value},
     http::{
         HttpError, HttpFuture,
         resources::json::{JsonResource, UseResource},
@@ -29,7 +29,6 @@ pub enum ModelKeyType {
 }
 
 /// A model type implemented by the application.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Model: Sized + Send + Sync + 'static {
     fn metadata() -> &'static ModelMetadata;
     fn from_state(state: ModelState) -> Self;
@@ -37,26 +36,26 @@ pub trait Model: Sized + Send + Sync + 'static {
     fn state_mut(&mut self) -> &mut ModelState;
 
     /// Builds the resource declared for this model.
-    fn toResource(self) -> <Self as UseResource>::Resource
+    fn to_resource(self) -> <Self as UseResource>::Resource
     where
         Self: UseResource,
     {
-        self.toResourceWith()
+        self.to_resource_with()
     }
 
     /// Selects a resource explicitly for this model.
-    fn toResourceWith<R: JsonResource + From<Self>>(self) -> R {
+    fn to_resource_with<R: JsonResource + From<Self>>(self) -> R {
         R::make(self)
     }
 
     /// 定制模型查询的默认行为；通过 fromQuery 构造后沿用公共查询入口。
-    fn newEloquentBuilder(
+    fn new_eloquent_builder(
         query: crate::database::query::Builder<'static>,
     ) -> Builder<'static, Self> {
-        Builder::fromQuery(query)
+        Builder::from_query(query)
     }
 
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[]
     }
 
@@ -66,7 +65,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Maps a lifecycle event to a typed application event using the current model state.
-    fn dispatchesEvents(
+    fn dispatches_events(
         &self,
         _event: concerns::ModelEvent,
     ) -> Option<std::sync::Arc<dyn crate::contracts::events::Event>> {
@@ -81,7 +80,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         &[]
     }
 
-    fn getHidden(&self) -> Vec<&str> {
+    fn get_hidden(&self) -> Vec<&str> {
         serialization::names(
             self.state().serialization().hidden.as_deref(),
             Self::metadata().hidden,
@@ -89,13 +88,13 @@ pub trait Model: Sized + Send + Sync + 'static {
         .collect()
     }
 
-    fn setHidden(&mut self, attributes: &[&str]) -> &mut Self {
+    fn set_hidden(&mut self, attributes: &[&str]) -> &mut Self {
         self.state_mut().serialization_mut().hidden =
             Some(attributes.iter().map(|name| (*name).into()).collect());
         self
     }
 
-    fn mergeHidden(&mut self, attributes: &[&str]) -> &mut Self {
+    fn merge_hidden(&mut self, attributes: &[&str]) -> &mut Self {
         if !attributes.is_empty() {
             serialization::merge(
                 serialization::local_names(
@@ -108,7 +107,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self
     }
 
-    fn getVisible(&self) -> Vec<&str> {
+    fn get_visible(&self) -> Vec<&str> {
         serialization::names(
             self.state().serialization().visible.as_deref(),
             Self::metadata().visible,
@@ -116,13 +115,13 @@ pub trait Model: Sized + Send + Sync + 'static {
         .collect()
     }
 
-    fn setVisible(&mut self, attributes: &[&str]) -> &mut Self {
+    fn set_visible(&mut self, attributes: &[&str]) -> &mut Self {
         self.state_mut().serialization_mut().visible =
             Some(attributes.iter().map(|name| (*name).into()).collect());
         self
     }
 
-    fn mergeVisible(&mut self, attributes: &[&str]) -> &mut Self {
+    fn merge_visible(&mut self, attributes: &[&str]) -> &mut Self {
         if !attributes.is_empty() {
             serialization::merge(
                 serialization::local_names(
@@ -135,7 +134,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self
     }
 
-    fn getAppends(&self) -> Vec<&str> {
+    fn get_appends(&self) -> Vec<&str> {
         serialization::names(
             self.state().serialization().appends.as_deref(),
             Self::metadata().appends,
@@ -143,7 +142,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         .collect()
     }
 
-    fn setAppends(&mut self, attributes: &[&str]) -> &mut Self {
+    fn set_appends(&mut self, attributes: &[&str]) -> &mut Self {
         self.state_mut().serialization_mut().appends =
             Some(attributes.iter().map(|name| (*name).into()).collect());
         self
@@ -162,7 +161,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self
     }
 
-    fn makeVisible(&mut self, attributes: &[&str]) -> &mut Self {
+    fn make_visible(&mut self, attributes: &[&str]) -> &mut Self {
         let metadata = Self::metadata();
         let options = self.state_mut().serialization_mut();
         serialization::local_names(&mut options.hidden, metadata.hidden)
@@ -174,33 +173,33 @@ pub trait Model: Sized + Send + Sync + 'static {
         self
     }
 
-    fn makeHidden(&mut self, attributes: &[&str]) -> &mut Self {
-        self.mergeHidden(attributes)
+    fn make_hidden(&mut self, attributes: &[&str]) -> &mut Self {
+        self.merge_hidden(attributes)
     }
 
-    fn makeVisibleIf(
+    fn make_visible_if(
         &mut self,
         condition: impl VisibilityCondition<Self>,
         attributes: &[&str],
     ) -> &mut Self {
         if condition.evaluate(self) {
-            self.makeVisible(attributes);
+            self.make_visible(attributes);
         }
         self
     }
 
-    fn makeHiddenIf(
+    fn make_hidden_if(
         &mut self,
         condition: impl VisibilityCondition<Self>,
         attributes: &[&str],
     ) -> &mut Self {
         if condition.evaluate(self) {
-            self.makeHidden(attributes);
+            self.make_hidden(attributes);
         }
         self
     }
 
-    fn hasAppended(&self, name: &str) -> bool {
+    fn has_appended(&self, name: &str) -> bool {
         serialization::names(
             self.state().serialization().appends.as_deref(),
             Self::metadata().appends,
@@ -208,21 +207,21 @@ pub trait Model: Sized + Send + Sync + 'static {
         .any(|attribute| attribute == name)
     }
 
-    fn withoutAppends(&mut self) -> &mut Self {
-        self.setAppends(&[])
+    fn without_appends(&mut self) -> &mut Self {
+        self.set_appends(&[])
     }
 
     /// Formats a date for JSON output without changing its database representation.
-    fn serializeDate(&self, date: jiff::Timestamp) -> DatabaseResult<String> {
+    fn serialize_date(&self, date: jiff::Timestamp) -> DatabaseResult<String> {
         Ok(date.strftime("%Y-%m-%dT%H:%M:%S%.6fZ").to_string())
     }
 
-    fn attributesToArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+    fn attributes_to_array(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         serialization::attributes(self)
     }
 
     /// Evaluates an appended accessor against this instance's current state.
-    fn mutateAttributeForArray(
+    fn mutate_attribute_for_array(
         &self,
         column: &str,
         value: Option<&Value>,
@@ -230,10 +229,10 @@ pub trait Model: Sized + Send + Sync + 'static {
         let getter = Self::attribute(column)
             .and_then(|attribute| attribute.get)
             .ok_or(DatabaseError::InvalidQuery("appended model accessor"))?;
-        getter(value, self.state().getAttributes())
+        getter(value, self.state().get_attributes())
     }
 
-    fn relationsToArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+    fn relations_to_array(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         let state = self.state();
         let include = |name: &str| state.serialization().includes(Self::metadata(), name);
         match &state.detached_autoload {
@@ -252,22 +251,22 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Declares the relationship definitions allowed to restore this custom pivot from a job.
-    fn queueablePivots() -> Vec<super::QueueablePivot> {
+    fn queueable_pivots() -> Vec<super::QueueablePivot> {
         Vec::new()
     }
 
     /// Declares the inverse relationship names available on this custom pivot model.
-    fn pivotInverseRelations() -> &'static [&'static str] {
+    fn pivot_inverse_relations() -> &'static [&'static str] {
         &[]
     }
 
     /// Resolves the discriminator from the model's application morph map.
-    fn getMorphClass(&self) -> DatabaseResult<&'static str> {
+    fn get_morph_class(&self) -> DatabaseResult<&'static str> {
         super::relations::MorphMap::class_for::<Self>(self.state().connection.as_ref())
     }
 
     /// Constructs the Eloquent collection returned by model queries.
-    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+    fn new_collection(models: Vec<Self>) -> Collection<Self> {
         Collection::new(models)
     }
 
@@ -277,70 +276,75 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Defines the relationship descriptors available to named eager loading.
-    fn namedRelations() -> super::NamedRelations<Self> {
+    fn named_relations() -> super::NamedRelations<Self> {
         super::NamedRelations::default()
     }
 
     /// Declares relationships to load whenever this model is retrieved.
-    fn withDefaultRelations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
+    fn with_default_relations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
         relations
     }
 
     /// Adds the relationship counts selected by default when reading this model.
-    fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'static, Self>> {
+    fn with_default_counts(
+        query: Builder<'static, Self>,
+    ) -> DatabaseResult<Builder<'static, Self>> {
         Ok(query)
     }
 
     /// Enables first-access relationship batching for collections of this model.
-    fn automaticallyEagerLoadRelationships() -> bool {
+    fn automatically_eager_load_relationships() -> bool {
         false
     }
 
     /// Prevents implicit single-model relationship queries during access.
-    fn preventsLazyLoading(&self) -> bool {
+    fn prevents_lazy_loading(&self) -> bool {
         self.state().prevent_lazy_loading
     }
 
     /// 配置当前应用中本模型类型的严格策略，适合在应用启动时设置。
-    fn shouldBeStrict(
+    fn should_be_strict(
         app: &crate::foundation::Application,
-        shouldBeStrict: bool,
+        should_be_strict: bool,
     ) -> DatabaseResult<()> {
         super::strictness::configure::<Self>(app, |policy| {
-            policy.lazy_loading = shouldBeStrict;
-            policy.discarded_attributes = shouldBeStrict;
-            policy.missing_attributes = shouldBeStrict;
+            policy.lazy_loading = should_be_strict;
+            policy.discarded_attributes = should_be_strict;
+            policy.missing_attributes = should_be_strict;
         })
     }
 
-    fn preventLazyLoading(app: &crate::foundation::Application, value: bool) -> DatabaseResult<()> {
+    fn prevent_lazy_loading(
+        app: &crate::foundation::Application,
+        value: bool,
+    ) -> DatabaseResult<()> {
         super::strictness::configure::<Self>(app, |policy| policy.lazy_loading = value)
     }
 
-    fn preventSilentlyDiscardingAttributes(
+    fn prevent_silently_discarding_attributes(
         app: &crate::foundation::Application,
         value: bool,
     ) -> DatabaseResult<()> {
         super::strictness::configure::<Self>(app, |policy| policy.discarded_attributes = value)
     }
 
-    fn preventAccessingMissingAttributes(
+    fn prevent_accessing_missing_attributes(
         app: &crate::foundation::Application,
         value: bool,
     ) -> DatabaseResult<()> {
         super::strictness::configure::<Self>(app, |policy| policy.missing_attributes = value)
     }
 
-    fn preventsSilentlyDiscardingAttributes(&self) -> bool {
+    fn prevents_silently_discarding_attributes(&self) -> bool {
         super::strictness::policy(self).discarded_attributes
     }
 
-    fn preventsAccessingMissingAttributes(&self) -> bool {
+    fn prevents_accessing_missing_attributes(&self) -> bool {
         super::strictness::policy(self).missing_attributes
     }
 
     /// 可覆盖此钩子记录被丢弃的字段；返回成功会允许本次丢弃。
-    fn handleDiscardedAttributeViolationUsing(
+    fn handle_discarded_attribute_violation_using(
         &mut self,
         _keys: &[String],
         violation: DatabaseError,
@@ -349,7 +353,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 可覆盖此钩子为缺失属性提供值或记录诊断。
-    fn handleMissingAttributeViolationUsing(
+    fn handle_missing_attribute_violation_using(
         &self,
         _key: &str,
         violation: DatabaseError,
@@ -357,38 +361,38 @@ pub trait Model: Sized + Send + Sync + 'static {
         Err(violation)
     }
 
-    fn withoutTouching<F: Future>(work: F) -> impl Future<Output = F::Output> {
+    fn without_touching<F: Future>(work: F) -> impl Future<Output = F::Output> {
         super::touches::without_touching(&[std::any::TypeId::of::<Self>()], work)
     }
 
-    fn withoutTouchingOn<F: Future>(
+    fn without_touching_on<F: Future>(
         models: &[std::any::TypeId],
         work: F,
     ) -> impl Future<Output = F::Output> + use<F, Self> {
         super::touches::without_touching(models, work)
     }
 
-    fn isIgnoringTouch() -> bool {
+    fn is_ignoring_touch() -> bool {
         Self::metadata().updated_at.is_none() || super::touches::is_ignoring::<Self>()
     }
 
     /// Handles a prohibited lazy access. Returning success permits the query.
-    fn handleLazyLoadingViolationUsing(&self, violation: DatabaseError) -> DatabaseResult<()> {
-        if !self.state().exists() || self.state().wasRecentlyCreated() {
+    fn handle_lazy_loading_violation_using(&self, violation: DatabaseError) -> DatabaseResult<()> {
+        if !self.state().exists() || self.state().was_recently_created() {
             return Ok(());
         }
         Err(violation)
     }
 
     fn query() -> DatabaseResult<Builder<'static, Self>> {
-        Ok(Self::queryOn(
-            &Self::from_state(ModelState::default()).getConnection()?,
+        Ok(Self::query_on(
+            &Self::from_state(ModelState::default()).get_connection()?,
         ))
     }
 
-    fn queryOn(connection: &Connection) -> Builder<'static, Self> {
+    fn query_on(connection: &Connection) -> Builder<'static, Self> {
         Builder::new(connection.clone())
-            .withOnly(Self::withDefaultRelations)
+            .with_only(Self::with_default_relations)
             .enable_default_counts()
     }
 
@@ -401,18 +405,18 @@ pub trait Model: Sized + Send + Sync + 'static {
         async move { Self::query()?.find(key).await }
     }
 
-    fn findOrFail(key: impl Into<Value>) -> impl Future<Output = DatabaseResult<Self>> + Send {
+    fn find_or_fail(key: impl Into<Value>) -> impl Future<Output = DatabaseResult<Self>> + Send {
         let key = key.into();
-        async move { Self::query()?.findOrFail(key).await }
+        async move { Self::query()?.find_or_fail(key).await }
     }
 
     /// Reads a new instance from the write connection using the original model key.
     fn fresh(&self) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send {
-        self.freshWithPaths(&[])
+        self.fresh_with_paths(&[])
     }
 
     /// Reads a new instance and preloads the requested registered paths.
-    fn freshWithPaths<'a>(
+    fn fresh_with_paths<'a>(
         &'a self,
         paths: &'a [&'a str],
     ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
@@ -421,7 +425,7 @@ pub trait Model: Sized + Send + Sync + 'static {
                 return Ok(None);
             }
             persistence::reload_query(self)?
-                .withPaths(paths)?
+                .with_paths(paths)?
                 .first()
                 .await
         }
@@ -433,7 +437,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reloads this model under a write lock held by the caller's transaction.
-    fn refreshForUpdate<'a>(
+    fn refresh_for_update<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<&'a mut Self>> + Send + 'a {
@@ -450,14 +454,14 @@ pub trait Model: Sized + Send + Sync + 'static {
         Ok(model)
     }
 
-    fn newInstanceOn(connection: &Connection, attributes: Attributes) -> DatabaseResult<Self> {
+    fn new_instance_on(connection: &Connection, attributes: Attributes) -> DatabaseResult<Self> {
         let mut model = Self::new_instance(Attributes::new())?;
         model.state_mut().connection = Some(connection.clone());
         model.fill(attributes)?;
         Ok(model)
     }
 
-    fn uniqueIds() -> &'static [&'static str] {
+    fn unique_ids() -> &'static [&'static str] {
         let metadata = Self::metadata();
         metadata.unique_ids.unwrap_or_else(|| {
             if metadata.unique_id.is_some() {
@@ -469,50 +473,50 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Instance hooks preserve options initialized when a model is constructed.
-    fn uniqueIdsForInstance(&self) -> &'static [&'static str] {
-        Self::uniqueIds()
+    fn unique_ids_for_instance(&self) -> &'static [&'static str] {
+        Self::unique_ids()
     }
 
-    fn getIncrementingForInstance(&self) -> bool {
-        Self::getIncrementing()
+    fn get_incrementing_for_instance(&self) -> bool {
+        Self::get_incrementing()
     }
 
-    fn usesUniqueIdsForInstance(&self) -> bool {
-        Self::usesUniqueIds()
+    fn uses_unique_ids_for_instance(&self) -> bool {
+        Self::uses_unique_ids()
     }
 
-    fn usesUniqueIds() -> bool {
-        !Self::uniqueIds().is_empty()
+    fn uses_unique_ids() -> bool {
+        !Self::unique_ids().is_empty()
     }
 
-    fn newUniqueId(&self) -> DatabaseResult<Option<String>> {
+    fn new_unique_id(&self) -> DatabaseResult<Option<String>> {
         Self::metadata()
             .unique_id
             .map(super::UniqueId::generate)
             .transpose()
     }
 
-    fn isValidUniqueId(value: &str) -> bool {
+    fn is_valid_unique_id(value: &str) -> bool {
         Self::metadata()
             .unique_id
             .is_none_or(|kind| kind.valid(value))
     }
 
-    fn setUniqueIds(&mut self) -> impl Future<Output = DatabaseResult<()>> + Send {
+    fn set_unique_ids(&mut self) -> impl Future<Output = DatabaseResult<()>> + Send {
         async {
-            for column in self.uniqueIdsForInstance() {
-                if super::unique_ids::is_empty(self.getAttributeValue(column)?) {
-                    let id = self.newUniqueId()?.map_or(Value::Null, Value::Text);
-                    self.setAttributeValueAsync(column, id).await?;
+            for column in self.unique_ids_for_instance() {
+                if super::unique_ids::is_empty(self.get_attribute_value(column)?) {
+                    let id = self.new_unique_id()?.map_or(Value::Null, Value::Text);
+                    self.set_attribute_value_async(column, id).await?;
                 }
             }
             Ok(())
         }
     }
 
-    fn getIncrementing() -> bool {
+    fn get_incrementing() -> bool {
         let metadata = Self::metadata();
-        metadata.incrementing && !Self::uniqueIds().contains(&metadata.primary_key)
+        metadata.incrementing && !Self::unique_ids().contains(&metadata.primary_key)
     }
 
     /// Creates an unsaved copy, excluding identity, timestamps, and the given attributes.
@@ -535,7 +539,7 @@ pub trait Model: Sized + Send + Sync + 'static {
                             && Some(column) != metadata.created_at
                             && Some(column) != metadata.updated_at
                             && column != "laravel_through_key"
-                            && !self.uniqueIdsForInstance().contains(&column)
+                            && !self.unique_ids_for_instance().contains(&column)
                             && !metadata.refreshes.contains(&column)
                             && !except.contains(&column))
                 })
@@ -545,7 +549,7 @@ pub trait Model: Sized + Send + Sync + 'static {
             let connection = match source.connection.clone() {
                 Some(connection) => Some(connection),
                 None if Connection::model_container(None).is_some() => {
-                    Some(DB::connection(metadata.connection)?)
+                    Some(Db::connection(metadata.connection)?)
                 }
                 None => None,
             };
@@ -563,15 +567,15 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Creates an unsaved copy with model lifecycle events suppressed.
-    fn replicateQuietly<'a>(
+    fn replicate_quietly<'a>(
         &'a self,
         except: &'a [&str],
     ) -> impl Future<Output = DatabaseResult<Self>> + Send + 'a {
-        Self::withoutEvents(self.replicate(except))
+        Self::without_events(self.replicate(except))
     }
 
     /// Overrides casts for this model instance. Later entries win for the same attribute.
-    fn mergeCasts(
+    fn merge_casts(
         &mut self,
         casts: impl IntoIterator<Item = (impl Into<String>, AttributeCast)>,
     ) -> &mut Self {
@@ -582,17 +586,17 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Returns the model's declared mass-assignable attribute names.
-    fn getFillable(&self) -> &'static [&'static str] {
+    fn get_fillable(&self) -> &'static [&'static str] {
         Self::metadata().fillable
     }
 
     /// Returns the model's declared guarded attribute names.
-    fn getGuarded(&self) -> &'static [&'static str] {
+    fn get_guarded(&self) -> &'static [&'static str] {
         Self::metadata().guarded
     }
 
     /// Whether the current task or synchronous force-fill scope bypasses guards.
-    fn isUnguarded() -> bool {
+    fn is_unguarded() -> bool {
         concerns::guards_attributes::is_unguarded()
     }
 
@@ -602,7 +606,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Returns the configured soft-delete column, or `None` when soft deletes are disabled.
-    fn getDeletedAtColumn(&self) -> Option<&'static str> {
+    fn get_deleted_at_column(&self) -> Option<&'static str> {
         Self::metadata().deleted_at
     }
 
@@ -610,12 +614,12 @@ pub trait Model: Sized + Send + Sync + 'static {
         let mut discarded = Vec::new();
         for (name, value) in attributes {
             if concerns::guards_attributes::is_fillable(&name, Self::metadata()) {
-                self.setAttributeValue(&name, value)?;
+                self.set_attribute_value(&name, value)?;
             } else if Self::metadata().fillable.is_empty() {
                 if concerns::guards_attributes::totally_guarded(Self::metadata())
-                    || self.preventsSilentlyDiscardingAttributes()
+                    || self.prevents_silently_discarding_attributes()
                 {
-                    self.handleDiscardedAttributeViolationUsing(
+                    self.handle_discarded_attribute_violation_using(
                         std::slice::from_ref(&name),
                         DatabaseError::MassAssignment(name.clone()),
                     )?;
@@ -624,8 +628,8 @@ pub trait Model: Sized + Send + Sync + 'static {
                 discarded.push(name);
             }
         }
-        if self.preventsSilentlyDiscardingAttributes() && !discarded.is_empty() {
-            self.handleDiscardedAttributeViolationUsing(
+        if self.prevents_silently_discarding_attributes() && !discarded.is_empty() {
+            self.handle_discarded_attribute_violation_using(
                 &discarded,
                 DatabaseError::MassAssignment(discarded.join(", ")),
             )?;
@@ -634,7 +638,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 批量赋值保留异步转换器，并按字段赋值顺序处理保护策略。
-    fn fillAsync(
+    fn fill_async(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<&mut Self>> + Send {
@@ -648,12 +652,12 @@ pub trait Model: Sized + Send + Sync + 'static {
             let mut discarded = Vec::new();
             for (name, value) in attributes {
                 if concerns::guards_attributes::is_fillable(&name, Self::metadata()) {
-                    self.setAttributeValueAsync(&name, value).await?;
+                    self.set_attribute_value_async(&name, value).await?;
                 } else if Self::metadata().fillable.is_empty() {
                     if concerns::guards_attributes::totally_guarded(Self::metadata())
-                        || self.preventsSilentlyDiscardingAttributes()
+                        || self.prevents_silently_discarding_attributes()
                     {
-                        self.handleDiscardedAttributeViolationUsing(
+                        self.handle_discarded_attribute_violation_using(
                             std::slice::from_ref(&name),
                             DatabaseError::MassAssignment(name.clone()),
                         )?;
@@ -662,8 +666,8 @@ pub trait Model: Sized + Send + Sync + 'static {
                     discarded.push(name);
                 }
             }
-            if self.preventsSilentlyDiscardingAttributes() && !discarded.is_empty() {
-                self.handleDiscardedAttributeViolationUsing(
+            if self.prevents_silently_discarding_attributes() && !discarded.is_empty() {
+                self.handle_discarded_attribute_violation_using(
                     &discarded,
                     DatabaseError::MassAssignment(discarded.join(", ")),
                 )?;
@@ -673,32 +677,32 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Bypasses mass-assignment guards while retaining attribute mutators and casts.
-    fn forceFill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
+    fn force_fill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
         concerns::guards_attributes::unguarded_sync(|| self.fill(attributes))
     }
 
     /// Retains asynchronous setters, including password hashing, without bypassing casts.
-    fn forceFillAsync(
+    fn force_fill_async(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<&mut Self>> + Send {
-        concerns::guards_attributes::unguarded(self.fillAsync(attributes))
+        concerns::guards_attributes::unguarded(self.fill_async(attributes))
     }
 
-    fn getAttribute(&self, column: &str) -> Option<&Value> {
-        self.state().getAttribute(column)
+    fn get_attribute(&self, column: &str) -> Option<&Value> {
+        self.state().get_attribute(column)
     }
 
     /// Reads through the model accessor or cast.
-    fn getAttributeValue(&self, column: &str) -> DatabaseResult<Option<Value>> {
+    fn get_attribute_value(&self, column: &str) -> DatabaseResult<Option<Value>> {
         let state = self.state();
         if state.exists
             && !state.was_recently_created
-            && self.preventsAccessingMissingAttributes()
+            && self.prevents_accessing_missing_attributes()
             && !state.attributes.contains_key(column)
             && casts::guards_missing::<Self>(state, column)
         {
-            let fallback = self.handleMissingAttributeViolationUsing(
+            let fallback = self.handle_missing_attribute_violation_using(
                 column,
                 DatabaseError::MissingAttribute {
                     model: std::any::type_name::<Self>(),
@@ -713,15 +717,15 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reads the Rust case of an attribute declared with an enum cast.
-    fn getEnum<E: CastableEnum>(&self, column: &str) -> DatabaseResult<Option<E>> {
+    fn get_enum<E: CastableEnum>(&self, column: &str) -> DatabaseResult<Option<E>> {
         let state = self.state();
         casts::check_enum::<Self, E>(column, &state.casts)?;
         if state.exists
             && !state.was_recently_created
-            && self.preventsAccessingMissingAttributes()
+            && self.prevents_accessing_missing_attributes()
             && !state.attributes.contains_key(column)
         {
-            self.handleMissingAttributeViolationUsing(
+            self.handle_missing_attribute_violation_using(
                 column,
                 DatabaseError::MissingAttribute {
                     model: std::any::type_name::<Self>(),
@@ -733,19 +737,19 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Assigns the Rust case of an attribute declared with an enum cast.
-    fn setEnum<E: CastableEnum>(&mut self, column: &str, value: E) -> DatabaseResult<&mut Self> {
+    fn set_enum<E: CastableEnum>(&mut self, column: &str, value: E) -> DatabaseResult<&mut Self> {
         casts::check_enum::<Self, E>(column, &self.state().casts)?;
-        self.setAttributeValue(column, value.intoValue())
+        self.set_attribute_value(column, value.into_value())
     }
 
-    fn getEnumCollection<E: CastableEnum>(
+    fn get_enum_collection<E: CastableEnum>(
         &self,
         column: &str,
     ) -> DatabaseResult<Option<crate::support::Collection<E>>> {
         casts::read_enum_collection(self, column)
     }
 
-    fn setEnumCollection<E: CastableEnum>(
+    fn set_enum_collection<E: CastableEnum>(
         &mut self,
         column: &str,
         values: crate::support::Collection<E>,
@@ -755,20 +759,20 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Applies an edit to a typed enum collection before writing its backing values.
-    fn editEnumCollection<E: CastableEnum>(
+    fn edit_enum_collection<E: CastableEnum>(
         &mut self,
         column: &str,
         edit: impl FnOnce(&mut crate::support::Collection<E>) -> DatabaseResult<()>,
     ) -> DatabaseResult<&mut Self> {
         let mut values = self
-            .getEnumCollection::<E>(column)?
+            .get_enum_collection::<E>(column)?
             .ok_or(DatabaseError::InvalidQuery("missing enum collection"))?;
         edit(&mut values)?;
-        self.setEnumCollection(column, values)
+        self.set_enum_collection(column, values)
     }
 
     /// Borrows the cached object or constructs an owned value when caching is disabled.
-    fn getValueObject<T: CastableObject>(
+    fn get_value_object<T: CastableObject>(
         &mut self,
         column: &str,
     ) -> DatabaseResult<Option<Cow<'_, T>>> {
@@ -790,7 +794,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Writes the object's column patch and retains the typed value.
-    fn setValueObject<T: CastableObject>(
+    fn set_value_object<T: CastableObject>(
         &mut self,
         column: &str,
         value: Option<T>,
@@ -815,26 +819,26 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Applies an object edit and its column patch only after both operations succeed.
-    fn editValueObject<T: CastableObject>(
+    fn edit_value_object<T: CastableObject>(
         &mut self,
         column: &str,
         edit: impl FnOnce(&mut T) -> DatabaseResult<()>,
     ) -> DatabaseResult<&mut Self> {
         let mut value = self
-            .getValueObject::<T>(column)?
+            .get_value_object::<T>(column)?
             .map(Cow::into_owned)
             .ok_or(DatabaseError::InvalidQuery("missing value object"))?;
         edit(&mut value)?;
-        self.setValueObject(column, Some(value))
+        self.set_value_object(column, Some(value))
     }
 
     /// Reads a fresh collection from an encrypted collection attribute.
-    fn getEncryptedCollection(
+    fn get_encrypted_collection(
         &self,
         column: &str,
     ) -> DatabaseResult<Option<crate::support::Collection>> {
         casts::check_encrypted_collection::<Self>(column, &self.state().casts)?;
-        match self.getAttributeValue(column)? {
+        match self.get_attribute_value(column)? {
             None | Some(Value::Null) => Ok(None),
             Some(Value::Json(value)) => serde_json::from_value(value)
                 .map(Some)
@@ -846,7 +850,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reads an array object or collection cast while preserving its keys.
-    fn getJsonCollection(
+    fn get_json_collection(
         &self,
         column: &str,
     ) -> DatabaseResult<Option<crate::support::Collection>> {
@@ -854,13 +858,13 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Deserializes each projected item into an application type, retaining its key.
-    fn getJsonCollectionAs<T: serde::de::DeserializeOwned>(
+    fn get_json_collection_as<T: serde::de::DeserializeOwned>(
         &self,
         column: &str,
     ) -> DatabaseResult<Option<crate::support::Collection<T>>> {
-        self.getJsonCollection(column)?
+        self.get_json_collection(column)?
             .map(|values| {
-                values.tryMap(|value, _| {
+                values.try_map(|value, _| {
                     T::deserialize(value)
                         .map_err(|_| DatabaseError::InvalidQuery("JSON collection item"))
                 })
@@ -869,7 +873,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Writes a collection's ordered values to a JSON collection attribute.
-    fn setJsonCollection<T: serde::Serialize>(
+    fn set_json_collection<T: serde::Serialize>(
         &mut self,
         column: &str,
         values: crate::support::Collection<T>,
@@ -879,36 +883,36 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Applies an edit to a decoded JSON collection before assigning it.
-    fn editJsonCollection(
+    fn edit_json_collection(
         &mut self,
         column: &str,
         edit: impl FnOnce(&mut crate::support::Collection) -> DatabaseResult<()>,
     ) -> DatabaseResult<&mut Self> {
         let mut values = self
-            .getJsonCollection(column)?
+            .get_json_collection(column)?
             .ok_or(DatabaseError::InvalidQuery("missing JSON collection"))?;
         edit(&mut values)?;
-        self.setJsonCollection(column, values)
+        self.set_json_collection(column, values)
     }
 
     /// Updates a typed encrypted collection after its edit succeeds.
-    fn editEncryptedCollection(
+    fn edit_encrypted_collection(
         &mut self,
         column: &str,
         edit: impl FnOnce(&mut crate::support::Collection) -> DatabaseResult<()>,
     ) -> DatabaseResult<&mut Self> {
         let mut values = self
-            .getEncryptedCollection(column)?
+            .get_encrypted_collection(column)?
             .ok_or(DatabaseError::InvalidQuery("missing encrypted collection"))?;
         edit(&mut values)?;
         let value = values
             .to_array()
             .map_err(|_| DatabaseError::InvalidQuery("encrypted collection attribute"))?;
-        self.setAttributeValue(column, Value::Json(value))
+        self.set_attribute_value(column, Value::Json(value))
     }
 
     /// Replaces a nested JSON value and writes the updated document to its model column.
-    fn fillJsonAttribute(
+    fn fill_json_attribute(
         &mut self,
         path: &str,
         value: impl Into<Value>,
@@ -926,7 +930,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Writes through the model mutator or storage cast.
-    fn setAttributeValue(
+    fn set_attribute_value(
         &mut self,
         column: &str,
         value: impl Into<Value>,
@@ -944,7 +948,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Assigns an attribute without blocking the async executor for a password hash.
-    fn setAttributeValueAsync<'a>(
+    fn set_attribute_value_async<'a>(
         &'a mut self,
         column: &'a str,
         value: impl Into<Value>,
@@ -952,7 +956,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         let value = value.into();
         async move {
             if !casts::needs_async::<Self>(column, &self.state().casts) {
-                return self.setAttributeValue(column, value);
+                return self.set_attribute_value(column, value);
             }
             let state = self.state_mut();
             casts::write_async::<Self>(
@@ -968,12 +972,12 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
-    fn getRawOriginal(&self, column: &str) -> Option<&Value> {
+    fn get_raw_original(&self, column: &str) -> Option<&Value> {
         self.state().original.get(column)
     }
 
     /// Compares a current attribute with its original using its declared cast.
-    fn originalIsEquivalent(&self, column: &str) -> DatabaseResult<bool> {
+    fn original_is_equivalent(&self, column: &str) -> DatabaseResult<bool> {
         let state = self.state();
         match (state.attributes.get(column), state.original.get(column)) {
             (Some(current), Some(original)) => casts::equivalent::<Self>(
@@ -987,40 +991,40 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
-    fn getDirty(&self) -> DatabaseResult<Attributes> {
+    fn get_dirty(&self) -> DatabaseResult<Attributes> {
         let mut dirty = Attributes::new();
         for (name, value) in &self.state().attributes {
-            if !self.originalIsEquivalent(name)? {
+            if !self.original_is_equivalent(name)? {
                 dirty.insert(name.clone(), value.clone());
             }
         }
         Ok(dirty)
     }
 
-    fn isDirty(&self) -> DatabaseResult<bool> {
-        Ok(!self.getDirty()?.is_empty())
+    fn is_dirty(&self) -> DatabaseResult<bool> {
+        Ok(!self.get_dirty()?.is_empty())
     }
 
-    fn setAttribute(&mut self, column: &str, value: impl Into<Value>) -> &mut Self {
-        self.state_mut().setAttribute(column, value);
+    fn set_attribute(&mut self, column: &str, value: impl Into<Value>) -> &mut Self {
+        self.state_mut().set_attribute(column, value);
         self
     }
 
-    fn getKey(&self) -> Option<&Value> {
-        self.getAttribute(Self::metadata().primary_key)
+    fn get_key(&self) -> Option<&Value> {
+        self.get_attribute(Self::metadata().primary_key)
     }
 
     /// The storage format declared by this model's metadata.
-    fn getDateFormat(&self) -> &'static str {
+    fn get_date_format(&self) -> &'static str {
         Self::metadata().date_format
     }
 
-    fn getKeyName(&self) -> &'static str {
+    fn get_key_name(&self) -> &'static str {
         Self::metadata().primary_key
     }
 
     /// The default name for foreign key columns pointing to this model.
-    fn getForeignKey(&self) -> String {
+    fn get_foreign_key(&self) -> String {
         let name = std::any::type_name::<Self>()
             .split('<')
             .next()
@@ -1028,12 +1032,15 @@ pub trait Model: Sized + Send + Sync + 'static {
             .rsplit("::")
             .next()
             .unwrap_or_default();
-        format!("{}_{}", Str::snake(name, "_"), self.getKeyName())
+        format!("{}_{}", Str::snake(name, "_"), self.get_key_name())
     }
 
     /// The key type used by schema helpers. Override for manually assigned string keys.
-    fn getKeyType(&self) -> ModelKeyType {
-        if self.uniqueIdsForInstance().contains(&self.getKeyName()) {
+    fn get_key_type(&self) -> ModelKeyType {
+        if self
+            .unique_ids_for_instance()
+            .contains(&self.get_key_name())
+        {
             match Self::metadata().unique_id {
                 Some(super::UniqueId::Uuid) => ModelKeyType::Uuid,
                 Some(super::UniqueId::Ulid) => ModelKeyType::Ulid,
@@ -1044,19 +1051,19 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
-    fn getRouteKeyName() -> &'static str {
+    fn get_route_key_name() -> &'static str {
         Self::metadata().primary_key
     }
 
-    fn getRouteKey(&self) -> DatabaseResult<Option<Value>> {
-        self.getAttributeValue(Self::getRouteKeyName())
+    fn get_route_key(&self) -> DatabaseResult<Option<Value>> {
+        self.get_attribute_value(Self::get_route_key_name())
     }
 
-    fn routeBindingValue(field: &str, value: &str) -> Option<Value> {
-        if Self::uniqueIds().contains(&field) && !Self::isValidUniqueId(value) {
+    fn route_binding_value(field: &str, value: &str) -> Option<Value> {
+        if Self::unique_ids().contains(&field) && !Self::is_valid_unique_id(value) {
             return None;
         }
-        if field == Self::metadata().primary_key && Self::getIncrementing() {
+        if field == Self::metadata().primary_key && Self::get_incrementing() {
             return value
                 .parse::<i64>()
                 .map(Value::Integer)
@@ -1066,7 +1073,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         Some(Value::from(value))
     }
 
-    fn resolveRouteBinding(
+    fn resolve_route_binding(
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
         Box::pin(async move {
@@ -1077,7 +1084,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         })
     }
 
-    fn resolveChildRouteBinding(
+    fn resolve_child_route_binding(
         _binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
         Box::pin(async {
@@ -1088,17 +1095,17 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// The configured creation timestamp column, or None when disabled.
-    fn getCreatedAtColumn(&self) -> Option<&str> {
+    fn get_created_at_column(&self) -> Option<&str> {
         Self::metadata().created_at
     }
 
-    fn getTable(&self) -> &'static str {
+    fn get_table(&self) -> &'static str {
         self.state()
             .pivot_identity
             .map_or(Self::metadata().table, |identity| identity.table)
     }
 
-    fn getConnectionName(&self) -> Option<&str> {
+    fn get_connection_name(&self) -> Option<&str> {
         self.state()
             .connection
             .as_ref()
@@ -1107,45 +1114,45 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Resolves a dynamic connection name without borrowing application configuration.
-    fn resolveConnectionName(&self) -> DatabaseResult<Option<Cow<'_, str>>> {
-        Ok(self.getConnectionName().map(Cow::Borrowed))
+    fn resolve_connection_name(&self) -> DatabaseResult<Option<Cow<'_, str>>> {
+        Ok(self.get_connection_name().map(Cow::Borrowed))
     }
 
     /// Retains the actual connection of a loaded or explicitly bound model.
-    fn getConnection(&self) -> DatabaseResult<Connection> {
+    fn get_connection(&self) -> DatabaseResult<Connection> {
         match &self.state().connection {
             Some(connection) => Ok(connection.clone()),
-            None => DB::connection(self.resolveConnectionName()?.as_deref()),
+            None => Db::connection(self.resolve_connection_name()?.as_deref()),
         }
     }
 
     /// Returns the primary key used by queue payloads.
-    fn getQueueableId(&self) -> Option<&Value> {
-        self.getKey()
+    fn get_queueable_id(&self) -> Option<&Value> {
+        self.get_key()
     }
 
     /// Returns loaded relation names and nested paths without running queries or accessors.
-    fn getQueueableRelations(&self) -> Vec<String> {
+    fn get_queueable_relations(&self) -> Vec<String> {
         super::queueable::model_relations(self.state())
     }
 
-    fn getQueueableConnection(&self) -> Option<&str> {
-        self.getConnectionName()
+    fn get_queueable_connection(&self) -> Option<&str> {
+        self.get_connection_name()
     }
 
     /// Compares the primary key, table, and connection name of two models.
     fn is(&self, other: &impl Model) -> bool {
-        self.getKey().unwrap_or(&Value::Null) == other.getKey().unwrap_or(&Value::Null)
-            && self.getTable() == other.getTable()
-            && self.getConnectionName() == other.getConnectionName()
+        self.get_key().unwrap_or(&Value::Null) == other.get_key().unwrap_or(&Value::Null)
+            && self.get_table() == other.get_table()
+            && self.get_connection_name() == other.get_connection_name()
     }
 
-    fn isNot(&self, other: &impl Model) -> bool {
+    fn is_not(&self, other: &impl Model) -> bool {
         !self.is(other)
     }
 
     /// Registers or replaces a named relation resolver in this application's container.
-    fn resolveRelationUsing<R: Relation<Parent = Self>>(
+    fn resolve_relation_using<R: Relation<Parent = Self>>(
         app: &crate::foundation::Application,
         name: impl Into<String>,
         resolver: impl Fn(&Self) -> R + Send + Sync + 'static,
@@ -1164,7 +1171,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     /// Falls back to another model's named resolver when this model has no local resolver.
     ///
     /// The closures construct the base model for resolution and adapt its typed relation.
-    fn inheritRelationUsing<B, S, R>(
+    fn inherit_relation_using<B, S, R>(
         app: &crate::foundation::Application,
         name: impl Into<String>,
         base: impl Fn(&Self) -> B + Send + Sync + 'static,
@@ -1187,7 +1194,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Resolves a named relationship using the model's application.
-    fn relationResolver<R: Relation<Parent = Self>>(
+    fn relation_resolver<R: Relation<Parent = Self>>(
         &self,
         name: &str,
     ) -> DatabaseResult<Option<R>> {
@@ -1195,14 +1202,14 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads a named dynamic relationship on first access.
-    fn getDynamicRelationOrLoad<R: Relation<Parent = Self>>(
+    fn get_dynamic_relation_or_load<R: Relation<Parent = Self>>(
         &mut self,
         name: &str,
     ) -> impl Future<Output = DatabaseResult<&R::Output>> + Send {
         async move {
             let relation = super::DynamicRelation::<R>::new(name);
             super::detached_autoload::load_on_model_access(self, name, &relation).await?;
-            self.getRelation(name)
+            self.get_relation(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
         }
     }
@@ -1216,7 +1223,7 @@ pub trait Model: Sized + Send + Sync + 'static {
                 .is_some_and(|link| link.value(state, name).is_some())
     }
 
-    fn getRelation<T: Send + Sync + 'static>(&self, name: &str) -> Option<&T> {
+    fn get_relation<T: Send + Sync + 'static>(&self, name: &str) -> Option<&T> {
         let state = self.state();
         if let Some(shared) = state
             .detached_autoload
@@ -1229,19 +1236,19 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reads a relationship, querying once if it has not been loaded.
-    fn getRelationOrLoad<'a, R: Relation<Parent = Self>>(
+    fn get_relation_or_load<'a, R: Relation<Parent = Self>>(
         &'a mut self,
         name: &'a str,
         relation: &'a R,
     ) -> impl Future<Output = DatabaseResult<&'a R::Output>> + Send + 'a {
         async move {
             super::detached_autoload::load_on_model_access(self, name, relation).await?;
-            self.getRelation(name)
+            self.get_relation(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
         }
     }
 
-    fn unsetRelation(&mut self, name: &str) {
+    fn unset_relation(&mut self, name: &str) {
         let state = self.state_mut();
         state.relations.remove(name);
         if let Some(link) = &mut state.detached_autoload {
@@ -1250,7 +1257,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Eager loads registered paths onto this model.
-    fn loadPaths(&mut self, paths: &[&str]) -> impl Future<Output = DatabaseResult<()>> + Send {
+    fn load_paths(&mut self, paths: &[&str]) -> impl Future<Output = DatabaseResult<()>> + Send {
         async move {
             let loads = super::NamedRelations::<Self>::prepare(paths)?;
             concerns::has_relationships::load_eager(loads, std::slice::from_mut(self)).await
@@ -1258,7 +1265,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads registered relationship paths using the caller's explicit transaction.
-    fn loadPathsInTransaction<'a>(
+    fn load_paths_in_transaction<'a>(
         &'a mut self,
         paths: &'a [&'a str],
         transaction: &'a mut crate::database::Transaction,
@@ -1283,7 +1290,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Applies a grouped predicate when loading a missing terminal relationship.
-    fn loadMissingPathWith(
+    fn load_missing_path_with(
         &mut self,
         path: &str,
         constraint: impl Fn(
@@ -1294,11 +1301,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         + Sync
         + 'static,
     ) -> impl Future<Output = DatabaseResult<()>> + Send {
-        self.loadMissingPathsWith([super::MissingRelation::new(path).constrain(constraint)])
+        self.load_missing_paths_with([super::MissingRelation::new(path).constrain(constraint)])
     }
 
     /// Loads several registered paths, each with its optional terminal predicate.
-    fn loadMissingPathsWith<'a>(
+    fn load_missing_paths_with<'a>(
         &mut self,
         paths: impl IntoIterator<Item = super::MissingRelation<'a>> + Send,
     ) -> impl Future<Output = DatabaseResult<()>> + Send {
@@ -1314,7 +1321,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reloads a relationship on this model's cached polymorphic target.
-    fn loadMorph<'a, T: Model>(
+    fn load_morph<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1333,7 +1340,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reloads registered relationship paths on this model's cached polymorphic target.
-    fn loadMorphPaths<'a, T: Model>(
+    fn load_morph_paths<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1350,79 +1357,79 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads relation aggregates without replacing other model attributes.
-    fn loadAggregates<'a>(
+    fn load_aggregates<'a>(
         &'a mut self,
         aggregates: &'a [RelationAggregateQuery<'a, Self>],
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
         super::collection::load_aggregates(std::slice::from_mut(self), aggregates)
     }
 
-    fn loadAggregate<'a>(
+    fn load_aggregate<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
         aggregate: RelationAggregate<'a>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
         async move {
-            self.loadAggregates(&[RelationAggregateQuery::new(name, relation, aggregate)])
+            self.load_aggregates(&[RelationAggregateQuery::new(name, relation, aggregate)])
                 .await
         }
     }
 
-    fn loadCount<'a>(
+    fn load_count<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadAggregate(name, relation, RelationAggregate::Count)
+        self.load_aggregate(name, relation, RelationAggregate::Count)
     }
 
-    fn loadExists<'a>(
+    fn load_exists<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadAggregate(name, relation, RelationAggregate::Exists)
+        self.load_aggregate(name, relation, RelationAggregate::Exists)
     }
 
-    fn loadSum<'a>(
+    fn load_sum<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadAggregate(name, relation, RelationAggregate::Sum(column))
+        self.load_aggregate(name, relation, RelationAggregate::Sum(column))
     }
 
-    fn loadAvg<'a>(
+    fn load_avg<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadAggregate(name, relation, RelationAggregate::Avg(column))
+        self.load_aggregate(name, relation, RelationAggregate::Avg(column))
     }
 
-    fn loadMin<'a>(
+    fn load_min<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadAggregate(name, relation, RelationAggregate::Min(column))
+        self.load_aggregate(name, relation, RelationAggregate::Min(column))
     }
 
-    fn loadMax<'a>(
+    fn load_max<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadAggregate(name, relation, RelationAggregate::Max(column))
+        self.load_aggregate(name, relation, RelationAggregate::Max(column))
     }
 
     /// Loads a count onto the cached polymorphic target of the selected type.
-    fn loadMorphCount<'a, T: Model>(
+    fn load_morph_count<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1430,7 +1437,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         related_name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = T>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadMorphAggregate(
+        self.load_morph_aggregate(
             name,
             morph,
             alias,
@@ -1439,7 +1446,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系最大值，复用既有聚合查询与缓存回写。
-    fn loadMorphMax<'a, T: Model>(
+    fn load_morph_max<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1448,7 +1455,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         relation: &'a impl ExistenceRelation<Parent = T>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadMorphAggregate(
+        self.load_morph_aggregate(
             name,
             morph,
             alias,
@@ -1457,7 +1464,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系最小值，复用既有聚合查询与缓存回写。
-    fn loadMorphMin<'a, T: Model>(
+    fn load_morph_min<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1466,7 +1473,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         relation: &'a impl ExistenceRelation<Parent = T>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadMorphAggregate(
+        self.load_morph_aggregate(
             name,
             morph,
             alias,
@@ -1475,7 +1482,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系合计，复用既有聚合查询与缓存回写。
-    fn loadMorphSum<'a, T: Model>(
+    fn load_morph_sum<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1484,7 +1491,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         relation: &'a impl ExistenceRelation<Parent = T>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadMorphAggregate(
+        self.load_morph_aggregate(
             name,
             morph,
             alias,
@@ -1493,7 +1500,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系平均值，复用既有聚合查询与缓存回写。
-    fn loadMorphAvg<'a, T: Model>(
+    fn load_morph_avg<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1502,7 +1509,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         relation: &'a impl ExistenceRelation<Parent = T>,
         column: &'a str,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        self.loadMorphAggregate(
+        self.load_morph_aggregate(
             name,
             morph,
             alias,
@@ -1511,7 +1518,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads an aggregate onto this model's cached polymorphic target.
-    fn loadMorphAggregate<'a, T: Model>(
+    fn load_morph_aggregate<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1519,13 +1526,13 @@ pub trait Model: Sized + Send + Sync + 'static {
         aggregate: super::RelationAggregateQuery<'a, T>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
         async move {
-            self.loadMorphAggregates(name, morph, alias, &[aggregate])
+            self.load_morph_aggregates(name, morph, alias, &[aggregate])
                 .await
         }
     }
 
     /// Loads aggregates onto this model's cached polymorphic target of the selected type.
-    fn loadMorphAggregates<'a, T: Model>(
+    fn load_morph_aggregates<'a, T: Model>(
         &'a mut self,
         name: &'a str,
         morph: &'a super::relations::MorphTo<Self>,
@@ -1542,7 +1549,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Registers a listener on this application's model event registry.
-    fn registerModelEvent(
+    fn register_model_event(
         app: &crate::foundation::Application,
         event: super::concerns::ModelEvent,
         listener: impl super::concerns::ModelEventListener<Self> + 'static,
@@ -1569,7 +1576,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     /// Registers an observer whose non-vetoing callbacks wait for the transaction to commit.
     ///
     /// A deferred callback receives a clone of the model taken when the event fires.
-    fn observeAfterCommit<O>(
+    fn observe_after_commit<O>(
         app: &crate::foundation::Application,
         observer: O,
     ) -> DatabaseResult<()>
@@ -1588,7 +1595,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Suppresses model events in the current async call chain.
-    fn withoutEvents<F: Future + Send>(work: F) -> impl Future<Output = F::Output> + Send {
+    fn without_events<F: Future + Send>(work: F) -> impl Future<Output = F::Output> + Send {
         concerns::has_events::without_events(work)
     }
 
@@ -1597,31 +1604,31 @@ pub trait Model: Sized + Send + Sync + 'static {
         async { super::relations::PushContext::default().push(self).await }
     }
 
-    fn pushQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        Self::withoutEvents(self.push())
+    fn push_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::without_events(self.push())
     }
 
     /// Replaces a cached relation with a typed output without querying it.
-    fn setRelation<R: Relation<Parent = Self>>(&mut self, name: &str, output: R::Output) {
+    fn set_relation<R: Relation<Parent = Self>>(&mut self, name: &str, output: R::Output) {
         concerns::has_relationships::update_association_cache::<R>(self, Some(name), || {
             Some(output)
         });
     }
 
-    fn saveQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        Self::withoutEvents(self.save())
+    fn save_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::without_events(self.save())
     }
 
-    fn deleteQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        Self::withoutEvents(self.delete())
+    fn delete_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::without_events(self.delete())
     }
 
-    fn forceDeleteQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        Self::withoutEvents(self.forceDelete())
+    fn force_delete_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::without_events(self.force_delete())
     }
 
-    fn restoreQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        Self::withoutEvents(self.restore())
+    fn restore_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::without_events(self.restore())
     }
 
     fn increment(
@@ -1630,10 +1637,10 @@ pub trait Model: Sized + Send + Sync + 'static {
         amount: impl Into<Value>,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        self.incrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+        self.increment_each(Attributes::from([(column.into(), amount.into())]), extra)
     }
 
-    fn incrementEach(
+    fn increment_each(
         &mut self,
         columns: Attributes,
         extra: Attributes,
@@ -1647,10 +1654,10 @@ pub trait Model: Sized + Send + Sync + 'static {
         amount: impl Into<Value>,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        self.decrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+        self.decrement_each(Attributes::from([(column.into(), amount.into())]), extra)
     }
 
-    fn decrementEach(
+    fn decrement_each(
         &mut self,
         columns: Attributes,
         extra: Attributes,
@@ -1658,38 +1665,38 @@ pub trait Model: Sized + Send + Sync + 'static {
         persistence::change_counters(self, columns, extra, true)
     }
 
-    fn incrementQuietly(
+    fn increment_quietly(
         &mut self,
         column: &str,
         amount: impl Into<Value>,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        Self::withoutEvents(self.increment(column, amount, extra))
+        Self::without_events(self.increment(column, amount, extra))
     }
 
-    fn incrementEachQuietly(
+    fn increment_each_quietly(
         &mut self,
         columns: Attributes,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        Self::withoutEvents(self.incrementEach(columns, extra))
+        Self::without_events(self.increment_each(columns, extra))
     }
 
-    fn decrementQuietly(
+    fn decrement_quietly(
         &mut self,
         column: &str,
         amount: impl Into<Value>,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        Self::withoutEvents(self.decrement(column, amount, extra))
+        Self::without_events(self.decrement(column, amount, extra))
     }
 
-    fn decrementEachQuietly(
+    fn decrement_each_quietly(
         &mut self,
         columns: Attributes,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        Self::withoutEvents(self.decrementEach(columns, extra))
+        Self::without_events(self.decrement_each(columns, extra))
     }
 
     fn save(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
@@ -1704,11 +1711,11 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 在事务内保存；事件取消返回 false，错误或取消时回滚数据库写入。
-    fn saveOrFail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+    fn save_or_fail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::save_or_fail(self)
     }
 
-    fn updateOrFail(
+    fn update_or_fail(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send {
@@ -1716,12 +1723,12 @@ pub trait Model: Sized + Send + Sync + 'static {
             if !self.state().exists {
                 return Ok(false);
             }
-            self.fillAsync(attributes).await?;
-            self.saveOrFail().await
+            self.fill_async(attributes).await?;
+            self.save_or_fail().await
         }
     }
 
-    fn updateQuietly(
+    fn update_quietly(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send {
@@ -1729,28 +1736,28 @@ pub trait Model: Sized + Send + Sync + 'static {
             if !self.state().exists {
                 return Ok(false);
             }
-            self.fillAsync(attributes).await?;
-            self.saveQuietly().await
+            self.fill_async(attributes).await?;
+            self.save_quietly().await
         }
     }
 
-    fn deleteOrFail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+    fn delete_or_fail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::delete_or_fail(self)
     }
 
     /// 插入新模型并忽略指定唯一约束冲突，支持范围沿用驱动的 RETURNING 能力。
-    fn saveOrIgnore<'a>(
+    fn save_or_ignore<'a>(
         &'a mut self,
-        uniqueBy: Option<&'a [&'a str]>,
+        unique_by: Option<&'a [&'a str]>,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::save_or_ignore(self, uniqueBy)
+        persistence::save_or_ignore(self, unique_by)
     }
 
     fn delete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::delete(self, false, None)
     }
 
-    fn forceDelete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+    fn force_delete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::delete(self, true, None)
     }
 
@@ -1758,14 +1765,14 @@ pub trait Model: Sized + Send + Sync + 'static {
         persistence::restore(self, None)
     }
 
-    fn saveInTransaction<'a>(
+    fn save_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
         persistence::save(self, Some(transaction))
     }
 
-    fn updateInTransaction<'a>(
+    fn update_in_transaction<'a>(
         &'a mut self,
         attributes: Attributes,
         transaction: &'a mut crate::database::Transaction,
@@ -1773,21 +1780,21 @@ pub trait Model: Sized + Send + Sync + 'static {
         persistence::update(self, attributes, Some(transaction))
     }
 
-    fn deleteInTransaction<'a>(
+    fn delete_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
         persistence::delete(self, false, Some(transaction))
     }
 
-    fn forceDeleteInTransaction<'a>(
+    fn force_delete_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
         persistence::delete(self, true, Some(transaction))
     }
 
-    fn restoreInTransaction<'a>(
+    fn restore_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
@@ -1797,6 +1804,6 @@ pub trait Model: Sized + Send + Sync + 'static {
     fn trashed(&self) -> bool {
         Self::metadata()
             .deleted_at
-            .is_some_and(|column| soft_deletes::is_trashed(self.getAttribute(column)))
+            .is_some_and(|column| soft_deletes::is_trashed(self.get_attribute(column)))
     }
 }

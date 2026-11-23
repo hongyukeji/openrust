@@ -38,7 +38,7 @@ use openrust::{
     routing::{RouteParameter, Router, RoutingError, SignatureMode},
     support::{
         ProviderResult, ServiceProvider,
-        facades::{Auth, Event, Hash, Mail, Password, URL},
+        facades::{Auth, Event, Hash, Mail, Password, Url},
     },
 };
 use serde_json::{Value as Json, json};
@@ -103,7 +103,7 @@ fn configure_auth_mail(customization: MailCustomization) -> ProviderResult {
         MailCustomization::Urls => {
             ResetPassword::create_url_using(|user, token| {
                 assert_eq!(user.get_email_for_password_reset(), "first@example.test");
-                URL::route(
+                Url::route(
                     "password.reset",
                     &[
                         RouteParameter::named("token", token),
@@ -130,7 +130,7 @@ fn configure_auth_mail(customization: MailCustomization) -> ProviderResult {
             })?;
             VerifyEmail::create_url_using(|user| {
                 assert_eq!(user.get_email_for_verification(), "first@example.test");
-                URL::temporary_signed_route(
+                Url::temporary_signed_route(
                     "verification.verify",
                     std::time::SystemTime::now() + Duration::from_secs(120),
                     &[
@@ -193,7 +193,7 @@ fn reset(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     let hash = Hash::make(password, &Default::default())
                         .await
                         .map_err(backend)?;
-                    model.setAttribute("password", hash);
+                    model.set_attribute("password", hash);
                     model.set_remember_token(Some("rotated".into()));
                     model.save().await.map_err(backend)?;
                     Event::dispatch(PasswordReset {
@@ -376,7 +376,7 @@ async fn start_with_database(
         .connection(None)
         .unwrap();
     database
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("users", |table| {
             table.id();
             table.string("email", 255).unique();
@@ -389,7 +389,7 @@ async fn start_with_database(
         .await
         .unwrap();
     database
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("password_reset_tokens", |table| {
             table.string("email", 255).primary();
             table.string("token", 255);
@@ -582,7 +582,7 @@ async fn exercise(mailpit: Option<(u16, u16)>) {
     let expired = application
         .call(
             openrust::container::Callback::new(&[], |_| async move {
-                Ok(URL::temporary_signed_route(
+                Ok(Url::temporary_signed_route(
                     "verification.verify",
                     std::time::SystemTime::now() - Duration::from_secs(120),
                     &[
@@ -742,11 +742,11 @@ async fn exercise_email_change(database: Json) {
     application
         .call(
             openrust::container::Callback::new(&[], |_| async {
-                use openrust::support::facades::DB;
+                use openrust::support::facades::Db;
 
                 let mut stale = User::find(Value::Integer(1)).await.unwrap().unwrap();
                 let table = || {
-                    DB::connection(None)
+                    Db::connection(None)
                         .unwrap()
                         .table("users")
                         .r#where("id", "=", 1)

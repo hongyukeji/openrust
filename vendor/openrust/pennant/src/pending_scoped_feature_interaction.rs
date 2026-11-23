@@ -39,7 +39,7 @@ impl PendingScopedFeatureInteraction {
             )
             .await
     }
-    pub async fn loadMissing(&self, features: &[&str]) -> Result<FeatureValues> {
+    pub async fn load_missing(&self, features: &[&str]) -> Result<FeatureValues> {
         self.driver
             .getAllMissing(
                 &features
@@ -58,7 +58,7 @@ impl PendingScopedFeatureInteraction {
         if self.scopes().len() > 1 {
             return Err(Error::MultipleScopes);
         }
-        self.loadMissing(features).await?;
+        self.load_missing(features).await?;
         let scope = &self.scopes()[0];
         let mut values = IndexMap::new();
         for feature in features {
@@ -84,7 +84,7 @@ impl PendingScopedFeatureInteraction {
         self.allAreInactive(&[feature]).await
     }
     pub async fn allAreActive(&self, features: &[&str]) -> Result<bool> {
-        self.loadMissing(features).await?;
+        self.load_missing(features).await?;
         for feature in features {
             for scope in self.scopes() {
                 if self.driver.get(feature, &scope).await? == Value::Bool(false) {
@@ -95,7 +95,7 @@ impl PendingScopedFeatureInteraction {
         Ok(true)
     }
     pub async fn allAreInactive(&self, features: &[&str]) -> Result<bool> {
-        self.loadMissing(features).await?;
+        self.load_missing(features).await?;
         for feature in features {
             for scope in self.scopes() {
                 if self.driver.get(feature, &scope).await? != Value::Bool(false) {
@@ -112,7 +112,7 @@ impl PendingScopedFeatureInteraction {
         self.some(features, false).await
     }
     async fn some(&self, features: &[&str], active: bool) -> Result<bool> {
-        self.loadMissing(features).await?;
+        self.load_missing(features).await?;
         for scope in self.scopes() {
             let mut found = false;
             for feature in features {

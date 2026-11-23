@@ -78,7 +78,7 @@ impl QueryExecuted {
 
     /// Renders a diagnostic SQL string with the original bindings embedded.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn toRawSql(&self) -> DatabaseResult<String> {
+    pub fn to_raw_sql(&self) -> DatabaseResult<String> {
         render_query(&self.sql, &self.bindings, !self.connection.is_sqlite())
     }
 }
@@ -355,17 +355,17 @@ database_event!(
 database_event!(
     /// A schema snapshot was persisted at the given path.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    SchemaDumped { connection: Connection, connectionName: String, path: std::path::PathBuf }
+    SchemaDumped { connection: Connection, connection_name: String, path: std::path::PathBuf }
 );
 database_event!(
     /// A schema snapshot was loaded before remaining migrations.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    SchemaLoaded { connection: Connection, connectionName: String, path: std::path::PathBuf }
+    SchemaLoaded { connection: Connection, connection_name: String, path: std::path::PathBuf }
 );
 database_event!(
     /// Application migration sources were pruned after a dump.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    MigrationsPruned { connection: Connection, connectionName: String, path: std::path::PathBuf }
+    MigrationsPruned { connection: Connection, connection_name: String, path: std::path::PathBuf }
 );
 database_event!(
     /// A fresh or refreshed schema is ready, before optional seeding.

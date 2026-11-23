@@ -110,7 +110,7 @@ impl Mail {
         Self::mailer(mailable.mailer())?.send(mailable).await
     }
 
-    pub async fn sendNow(mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
-        Self::mailer(mailable.mailer())?.sendNow(mailable).await
+    pub async fn send_now(mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
+        Self::mailer(mailable.mailer())?.send_now(mailable).await
     }
 }

@@ -102,7 +102,7 @@ impl Fixture {
                         .createClientCredentialsGrantClient("Machine")
                         .await
                         .unwrap();
-                    let id = AuthIdentifier::try_from(&client.getKey().await.unwrap())
+                    let id = AuthIdentifier::try_from(&client.get_key().await.unwrap())
                         .unwrap()
                         .to_string();
                     let model = client.model::<openrust_passport::Client>().unwrap();
@@ -110,13 +110,13 @@ impl Fixture {
                     let secret = model.plainSecret.as_ref().unwrap().to_string();
                     if public {
                         model
-                            .forceFillAsync(Attributes::from([("secret".into(), Value::Null)]))
+                            .force_fill_async(Attributes::from([("secret".into(), Value::Null)]))
                             .await
                             .unwrap();
                     }
                     if let Some(scopes) = scopes {
                         model
-                            .forceFillAsync(Attributes::from([(
+                            .force_fill_async(Attributes::from([(
                                 "scopes".into(),
                                 Value::Json(json!(scopes)),
                             )]))
@@ -151,7 +151,7 @@ impl Fixture {
                         .createPersonalAccessGrantClient("Personal", provider.as_deref())
                         .await
                         .unwrap();
-                    Ok(AuthIdentifier::try_from(&client.getKey().await.unwrap())
+                    Ok(AuthIdentifier::try_from(&client.get_key().await.unwrap())
                         .unwrap()
                         .to_string())
                 }),
@@ -242,7 +242,7 @@ async fn mysql_machine_validation_defaults_basic_and_client_scope_restrictions()
         json_body(f.machine_token(&public, None).await).await["error"],
         "invalid_client"
     );
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .table("oauth_clients", |t| {
             t.json("scopes").nullable();
         })
@@ -698,10 +698,10 @@ async fn mysql_cookie_fresh_user_scopes_csrf_bearer_priority_and_expiry() {
         .header("Cookie", &cookie)
         .header("X-XSRF-TOKEN", {
             let mut plain =
-                openrust::cookie::CookieValuePrefix::create("XSRF-TOKEN", f.encryption.getKey())
+                openrust::cookie::CookieValuePrefix::create("XSRF-TOKEN", f.encryption.get_key())
                     .to_vec();
             plain.extend_from_slice(b.csrf.as_bytes());
-            f.encryption.encryptString(&plain).unwrap()
+            f.encryption.encrypt_string(&plain).unwrap()
         })
         .header("Accept", "application/json")
         .send()
@@ -817,7 +817,7 @@ async fn mysql_cookie_switches_key_callback_serialization_and_application_isolat
     let cookie = f.fresh_cookie(&b).await;
     // The API routes receive the encrypted browser value; explicit opt-out expects a raw JWT.
     let encrypted = decode_cookie_pair(&cookie);
-    let plain = f.encryption.decryptString(&encrypted).unwrap();
+    let plain = f.encryption.decrypt_string(&encrypted).unwrap();
     let jwt =
         String::from_utf8(openrust::cookie::CookieValuePrefix::remove(&plain).to_vec()).unwrap();
     f.passport.withoutCookieEncryption();
@@ -925,7 +925,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                         .unwrap()
                         .lock()
                         .await
-                        .getAttribute("name"),
+                        .get_attribute("name"),
                     Some(&Value::Text("Native".into()))
                 );
                 let (parts, body) =

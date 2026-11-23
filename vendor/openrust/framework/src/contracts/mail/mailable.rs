@@ -22,7 +22,7 @@ pub trait Mailable: Send + Sync {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasTo(&self, address: &str, name: Option<&str>) -> &Self
+    fn assert_has_to(&self, address: &str, name: Option<&str>) -> &Self
     where
         Self: Sized,
     {
@@ -30,18 +30,18 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn hasSubject(&self, subject: &str) -> MailResult<bool> {
+    fn has_subject(&self, subject: &str) -> MailResult<bool> {
         Ok(self.envelope()?.subject == subject)
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasSubject(&self, subject: &str) -> &Self
+    fn assert_has_subject(&self, subject: &str) -> &Self
     where
         Self: Sized,
     {
         assert!(
-            self.hasSubject(subject)
+            self.has_subject(subject)
                 .expect("could not inspect mailable subject"),
             "Did not find the expected mail subject [{subject}]."
         );
@@ -49,7 +49,7 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn assertSeeInHtml<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
+    fn assert_see_in_html<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
     {
@@ -61,7 +61,11 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn assertDontSeeInHtml<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
+    fn assert_dont_see_in_html<'a>(
+        &'a self,
+        value: &'a str,
+        escape: bool,
+    ) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
     {
@@ -73,7 +77,7 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn assertSeeInOrderInHtml<'a>(
+    fn assert_see_in_order_in_html<'a>(
         &'a self,
         values: &'a [&'a str],
         escape: bool,
@@ -89,7 +93,7 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn assertSeeInText<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
+    fn assert_see_in_text<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
     {
@@ -97,7 +101,7 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn assertDontSeeInText<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
+    fn assert_dont_see_in_text<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
     {
@@ -109,7 +113,7 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn assertSeeInOrderInText<'a>(&'a self, values: &'a [&'a str]) -> MailFuture<'a, &'a Self>
+    fn assert_see_in_order_in_text<'a>(&'a self, values: &'a [&'a str]) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
     {
@@ -117,12 +121,12 @@ pub trait Mailable: Send + Sync {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn hasTag(&self, tag: &str) -> MailResult<bool> {
+    fn has_tag(&self, tag: &str) -> MailResult<bool> {
         Ok(self.envelope()?.tags.iter().any(|value| value == tag))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn hasMetadata(&self, name: &str, value: &str) -> MailResult<bool> {
+    fn has_metadata(&self, name: &str, value: &str) -> MailResult<bool> {
         Ok(self
             .envelope()?
             .metadata
@@ -132,12 +136,12 @@ pub trait Mailable: Send + Sync {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasTag(&self, tag: &str) -> &Self
+    fn assert_has_tag(&self, tag: &str) -> &Self
     where
         Self: Sized,
     {
         assert!(
-            self.hasTag(tag).expect("could not inspect mailable tags"),
+            self.has_tag(tag).expect("could not inspect mailable tags"),
             "Did not find the expected mail tag [{tag}]."
         );
         self
@@ -145,12 +149,12 @@ pub trait Mailable: Send + Sync {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasMetadata(&self, name: &str, value: &str) -> &Self
+    fn assert_has_metadata(&self, name: &str, value: &str) -> &Self
     where
         Self: Sized,
     {
         assert!(
-            self.hasMetadata(name, value)
+            self.has_metadata(name, value)
                 .expect("could not inspect mailable metadata"),
             "Did not find the expected mail metadata [{name}]."
         );
@@ -167,7 +171,7 @@ pub trait Mailable: Send + Sync {
 
     /// Checks the declared source and options without reading attachment files.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn hasAttachment(&self, attachment: &AttachmentSource) -> MailResult<bool> {
+    fn has_attachment(&self, attachment: &AttachmentSource) -> MailResult<bool> {
         if self
             .attachment_sources()?
             .iter()
@@ -183,12 +187,12 @@ pub trait Mailable: Send + Sync {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasAttachment(&self, attachment: &AttachmentSource) -> &Self
+    fn assert_has_attachment(&self, attachment: &AttachmentSource) -> &Self
     where
         Self: Sized,
     {
         assert!(
-            self.hasAttachment(attachment)
+            self.has_attachment(attachment)
                 .expect("could not inspect mailable attachments"),
             "Did not find the expected attachment."
         );
@@ -197,7 +201,7 @@ pub trait Mailable: Send + Sync {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasNoAttachments(&self) -> &Self
+    fn assert_has_no_attachments(&self) -> &Self
     where
         Self: Sized,
     {
@@ -216,16 +220,16 @@ pub trait Mailable: Send + Sync {
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasAttachedData(&self, data: &[u8], name: &str, mime: Option<&str>) -> &Self
+    fn assert_has_attached_data(&self, data: &[u8], name: &str, mime: Option<&str>) -> &Self
     where
         Self: Sized,
     {
-        self.assertHasAttachment(&Attachment::fromData(data, name).with_metadata(None, mime))
+        self.assert_has_attachment(&Attachment::fromData(data, name).with_metadata(None, mime))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasAttachmentFromStorage(
+    fn assert_has_attachment_from_storage(
         &self,
         path: &str,
         name: Option<&str>,
@@ -234,12 +238,12 @@ pub trait Mailable: Send + Sync {
     where
         Self: Sized,
     {
-        self.assertHasAttachment(&Attachment::fromStorage(path).with_metadata(name, mime))
+        self.assert_has_attachment(&Attachment::fromStorage(path).with_metadata(name, mime))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
-    fn assertHasAttachmentFromStorageDisk(
+    fn assert_has_attachment_from_storage_disk(
         &self,
         disk: &str,
         path: &str,
@@ -249,7 +253,9 @@ pub trait Mailable: Send + Sync {
     where
         Self: Sized,
     {
-        self.assertHasAttachment(&Attachment::fromStorageDisk(disk, path).with_metadata(name, mime))
+        self.assert_has_attachment(
+            &Attachment::fromStorageDisk(disk, path).with_metadata(name, mime),
+        )
     }
     fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {
         Ok(Vec::new())

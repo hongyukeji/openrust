@@ -2,23 +2,22 @@ use std::{collections::HashSet, hash::Hash, rc::Rc};
 
 use super::{ArrayKey, CollectionError, CollectionResult, Entry, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn unique(self) -> Self
     where
         T: Eq + Hash + Clone,
     {
-        self.uniqueBy(|value, _| value.clone())
+        self.unique_by(|value, _| value.clone())
     }
 
-    pub fn uniqueStrict(self) -> Self
+    pub fn unique_strict(self) -> Self
     where
         T: Eq + Hash + Clone,
     {
         self.unique()
     }
 
-    pub fn uniqueBy<K: Eq + Hash + 'source>(
+    pub fn unique_by<K: Eq + Hash + 'source>(
         self,
         project: impl Fn(&T, &ArrayKey) -> K + 'source,
     ) -> Self {
@@ -26,7 +25,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Self::from_iterators(move || {
             let project = Rc::clone(&project);
             let mut seen = HashSet::new();
-            self.getIterator().filter(move |entry| match entry {
+            self.get_iterator().filter(move |entry| match entry {
                 Ok((key, value)) => seen.insert(project(value, key)),
                 Err(_) => true,
             })
@@ -45,58 +44,58 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: PartialEq,
     {
-        self.containsWhere(|item, _| item == value)
+        self.contains_where(|item, _| item == value)
     }
 
-    pub fn containsStrict(&self, value: &T) -> CollectionResult<bool>
+    pub fn contains_strict(&self, value: &T) -> CollectionResult<bool>
     where
         T: PartialEq,
     {
         self.contains(value)
     }
 
-    pub fn containsWhere(
+    pub fn contains_where(
         &self,
         predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<bool> {
-        Ok(self.firstWhere(predicate)?.is_some())
+        Ok(self.first_where(predicate)?.is_some())
     }
 
-    pub fn doesntContain(&self, value: &T) -> CollectionResult<bool>
+    pub fn doesnt_contain(&self, value: &T) -> CollectionResult<bool>
     where
         T: PartialEq,
     {
         Ok(!self.contains(value)?)
     }
 
-    pub fn doesntContainStrict(&self, value: &T) -> CollectionResult<bool>
+    pub fn doesnt_contain_strict(&self, value: &T) -> CollectionResult<bool>
     where
         T: PartialEq,
     {
-        self.doesntContain(value)
+        self.doesnt_contain(value)
     }
 
     pub fn some(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<bool> {
-        self.containsWhere(predicate)
+        self.contains_where(predicate)
     }
 
-    pub fn firstOrFail(&self) -> CollectionResult<T> {
+    pub fn first_or_fail(&self) -> CollectionResult<T> {
         self.first()?.ok_or(CollectionError::ItemNotFound)
     }
 
-    pub fn firstOrFailWhere(
+    pub fn first_or_fail_where(
         &self,
         predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<T> {
-        self.firstWhere(predicate)?
+        self.first_where(predicate)?
             .ok_or(CollectionError::ItemNotFound)
     }
 
     pub fn sole(&self) -> CollectionResult<T> {
-        self.soleWhere(|_, _| true)
+        self.sole_where(|_, _| true)
     }
 
-    pub fn soleWhere(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<T> {
+    pub fn sole_where(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<T> {
         let mut matches = self.matching(predicate);
         let (key, value) = matches
             .next()
@@ -109,11 +108,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         }
     }
 
-    pub fn hasSole(&self) -> CollectionResult<bool> {
-        self.hasSoleWhere(|_, _| true)
+    pub fn has_sole(&self) -> CollectionResult<bool> {
+        self.has_sole_where(|_, _| true)
     }
 
-    pub fn hasSoleWhere(
+    pub fn has_sole_where(
         &self,
         predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<bool> {
@@ -121,21 +120,21 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(matches.next().transpose()?.is_some() && matches.next().transpose()?.is_none())
     }
 
-    /// Compatibility alias for `hasSole`.
-    pub fn containsOneItem(&self) -> CollectionResult<bool> {
-        self.hasSole()
+    /// Compatibility alias for `has_sole`.
+    pub fn contains_one_item(&self) -> CollectionResult<bool> {
+        self.has_sole()
     }
 
-    /// Compatibility alias for `hasMany`.
-    pub fn containsManyItems(&self) -> CollectionResult<bool> {
-        self.hasMany()
+    /// Compatibility alias for `has_many`.
+    pub fn contains_many_items(&self) -> CollectionResult<bool> {
+        self.has_many()
     }
 
-    pub fn hasMany(&self) -> CollectionResult<bool> {
-        self.hasManyWhere(|_, _| true)
+    pub fn has_many(&self) -> CollectionResult<bool> {
+        self.has_many_where(|_, _| true)
     }
 
-    pub fn hasManyWhere(
+    pub fn has_many_where(
         &self,
         predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<bool> {
@@ -147,7 +146,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> impl Iterator<Item = CollectionResult<Entry<T>>> {
-        self.getIterator().filter(move |entry| match entry {
+        self.get_iterator().filter(move |entry| match entry {
             Ok((key, value)) => predicate(value, key),
             Err(_) => true,
         })

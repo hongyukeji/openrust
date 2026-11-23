@@ -100,7 +100,7 @@ async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
         .unwrap();
     if std::env::var("TELESCOPE_TEST_CACHE_DRIVER").as_deref() == Ok("database") {
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("cache", |table| {
                 table.string("key", 255).primary();
                 table.mediumText("value");
@@ -109,7 +109,7 @@ async fn native_cache_recording_pause_resume_use_the_selected_cache_store() {
             .await
             .unwrap();
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("cache_locks", |table| {
                 table.string("key", 255).primary();
                 table.string("owner", 255);
@@ -364,28 +364,28 @@ fn native_handler(
         Notification::send(&[&target], &ObservedNotice(true))
             .await
             .unwrap();
-        let connection = openrust::database::DB::connection(None).unwrap();
+        let connection = openrust::database::Db::connection(None).unwrap();
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create("observed_models", |table| {
                 table.id();
                 table.string("title", None);
             })
             .await
             .unwrap();
-        let mut model = ObservedModel::queryOn(&connection)
+        let mut model = ObservedModel::query_on(&connection)
             .make([("title".into(), "first".into())].into())
             .unwrap();
         model.save().await.unwrap();
-        let id = model.getKey().unwrap().clone();
-        model.setAttribute("title", "updated");
+        let id = model.get_key().unwrap().clone();
+        model.set_attribute("title", "updated");
         model.save().await.unwrap();
-        ObservedModel::queryOn(&connection)
-            .findOrFail(id.clone())
+        ObservedModel::query_on(&connection)
+            .find_or_fail(id.clone())
             .await
             .unwrap();
-        ObservedModel::queryOn(&connection)
-            .findOrFail(id)
+        ObservedModel::query_on(&connection)
+            .find_or_fail(id)
             .await
             .unwrap();
         model.delete().await.unwrap();
@@ -903,7 +903,7 @@ fn log_handler(
                 .unwrap(),
         )
         .unwrap();
-        openrust::log::Log::logException(
+        openrust::log::Log::log_exception(
             openrust::log::Level::Error,
             "reported",
             &std::io::Error::other("source failure"),
@@ -1145,20 +1145,20 @@ async fn native_database_worker_and_batch_bulk_keep_attempts_isolated_from_the_c
         .connection(None)
         .unwrap();
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("job_batches", |table| {
             table.string("id", 255).primary();
             table.string("name", 255);
@@ -1369,7 +1369,7 @@ impl openrust::contracts::auth::Authenticatable for ObservedModel {
     }
     fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
         use openrust::database::eloquent::Model;
-        openrust::auth::AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
+        openrust::auth::AuthIdentifier::try_from(self.get_key().unwrap()).unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
@@ -1391,15 +1391,16 @@ fn identity_handler(
     Box::pin(async move {
         use openrust::{
             database::eloquent::Model,
-            support::facades::{Auth, DB},
+            support::facades::{Auth, Db},
         };
         if request.path().ends_with("identity") {
-            let connection = DB::connection(None).unwrap();
-            let mut actor = ObservedModel::newInstanceOn(&connection, Default::default()).unwrap();
-            actor.setAttribute("id", 42_i64);
-            actor.setAttribute("name", "Observed actor");
-            actor.setAttribute("email", "actor@example.org");
-            actor.setAttribute("password", "never-exported");
+            let connection = Db::connection(None).unwrap();
+            let mut actor =
+                ObservedModel::new_instance_on(&connection, Default::default()).unwrap();
+            actor.set_attribute("id", 42_i64);
+            actor.set_attribute("name", "Observed actor");
+            actor.set_attribute("email", "actor@example.org");
+            actor.set_attribute("password", "never-exported");
             Auth::guard(request, None)
                 .unwrap()
                 .set_user(Box::new(actor));
@@ -1452,8 +1453,8 @@ fn client_handler(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async move {
-        use openrust::{http::client::Http, support::facades::DB};
-        DB::connection(None)
+        use openrust::{http::client::Http, support::facades::Db};
+        Db::connection(None)
             .unwrap()
             .select("SELECT 1 AS probe", &[])
             .await

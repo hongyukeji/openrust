@@ -26,8 +26,8 @@ impl ClientOwner {
         user: &U,
     ) -> DatabaseResult<Self> {
         Ok(Self {
-            id: user.getKey().cloned().unwrap_or(Value::Null),
-            morph_class: user.getMorphClass()?,
+            id: user.get_key().cloned().unwrap_or(Value::Null),
+            morph_class: user.get_morph_class()?,
         })
     }
 }
@@ -270,7 +270,7 @@ impl ClientRepository {
         let Some(client) = self.find(id).await? else {
             return Ok(None);
         };
-        if crate::client::truthy(client.getAttributeValue("revoked").await?.as_ref()) {
+        if crate::client::truthy(client.get_attribute_value("revoked").await?.as_ref()) {
             Ok(None)
         } else {
             Ok(Some(client))
@@ -306,7 +306,7 @@ impl<M: ClientModel> EloquentClientStore<M> {
     }
     fn connection(&self) -> DatabaseResult<Connection> {
         let prototype = M::from_state(Default::default());
-        let name = if let Some(name) = prototype.getConnectionName() {
+        let name = if let Some(name) = prototype.get_connection_name() {
             Some(name.to_owned())
         } else {
             crate::client::configured_connection(self.config.get("passport.connection"))?
@@ -328,8 +328,8 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
             let connection = self.connection()?;
             let prototype = M::from_state(Default::default());
             let columns = connection
-                .getSchemaBuilder()
-                .getColumnListing(prototype.getTable())
+                .get_schema_builder()
+                .get_column_listing(prototype.get_table())
                 .await?;
             let legacy = columns.iter().any(|column| column == "user_id");
             let owner_key = if legacy { "user_id" } else { "owner_id" };
@@ -337,7 +337,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
             query
                 .r#where("revoked", "=", false)
                 .r#where(owner_key, "=", user.id)
-                .whereNested(|conditions| conditions.where_not_null(owner_key));
+                .where_nested(|conditions| conditions.where_not_null(owner_key));
             if !legacy {
                 query.r#where("owner_type", "=", user.morph_class);
             }
@@ -349,7 +349,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                         .collect()
                 });
             }
-            query.orderBy("name", "asc").get().await.map(|models| {
+            query.order_by("name", "asc").get().await.map(|models| {
                 models
                     .into_iter()
                     .map(|model| ClientRecord::new(model, connection.clone()))
@@ -371,21 +371,21 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                 == Some(provider);
             let prototype = M::from_state(Default::default());
             let created = prototype
-                .getCreatedAtColumn()
+                .get_created_at_column()
                 .unwrap_or("created_at")
                 .to_owned();
             let mut query = M::newQuery(&connection);
             query
                 .r#where("revoked", "=", false)
-                .whereNested(|conditions| {
+                .where_nested(|conditions| {
                     let conditions = if default_provider {
-                        conditions.orWhereNull("provider")
+                        conditions.or_where_null("provider")
                     } else {
                         conditions
                     };
-                    conditions.orWhere("provider", "=", provider)
+                    conditions.or_where("provider", "=", provider)
                 });
-            for model in query.orderBy(&created, "desc").get().await? {
+            for model in query.order_by(&created, "desc").get().await? {
                 if model.hasGrantType("personal_access")? {
                     return Ok(Some(ClientRecord::new(model, connection)));
                 }
@@ -401,8 +401,8 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                 .make_async(Attributes::new())
                 .await?;
             let columns = connection
-                .getSchemaBuilder()
-                .getColumnListing(model.getTable())
+                .get_schema_builder()
+                .get_column_listing(model.get_table())
                 .await?;
             let has = |column: &str| columns.iter().any(|name| name == column);
             let mut attributes = Attributes::from([
@@ -452,15 +452,15 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                     attributes.insert("owner_type".into(), owner.morph_class.into());
                 }
             }
-            model.forceFillAsync(attributes).await?;
+            model.force_fill_async(attributes).await?;
             model.save().await?;
             Ok(ClientRecord::new(model, connection))
         })
     }
     fn valid_id(&self, id: &Value) -> bool {
         let prototype = M::from_state(Default::default());
-        !M::uniqueIds().contains(&prototype.getKeyName())
-            || matches!(id, Value::Text(id) if M::isValidUniqueId(id))
+        !M::unique_ids().contains(&prototype.get_key_name())
+            || matches!(id, Value::Text(id) if M::is_valid_unique_id(id))
     }
     fn find(&self, id: Value) -> DatabaseFuture<'_, DatabaseResult<Option<ClientRecord>>> {
         Box::pin(async move {

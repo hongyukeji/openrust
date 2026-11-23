@@ -15,7 +15,6 @@ pub struct UrlWindow<'a, T> {
     paginator: &'a LengthAwarePaginator<T>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a, T> UrlWindow<'a, T> {
     pub fn new(paginator: &'a LengthAwarePaginator<T>) -> Self {
         Self { paginator }
@@ -26,33 +25,33 @@ impl<'a, T> UrlWindow<'a, T> {
     }
 
     pub fn get(&self) -> UrlWindowLinks {
-        let page = self.paginator.currentPage();
-        let last = self.paginator.lastPage();
-        let on_each_side = self.paginator.on_each_side();
+        let page = self.paginator.current_page();
+        let last = self.paginator.last_page();
+        let on_each_side = self.paginator.window_side_count();
         let side = u64::from(on_each_side);
         let window = side + 4;
 
         let (first, slider, last) = if last < side * 2 + 8 {
             (Some(self.range(1, last)), None, None)
-        } else if !self.hasPages() {
+        } else if !self.has_pages() {
             (None, None, None)
         } else if page <= window {
             (
                 Some(self.range(1, window + side)),
                 None,
-                Some(self.getFinish()),
+                Some(self.get_finish()),
             )
         } else if page > last - window {
             (
-                Some(self.getStart()),
+                Some(self.get_start()),
                 None,
                 Some(self.range(last - (window + side - 1), last)),
             )
         } else {
             (
-                Some(self.getStart()),
-                Some(self.getAdjacentUrlRange(on_each_side)),
-                Some(self.getFinish()),
+                Some(self.get_start()),
+                Some(self.get_adjacent_url_range(on_each_side)),
+                Some(self.get_finish()),
             )
         };
         UrlWindowLinks {
@@ -62,26 +61,26 @@ impl<'a, T> UrlWindow<'a, T> {
         }
     }
 
-    pub fn hasPages(&self) -> bool {
-        self.paginator.hasPages()
+    pub fn has_pages(&self) -> bool {
+        self.paginator.has_pages()
     }
 
-    pub fn getAdjacentUrlRange(&self, on_each_side: u8) -> UrlRange {
-        let page = self.paginator.currentPage();
+    pub fn get_adjacent_url_range(&self, on_each_side: u8) -> UrlRange {
+        let page = self.paginator.current_page();
         let side = u64::from(on_each_side);
         self.range(page.saturating_sub(side), page.saturating_add(side))
     }
 
-    pub fn getStart(&self) -> UrlRange {
+    pub fn get_start(&self) -> UrlRange {
         self.range(1, 2)
     }
 
-    pub fn getFinish(&self) -> UrlRange {
-        let last = self.paginator.lastPage();
+    pub fn get_finish(&self) -> UrlRange {
+        let last = self.paginator.last_page();
         self.range(last - 1, last)
     }
 
     fn range(&self, start: u64, end: u64) -> UrlRange {
-        self.paginator.getUrlRange(start, end).collect()
+        self.paginator.get_url_range(start, end).collect()
     }
 }

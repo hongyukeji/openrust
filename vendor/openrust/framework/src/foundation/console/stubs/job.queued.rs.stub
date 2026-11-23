@@ -19,7 +19,7 @@ impl {{class}} {
     pub fn payload(&self) -> QueueResult<Payload> {
         let payload = Payload::new(Self::NAME, self)?;
         let options = JobOptions {
-            retry_until: self.retryUntil(None)?,
+            retry_until: self.retry_until(None)?,
             ..JobOptions::default()
         };
         Ok(payload.with_options(options))
@@ -34,7 +34,7 @@ impl {{class}} {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn retryUntil(&self, previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
+    pub fn retry_until(&self, previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
         Ok(previous)
     }
 
@@ -59,10 +59,10 @@ impl JobHandler for {{class}}Handler {
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
+    fn retry_until(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
         let job: {{class}} =
             serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
-        job.retryUntil(payload.options().retry_until)
+        job.retry_until(payload.options().retry_until)
     }
 
     fn failed<'a>(

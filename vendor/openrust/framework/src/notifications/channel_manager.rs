@@ -135,14 +135,14 @@ impl ChannelManager {
             .await
     }
 
-    pub async fn sendNow(
+    pub async fn send_now(
         &self,
         recipients: &[&dyn Notifiable],
         notification: &dyn Notification,
         channels: Option<&[&str]>,
     ) -> NotificationResult<()> {
         NotificationSender::new(self)
-            .sendNow(recipients, notification, channels)
+            .send_now(recipients, notification, channels)
             .await
     }
 }
@@ -168,6 +168,6 @@ impl Dispatcher for ChannelManager {
         notification: &'a dyn Notification,
         channels: Option<&'a [&'a str]>,
     ) -> NotificationFuture<'a, NotificationResult<()>> {
-        Box::pin(self.sendNow(recipients, notification, channels))
+        Box::pin(self.send_now(recipients, notification, channels))
     }
 }

@@ -20,7 +20,7 @@ use openrust::{
         http::Kernel as _,
         queue::JobHandler,
     },
-    database::{Connection, DB, DatabaseManager, Value, query::Record},
+    database::{Connection, DatabaseManager, Db, Value, query::Record},
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
@@ -169,7 +169,7 @@ async fn record_callback(batch: &Batch, phase: &str, failure: Option<&str>) -> Q
         assert_eq!(batch.total_jobs, 0);
         assert!(Bus::findBatch(&batch.id).await?.is_none());
     }
-    DB::connection(None)
+    Db::connection(None)
         .unwrap()
         .statement(
             "insert into batch_callbacks (batch_id, phase, failure) values (?, ?, ?)",
@@ -187,7 +187,7 @@ async fn record_callback(batch: &Batch, phase: &str, failure: Option<&str>) -> Q
 async fn trace(db: &Connection, batch: &str) -> Vec<(String, Option<String>)> {
     db.table("batch_callbacks")
         .r#where("batch_id", "=", batch)
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap()
@@ -240,7 +240,7 @@ impl JobHandler for Probe {
                 assert_eq!(payload.data()["body"].as_str().unwrap().len(), 180_000);
                 payload.data()["name"].as_str().unwrap()
             });
-            let db = DB::connection(None).unwrap();
+            let db = Db::connection(None).unwrap();
             db.statement("insert into receipts (name) values (?)", &[data.into()])
                 .await
                 .unwrap();
@@ -330,7 +330,7 @@ impl JobHandler for ChainProbe {
 }
 
 async fn record_chain_receipt(data: &str) {
-    DB::connection(None)
+    Db::connection(None)
         .unwrap()
         .statement("insert into receipts (name) values (?)", &[data.into()])
         .await
@@ -883,7 +883,7 @@ async fn exercise(mysql: Option<&str>) {
         .unwrap()
         .connection(None)
         .unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     for table in [
         "job_batches",
         "failed_jobs",
@@ -897,7 +897,7 @@ async fn exercise(mysql: Option<&str>) {
         "receipts",
         "batch_callbacks",
     ] {
-        schema.dropIfExists(table).await.unwrap();
+        schema.drop_if_exists(table).await.unwrap();
     }
     artisan(&root.0, &["migrate", "--force"]).await;
     for table in [
@@ -908,7 +908,7 @@ async fn exercise(mysql: Option<&str>) {
         "job_chain_deliveries",
     ] {
         assert!(
-            !schema.hasTable(table).await.unwrap(),
+            !schema.has_table(table).await.unwrap(),
             "unexpected auxiliary table {table}"
         );
     }

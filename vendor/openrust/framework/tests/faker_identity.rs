@@ -38,7 +38,7 @@ fn regional_identity_samples_match_the_fakerphp_rules() {
             (Some("female"), b'2'),
             (Some("other"), b'2'),
         ] {
-            let sample = tw.unique(false).personalIdentityNumber(gender).unwrap();
+            let sample = tw.unique(false).personal_identity_number(gender).unwrap();
             let bytes = sample.as_bytes();
             assert_eq!(bytes.len(), 10);
             assert_eq!(bytes[1], code);
@@ -67,13 +67,13 @@ fn regional_identity_samples_match_the_fakerphp_rules() {
         }
     }
     assert!(matches!(
-        tw.personalIdentityNumber(None).unwrap().as_bytes()[1],
+        tw.personal_identity_number(None).unwrap().as_bytes()[1],
         b'1' | b'2'
     ));
     let zh = fake(Some("zh-Hans")).unwrap();
     assert!(zh.ssn().is_err());
     assert!(zh.nino().is_err());
-    assert!(zh.personalIdentityNumber(None).is_err());
+    assert!(zh.personal_identity_number(None).is_err());
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
         assert_ne!(&parts[2], "00");
         assert_ne!(&parts[3], "0000");
 
-        let sample = unique.ssnWithBirthdate(Some(fixed)).unwrap();
+        let sample = unique.ssn_with_birthdate(Some(fixed)).unwrap();
         assert_eq!(sample.len(), 10);
         assert!(sample.bytes().all(|digit| digit.is_ascii_digit()));
         assert!(seen.insert(sample.clone()));
@@ -133,7 +133,7 @@ fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
     }
     let generated = at.ssn().unwrap();
     assert_eq!(generated.len(), 10);
-    assert!(th.ssnWithBirthdate(Some(fixed)).is_err());
+    assert!(th.ssn_with_birthdate(Some(fixed)).is_err());
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn european_identity_numbers_keep_dates_and_regional_checksums() {
             for (gender, parity) in [("male", 1), ("female", 0)] {
                 let sample = faker
                     .unique(false)
-                    .personalIdentityNumberWithBirthdate(Some(date), Some(gender))
+                    .personal_identity_number_with_birthdate(Some(date), Some(gender))
                     .unwrap();
                 assert!(format.is_match(&sample), "{locale}: {sample}");
                 let bytes = sample.as_bytes();
@@ -197,37 +197,37 @@ fn european_identity_numbers_keep_dates_and_regional_checksums() {
                 }
             }
         }
-        assert!(faker.personalIdentityNumber(None).is_ok());
+        assert!(faker.personal_identity_number(None).is_ok());
     }
 
     let lt = fake(Some("lt-LT")).unwrap();
-    let unique = lt.uniqueWithRetries(true, 1);
+    let unique = lt.unique_with_retries(true, 1);
     assert_eq!(
         unique
-            .personalIdentityNumberWithSerial(Some(date), None, Some("0079"))
+            .personal_identity_number_with_serial(Some(date), None, Some("0079"))
             .unwrap(),
         "50002290079"
     );
     assert!(
         unique
-            .personalIdentityNumberWithSerial(Some(date), None, Some("007"))
+            .personal_identity_number_with_serial(Some(date), None, Some("007"))
             .is_err()
     );
     assert!(
-        lt.personalIdentityNumberWithSerial(Some(date), None, Some("é12"))
+        lt.personal_identity_number_with_serial(Some(date), None, Some("é12"))
             .is_err()
     );
     let fi = fake(Some("fi-FI")).unwrap();
     let outside = CivilDate::new(2100, 1, 1).unwrap();
     assert!(
-        fi.personalIdentityNumberWithBirthdate(Some(outside), None)
+        fi.personal_identity_number_with_birthdate(Some(outside), None)
             .is_err()
     );
 
     let pl = fake(Some("pl-PL")).unwrap();
     let format = Regex::new(r"^A[ABCDEFGHIJKLMNPRSTUVWXYZ]{2}[0-9]{6}$").unwrap();
     for _ in 0..64 {
-        let sample = pl.unique(false).personalIdentityNumber(None).unwrap();
+        let sample = pl.unique(false).personal_identity_number(None).unwrap();
         assert!(format.is_match(&sample));
         let bytes = sample.as_bytes();
         let values = bytes[..3]
@@ -282,7 +282,7 @@ fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
     }
     assert_eq!(faker.pesel(None, None).unwrap().len(), 11);
     for _ in 0..256 {
-        let sample = unique.taxpayerIdentificationNumber().unwrap();
+        let sample = unique.taxpayer_identification_number().unwrap();
         assert_eq!(sample.len(), 10);
         assert!(sample.bytes().all(|digit| digit.is_ascii_digit()));
         assert!(!sample[..3].contains('0'));
@@ -293,7 +293,7 @@ fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
     }
     let other = fake(Some("en-US")).unwrap();
     assert!(other.pesel(None, None).is_err());
-    assert!(other.taxpayerIdentificationNumber().is_err());
+    assert!(other.taxpayer_identification_number().is_err());
 }
 
 #[test]
@@ -399,10 +399,10 @@ fn dni_ruc_and_licence_categories_follow_their_regional_providers() {
     }
 
     let es_codes = (0..14)
-        .map(|_| es_unique.licenceCode().unwrap())
+        .map(|_| es_unique.licence_code().unwrap())
         .collect::<HashSet<_>>();
     let za_codes = (0..12)
-        .map(|_| za_unique.licenceCode().unwrap())
+        .map(|_| za_unique.licence_code().unwrap())
         .collect::<HashSet<_>>();
     assert_eq!(
         es_codes,
@@ -416,12 +416,12 @@ fn dni_ruc_and_licence_categories_follow_their_regional_providers() {
             "A", "A1", "B", "C", "C1", "C2", "EB", "EC", "EC1", "I", "L", "L1"
         ])
     );
-    assert!(es_unique.licenceCode().is_err());
-    assert!(za_unique.licenceCode().is_err());
-    assert!(es.unique(true).licenceCode().is_ok());
+    assert!(es_unique.licence_code().is_err());
+    assert!(za_unique.licence_code().is_err());
+    assert!(es.unique(true).licence_code().is_ok());
 
     assert!(es.ruc(None).is_err());
-    assert!(pe.licenceCode().is_err());
+    assert!(pe.licence_code().is_err());
     assert!(za.dni().is_err());
 }
 
@@ -441,7 +441,7 @@ fn regional_id_numbers_match_their_pinned_providers() {
         "13", "34", "16", "23", "14", "27", "15", "33", "17", "24", "32",
     ];
     for _ in 0..128 {
-        let dutch = nl.unique(false).idNumber().unwrap();
+        let dutch = nl.unique(false).id_number().unwrap();
         assert_eq!(dutch.len(), 9);
         assert!(dutch.as_bytes()[0] <= b'6');
         let weighted: u16 = dutch[..8]
@@ -453,7 +453,7 @@ fn regional_id_numbers_match_their_pinned_providers() {
 
         let za_sample = za
             .unique(false)
-            .idNumberWithBirthdate(Some(date), Some(false), Some("FEMALE"))
+            .id_number_with_birthdate(Some(date), Some(false), Some("FEMALE"))
             .unwrap();
         assert_eq!(za_sample.len(), 13);
         assert_eq!(&za_sample[..6], "000229");
@@ -463,16 +463,16 @@ fn regional_id_numbers_match_their_pinned_providers() {
         luhn(&za_sample);
 
         for (sample, prefixes) in [
-            (sa.idNumber().unwrap(), "12"),
-            (sa.nationalIdNumber().unwrap(), "1"),
-            (sa.foreignerIdNumber().unwrap(), "2"),
+            (sa.id_number().unwrap(), "12"),
+            (sa.national_id_number().unwrap(), "1"),
+            (sa.foreigner_id_number().unwrap(), "2"),
         ] {
             assert_eq!(sample.len(), 10);
             assert!(prefixes.contains(sample.chars().next().unwrap()));
             luhn(&sample);
         }
 
-        let mongolian = mn.idNumber().unwrap();
+        let mongolian = mn.id_number().unwrap();
         let mut chars = mongolian.chars();
         assert!(
             alphabet.contains(chars.next().unwrap()) && alphabet.contains(chars.next().unwrap())
@@ -480,7 +480,7 @@ fn regional_id_numbers_match_their_pinned_providers() {
         assert_eq!(chars.as_str().len(), 8);
         assert!(chars.as_str().bytes().all(|byte| byte.is_ascii_digit()));
 
-        let egyptian = eg.nationalIdNumberWithGender(Some("male")).unwrap();
+        let egyptian = eg.national_id_number_with_gender(Some("male")).unwrap();
         assert_eq!(egyptian.len(), 14);
         let century = match egyptian.as_bytes()[0] {
             b'2' => "19",
@@ -501,8 +501,8 @@ fn regional_id_numbers_match_their_pinned_providers() {
         (0..35).map(|_| symbols.alphabet().unwrap()).collect();
     assert_eq!(actual, alphabet.chars().collect());
     assert!(symbols.alphabet().is_err());
-    assert!(nl.idNumberWithBirthdate(None, None, None).is_err());
-    assert!(eg.foreignerIdNumber().is_err());
+    assert!(nl.id_number_with_birthdate(None, None, None).is_err());
+    assert!(eg.foreigner_id_number().is_err());
 }
 
 #[test]
@@ -514,28 +514,28 @@ fn turkish_identity_and_baltic_passports_follow_pinned_formats() {
     let latvia = fake(Some("lv-LV")).unwrap();
     let format = Regex::new(r"^[a-z]{2}[0-9]{7}$").unwrap();
 
-    assert_eq!(Faker::tcNoChecksum("100000001").unwrap(), "46");
-    assert_eq!(Faker::tcNoChecksum("090909090").unwrap(), "-60");
-    assert!(Faker::tcNoIsValid("10000000146").unwrap());
-    assert!(!Faker::tcNoIsValid("10000000147").unwrap());
-    assert!(Faker::tcNoIsValid("090909090-60").is_err());
-    assert!(Faker::tcNoChecksum("12345678a").is_err());
-    assert!(Faker::tcNoIsValid("你").is_err());
+    assert_eq!(Faker::tc_no_checksum("100000001").unwrap(), "46");
+    assert_eq!(Faker::tc_no_checksum("090909090").unwrap(), "-60");
+    assert!(Faker::tc_no_is_valid("10000000146").unwrap());
+    assert!(!Faker::tc_no_is_valid("10000000147").unwrap());
+    assert!(Faker::tc_no_is_valid("090909090-60").is_err());
+    assert!(Faker::tc_no_checksum("12345678a").is_err());
+    assert!(Faker::tc_no_is_valid("你").is_err());
 
     for _ in 0..128 {
-        let turkish = turkey.unique(false).tcNo().unwrap();
+        let turkish = turkey.unique(false).tc_no().unwrap();
         let (prefix, suffix) = turkish.split_at(9);
-        assert_eq!(Faker::tcNoChecksum(prefix).unwrap(), suffix);
+        assert_eq!(Faker::tc_no_checksum(prefix).unwrap(), suffix);
         if suffix.len() == 2 {
-            assert!(Faker::tcNoIsValid(&turkish).unwrap());
+            assert!(Faker::tc_no_is_valid(&turkish).unwrap());
         }
-        let lt = lithuania.unique(false).passportNumber().unwrap();
+        let lt = lithuania.unique(false).passport_number().unwrap();
         assert_eq!(lt.len(), 8);
         assert!(lt.bytes().all(|byte| byte.is_ascii_digit()));
-        assert!(format.is_match(&latvia.unique(false).passportNumber().unwrap()));
+        assert!(format.is_match(&latvia.unique(false).passport_number().unwrap()));
     }
-    assert!(latvia.tcNo().is_err());
-    assert!(turkey.passportNumber().is_err());
+    assert!(latvia.tc_no().is_err());
+    assert!(turkey.passport_number().is_err());
 }
 
 #[test]
@@ -560,17 +560,17 @@ fn us_and_russian_tax_identifiers_follow_pinned_formats() {
         assert!(eins.insert(ein));
         let inn = ru_unique.inn10(Some("7")).unwrap();
         assert_eq!(&inn[..2], "07");
-        assert!(Faker::inn10IsValid(&inn));
+        assert!(Faker::inn10_is_valid(&inn));
         assert_eq!(ru.kpp(Some(&inn)).unwrap(), format!("{}01001", &inn[..4]));
         assert!(inns.insert(inn));
         let area = ru.inn(Some("00")).unwrap()[..2].parse::<u8>().unwrap();
         assert!((1..=91).contains(&area));
     }
-    assert_eq!(Faker::inn10Checksum("770708389").unwrap(), "3");
-    assert!(Faker::inn10IsValid("7707083893"));
-    assert!(!Faker::inn10IsValid("7707083894"));
-    assert!(!Faker::inn10IsValid("你0708389"));
-    assert!(Faker::inn10Checksum("12345678").is_err());
+    assert_eq!(Faker::inn10_checksum("770708389").unwrap(), "3");
+    assert!(Faker::inn10_is_valid("7707083893"));
+    assert!(!Faker::inn10_is_valid("7707083894"));
+    assert!(!Faker::inn10_is_valid("你0708389"));
+    assert!(Faker::inn10_checksum("12345678").is_err());
     assert!(ru.inn10(Some("100")).is_err());
     assert!(ru.inn10(Some("x7")).is_err());
     assert!(ru.kpp(Some("12é4")).is_err());
@@ -623,7 +623,7 @@ fn french_siret_and_polish_regon_follow_pinned_formats() {
         regon_valid(&regional, &weights);
         assert_eq!((regional.as_bytes()[1] - b'0') % 2, 1);
         assert!(regional_ids.insert(regional));
-        let local = polish_unique.regonLocal().unwrap();
+        let local = polish_unique.regon_local().unwrap();
         regon_valid(&local, &[2, 4, 8, 5, 0, 9, 7, 3, 6, 1, 2, 4, 8]);
         regon_valid(&local[..9], &weights);
         assert_eq!((local.as_bytes()[1] - b'0') % 2, 1);
@@ -631,7 +631,7 @@ fn french_siret_and_polish_regon_follow_pinned_formats() {
     }
     assert!(polish.siret(None).is_err());
     assert!(french.regon().is_err());
-    assert!(french.regonLocal().is_err());
+    assert!(french.regon_local().is_err());
 }
 
 #[test]
@@ -682,23 +682,23 @@ fn saudi_and_egyptian_company_numbers_match_pinned_formats() {
     let mut seen = std::collections::HashSet::new();
 
     for _ in 0..128 {
-        let saudi_id = saudi_unique.companyIdNumber().unwrap();
+        let saudi_id = saudi_unique.company_id_number().unwrap();
         assert!(saudi_id.starts_with("700"));
         for (number, length) in [
             (saudi_id, 10),
-            (egypt_unique.companyTaxIdNumber().unwrap(), 10),
-            (egypt_unique.companyTradeRegisterNumber().unwrap(), 7),
+            (egypt_unique.company_tax_id_number().unwrap(), 10),
+            (egypt_unique.company_trade_register_number().unwrap(), 7),
         ] {
             assert_eq!(number.len(), length);
             assert!(number.bytes().all(|digit| digit.is_ascii_digit()));
             luhn(&number);
         }
-        assert!(seen.insert(egypt_unique.companyTradeRegisterNumber().unwrap()));
+        assert!(seen.insert(egypt_unique.company_trade_register_number().unwrap()));
     }
 
-    assert!(egypt.companyIdNumber().is_err());
-    assert!(saudi.companyTaxIdNumber().is_err());
-    assert!(saudi.companyTradeRegisterNumber().is_err());
+    assert!(egypt.company_id_number().is_err());
+    assert!(saudi.company_tax_id_number().is_err());
+    assert!(saudi.company_trade_register_number().is_err());
 }
 
 #[test]
@@ -721,16 +721,16 @@ fn kazakh_and_south_african_company_numbers_use_pinned_dates_and_formats() {
     let unique_south_african = south_african.unique(true);
     for _ in 0..128 {
         let id = unique_kazakh
-            .businessIdentificationNumber(Some(fixed))
+            .business_identification_number(Some(fixed))
             .unwrap();
         assert!(bin.is_match(&id));
         assert!(bins.insert(id));
-        let id = unique_south_african.companyNumber().unwrap();
+        let id = unique_south_african.company_number().unwrap();
         assert!(company.is_match(&id));
         assert!((year - 50..=year).contains(&id[..4].parse::<i32>().unwrap()));
         assert!(companies.insert(id));
     }
-    let sampled = kazakh.businessIdentificationNumber(None).unwrap();
+    let sampled = kazakh.business_identification_number(None).unwrap();
     assert_eq!(&sampled[..2], format!("{:02}", year.rem_euclid(100)));
     assert!(
         (1..=jiff::Timestamp::now()
@@ -738,8 +738,8 @@ fn kazakh_and_south_african_company_numbers_use_pinned_dates_and_formats() {
             .month() as u32)
             .contains(&sampled[2..4].parse::<u32>().unwrap())
     );
-    assert!(kazakh.companyNumber().is_err());
-    assert!(south_african.businessIdentificationNumber(None).is_err());
+    assert!(kazakh.company_number().is_err());
+    assert!(south_african.business_identification_number(None).is_err());
 }
 
 #[test]
@@ -749,7 +749,7 @@ fn taiwanese_vat_and_greek_business_catalogs_follow_pinned_formats() {
     let vat = taiwan.unique(true);
     let mut seen = std::collections::HashSet::new();
     for _ in 0..128 {
-        let number = vat.VAT().unwrap();
+        let number = vat.taiwan_vat().unwrap();
         assert!((10_000_000..=99_999_999).contains(&number));
         assert!(seen.insert(number));
     }
@@ -768,7 +768,7 @@ fn taiwanese_vat_and_greek_business_catalogs_follow_pinned_formats() {
     assert!(activities.contains("Εισαγωγαί-εξαγωγαί"));
     assert!(unique.doy().is_err());
     assert!(unique.object().is_err());
-    assert!(greek.VAT().is_err());
+    assert!(greek.taiwan_vat().is_err());
     assert!(taiwan.doy().is_err());
     assert!(taiwan.object().is_err());
 }
@@ -805,13 +805,13 @@ fn company_suffixes_and_templates_use_the_selected_provider() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let actual: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             actual,
             suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
 
         let mut names = HashSet::new();
         for _ in 0..64 {
@@ -830,7 +830,7 @@ fn company_suffixes_and_templates_use_the_selected_provider() {
 
     let fallback = fake(Some("ja-JP")).unwrap();
     assert!(!fallback.company().is_empty());
-    assert!(!fallback.companySuffix().is_empty());
+    assert!(!fallback.company_suffix().is_empty());
 }
 
 #[test]
@@ -861,28 +861,28 @@ fn east_asian_company_names_follow_their_locale_templates() {
 
     let unique_japan = japan.unique(true);
     let prefixes = [
-        unique_japan.companyPrefix().unwrap(),
-        unique_japan.companyPrefix().unwrap(),
+        unique_japan.company_prefix().unwrap(),
+        unique_japan.company_prefix().unwrap(),
     ];
     assert!(prefixes.contains(&"株式会社") && prefixes.contains(&"有限会社"));
-    assert!(unique_japan.companyPrefix().is_err());
-    assert_eq!(japan.companySuffix(), "Ltd");
+    assert!(unique_japan.company_prefix().is_err());
+    assert_eq!(japan.company_suffix(), "Ltd");
     let unique_taiwan = taiwan.unique(true);
     let modifiers: std::collections::HashSet<_> = (0..17)
-        .map(|_| unique_taiwan.companyModifier().unwrap())
+        .map(|_| unique_taiwan.company_modifier().unwrap())
         .collect();
     assert_eq!(modifiers.len(), 17);
-    assert!(unique_taiwan.companyModifier().is_err());
+    assert!(unique_taiwan.company_modifier().is_err());
     let suffixes: std::collections::HashSet<_> = (0..6)
-        .map(|_| unique_taiwan.companyEnSuffix().unwrap())
+        .map(|_| unique_taiwan.company_en_suffix().unwrap())
         .collect();
     assert_eq!(
         suffixes,
         ["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"].into()
     );
-    assert!(unique_taiwan.companyEnSuffix().is_err());
-    assert!(japan.companyModifier().is_err());
-    assert!(mainland.companyEnSuffix().is_err());
+    assert!(unique_taiwan.company_en_suffix().is_err());
+    assert!(japan.company_modifier().is_err());
+    assert!(mainland.company_en_suffix().is_err());
 }
 
 #[test]
@@ -918,15 +918,15 @@ fn arabic_company_names_use_regional_templates_and_preserve_suffix_spacing() {
         let provider = fake(Some(locale)).unwrap();
         let unique = provider.unique(true);
         let prefixes: HashSet<_> = (0..starts.len())
-            .map(|_| unique.companyPrefix().unwrap())
+            .map(|_| unique.company_prefix().unwrap())
             .collect();
         assert_eq!(prefixes, starts.into());
-        assert!(unique.companyPrefix().is_err());
+        assert!(unique.company_prefix().is_err());
         let sampled: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(sampled, suffixes.iter().map(|s| (*s).to_owned()).collect());
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
         for _ in 0..128 {
             let name = provider.company();
             assert!(
@@ -985,13 +985,13 @@ fn central_european_company_names_preserve_regional_suffixes_and_templates() {
         let provider = fake(Some(locale)).unwrap();
         let unique = provider.unique(true);
         let sampled: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             sampled,
             suffixes.iter().map(|item| (*item).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
         let mut qualified = 0;
         for _ in 0..256 {
             let name = provider.company();
@@ -1034,13 +1034,13 @@ fn nordic_company_names_use_regional_suffixes_and_connectors() {
         let provider = fake(Some(locale)).unwrap();
         let unique = provider.unique(true);
         let sampled: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             sampled,
             suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
 
         let names: Vec<_> = (0..128).map(|_| provider.company()).collect();
         assert!(names.iter().any(|name| name.contains(connector)));
@@ -1114,18 +1114,18 @@ fn spanish_and_portuguese_companies_use_regional_suffixes_and_prefixes() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let sampled: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             sampled,
             suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
         let sampled: HashSet<_> = (0..prefixes.len())
-            .map(|_| unique.companyPrefix().unwrap())
+            .map(|_| unique.company_prefix().unwrap())
             .collect();
         assert_eq!(sampled, prefixes.iter().copied().collect());
-        assert!(unique.companyPrefix().is_err());
+        assert!(unique.company_prefix().is_err());
 
         let names: Vec<_> = (0..128).map(|_| faker.company()).collect();
         assert!(names.iter().any(|name| name.contains(connector)));
@@ -1170,11 +1170,11 @@ fn dutch_company_names_use_store_patterns_and_belgian_suffixes() {
     for (faker, suffixes) in [(&dutch, dutch_suffixes), (&belgian, belgian_suffixes)] {
         let unique = faker.unique(true);
         let actual: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(actual, suffixes.into_iter().map(str::to_owned).collect());
-        assert!(unique.companySuffix().is_err());
-        assert!(faker.companyPrefix().is_err());
+        assert!(unique.company_suffix().is_err());
+        assert!(faker.company_prefix().is_err());
     }
     let names: Vec<_> = (0..256)
         .map(|_| {
@@ -1208,13 +1208,13 @@ fn croatian_slovak_and_hungarian_companies_use_local_formats() {
         let provider = fake(Some(locale)).unwrap();
         let unique = provider.unique(true);
         let sampled: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             sampled,
             suffixes.iter().map(|item| (*item).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
         let names: Vec<_> = (0..128).map(|_| provider.company()).collect();
         let has_suffix = |name: &String| {
             suffixes
@@ -1227,16 +1227,16 @@ fn croatian_slovak_and_hungarian_companies_use_local_formats() {
             assert!(names.iter().any(|name| name.contains(" and ")));
         }
         if locale == "hr-HR" {
-            let prefixes: HashSet<_> = (0..11).map(|_| unique.companyPrefix().unwrap()).collect();
+            let prefixes: HashSet<_> = (0..11).map(|_| unique.company_prefix().unwrap()).collect();
             assert!(prefixes.contains("Cvjećarnica"));
-            assert!(unique.companyPrefix().is_err());
+            assert!(unique.company_prefix().is_err());
             assert!(names.iter().any(|name| {
                 prefixes
                     .iter()
                     .any(|prefix| name.starts_with(&format!("{prefix} ")))
             }));
         } else {
-            assert!(provider.companyPrefix().is_err());
+            assert!(provider.company_prefix().is_err());
         }
     }
 }
@@ -1250,14 +1250,17 @@ fn greek_and_montenegrin_companies_follow_effective_upstream_templates() {
     let types = ["A.D.", "A.D PODGORICA"];
     let unique = greek.unique(true);
     let actual: HashSet<_> = (0..greek_suffixes.len())
-        .map(|_| unique.companySuffix().unwrap())
+        .map(|_| unique.company_suffix().unwrap())
         .collect();
     assert_eq!(actual, greek_suffixes.map(str::to_owned).into());
-    assert!(unique.companySuffix().is_err());
+    assert!(unique.company_suffix().is_err());
     let unique = montenegrin.unique(true);
-    let actual = [unique.companyType().unwrap(), unique.companyType().unwrap()];
+    let actual = [
+        unique.company_type().unwrap(),
+        unique.company_type().unwrap(),
+    ];
     assert_eq!(actual.into_iter().collect::<HashSet<_>>(), types.into());
-    assert!(unique.companyType().is_err());
+    assert!(unique.company_type().is_err());
     let mut names = HashSet::new();
     for _ in 0..64 {
         let name = greek.company();
@@ -1268,11 +1271,11 @@ fn greek_and_montenegrin_companies_follow_effective_upstream_templates() {
         );
         let name = montenegrin.company();
         assert!(types.iter().any(|kind| name.ends_with(&format!(" {kind}"))));
-        assert!(names.insert(unique.companyName().unwrap()));
+        assert!(names.insert(unique.company_name().unwrap()));
     }
-    assert_eq!(montenegrin.companySuffix(), "Ltd");
-    assert!(greek.companyName().is_err());
-    assert!(greek.companyType().is_err());
+    assert_eq!(montenegrin.company_suffix(), "Ltd");
+    assert!(greek.company_name().is_err());
+    assert!(greek.company_type().is_err());
 }
 
 #[test]
@@ -1282,8 +1285,8 @@ fn british_south_african_and_cypriot_company_names_follow_local_templates() {
     for locale in ["en-GB", "en-ZA"] {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
-        assert_eq!(unique.companySuffix().unwrap(), "Ltd");
-        assert!(unique.companySuffix().is_err());
+        assert_eq!(unique.company_suffix().unwrap(), "Ltd");
+        assert!(unique.company_suffix().is_err());
         let mut names = HashSet::new();
         for _ in 0..64 {
             let company = unique.company().unwrap();
@@ -1299,9 +1302,9 @@ fn british_south_african_and_cypriot_company_names_follow_local_templates() {
     let faker = fake(Some("el-CY")).unwrap();
     let unique = faker.unique(true);
     let suffixes = ["ΛΤΔ", "Δημόσια εταιρεία", "& Υιοι", "& ΣΙΑ"];
-    let actual: HashSet<_> = (0..4).map(|_| unique.companySuffix().unwrap()).collect();
+    let actual: HashSet<_> = (0..4).map(|_| unique.company_suffix().unwrap()).collect();
     assert_eq!(actual, suffixes.map(str::to_owned).into());
-    assert!(unique.companySuffix().is_err());
+    assert!(unique.company_suffix().is_err());
     let samples: Vec<_> = (0..128).map(|_| faker.company()).collect();
     let suffix_name = |name: &String| {
         suffixes
@@ -1314,7 +1317,7 @@ fn british_south_african_and_cypriot_company_names_follow_local_templates() {
             .iter()
             .any(|name| name.contains('-') && !suffix_name(name))
     );
-    assert!(faker.companyPrefix().is_err());
+    assert!(faker.company_prefix().is_err());
 }
 
 #[test]
@@ -1348,13 +1351,13 @@ fn french_and_italian_regional_companies_follow_inherited_templates() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let actual: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             actual,
             suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
         let names: Vec<_> = (0..256).map(|_| faker.company()).collect();
         let has_suffix = |name: &String| {
             suffixes
@@ -1363,7 +1366,7 @@ fn french_and_italian_regional_companies_follow_inherited_templates() {
         };
         assert!(names.iter().any(has_suffix));
         assert!(names.iter().any(|name| !has_suffix(name)));
-        assert!(faker.companyPrefix().is_err());
+        assert!(faker.company_prefix().is_err());
     }
 }
 
@@ -1384,13 +1387,13 @@ fn lithuanian_slovenian_and_turkish_companies_preserve_local_formats() {
     ] {
         let unique = faker.unique(true);
         let actual: HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             actual,
             suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
     }
     let names: Vec<_> = (0..128).map(|_| lithuanian.company()).collect();
     assert!(names.iter().all(|name| {
@@ -1402,11 +1405,11 @@ fn lithuanian_slovenian_and_turkish_companies_preserve_local_formats() {
     assert!((0..128).any(|_| slovenian.company().ends_with(" s.p.")));
     assert!((0..128).any(|_| turkish.company().contains("oğlu ")));
     let unique = turkish.unique(true);
-    let fields: HashSet<_> = (0..49).map(|_| unique.companyField().unwrap()).collect();
+    let fields: HashSet<_> = (0..49).map(|_| unique.company_field().unwrap()).collect();
     assert_eq!(fields.len(), 49);
     assert!(fields.contains("Dış Ticaret"));
-    assert!(unique.companyField().is_err());
-    assert!(lithuanian.companyField().is_err());
+    assert!(unique.company_field().is_err());
+    assert!(lithuanian.company_field().is_err());
 }
 
 #[test]
@@ -1422,16 +1425,16 @@ fn russian_ukrainian_and_kazakh_companies_use_local_components() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let actual: std::collections::HashSet<_> = (0..prefixes.len())
-            .map(|_| unique.companyPrefix().unwrap())
+            .map(|_| unique.company_prefix().unwrap())
             .collect();
         assert_eq!(actual, prefixes.iter().copied().collect());
-        assert!(unique.companyPrefix().is_err());
+        assert!(unique.company_prefix().is_err());
         for _ in 0..suffix_count {
-            unique.companyNameSuffix().unwrap();
+            unique.company_name_suffix().unwrap();
         }
-        assert!(unique.companyNameSuffix().is_err());
-        assert!(!faker.companyNameElement().unwrap().is_empty());
-        assert_eq!(faker.companySuffix(), "Ltd");
+        assert!(unique.company_name_suffix().is_err());
+        assert!(!faker.company_name_element().unwrap().is_empty());
+        assert_eq!(faker.company_suffix(), "Ltd");
         for _ in 0..64 {
             let name = faker.company();
             assert!(
@@ -1442,9 +1445,9 @@ fn russian_ukrainian_and_kazakh_companies_use_local_components() {
         }
     }
     let faker = fake(Some("uk-UA")).unwrap();
-    assert!(!faker.companyName().unwrap().is_empty());
-    assert!(faker.companyNameElement().is_err());
-    assert!(faker.companyNameSuffix().is_err());
+    assert!(!faker.company_name().unwrap().is_empty());
+    assert!(faker.company_name_element().is_err());
+    assert!(faker.company_name_suffix().is_err());
     assert!((0..128).any(|_| faker.company().contains('"')));
     assert!((0..128).any(|_| faker.company().contains('-')));
 }
@@ -1464,13 +1467,13 @@ fn west_asian_companies_keep_regional_templates_and_components() {
     ] {
         let unique = provider.unique(true);
         let actual: std::collections::HashSet<_> = (0..suffixes.len())
-            .map(|_| unique.companySuffix().unwrap())
+            .map(|_| unique.company_suffix().unwrap())
             .collect();
         assert_eq!(
             actual,
             suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
         );
-        assert!(unique.companySuffix().is_err());
+        assert!(unique.company_suffix().is_err());
     }
 
     let unique = iran.unique(true);
@@ -1479,9 +1482,9 @@ fn west_asian_companies_keep_regional_templates_and_components() {
     }
     assert!(unique.contract().is_err());
     for _ in 0..10 {
-        unique.companyField().unwrap();
+        unique.company_field().unwrap();
     }
-    assert!(unique.companyField().is_err());
+    assert!(unique.company_field().is_err());
     assert!(israel.contract().is_err());
     assert!((0..128).any(|_| israel.company().contains(" את ")));
     assert!((0..128).any(|_| armenia.company().ends_with(" եղբայրներ")));
@@ -1501,8 +1504,8 @@ fn west_asian_companies_keep_regional_templates_and_components() {
                 .iter()
                 .any(|prefix| name.starts_with(&format!("{prefix} ")))
         );
-        assert!(!georgia.companyNameElement().unwrap().is_empty());
-        assert!(!georgia.companyNameSuffix().unwrap().is_empty());
+        assert!(!georgia.company_name_element().unwrap().is_empty());
+        assert!(!georgia.company_name_suffix().unwrap().is_empty());
     }
 }
 
@@ -1523,9 +1526,9 @@ fn south_and_southeast_asian_companies_keep_pinned_formats() {
         assert!(names.insert(value));
     }
     assert!(company.company().is_err());
-    assert_eq!(bangladesh.companySuffix(), "Ltd");
-    assert!(["রহিম", "করিম", "বাবলু"].contains(&bangladesh.companyName().unwrap()));
-    assert!(["সিমেন্ট", "সার", "ঢেউটিন"].contains(&bangladesh.companyType().unwrap()));
+    assert_eq!(bangladesh.company_suffix(), "Ltd");
+    assert!(["রহিম", "করিম", "বাবলু"].contains(&bangladesh.company_name().unwrap()));
+    assert!(["সিমেন্ট", "সার", "ঢেউটিন"].contains(&bangladesh.company_type().unwrap()));
 
     let id_prefixes = ["PT", "Fa", "CV", "UD", "PJ", "PD", "Perum", "Yayasan"];
     let my_suffixes = [
@@ -1545,8 +1548,8 @@ fn south_and_southeast_asian_companies_keep_pinned_formats() {
         let (prefix, body) = value.split_once(' ').unwrap();
         assert!(id_prefixes.contains(&prefix));
         assert!(!body.is_empty());
-        assert!(id_prefixes.contains(&indonesia.companyPrefix().unwrap()));
-        assert!(["Tbk", "(Persero) Tbk"].contains(&indonesia.companySuffix().as_str()));
+        assert!(id_prefixes.contains(&indonesia.company_prefix().unwrap()));
+        assert!(["Tbk", "(Persero) Tbk"].contains(&indonesia.company_suffix().as_str()));
 
         let value = malaysia.company();
         assert!(
@@ -1554,19 +1557,22 @@ fn south_and_southeast_asian_companies_keep_pinned_formats() {
                 .iter()
                 .any(|suffix| value.ends_with(&format!(" {suffix}")))
         );
-        assert!(my_suffixes.contains(&malaysia.companySuffix().as_str()));
+        assert!(my_suffixes.contains(&malaysia.company_suffix().as_str()));
         assert!(thai.is_match(&thailand.company()));
         assert!(slogan.is_match(&thailand.slogan().unwrap()));
     }
 
     let unique = malaysia.unique(true);
-    assert_ne!(unique.companyName().unwrap(), unique.companyName().unwrap());
+    assert_ne!(
+        unique.company_name().unwrap(),
+        unique.company_name().unwrap()
+    );
     assert_ne!(unique.industry().unwrap(), unique.industry().unwrap());
     let unique = thailand.unique(true);
     assert_ne!(unique.slogan().unwrap(), unique.slogan().unwrap());
-    assert_eq!(thailand.companySuffix(), "Ltd");
+    assert_eq!(thailand.company_suffix(), "Ltd");
     assert!(indonesia.industry().is_err());
-    assert!(malaysia.companyType().is_err());
+    assert!(malaysia.company_type().is_err());
     assert!(bangladesh.slogan().is_err());
 }
 
@@ -1575,43 +1581,44 @@ fn job_titles_use_the_company_provider_and_share_unique_history() {
     let swedish = fake(Some("sv-SE")).unwrap();
     let titles = swedish.unique(true);
     let catalog: std::collections::HashSet<_> =
-        (0..22).map(|_| titles.jobTitle().unwrap()).collect();
+        (0..22).map(|_| titles.job_title().unwrap()).collect();
     assert_eq!(catalog.len(), 22);
     assert!(catalog.contains("Automationsingenjör"));
     assert!(catalog.contains("Webbutvecklare"));
-    assert!(catalog.contains(swedish.jobTitle().as_str()));
-    assert!(swedish.uniqueWithRetries(false, 1).jobTitle().is_err());
-    assert!(catalog.contains(swedish.unique(true).jobTitle().unwrap().as_str()));
+    assert!(catalog.contains(swedish.job_title().as_str()));
+    assert!(swedish.unique_with_retries(false, 1).job_title().is_err());
+    assert!(catalog.contains(swedish.unique(true).job_title().unwrap().as_str()));
 
     let german = fake(Some("de-DE")).unwrap();
     let german_titles = german.unique(true);
-    let catalog: std::collections::HashSet<_> =
-        (0..25).map(|_| german_titles.jobTitle().unwrap()).collect();
+    let catalog: std::collections::HashSet<_> = (0..25)
+        .map(|_| german_titles.job_title().unwrap())
+        .collect();
     assert!(catalog.contains("Abteilungsdirektor"));
     assert!(catalog.contains("Werksleiter"));
 
     let french = fake(Some("fr-CA")).unwrap();
     let french_titles = french.unique(true);
     let catalog: std::collections::HashSet<_> = (0..300)
-        .map(|_| french_titles.jobTitle().unwrap())
+        .map(|_| french_titles.job_title().unwrap())
         .collect();
     assert!(catalog.contains("Agent d'accueil"));
     assert!(catalog.contains("Vitrier"));
     for locale in ["fr-FR", "fr-BE", "fr-CH"] {
-        assert!(catalog.contains(&fake(Some(locale)).unwrap().jobTitle()));
+        assert!(catalog.contains(&fake(Some(locale)).unwrap().job_title()));
     }
 
     let fallback_locale = fake(Some("en-CA")).unwrap();
     let inherited_locale = fake(Some("zh-Hant")).unwrap();
     let inherited = inherited_locale.unique(true);
     for _ in 0..32 {
-        let title = inherited.jobTitle().unwrap();
+        let title = inherited.job_title().unwrap();
         assert!(title.bytes().all(|byte| byte.is_ascii_lowercase()));
     }
     // en-CA lacks a dedicated Company provider and uses the US title list.
     assert!((0..32).any(|_| {
         fallback_locale
-            .jobTitle()
+            .job_title()
             .bytes()
             .any(|byte| byte.is_ascii_uppercase())
     }));
@@ -1623,17 +1630,17 @@ fn taiwanese_english_company_names_require_a_surname_formatter() {
 
     let taiwan = fake(Some("zh-Hant")).unwrap();
     assert!(matches!(
-        taiwan.companyEn(),
+        taiwan.company_en(),
         Err(DatabaseError::InvalidQuery(
             "unknown Faker formatter lastNameEn"
         ))
     ));
     let unique = taiwan.unique(true);
-    assert!(unique.companyEn().is_err());
+    assert!(unique.company_en().is_err());
     let titles: std::collections::HashSet<_> = (0..8)
         .map(|_| {
             unique
-                .companyEnWithLastName(|| Ok("Lin".to_owned()))
+                .company_en_with_last_name(|| Ok("Lin".to_owned()))
                 .unwrap()
         })
         .collect();
@@ -1655,14 +1662,14 @@ fn taiwanese_english_company_names_require_a_surname_formatter() {
     );
     assert!(
         taiwan
-            .uniqueWithRetries(false, 1)
-            .companyEnWithLastName(|| Ok("Lin".to_owned()))
+            .unique_with_retries(false, 1)
+            .company_en_with_last_name(|| Ok("Lin".to_owned()))
             .is_err()
     );
 
     let mut calls = 0;
     let name = taiwan
-        .companyEnWithLastName(|| {
+        .company_en_with_last_name(|| {
             calls += 1;
             Ok(format!("Surname{calls}"))
         })
@@ -1675,12 +1682,14 @@ fn taiwanese_english_company_names_require_a_surname_formatter() {
     });
 
     assert!(matches!(
-        taiwan.companyEnWithLastName(|| Err(DatabaseError::InvalidQuery("surname source failed"))),
+        taiwan.company_en_with_last_name(|| Err(DatabaseError::InvalidQuery(
+            "surname source failed"
+        ))),
         Err(DatabaseError::InvalidQuery("surname source failed"))
     ));
     let other = fake(Some("en-US")).unwrap();
     assert!(matches!(
-        other.companyEnWithLastName(|| panic!("unsupported locale must skip the formatter")),
+        other.company_en_with_last_name(|| panic!("unsupported locale must skip the formatter")),
         Err(DatabaseError::InvalidQuery(
             "unsupported Faker English company name locale"
         ))
@@ -1699,16 +1708,16 @@ fn person_and_company_share_the_pinned_surnames() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let catalog: std::collections::HashSet<_> =
-            (0..count).map(|_| unique.lastName().unwrap()).collect();
+            (0..count).map(|_| unique.last_name().unwrap()).collect();
         assert_eq!(catalog.len(), count);
         assert!(catalog.contains(first));
         assert!(catalog.contains(last));
-        assert!(faker.uniqueWithRetries(false, 1).lastName().is_err());
+        assert!(faker.unique_with_retries(false, 1).last_name().is_err());
         for _ in 0..32 {
-            assert!(catalog.contains(&faker.lastName()));
+            assert!(catalog.contains(&faker.last_name()));
             for name in [
                 faker.name(),
-                faker.nameWithGender(Some("male")),
+                faker.name_with_gender(Some("male")),
                 faker.company(),
             ] {
                 assert!(
@@ -1750,15 +1759,15 @@ fn localized_person_surname_catalogs_are_used_by_public_formatters() {
     for (locale, count, expected) in cases {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
-        let actual: HashSet<_> = (0..count).map(|_| unique.lastName().unwrap()).collect();
+        let actual: HashSet<_> = (0..count).map(|_| unique.last_name().unwrap()).collect();
         assert_eq!(actual.len(), count);
         assert!(actual.contains(expected));
-        assert!(faker.uniqueWithRetries(false, 1).lastName().is_err());
-        assert!(actual.contains(&faker.lastName()));
+        assert!(faker.unique_with_retries(false, 1).last_name().is_err());
+        assert!(actual.contains(&faker.last_name()));
     }
 
     let dutch = fake(Some("nl-NL")).unwrap();
-    let surnames: HashSet<_> = (0..12_000).map(|_| dutch.lastName()).collect();
+    let surnames: HashSet<_> = (0..12_000).map(|_| dutch.last_name()).collect();
     for expected in ["Albinus genaamd Weiss von Weissenlöw", "de Jong", "Yilmaz"] {
         assert!(surnames.contains(expected));
     }
@@ -1769,7 +1778,7 @@ fn localized_person_surname_catalogs_are_used_by_public_formatters() {
         for _ in 0..64 {
             let name = faker.name();
             assert!(name.chars().all(|character| !character.is_ascii()));
-            let first = faker.firstName();
+            let first = faker.first_name();
             assert!((1..=2).contains(&first.chars().count()));
         }
     }
@@ -1784,7 +1793,7 @@ fn usernames_use_regional_internet_templates_and_keep_email_local_parts() {
     let mut lithuanian_pair = false;
     let mut japanese_pair = false;
     for _ in 0..256 {
-        let username = japan.userName();
+        let username = japan.user_name();
         japanese_pair |= username.contains('.');
         assert!(
             username
@@ -1792,10 +1801,10 @@ fn usernames_use_regional_internet_templates_and_keep_email_local_parts() {
                 .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.'))
         );
 
-        let username = china.userName();
+        let username = china.user_name();
         chinese_underscore |= username.contains('_');
 
-        let username = lithuania.userName();
+        let username = lithuania.user_name();
         if let Some((last, _)) = username.split_once('.') {
             lithuanian_pair = true;
             assert!(
@@ -1847,9 +1856,9 @@ fn usernames_use_regional_internet_templates_and_keep_email_local_parts() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let samples: std::collections::HashSet<_> =
-            (0..32).map(|_| unique.userName().unwrap()).collect();
+            (0..32).map(|_| unique.user_name().unwrap()).collect();
         assert_eq!(samples.len(), 32);
-        for value in [faker.safeEmail(), faker.freeEmail()] {
+        for value in [faker.safe_email(), faker.free_email()] {
             let (local, domain) = value.split_once('@').unwrap();
             assert!(!domain.is_empty());
             assert!(!local.is_empty());
@@ -1921,17 +1930,17 @@ fn internet_domains_use_pinned_catalogs_and_nepalese_email_templates() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let actual: HashSet<_> = (0..domains.len())
-            .map(|_| unique.freeEmailDomain().unwrap())
+            .map(|_| unique.free_email_domain().unwrap())
             .collect();
         assert_eq!(actual, domains.iter().copied().collect());
-        assert!(unique.freeEmailDomain().is_err());
+        assert!(unique.free_email_domain().is_err());
         let actual: HashSet<_> = (0..suffixes.len()).map(|_| unique.tld().unwrap()).collect();
         assert_eq!(actual, suffixes.iter().copied().collect());
         assert!(unique.tld().is_err());
     }
 
     let japan = fake(Some("ja-JP")).unwrap();
-    let domain = japan.domainName().unwrap();
+    let domain = japan.domain_name().unwrap();
     let (name, _) = domain.split_once('.').unwrap();
     assert!(
         [
@@ -2008,7 +2017,7 @@ fn internet_domains_use_pinned_catalogs_and_nepalese_email_templates() {
         });
     }
     assert_eq!(categories, HashSet::from(["nepal", "free", "company"]));
-    assert!(!nepal.companyEmail().unwrap().ends_with(".np"));
+    assert!(!nepal.company_email().unwrap().ends_with(".np"));
 }
 
 #[test]
@@ -2054,7 +2063,7 @@ fn nepalese_urls_and_ukrainian_company_labels_follow_the_pinned_templates() {
     let unique = ukraine.unique(true);
     let mut shapes = HashSet::new();
     for _ in 0..64 {
-        let label = unique.companyUrl().unwrap();
+        let label = unique.company_url().unwrap();
         assert!(label.chars().all(|ch| ch == '-' || ch.is_alphabetic()));
         if let Some((_, suffix)) = label.rsplit_once('-') {
             assert!(["Сервіс", "Плюс", "Груп", "Стиль", "Дизайн"].contains(&suffix));
@@ -2063,7 +2072,7 @@ fn nepalese_urls_and_ukrainian_company_labels_follow_the_pinned_templates() {
     }
     assert_eq!(shapes, HashSet::from([true, false]));
     assert!(matches!(
-        nepal.companyUrl(),
+        nepal.company_url(),
         Err(DatabaseError::InvalidQuery(
             "unsupported Faker company URL locale"
         ))
@@ -2086,21 +2095,25 @@ fn nordic_names_follow_effective_person_templates() {
     }
     assert_eq!(lengths, [2, 3].into_iter().collect());
     let unique = denmark.unique(true);
-    assert_ne!(unique.middleName().unwrap(), unique.middleName().unwrap());
+    assert_ne!(unique.middle_name().unwrap(), unique.middle_name().unwrap());
 
     let iceland = fake(Some("is-IS")).unwrap();
     for _ in 0..64 {
-        assert!(iceland.lastName().ends_with('s'));
-        assert!(iceland.nameWithGender(Some("male")).ends_with("sson"));
-        assert!(iceland.nameWithGender(Some("female")).ends_with("sdóttir"));
+        assert!(iceland.last_name().ends_with('s'));
+        assert!(iceland.name_with_gender(Some("male")).ends_with("sson"));
+        assert!(
+            iceland
+                .name_with_gender(Some("female"))
+                .ends_with("sdóttir")
+        );
     }
-    assert!(iceland.middleName().is_ok());
+    assert!(iceland.middle_name().is_ok());
 
     let finland = fake(Some("fi-FI")).unwrap();
-    assert!(["Hra.", "Tri."].contains(&finland.titleMale()));
-    assert!(["Rva.", "Nti.", "Tri."].contains(&finland.titleFemale()));
-    assert!(finland.middleName().is_err());
-    assert!(finland.lastNameMale().is_err());
+    assert!(["Hra.", "Tri."].contains(&finland.title_male()));
+    assert!(["Rva.", "Nti.", "Tri."].contains(&finland.title_female()));
+    assert!(finland.middle_name().is_err());
+    assert!(finland.last_name_male().is_err());
 }
 
 #[test]
@@ -2108,24 +2121,24 @@ fn polish_and_lithuanian_names_follow_gendered_surname_templates() {
     let lithuania = fake(Some("lt-LT")).unwrap();
     let names = lithuania.unique(true);
     let male: std::collections::HashSet<_> =
-        (0..14).map(|_| names.lastNameMale().unwrap()).collect();
+        (0..14).map(|_| names.last_name_male().unwrap()).collect();
     let female: std::collections::HashSet<_> =
-        (0..20).map(|_| names.lastNameFemale().unwrap()).collect();
+        (0..20).map(|_| names.last_name_female().unwrap()).collect();
     assert!(male.contains("Kazlauskas"));
     assert!(female.contains("Kazlauskienė"));
     for _ in 0..64 {
-        assert!(male.contains(&lithuania.lastNameWithGender(Some("male"))));
-        assert!(female.contains(&lithuania.lastNameWithGender(Some("female"))));
-        let default = lithuania.lastName();
+        assert!(male.contains(&lithuania.last_name_with_gender(Some("male"))));
+        assert!(female.contains(&lithuania.last_name_with_gender(Some("female"))));
+        let default = lithuania.last_name();
         assert!(!male.contains(&default) || default == "Urbonas");
-        let name = lithuania.nameWithGender(Some("female"));
+        let name = lithuania.name_with_gender(Some("female"));
         assert!(female.contains(name.rsplit_once(' ').unwrap().1));
     }
-    assert!(["p.", "ponas"].contains(&lithuania.titleMale()));
+    assert!(["p.", "ponas"].contains(&lithuania.title_male()));
     let poland = fake(Some("pl-PL")).unwrap();
-    assert!(["mgr", "inż.", "dr", "doc."].contains(&poland.titleFemale()));
+    assert!(["mgr", "inż.", "dr", "doc."].contains(&poland.title_female()));
     for _ in 0..64 {
-        let name = poland.nameWithGender(Some("male"));
+        let name = poland.name_with_gender(Some("male"));
         assert!((2..=4).contains(&name.split_whitespace().count()));
     }
 }
@@ -2145,14 +2158,14 @@ fn seven_regional_person_providers_use_their_company_surname_catalogs() {
     ] {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
-        let actual: HashSet<_> = (0..count).map(|_| unique.lastName().unwrap()).collect();
+        let actual: HashSet<_> = (0..count).map(|_| unique.last_name().unwrap()).collect();
         assert!(actual.contains(marker));
-        assert!(faker.uniqueWithRetries(false, 1).lastName().is_err());
+        assert!(faker.unique_with_retries(false, 1).last_name().is_err());
 
         for _ in 0..32 {
             for name in [
                 faker.name(),
-                faker.nameWithGender(Some("female")),
+                faker.name_with_gender(Some("female")),
                 faker.company(),
             ] {
                 assert!(
@@ -2174,7 +2187,7 @@ fn seven_regional_person_providers_use_their_company_surname_catalogs() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let actual: HashSet<_> = (0..titles.len())
-            .map(|_| unique.titleFemale().unwrap())
+            .map(|_| unique.title_female().unwrap())
             .collect();
         assert_eq!(actual, titles.iter().copied().collect());
     }
@@ -2189,7 +2202,7 @@ fn spanish_person_providers_share_surnames_and_keep_local_templates() {
     for _ in 0..256 {
         lengths.insert(
             venezuelan
-                .nameWithGender(Some("male"))
+                .name_with_gender(Some("male"))
                 .split_whitespace()
                 .count(),
         );
@@ -2203,16 +2216,16 @@ fn spanish_person_providers_share_surnames_and_keep_local_templates() {
     ] {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
-        let male_titles: HashSet<_> = (0..5).map(|_| unique.titleMale().unwrap()).collect();
+        let male_titles: HashSet<_> = (0..5).map(|_| unique.title_male().unwrap()).collect();
         let female_titles: HashSet<_> = (0..if locale == "es-ES" { 6 } else { 5 })
-            .map(|_| unique.titleFemale().unwrap())
+            .map(|_| unique.title_female().unwrap())
             .collect();
         assert!(male_titles.contains(male));
         assert!(female_titles.contains(female));
-        let surname = unique.lastName().unwrap();
+        let surname = unique.last_name().unwrap();
         assert!(!surname.is_empty());
-        assert_ne!(surname, unique.lastName().unwrap());
-        assert!(!faker.firstName().is_empty());
+        assert_ne!(surname, unique.last_name().unwrap());
+        assert!(!faker.first_name().is_empty());
     }
 }
 
@@ -2227,32 +2240,32 @@ fn central_european_person_names_keep_local_surnames_and_married_forms() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let males: HashSet<_> = (0..male_count)
-            .map(|_| unique.lastNameMale().unwrap())
+            .map(|_| unique.last_name_male().unwrap())
             .collect();
         let females: HashSet<_> = (0..female_count)
-            .map(|_| unique.lastNameFemale().unwrap())
+            .map(|_| unique.last_name_female().unwrap())
             .collect();
         assert!(males.contains(male));
         assert!(females.contains(female));
         for _ in 0..32 {
-            assert!(females.contains(&faker.lastNameWithGender(Some("female"))));
-            let full = faker.nameWithGender(Some("female"));
+            assert!(females.contains(&faker.last_name_with_gender(Some("female"))));
+            let full = faker.name_with_gender(Some("female"));
             assert!(females.iter().any(|surname| full.contains(surname)));
         }
-        assert_ne!(faker.titleMale(), "Mr.");
+        assert_ne!(faker.title_male(), "Mr.");
     }
 
     let hungary = fake(Some("hu-HU")).unwrap();
     let unique = hungary.unique(true);
     assert_ne!(
-        unique.firstNameMaleNe().unwrap(),
-        unique.firstNameMaleNe().unwrap()
+        unique.first_name_male_ne().unwrap(),
+        unique.first_name_male_ne().unwrap()
     );
     assert_ne!(
-        unique.lastNameFemaleMarried().unwrap(),
-        unique.lastNameFemaleMarried().unwrap()
+        unique.last_name_female_married().unwrap(),
+        unique.last_name_female_married().unwrap()
     );
-    assert!(fake(Some("de-AT")).unwrap().firstNameMaleNe().is_err());
+    assert!(fake(Some("de-AT")).unwrap().first_name_male_ne().is_err());
 }
 
 #[test]
@@ -2263,34 +2276,34 @@ fn greek_bulgarian_and_slovenian_names_use_their_person_providers() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let males: HashSet<_> = (0..male_count)
-            .map(|_| unique.lastNameMale().unwrap())
+            .map(|_| unique.last_name_male().unwrap())
             .collect();
         let females: HashSet<_> = (0..female_count)
-            .map(|_| unique.lastNameFemale().unwrap())
+            .map(|_| unique.last_name_female().unwrap())
             .collect();
-        assert!(unique.lastNameMale().is_err());
-        assert!(unique.lastNameFemale().is_err());
+        assert!(unique.last_name_male().is_err());
+        assert!(unique.last_name_female().is_err());
         for _ in 0..32 {
-            let surname = faker.lastName();
+            let surname = faker.last_name();
             assert!(males.contains(&surname) || females.contains(&surname));
-            assert!(females.contains(&faker.lastNameWithGender(Some("female"))));
-            let name = faker.nameWithGender(Some("male"));
+            assert!(females.contains(&faker.last_name_with_gender(Some("female"))));
+            let name = faker.name_with_gender(Some("male"));
             assert!(males.iter().any(|surname| name.contains(surname)));
         }
     }
 
     let slovenia = fake(Some("sl-SI")).unwrap();
     let unique = slovenia.unique(true);
-    let surnames: HashSet<_> = (0..200).map(|_| unique.lastName().unwrap()).collect();
+    let surnames: HashSet<_> = (0..200).map(|_| unique.last_name().unwrap()).collect();
     assert!(surnames.contains("Novak"));
-    assert!(surnames.contains(&slovenia.lastNameMale().unwrap()));
-    assert!(surnames.contains(&slovenia.lastNameFemale().unwrap()));
+    assert!(surnames.contains(&slovenia.last_name_male().unwrap()));
+    assert!(surnames.contains(&slovenia.last_name_female().unwrap()));
     let titles: HashSet<_> = (0..11)
         .map(|_| unique.title(Some("male")).unwrap())
         .collect();
     assert!(titles.contains("univ. dipl. inž."));
     assert!(titles.contains(slovenia.title(Some("female"))));
-    assert!(["Mr.", "Dr.", "Prof."].contains(&slovenia.titleMale()));
+    assert!(["Mr.", "Dr.", "Prof."].contains(&slovenia.title_male()));
 }
 
 #[test]
@@ -2316,16 +2329,16 @@ fn west_asian_and_egyptian_person_names_use_the_pinned_catalogs() {
     ] {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
-        let surnames: HashSet<_> = (0..count).map(|_| unique.lastName().unwrap()).collect();
+        let surnames: HashSet<_> = (0..count).map(|_| unique.last_name().unwrap()).collect();
         assert!(surnames.contains(marker));
-        assert!(unique.lastName().is_err());
+        assert!(unique.last_name().is_err());
         let actual_titles: HashSet<_> = (0..titles.len())
-            .map(|_| unique.titleFemale().unwrap())
+            .map(|_| unique.title_female().unwrap())
             .collect();
         assert_eq!(actual_titles, titles.iter().copied().collect());
         let mut egyptian_prefix = false;
         for _ in 0..128 {
-            for name in [faker.name(), faker.nameWithGender(Some("female"))] {
+            for name in [faker.name(), faker.name_with_gender(Some("female"))] {
                 assert!(
                     surnames.iter().any(|surname| name.ends_with(surname)),
                     "{locale}: {name}"
@@ -2350,24 +2363,24 @@ fn russian_ukrainian_and_kazakh_person_names_keep_local_templates() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let males: HashSet<_> = (0..count)
-            .map(|_| unique.middleNameMale().unwrap())
+            .map(|_| unique.middle_name_male().unwrap())
             .collect();
         let females: HashSet<_> = (0..count)
-            .map(|_| unique.middleNameFemale().unwrap())
+            .map(|_| unique.middle_name_female().unwrap())
             .collect();
-        assert!(unique.middleNameMale().is_err());
-        assert!(unique.middleNameFemale().is_err());
-        assert!(females.contains(faker.middleNameWithGender(Some("female")).unwrap()));
-        let default = faker.middleName().unwrap();
+        assert!(unique.middle_name_male().is_err());
+        assert!(unique.middle_name_female().is_err());
+        assert!(females.contains(faker.middle_name_with_gender(Some("female")).unwrap()));
+        let default = faker.middle_name().unwrap();
         assert!(males.contains(default) || females.contains(default));
         let grouped: HashSet<_> = (0..count)
-            .map(|_| unique.middleNameWithGender(Some("female")).unwrap())
+            .map(|_| unique.middle_name_with_gender(Some("female")).unwrap())
             .collect();
         assert_eq!(grouped, females);
-        assert!(unique.middleNameWithGender(Some("female")).is_err());
+        assert!(unique.middle_name_with_gender(Some("female")).is_err());
         let mut patronymic_seen = false;
         for _ in 0..128 {
-            let name = faker.nameWithGender(Some("female"));
+            let name = faker.name_with_gender(Some("female"));
             patronymic_seen |= females
                 .iter()
                 .any(|middle| name.split_whitespace().any(|part| part == *middle));
@@ -2377,10 +2390,10 @@ fn russian_ukrainian_and_kazakh_person_names_keep_local_templates() {
 
     let russian = fake(Some("ru-RU")).unwrap();
     for _ in 0..64 {
-        assert!(russian.lastNameWithGender(Some("female")).ends_with('а'));
+        assert!(russian.last_name_with_gender(Some("female")).ends_with('а'));
     }
     let kazakh = fake(Some("kk-KZ")).unwrap();
-    assert!(kazakh.middleNameMale().is_err());
+    assert!(kazakh.middle_name_male().is_err());
     assert_eq!(kazakh.name().split_whitespace().count(), 2);
 }
 
@@ -2397,20 +2410,21 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
 
     for _ in 0..64 {
         assert!(
-            ["খান", "শেখ", "শিকদার", "আলী", "তাসনীম", "তাবাসসুম"].contains(&bengali.lastName().as_str())
+            ["খান", "শেখ", "শিকদার", "আলী", "তাসনীম", "তাবাসসুম"].contains(&bengali.last_name().as_str())
         );
-        assert_eq!(bengali.titleMale(), "মি.");
+        assert_eq!(bengali.title_male(), "মি.");
         assert!((2..=3).contains(&bengali.name().split_whitespace().count()));
 
-        let surname = indonesian.unique(false).lastNameFemale().unwrap();
+        let surname = indonesian.unique(false).last_name_female().unwrap();
         assert!(unique_surnames.insert(surname));
-        assert_ne!(indonesian.lastNameWithGender(Some("male")), "Doe");
-        assert!(["dr.", "drg.", "Dr.", "Hj."].contains(&indonesian.titleFemale()));
+        assert_ne!(indonesian.last_name_with_gender(Some("male")), "Doe");
+        assert!(["dr.", "drg.", "Dr.", "Hj."].contains(&indonesian.title_female()));
 
-        assert_eq!(malaysian.firstNameWithGender(Some("male")), "John");
-        assert_eq!(malaysian.firstNameWithGender(Some("female")), "Jane");
-        regional_malaysian_name_seen |= !["John", "Jane"].contains(&malaysian.firstName().as_str());
-        assert_ne!(malaysian.lastName(), "Doe");
+        assert_eq!(malaysian.first_name_with_gender(Some("male")), "John");
+        assert_eq!(malaysian.first_name_with_gender(Some("female")), "Jane");
+        regional_malaysian_name_seen |=
+            !["John", "Jane"].contains(&malaysian.first_name().as_str());
+        assert_ne!(malaysian.last_name(), "Doe");
         assert!(
             [
                 "En.",
@@ -2423,7 +2437,7 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
                 "Tan Sri",
                 "Tun"
             ]
-            .contains(&malaysian.titleMale())
+            .contains(&malaysian.title_male())
         );
 
         let name = korean.name();
@@ -2431,26 +2445,26 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
         assert!(name.chars().count() >= 2);
         assert!(
             korean
-                .firstNameFemale()
+                .first_name_female()
                 .chars()
                 .all(|c| ('가'..='힣').contains(&c))
         );
 
         assert!(
-            thai.lastName()
+            thai.last_name()
                 .chars()
                 .all(|c| c == ' ' || ('\u{0e00}'..='\u{0e7f}').contains(&c))
         );
         assert!(
-            thai.firstName()
+            thai.first_name()
                 .chars()
                 .all(|c| ('\u{0e00}'..='\u{0e7f}').contains(&c))
         );
-        assert!(["Cụ", "Bà", "Bác", "Cô", "Chị", "Em"].contains(&vietnamese.titleFemale()));
-        assert!(!vietnamese.middleName().unwrap().is_empty());
+        assert!(["Cụ", "Bà", "Bác", "Cô", "Chị", "Em"].contains(&vietnamese.title_female()));
+        assert!(!vietnamese.middle_name().unwrap().is_empty());
         assert!(
             !vietnamese
-                .middleNameWithGender(Some("female"))
+                .middle_name_with_gender(Some("female"))
                 .unwrap()
                 .is_empty()
         );
@@ -2463,24 +2477,31 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
 fn malaysian_person_formatters_preserve_groups_separators_and_unique_history() {
     let malaysia = fake(Some("ms-MY")).unwrap();
     let other = fake(Some("en-US")).unwrap();
-    assert!(other.firstNameMaleMalay().is_err());
-    assert!(other.unique(false).myKadNumber(None, false, None).is_err());
+    assert!(other.first_name_male_malay().is_err());
+    assert!(
+        other
+            .unique(false)
+            .my_kad_number(None, false, None)
+            .is_err()
+    );
     let unique = malaysia.unique(true);
     let mut initials = std::collections::HashSet::new();
     let mut cards = std::collections::HashSet::new();
     for _ in 0..24 {
-        assert!(initials.insert(unique.initialIndian().unwrap()));
-        assert!(!malaysia.firstNameMaleMalay().unwrap().is_empty());
+        assert!(initials.insert(unique.initial_indian().unwrap()));
+        assert!(!malaysia.first_name_male_malay().unwrap().is_empty());
         assert_eq!(
             malaysia
-                .firstNameFemaleChinese()
+                .first_name_female_chinese()
                 .unwrap()
                 .split(' ')
                 .count(),
             2
         );
         assert!(["", "Haji ", "Hj "].contains(&malaysia.haji().unwrap().as_str()));
-        let compact = unique.myKadNumber(Some("male"), false, Some("/")).unwrap();
+        let compact = unique
+            .my_kad_number(Some("male"), false, Some("/"))
+            .unwrap();
         assert_eq!(compact.len(), 12);
         assert!(compact.bytes().all(|b| b.is_ascii_digit()));
         assert!((1..=12).contains(&compact[2..4].parse::<u8>().unwrap()));
@@ -2493,7 +2514,7 @@ fn malaysian_person_formatters_preserve_groups_separators_and_unique_history() {
         ));
         assert!(cards.insert(compact));
         let custom = malaysia
-            .myKadNumber(Some("female"), true, Some("／"))
+            .my_kad_number(Some("female"), true, Some("／"))
             .unwrap();
         assert_eq!(
             custom.split('／').map(str::len).collect::<Vec<_>>(),
@@ -2505,7 +2526,7 @@ fn malaysian_person_formatters_preserve_groups_separators_and_unique_history() {
         ));
         assert_eq!(
             malaysia
-                .myKadNumber(None, true, None)
+                .my_kad_number(None, true, None)
                 .unwrap()
                 .matches('-')
                 .count(),
@@ -2519,10 +2540,10 @@ fn romanian_and_serbian_faker_names_preserve_person_catalogs() {
     for locale in ["ro-RO", "ro-MD"] {
         let faker = fake(Some(locale)).unwrap();
         for _ in 0..32 {
-            assert!(["dl.", "ing.", "dr."].contains(&faker.titleMale()));
-            assert!(["d-na.", "d-șoara", "ing.", "dr."].contains(&faker.titleFemale()));
-            assert_ne!(faker.firstNameMale(), "John");
-            assert_ne!(faker.lastName(), "Doe");
+            assert!(["dl.", "ing.", "dr."].contains(&faker.title_male()));
+            assert!(["d-na.", "d-șoara", "ing.", "dr."].contains(&faker.title_female()));
+            assert_ne!(faker.first_name_male(), "John");
+            assert_ne!(faker.last_name(), "Doe");
         }
     }
 
@@ -2597,8 +2618,8 @@ fn estonian_latvian_and_montenegrin_person_use_local_names() {
         let faker = fake(Some(locale)).unwrap();
         for _ in 0..64 {
             assert!(!faker.name().is_empty());
-            assert_ne!(faker.lastName(), "Doe");
-            assert!(["Mr.", "Dr.", "Prof."].contains(&faker.titleMale()));
+            assert_ne!(faker.last_name(), "Doe");
+            assert!(["Mr.", "Dr.", "Prof."].contains(&faker.title_male()));
         }
     }
 }
@@ -2609,14 +2630,14 @@ fn latvian_driver_licence_uses_the_pinned_mask_and_unique_history() {
     let unique = faker.unique(true);
     let mut licences = std::collections::HashSet::new();
     for _ in 0..64 {
-        let licence = unique.driverLicence().unwrap();
+        let licence = unique.driver_licence().unwrap();
         let bytes = licence.as_bytes();
         assert_eq!(bytes.len(), 8);
         assert!(bytes[..2].iter().all(u8::is_ascii_lowercase));
         assert!(bytes[2..].iter().all(u8::is_ascii_digit));
         assert!(licences.insert(licence));
     }
-    assert!(fake(Some("et-EE")).unwrap().driverLicence().is_err());
+    assert!(fake(Some("et-EE")).unwrap().driver_licence().is_err());
 }
 
 #[test]
@@ -2624,9 +2645,9 @@ fn indian_and_nepali_names_use_regional_middle_name_catalogs() {
     let indian = fake(Some("en-IN")).unwrap();
     let nepali = fake(Some("ne-NP")).unwrap();
 
-    assert!(indian.middleName().is_err());
-    assert!(indian.middleNameFemale().is_err());
-    assert!(nepali.middleName().is_err());
+    assert!(indian.middle_name().is_err());
+    assert!(indian.middle_name_female().is_err());
+    assert!(nepali.middle_name().is_err());
 
     for (faker, gender, expected) in [
         (
@@ -2649,11 +2670,11 @@ fn indian_and_nepali_names_use_regional_middle_name_catalogs() {
         let unique = faker.unique(true);
         let mut names = std::collections::HashSet::new();
         for _ in expected {
-            let name = unique.middleNameWithGender(Some(gender)).unwrap();
+            let name = unique.middle_name_with_gender(Some(gender)).unwrap();
             assert!(expected.contains(&name));
             assert!(names.insert(name));
         }
-        assert!(unique.middleNameWithGender(Some(gender)).is_err());
+        assert!(unique.middle_name_with_gender(Some(gender)).is_err());
     }
 }
 
@@ -2662,29 +2683,30 @@ fn ugandan_surnames_select_the_general_or_explicit_gender_catalog() {
     let faker = fake(Some("en-UG")).unwrap();
     let unique = faker.unique(true);
     let general: std::collections::HashSet<_> =
-        (0..123).map(|_| unique.lastName().unwrap()).collect();
+        (0..123).map(|_| unique.last_name().unwrap()).collect();
     assert_eq!(general.len(), 123);
     assert!(general.contains("Abayisenga"));
     assert!(!general.contains("Mubiru"));
     assert!(!general.contains("Abol"));
-    assert!(unique.lastName().is_err());
+    assert!(unique.last_name().is_err());
 
     let male: std::collections::HashSet<_> =
-        (0..41).map(|_| unique.lastNameMale().unwrap()).collect();
+        (0..41).map(|_| unique.last_name_male().unwrap()).collect();
     assert_eq!(male.len(), 41);
     assert!(male.contains("Mubiru"));
-    assert!(unique.lastNameMale().is_err());
+    assert!(unique.last_name_male().is_err());
 
-    let female: std::collections::HashSet<_> =
-        (0..106).map(|_| unique.lastNameFemale().unwrap()).collect();
+    let female: std::collections::HashSet<_> = (0..106)
+        .map(|_| unique.last_name_female().unwrap())
+        .collect();
     assert_eq!(female.len(), 106);
     assert!(female.contains("Abol"));
-    assert!(unique.lastNameFemale().is_err());
+    assert!(unique.last_name_female().is_err());
 
-    assert!(male.contains(&faker.lastNameWithGender(Some("male"))));
-    assert!(female.contains(&faker.lastNameWithGender(Some("female"))));
-    assert!(general.contains(&faker.lastNameWithGender(None)));
-    assert!(fake(Some("en-NG")).unwrap().lastNameFemale().is_err());
+    assert!(male.contains(&faker.last_name_with_gender(Some("male"))));
+    assert!(female.contains(&faker.last_name_with_gender(Some("female"))));
+    assert!(general.contains(&faker.last_name_with_gender(None)));
+    assert!(fake(Some("en-NG")).unwrap().last_name_female().is_err());
 }
 
 #[test]
@@ -2692,9 +2714,9 @@ fn mongolian_person_keeps_initials_distinct_from_the_identity_alphabet() {
     let faker = fake(Some("mn-MN")).unwrap();
     let unique = faker.unique(true);
     let initials: std::collections::HashSet<_> =
-        (0..30).map(|_| unique.namePrefix().unwrap()).collect();
+        (0..30).map(|_| unique.name_prefix().unwrap()).collect();
     assert_eq!(initials.len(), 30);
-    assert!(unique.namePrefix().is_err());
+    assert!(unique.name_prefix().is_err());
     let alphabet: std::collections::HashSet<_> =
         (0..35).map(|_| unique.alphabet().unwrap()).collect();
     assert_eq!(alphabet.len(), 35);
@@ -2702,15 +2724,15 @@ fn mongolian_person_keeps_initials_distinct_from_the_identity_alphabet() {
 
     for gender in [None, Some("male"), Some("female")] {
         for _ in 0..32 {
-            let name = faker.nameWithGender(gender);
+            let name = faker.name_with_gender(gender);
             let (prefix, given) = name.split_once('.').unwrap();
             assert_eq!(prefix.chars().count(), 1);
             assert!(initials.contains(&prefix.chars().next().unwrap()));
             assert!(!given.is_empty());
         }
     }
-    assert_eq!(faker.lastName(), "Doe");
-    assert!(fake(Some("en-US")).unwrap().namePrefix().is_err());
+    assert_eq!(faker.last_name(), "Doe");
+    assert!(fake(Some("en-US")).unwrap().name_prefix().is_err());
 }
 
 #[test]
@@ -2718,9 +2740,9 @@ fn singapore_person_keeps_base_names_and_identity_boundaries() {
     use jiff::civil::Date as CivilDate;
 
     let faker = fake(Some("en-SG")).unwrap();
-    assert_eq!(faker.nameWithGender(Some("male")), "John Doe");
-    assert_eq!(faker.nameWithGender(Some("female")), "Jane Doe");
-    assert_eq!(faker.lastName(), "Doe");
+    assert_eq!(faker.name_with_gender(Some("male")), "John Doe");
+    assert_eq!(faker.name_with_gender(Some("female")), "Jane Doe");
+    assert_eq!(faker.last_name(), "Doe");
     let unique = faker.unique(true);
     let mut numbers = std::collections::HashSet::new();
 
@@ -2764,7 +2786,7 @@ fn singapore_person_keeps_base_names_and_identity_boundaries() {
             assert!(numbers.insert(number));
         }
     }
-    assert_eq!(unique.singaporeId(None, false).unwrap().len(), 9);
+    assert_eq!(unique.singapore_id(None, false).unwrap().len(), 9);
     assert!(fake(Some("en-US")).unwrap().nric(None).is_err());
 }
 
@@ -2775,7 +2797,7 @@ fn belgian_dutch_person_uses_pinned_names_and_rrn_rules() {
     let mut numbers = std::collections::HashSet::new();
     for gender in [None, Some("male"), Some("female")] {
         for _ in 0..64 {
-            assert_ne!(faker.lastName(), "Doe");
+            assert_ne!(faker.last_name(), "Doe");
             let rrn = unique.rrn(gender).unwrap();
             assert_eq!(rrn.len(), 11);
             assert!(rrn.bytes().all(|byte| byte.is_ascii_digit()));
@@ -2839,27 +2861,27 @@ fn japanese_kana_names_select_gender_and_exhaust_the_pinned_catalogs() {
     let faker = fake(Some("ja-JP")).unwrap();
     let unique = faker.unique(true);
     let male: std::collections::HashSet<_> = (0..30)
-        .map(|_| unique.firstKanaNameMale().unwrap())
+        .map(|_| unique.first_kana_name_male().unwrap())
         .collect();
     let female: std::collections::HashSet<_> = (0..21)
-        .map(|_| unique.firstKanaNameFemale().unwrap())
+        .map(|_| unique.first_kana_name_female().unwrap())
         .collect();
     let surnames: std::collections::HashSet<_> =
-        (0..49).map(|_| unique.lastKanaName().unwrap()).collect();
+        (0..49).map(|_| unique.last_kana_name().unwrap()).collect();
     assert_eq!((male.len(), female.len(), surnames.len()), (30, 21, 49));
-    assert!(unique.firstKanaNameMale().is_err());
-    assert!(unique.firstKanaNameFemale().is_err());
-    assert!(unique.lastKanaName().is_err());
+    assert!(unique.first_kana_name_male().is_err());
+    assert!(unique.first_kana_name_female().is_err());
+    assert!(unique.last_kana_name().is_err());
     for (gender, names) in [("male", &male), ("female", &female)] {
         for _ in 0..32 {
-            let full = faker.kanaName(Some(gender)).unwrap();
+            let full = faker.kana_name(Some(gender)).unwrap();
             let (last, first) = full.split_once(' ').unwrap();
             assert!(surnames.contains(last));
             assert!(names.contains(first));
-            assert!(names.contains(faker.firstKanaName(Some(gender)).unwrap()));
+            assert!(names.contains(faker.first_kana_name(Some(gender)).unwrap()));
         }
     }
-    assert!(fake(Some("en-US")).unwrap().kanaName(None).is_err());
+    assert!(fake(Some("en-US")).unwrap().kana_name(None).is_err());
 }
 
 #[test]
@@ -2910,7 +2932,7 @@ fn czech_birth_numbers_keep_era_offsets_and_optional_slashes() {
         let mut unique_numbers = std::collections::HashSet::new();
         for _ in 0..32 {
             let gender = if female { "female" } else { "male" };
-            let number = unique.birthNumber(Some(gender), age, age, slash).unwrap();
+            let number = unique.birth_number(Some(gender), age, age, slash).unwrap();
             assert_eq!(number.as_bytes().get(6) == Some(&b'/'), slash == 100);
             let digits = number.replace('/', "");
             assert_eq!(digits.len(), if year < 1954 { 9 } else { 10 });
@@ -2929,13 +2951,13 @@ fn czech_birth_numbers_keep_era_offsets_and_optional_slashes() {
         }
     }
     for (number, range) in [
-        (faker.birthNumberMale().unwrap(), 1..=32),
-        (faker.birthNumberFemale().unwrap(), 51..=82),
+        (faker.birth_number_male().unwrap(), 1..=32),
+        (faker.birth_number_female().unwrap(), 51..=82),
     ] {
         assert!(range.contains(&number[2..4].parse::<u32>().unwrap()));
     }
-    assert!(faker.birthNumber(None, 21, 20, 50).is_err());
-    assert!(faker.birthNumber(None, 0, u32::MAX, 50).is_err());
+    assert!(faker.birth_number(None, 21, 20, 50).is_err());
+    assert!(faker.birth_number(None, 0, u32::MAX, 50).is_err());
 }
 
 #[test]
@@ -2955,7 +2977,7 @@ fn danish_cpr_preserves_the_date_and_nonzero_serial_prefix() {
         assert_ne!(serial.as_bytes()[0], b'0');
         assert!(numbers.insert(number));
     }
-    assert!(faker.birthNumberMale().is_err());
+    assert!(faker.birth_number_male().is_err());
     assert!(fake(Some("cs-CZ")).unwrap().cpr().is_err());
 }
 
@@ -2967,7 +2989,7 @@ fn french_nir_and_italian_tax_id_preserve_the_pinned_patterns() {
         let unique = faker.unique(true);
         let mut values = std::collections::HashSet::new();
         for _ in 0..32 {
-            let value = unique.taxId().unwrap();
+            let value = unique.tax_id().unwrap();
             assert!(mask.is_match(&value));
             assert!(values.insert(value));
         }
@@ -3001,7 +3023,7 @@ fn french_nir_and_italian_tax_id_preserve_the_pinned_patterns() {
                 assert!(values.insert(value));
             }
         }
-        assert!(faker.taxId().is_err());
+        assert!(faker.tax_id().is_err());
     }
 }
 
@@ -3015,7 +3037,7 @@ fn iranian_national_code_and_indonesian_nik_keep_their_pinned_parts() {
     let mut codes = std::collections::HashSet::new();
     let mut nik_values = std::collections::HashSet::new();
     for _ in 0..64 {
-        let code = iran_unique.nationalCode().unwrap();
+        let code = iran_unique.national_code().unwrap();
         assert_eq!(code.len(), 10);
         assert!(code.bytes().all(|digit| digit.is_ascii_digit()));
         assert_ne!(&code[..3], "000");
@@ -3043,17 +3065,17 @@ fn iranian_national_code_and_indonesian_nik_keep_their_pinned_parts() {
     }
     assert_eq!(indonesia.nik(None, None).unwrap().len(), 16);
     assert!(iran.nik(None, None).is_err());
-    assert!(indonesia.nationalCode().is_err());
+    assert!(indonesia.national_code().is_err());
 }
 
 #[test]
 fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
     use openrust::database::eloquent::factories::Faker;
 
-    assert_eq!(Faker::checkSum("00022961021").unwrap(), 1);
-    assert_eq!(Faker::checkSum("00022961020").unwrap(), 10);
-    assert!(Faker::checkSum("000229610212").is_err());
-    assert!(Faker::checkSum("0002296102x").is_err());
+    assert_eq!(Faker::check_sum("00022961021").unwrap(), 1);
+    assert_eq!(Faker::check_sum("00022961020").unwrap(), 10);
+    assert!(Faker::check_sum("000229610212").is_err());
+    assert!(Faker::check_sum("0002296102x").is_err());
 
     let kazakh = fake(Some("kk-KZ")).unwrap();
     let unique = kazakh.unique(true);
@@ -3070,16 +3092,18 @@ fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
     ] {
         let date = jiff::civil::Date::new(year, 1, 1).ok();
         for _ in 0..16 {
-            let number = unique.individualIdentificationNumber(date, gender).unwrap();
+            let number = unique
+                .individual_identification_number(date, gender)
+                .unwrap();
             assert_eq!(number.len(), 12);
             assert_eq!(&number[..7], format!("{:02}0101{marker}", year % 100));
             assert!((1000..=2000).contains(&number[7..11].parse::<u16>().unwrap()));
             assert_eq!(
-                Faker::checkSum(&number[..11]).unwrap(),
+                Faker::check_sum(&number[..11]).unwrap(),
                 number.as_bytes()[11] - b'0'
             );
             assert!(identifiers.insert(number));
-            let number = venezuela_unique.nationalId(Some("／")).unwrap();
+            let number = venezuela_unique.national_id(Some("／")).unwrap();
             let (prefix, serial) = number.split_once('／').unwrap();
             let lower = match prefix {
                 "V" => 10_000,
@@ -3092,41 +3116,41 @@ fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
     }
     assert_eq!(
         kazakh
-            .individualIdentificationNumber(None, None)
+            .individual_identification_number(None, None)
             .unwrap()
             .len(),
         12
     );
     assert!(
         kazakh
-            .individualIdentificationNumber(jiff::civil::Date::new(2100, 1, 1).ok(), None)
+            .individual_identification_number(jiff::civil::Date::new(2100, 1, 1).ok(), None)
             .is_err()
     );
     assert!(
         kazakh
-            .individualIdentificationNumber(None, Some("invalid"))
+            .individual_identification_number(None, Some("invalid"))
             .is_err()
     );
     assert!(
         venezuelan
-            .individualIdentificationNumber(None, None)
+            .individual_identification_number(None, None)
             .is_err()
     );
-    assert!(kazakh.nationalId(None).is_err());
+    assert!(kazakh.national_id(None).is_err());
 }
 
 #[test]
 fn portuguese_nif_and_taiwanese_random_names_follow_the_pinned_helpers() {
     use openrust::database::eloquent::factories::Faker;
 
-    assert_eq!(Faker::dvCalcMod11("").unwrap(), 0);
-    assert_eq!(Faker::dvCalcMod11("000000001").unwrap(), 9);
-    assert_eq!(Faker::dvCalcMod11("123456789").unwrap(), 7);
-    assert!(Faker::dvCalcMod11("١").is_err());
+    assert_eq!(Faker::dv_calc_mod11("").unwrap(), 0);
+    assert_eq!(Faker::dv_calc_mod11("000000001").unwrap(), 9);
+    assert_eq!(Faker::dv_calc_mod11("123456789").unwrap(), 7);
+    assert!(Faker::dv_calc_mod11("١").is_err());
     let portugal = fake(Some("pt-PT")).unwrap();
     let unique = portugal.unique(true);
     for _ in 0..32 {
-        let nif = unique.taxpayerIdentificationNumber().unwrap();
+        let nif = unique.taxpayer_identification_number().unwrap();
         assert_eq!(nif.len(), 9);
         assert!(
             [
@@ -3137,17 +3161,17 @@ fn portuguese_nif_and_taiwanese_random_names_follow_the_pinned_helpers() {
         );
         assert_eq!(
             nif.as_bytes()[8] - b'0',
-            Faker::dvCalcMod11(&nif[..8]).unwrap()
+            Faker::dv_calc_mod11(&nif[..8]).unwrap()
         );
     }
     let taiwan = fake(Some("zh-TW")).unwrap();
-    assert_eq!(taiwan.randomName(&["明"], 3).unwrap(), "明明明");
-    assert_eq!(taiwan.randomName(&["明"], 0).unwrap(), "");
-    assert_eq!(taiwan.randomName(&[], 2).unwrap(), "");
+    assert_eq!(taiwan.random_name(&["明"], 3).unwrap(), "明明明");
+    assert_eq!(taiwan.random_name(&["明"], 0).unwrap(), "");
+    assert_eq!(taiwan.random_name(&[], 2).unwrap(), "");
     let unique = taiwan.unique(true);
-    assert_eq!(unique.randomName(&["明"], 1).unwrap(), "明");
-    assert!(unique.randomName(&["明"], 1).is_err());
-    assert!(portugal.randomName(&["明"], 1).is_err());
+    assert_eq!(unique.random_name(&["明"], 1).unwrap(), "明");
+    assert!(unique.random_name(&["明"], 1).is_err());
+    assert!(portugal.random_name(&["明"], 1).is_err());
 }
 
 #[test]
@@ -3156,7 +3180,7 @@ fn lithuanian_driver_licence_is_numeric_and_supports_unique() {
     let unique = faker.unique(true);
     let mut values = std::collections::HashSet::new();
     for _ in 0..64 {
-        let value = unique.driverLicence().unwrap();
+        let value = unique.driver_licence().unwrap();
         assert_eq!(value.len(), 8);
         assert!(value.bytes().all(|byte| byte.is_ascii_digit()));
         assert!(values.insert(value));
@@ -3167,7 +3191,7 @@ fn lithuanian_driver_licence_is_numeric_and_supports_unique() {
 fn missing_person_provider_uses_us_names_and_optional_formatters() {
     let english = fake(Some("en-US")).unwrap();
     let surnames: std::collections::HashSet<_> = (0..1200)
-        .map_while(|_| english.unique(false).lastName().ok())
+        .map_while(|_| english.unique(false).last_name().ok())
         .collect();
     assert!(surnames.len() >= 400);
 
@@ -3176,8 +3200,8 @@ fn missing_person_provider_uses_us_names_and_optional_formatters() {
         let unique = faker.unique(true);
         for _ in 0..16 {
             assert!(!faker.name().is_empty());
-            assert!(!faker.firstName().is_empty());
-            assert!(surnames.contains(&faker.lastName()));
+            assert!(!faker.first_name().is_empty());
+            assert!(surnames.contains(&faker.last_name()));
             assert_eq!(unique.ssn().unwrap().len(), 11);
         }
         assert!(unique.suffix().unwrap().is_some());
@@ -3199,7 +3223,7 @@ fn venezuelan_rif_preserves_prefix_digits_and_optional_separator() {
     let mut prefixes = std::collections::HashSet::new();
     let mut samples = std::collections::HashSet::new();
     for _ in 0..160 {
-        let compact = unique.taxpayerIdentificationNumber().unwrap();
+        let compact = unique.taxpayer_identification_number().unwrap();
         assert_eq!(compact.len(), 10);
         assert!(b"JGVEPC".contains(&compact.as_bytes()[0]));
         assert!(compact[1..].bytes().all(|digit| digit.is_ascii_digit()));
@@ -3207,11 +3231,11 @@ fn venezuelan_rif_preserves_prefix_digits_and_optional_separator() {
         assert!(samples.insert(compact));
 
         let explicit = unique
-            .taxpayerIdentificationNumberWithSeparator(None)
+            .taxpayer_identification_number_with_separator(None)
             .unwrap();
         assert!(samples.insert(explicit));
         let separated = unique
-            .taxpayerIdentificationNumberWithSeparator(Some("／-"))
+            .taxpayer_identification_number_with_separator(Some("／-"))
             .unwrap();
         let fields: Vec<_> = separated.split("／-").collect();
         assert_eq!(fields.len(), 3);
@@ -3230,10 +3254,13 @@ fn venezuelan_rif_preserves_prefix_digits_and_optional_separator() {
     assert_eq!(prefixes.len(), 6);
     for (locale, length) in [("pl-PL", 10), ("pt-PT", 9)] {
         let faker = fake(Some(locale)).unwrap();
-        assert_eq!(faker.taxpayerIdentificationNumber().unwrap().len(), length);
+        assert_eq!(
+            faker.taxpayer_identification_number().unwrap().len(),
+            length
+        );
         assert!(
             faker
-                .taxpayerIdentificationNumberWithSeparator(Some("-"))
+                .taxpayer_identification_number_with_separator(Some("-"))
                 .is_err()
         );
     }
@@ -3242,33 +3269,33 @@ fn venezuelan_rif_preserves_prefix_digits_and_optional_separator() {
 #[test]
 fn company_phrases_preserve_regional_provider_and_template_rules() {
     let missing = fake(Some("ja-JP")).unwrap();
-    assert!(missing.catchPhrase().is_err());
+    assert!(missing.catch_phrase().is_err());
     assert!(missing.bs().is_err());
 
     let fallback = fake(Some("en-CA")).unwrap();
     let unique = fallback.unique(true);
     let slogans: std::collections::HashSet<_> =
-        (0..48).map(|_| unique.catchPhrase().unwrap()).collect();
+        (0..48).map(|_| unique.catch_phrase().unwrap()).collect();
     assert_eq!(slogans.len(), 48);
     assert!(!fallback.bs().unwrap().is_empty());
-    assert!(fallback.catchPhraseVerb().is_err());
+    assert!(fallback.catch_phrase_verb().is_err());
 
     for locale in ["ar-SA", "ar-JO", "hy-AM"] {
         let faker = fake(Some(locale)).unwrap();
-        assert_eq!(faker.catchPhrase().unwrap().is_empty(), locale == "hy-AM");
-        let unique = faker.uniqueWithRetries(true, 2);
+        assert_eq!(faker.catch_phrase().unwrap().is_empty(), locale == "hy-AM");
+        let unique = faker.unique_with_retries(true, 2);
         assert_eq!(unique.bs().unwrap(), "");
         assert!(unique.bs().is_err());
     }
 
     for locale in ["fr-FR", "fr-CA", "fr-CH", "fr-BE"] {
         let faker = fake(Some(locale)).unwrap();
-        assert!(!faker.catchPhraseNoun().unwrap().is_empty());
-        assert!(!faker.catchPhraseVerb().unwrap().is_empty());
-        assert!(!faker.catchPhraseAttribute().unwrap().is_empty());
+        assert!(!faker.catch_phrase_noun().unwrap().is_empty());
+        assert!(!faker.catch_phrase_verb().unwrap().is_empty());
+        assert!(!faker.catch_phrase_attribute().unwrap().is_empty());
         assert!(faker.bs().is_err());
         for _ in 0..128 {
-            let phrase = faker.catchPhrase().unwrap();
+            let phrase = faker.catch_phrase().unwrap();
             assert!(phrase.as_bytes()[0].is_ascii_uppercase());
             for word in ["sécurité", "simpl"] {
                 assert!(phrase.matches(word).count() <= 1);
@@ -3277,15 +3304,15 @@ fn company_phrases_preserve_regional_provider_and_template_rules() {
     }
 
     let czech = fake(Some("cs-CZ")).unwrap();
-    assert!(!czech.catchPhraseNoun().unwrap().is_empty());
-    assert!(!czech.catchPhraseVerb().unwrap().is_empty());
-    assert!(!czech.catchPhraseAttribute().unwrap().is_empty());
-    assert!(!czech.catchPhrase().unwrap().is_empty());
+    assert!(!czech.catch_phrase_noun().unwrap().is_empty());
+    assert!(!czech.catch_phrase_verb().unwrap().is_empty());
+    assert!(!czech.catch_phrase_attribute().unwrap().is_empty());
+    assert!(!czech.catch_phrase().unwrap().is_empty());
 
     let taiwan = fake(Some("zh-Hant")).unwrap();
     assert!(!taiwan.bs().unwrap().contains(char::is_whitespace));
     let china = fake(Some("zh-Hans")).unwrap();
-    assert!(!china.catchPhrase().unwrap().is_empty());
+    assert!(!china.catch_phrase().unwrap().is_empty());
     assert!(china.bs().is_err());
 }
 
@@ -3295,12 +3322,12 @@ fn regional_phone_formatters_preserve_options_and_inherited_extensions() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         for _ in 0..48 {
-            let number = unique.phoneNumberWithExtension().unwrap();
+            let number = unique.phone_number_with_extension().unwrap();
             let (number, extension) = number.split_once(" x").unwrap();
             assert!((3..=5).contains(&extension.len()));
             assert!(extension.bytes().all(|x| x.is_ascii_digit()));
             assert!((10..=11).contains(&number.bytes().filter(u8::is_ascii_digit).count()));
-            let e164 = faker.e164PhoneNumber();
+            let e164 = faker.e164_phone_number();
             assert_eq!(e164.len(), 12);
             assert!(e164.starts_with("+1"));
         }
@@ -3310,10 +3337,10 @@ fn regional_phone_formatters_preserve_options_and_inherited_extensions() {
         for formatting in [false, true] {
             for number in [
                 malaysia
-                    .mobileNumberWithOptions(prefix, formatting)
+                    .mobile_number_with_options(prefix, formatting)
                     .unwrap(),
                 malaysia
-                    .fixedLineNumberWithOptions(prefix, formatting)
+                    .fixed_line_number_with_options(prefix, formatting)
                     .unwrap(),
             ] {
                 let national = match (prefix, formatting) {
@@ -3328,21 +3355,21 @@ fn regional_phone_formatters_preserve_options_and_inherited_extensions() {
         }
     }
     let brazil = fake(Some("pt-BR")).unwrap();
-    assert_eq!(brazil.cellphoneNumber(Some(false)).unwrap().len(), 11);
-    assert_eq!(brazil.landlineNumber(Some(false)).unwrap().len(), 10);
+    assert_eq!(brazil.cellphone_number(Some(false)).unwrap().len(), 11);
+    assert_eq!(brazil.landline_number(Some(false)).unwrap().len(), 10);
     let korea = fake(Some("ko-KR")).unwrap();
-    let cell = korea.cellPhoneNumber().unwrap();
+    let cell = korea.cell_phone_number().unwrap();
     assert_eq!(cell.len(), 13);
     assert!(cell.starts_with("010-"));
     let hong_kong = fake(Some("en-HK")).unwrap();
     assert!(matches!(
-        hong_kong.landlineNumber(None).unwrap().as_bytes()[0],
+        hong_kong.landline_number(None).unwrap().as_bytes()[0],
         b'2' | b'3'
     ));
     let china = fake(Some("zh-CN")).unwrap();
-    assert!(china.mobileNumber().is_err());
-    assert!(china.phoneNumberWithExtension().is_err());
-    assert!(brazil.mobileNumberWithOptions(false, false).is_err());
+    assert!(china.mobile_number().is_err());
+    assert!(china.phone_number_with_extension().is_err());
+    assert!(brazil.mobile_number_with_options(false, false).is_err());
 }
 
 #[test]
@@ -3350,7 +3377,7 @@ fn phone_service_formatters_respect_region_and_voip_options() {
     let canada = fake(Some("en-CA")).unwrap();
     let unique = canada.unique(true);
     let samples: std::collections::HashSet<_> = (0..48)
-        .map(|_| unique.tollFreePhoneNumber().unwrap())
+        .map(|_| unique.toll_free_phone_number().unwrap())
         .collect();
     assert_eq!(samples.len(), 48);
     for sample in samples {
@@ -3367,7 +3394,9 @@ fn phone_service_formatters_respect_region_and_voip_options() {
     let malaysia = fake(Some("ms-MY")).unwrap();
     for prefix in [false, true] {
         for formatting in [false, true] {
-            let sample = malaysia.voipNumberWithOptions(prefix, formatting).unwrap();
+            let sample = malaysia
+                .voip_number_with_options(prefix, formatting)
+                .unwrap();
             let local = match (prefix, formatting) {
                 (true, true) => sample.strip_prefix("+6").unwrap(),
                 (true, false) => sample.strip_prefix('6').unwrap(),
@@ -3382,7 +3411,7 @@ fn phone_service_formatters_respect_region_and_voip_options() {
 
     let french = fake(Some("fr-FR")).unwrap();
     for _ in 0..64 {
-        let service = french.serviceNumber().unwrap();
+        let service = french.service_number().unwrap();
         let digits: String = service.chars().filter(char::is_ascii_digit).collect();
         let local = if service.starts_with('+') {
             digits.strip_prefix("33").unwrap().trim_start_matches('0')
@@ -3399,21 +3428,41 @@ fn phone_service_formatters_respect_region_and_voip_options() {
     }
 
     let singapore = fake(Some("en-SG")).unwrap();
-    assert!(singapore.tollFreeLineNumber().unwrap().starts_with("1800"));
     assert!(
         singapore
-            .tollFreeInternationalNumber()
+            .toll_free_line_number()
+            .unwrap()
+            .starts_with("1800")
+    );
+    assert!(
+        singapore
+            .toll_free_international_number()
             .unwrap()
             .starts_with("800")
     );
-    assert!(singapore.premiumPhoneNumber().unwrap().starts_with("1900"));
-    assert!(singapore.voipNumberWithOptions(false, false).is_err());
+    assert!(
+        singapore
+            .premium_phone_number()
+            .unwrap()
+            .starts_with("1900")
+    );
+    assert!(singapore.voip_number_with_options(false, false).is_err());
 
     let romania = fake(Some("ro-RO")).unwrap();
-    assert!(romania.tollFreePhoneNumber().unwrap().starts_with("08"));
-    assert!(romania.premiumRatePhoneNumber().unwrap().starts_with("09"));
-    assert!(romania.tollFreeNumber().is_err());
-    assert!(fake(Some("ja-JP")).unwrap().tollFreePhoneNumber().is_err());
+    assert!(romania.toll_free_phone_number().unwrap().starts_with("08"));
+    assert!(
+        romania
+            .premium_rate_phone_number()
+            .unwrap()
+            .starts_with("09")
+    );
+    assert!(romania.toll_free_number().is_err());
+    assert!(
+        fake(Some("ja-JP"))
+            .unwrap()
+            .toll_free_phone_number()
+            .is_err()
+    );
 }
 
 #[test]
@@ -3425,13 +3474,13 @@ fn display_phone_numbers_use_pinned_provider_templates() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         for _ in 0..48 {
-            let phone = unique.phoneNumber().unwrap();
+            let phone = unique.phone_number().unwrap();
             assert!(phone.bytes().filter(u8::is_ascii_digit).count() >= 7);
             assert!(!phone.contains(['#', '{', '}']));
         }
     }
     let bangladesh = fake(Some("bn-BD")).unwrap();
-    let phone = bangladesh.phoneNumber();
+    let phone = bangladesh.phone_number();
     let digits = phone.strip_prefix("+৮৮০").unwrap();
     assert!((1..=7).contains(&digits.chars().count()));
     assert!(digits.chars().all(|c| ('০'..='৯').contains(&c)));
@@ -3439,42 +3488,43 @@ fn display_phone_numbers_use_pinned_provider_templates() {
     let brazil = fake(Some("pt-BR")).unwrap();
     let unique = brazil.unique(true);
     for _ in 0..64 {
-        let number = unique.phoneNumberCleared().unwrap();
+        let number = unique.phone_number_cleared().unwrap();
         assert!(matches!(number.len(), 10 | 11));
         assert!(number.bytes().all(|x| x.is_ascii_digit()));
-        assert!(brazil.phoneNumber().starts_with('('));
+        assert!(brazil.phone_number().starts_with('('));
     }
-    assert!(bangladesh.phoneNumberCleared().is_err());
+    assert!(bangladesh.phone_number_cleared().is_err());
 }
 
 #[test]
 fn phone_components_preserve_prefixes_and_placeholder_masks() {
     let finland = fake(Some("fi-FI")).unwrap();
-    assert!(finland.landLineAreaCode().unwrap().starts_with('0'));
-    assert!(!finland.e164landLineAreaCode().unwrap().starts_with('0'));
-    assert!(["### ####", "#######"].contains(&finland.numberFormat().unwrap()));
+    assert!(finland.land_line_area_code().unwrap().starts_with('0'));
+    assert!(!finland.e164land_line_area_code().unwrap().starts_with('0'));
+    assert!(["### ####", "#######"].contains(&finland.number_format().unwrap()));
     assert!([" ", "-"].contains(&finland.separator().unwrap()));
 
     let malaysia = fake(Some("ms-MY")).unwrap();
-    assert_eq!(malaysia.countryCodePrefix(true).unwrap(), "+6");
-    assert_eq!(malaysia.countryCodePrefix(false).unwrap(), "6");
+    assert_eq!(malaysia.country_code_prefix(true).unwrap(), "+6");
+    assert_eq!(malaysia.country_code_prefix(false).unwrap(), "6");
     let brazil = fake(Some("pt-BR")).unwrap();
-    assert_eq!(brazil.areaCode().unwrap().len(), 2);
+    assert_eq!(brazil.area_code().unwrap().len(), 2);
     assert_eq!(brazil.cellphone(Some(false)).unwrap().len(), 9);
     assert_eq!(brazil.landline(Some(false)).unwrap().len(), 8);
 
     let canada = fake(Some("en-CA")).unwrap();
     let unique = canada.unique(true);
-    let codes: std::collections::HashSet<_> =
-        (0..6).map(|_| unique.tollFreeAreaCode().unwrap()).collect();
+    let codes: std::collections::HashSet<_> = (0..6)
+        .map(|_| unique.toll_free_area_code().unwrap())
+        .collect();
     assert_eq!(codes.len(), 6);
     assert!(
         canada
-            .uniqueWithRetries(false, 2)
-            .tollFreeAreaCode()
+            .unique_with_retries(false, 2)
+            .toll_free_area_code()
             .is_err()
     );
-    assert!(finland.exchangeCode().is_err());
+    assert!(finland.exchange_code().is_err());
 }
 
 #[test]
@@ -3482,20 +3532,27 @@ fn internet_ascii_names_are_locale_specific_and_support_unique() {
     let egypt = fake(Some("ar-EG")).unwrap();
     let names: std::collections::HashSet<_> = {
         let unique = egypt.unique(true);
-        (0..14).map(|_| unique.firstNameAscii().unwrap()).collect()
+        (0..14)
+            .map(|_| unique.first_name_ascii().unwrap())
+            .collect()
     };
     assert_eq!(names.len(), 14);
-    assert!(egypt.uniqueWithRetries(false, 2).firstNameAscii().is_err());
-    assert!(egypt.lastNameAscii().is_ok());
+    assert!(
+        egypt
+            .unique_with_retries(false, 2)
+            .first_name_ascii()
+            .is_err()
+    );
+    assert!(egypt.last_name_ascii().is_ok());
 
     for locale in ["ar-SA", "ar-JO", "fa-IR", "ja-JP", "ko-KR"] {
         let faker = fake(Some(locale)).unwrap();
-        assert!(!faker.firstNameAscii().unwrap().is_empty());
-        assert!(!faker.lastNameAscii().unwrap().is_empty());
+        assert!(!faker.first_name_ascii().unwrap().is_empty());
+        assert!(!faker.last_name_ascii().unwrap().is_empty());
     }
     let us = fake(Some("en-US")).unwrap();
-    assert!(us.firstNameAscii().is_err());
-    assert!(us.unique(false).lastNameAscii().is_err());
+    assert!(us.first_name_ascii().is_err());
+    assert!(us.unique(false).last_name_ascii().is_err());
 }
 
 #[test]
@@ -3510,32 +3567,32 @@ fn regional_date_names_and_czech_display_dates_follow_the_provider() {
         ("en-US", "January", "Thursday", "am"),
     ] {
         let faker = fake(Some(locale)).unwrap();
-        assert_eq!(faker.monthName(Some(epoch)), month);
-        assert_eq!(faker.dayOfWeek(Some(epoch)), weekday);
-        assert_eq!(faker.amPm(Some(epoch)), period);
+        assert_eq!(faker.month_name(Some(epoch)), month);
+        assert_eq!(faker.day_of_week(Some(epoch)), weekday);
+        assert_eq!(faker.am_pm(Some(epoch)), period);
         assert_eq!(
-            faker.dayOfMonth(Some(epoch)),
+            faker.day_of_month(Some(epoch)),
             if locale == "cs-CZ" { "1" } else { "01" }
         );
         if locale != "cs-CZ" {
-            assert!(faker.monthNameGenitive(Some(epoch)).is_err());
-            assert!(faker.formattedDate().is_err());
+            assert!(faker.month_name_genitive(Some(epoch)).is_err());
+            assert!(faker.formatted_date().is_err());
         }
     }
 
     let czech = fake(Some("cs-CZ")).unwrap();
-    let unique = czech.uniqueWithRetries(true, 2);
-    assert_eq!(unique.monthNameGenitive(Some(epoch)).unwrap(), "ledna");
-    assert!(unique.monthNameGenitive(Some(epoch)).is_err());
+    let unique = czech.unique_with_retries(true, 2);
+    assert_eq!(unique.month_name_genitive(Some(epoch)).unwrap(), "ledna");
+    assert!(unique.month_name_genitive(Some(epoch)).is_err());
 
-    czech.setDefaultTimezone(Some(
+    czech.set_default_timezone(Some(
         openrust::support::Date::timezone("America/New_York").unwrap(),
     ));
-    assert_eq!(czech.monthNameGenitive(Some(epoch)).unwrap(), "prosince");
-    assert_eq!(czech.dayOfMonth(Some(epoch)), "31");
-    czech.setDefaultTimezone(None);
+    assert_eq!(czech.month_name_genitive(Some(epoch)).unwrap(), "prosince");
+    assert_eq!(czech.day_of_month(Some(epoch)), "31");
+    czech.set_default_timezone(None);
     for _ in 0..64 {
-        let date = czech.formattedDate().unwrap();
+        let date = czech.formatted_date().unwrap();
         let (day, rest) = date.split_once(". ").unwrap();
         let (month, year) = rest.split_once(' ').unwrap();
         assert!((1..=31).contains(&day.parse::<u32>().unwrap()));
@@ -3550,37 +3607,40 @@ fn php_date_formats_preserve_native_formats_and_share_unique_history() {
     let faker = fake(Some("zh-Hant")).unwrap();
     let epoch = Some(jiff::Timestamp::UNIX_EPOCH);
 
-    faker.setDefaultTimezone(Some(
+    faker.set_default_timezone(Some(
         openrust::support::Date::timezone("America/New_York").unwrap(),
     ));
     assert_eq!(
         faker
-            .dateWithPhpFormat(r"Y-m-d\TH:i:sP e T W o z B", epoch)
+            .date_with_php_format(r"Y-m-d\TH:i:sP e T W o z B", epoch)
             .unwrap(),
         "1969-12-31T19:00:00-05:00 America/New_York EST 01 1970 364 041"
     );
-    assert_eq!(faker.timeWithPhpFormat("g:i A", epoch).unwrap(), "7:00 PM");
     assert_eq!(
-        faker.dateWithPhpFormat(r"l F \年 Q %", epoch).unwrap(),
+        faker.time_with_php_format("g:i A", epoch).unwrap(),
+        "7:00 PM"
+    );
+    assert_eq!(
+        faker.date_with_php_format(r"l F \年 Q %", epoch).unwrap(),
         "Wednesday December 年 Q %"
     );
-    assert_eq!(faker.dateWithPhpFormat("\\", epoch).unwrap(), "\0");
-    assert_eq!(faker.dateWithPhpFormat("", epoch).unwrap(), "");
+    assert_eq!(faker.date_with_php_format("\\", epoch).unwrap(), "\0");
+    assert_eq!(faker.date_with_php_format("", epoch).unwrap(), "");
 
-    let unique = faker.uniqueWithRetries(true, 2);
+    let unique = faker.unique_with_retries(true, 2);
     assert_eq!(unique.date(Some("%Y-%m-%d"), epoch).unwrap(), "1969-12-31");
-    assert!(unique.dateWithPhpFormat("Y-m-d", epoch).is_err());
+    assert!(unique.date_with_php_format("Y-m-d", epoch).is_err());
     assert_eq!(
-        unique.timeWithPhpFormat("Y-m-d", epoch).unwrap(),
+        unique.time_with_php_format("Y-m-d", epoch).unwrap(),
         "1969-12-31"
     );
     assert!(unique.time(Some("%Y-%m-%d"), epoch).is_err());
 
-    faker.setDefaultTimezone(Some(
+    faker.set_default_timezone(Some(
         openrust::support::Date::timezone("Asia/Kathmandu").unwrap(),
     ));
     assert_eq!(
-        faker.dateWithPhpFormat("e T P", epoch).unwrap(),
+        faker.date_with_php_format("e T P", epoch).unwrap(),
         "Asia/Kathmandu +0530 +05:30"
     );
 }
@@ -3596,16 +3656,18 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
 
     let faker = fake(Some("en-US")).unwrap();
     let epoch = Timestamp::UNIX_EPOCH;
-    faker.setDefaultTimezone(Some(shanghai.clone()));
+    faker.set_default_timezone(Some(shanghai.clone()));
 
-    let date = faker.dateTimeBetweenInTimezone(epoch, epoch, None).unwrap();
+    let date = faker
+        .date_time_between_in_timezone(epoch, epoch, None)
+        .unwrap();
     assert_eq!(
         (date.timestamp().as_second(), date.time_zone().clone()),
         (0, shanghai.clone())
     );
 
     let date = faker
-        .dateTimeBetweenExpressionsInTimezone(
+        .date_time_between_expressions_in_timezone(
             "1970-01-01 00:00:00 UTC",
             "0",
             Some(new_york.clone()),
@@ -3615,10 +3677,10 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
         date.strftime("%Y-%m-%dT%H:%M:%S%.f%:z").to_string(),
         "1969-12-31T19:00:00-05:00"
     );
-    assert_eq!(faker.getDefaultTimezone(), Some(shanghai.clone()));
+    assert_eq!(faker.get_default_timezone(), Some(shanghai.clone()));
     assert_eq!(
         faker
-            .dateTimeInIntervalInTimezone(
+            .date_time_in_interval_in_timezone(
                 Some(epoch),
                 Some(SignedDuration::ZERO),
                 Some(utc.clone())
@@ -3630,7 +3692,7 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     );
     assert!(
         faker
-            .dateTimeBetweenInTimezone(
+            .date_time_between_in_timezone(
                 epoch + SignedDuration::from_secs(1),
                 epoch,
                 Some(utc.clone())
@@ -3639,7 +3701,7 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     );
     assert!(
         faker
-            .dateTimeInIntervalExpressionsInTimezone(
+            .date_time_in_interval_expressions_in_timezone(
                 Some("bad date"),
                 Some("+0 seconds"),
                 Some(utc.clone())
@@ -3647,16 +3709,16 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
             .is_err()
     );
 
-    let unique = faker.uniqueWithRetries(true, 2);
-    assert_eq!(unique.dateTime(Some(epoch)).unwrap(), epoch);
+    let unique = faker.unique_with_retries(true, 2);
+    assert_eq!(unique.date_time(Some(epoch)).unwrap(), epoch);
     assert!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(utc.clone()))
+            .date_time_in_timezone(Some(epoch), Some(utc.clone()))
             .is_err()
     );
     assert_eq!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(etc_utc.clone()))
+            .date_time_in_timezone(Some(epoch), Some(etc_utc.clone()))
             .unwrap()
             .time_zone()
             .clone(),
@@ -3664,7 +3726,7 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     );
     assert_eq!(
         unique
-            .dateTimeInTimezone(Some(epoch), None)
+            .date_time_in_timezone(Some(epoch), None)
             .unwrap()
             .time_zone()
             .clone(),
@@ -3672,7 +3734,7 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     );
     assert_eq!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(taipei.clone()))
+            .date_time_in_timezone(Some(epoch), Some(taipei.clone()))
             .unwrap()
             .time_zone()
             .clone(),
@@ -3680,19 +3742,19 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     );
     assert!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(taipei.clone()))
+            .date_time_in_timezone(Some(epoch), Some(taipei.clone()))
             .is_err()
     );
 
-    assert_eq!(unique.dateTimeBetween(epoch, epoch).unwrap(), epoch);
+    assert_eq!(unique.date_time_between(epoch, epoch).unwrap(), epoch);
     assert!(
         unique
-            .dateTimeBetweenInTimezone(epoch, epoch, Some(utc.clone()))
+            .date_time_between_in_timezone(epoch, epoch, Some(utc.clone()))
             .is_err()
     );
     assert_eq!(
         unique
-            .dateTimeBetweenExpressionsInTimezone(
+            .date_time_between_expressions_in_timezone(
                 "1970-01-01 00:00:00 UTC",
                 "0",
                 Some(taipei.clone())
@@ -3704,15 +3766,19 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     );
     assert!(
         unique
-            .dateTimeBetweenInTimezone(epoch, epoch, Some(taipei.clone()))
+            .date_time_between_in_timezone(epoch, epoch, Some(taipei.clone()))
             .is_err()
     );
     unique
-        .dateTimeInIntervalInTimezone(Some(epoch), Some(SignedDuration::ZERO), Some(utc.clone()))
+        .date_time_in_interval_in_timezone(
+            Some(epoch),
+            Some(SignedDuration::ZERO),
+            Some(utc.clone()),
+        )
         .unwrap();
     assert!(
         unique
-            .dateTimeInIntervalExpressionsInTimezone(
+            .date_time_in_interval_expressions_in_timezone(
                 Some("1970-01-01 00:00:00 UTC"),
                 Some("+0 seconds"),
                 Some(utc.clone())
@@ -3722,17 +3788,17 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
     let before_fallback = Timestamp::new(1_730_611_800, 0).unwrap();
     let after_fallback = Timestamp::new(1_730_615_400, 0).unwrap();
     unique
-        .dateTimeBetweenInTimezone(before_fallback, before_fallback, Some(new_york.clone()))
+        .date_time_between_in_timezone(before_fallback, before_fallback, Some(new_york.clone()))
         .unwrap();
     assert!(
         unique
-            .dateTimeBetweenInTimezone(after_fallback, after_fallback, Some(new_york.clone()))
+            .date_time_between_in_timezone(after_fallback, after_fallback, Some(new_york.clone()))
             .is_err()
     );
     let ad = Timestamp::new(-62_135_597_361, 0).unwrap();
     assert_eq!(
         unique
-            .dateTimeADInTimezone(Some(ad), Some(new_york.clone()))
+            .date_time_ad_in_timezone(Some(ad), Some(new_york.clone()))
             .unwrap()
             .timestamp(),
         ad
@@ -3749,28 +3815,28 @@ fn address_catalogs_follow_the_selected_provider() {
     for _ in 0..64 {
         assert!(
             ["North", "East", "West", "South", "New", "Lake", "Port"]
-                .contains(&us.cityPrefix().as_str())
+                .contains(&us.city_prefix().as_str())
         );
-        assert!(us.streetName().contains(' '));
-        assert!(cn.streetName().ends_with(" Street"));
+        assert!(us.street_name().contains(' '));
+        assert!(cn.street_name().ends_with(" Street"));
         assert!(cn.area().unwrap().ends_with('区'));
-        assert_eq!(cn.buildingNumber().len(), 2);
+        assert_eq!(cn.building_number().len(), 2);
         assert_eq!(tw.state(), "臺灣省");
-        assert_eq!(tw.stateAbbr(), "臺");
-        assert_eq!(tw.cityPrefix(), "");
-        assert_eq!(tw.citySuffix(), "");
+        assert_eq!(tw.state_abbr(), "臺");
+        assert_eq!(tw.city_prefix(), "");
+        assert_eq!(tw.city_suffix(), "");
         assert!(!tw.street().unwrap().is_empty());
         assert!(taiwan_postcode.is_match(&tw.postcode()));
     }
 
-    let unique = tw.uniqueWithRetries(true, 128);
+    let unique = tw.unique_with_retries(true, 128);
     let mut suffixes = [
-        unique.streetSuffix().unwrap(),
-        unique.streetSuffix().unwrap(),
+        unique.street_suffix().unwrap(),
+        unique.street_suffix().unwrap(),
     ];
     suffixes.sort();
     assert_eq!(suffixes, ["街", "路"]);
-    assert!(unique.streetSuffix().is_err());
+    assert!(unique.street_suffix().is_err());
     assert!(us.area().is_err());
     assert!(cn.street().is_err());
 }
@@ -3779,7 +3845,7 @@ fn address_catalogs_follow_the_selected_provider() {
 fn french_departments_and_taiwanese_address_numbers_preserve_values() {
     let french = fake(Some("fr-FR")).unwrap();
     let taiwan = fake(Some("zh-Hant")).unwrap();
-    let unique = french.uniqueWithRetries(true, 10_000);
+    let unique = french.unique_with_retries(true, 10_000);
     let mut departments = std::collections::BTreeMap::new();
     for _ in 0..101 {
         let (number, name) = unique.department().unwrap();
@@ -3790,24 +3856,24 @@ fn french_departments_and_taiwanese_address_numbers_preserve_values() {
     assert_eq!(departments.get("2B"), Some(&"Haute-Corse"));
     assert_eq!(departments.get("976"), Some(&"Mayotte"));
     assert!(unique.department().is_err());
-    assert_eq!(french.streetSuffix(), "Street");
+    assert_eq!(french.street_suffix(), "Street");
     assert!(french.postcode().chars().all(|ch| ch.is_ascii_digit()));
 
-    let unique = taiwan.uniqueWithRetries(true, 128);
+    let unique = taiwan.unique_with_retries(true, 128);
     let chinese: std::collections::HashSet<_> = (0..9)
-        .map(|_| unique.randomChineseNumber().unwrap())
+        .map(|_| unique.random_chinese_number().unwrap())
         .collect();
     assert_eq!(
         chinese,
         ["一", "二", "三", "四", "五", "六", "七", "八", "九"].into()
     );
-    assert!(unique.randomChineseNumber().is_err());
+    assert!(unique.random_chinese_number().is_err());
     for _ in 0..64 {
-        assert!((1..=100).contains(&taiwan.randomNumber2().unwrap()));
-        assert!((1..=1000).contains(&taiwan.randomNumber3().unwrap()));
+        assert!((1..=100).contains(&taiwan.random_number2().unwrap()));
+        assert!((1..=1000).contains(&taiwan.random_number3().unwrap()));
     }
-    assert!(taiwan.departmentNumber().is_err());
-    assert!(french.randomNumber2().is_err());
+    assert!(taiwan.department_number().is_err());
+    assert!(french.random_number2().is_err());
 }
 
 #[test]
@@ -3825,15 +3891,15 @@ fn french_address_locales_preserve_regional_overrides() {
         assert!(canada.address().split(", ").count() == 3);
         assert!(belgium.region().is_ok());
         assert!(swiss.department().is_ok());
-        assert!(canada.streetPrefix().is_ok());
+        assert!(canada.street_prefix().is_ok());
     }
-    let unique = swiss.uniqueWithRetries(true, 2048);
+    let unique = swiss.unique_with_retries(true, 2048);
     let all: std::collections::BTreeMap<_, _> = (0..26).map(|_| unique.canton().unwrap()).collect();
     assert_eq!(all.len(), 26);
     assert_eq!(all.get("GE"), Some(&"Genève"));
     assert!(unique.canton().is_err());
     assert!(swiss.province().is_err());
-    assert!(canada.cityName().is_err());
+    assert!(canada.city_name().is_err());
 }
 
 #[test]
@@ -3848,7 +3914,7 @@ fn english_address_locales_use_local_postcodes_and_inherited_vocabularies() {
     for _ in 0..64 {
         assert!(canadian_postcode.is_match(&canada.postcode()));
         assert!(canada.address().split_once('\n').unwrap().1.contains("  "));
-        assert!((1..=3).contains(&australia.buildingNumber().len()));
+        assert!((1..=3).contains(&australia.building_number().len()));
         assert_eq!(australia.postcode().len(), 4);
         assert_eq!(new_zealand.postcode().len(), 4);
         let city = new_zealand.city();
@@ -3857,13 +3923,13 @@ fn english_address_locales_use_local_postcodes_and_inherited_vocabularies() {
         assert_eq!(address.split(", ").count(), 4);
         assert!(new_zealand.region().is_ok());
     }
-    let unique = australia.uniqueWithRetries(true, 128);
-    let mut letters: Vec<_> = (0..4).map(|_| unique.buildingLetter().unwrap()).collect();
+    let unique = australia.unique_with_retries(true, 128);
+    let mut letters: Vec<_> = (0..4).map(|_| unique.building_letter().unwrap()).collect();
     letters.sort_unstable();
     assert_eq!(letters, ["A", "B", "C", "D"]);
-    assert!(unique.buildingLetter().is_err());
-    assert!(australia.randomPostcodeLetter().is_err());
-    assert!(new_zealand.provinceAbbr().is_err());
+    assert!(unique.building_letter().is_err());
+    assert!(australia.random_postcode_letter().is_err());
+    assert!(new_zealand.province_abbr().is_err());
 }
 
 #[test]
@@ -3884,7 +3950,7 @@ fn british_address_uses_fixed_postcodes_and_both_street_layouts() {
         }
     }
 
-    let unique = british.uniqueWithRetries(true, 20_000);
+    let unique = british.unique_with_retries(true, 20_000);
     let postcodes: std::collections::HashSet<_> =
         (0..497).map(|_| unique.postcode().unwrap()).collect();
     assert_eq!(postcodes.len(), 497);
@@ -3914,10 +3980,10 @@ fn african_english_address_providers_keep_regional_fields() {
         assert!(uganda.district().is_ok());
         assert!(nigerian_postcode.is_match(&nigeria.postcode()));
         assert!(nigeria.city().ends_with("Ville"));
-        assert!(nigeria.streetName().ends_with(" Street"));
+        assert!(nigeria.street_name().ends_with(" Street"));
         assert!(nigeria.county().is_ok());
     }
-    let unique = uganda.uniqueWithRetries(true, 128);
+    let unique = uganda.unique_with_retries(true, 128);
     let mut regions: Vec<_> = (0..4).map(|_| unique.region().unwrap()).collect();
     regions.sort_unstable();
     assert_eq!(regions, ["Central", "East", "North", "West"]);
@@ -3941,18 +4007,21 @@ fn singapore_address_preserves_street_blocks_and_literal_unit_patterns() {
             assert!(block.is_match(&address), "{address:?}");
             formats[1] = true;
         }
-        assert!(["##", "0#"].contains(&faker.floorNumber().unwrap()));
-        assert!(["##", "###"].contains(&faker.apartmentNumber().unwrap()));
+        assert!(["##", "0#"].contains(&faker.floor_number().unwrap()));
+        assert!(["##", "###"].contains(&faker.apartment_number().unwrap()));
     }
     assert_eq!(formats, [true; 2]);
     assert_eq!(faker.country(), "SINGAPORE");
-    assert_eq!(faker.townName().unwrap(), "SINGAPORE");
-    assert_eq!(faker.streetPrefix().unwrap(), "Jalan");
+    assert_eq!(faker.town_name().unwrap(), "SINGAPORE");
+    assert_eq!(faker.street_prefix().unwrap(), "Jalan");
     assert!(faker.city().ends_with("Ville"));
-    assert!(fake(Some("en-US")).unwrap().blockNumber().is_err());
+    assert!(fake(Some("en-US")).unwrap().block_number().is_err());
     let unique = faker.unique(true);
-    assert_ne!(unique.floorNumber().unwrap(), unique.floorNumber().unwrap());
-    assert!(unique.floorNumber().is_err());
+    assert_ne!(
+        unique.floor_number().unwrap(),
+        unique.floor_number().unwrap()
+    );
+    assert!(unique.floor_number().is_err());
 }
 
 #[test]
@@ -3969,7 +4038,7 @@ fn indian_english_addresses_preserve_locality_and_society_templates() {
         let address = faker.address();
         let (location, pin) = address.rsplit_once(" - ").unwrap();
         assert!(postcode.is_match(pin), "{address}");
-        let street = faker.streetAddress();
+        let street = faker.street_address();
         if standalone.is_match(&street) {
             formats[0] = true;
         } else {
@@ -3977,19 +4046,19 @@ fn indian_english_addresses_preserve_locality_and_society_templates() {
             formats[1] = true;
         }
         assert!(location.contains(", "));
-        assert!(faker.streetName().ends_with(" Street"));
-        assert_eq!(faker.stateAbbr().len(), 2);
+        assert!(faker.street_name().ends_with(" Street"));
+        assert_eq!(faker.state_abbr().len(), 2);
     }
     assert_eq!(formats, [true; 2]);
     assert!(fake(Some("en-US")).unwrap().locality().is_err());
 
     let unique = faker.unique(true);
-    let suffixes: HashSet<_> = (0..5).map(|_| unique.areaSuffix().unwrap()).collect();
+    let suffixes: HashSet<_> = (0..5).map(|_| unique.area_suffix().unwrap()).collect();
     assert_eq!(
         suffixes,
         HashSet::from([" Nagar", "Pur", "Garh", "Gunj", " Chowk"])
     );
-    assert!(unique.areaSuffix().is_err());
+    assert!(unique.area_suffix().is_err());
 }
 
 #[test]
@@ -4003,9 +4072,9 @@ fn philippine_address_uses_local_routes_and_inherited_us_fields() {
         let sample = faker.address();
         assert!(address.is_match(&sample), "{sample}");
         formats[usize::from(sample.contains(", Poblacion, "))] = true;
-        assert!(number.is_match(&faker.buildingNumber()));
-        assert!(secondary.is_match(&faker.secondaryAddress()));
-        assert_eq!(faker.stateAbbr().len(), 2);
+        assert!(number.is_match(&faker.building_number()));
+        assert!(secondary.is_match(&faker.secondary_address()));
+        assert_eq!(faker.state_abbr().len(), 2);
         assert!(!faker.province().unwrap().is_empty());
     }
     assert_eq!(formats, [true; 2]);
@@ -4038,10 +4107,10 @@ fn hong_kong_address_preserves_three_lines_and_local_name_templates() {
     assert!(block);
     let unique = faker.unique(true);
     assert_ne!(
-        unique.estateSuffix().unwrap(),
-        unique.estateSuffix().unwrap()
+        unique.estate_suffix().unwrap(),
+        unique.estate_suffix().unwrap()
     );
-    assert!(unique.estateSuffix().is_err());
+    assert!(unique.estate_suffix().is_err());
     assert!(fake(Some("en-PH")).unwrap().town().is_err());
 }
 
@@ -4061,8 +4130,8 @@ fn japanese_address_preserves_postcode_components_and_building_boundaries() {
         formats[usize::from(sample.ends_with('号'))] = true;
         assert!((100..=999).contains(&faker.postcode1().unwrap()));
         assert!((1000..=9999).contains(&faker.postcode2().unwrap()));
-        assert!((1..=10).contains(&faker.areaNumber().unwrap()));
-        assert!((101..=110).contains(&faker.buildingNumber().parse::<u16>().unwrap()));
+        assert!((1..=10).contains(&faker.area_number().unwrap()));
+        assert!((101..=110).contains(&faker.building_number().parse::<u16>().unwrap()));
     }
     assert_eq!(formats, [true; 2]);
     let unique = faker.unique(true);
@@ -4096,7 +4165,7 @@ fn korean_address_preserves_administrative_order_and_inherited_street_address() 
             assert!(administration.ends_with('도'));
         }
 
-        let street_address = faker.streetAddress();
+        let street_address = faker.street_address();
         let (number, street) = street_address.split_once(' ').unwrap();
         assert!(building.is_match(number) && street.ends_with('로'));
         assert!(postcode.is_match(&faker.postcode()));
@@ -4104,9 +4173,9 @@ fn korean_address_preserves_administrative_order_and_inherited_street_address() 
     assert_eq!(formats, [true; 2]);
     let unique = faker.unique(true);
     for _ in 0..7 {
-        assert!(unique.metropolitanCity().unwrap().ends_with('시'));
+        assert!(unique.metropolitan_city().unwrap().ends_with('시'));
     }
-    assert!(unique.metropolitanCity().is_err());
+    assert!(unique.metropolitan_city().is_err());
     assert!(fake(Some("ja-JP")).unwrap().borough().is_err());
 }
 
@@ -4135,7 +4204,7 @@ fn vietnamese_address_preserves_urban_rural_and_inherited_prefix_formats() {
             }
             _ => panic!("unexpected address {address:?}"),
         }
-        let ward = faker.wardName().unwrap();
+        let ward = faker.ward_name().unwrap();
         ward_with_hamlet_prefix |= ward.starts_with("Thôn ") || ward.starts_with("Ấp ");
         assert!(!ward.contains('#'));
         assert!(postcodes.is_match(&faker.postcode()));
@@ -4144,11 +4213,11 @@ fn vietnamese_address_preserves_urban_rural_and_inherited_prefix_formats() {
     assert!(ward_with_hamlet_prefix);
     let unique = faker.unique(true);
     assert_ne!(
-        unique.districtPrefix().unwrap(),
-        unique.districtPrefix().unwrap()
+        unique.district_prefix().unwrap(),
+        unique.district_prefix().unwrap()
     );
-    assert!(unique.districtPrefix().is_err());
-    assert!(fake(Some("ko-KR")).unwrap().hamletName().is_err());
+    assert!(unique.district_prefix().is_err());
+    assert!(fake(Some("ko-KR")).unwrap().hamlet_name().is_err());
 }
 
 #[test]
@@ -4174,10 +4243,10 @@ fn thai_addresses_preserve_road_prefixes_and_postcode_separators() {
     assert!(slash);
     let unique = faker.unique(true);
     let prefixes_sampled: HashSet<_> = (0..prefixes.len())
-        .map(|_| unique.streetPrefix().unwrap())
+        .map(|_| unique.street_prefix().unwrap())
         .collect();
     assert_eq!(prefixes_sampled, HashSet::from(prefixes));
-    assert!(unique.streetPrefix().is_err());
+    assert!(unique.street_prefix().is_err());
 }
 
 #[test]
@@ -4192,8 +4261,10 @@ fn indonesian_address_uses_local_streets_and_state_abbreviations() {
         assert!(street.is_match(road), "{address}");
         assert!(postal.is_match(city), "{address}");
         assert!(!state.is_empty());
-        assert!((1..=999).contains(&faker.buildingNumber().parse::<u16>().unwrap()));
-        assert!(faker.streetPrefix().is_ok() && faker.street().is_ok() && faker.cityName().is_ok());
+        assert!((1..=999).contains(&faker.building_number().parse::<u16>().unwrap()));
+        assert!(
+            faker.street_prefix().is_ok() && faker.street().is_ok() && faker.city_name().is_ok()
+        );
     }
 }
 
@@ -4212,22 +4283,22 @@ fn malaysian_address_keeps_state_town_and_postcode_in_one_region() {
             assert!((1000..=2800).contains(&zip.parse::<u32>().unwrap()));
             found = true;
         }
-        let perlis = faker.postcodeWithState("perlis").unwrap();
+        let perlis = faker.postcode_with_state("perlis").unwrap();
         assert!(perlis.starts_with('0') && perlis.len() == 5);
         assert!((1000..=2800).contains(&perlis.parse::<u32>().unwrap()));
     }
     assert!(found);
-    assert!(faker.postcodeWithState("unknown").is_err());
+    assert!(faker.postcode_with_state("unknown").is_err());
     assert!(
         fake(Some("id-ID"))
             .unwrap()
-            .postcodeWithState("perlis")
+            .postcode_with_state("perlis")
             .is_err()
     );
     let unique = faker.unique(true);
     assert_ne!(
-        unique.postcodeWithState("perlis").unwrap(),
-        unique.postcodeWithState("perlis").unwrap()
+        unique.postcode_with_state("perlis").unwrap(),
+        unique.postcode_with_state("perlis").unwrap()
     );
 }
 
@@ -4248,20 +4319,20 @@ fn bengali_and_nepali_addresses_follow_local_number_and_address_templates() {
         assert!(layout.is_match(&nepali.address()));
         assert!(
             !nepali
-                .streetAddress()
+                .street_address()
                 .starts_with(|c: char| c.is_ascii_digit())
         );
-        let ward = nepali.wardNumber().unwrap();
+        let ward = nepali.ward_number().unwrap();
         assert!(ward.bytes().all(|value| value.is_ascii_digit()));
         ward_lengths[ward.len() - 1] = true;
     }
     assert_eq!(ward_lengths, [true; 2]);
-    assert!(bengali.wardNumber().is_err());
+    assert!(bengali.ward_number().is_err());
     let unique = bengali.unique(true);
     for _ in 0..3 {
-        assert!(unique.banglaStreetName().is_ok());
+        assert!(unique.bangla_street_name().is_ok());
     }
-    assert!(unique.banglaStreetName().is_err());
+    assert!(unique.bangla_street_name().is_err());
 }
 
 #[test]
@@ -4284,15 +4355,15 @@ fn arabic_addresses_keep_regional_city_and_secondary_address_formats() {
         }
         assert_eq!(formats, [true; 2]);
     }
-    assert_eq!(jo.streetPrefix().unwrap(), "شارع");
+    assert_eq!(jo.street_prefix().unwrap(), "شارع");
     assert!(sa.subdivision().is_ok() && jo.governorate().is_err());
-    assert!(sa.governorateId().is_err());
+    assert!(sa.governorate_id().is_err());
 
     let unique = eg.unique(true);
     for _ in 0..26 {
-        assert_eq!(unique.governorateId().unwrap().len(), 2);
+        assert_eq!(unique.governorate_id().unwrap().len(), 2);
     }
-    assert!(unique.governorateId().is_err());
+    assert!(unique.governorate_id().is_err());
 }
 
 #[test]
@@ -4325,8 +4396,8 @@ fn persian_and_hebrew_addresses_preserve_optional_segments_and_spaces() {
     assert_eq!(hebrew_variants, [true; 2]);
     assert!(hebrew.building().is_err());
     let unique = persian.unique(true);
-    assert_eq!(unique.postcodePrefix().unwrap(), "کد پستی");
-    assert!(unique.postcodePrefix().is_err());
+    assert_eq!(unique.postcode_prefix().unwrap(), "کد پستی");
+    assert!(unique.postcode_prefix().is_err());
 }
 
 #[test]
@@ -4347,10 +4418,10 @@ fn turkish_addresses_put_the_building_last_and_the_postcode_before_the_city() {
         assert!(postcode.is_match(postal) && !city.is_empty());
     }
     let unique = faker.unique(true);
-    let cities: HashSet<_> = (0..81).map(|_| unique.cityName().unwrap()).collect();
+    let cities: HashSet<_> = (0..81).map(|_| unique.city_name().unwrap()).collect();
     assert_eq!(cities.len(), 81);
     assert!(cities.contains("İstanbul") && cities.contains("Şanlıurfa"));
-    assert!(unique.cityName().is_err());
+    assert!(unique.city_name().is_err());
 }
 
 #[test]
@@ -4370,15 +4441,15 @@ fn russian_ukrainian_and_kazakh_addresses_preserve_regional_layouts() {
         assert!(kazakh.is_match(&kz.address()));
         assert!(ru.street().is_ok() && kz.street().is_ok());
     }
-    assert_eq!(ua.streetSuffix(), "");
-    assert!(ru.cityAndRegion().is_err());
+    assert_eq!(ua.street_suffix(), "");
+    assert!(ru.city_and_region().is_err());
     let unique = ua.unique(true);
     let pairs: std::collections::HashSet<_> =
-        (0..24).map(|_| unique.cityAndRegion().unwrap()).collect();
+        (0..24).map(|_| unique.city_and_region().unwrap()).collect();
     assert_eq!(pairs.len(), 24);
     assert!(pairs.contains("Закарпатська область, місто Ужгород"));
     assert!(pairs.contains("Львівська область, місто Львів"));
-    assert!(unique.cityAndRegion().is_err());
+    assert!(unique.city_and_region().is_err());
 }
 
 #[test]
@@ -4420,9 +4491,9 @@ fn german_address_building_numbers_and_swiss_cantons_use_local_catalogs() {
     let german_number = Regex::new(r"^(?:[1-9][0-9]{0,2}|[1-9]/[1-9]|[1-9][0-9]?[abc])$").unwrap();
     let austrian_number = Regex::new(r"^(?:[1-9][0-9]{0,2}|[0-9]{1,2}[abc])$").unwrap();
     for _ in 0..128 {
-        assert!(german_number.is_match(&germany.buildingNumber()));
-        assert!(austrian_number.is_match(&austria.buildingNumber()));
-        assert!(austrian_number.is_match(&swiss.buildingNumber()));
+        assert!(german_number.is_match(&germany.building_number()));
+        assert!(austrian_number.is_match(&austria.building_number()));
+        assert!(austrian_number.is_match(&swiss.building_number()));
         assert_eq!(germany.postcode().len(), 5);
         assert_eq!(austria.postcode().len(), 4);
         let address = swiss.address();
@@ -4434,7 +4505,7 @@ fn german_address_building_numbers_and_swiss_cantons_use_local_catalogs() {
     assert!(values.contains(&("ZH", "Zürich")) && values.contains(&("GE", "Genf")));
     assert!(cantons.canton().is_err());
     assert!(germany.canton().is_err());
-    assert!(fake(Some("en-US")).unwrap().streetSuffixShort().is_err());
+    assert!(fake(Some("en-US")).unwrap().street_suffix_short().is_err());
 }
 
 #[test]
@@ -4455,7 +4526,7 @@ fn dutch_addresses_keep_country_specific_postcodes_and_whitespace() {
         let address = be.address();
         let (_, place) = address.split_once("\n ").unwrap();
         assert!(be_postcode.is_match(place.split_once(' ').unwrap().0));
-        assert!(be.cityName().is_ok());
+        assert!(be.city_name().is_ok());
     }
     assert!(alphabetic);
     let unique = nl.unique(true);
@@ -4493,10 +4564,10 @@ fn norwegian_and_swedish_addresses_keep_postcode_shapes_and_uppercase_buildings(
     assert!(no_leading_zero);
     let unique = se.unique(true);
     for _ in 0..4 {
-        assert!(unique.streetSuffixWord().is_ok());
+        assert!(unique.street_suffix_word().is_ok());
     }
-    assert!(unique.streetSuffixWord().is_err());
-    assert!(fake(Some("en-US")).unwrap().streetSuffixWord().is_err());
+    assert!(unique.street_suffix_word().is_err());
+    assert!(fake(Some("en-US")).unwrap().street_suffix_word().is_err());
 }
 
 #[test]
@@ -4523,20 +4594,20 @@ fn danish_finnish_and_icelandic_addresses_keep_local_formatters() {
             }
         };
         danish_layouts[layout] = true;
-        assert!(danish_level.is_match(&dk.buildingLevel().unwrap()));
+        assert!(danish_level.is_match(&dk.building_level().unwrap()));
         assert!(dk.kommune().is_ok());
         let address = fi.address();
         finnish_regions[usize::from(address.split_once('\n').unwrap().1.contains(", "))] = true;
-        assert!(finnish_unit.is_match(&fi.secondaryAddress()));
+        assert!(finnish_unit.is_match(&fi.secondary_address()));
         assert!(icelandic.is_match(&is.address()));
     }
     assert_eq!(danish_layouts, [true; 3]);
     assert_eq!(finnish_regions, [true; 2]);
     let unique = dk.unique(true);
     for _ in 0..3 {
-        assert!(unique.buildingSide().is_ok());
+        assert!(unique.building_side().is_ok());
     }
-    assert!(unique.buildingSide().is_err());
+    assert!(unique.building_side().is_err());
     assert!(fi.kommune().is_err());
 }
 
@@ -4561,8 +4632,8 @@ fn spanish_address_providers_keep_inherited_fields_and_local_layouts() {
         assert_eq!(fields[3].len(), 5);
         assert!(fields[3].bytes().all(|byte| byte.is_ascii_digit()));
         assert!(ar_address.is_match(&ar.address()));
-        assert!(ar.streetSuffix().is_empty());
-        let street = pe.streetAddress();
+        assert!(ar.street_suffix().is_empty());
+        let street = pe.street_address();
         assert!(street.contains(" # "));
         peru_layouts[usize::from(street.ends_with(' '))] = true;
         assert!(pe.postcode().starts_with("LIMA "));
@@ -4573,7 +4644,7 @@ fn spanish_address_providers_keep_inherited_fields_and_local_layouts() {
     assert_eq!(peru_layouts, [true; 2]);
     assert_eq!(venezuela_layouts, [true; 2]);
     for faker in [&es, &ar, &pe, &ve] {
-        assert!(faker.streetPrefix().is_ok());
+        assert!(faker.street_prefix().is_ok());
         let unique = faker.unique(true);
         for _ in 0..19 {
             assert!(unique.community().is_ok());
@@ -4599,7 +4670,7 @@ fn portuguese_address_providers_keep_local_postcodes_and_regions() {
         let postcode = pt.postcode();
         assert!(portugal.is_match(&postcode));
         portugal_postcodes[usize::from(postcode.contains('-'))] = true;
-        let street = pt.streetAddress();
+        let street = pt.street_address();
         portugal_streets[street.matches(", ").count()] = true;
     }
     assert_eq!(portugal_postcodes, [true; 2]);
@@ -4607,10 +4678,10 @@ fn portuguese_address_providers_keep_local_postcodes_and_regions() {
     let abbreviations = ["N", "NE", "CO", "SE", "S"];
     let unique = br.unique(true);
     for _ in abbreviations {
-        assert!(abbreviations.contains(&unique.regionAbbr().unwrap()));
+        assert!(abbreviations.contains(&unique.region_abbr().unwrap()));
     }
-    assert!(unique.regionAbbr().is_err());
-    assert!(pt.regionAbbr().is_err());
+    assert!(unique.region_abbr().is_err());
+    assert!(pt.region_abbr().is_err());
 }
 
 #[test]
@@ -4625,11 +4696,11 @@ fn italian_address_providers_keep_their_own_layouts_and_swiss_cantons() {
     let mut swiss_letter_seen = false;
     for _ in 0..128 {
         assert!(italian_address.is_match(&italy.address()));
-        let street = italy.streetAddress();
+        let street = italy.street_address();
         italian_layouts
             [usize::from(street.contains(" Appartamento ") || street.contains(" Piano "))] = true;
         assert!(swiss_address.is_match(&swiss.address()));
-        swiss_letter_seen |= swiss_letter.is_match(&swiss.buildingNumber());
+        swiss_letter_seen |= swiss_letter.is_match(&swiss.building_number());
     }
     assert_eq!(italian_layouts, [true; 2]);
     assert!(swiss_letter_seen);
@@ -4661,13 +4732,13 @@ fn greek_addresses_keep_regional_postcodes_and_prefectures() {
         assert!(greek_address.is_match(&greece.address()));
         assert!(cypriot_address.is_match(&cyprus.address()));
         greek_postcodes[usize::from(greece.postcode().contains(' '))] = true;
-        greek_ranges[usize::from(greece.buildingNumber().contains('-'))] = true;
+        greek_ranges[usize::from(greece.building_number().contains('-'))] = true;
     }
     assert_eq!(greek_postcodes, [true; 2]);
     assert_eq!(greek_ranges, [true; 2]);
     assert!(greece.unique(true).prefecture().is_ok());
     assert!(cyprus.prefecture().is_err());
-    assert!(cyprus.streetSuffix().is_empty());
+    assert!(cyprus.street_suffix().is_empty());
 }
 
 #[test]
@@ -4686,7 +4757,7 @@ fn romanian_addresses_keep_weighted_layouts_and_local_postcodes() {
                 street_and_city.contains(", bl. "),
                 address.contains(" nr. ")
             );
-            let street = faker.streetAddress();
+            let street = faker.street_address();
             let layout = if street.contains(" sc. ") {
                 3
             } else if street.contains(" et. ") {
@@ -4696,19 +4767,19 @@ fn romanian_addresses_keep_weighted_layouts_and_local_postcodes() {
             };
             layouts_seen[layout] = true;
             assert!(floor.is_match(faker.floor().unwrap()));
-            assert!(floor.is_match(faker.apartmentNumber().unwrap()));
+            assert!(floor.is_match(faker.apartment_number().unwrap()));
         }
         assert_eq!(layouts_seen, [true; 4]);
         let unique = faker.unique(true);
         for _ in 0..4 {
-            assert!(["A", "B", "C", "D"].contains(&unique.blockSegment().unwrap()));
+            assert!(["A", "B", "C", "D"].contains(&unique.block_segment().unwrap()));
         }
-        assert!(unique.blockSegment().is_err());
+        assert!(unique.block_segment().is_err());
     }
     assert!(romanian.county().is_ok());
     assert!(moldovan.county().is_err());
     let singapore = fake(Some("en-SG")).unwrap();
-    assert!(singapore.apartmentNumber().is_ok());
+    assert!(singapore.apartment_number().is_ok());
     assert!(singapore.floor().is_err());
 }
 
@@ -4726,7 +4797,7 @@ fn croatian_and_slovenian_addresses_keep_local_layouts_and_postcodes() {
     }
     assert!(croatian.unique(true).street().is_ok());
     assert!(slovenian.street().is_err());
-    assert!(slovenian.unique(true).cityName().is_ok());
+    assert!(slovenian.unique(true).city_name().is_ok());
 }
 
 #[test]
@@ -4746,16 +4817,16 @@ fn lithuanian_and_latvian_addresses_keep_local_postcodes_and_region_fields() {
         };
         layouts[layout] = true;
         assert!(latvian_address.is_match(&latvian.address()));
-        assert_eq!(lithuanian.regionSuffix().unwrap(), "regionas");
-        assert_eq!(latvian.regionSuffix().unwrap(), "reģions");
+        assert_eq!(lithuanian.region_suffix().unwrap(), "regionas");
+        assert_eq!(latvian.region_suffix().unwrap(), "reģions");
     }
     assert_eq!(layouts, [true; 3]);
     assert!(lithuanian.unique(true).municipality().is_ok());
     assert!(latvian.municipality().is_err());
     assert!(fake(Some("en-PH")).unwrap().municipality().is_ok());
     let unique = latvian.unique(true);
-    assert_eq!(unique.regionSuffix().unwrap(), "reģions");
-    assert!(unique.regionSuffix().is_err());
+    assert_eq!(unique.region_suffix().unwrap(), "reģions");
+    assert!(unique.region_suffix().is_err());
 }
 
 #[test]
@@ -4768,7 +4839,7 @@ fn armenian_and_georgian_addresses_keep_local_layouts_and_region_forms() {
     let mut georgian_layouts = std::collections::HashSet::new();
     for _ in 0..256 {
         assert!(armenian_address.is_match(&armenian.address()));
-        assert!(georgian_street.is_match(&georgian.streetAddress()));
+        assert!(georgian_street.is_match(&georgian.street_address()));
         let address = georgian.address();
         georgian_layouts.insert((
             address.starts_with("საქართველო, "),
@@ -4784,10 +4855,10 @@ fn armenian_and_georgian_addresses_keep_local_layouts_and_region_forms() {
     assert_eq!(georgian_layouts.len(), 8);
     let unique = georgian.unique(true);
     for _ in 0..11 {
-        assert!(unique.regionGenitiveForm().is_ok());
+        assert!(unique.region_genitive_form().is_ok());
     }
-    assert!(unique.regionGenitiveForm().is_err());
-    assert!(armenian.regionGenitiveForm().is_err());
+    assert!(unique.region_genitive_form().is_err());
+    assert!(armenian.region_genitive_form().is_err());
 }
 
 #[test]
@@ -4804,20 +4875,20 @@ fn serbian_address_scripts_and_montenegrin_spacing_match_their_providers() {
         (&cyrillic, &cyrillic_city, "Булевар"),
         (&latin, &latin_city, "Bulevar"),
     ] {
-        assert_eq!(faker.streetPrefix().unwrap(), prefix);
+        assert_eq!(faker.street_prefix().unwrap(), prefix);
         for _ in 0..32 {
-            assert!(script.is_match(faker.cityName().unwrap()));
+            assert!(script.is_match(faker.city_name().unwrap()));
             assert!(address.is_match(&faker.address()));
         }
     }
-    assert!(montenegrin.streetPrefix().unwrap().is_empty());
+    assert!(montenegrin.street_prefix().unwrap().is_empty());
     let mut leading_spaces = [false; 2];
     for _ in 0..128 {
-        leading_spaces[usize::from(montenegrin.streetName().starts_with(' '))] = true;
+        leading_spaces[usize::from(montenegrin.street_name().starts_with(' '))] = true;
         assert!(address.is_match(&montenegrin.address()));
     }
     assert_eq!(leading_spaces, [true; 2]);
-    let coordinates = montenegrin.localCoordinates().unwrap();
+    let coordinates = montenegrin.local_coordinates().unwrap();
     assert!((42.43..=42.45).contains(&coordinates.latitude));
     assert!((19.16..=19.27).contains(&coordinates.longitude));
 }
@@ -4830,7 +4901,7 @@ fn hungarian_addresses_preserve_city_tiers_and_secondary_addresses() {
     let mut layouts = [false; 2];
     for _ in 0..128 {
         assert!(address.is_match(&hungarian.address()));
-        let street_address = hungarian.streetAddress();
+        let street_address = hungarian.street_address();
         layouts
             [usize::from(street_address.ends_with("emelet") || street_address.ends_with("ajtó"))] =
             true;
@@ -4839,8 +4910,8 @@ fn hungarian_addresses_preserve_city_tiers_and_secondary_addresses() {
     let unique = hungarian.unique(true);
     assert_eq!(unique.capital().unwrap(), "Budapest");
     assert!(unique.capital().is_err());
-    assert!(hungarian.bigCity().is_ok());
-    assert!(hungarian.smallerCity().is_ok());
+    assert!(hungarian.big_city().is_ok());
+    assert!(hungarian.smaller_city().is_ok());
 }
 
 #[test]
@@ -4869,24 +4940,24 @@ fn malaysian_jpj_plates_preserve_empty_letters_and_special_prefix_case() {
     let plate = Regex::new(r"^[A-Za-z0-9]+ [1-9][0-9]{0,3}(?: [A-HJ-NP-Y]?)?$").unwrap();
     let mut trailing_space = false;
     for _ in 0..1024 {
-        let value = faker.jpjNumberPlate().unwrap();
+        let value = faker.jpj_number_plate().unwrap();
         assert!(plate.is_match(&value), "{value:?}");
         trailing_space |= value.ends_with(' ');
-        assert!((1..=9999).contains(&faker.numberSequence().unwrap()));
+        assert!((1..=9999).contains(&faker.number_sequence().unwrap()));
     }
     assert!(trailing_space);
     let unique = faker.unique(true);
     let alphabets = (0..24)
-        .map(|_| unique.validAlphabet().unwrap())
+        .map(|_| unique.valid_alphabet().unwrap())
         .collect::<Vec<_>>();
     assert!(alphabets.contains(&""));
     assert!(!alphabets.contains(&"I") && !alphabets.contains(&"O"));
-    assert!(unique.validAlphabet().is_err());
+    assert!(unique.valid_alphabet().is_err());
     let prefixes = (0..41)
-        .map(|_| unique.specialPrefix().unwrap())
+        .map(|_| unique.special_prefix().unwrap())
         .collect::<Vec<_>>();
     assert!(prefixes.contains(&"BAMbee"));
-    assert!(fake(Some("en-US")).unwrap().jpjNumberPlate().is_err());
+    assert!(fake(Some("en-US")).unwrap().jpj_number_plate().is_err());
 }
 
 #[test]
@@ -4900,7 +4971,7 @@ fn polish_license_plate_filters_use_the_selected_region_and_fall_back() {
         assert!(
             wroclaw.is_match(
                 &unique
-                    .licensePlateWithOptions(
+                    .license_plate_with_options(
                         false,
                         Some(&["unknown", "dolnośląskie"]),
                         Some(&["Wrocław", "unknown"]),
@@ -4911,7 +4982,7 @@ fn polish_license_plate_filters_use_the_selected_region_and_fall_back() {
         assert!(
             county.is_match(
                 &faker
-                    .licensePlateWithOptions(
+                    .license_plate_with_options(
                         false,
                         Some(&["dolnośląskie"]),
                         Some(&["bolesławiecki"])
@@ -4922,26 +4993,26 @@ fn polish_license_plate_filters_use_the_selected_region_and_fall_back() {
         assert!(
             police.is_match(
                 &faker
-                    .licensePlateWithOptions(true, Some(&["services"]), Some(&["Policja"]))
+                    .license_plate_with_options(true, Some(&["services"]), Some(&["Policja"]))
                     .unwrap(),
             )
         );
         let army = faker
-            .licensePlateWithOptions(true, Some(&["army"]), None)
+            .license_plate_with_options(true, Some(&["army"]), None)
             .unwrap();
         assert!(army.starts_with('U'));
         let fallback = faker
-            .licensePlateWithOptions(false, Some(&["army"]), Some(&[]))
+            .license_plate_with_options(false, Some(&["army"]), Some(&[]))
             .unwrap();
         assert!(!fallback.starts_with(['H', 'U']));
-        assert!(!faker.licensePlate().unwrap().starts_with(['H', 'U']));
+        assert!(!faker.license_plate().unwrap().starts_with(['H', 'U']));
     }
     let english = fake(Some("en-US")).unwrap();
-    assert!(english.licensePlate().is_err());
+    assert!(english.license_plate().is_err());
     assert!(
         english
             .unique(true)
-            .licensePlateWithOptions(true, None, None)
+            .license_plate_with_options(true, None, None)
             .is_err()
     );
 }
@@ -4951,8 +5022,11 @@ fn date_ranges_floor_fractional_seconds_before_the_unix_epoch() {
     let faker = fake(Some("en-US")).unwrap();
     let instant: jiff::Timestamp = "1969-12-31T23:59:59.500Z".parse().unwrap();
     let expected: jiff::Timestamp = "1969-12-31T23:59:59Z".parse().unwrap();
-    assert_eq!(faker.dateTimeBetween(instant, instant).unwrap(), expected);
-    let unique = faker.uniqueWithRetries(true, 2);
-    assert_eq!(unique.dateTimeBetween(instant, instant).unwrap(), expected);
-    assert!(unique.dateTimeBetween(expected, expected).is_err());
+    assert_eq!(faker.date_time_between(instant, instant).unwrap(), expected);
+    let unique = faker.unique_with_retries(true, 2);
+    assert_eq!(
+        unique.date_time_between(instant, instant).unwrap(),
+        expected
+    );
+    assert!(unique.date_time_between(expected, expected).is_err());
 }

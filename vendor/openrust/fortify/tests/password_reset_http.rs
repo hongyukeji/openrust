@@ -21,7 +21,7 @@ fn reset_body(token: &str) -> String {
 async fn token_count(server: &Server, table: &str) -> u64 {
     let row = server
         .database
-        .selectOne(&format!("SELECT COUNT(*) AS count FROM {table}"), &[])
+        .select_one(&format!("SELECT COUNT(*) AS count FROM {table}"), &[])
         .await
         .unwrap()
         .unwrap();
@@ -112,7 +112,7 @@ async fn password_reset_uses_named_broker_rotates_remember_token_and_keeps_guest
     assert!(guest.send("GET", "/state", "", 200).await.body["user"].is_null());
     let row = server
         .database
-        .selectOne(
+        .select_one(
             "SELECT password,remember_token FROM fortify_account_users WHERE identity='001'",
             &[],
         )
@@ -478,7 +478,7 @@ async fn password_reset_concurrent_token_claim_and_event_failure_keep_native_bro
     assert_eq!(token_count(&server, "fortify_named_resets").await, 1);
     let row = server
         .database
-        .selectOne(
+        .select_one(
             "SELECT password,remember_token FROM fortify_account_users",
             &[],
         )

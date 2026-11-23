@@ -112,8 +112,7 @@ impl RateLimiter {
         .count)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn tooManyAttempts(&self, key: &str, max_attempts: u64) -> CacheResult<bool> {
+    pub async fn too_many_attempts(&self, key: &str, max_attempts: u64) -> CacheResult<bool> {
         Ok(self.attempts(key).await? >= max_attempts)
     }
 
@@ -121,8 +120,7 @@ impl RateLimiter {
         Ok(max_attempts.saturating_sub(self.attempts(key).await?))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn availableIn(&self, key: &str) -> CacheResult<u64> {
+    pub async fn available_in(&self, key: &str) -> CacheResult<u64> {
         Ok(counters::snapshot(
             self.repository()?.as_ref(),
             &counters::key("manual", "", key),
@@ -162,8 +160,7 @@ impl RateLimiter {
     }
 
     /// Registers a request policy that can await body parsing and propagate HTTP errors.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forAsync(
+    pub fn for_async(
         &self,
         name: impl Into<String>,
         callback: impl for<'a> Fn(&'a mut Request) -> HttpFuture<'a, Result<LimiterResponse, HttpError>>
@@ -188,8 +185,7 @@ impl RateLimiter {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn forJob<R>(
+    pub fn for_job<R>(
         &self,
         name: impl Into<String>,
         callback: impl Fn(&crate::queue::Payload) -> R + Send + Sync + 'static,
@@ -226,8 +222,7 @@ impl RateLimiter {
     }
 
     /// Returns the asynchronous policy, or None for an absent or synchronous registration.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn asyncLimiter(&self, name: &str) -> Option<Arc<AsyncLimiter>> {
+    pub fn async_limiter(&self, name: &str) -> Option<Arc<AsyncLimiter>> {
         match self.named_limiter(name)? {
             NamedLimiter::Async(callback) => Some(callback),
             NamedLimiter::Sync(_) => None,
@@ -253,7 +248,7 @@ fn normalize_limits(limits: &mut [Limit]) {
     }
     for limit in limits {
         if duplicates.contains(&limit.key) {
-            limit.key = limit.fallbackKey();
+            limit.key = limit.fallback_key();
         }
     }
 }

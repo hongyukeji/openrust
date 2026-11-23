@@ -73,7 +73,7 @@ Route::get("/reports/{id}", || Report)?;
 在需要缓存策略的路由上使用 `cache.headers`。选项名使用 `snake_case`，用分号分隔。中间件处理成功的 GET 和 HEAD 响应。指定 `etag` 时沿用已有的验证器，或用与框架`xxh128` 相同的 XXH3-128 摘要计算响应体。流式响应可用 `etag=value` 显式提供验证器，无需缓冲整个流。
 
 ```rust
-Route::getWith("/cacheable", cache_response, |route| {
+Route::get_with("/cacheable", cache_response, |route| {
     route.middleware_name("cache.headers:public;max_age=2628000;etag");
     Ok(())
 })?;

@@ -53,25 +53,25 @@ fn apply<'a>(
             _ => panic!("列必须为字符串或列表"),
         };
         query = match name {
-            "orderBy" => query.orderBy(text(0), text(1)),
-            "orderByRaw" => query.orderByRaw(text(0), values(1)),
-            "reorderDesc" => query.reorderDesc(text(0)),
-            "inRandomOrder" => query.inRandomOrder(args[0].as_i64()),
-            "forPageBeforeId" => query.forPageBeforeId(
+            "orderBy" => query.order_by(text(0), text(1)),
+            "orderByRaw" => query.order_by_raw(text(0), values(1)),
+            "reorderDesc" => query.reorder_desc(text(0)),
+            "inRandomOrder" => query.in_random_order(args[0].as_i64()),
+            "forPageBeforeId" => query.for_page_before_id(
                 args[0].as_u64().unwrap(),
                 (!args[1].is_null()).then(|| value(&args[1])),
                 text(2),
             ),
-            "forPageAfterId" => query.forPageAfterId(
+            "forPageAfterId" => query.for_page_after_id(
                 args[0].as_u64().unwrap(),
                 (!args[1].is_null()).then(|| value(&args[1])),
                 text(2),
             ),
-            "whereBinary" => query.whereBinary(text(0), value(&args[1])),
-            "orWhereBinary" => query.orWhereBinary(text(0), value(&args[1])),
-            "whereNotBinary" => query.whereNotBinary(text(0), value(&args[1])),
-            "orWhereNotBinary" => query.orWhereNotBinary(text(0), value(&args[1])),
-            "whereIntegerInRaw" => query.whereIntegerInRaw(
+            "whereBinary" => query.where_binary(text(0), value(&args[1])),
+            "orWhereBinary" => query.or_where_binary(text(0), value(&args[1])),
+            "whereNotBinary" => query.where_not_binary(text(0), value(&args[1])),
+            "orWhereNotBinary" => query.or_where_not_binary(text(0), value(&args[1])),
+            "whereIntegerInRaw" => query.where_integer_in_raw(
                 text(0),
                 args[1]
                     .as_array()
@@ -80,7 +80,7 @@ fn apply<'a>(
                     .map(|value| value.as_i64().unwrap())
                     .collect(),
             ),
-            "orWhereIntegerInRaw" => query.orWhereIntegerInRaw(
+            "orWhereIntegerInRaw" => query.or_where_integer_in_raw(
                 text(0),
                 args[1]
                     .as_array()
@@ -89,7 +89,7 @@ fn apply<'a>(
                     .map(|value| value.as_i64().unwrap())
                     .collect(),
             ),
-            "whereIntegerNotInRaw" => query.whereIntegerNotInRaw(
+            "whereIntegerNotInRaw" => query.where_integer_not_in_raw(
                 text(0),
                 args[1]
                     .as_array()
@@ -98,7 +98,7 @@ fn apply<'a>(
                     .map(|value| value.as_i64().unwrap())
                     .collect(),
             ),
-            "orWhereIntegerNotInRaw" => query.orWhereIntegerNotInRaw(
+            "orWhereIntegerNotInRaw" => query.or_where_integer_not_in_raw(
                 text(0),
                 args[1]
                     .as_array()
@@ -107,33 +107,33 @@ fn apply<'a>(
                     .map(|value| value.as_i64().unwrap())
                     .collect(),
             ),
-            "whereRowValues" => query.whereRowValues(&columns(0), text(1), values(2))?,
-            "orWhereRowValues" => query.orWhereRowValues(&columns(0), text(1), values(2))?,
-            "orWhereAny" => query.orWhereAny(&columns(0), text(1), value(&args[2])),
-            "orWhereAll" => query.orWhereAll(&columns(0), text(1), value(&args[2])),
-            "orWhereNone" => query.orWhereNone(&columns(0), text(1), value(&args[2])),
-            "fromRaw" => query.fromRaw(text(0), values(1)),
-            "selectRaw" => query.selectRaw(text(0), values(1)),
-            "joinWhere" => query.joinWhere(text(0), text(1), text(2), value(&args[3])),
-            "leftJoinWhere" => query.leftJoinWhere(text(0), text(1), text(2), value(&args[3])),
-            "rightJoinWhere" => query.rightJoinWhere(text(0), text(1), text(2), value(&args[3])),
+            "whereRowValues" => query.where_row_values(&columns(0), text(1), values(2))?,
+            "orWhereRowValues" => query.or_where_row_values(&columns(0), text(1), values(2))?,
+            "orWhereAny" => query.or_where_any(&columns(0), text(1), value(&args[2])),
+            "orWhereAll" => query.or_where_all(&columns(0), text(1), value(&args[2])),
+            "orWhereNone" => query.or_where_none(&columns(0), text(1), value(&args[2])),
+            "fromRaw" => query.from_raw(text(0), values(1)),
+            "selectRaw" => query.select_raw(text(0), values(1)),
+            "joinWhere" => query.join_where(text(0), text(1), text(2), value(&args[3])),
+            "leftJoinWhere" => query.left_join_where(text(0), text(1), text(2), value(&args[3])),
+            "rightJoinWhere" => query.right_join_where(text(0), text(1), text(2), value(&args[3])),
             "where" => query.r#where(text(0), text(1), value(&args[2])),
-            "groupBy" => query.groupBy(&columns(0)),
+            "groupBy" => query.group_by(&columns(0)),
             "having" => query.having(text(0), text(1), value(&args[2])),
-            "orHaving" => query.orHaving(text(0), text(1), value(&args[2])),
-            "havingNull" => query.havingNull(&columns(0)),
-            "havingNotNull" => query.havingNotNull(&columns(0)),
-            "orHavingNull" => query.orHavingNull(&columns(0)),
-            "orHavingNotNull" => query.orHavingNotNull(&columns(0)),
-            "havingNotBetween" => query.havingNotBetween(text(0), values(1).try_into().unwrap()),
-            "orHavingBetween" => query.orHavingBetween(text(0), values(1).try_into().unwrap()),
+            "orHaving" => query.or_having(text(0), text(1), value(&args[2])),
+            "havingNull" => query.having_null(&columns(0)),
+            "havingNotNull" => query.having_not_null(&columns(0)),
+            "orHavingNull" => query.or_having_null(&columns(0)),
+            "orHavingNotNull" => query.or_having_not_null(&columns(0)),
+            "havingNotBetween" => query.having_not_between(text(0), values(1).try_into().unwrap()),
+            "orHavingBetween" => query.or_having_between(text(0), values(1).try_into().unwrap()),
             "orHavingNotBetween" => {
-                query.orHavingNotBetween(text(0), values(1).try_into().unwrap())
+                query.or_having_not_between(text(0), values(1).try_into().unwrap())
             }
             "havingNested" if args.get(1).and_then(Json::as_str) == Some("or") => {
-                query.orHavingNested(|query| apply(query, &args[0]).unwrap())
+                query.or_having_nested(|query| apply(query, &args[0]).unwrap())
             }
-            "havingNested" => query.havingNested(|query| apply(query, &args[0]).unwrap()),
+            "havingNested" => query.having_nested(|query| apply(query, &args[0]).unwrap()),
             _ => panic!("未知参考方法 {name}"),
         };
     }
@@ -158,24 +158,24 @@ async fn query_sources_joins_and_havings_match_fixed_upstream_sql_and_binding_or
         }
         let mut query = result.unwrap();
         if case["error"] == "RuntimeException" {
-            assert!(query.toSql().is_err(), "{case}");
+            assert!(query.to_sql().is_err(), "{case}");
             continue;
         }
         if case.get("error").is_some() {
             // 固定参考对完全空的 HAVING 回调抛 TypeError；Rust 明确沿用空条件组不加入 SQL 的适配。
             assert_eq!(case["error"], "TypeError");
             assert_eq!(
-                query.toSql().unwrap(),
+                query.to_sql().unwrap(),
                 db.table("items")
-                    .groupBy(&["id"])
+                    .group_by(&["id"])
                     .having("id", "=", 7)
-                    .toSql()
+                    .to_sql()
                     .unwrap()
             );
             assert_eq!(query.get_bindings().unwrap(), vec![7.into()]);
         } else {
             assert_eq!(
-                query.toSql().unwrap(),
+                query.to_sql().unwrap(),
                 case["sql"].as_str().unwrap(),
                 "{case}"
             );
@@ -241,13 +241,13 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
         .unwrap();
     let rows = db
         .table("unused")
-        .selectRaw("? as marker", vec![9.into()])
-        .addSelect(["parity_items.id"])
-        .fromRaw(
+        .select_raw("? as marker", vec![9.into()])
+        .add_select(["parity_items.id"])
+        .from_raw(
             "(select * from parity_items where id > ?) as parity_items",
             vec![2.into()],
         )
-        .joinWhere("parity_groups", "parity_groups.flag", "=", "active")
+        .join_where("parity_groups", "parity_groups.flag", "=", "active")
         .r#where("parity_items.label", "=", "x' OR 1=1 --")
         .get()
         .await
@@ -267,7 +267,7 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
     );
     assert_eq!(
         db.table("parity_items")
-            .joinWhere("parity_groups", "parity_groups.flag", "=", Value::Null)
+            .join_where("parity_groups", "parity_groups.flag", "=", Value::Null)
             .count("*")
             .await
             .unwrap(),
@@ -275,7 +275,7 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
     );
     assert_eq!(
         db.table("parity_items")
-            .leftJoinWhere("parity_groups", "parity_groups.flag", "=", "missing")
+            .left_join_where("parity_groups", "parity_groups.flag", "=", "missing")
             .count("*")
             .await
             .unwrap(),
@@ -283,7 +283,7 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
     );
     assert_eq!(
         db.table("parity_items")
-            .rightJoinWhere("parity_groups", "parity_items.id", "=", 999)
+            .right_join_where("parity_groups", "parity_items.id", "=", 999)
             .count("*")
             .await
             .unwrap(),
@@ -296,18 +296,18 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
                 Expression::new("count(*) as tally").into(),
                 Expression::new("min(label) as label").into(),
             ])
-            .groupBy(&["group_id"])
+            .group_by(&["group_id"])
     };
     assert_eq!(
-        grouped().havingNull(&["group_id"]).get().await.unwrap(),
+        grouped().having_null(&["group_id"]).get().await.unwrap(),
         Vec::new()
     );
     let mut ids = grouped()
-        .havingNested(|q| {
-            q.havingRaw("count(*) > ?", vec![1.into()])
-                .orHaving("group_id", "=", 3)
+        .having_nested(|q| {
+            q.having_raw("count(*) > ?", vec![1.into()])
+                .or_having("group_id", "=", 3)
         })
-        .havingNotNull(&["group_id"])
+        .having_not_null(&["group_id"])
         .pluck("group_id")
         .await
         .unwrap();
@@ -317,7 +317,7 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
     });
     assert_eq!(ids, vec![1.into(), 3.into()]);
     let rows = grouped()
-        .havingNotBetween("group_id", [1.into(), 2.into()])
+        .having_not_between("group_id", [1.into(), 2.into()])
         .get()
         .await
         .unwrap();
@@ -325,7 +325,7 @@ async fn raw_sources_value_joins_and_nested_havings_execute_on_isolated_database
     assert_eq!(rows[0].get("group_id"), Some(&3.into()));
     assert!(
         db.table("unused")
-            .fromRaw("(invalid sql)", vec![])
+            .from_raw("(invalid sql)", vec![])
             .get()
             .await
             .is_err()
@@ -355,8 +355,8 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     }
     assert_eq!(
         db.table("parity_conditions")
-            .whereIntegerInRaw("id", vec![-1, 1, 3])
-            .orderBy("id", "asc")
+            .where_integer_in_raw("id", vec![-1, 1, 3])
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -364,7 +364,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     );
     assert_eq!(
         db.table("parity_conditions")
-            .whereIntegerNotInRaw("id", vec![])
+            .where_integer_not_in_raw("id", vec![])
             .count("*")
             .await
             .unwrap(),
@@ -372,7 +372,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     );
     assert_eq!(
         db.table("parity_conditions")
-            .whereRowValues(&["id", "other_id"], ">", vec![1.into(), 2.into()])
+            .where_row_values(&["id", "other_id"], ">", vec![1.into(), 2.into()])
             .unwrap()
             .count("*")
             .await
@@ -382,7 +382,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     assert_eq!(
         db.table("parity_conditions")
             .r#where("id", "=", 1)
-            .orWhereAll(&["id", "other_id"], "=", 2)
+            .or_where_all(&["id", "other_id"], "=", 2)
             .count("*")
             .await
             .unwrap(),
@@ -391,7 +391,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     assert_eq!(
         db.table("parity_conditions")
             .r#where("id", "=", 1)
-            .orWhereAny(&["id", "other_id"], "=", 4)
+            .or_where_any(&["id", "other_id"], "=", 4)
             .count("*")
             .await
             .unwrap(),
@@ -400,7 +400,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     assert_eq!(
         db.table("parity_conditions")
             .r#where("id", "=", 1)
-            .orWhereNone(&["id", "other_id"], "=", 2)
+            .or_where_none(&["id", "other_id"], "=", 2)
             .count("*")
             .await
             .unwrap(),
@@ -409,13 +409,13 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     for use_or in [false, true] {
         let query = db.table("parity_conditions");
         let invalid = if use_or {
-            query.orWhereRowValues(
+            query.or_where_row_values(
                 &["id"],
                 "= ?; drop table parity_conditions; --",
                 vec![1.into()],
             )
         } else {
-            query.whereRowValues(
+            query.where_row_values(
                 &["id"],
                 "= ?; drop table parity_conditions; --",
                 vec![1.into()],
@@ -427,7 +427,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     if mysql {
         assert_eq!(
             db.table("parity_conditions")
-                .whereBinary("label", "UPPER")
+                .where_binary("label", "UPPER")
                 .count("*")
                 .await
                 .unwrap(),
@@ -435,7 +435,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
         );
         assert_eq!(
             db.table("parity_conditions")
-                .whereNotBinary("label", "UPPER")
+                .where_not_binary("label", "UPPER")
                 .count("*")
                 .await
                 .unwrap(),
@@ -443,7 +443,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
         );
         assert_eq!(
             db.table("parity_conditions")
-                .whereBinary("label", "x' OR 1=1 --")
+                .where_binary("label", "x' OR 1=1 --")
                 .count("*")
                 .await
                 .unwrap(),
@@ -452,7 +452,7 @@ async fn integer_row_and_grouped_or_conditions_execute_without_interpolating_val
     } else {
         assert!(
             db.table("parity_conditions")
-                .whereBinary("label", "UPPER")
+                .where_binary("label", "UPPER")
                 .get()
                 .await
                 .is_err()
@@ -486,8 +486,8 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     loop {
         let ids = db
             .table("parity_pages")
-            .orderByDesc("id")
-            .forPageAfterId(3, Some(after.into()), "id")
+            .order_by_desc("id")
+            .for_page_after_id(3, Some(after.into()), "id")
             .pluck("id")
             .await
             .unwrap();
@@ -506,8 +506,8 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     loop {
         let ids = db
             .table("parity_pages")
-            .orderBy("id", "asc")
-            .forPageBeforeId(3, Some(before.into()), "id")
+            .order_by("id", "asc")
+            .for_page_before_id(3, Some(before.into()), "id")
             .pluck("id")
             .await
             .unwrap();
@@ -523,7 +523,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     assert_eq!(seen, (1..=7).rev().map(Value::from).collect::<Vec<_>>());
     assert_eq!(
         db.table("parity_pages")
-            .forPageBeforeId(1, None, "id")
+            .for_page_before_id(1, None, "id")
             .value("id")
             .await
             .unwrap(),
@@ -531,7 +531,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     );
     assert_eq!(
         db.table("parity_pages")
-            .forPageAfterId(1, None, "id")
+            .for_page_after_id(1, None, "id")
             .value("id")
             .await
             .unwrap(),
@@ -539,8 +539,8 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     );
     assert_eq!(
         db.table("parity_pages")
-            .orderBy("id", "asc")
-            .reorderDesc("id")
+            .order_by("id", "asc")
+            .reorder_desc("id")
             .value("id")
             .await
             .unwrap(),
@@ -548,7 +548,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     );
     let mut random = db
         .table("parity_pages")
-        .inRandomOrder(Some(42))
+        .in_random_order(Some(42))
         .pluck("id")
         .await
         .unwrap();
@@ -560,7 +560,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     assert_eq!(
         db.table("parity_pages")
             .r#where("id", "=", 1)
-            .rawValue("id + ?", vec![4.into()])
+            .raw_value("id + ?", vec![4.into()])
             .await
             .unwrap(),
         5.into()
@@ -568,7 +568,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     assert_eq!(
         db.table("parity_pages")
             .r#where("id", "=", 99)
-            .rawValue("id + ?", vec![4.into()])
+            .raw_value("id + ?", vec![4.into()])
             .await
             .unwrap(),
         Value::Null
@@ -577,7 +577,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
         db.table("parity_pages")
             .select(["id"])
             .r#where("id", "=", 1)
-            .rawValue("id + ?", vec![4.into()])
+            .raw_value("id + ?", vec![4.into()])
             .await
             .unwrap(),
         1.into()
@@ -588,7 +588,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
         let result = db
             .table("parity_pages")
             .r#where("id", "=", id)
-            .existsOr(|| async {
+            .exists_or(|| async {
                 calls.fetch_add(1, Ordering::SeqCst);
                 Ok("fallback")
             })
@@ -605,7 +605,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
         let result = db
             .table("parity_pages")
             .r#where("id", "=", id)
-            .doesntExistOr(|| async {
+            .doesnt_exist_or(|| async {
                 calls.fetch_add(1, Ordering::SeqCst);
                 Ok("fallback")
             })
@@ -623,7 +623,7 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     assert!(
         db.table("missing_parity_table")
-            .existsOr(|| async {
+            .exists_or(|| async {
                 calls.fetch_add(1, Ordering::SeqCst);
                 Ok(())
             })
@@ -633,8 +633,8 @@ async fn id_pagination_random_raw_values_and_existence_callbacks_keep_query_life
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     assert_eq!(
         db.table("parity_pages")
-            .whereRaw("1=0", vec![])
-            .existsOr(|| async {
+            .where_raw("1=0", vec![])
+            .exists_or(|| async {
                 Err::<(), _>(openrust::database::DatabaseError::InvalidQuery("回调错误"))
             })
             .await

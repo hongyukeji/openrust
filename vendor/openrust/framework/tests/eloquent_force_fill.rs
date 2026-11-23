@@ -62,11 +62,11 @@ impl Model for CustomFill {
         &mut self.0
     }
     fn fill(&mut self, _: Attributes) -> openrust::database::DatabaseResult<&mut Self> {
-        self.0.setAttribute("custom_fill", true);
+        self.0.set_attribute("custom_fill", true);
         Ok(self)
     }
-    async fn fillAsync(&mut self, _: Attributes) -> openrust::database::DatabaseResult<&mut Self> {
-        self.0.setAttribute("custom_async_fill", true);
+    async fn fill_async(&mut self, _: Attributes) -> openrust::database::DatabaseResult<&mut Self> {
+        self.0.set_attribute("custom_async_fill", true);
         Ok(self)
     }
 }
@@ -78,26 +78,32 @@ fn attrs(name: &str, value: impl Into<Value>) -> Attributes {
 #[test]
 fn force_fill_retains_mutators_json_and_errors_without_leaking_guard_state() {
     let mut custom = CustomFill::from_state(ModelState::default());
-    custom.forceFill(Attributes::new()).unwrap();
-    assert_eq!(custom.getAttribute("custom_fill"), Some(&Value::Bool(true)));
+    custom.force_fill(Attributes::new()).unwrap();
+    assert_eq!(
+        custom.get_attribute("custom_fill"),
+        Some(&Value::Bool(true))
+    );
     let mut model = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(matches!(
         model.fill(attrs("label", "blocked")),
         Err(DatabaseError::MassAssignment(_))
     ));
-    model.forceFill(attrs("label", "converted")).unwrap();
-    assert_eq!(model.getAttribute("label"), Some(&Value::from("CONVERTED")));
+    model.force_fill(attrs("label", "converted")).unwrap();
+    assert_eq!(
+        model.get_attribute("label"),
+        Some(&Value::from("CONVERTED"))
+    );
     let json = serde_json::json!({"nested": [1, true, null]});
     model
-        .forceFill(attrs("payload", Value::Json(json.clone())))
+        .force_fill(attrs("payload", Value::Json(json.clone())))
         .unwrap();
     assert_eq!(
-        model.getAttributeValue("payload").unwrap(),
+        model.get_attribute_value("payload").unwrap(),
         Some(Value::Json(json))
     );
-    let before = model.state().getAttributes().clone();
-    assert!(model.forceFill(attrs("label", Value::Null)).is_err());
-    assert_eq!(model.state().getAttributes(), &before);
+    let before = model.state().get_attributes().clone();
+    assert!(model.force_fill(attrs("label", Value::Null)).is_err());
+    assert_eq!(model.state().get_attributes(), &before);
     assert!(matches!(
         model.fill(attrs("label", "still blocked")),
         Err(DatabaseError::MassAssignment(_))
@@ -107,9 +113,9 @@ fn force_fill_retains_mutators_json_and_errors_without_leaking_guard_state() {
 #[tokio::test]
 async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded() {
     let mut custom = CustomFill::from_state(ModelState::default());
-    custom.forceFillAsync(Attributes::new()).await.unwrap();
+    custom.force_fill_async(Attributes::new()).await.unwrap();
     assert_eq!(
-        custom.getAttribute("custom_async_fill"),
+        custom.get_attribute("custom_async_fill"),
         Some(&Value::Bool(true))
     );
     // Lazy MySQL connection: no database I/O is used by these in-memory hash assignments.
@@ -140,17 +146,17 @@ async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded
         .connection(None)
         .unwrap();
     let hasher = app.container().make::<dyn Hasher>().unwrap();
-    let mut model = Guarded::newInstanceOn(&db, Attributes::new()).unwrap();
-    assert!(model.forceFill(attrs("secret", "plaintext")).is_err());
-    assert!(model.getAttribute("secret").is_none());
-    let mut other = Guarded::newInstanceOn(&db, Attributes::new()).unwrap();
+    let mut model = Guarded::new_instance_on(&db, Attributes::new()).unwrap();
+    assert!(model.force_fill(attrs("secret", "plaintext")).is_err());
+    assert!(model.get_attribute("secret").is_none());
+    let mut other = Guarded::new_instance_on(&db, Attributes::new()).unwrap();
     let (assigned, guarded) = tokio::join!(
-        model.forceFillAsync(attrs("secret", "plaintext")),
-        other.fillAsync(attrs("secret", "other"))
+        model.force_fill_async(attrs("secret", "plaintext")),
+        other.fill_async(attrs("secret", "other"))
     );
     assigned.unwrap();
     assert!(matches!(guarded, Err(DatabaseError::MassAssignment(_))));
-    let Some(Value::Text(hash)) = model.getAttribute("secret") else {
+    let Some(Value::Text(hash)) = model.get_attribute("secret") else {
         panic!("missing hashed secret")
     };
     assert_ne!(hash, "plaintext");
@@ -162,15 +168,15 @@ async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded
     );
     assert!(!model.to_array().unwrap().contains_key("secret"));
     let hash = hash.clone();
-    model.forceFill(attrs("secret", hash.clone())).unwrap();
-    assert_eq!(model.getAttribute("secret"), Some(&Value::Text(hash)));
-    let mut snapshot = model.state().getAttributes().clone();
+    model.force_fill(attrs("secret", hash.clone())).unwrap();
+    assert_eq!(model.get_attribute("secret"), Some(&Value::Text(hash)));
+    let mut snapshot = model.state().get_attributes().clone();
     let invalid = bcrypt::hash_with_result("invalid cost", 5)
         .unwrap()
         .format_for_version(bcrypt::Version::TwoY);
     assert!(
         model
-            .forceFillAsync(Attributes::from([
+            .force_fill_async(Attributes::from([
                 ("label".into(), "changed".into()),
                 ("secret".into(), invalid.into())
             ]))
@@ -187,18 +193,18 @@ async fn force_fill_hashes_secrets_and_keeps_other_tasks_and_error_paths_guarded
             .unwrap()
             .into(),
     );
-    assert_eq!(model.state().getAttributes(), &snapshot);
+    assert_eq!(model.state().get_attributes(), &snapshot);
     assert!(matches!(
         model
-            .fillAsync(attrs("label", "blocked after failure"))
+            .fill_async(attrs("label", "blocked after failure"))
             .await,
         Err(DatabaseError::MassAssignment(_))
     ));
     model
-        .forceFillAsync(attrs("secret", Value::Null))
+        .force_fill_async(attrs("secret", Value::Null))
         .await
         .unwrap();
-    assert_eq!(model.getAttribute("secret"), Some(&Value::Null));
+    assert_eq!(model.get_attribute("secret"), Some(&Value::Null));
 }
 
 fn http_routes(
@@ -223,7 +229,7 @@ fn http_create(
             .make(Attributes::new())
             .map_err(http_error)?;
         model
-            .forceFillAsync(Attributes::from([
+            .force_fill_async(Attributes::from([
                 ("label".into(), "http label".into()),
                 ("secret".into(), "http secret".into()),
                 (
@@ -251,7 +257,7 @@ fn http_invalid(
             .make(Attributes::new())
             .map_err(http_error)?;
         model
-            .forceFillAsync(attrs("label", Value::Null))
+            .force_fill_async(attrs("label", Value::Null))
             .await
             .map_err(http_error)?;
         panic!("invalid mutator must return an error")
@@ -290,7 +296,7 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
             http_routes,
         ))
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
+            exceptions.should_render_json_when(|request, _| request.expects_json());
         })
         .create()
         .unwrap();
@@ -329,11 +335,11 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
         assert_eq!(body["label"], "HTTP LABEL");
         assert_eq!(body["payload"], serde_json::json!({"source":"http"}));
         assert!(body.get("secret").is_none() && body.get("password").is_none());
-        let record = Guarded::queryOn(&db)
-            .findOrFail(body["id"].as_i64().unwrap())
+        let record = Guarded::query_on(&db)
+            .find_or_fail(body["id"].as_i64().unwrap())
             .await
             .unwrap();
-        let Some(Value::Text(hash)) = record.getAttribute("secret") else {
+        let Some(Value::Text(hash)) = record.get_attribute("secret") else {
             panic!("missing database hash")
         };
         assert!(
@@ -342,7 +348,7 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
                 .await
                 .unwrap()
         );
-        let Some(Value::Text(password)) = record.getAttribute("password") else {
+        let Some(Value::Text(password)) = record.get_attribute("password") else {
             panic!("missing documentation password hash")
         };
         assert!(
@@ -366,7 +372,7 @@ async fn mysql_http_force_fill_persists_hashes_renders_errors_and_recovers() {
         );
         let _: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
     }
-    assert_eq!(Guarded::queryOn(&db).get().await.unwrap().len(), 2);
+    assert_eq!(Guarded::query_on(&db).get().await.unwrap().len(), 2);
     server.abort();
     let _ = server.await;
     db.statement("DROP TABLE guarded", &[]).await.unwrap();
@@ -386,9 +392,9 @@ impl Model for PendingFill {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    async fn fillAsync(&mut self, _: Attributes) -> openrust::database::DatabaseResult<&mut Self> {
+    async fn fill_async(&mut self, _: Attributes) -> openrust::database::DatabaseResult<&mut Self> {
         let mut nested = Guarded::new_instance(Attributes::new())?;
-        nested.forceFillAsync(attrs("label", "nested")).await?;
+        nested.force_fill_async(attrs("label", "nested")).await?;
         // Returning from an inner bypass must restore the still-active outer scope.
         nested.fill(attrs("label", "outer"))?;
         std::future::pending::<()>().await;
@@ -401,7 +407,7 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
     use std::{future::Future as _, task::Poll};
     let mut pending = PendingFill::from_state(ModelState::default());
     {
-        let mut work = Box::pin(pending.forceFillAsync(Attributes::new()));
+        let mut work = Box::pin(pending.force_fill_async(Attributes::new()));
         std::future::poll_fn(|cx| {
             assert!(matches!(work.as_mut().poll(cx), Poll::Pending));
             Poll::Ready(())
@@ -412,31 +418,31 @@ async fn force_fill_scope_is_restored_between_polls_and_after_cancellation() {
             other.fill(attrs("label", "outside poll")),
             Err(DatabaseError::MassAssignment(_))
         ));
-        assert!(!Guarded::isUnguarded());
+        assert!(!Guarded::is_unguarded());
         // Dropping the suspended future cancels the bypass rather than leaving a global flag.
     }
     let mut after = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(matches!(
-        after.fillAsync(attrs("label", "after cancellation")).await,
+        after.fill_async(attrs("label", "after cancellation")).await,
         Err(DatabaseError::MassAssignment(_))
     ));
 }
 
 #[tokio::test]
 async fn public_guard_scope_reports_nested_state_and_restores_after_error() {
-    assert!(!Guarded::isUnguarded());
+    assert!(!Guarded::is_unguarded());
     let guarded = Guarded::new_instance(Attributes::new()).unwrap();
-    assert!(guarded.getFillable().is_empty());
-    assert_eq!(guarded.getGuarded(), &["*"]);
-    assert_eq!(guarded.getDeletedAtColumn(), None);
+    assert!(guarded.get_fillable().is_empty());
+    assert_eq!(guarded.get_guarded(), &["*"]);
+    assert_eq!(guarded.get_deleted_at_column(), None);
     let result: Result<(), &'static str> = Guarded::unguarded(async {
-        assert!(Guarded::isUnguarded());
+        assert!(Guarded::is_unguarded());
         let mut model = Guarded::new_instance(Attributes::new()).unwrap();
         model.fill(attrs("label", "unguarded")).unwrap();
-        Guarded::unguarded(async { assert!(Guarded::isUnguarded()) }).await;
-        assert!(Guarded::isUnguarded());
+        Guarded::unguarded(async { assert!(Guarded::is_unguarded()) }).await;
+        assert!(Guarded::is_unguarded());
         assert!(
-            !tokio::spawn(async { Guarded::isUnguarded() })
+            !tokio::spawn(async { Guarded::is_unguarded() })
                 .await
                 .unwrap()
         );
@@ -444,7 +450,7 @@ async fn public_guard_scope_reports_nested_state_and_restores_after_error() {
     })
     .await;
     assert_eq!(result, Err("stop"));
-    assert!(!Guarded::isUnguarded());
+    assert!(!Guarded::is_unguarded());
     let mut after = Guarded::new_instance(Attributes::new()).unwrap();
     assert!(after.fill(attrs("label", "blocked")).is_err());
 }

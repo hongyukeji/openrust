@@ -13,7 +13,7 @@ pub struct User(ModelState);
 impl Model for User {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("users")
-            .primaryKey("id")
+            .primary_key("id")
             .incrementing(false)
             .timestamps(None, None);
         &META
@@ -29,7 +29,7 @@ impl Model for User {
     }
 }
 fn text<'a>(u: &'a User, key: &str) -> Option<&'a str> {
-    match u.getAttribute(key) {
+    match u.get_attribute(key) {
         Some(DbValue::Text(v)) => Some(v),
         _ => None,
     }
@@ -39,7 +39,7 @@ impl Authenticatable for User {
         "id"
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        AuthIdentifier::try_from(self.getKey().unwrap()).unwrap()
+        AuthIdentifier::try_from(self.get_key().unwrap()).unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
@@ -51,13 +51,13 @@ impl Authenticatable for User {
         text(self, "remember_token")
     }
     fn set_remember_token(&mut self, v: Option<String>) {
-        self.setAttribute("remember_token", v.map_or(DbValue::Null, DbValue::Text));
+        self.set_attribute("remember_token", v.map_or(DbValue::Null, DbValue::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
     fn get_auth_attribute(&self, key: &str) -> AuthResult<Option<DbValue>> {
-        self.getAttributeValue(key)
+        self.get_attribute_value(key)
             .map_err(|e| AuthError::Backend(Box::new(e)))
     }
 }

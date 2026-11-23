@@ -33,7 +33,7 @@ pub(crate) trait Account: Send + Sync {
 struct TypedAccount<T>(T);
 impl<T: Model + MustVerifyEmail> Account for TypedAccount<T> {
     fn key(&self) -> Result<String, HttpError> {
-        match self.0.getKey() {
+        match self.0.get_key() {
             Some(Value::Text(v)) => Ok(v.clone()),
             Some(Value::Integer(v)) => Ok(v.to_string()),
             Some(Value::Unsigned(v)) => Ok(v.to_string()),

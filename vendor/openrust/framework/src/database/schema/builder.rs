@@ -32,7 +32,6 @@ pub struct Builder<'connection> {
     blueprint_resolver: Option<BlueprintResolver>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection> Builder<'connection> {
     pub(crate) fn connection(connection: Connection) -> Builder<'static> {
         let grammar = Grammar::new(&connection);
@@ -90,13 +89,13 @@ impl<'connection> Builder<'connection> {
         SchemaSession::new(connection.clone()).await
     }
 
-    pub async fn withoutForeignKeyConstraints<T>(
+    pub async fn without_foreign_key_constraints<T>(
         &self,
         callback: impl for<'a> FnOnce(&'a mut SchemaSession) -> DatabaseFuture<'a, DatabaseResult<T>>
         + Send,
     ) -> DatabaseResult<T> {
         let mut session = self.session().await?;
-        session.disableForeignKeyConstraints().await?;
+        session.disable_foreign_key_constraints().await?;
         let result = callback(&mut session).await;
         let cleanup = session.close().await;
         let output = result?;
@@ -105,7 +104,10 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Sets the initializer for blueprints produced by this schema builder.
-    pub fn blueprintResolver(&mut self, resolver: impl Fn(&mut Blueprint) + Send + Sync + 'static) {
+    pub fn blueprint_resolver(
+        &mut self,
+        resolver: impl Fn(&mut Blueprint) + Send + Sync + 'static,
+    ) {
         self.blueprint_resolver = Some(Box::new(resolver));
     }
 
@@ -135,7 +137,7 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Creates a database on the selected connection's server or a new SQLite file.
-    pub async fn createDatabase(&mut self, name: &str) -> DatabaseResult<bool> {
+    pub async fn create_database(&mut self, name: &str) -> DatabaseResult<bool> {
         if self.grammar.postgres() {
             self.execute_postgres_database_ddl(self.grammar.create_database(name)?)
                 .await?;
@@ -155,7 +157,7 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Drops a database on the selected connection's server or removes a SQLite file.
-    pub async fn dropDatabaseIfExists(&mut self, name: &str) -> DatabaseResult<bool> {
+    pub async fn drop_database_if_exists(&mut self, name: &str) -> DatabaseResult<bool> {
         if self.grammar.postgres() {
             let name = self.grammar.identifier(name)?;
             self.execute_postgres_database_ddl(format!("drop database if exists {name}"))
@@ -345,14 +347,14 @@ impl<'connection> Builder<'connection> {
         self.execute_blueprint(sql, online).await
     }
 
-    pub async fn ensureVectorExtensionExists(
+    pub async fn ensure_vector_extension_exists(
         &mut self,
         schema: Option<&str>,
     ) -> DatabaseResult<()> {
-        self.ensureExtensionExists("vector", schema).await
+        self.ensure_extension_exists("vector", schema).await
     }
 
-    pub async fn ensureExtensionExists(
+    pub async fn ensure_extension_exists(
         &mut self,
         name: &str,
         schema: Option<&str>,
@@ -373,68 +375,68 @@ impl<'connection> Builder<'connection> {
         self.execute(vec![sql]).await
     }
 
-    pub async fn whenTableHasColumn(
+    pub async fn when_table_has_column(
         &mut self,
         table: &str,
         column: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
-        if self.hasColumn(table, column).await? {
+        if self.has_column(table, column).await? {
             self.table(table, configure).await?;
         }
         Ok(())
     }
 
-    pub async fn whenTableDoesntHaveColumn(
+    pub async fn when_table_doesnt_have_column(
         &mut self,
         table: &str,
         column: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
-        if !self.hasColumn(table, column).await? {
+        if !self.has_column(table, column).await? {
             self.table(table, configure).await?;
         }
         Ok(())
     }
 
-    pub async fn whenTableHasIndex(
+    pub async fn when_table_has_index(
         &mut self,
         table: &str,
         index: KeySelector<'_>,
         configure: impl FnOnce(&mut Blueprint),
         index_type: Option<&str>,
     ) -> DatabaseResult<()> {
-        if self.hasIndexWith(table, index, index_type).await? {
+        if self.has_index_with(table, index, index_type).await? {
             self.table(table, configure).await?;
         }
         Ok(())
     }
 
-    pub async fn whenTableDoesntHaveIndex(
+    pub async fn when_table_doesnt_have_index(
         &mut self,
         table: &str,
         index: KeySelector<'_>,
         configure: impl FnOnce(&mut Blueprint),
         index_type: Option<&str>,
     ) -> DatabaseResult<()> {
-        if !self.hasIndexWith(table, index, index_type).await? {
+        if !self.has_index_with(table, index, index_type).await? {
             self.table(table, configure).await?;
         }
         Ok(())
     }
 
     /// Drops permanent tables in the selected database.
-    pub async fn dropAllTables(&mut self) -> DatabaseResult<()> {
+    pub async fn drop_all_tables(&mut self) -> DatabaseResult<()> {
         self.drop_schema_objects(true, false, false).await
     }
 
     /// Drops views in the selected database.
-    pub async fn dropAllViews(&mut self) -> DatabaseResult<()> {
+    pub async fn drop_all_views(&mut self) -> DatabaseResult<()> {
         self.drop_schema_objects(false, true, false).await
     }
 
     /// Drops user-defined types and domains in the selected PostgreSQL schemas.
-    pub async fn dropAllTypes(&mut self) -> DatabaseResult<()> {
+    pub async fn drop_all_types(&mut self) -> DatabaseResult<()> {
         self.drop_schema_objects(false, false, true).await
     }
 
@@ -489,9 +491,9 @@ impl<'connection> Builder<'connection> {
         })).await
     }
 
-    pub async fn dropColumns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<()> {
+    pub async fn drop_columns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<()> {
         self.table(table, |blueprint| {
-            blueprint.dropColumn(columns);
+            blueprint.drop_column(columns);
         })
         .await
     }
@@ -500,7 +502,7 @@ impl<'connection> Builder<'connection> {
         self.drop_table(table, false).await
     }
 
-    pub async fn dropIfExists(&mut self, table: &str) -> DatabaseResult<()> {
+    pub async fn drop_if_exists(&mut self, table: &str) -> DatabaseResult<()> {
         self.drop_table(table, true).await
     }
 
@@ -595,7 +597,7 @@ impl<'connection> Builder<'connection> {
         match &mut self.executor {
             Executor::Pretend(_) => Ok(Vec::new()),
             Executor::Connection(connection) => {
-                connection.selectFromWriteConnection(sql, bindings).await
+                connection.select_from_write_connection(sql, bindings).await
             }
             Executor::Transaction(transaction) => transaction.select(sql, bindings).await,
             Executor::Session(session) => session.select(sql, bindings).await,

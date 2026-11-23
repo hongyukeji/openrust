@@ -15,30 +15,30 @@ pub trait ClientModel: Model {
     fn newQuery(
         connection: &openrust::database::Connection,
     ) -> openrust::database::eloquent::Builder<'static, Self> {
-        Self::queryOn(connection)
+        Self::query_on(connection)
     }
     fn firstParty(&self) -> DatabaseResult<bool> {
-        let key = if self.state().getAttributes().contains_key("user_id") {
+        let key = if self.state().get_attributes().contains_key("user_id") {
             "user_id"
         } else {
             "owner_id"
         };
-        Ok(!truthy(self.getAttributeValue(key)?.as_ref()))
+        Ok(!truthy(self.get_attribute_value(key)?.as_ref()))
     }
     fn confidential(&self) -> bool {
-        truthy(self.state().getAttribute("secret"))
+        truthy(self.state().get_attribute("secret"))
     }
     fn hasGrantType(&self, grantType: &str) -> DatabaseResult<bool> {
         Ok(self.grantTypes()?.contains_loose(grantType))
     }
     fn hasScope(&self, scope: &str) -> DatabaseResult<bool> {
         if matches!(
-            self.state().getAttribute("scopes"),
+            self.state().get_attribute("scopes"),
             None | Some(Value::Null)
         ) {
             return Ok(true);
         }
-        let scopes = array(self.getAttributeValue("scopes")?)?;
+        let scopes = array(self.get_attribute_value("scopes")?)?;
         scope_exists_in(scope, &scopes)
     }
     fn tokens(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::Token> {
@@ -47,13 +47,13 @@ pub trait ClientModel: Model {
     fn tokensFor<T: crate::TokenModel>(
         &self,
     ) -> openrust::database::eloquent::relations::HasMany<Self, T> {
-        openrust::database::eloquent::relations::HasMany::new(self.getKeyName(), "client_id")
+        openrust::database::eloquent::relations::HasMany::new(self.get_key_name(), "client_id")
     }
     fn authCodes(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::AuthCode> {
         self.authCodesFor::<crate::AuthCode>()
     }
     fn authCodesFor<A: Model>(&self) -> openrust::database::eloquent::relations::HasMany<Self, A> {
-        openrust::database::eloquent::relations::HasMany::new(self.getKeyName(), "client_id")
+        openrust::database::eloquent::relations::HasMany::new(self.get_key_name(), "client_id")
     }
     fn owner(&self) -> openrust::database::eloquent::relations::MorphTo<Self> {
         openrust::database::eloquent::relations::MorphTo::new("owner_type", "owner_id")
@@ -61,14 +61,14 @@ pub trait ClientModel: Model {
     fn user<U: Model>(&self) -> openrust::database::eloquent::relations::BelongsTo<Self, U> {
         openrust::database::eloquent::relations::BelongsTo::new(
             "user_id",
-            U::from_state(ModelState::default()).getKeyName(),
+            U::from_state(ModelState::default()).get_key_name(),
         )
     }
     fn redirectUris(&self) -> DatabaseResult<PhpArray> {
-        array(self.getAttributeValue("redirect_uris")?)
+        array(self.get_attribute_value("redirect_uris")?)
     }
     fn grantTypes(&self) -> DatabaseResult<PhpArray> {
-        array(self.getAttributeValue("grant_types")?)
+        array(self.get_attribute_value("grant_types")?)
     }
     fn skipsAuthorization(&self, _user: &dyn Authenticatable, _scopes: &[Scope]) -> bool {
         false
@@ -86,7 +86,7 @@ pub struct Client {
 impl std::fmt::Debug for Client {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Client")
-            .field("id", &self.getKey())
+            .field("id", &self.get_key())
             .finish_non_exhaustive()
     }
 }
@@ -104,7 +104,7 @@ struct ClientAttributes(ModelState);
 impl Model for ClientAttributes {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("oauth_clients")
-            .uniqueId(UniqueId::Uuid)
+            .unique_id(UniqueId::Uuid)
             .guarded(&[])
             .hidden(&["secret"]);
         &META
@@ -133,19 +133,19 @@ impl Model for ClientAttributes {
 
 #[allow(non_snake_case)]
 impl Model for Client {
-    fn uniqueIds() -> &'static [&'static str] {
+    fn unique_ids() -> &'static [&'static str] {
         if client_uuids() { &["id"] } else { &[] }
     }
-    fn uniqueIdsForInstance(&self) -> &'static [&'static str] {
+    fn unique_ids_for_instance(&self) -> &'static [&'static str] {
         if self.uses_unique_ids { &["id"] } else { &[] }
     }
-    fn getIncrementing() -> bool {
+    fn get_incrementing() -> bool {
         !client_uuids()
     }
-    fn usesUniqueIdsForInstance(&self) -> bool {
+    fn uses_unique_ids_for_instance(&self) -> bool {
         self.uses_unique_ids
     }
-    fn getIncrementingForInstance(&self) -> bool {
+    fn get_incrementing_for_instance(&self) -> bool {
         !self.uses_unique_ids
     }
     fn metadata() -> &'static ModelMetadata {
@@ -167,25 +167,25 @@ impl Model for Client {
     fn state_mut(&mut self) -> &mut ModelState {
         self.attributes.state_mut()
     }
-    fn resolveConnectionName(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
-        if let Some(name) = self.getConnectionName() {
+    fn resolve_connection_name(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
+        if let Some(name) = self.get_connection_name() {
             return Ok(Some(std::borrow::Cow::Borrowed(name)));
         }
         let configured = openrust::support::facades::Config::get("passport.connection")
             .map_err(DatabaseError::Unavailable)?;
         configured_connection(configured).map(|name| name.map(std::borrow::Cow::Owned))
     }
-    fn mutateAttributeForArray(
+    fn mutate_attribute_for_array(
         &self,
         column: &str,
         value: Option<&Value>,
     ) -> DatabaseResult<Value> {
         if matches!(column, "plain_secret" | "plainSecret") {
-            return Ok(self.getAttributeValue(column)?.unwrap_or(Value::Null));
+            return Ok(self.get_attribute_value(column)?.unwrap_or(Value::Null));
         }
-        self.attributes.mutateAttributeForArray(column, value)
+        self.attributes.mutate_attribute_for_array(column, value)
     }
-    fn getAttributeValue(&self, column: &str) -> DatabaseResult<Option<Value>> {
+    fn get_attribute_value(&self, column: &str) -> DatabaseResult<Option<Value>> {
         match column {
             "plain_secret" | "plainSecret" => Ok(Some(
                 self.plainSecret
@@ -194,32 +194,32 @@ impl Model for Client {
             )),
             "redirect_uris" => self.redirect_value().map(Some),
             "grant_types" => self.grant_value().map(Some),
-            _ => self.attributes.getAttributeValue(column),
+            _ => self.attributes.get_attribute_value(column),
         }
     }
     fn fill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
         for (name, value) in attributes {
             if name == "secret" {
-                self.setAttributeValue(&name, value)?;
+                self.set_attribute_value(&name, value)?;
             } else {
                 self.attributes.fill(Attributes::from([(name, value)]))?;
             }
         }
         Ok(self)
     }
-    async fn fillAsync(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
+    async fn fill_async(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
         for (name, value) in attributes {
             if name == "secret" {
-                self.setAttributeValueAsync(&name, value).await?;
+                self.set_attribute_value_async(&name, value).await?;
             } else {
                 self.attributes
-                    .fillAsync(Attributes::from([(name, value)]))
+                    .fill_async(Attributes::from([(name, value)]))
                     .await?;
             }
         }
         Ok(self)
     }
-    fn setAttributeValue(
+    fn set_attribute_value(
         &mut self,
         column: &str,
         value: impl Into<Value>,
@@ -230,10 +230,10 @@ impl Model for Client {
         } else {
             value
         };
-        self.attributes.setAttributeValue(column, value)?;
+        self.attributes.set_attribute_value(column, value)?;
         Ok(self)
     }
-    fn setAttributeValueAsync<'a>(
+    fn set_attribute_value_async<'a>(
         &'a mut self,
         column: &'a str,
         value: impl Into<Value>,
@@ -246,7 +246,7 @@ impl Model for Client {
                 value
             };
             self.attributes
-                .setAttributeValueAsync(column, value)
+                .set_attribute_value_async(column, value)
                 .await?;
             Ok(self)
         }
@@ -280,15 +280,15 @@ impl Client {
         Ok(value)
     }
     fn redirect_value(&self) -> DatabaseResult<Value> {
-        let raw = self.state().getAttribute("redirect_uris");
+        let raw = self.state().get_attribute("redirect_uris");
         if raw.is_some_and(|raw| {
             truthy(Some(raw))
                 || matches!(raw, Value::Json(value) if value.is_array() || value.is_object())
         }) {
-            return array(self.attributes.getAttributeValue("redirect_uris")?)
+            return array(self.attributes.get_attribute_value("redirect_uris")?)
                 .map(|value| Value::Json(value.into()));
         }
-        let legacy = self.state().getAttribute("redirect");
+        let legacy = self.state().get_attribute("redirect");
         if truthy(legacy) {
             let value = secret_input(legacy.ok_or_else(invalid)?)?.ok_or_else(invalid)?;
             Ok(Value::Json(serde_json::Value::Array(
@@ -300,10 +300,10 @@ impl Client {
     }
     fn grant_value(&self) -> DatabaseResult<Value> {
         if !matches!(
-            self.state().getAttribute("grant_types"),
+            self.state().get_attribute("grant_types"),
             None | Some(Value::Null)
         ) {
-            return array(self.attributes.getAttributeValue("grant_types")?)
+            return array(self.attributes.get_attribute_value("grant_types")?)
                 .map(|value| Value::Json(value.into()));
         }
         let redirects = !self.redirectUris()?.is_empty();
@@ -314,11 +314,12 @@ impl Client {
             ("implicit", redirects),
             (
                 "password",
-                truthy(self.getAttributeValue("password_client")?.as_ref()),
+                truthy(self.get_attribute_value("password_client")?.as_ref()),
             ),
             (
                 "personal_access",
-                truthy(self.getAttributeValue("personal_access_client")?.as_ref()) && confidential,
+                truthy(self.get_attribute_value("personal_access_client")?.as_ref())
+                    && confidential,
             ),
             ("refresh_token", true),
             ("urn:ietf:params:oauth:grant-type:device_code", true),

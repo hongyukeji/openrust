@@ -60,17 +60,17 @@ impl<M: Searchable> Engine<M> for CollectionEngine {
     fn paginate<'a>(
         &'a self,
         builder: &'a Builder<M>,
-        perPage: u64,
+        per_page: u64,
         page: u64,
     ) -> ScoutFuture<'a, SearchResults> {
         Box::pin(async move {
             let models = self.searchModels(builder).await?;
-            let offset = page.saturating_sub(1).saturating_mul(perPage);
+            let offset = page.saturating_sub(1).saturating_mul(per_page);
             let offset = usize::try_from(offset)
                 .unwrap_or(usize::MAX)
                 .min(models.len());
             let end = offset
-                .saturating_add(usize::try_from(perPage).unwrap_or(usize::MAX))
+                .saturating_add(usize::try_from(per_page).unwrap_or(usize::MAX))
                 .min(models.len());
             Self::results(&models[offset..end], models.len() as u64)
         })

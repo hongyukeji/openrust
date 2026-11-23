@@ -79,13 +79,13 @@ Use `Cache::store(Some("file"))` for a named store or call the facade directly f
 
 ### Retrieving items from the cache {#retrieving-items-from-the-cache}
 
-Use `get_or(key, default)` for a value or `getOrElse(key, resolve)` for an asynchronous fallback. Missing entries and cached JSON `null` use the default. A hit leaves the fallback untouched. Backend errors still propagate, and fallback results are only returned to the caller.
+Use `get_or(key, default)` for a value or `get_or_else(key, resolve)` for an asynchronous fallback. Missing entries and cached JSON `null` use the default. A hit leaves the fallback untouched. Backend errors still propagate, and fallback results are only returned to the caller.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_title() -> CacheResult<Value> {
-    Cache::getOrElse("reports:title", || async { Ok(Value::from("Untitled")) }).await
+    Cache::get_or_else("reports:title", || async { Ok(Value::from("Untitled")) }).await
 }
 ```
 
@@ -105,13 +105,13 @@ Redis preserves the spelling and type of newly written numeric strings. Existing
 
 ### Batch operations {#cache-batch-operations}
 
-`getMultiple(keys, default)` returns a map in input order with a shared optional default. `manyOr` accepts a default for each key, and `manyOrElse` resolves defaults lazily by key. The reads query the store once, and a missing or null value uses the default. Use `set` and `setMultiple` to write, `delete` and `deleteMultiple` to remove entries, and `clear` to flush the selected store. A batch delete attempts the remaining keys after a missing entry and returns `false` if any key was absent.
+`get_multiple(keys, default)` returns a map in input order with a shared optional default. `many_or` accepts a default for each key, and `many_or_else` resolves defaults lazily by key. The reads query the store once, and a missing or null value uses the default. Use `set` and `set_multiple` to write, `delete` and `delete_multiple` to remove entries, and `clear` to flush the selected store. A batch delete attempts the remaining keys after a missing entry and returns `false` if any key was absent.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_state() -> CacheResult<Value> {
-    let entries = Cache::manyOr(&[
+    let entries = Cache::many_or(&[
         ("reports:title", Value::from("Untitled")),
         ("reports:limit", Value::from(10)),
     ]).await?;
@@ -121,13 +121,13 @@ pub async fn report_state() -> CacheResult<Value> {
 
 ### Retrieve and store {#retrieve-store}
 
-`remember` returns a cached value or resolves and stores it on a miss. `rememberWithWarmth` returns `(value, warm)`. `warm` is `true` for a non-null cache hit. `rememberWithWarmthFor` computes the TTL from the resolved value on a miss. `rememberForever` and its alias `sear` store the result without an expiry.
+`remember` returns a cached value or resolves and stores it on a miss. `remember_with_warmth` returns `(value, warm)`. `warm` is `true` for a non-null cache hit. `remember_with_warmth_for` computes the TTL from the resolved value on a miss. `remember_forever` and its alias `sear` store the result without an expiry.
 
 ```rust
 use openrust::{cache::{CacheResult, Ttl, Value}, support::facades::Cache};
 
 pub async fn load_report() -> CacheResult<(Value, bool)> {
-    Cache::rememberWithWarmth("reports:latest", Some(Ttl::Seconds(60)), async {
+    Cache::remember_with_warmth("reports:latest", Some(Ttl::Seconds(60)), async {
         Ok(Value::from("ready"))
     }).await
 }
@@ -147,11 +147,11 @@ pub async fn refresh_report() -> CacheResult<Value> {
 }
 ```
 
-Deferred refresh uses an atomic cache lock. A queued refresh skips its resolver if another caller has refreshed the same generation. A failed refresh leaves the old value available until its original expiry. `flexibleWith` accepts two `Ttl` values and `FlexibleOptions` for a custom lock lease, owner token, or `always_defer` after failure. A repository call outside an application lifecycle can read stale data until expiry. Deferred resolvers capture owned values so they can outlive the request handler.
+Deferred refresh uses an atomic cache lock. A queued refresh skips its resolver if another caller has refreshed the same generation. A failed refresh leaves the old value available until its original expiry. `flexible_with` accepts two `Ttl` values and `FlexibleOptions` for a custom lock lease, owner token, or `always_defer` after failure. A repository call outside an application lifecycle can read stale data until expiry. Deferred resolvers capture owned values so they can outlive the request handler.
 
 ### Retrieve and delete {#retrieve-delete}
 
-Use `pullOr(key, default)` or `pullOrElse(key, resolve)` with a default. Both use the store's atomic `pull` before resolving a missing or null value. If two callers pull the same non-null entry, only one receives it.
+Use `pull_or(key, default)` or `pull_or_else(key, resolve)` with a default. Both use the store's atomic `pull` before resolving a missing or null value. If two callers pull the same non-null entry, only one receives it.
 
 ## Cache Memoization {#cache-memoization}
 
@@ -171,15 +171,15 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
-On a store that supports tags, use `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`. The same ordered list shares memoized hits and misses within the lifecycle. Reordering or repeating tags selects a different group. A tagged memoized write invalidates the affected key. Calling `flush()` on the tagged view clears the selected tags in the backend and invalidates all memoized tag groups for the store. Calling `clear()` clears the entire store, including untagged values. Call `flushMemoized()` to discard only the selected group’s memoized results.
+On a store that supports tags, use `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`. The same ordered list shares memoized hits and misses within the lifecycle. Reordering or repeating tags selects a different group. A tagged memoized write invalidates the affected key. Calling `flush()` on the tagged view clears the selected tags in the backend and invalidates all memoized tag groups for the store. Calling `clear()` clears the entire store, including untagged values. Call `flush_memoized()` to discard only the selected group’s memoized results.
 
-On Redis, `flushStale().await?` forwards to the selected tags and removes stale index references. It preserves live values and memoized results. A tag flush through a separate Redis repository leaves this lifecycle's memoized results available until the memoized view invalidates them.
+On Redis, `flush_stale().await?` forwards to the selected tags and removes stale index references. It preserves live values and memoized results. A tag flush through a separate Redis repository leaves this lifecycle's memoized results available until the memoized view invalidates them.
 
 ## The cache helper {#the-cache-helper}
 
 `cache!()` or `openrust::support::cache()` resolves the current application's manager. Use `.store(None)?` on it to get the default repository. `cache!(key).await?` reads a value as `Option<Value>`, and `cache!(key, default).await?` supplies a default.
 
-The write form accepts a nonempty set of key/value pairs and an `Option<Ttl>`. Like the fixed the framework helper, it writes the first entry. Use `Cache::putMany` to write all entries.
+The write form accepts a nonempty set of key/value pairs and an `Option<Ttl>`. Like the fixed the framework helper, it writes the first entry. Use `Cache::put_many` to write all entries.
 
 ```rust
 use openrust::{cache, cache::{CacheResult, Ttl, Value}};
@@ -192,18 +192,18 @@ pub async fn report() -> CacheResult<Value> {
 
 ## Repository settings {#cache-repository-settings}
 
-`get_name`, `getStore`, and `getEventDispatcher` expose the configured store name, backend, and dispatcher. A named repository keeps its name when cache events are disabled. A tagged repository inherits the name, dispatcher, and default lifetime of its parent at creation.
+`get_name`, `get_store`, and `get_event_dispatcher` expose the configured store name, backend, and dispatcher. A named repository keeps its name when cache events are disabled. A tagged repository inherits the name, dispatcher, and default lifetime of its parent at creation.
 
-`putWithDefault` uses `getDefaultCacheTime`, which starts at 3600 seconds. An explicit `put(key, value, None)` stores the value indefinitely. Use `setDefaultCacheTime` on an owned repository to change the default. `setStore` and `setEventDispatcher` also configure an owned repository. Cloning shares the backend while allowing each copy to replace its own settings.
+`put_with_default` uses `get_default_cache_time`, which starts at 3600 seconds. An explicit `put(key, value, None)` stores the value indefinitely. Use `set_default_cache_time` on an owned repository to change the default. `set_store` and `set_event_dispatcher` also configure an owned repository. Cloning shares the backend while allowing each copy to replace its own settings.
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn cache_report() -> CacheResult<bool> {
     let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
-    repository.setDefaultCacheTime(Some(60));
+    repository.set_default_cache_time(Some(60));
     let reports = repository.tags(&["reports"])?;
-    reports.putWithDefault("latest", &Value::from("ready")).await
+    reports.put_with_default("latest", &Value::from("ready")).await
 }
 ```
 
@@ -227,7 +227,7 @@ async fn store_report() -> Result<bool, CacheError> {
 
 Read the item with the same ordered list, including any repeated names. To invalidate any item tagged `daily`, call `Cache::tags(&["daily"])?.flush().await?`. The flush preserves plain entries and entries carrying only unrelated tags. Tagged flushes change generations. With `array` and `failover`, previous entries become unreachable and expire according to their original TTL. A directly selected Redis store also deletes the retired keys in batches. Tagged writes and index updates use a single Redis script, and the active generation can accept new writes while retired keys are removed.
 
-To remove stale references from selected Redis tags, call `Cache::tags(&["daily"])?.flushStale().await?`. It preserves live values and other tag indexes. An empty list leaves the store untouched.
+To remove stale references from selected Redis tags, call `Cache::tags(&["daily"])?.flush_stale().await?`. It preserves live values and other tag indexes. An empty list leaves the store untouched.
 
 Run `./artisan cache:prune-stale-tags redis` to prune the entire store. Both forms use the Redis server clock and the expiry recorded in each sorted set, and remove references whose value keys are already missing. Pruning changes only the indexes. It preserves the cache values and the references to existing entries without an expiry. Pass a store name, or omit it to use the default store.
 
@@ -235,11 +235,11 @@ With a built-in non-Redis store such as `array`, the command succeeds without pr
 
 On Redis Cluster, store-wide pruning also discovers tag indexes on the primary that owns the store's tag slot. If Redis evicts the index registry, pruning rediscovers surviving indexes, removes stale references, and keeps live values. If a pending generation’s index and registry entry are both missing, pruning removes the pending record. Pruning also discards malformed pending generation identifiers. The command checks up to 128 pending generations at a time in a same-slot Redis operation. It keeps any pending generation that still has indexed values so a later tag flush can finish.
 
-On Redis Cluster, `flushStale()` finds surviving indexes across generations of the selected tags. It also removes empty and malformed pending generation records for those tags, including records whose index was evicted. It unregisters missing indexes for those tags even when they have no pending retirement record. It also removes malformed registrations attributable to the selected tags while leaving the referenced Redis keys intact. Store-wide pruning can remove registrations whose tag cannot be determined. Pending generations with live references are left for a later tag flush.
+On Redis Cluster, `flush_stale()` finds surviving indexes across generations of the selected tags. It also removes empty and malformed pending generation records for those tags, including records whose index was evicted. It unregisters missing indexes for those tags even when they have no pending retirement record. It also removes malformed registrations attributable to the selected tags while leaving the referenced Redis keys intact. Store-wide pruning can remove registrations whose tag cannot be determined. Pending generations with live references are left for a later tag flush.
 
 A tag index with an unexpected Redis key type causes pruning to fail even if its registry entry is missing. A pending generation set with an unexpected key type also fails pruning when its tag is in scope. The command exits with status 1. Restore the expected key type and run the cleanup again.
 
-During Redis Cluster slot migration, Redis may return `TRYAGAIN` when a cleanup batch references missing keys or its keys are split between nodes. When it does, `flushStale()` returns an error and `cache:prune-stale-tags` exits with status 1. After slot migration completes, run the same cleanup again. Batches that already completed stay applied, and retrying skips references that were already removed.
+During Redis Cluster slot migration, Redis may return `TRYAGAIN` when a cleanup batch references missing keys or its keys are split between nodes. When it does, `flush_stale()` returns an error and `cache:prune-stale-tags` exits with status 1. After slot migration completes, run the same cleanup again. Batches that already completed stay applied, and retrying skips references that were already removed.
 
 If a Redis Cluster tag flush is interrupted, run `./artisan cache:clear redis --tags=artists` again to finish removing the retired values. A retry processes retired generations in batches and discards malformed generation identifiers. If a Redis key has an unexpected type, the command exits with status 1. Restore the expected key type before retrying.
 
@@ -247,17 +247,17 @@ On Redis Cluster, a tagged cache namespace uses one hash slot derived from the c
 
 ## Atomic Locks
 
-Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.
+Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restore_lock`. Use a finite lease to recover if the process ends before release.
 
 ### File locks across processes {#managing-locks-across-processes}
 
-The file store coordinates processes that use the same cache directory on the host’s local filesystem. On Windows, pass the token from the acquiring process to `Cache::restoreLock` in the releasing process. Keep the lock directory and cache prefix the same in both applications.
+The file store coordinates processes that use the same cache directory on the host’s local filesystem. On Windows, pass the token from the acquiring process to `Cache::restore_lock` in the releasing process. Keep the lock directory and cache prefix the same in both applications.
 
 ### Lock status and retry interval {#lock-status}
 
-`isLocked().await?` checks whether the backend holds the lock. `isOwnedBy(token).await?` compares an owner token, while `isOwnedByCurrentProcess().await?` compares the token of this handle. `isOwnedBy(None).await?` checks for no owner. Status checks do not acquire or renew a lock. The `null` store always reports unlocked and uses the handle token for ownership checks.
+`is_locked().await?` checks whether the backend holds the lock. `is_owned_by(token).await?` compares an owner token, while `is_owned_by_current_process().await?` compares the token of this handle. `is_owned_by(None).await?` checks for no owner. Status checks do not acquire or renew a lock. The `null` store always reports unlocked and uses the handle token for ownership checks.
 
-`betweenBlockedAttemptsSleepFor(milliseconds)` sets the interval for `block` and `blockWith` on the returned handle. The default is 250 ms. A zero interval yields to other Tokio tasks between attempts.
+`between_blocked_attempts_sleep_for(milliseconds)` sets the interval for `block` and `block_with` on the returned handle. The default is 250 ms. A zero interval yields to other Tokio tasks between attempts.
 
 ```rust
 use std::time::Duration;
@@ -266,9 +266,9 @@ use openrust::{cache::CacheResult, support::facades::Cache};
 
 pub async fn ready_for_report() -> CacheResult<bool> {
     let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?
-        .betweenBlockedAttemptsSleepFor(25)?;
+        .between_blocked_attempts_sleep_for(25)?;
     lock.block(Duration::from_secs(2)).await?;
-    let owned = lock.isOwnedByCurrentProcess().await;
+    let owned = lock.is_owned_by_current_process().await;
     lock.release().await?;
     owned
 }
@@ -276,7 +276,7 @@ pub async fn ready_for_report() -> CacheResult<bool> {
 
 ### Run a callback while holding a lock {#lock-callbacks}
 
-Use `getWith` to try once or `blockWith` to wait. Both take ownership of the handle and release its lock after the callback returns, including an error result. `getWith` returns `None` on contention. `blockWith` returns `CacheError::LockTimeout` on timeout. Neither invokes the callback when acquisition fails.
+Use `get_with` to try once or `block_with` to wait. Both take ownership of the handle and release its lock after the callback returns, including an error result. `get_with` returns `None` on contention. `block_with` returns `CacheError::LockTimeout` on timeout. Neither invokes the callback when acquisition fails.
 
 ```rust
 use std::time::Duration;
@@ -288,7 +288,7 @@ use openrust::{
 
 pub async fn cache_report() -> CacheResult<Option<bool>> {
     Cache::lock("report", Some(Duration::from_secs(10)))?
-        .getWith(|| async {
+        .get_with(|| async {
             Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await
         })
         .await
@@ -299,7 +299,7 @@ Tokio schedules cleanup if the future is cancelled or the callback panics. A fin
 
 ### Concurrency limiting {#concurrency-limiting}
 
-`Cache::without_overlapping(key, callback).await?` runs one callback at a time for that key and waits up to 10 seconds. `withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` takes the lease and wait in seconds and an optional owner token. A zero lease uses the store's default. An unavailable lock returns `CacheError::LockTimeout`.
+`Cache::without_overlapping(key, callback).await?` runs one callback at a time for that key and waits up to 10 seconds. `without_overlapping_with(key, callback, lock_for, wait_for, owner)` takes the lease and wait in seconds and an optional owner token. A zero lease uses the store's default. An unavailable lock returns `CacheError::LockTimeout`.
 
 Use `Cache::funnel` to allow several concurrent callbacks. All application instances must use the same shared lock store, cache prefix, limiter name, and limit. Set the lease long enough for a callback to finish. Once it expires, another caller can take the slot. A `null` store allows every caller through.
 
@@ -309,18 +309,18 @@ use openrust::{cache::CacheResult, support::facades::Cache};
 pub async fn generate_report() -> CacheResult<&'static str> {
     Cache::funnel("reports:generate:")?
         .limit(3)
-        .releaseAfter(60)
+        .release_after(60)
         .block(10)
-        .thenWith(|| async { Ok("generated") }, |_| async { Ok("busy") })
+        .then_with(|| async { Ok("generated") }, |_| async { Ok("busy") })
         .await
 }
 ```
 
-Set the slot count with `limit`. The default lease and wait are 60 and 3 seconds. `sleep(milliseconds)` defaults to 250 ms. Set `block(0)` to scan the slots once. Use `then(callback)` to receive `CacheError::LimiterTimeout`, or `thenWith(callback, fallback)` to handle that error in a callback. Use `Cache::store(Some("redis"))?.funnel(name)?` to select a named store. Stores without atomic locks return `CacheError::LocksUnsupported`.
+Set the slot count with `limit`. The default lease and wait are 60 and 3 seconds. `sleep(milliseconds)` defaults to 250 ms. Set `block(0)` to scan the slots once. Use `then(callback)` to receive `CacheError::LimiterTimeout`, or `then_with(callback, fallback)` to handle that error in a callback. Use `Cache::store(Some("redis"))?.funnel(name)?` to select a named store. Stores without atomic locks return `CacheError::LocksUnsupported`.
 
 ### Clearing cache locks {#clearing-cache-locks}
 
-Use `Cache::flushLocks().await?` for the default store, or `Cache::store(Some("database"))?.flushLocks().await?` for a named store. Artisan accepts the same optional store name.
+Use `Cache::flush_locks().await?` for the default store, or `Cache::store(Some("database"))?.flush_locks().await?` for a named store. Artisan accepts the same optional store name.
 
 ```sh
 ./artisan cache:clear database --locks
@@ -345,7 +345,7 @@ Set `CACHE_STORE=failover` to make `failover` the default cache store. In `confi
 
 An operation starts with the first store each time. A store error advances to the next store. A cache miss or a successful `false` result ends the operation. When the primary recovers, reads start there again, so an entry written to a fallback during an outage may be absent. If every store fails, the operation returns the last error.
 
-Listen to `openrust::cache::events::CacheFailedOver` in the application dispatcher for newly failed stores. The event carries `storeName` and an `exception` message. Repeated failures of the same store only emit again after an operation in which it did not fail. A lock handle uses the first store that can create it. Acquiring, renewing, and releasing that handle all use the selected store.
+Listen to `openrust::cache::events::CacheFailedOver` in the application dispatcher for newly failed stores. The event carries `store_name` and an `exception` message. Repeated failures of the same store only emit again after an operation in which it did not fail. A lock handle uses the first store that can create it. Acquiring, renewing, and releasing that handle all use the selected store.
 
 ```rust
 use openrust::{
@@ -372,9 +372,9 @@ Cache::extend("project", |manager, config| {
 })?;
 ```
 
-Set the named store's `driver` to `project` in `config/cache.rs`. The callback receives the manager and the full store configuration. Use `manager.getContainer()` for application services, and `manager.repository(..., config)` to retain the store name and event settings. Store resolution is synchronous. Construct the backend in the callback and perform asynchronous I/O in its cache operations.
+Set the named store's `driver` to `project` in `config/cache.rs`. The callback receives the manager and the full store configuration. Use `manager.get_container()` for application services, and `manager.repository(..., config)` to retain the store name and event settings. Store resolution is synchronous. Construct the backend in the callback and perform asynchronous I/O in its cache operations.
 
-The manager creates a named repository on first use and reuses it. Replacing a creator takes effect for the next resolution after `Cache::forgetDriver(Some("reports"))?` or `Cache::purge(Some("reports"))?`. Use `Cache::build(config)?` for a repository with its own configuration and lifetime.
+The manager creates a named repository on first use and reuses it. Replacing a creator takes effect for the next resolution after `Cache::forget_driver(Some("reports"))?` or `Cache::purge(Some("reports"))?`. Use `Cache::build(config)?` for a repository with its own configuration and lifetime.
 
 ## Cache Events {#cache-events}
 
@@ -397,4 +397,4 @@ events.assertDispatched(CacheHit::NAME);
 
 ## Inspecting and restoring locks
 
-The `Lock` contract exposes `currentOwner()` to inspect the backend owner without acquiring a lock and `forceRelease()` to release it regardless of the current handle’s owner. `LockProvider::restoreLock(name, owner)` reconstructs a handle from its saved owner token. These methods are also available through trait objects; restoration does not acquire or renew the lock.
+The `Lock` contract exposes `current_owner()` to inspect the backend owner without acquiring a lock and `force_release()` to release it regardless of the current handle’s owner. `LockProvider::restore_lock(name, owner)` reconstructs a handle from its saved owner token. These methods are also available through trait objects; restoration does not acquire or renew the lock.

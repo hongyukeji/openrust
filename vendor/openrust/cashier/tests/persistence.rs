@@ -12,7 +12,7 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
  {
     let db = Db::new(true).await;
     db.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("billing_business", |t| {
             t.string("id", 255).primary();
             t.string("status", 16);
@@ -291,8 +291,8 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
             .unwrap();
     }
     db.connection
-        .getSchemaBuilder()
-        .dropIfExists("billing_business")
+        .get_schema_builder()
+        .drop_if_exists("billing_business")
         .await
         .unwrap();
     db.migrator
@@ -301,8 +301,8 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
         .unwrap();
     assert!(
         !db.connection
-            .getSchemaBuilder()
-            .hasTable("cashier_events")
+            .get_schema_builder()
+            .has_table("cashier_events")
             .await
             .unwrap()
     );

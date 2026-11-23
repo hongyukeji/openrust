@@ -63,15 +63,15 @@ impl HasFactory for Flight {
 
 fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
     let factory = FlightFactory::new(Attributes::from([("name".into(), "Initial".into())]));
-    assert_eq!(factory.modelName(), std::any::type_name::<Flight>());
-    assert!(!factory.newModel(Attributes::new())?.state().exists());
+    assert_eq!(factory.model_name(), std::any::type_name::<Flight>());
+    assert!(!factory.new_model(Attributes::new())?.state().exists());
     let _batch = FlightFactory::times(2);
     Ok(())
 }
 ```
 
-用 `FlightFactory::new(attributes)` 或 `FlightFactory::newWithState(callback)` 在 `configure` 前登錄初始狀態。`FlightFactory::times(2)` 建立設定完成的兩筆批次。單筆與批次建構器的 `modelName()` 回傳繫結的 Rust 型別名稱。`newModel(attributes)` 依模型的批量賦值規則建構尚未儲存的模型，無須執行工廠定義與狀態。
-用 `Factory::<Flight>::factoryForModel()` 取得模型透過 `HasFactory` 繫結的工廠。繫結以編譯期模型型別為準。
+用 `FlightFactory::new(attributes)` 或 `FlightFactory::new_with_state(callback)` 在 `configure` 前登錄初始狀態。`FlightFactory::times(2)` 建立設定完成的兩筆批次。單筆與批次建構器的 `model_name()` 回傳繫結的 Rust 型別名稱。`new_model(attributes)` 依模型的批量賦值規則建構尚未儲存的模型，無須執行工廠定義與狀態。
+用 `Factory::<Flight>::factory_for_model()` 取得模型透過 `HasFactory` 繫結的工廠。繫結以編譯期模型型別為準。
 
 產生 `Fleet/FlightFactory` 等巢狀工廠時，Artisan 會推斷對應的 `app::models::fleet` 模型。可用 `--model` 或 `-m` 選擇其他模型。編譯前宣告產生的模組，模型和工廠仍透過 `FactoryDefinition::Model` 與 `HasFactory` 明確繫結。
 
@@ -109,16 +109,16 @@ async fn seed_scheduled<M: HasFactory>() -> DatabaseResult<()> {
 
 下文涉及的上游格式以[上游 Faker 資料集與產生器](https://github.com/FakerPHP/Faker/tree/v1.24.1)為準。
 
-使用 `Factory::withFaker` 定義產生的模型屬性。它讀取所選連線所屬應用程式的 `app.faker_locale`。使用 `fake(Some("fr-FR"))` 明確指定語言，或用 `fake(None)` 讀取目前應用程式的設定。Rust 產生器使用 fake-rs 的資料，提供 `name`、`safeEmail`、`city` 和 `sentence`。尚未支援的語言使用英文資料。
+使用 `Factory::with_faker` 定義產生的模型屬性。它讀取所選連線所屬應用程式的 `app.faker_locale`。使用 `fake(Some("fr-FR"))` 明確指定語言，或用 `fake(None)` 讀取目前應用程式的設定。Rust 產生器使用 fake-rs 的資料，提供 `name`、`safe_email`、`city` 和 `sentence`。尚未支援的語言使用英文資料。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
 
 pub fn profile_factory<M: Model>() -> Factory<M> {
-    Factory::withFaker(|faker| {
+    Factory::with_faker(|faker| {
         Attributes::from([
             ("name".into(), faker.name().into()),
-            ("email".into(), faker.safeEmail().into()),
+            ("email".into(), faker.safe_email().into()),
         ])
     })
 }
@@ -140,43 +140,43 @@ fn seeded_names() -> DatabaseResult<Vec<String>> {
     Ok((0..3).map(|_| faker.name()).collect())
 }
 ```
-內建產生方法還包括 `firstName`、`lastName`、`freeEmail`、`userName`、`streetName`、`postcode`、`phoneNumber`、`company` 和 `word`。這些方法也可透過 `unique` 呼叫。樣本取自 fake-rs 中對應語言的資料集。
+內建產生方法還包括 `first_name`、`last_name`、`free_email`、`user_name`、`street_name`、`postcode`、`phone_number`、`company` 和 `word`。這些方法也可透過 `unique` 呼叫。樣本取自 fake-rs 中對應語言的資料集。
 
-用 `numberBetween(first, second)` 產生整數，包含兩個端點，端點可以任意排序。`randomDigit()` 回傳 0 至 9，`randomDigitNotNull()` 回傳 1 至 9。`dateTimeBetween(start, end)` 接收明確的 UTC 日期時間，以整秒取樣並包含兩端，起始秒晚於結束秒時回傳錯誤。四種方法均支援 `unique`。
+用 `number_between(first, second)` 產生整數，包含兩個端點，端點可以任意排序。`random_digit()` 回傳 0 至 9，`random_digit_not_null()` 回傳 1 至 9。`date_time_between(start, end)` 接收明確的 UTC 日期時間，以整秒取樣並包含兩端，起始秒晚於結束秒時回傳錯誤。四種方法均支援 `unique`。
 
-`randomDigitNot(except)` 排除指定數字。`randomNumber(digits, strict)` 的位數傳入 `None` 時隨機選擇一至九位。嚴格模式產生確切位數，非嚴格模式也接受零位並回傳零。明確位數超過九位或嚴格模式指定零位時回傳錯誤。兩種方法皆支援 `unique`。
+`random_digit_not(except)` 排除指定數字。`random_number(digits, strict)` 的位數傳入 `None` 時隨機選擇一至九位。嚴格模式產生確切位數，非嚴格模式也接受零位並回傳零。明確位數超過九位或嚴格模式指定零位時回傳錯誤。兩種方法皆支援 `unique`。
 
-`randomFloat(decimals, min, max)` 先在區間取樣，再依指定小數位捨入，中點遠離零。傳入 `None` 可隨機選擇零至九位精度或產生上界。上下界可逆序，捨入結果可能超出原區間。非有限邊界回傳錯誤。與 PHP 8.5 相同，正精度超過 308 或捨入後的數值溢位時保留取樣值。精度小於 −308 時回傳零。`unique` 將正零與負零視為同一個值。
+`random_float(decimals, min, max)` 先在區間取樣，再依指定小數位捨入，中點遠離零。傳入 `None` 可隨機選擇零至九位精度或產生上界。上下界可逆序，捨入結果可能超出原區間。非有限邊界回傳錯誤。與 PHP 8.5 相同，正精度超過 308 或捨入後的數值溢位時保留取樣值。精度小於 −308 時回傳零。`unique` 將正零與負零視為同一個值。
 
-用 `unixTime(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `dateTime(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Jiff 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含實際使用的時區偏移量。五種方法皆支援 `unique`。
+用 `unix_time(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `date_time(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Jiff 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含實際使用的時區偏移量。五種方法皆支援 `unique`。
 
-從框架重用 PHP DateTime 格式時，呼叫 `dateWithPhpFormat(format, max)` 或 `timeWithPhpFormat(format, max)`。兩者皆以實際使用的時區轉為文字。`Y-m-d` 使用 PHP 格式符號，`%Y-%m-%d` 使用 Jiff 格式符號。兩個 PHP 入口分別與對應的 Jiff 方法共用 `unique` 歷史。
+從框架重用 PHP DateTime 格式時，呼叫 `date_with_php_format(format, max)` 或 `time_with_php_format(format, max)`。兩者皆以實際使用的時區轉為文字。`Y-m-d` 使用 PHP 格式符號，`%Y-%m-%d` 使用 Jiff 格式符號。兩個 PHP 入口分別與對應的 Jiff 方法共用 `unique` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn php_date_sample() -> DatabaseResult<String> {
-    fake(None)?.dateWithPhpFormat(r"Y-m-d\TH:i:sP", Some(jiff::Timestamp::UNIX_EPOCH))
+    fake(None)?.date_with_php_format(r"Y-m-d\TH:i:sP", Some(jiff::Timestamp::UNIX_EPOCH))
 }
 ```
 
-用 `dateTimeInInterval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Jiff `SignedDuration` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`dateTimeThisYear(max)` 從應用程式時區當年 1 月 1 日零點開始。其他日曆回溯和 `dateTimeInInterval` 的預設起點也採用應用程式時區。兩個區間參數都省略時，預設五天依本地日曆計算。明確傳入的 `SignedDuration` 表示實際經過的時長。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依上游 Faker 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `dateTimeBetween`。
+用 `date_time_in_interval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Jiff `SignedDuration` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`date_time_this_century(max)`、`date_time_this_decade(max)` 和 `date_time_this_month(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`date_time_this_year(max)` 從應用程式時區當年 1 月 1 日零點開始。其他日曆回溯和 `date_time_in_interval` 的預設起點也採用應用程式時區。兩個區間參數都省略時，預設五天依本地日曆計算。明確傳入的 `SignedDuration` 表示實際經過的時長。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依上游 Faker 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `date_time_between`。
 
-用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 依實際使用的時區格式化隨機日期的各個部分。數字月份補零，數字日期除 `cs-CZ` 外也補零。捷克語、土耳其語、簡體中文、繁體中文和喬治亞語使用對應的星期和月份名稱。土耳其語和兩種中文還會在地化 `amPm`。`dateTimeAD(max)` 從上游 Faker 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
+用 `am_pm(max)`、`day_of_month(max)`、`day_of_week(max)`、`month(max)`、`month_name(max)` 和 `year(max)` 依實際使用的時區格式化隨機日期的各個部分。數字月份補零，數字日期除 `cs-CZ` 外也補零。捷克語、土耳其語、簡體中文、繁體中文和喬治亞語使用對應的星期和月份名稱。土耳其語和兩種中文還會在地化 `am_pm`。`date_time_ad(max)` 從上游 Faker 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
 
-在 `cs-CZ` 中，`monthNameGenitive(max)` 回傳月份屬格，`formattedDate()` 產生 `16. listopadu 2003` 這類顯示文字。日、月、年獨立取樣，結果可能超出有效日期範圍。兩種方法皆支援 `unique`，在其他地區呼叫時回傳錯誤。 捷克日期的具名呼叫沿用地區日期欄位。`format("formattedDate", &[])` 展開三個欄位格式化器，也會呼叫應用程式註冊的覆寫項目。明確呼叫 `DateTimeExtension` 保留核心英語日期欄位與日曆週期預設值。
+在 `cs-CZ` 中，`month_name_genitive(max)` 回傳月份屬格，`formatted_date()` 產生 `16. listopadu 2003` 這類顯示文字。日、月、年獨立取樣，結果可能超出有效日期範圍。兩種方法皆支援 `unique`，在其他地區呼叫時回傳錯誤。 捷克日期的具名呼叫沿用地區日期欄位。`format("formattedDate", &[])` 展開三個欄位格式化器，也會呼叫應用程式註冊的覆寫項目。明確呼叫 `DateTimeExtension` 保留核心英語日期欄位與日曆週期預設值。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_date_sample() -> DatabaseResult<String> {
-    fake(Some("cs-CZ"))?.unique(false).formattedDate()
+    fake(Some("cs-CZ"))?.unique(false).formatted_date()
 }
 ```
 
-用 `timezone(countryCode)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `IANA 2025b` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
+用 `timezone(country_code)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `IANA 2025b` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
 
-日期字串優先使用 `setDefaultTimezone(Some(zone))` 為目前產生器指定的時區，其次讀取應用程式或工廠連線所屬應用程式的 `app.timezone`，預設為 UTC。傳入 `None` 可清除覆寫，`getDefaultTimezone()` 可查看覆寫值。`dateTimeInTimezone(max, timezone)` 回傳帶時區的日期時間，傳入 `Some(zone)` 可覆寫本次呼叫。日期時間方法仍回傳 UTC 時刻。產生器的時區覆寫用於輸出格式化，日曆邊界繼續依應用程式時區計算。 以 `format("setDefaultTimezone", &[zone])` 接收 IANA 時區文字，傳入 null 清除覆寫。`format("getDefaultTimezone", &[])` 回傳時區文字或 null。兩者只操作目前產生器。具名日期時間結果使用 RFC 3339。
+日期字串優先使用 `set_default_timezone(Some(zone))` 為目前產生器指定的時區，其次讀取應用程式或工廠連線所屬應用程式的 `app.timezone`，預設為 UTC。傳入 `None` 可清除覆寫，`get_default_timezone()` 可查看覆寫值。`date_time_in_timezone(max, timezone)` 回傳帶時區的日期時間，傳入 `Some(zone)` 可覆寫本次呼叫。日期時間方法仍回傳 UTC 時刻。產生器的時區覆寫用於輸出格式化，日曆邊界繼續依應用程式時區計算。 以 `format("setDefaultTimezone", &[zone])` 接收 IANA 時區文字，傳入 null 清除覆寫。`format("getDefaultTimezone", &[])` 回傳時區文字或 null。兩者只操作目前產生器。具名日期時間結果使用 RFC 3339。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -192,7 +192,7 @@ fn named_date_samples() -> DatabaseResult<[Value; 3]> {
 }
 ```
 
-需要讓結果攜帶輸出時區時，使用 `dateTimeAD`、`dateTimeBetween`、`dateTimeInInterval` 和四個 `dateTimeThis…` 方法的 `InTimezone` 變體。兩個日期運算式區間方法也有帶時區的版本。明確指定的時區只作用於回傳值。相對運算式沿用應用程式時區，也可在運算式內指定時區。原方法回傳 UTC。`unique` 依對應方法共用歷史，並區分名稱不同但 UTC 偏移相同的時區。夏令時間回撥時，同一時區重複出現的當地時間視為重複值。
+需要讓結果攜帶輸出時區時，使用 `date_time_ad`、`date_time_between`、`date_time_in_interval` 和四個 `dateTimeThis…` 方法的 `InTimezone` 變體。兩個日期運算式區間方法也有帶時區的版本。明確指定的時區只作用於回傳值。相對運算式沿用應用程式時區，也可在運算式內指定時區。原方法回傳 UTC。`unique` 依對應方法共用歷史，並區分名稱不同但 UTC 偏移相同的時區。夏令時間回撥時，同一時區重複出現的當地時間視為重複值。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -201,12 +201,12 @@ fn zoned_date_sample() -> DatabaseResult<String> {
     let epoch = jiff::Timestamp::UNIX_EPOCH;
     let tokyo = openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone");
     Ok(fake(None)?
-        .dateTimeBetweenInTimezone(epoch, epoch, Some(tokyo))?
+        .date_time_between_in_timezone(epoch, epoch, Some(tokyo))?
         .strftime("%Y-%m-%dT%H:%M:%S%:z").to_string())
 }
 ```
 
-用 `dateTimeBetweenExpressions(start, end)` 傳入 PHP 風格的日期表達式，例如 `"-30 years"` 和 `"now"`。兩個端點共用同一參考時刻，並依應用程式時區解析。表達式中的明確時區優先。數字終點字串依 Unix 時間戳解析，`"@-1"` 則是明確的時間戳表達式。端點解析失敗時依上游 Faker 的數值轉換規則使用 Unix 零秒。起點晚於終點仍回傳錯誤。此方法與 `dateTimeBetween` 共用 `unique` 歷史。
+用 `date_time_between_expressions(start, end)` 傳入 PHP 風格的日期表達式，例如 `"-30 years"` 和 `"now"`。兩個端點共用同一參考時刻，並依應用程式時區解析。表達式中的明確時區優先。數字終點字串依 Unix 時間戳解析，`"@-1"` 則是明確的時間戳表達式。端點解析失敗時依上游 Faker 的數值轉換規則使用 Unix 零秒。起點晚於終點仍回傳錯誤。此方法與 `date_time_between` 共用 `unique` 歷史。
 
 日期運算式中的命名時區遵循 PHP 拼寫規則。例如，`America/New_York` 和 `Us/Eastern` 可以解析，首段全大寫的 `US/Eastern` 解析失敗。要使用固定偏移，直接寫 `-05:00` 這類數值偏移。
 
@@ -214,16 +214,16 @@ fn zoned_date_sample() -> DatabaseResult<String> {
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn date_expression_sample() -> DatabaseResult<i64> {
-    let date = fake(None)?.resolveDateMax("2024-01-01 12:34:56 America/New_York")?;
+    let date = fake(None)?.resolve_date_max("2024-01-01 12:34:56 America/New_York")?;
     Ok(date.as_second())
 }
 ```
 
-用 `dateTimeInIntervalExpressions(date, interval)` 傳入 PHP 風格的相對區間，例如 `Some("+1 month")` 或 `Some("5 days ago")`。終點依起始日期所在時區的本地時間計算，跨越日光節約時間時也遵循此規則。取樣結果回傳 UTC。省略日期時從 30 年前開始，省略區間時使用五個日曆日。區間字串接受相對表達式，拒絕絕對日期、時間和時區識別碼。此方法與 `dateTimeInInterval` 共用 `unique` 歷史。
+用 `date_time_in_interval_expressions(date, interval)` 傳入 PHP 風格的相對區間，例如 `Some("+1 month")` 或 `Some("5 days ago")`。終點依起始日期所在時區的本地時間計算，跨越日光節約時間時也遵循此規則。取樣結果回傳 UTC。省略日期時從 30 年前開始，省略區間時使用五個日曆日。區間字串接受相對表達式，拒絕絕對日期、時間和時區識別碼。此方法與 `date_time_in_interval` 共用 `unique` 歷史。
 
-用 `resolveDateMax(expression)` 解析 PHP 風格的日期上界，再以 `Some(max)` 傳給任何接受 `max` 的日期產生方法。解析一次即可在多個呼叫中共用同一上界。小數和科學記號的數字字串向零截斷為 Unix 秒。空字串使用目前時間。日期文字預設依應用程式時區解讀，文字中的明確時區優先。無效或超出範圍的值回傳錯誤。
+用 `resolve_date_max(expression)` 解析 PHP 風格的日期上界，再以 `Some(max)` 傳給任何接受 `max` 的日期產生方法。解析一次即可在多個呼叫中共用同一上界。小數和科學記號的數字字串向零截斷為 Unix 秒。空字串使用目前時間。日期文字預設依應用程式時區解讀，文字中的明確時區優先。無效或超出範圍的值回傳錯誤。
 
-用 `unixTimeExpression(max)` 從字串上界直接取樣 Unix 秒，支援 Jiff 日期範圍之外的時間戳和延伸年份。它與 `unixTime` 共用 `unique` 歷史。語法無效的上界使用 Unix 零秒。需要在取樣前驗證輸入時，用 `resolveDateMax`。超過解析限制或數值範圍時仍回傳錯誤。有限數字字串超出有號 64 位元範圍時飽和至端點，溢位為無限大時依 PHP 整數轉換規則取零。回傳日期的介面仍要求上界可由 Jiff 表示。
+用 `unix_time_expression(max)` 從字串上界直接取樣 Unix 秒，支援 Jiff 日期範圍之外的時間戳和延伸年份。它與 `unix_time` 共用 `unique` 歷史。語法無效的上界使用 Unix 零秒。需要在取樣前驗證輸入時，用 `resolve_date_max`。超過解析限制或數值範圍時仍回傳錯誤。有限數字字串超出有號 64 位元範圍時飽和至端點，溢位為無限大時依 PHP 整數轉換規則取零。回傳日期的介面仍要求上界可由 Jiff 表示。
 
 ```rust
 use jiff::{Timestamp, SignedDuration};
@@ -233,20 +233,20 @@ use openrust::database::{
 };
 
 pub fn activity_factory<M: Model>() -> Factory<M> {
-    Factory::tryWithFaker(|faker| -> DatabaseResult<Attributes> {
+    Factory::try_with_faker(|faker| -> DatabaseResult<Attributes> {
         let start = Timestamp::UNIX_EPOCH;
         let end = Timestamp::from_second(86_400).unwrap();
-        let happened_at = faker.dateTimeBetween(start, end)?;
-        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(SignedDuration::from_hours(120)))?;
-        let sampled_this_year = faker.dateTimeThisYear(None)?;
-        let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
-        let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
-        let cutoff = faker.resolveDateMax("2024-12-31 23:59:59 UTC")?;
+        let happened_at = faker.date_time_between(start, end)?;
+        let reviewed_at = faker.date_time_in_interval(Some(happened_at), Some(SignedDuration::from_hours(120)))?;
+        let sampled_this_year = faker.date_time_this_year(None)?;
+        let historical = faker.date_time_between_expressions("-30 years", "now")?;
+        let archived_at = faker.date_time_in_interval_expressions(Some("2024-01-31"), Some("+1 month"))?;
+        let cutoff = faker.resolve_date_max("2024-12-31 23:59:59 UTC")?;
         let published_at = faker.iso8601(Some(cutoff));
-        let epoch_seconds = faker.unixTimeExpression("+1000000-01-01 UTC")?;
+        let epoch_seconds = faker.unix_time_expression("+1000000-01-01 UTC")?;
         Ok(Attributes::from([
-            ("score".into(), faker.numberBetween(1, 100).into()),
-            ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
+            ("score".into(), faker.number_between(1, 100).into()),
+            ("ratio".into(), Value::Real(faker.random_float(Some(2), 0.0, Some(1.0))?)),
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
             ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
@@ -257,19 +257,19 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("archived_at".into(), archived_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
             ("published_at".into(), published_at.into()),
             ("epoch_seconds".into(), epoch_seconds.into()),
-            ("weekday".into(), faker.dateTimeInTimezone(Some(Timestamp::UNIX_EPOCH), None).strftime("%A").to_string().into()),
+            ("weekday".into(), faker.date_time_in_timezone(Some(Timestamp::UNIX_EPOCH), None).strftime("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
-            ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
+            ("category".into(), faker.random_element(&["launch", "review"]).copied().unwrap_or("launch").into()),
             ("active".into(), faker.boolean(Some(75)).into()),
-            ("sample_locale".into(), faker.randomLocale().into()),
-            ("currency".into(), faker.currencyCode().into()),
+            ("sample_locale".into(), faker.random_locale().into()),
+            ("currency".into(), faker.currency_code().into()),
             ("sample_digest".into(), faker.sha256().into()),
-            ("sample_ip".into(), faker.localIpv4().into()),
+            ("sample_ip".into(), faker.local_ipv4().into()),
             ("website".into(), faker.url()?.into()),
-            ("contact".into(), faker.safeEmail().into()),
-            ("phone".into(), faker.e164PhoneNumber().into()),
+            ("contact".into(), faker.safe_email().into()),
+            ("phone".into(), faker.e164_phone_number().into()),
             ("address".into(), faker.address().into()),
-            ("display_name".into(), faker.nameWithGender(Some("female")).into()),
+            ("display_name".into(), faker.name_with_gender(Some("female")).into()),
             ("latitude".into(), openrust::database::Value::Real(faker.latitude(None, None)?)),
         ]))
     })
@@ -278,17 +278,17 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### 自訂 Faker 提供器 {#custom-faker-providers}
 
-以具名 Rust 回呼建立 `FakerProvider`，再用 `addProvider` 安裝到目前的產生器。名稱依 ASCII 大小寫不敏感的方式匹配，同名時後註冊者優先。`getFormatter` 回傳此次找到的回呼，後續 `format` 會重新查找。回呼接收目前的產生器與 `Value` 參數切片，回傳的錯誤會直接傳遞。
+以具名 Rust 回呼建立 `FakerProvider`，再用 `add_provider` 安裝到目前的產生器。名稱依 ASCII 大小寫不敏感的方式匹配，同名時後註冊者優先。`get_formatter` 回傳此次找到的回呼，後續 `format` 會重新查找。回呼接收目前的產生器與 `Value` 參數切片，回傳的錯誤會直接傳遞。
 
-用 `parse` 展開 `{{ code }}` 等標記，呼叫無參數且回傳純量的 formatter。未知名稱回傳 `UnknownFakerFormatter`。依名稱可呼叫自訂 formatter 和內建的 `address`、`city`、`company`、`companyEn`、`email`、`firstName`、`freeEmail`、`lastName`、`name`、`phoneNumber`、`postcode`、`safeEmail`、`userName`、`uuid`。產生器本身的 `parse`、`mimeType`、`fileExtension`、`bloodType`、`bloodRh` 優先。型別化呼叫如 `faker.name()` 繼續使用內建實作。`fake()` 與工廠定義各自使用獨立的產生器，註冊時選用需要擴充的實例。
+用 `parse` 展開 `{{ code }}` 等標記，呼叫無參數且回傳純量的 formatter。未知名稱回傳 `UnknownFakerFormatter`。依名稱可呼叫自訂 formatter 和內建的 `address`、`city`、`company`、`company_en`、`email`、`first_name`、`free_email`、`last_name`、`name`、`phone_number`、`postcode`、`safe_email`、`user_name`、`uuid`。產生器本身的 `parse`、`mime_type`、`file_extension`、`blood_type`、`blood_rh` 優先。型別化呼叫如 `faker.name()` 繼續使用內建實作。`fake()` 與工廠定義各自使用獨立的產生器，註冊時選用需要擴充的實例。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{Faker, FakerProvider}};
 
 fn sample_provider() -> DatabaseResult<String> {
     let faker = Faker::new("en-US")?;
-    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("sample".into())));
-    faker.addProvider(FakerProvider::new().formatter("Code", |_, _| Ok("demo".into())));
+    faker.add_provider(FakerProvider::new().formatter("code", |_, _| Ok("sample".into())));
+    faker.add_provider(FakerProvider::new().formatter("Code", |_, _| Ok("demo".into())));
     faker.parse("account-{{ code }}")
 }
 ```
@@ -303,7 +303,7 @@ use openrust::database::{
 
 fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
     let faker = Faker::new("en-US")?;
-    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("demo".into())));
+    faker.add_provider(FakerProvider::new().formatter("code", |_, _| Ok("demo".into())));
 
     let distinct = faker.unique(true).format("code", &[])?;
     let fallback = faker.optional(Some(0.0), Some("skip".into()), |faker| {
@@ -321,9 +321,9 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 
 ### 數字與模式 formatter 參數 {#numeric-pattern-formatter-arguments}
 
-將位置參數傳給 `format` 或 `getFormatter` 回傳的回呼。產生器的 `numberBetween`、`randomDigit`、`randomDigitNot`、`randomDigitNotZero`、`randomNumber` 和 `randomFloat` 優先於提供器。`boolean`、`latitude`、`longitude`、`randomDigitNotNull`、`randomLetter`、`randomAscii`、`numerify`、`lexify`、`bothify`、`asciify` 和 `regexify` 是提供器預設值。
+將位置參數傳給 `format` 或 `get_formatter` 回傳的回呼。產生器的 `number_between`、`random_digit`、`random_digit_not`、`randomDigitNotZero`、`random_number` 和 `random_float` 優先於提供器。`boolean`、`latitude`、`longitude`、`random_digit_not_null`、`random_letter`、`random_ascii`、`numerify`、`lexify`、`bothify`、`asciify` 和 `regexify` 是提供器預設值。
 
-省略參數時沿用 上游 Faker 預設值。明確傳入 `Value::Null` 時保留該 formatter 對空值的行為。例如 `numberBetween(7, null)` 從零至七取樣，`numerify(null)` 回傳空值。次數和機率百分比用整數，嚴格模式用布林值，浮點上下界用數值，模式用文字。Rust 驗證這些型別，並拒絕有參數的 formatter 收到多餘參數。
+省略參數時沿用 上游 Faker 預設值。明確傳入 `Value::Null` 時保留該 formatter 對空值的行為。例如 `number_between(7, null)` 從零至七取樣，`numerify(null)` 回傳空值。次數和機率百分比用整數，嚴格模式用布林值，浮點上下界用數值，模式用文字。Rust 驗證這些型別，並拒絕有參數的 formatter 收到多餘參數。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -331,7 +331,7 @@ use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
     let faker = Faker::new("en-US")?;
     let number = faker.format("numberBetween", &[7.into(), 7.into()])?;
-    let pattern = faker.getFormatter("regexify")?;
+    let pattern = faker.get_formatter("regexify")?;
     let code = pattern(&["^X{2}$".into()])?;
     Ok((number, code))
 }
@@ -341,7 +341,7 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
 
 用 `add_extension` 註冊擴充方法，再透過 `ext(id)` 或 `format("Vendor\Package->method", args)` 查找。擴充識別碼區分大小寫，方法查找忽略 ASCII 大小寫。限定名稱直接查找擴充。未知擴充回傳 `UnknownFakerExtension`，已註冊擴充缺少方法時回傳 `UnknownFakerFormatter`。
 
-`Faker\Extension\` 下的內建識別碼包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mimeType`、`extension` 和 `filePath`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次註冊同一識別碼會取代其方法集。數字、條碼、血型和檔案的產生器具名方法使用已註冊擴充。Rust 型別化方法繼續使用內建實作。取代前取得的擴充控制代碼或 formatter 保留已解析的回呼。
+`Faker\Extension\` 下的內建識別碼包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mime_type`、`extension` 和 `file_path`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次註冊同一識別碼會取代其方法集。數字、條碼、血型和檔案的產生器具名方法使用已註冊擴充。Rust 型別化方法繼續使用內建實作。取代前取得的擴充控制代碼或 formatter 保留已解析的回呼。
 
 限定名稱也可用於 `parse` 和 `unique(false).format(name, args)`，或在既有 `optional` 與 `valid` 回呼中傳給 `format`。
 
@@ -365,9 +365,9 @@ fn sample_extension() -> DatabaseResult<(Value, String)> {
 
 ### 日期、版本與暫存檔擴充 {#date-version-file-extensions}
 
-用 `DateTimeExtension` 呼叫 `date`、`time`、`unixTime`、`dateTime`、`dateTimeAD`、`iso8601`、`amPm`、`dayOfMonth`、`dayOfWeek`、`month`、`monthName`、`year`、`century` 和 `timezone`。日期與時間採用 PHP 格式標記，時間上限可用 Unix 秒或支援的日期運算式。具名 `dateTime` 和 `dateTimeAD` 回傳帶指定 IANA 時區偏移的 RFC 3339 文字，無效時區回傳錯誤。
+用 `DateTimeExtension` 呼叫 `date`、`time`、`unix_time`、`date_time`、`date_time_ad`、`iso8601`、`am_pm`、`day_of_month`、`day_of_week`、`month`、`month_name`、`year`、`century` 和 `timezone`。日期與時間採用 PHP 格式標記，時間上限可用 Unix 秒或支援的日期運算式。具名 `date_time` 和 `date_time_ad` 回傳帶指定 IANA 時區偏移的 RFC 3339 文字，無效時區回傳錯誤。
 
-`VersionExtension` 提供 `semver(preRelease, build)`，兩個開關預設關閉。開啟對應開關後，有機率附加預發行或建置標記。預發行標記可包含數字識別碼，建置標記使用七字元雜湊或時間戳記。`FileExtension->filePath` 和 `filePath()` 建立空暫存檔並回傳路徑，呼叫者使用後刪除。檔案由作業系統隨機命名，獨立於 Faker 的種子。
+`VersionExtension` 提供 `semver(pre_release, build)`，兩個開關預設關閉。開啟對應開關後，有機率附加預發行或建置標記。預發行標記可包含數字識別碼，建置標記使用七字元雜湊或時間戳記。`FileExtension->filePath` 和 `file_path()` 建立空暫存檔並回傳路徑，呼叫者使用後刪除。檔案由作業系統隨機命名，獨立於 Faker 的種子。
 
 ```rust
 use openrust::database::{
@@ -384,7 +384,7 @@ fn sample_core_extensions() -> DatabaseResult<(Value, Value)> {
 }
 ```
 
-具名日期擴充也提供 `dateTimeBetween`、`dateTimeInInterval`、`dateTimeThisWeek`、`dateTimeThisMonth`、`dateTimeThisYear`、`dateTimeThisDecade` 和 `dateTimeThisCentury`。區間方法接受相對日期運算式，可以往過去取樣。週期方法以上游的日曆邊界為起點，可傳入結束時間。這些方法回傳 RFC 3339 文字。日期運算式使用應用程式時區，選用的 IANA 時區參數決定輸出偏移。
+具名日期擴充也提供 `date_time_between`、`date_time_in_interval`、`dateTimeThisWeek`、`date_time_this_month`、`date_time_this_year`、`date_time_this_decade` 和 `date_time_this_century`。區間方法接受相對日期運算式，可以往過去取樣。週期方法以上游的日曆邊界為起點，可傳入結束時間。這些方法回傳 RFC 3339 文字。日期運算式使用應用程式時區，選用的 IANA 時區參數決定輸出偏移。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -403,9 +403,9 @@ fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
 
 ### 文字產生 {#text-generation}
 
-用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 產生指定數量的清單。對應的 `AsText` 方法用空格連接單字或句子，用空行分隔段落。`sentenceWithWordCount(count, variable)` 和 `paragraph(count, variable)` 支援固定數量或依上游 Faker 規則浮動。原有依範圍取樣的 `sentence(words)` 也可以繼續使用。`text(max)` 以 UTF-8 位元組為上限。上限不足五個位元組或無法容納產生項目時回傳錯誤。這些方法皆支援 `unique`。詞庫由 fake-rs 依語言提供。
+用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 產生指定數量的清單。對應的 `AsText` 方法用空格連接單字或句子，用空行分隔段落。`sentence_with_word_count(count, variable)` 和 `paragraph(count, variable)` 支援固定數量或依上游 Faker 規則浮動。原有依範圍取樣的 `sentence(words)` 也可以繼續使用。`text(max)` 以 UTF-8 位元組為上限。上限不足五個位元組或無法容納產生項目時回傳錯誤。這些方法皆支援 `unique`。詞庫由 fake-rs 依語言提供。
 
-用 `format` 呼叫 `word`、`words`、`sentence`、`sentences`、`paragraph`、`paragraphs`、`text`、`realText` 和 `realTextBetween`。複數方法回傳 JSON 陣列，第二個參數為 true 時合併為文字。`sentence`、`paragraph` 和 `slug` 的第二個參數傳 false 時固定數量。`password` 接收最短和最長長度。網路和 User Agent 的具名方法沿用既有產生器。
+用 `format` 呼叫 `word`、`words`、`sentence`、`sentences`、`paragraph`、`paragraphs`、`text`、`real_text` 和 `real_text_between`。複數方法回傳 JSON 陣列，第二個參數為 true 時合併為文字。`sentence`、`paragraph` 和 `slug` 的第二個參數傳 false 時固定數量。`password` 接收最短和最長長度。網路和 User Agent 的具名方法沿用既有產生器。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -420,17 +420,17 @@ fn sample_named_text() -> DatabaseResult<(Value, Value)> {
 
 ### 預留字元格式化 {#pattern-formatters}
 
-用 `numerify(Some(pattern))` 將 `#` 替換為數字、將 `%` 替換為非零數字。`lexify` 將 `?` 替換為 ASCII 小寫字母。`bothify` 處理這三種預留字元，並以相同機率將每個 `*` 替換為數字或小寫字母。`asciify` 將 `*` 替換為 `!` 至 `~` 的可列印 ASCII 字元。其餘字元照原樣保留。傳入 `None` 使用上游 Faker 預設範本。`randomLetter()` 和 `randomAscii()` 回傳單一 Rust 字元。六個方法皆支援 `unique`。
+用 `numerify(Some(pattern))` 將 `#` 替換為數字、將 `%` 替換為非零數字。`lexify` 將 `?` 替換為 ASCII 小寫字母。`bothify` 處理這三種預留字元，並以相同機率將每個 `*` 替換為數字或小寫字母。`asciify` 將 `*` 替換為 `!` 至 `~` 的可列印 ASCII 字元。其餘字元照原樣保留。傳入 `None` 使用上游 Faker 預設範本。`random_letter()` 和 `random_ascii()` 回傳單一 Rust 字元。六個方法皆支援 `unique`。
 
 用 `regexify(pattern)?` 從基本正規表示式產生樣本。支援可選的斜線分隔符號和外層錨點、字面值、ASCII 字元類別和範圍、`\d`、`\w`、點號、一般群組、分支和有限重複。與上游 Faker 相同，`*` 和 `+` 分別為目前範本選取一至九的重複上限。語法錯誤、環視和反向參照等未支援功能，以及超出產生限制的模式均回傳錯誤。`unique(false).regexify(pattern)?` 可對結果去重。
 
 ### 集合取樣 {#collection-sampling}
 
-用 `randomElement(values)` 借用一個元素，空切片回傳 `None`。`randomKey(values)` 回傳從零開始的位置。若要從映射鍵或列舉變體中選取，將鍵或變體的切片傳給 `randomElement`。`randomElements(values, count, allowDuplicates)?` 接受 `Some(n)` 固定抽取數量，或用 `None` 在一到切片長度之間隨機選取數量。不放回時每個位置最多抽一次，不同位置上的相同值仍可同時出現。零筆回傳空向量。非零取樣要求切片非空，不放回取樣的數量不能超過切片長度。
+用 `random_element(values)` 借用一個元素，空切片回傳 `None`。`random_key(values)` 回傳從零開始的位置。若要從映射鍵或列舉變體中選取，將鍵或變體的切片傳給 `random_element`。`random_elements(values, count, allow_duplicates)?` 接受 `Some(n)` 固定抽取數量，或用 `None` 在一到切片長度之間隨機選取數量。不放回時每個位置最多抽一次，不同位置上的相同值仍可同時出現。零筆回傳空向量。非零取樣要求切片非空，不放回取樣的數量不能超過切片長度。
 
-用 `shuffleArray(values)` 回傳打亂後的副本，或用 `shuffleString(value)` 依 Unicode 純量值打亂字串。`boolean(None)` 有 50% 的機率回傳 true，傳入 `Some(75)` 可設為 75%。這些方法均支援 `unique`，泛型取樣與陣列打亂依 JSON 序列化結果判斷重複。
+用 `shuffle_array(values)` 回傳打亂後的副本，或用 `shuffle_string(value)` 依 Unicode 純量值打亂字串。`boolean(None)` 有 50% 的機率回傳 true，傳入 `Some(75)` 可設為 75%。這些方法均支援 `unique`，泛型取樣與陣列打亂依 JSON 序列化結果判斷重複。
 
-具名 `randomElement`、`randomElements`、`randomKey`、`shuffle`、`shuffleArray` 和 `shuffleString` 透過 `format` 接收執行時參數。集合使用 `Value::Json` 陣列或物件。多項抽樣與集合洗牌回傳 JSON 陣列。`randomKey` 回傳陣列的數字索引或 JSON 物件的文字鍵。空集合的 `randomElement` 與 `randomKey` 回傳空值。`randomElements` 省略數量時取一項，明確傳入空值時從非空集合隨機決定正數數量。`shuffleString` 依 UTF-8 碼點洗牌。`passthrough` 保留傳入的 `Value` 及型別。
+具名 `random_element`、`random_elements`、`random_key`、`shuffle`、`shuffle_array` 和 `shuffle_string` 透過 `format` 接收執行時參數。集合使用 `Value::Json` 陣列或物件。多項抽樣與集合洗牌回傳 JSON 陣列。`random_key` 回傳陣列的數字索引或 JSON 物件的文字鍵。空集合的 `random_element` 與 `random_key` 回傳空值。`random_elements` 省略數量時取一項，明確傳入空值時從非空集合隨機決定正數數量。`shuffle_string` 依 UTF-8 碼點洗牌。`passthrough` 保留傳入的 `Value` 及型別。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -447,7 +447,7 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### 語言、國家和貨幣樣本 {#locale-and-code-samples}
 
-用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 從固定上游 Faker 目錄產生測試值。`randomLocale()` 抽取 `en-GB`、`zh-Hant` 等語言地區識別碼，對應上游 Faker 的 `locale()` 產生器。OpenRust 既有的 `locale()` 讀取目前產生器的設定。樣本目錄包含歷史識別碼。六個產生器均支援 `unique`。 這些目錄也可透過 `format` 依名稱呼叫。名稱 `locale` 取樣測試識別碼，`faker.locale()` 則讀取產生器的設定。
+用 `language_code()`、`country_code()`、`country_iso_alpha3()`、`currency_code()` 和 `emoji()` 從固定上游 Faker 目錄產生測試值。`random_locale()` 抽取 `en-GB`、`zh-Hant` 等語言地區識別碼，對應上游 Faker 的 `locale()` 產生器。OpenRust 既有的 `locale()` 讀取目前產生器的設定。樣本目錄包含歷史識別碼。六個產生器均支援 `unique`。 這些目錄也可透過 `format` 依名稱呼叫。名稱 `locale` 取樣測試識別碼，`faker.locale()` 則讀取產生器的設定。
 
 透過 `format` 呼叫 `toLower` 和 `toUpper`，依 Unicode 規則轉換 UTF-8 文字的大小寫。省略參數會回傳空字串。
 
@@ -470,31 +470,31 @@ fn named_miscellaneous_samples() -> DatabaseResult<[Value; 3]> {
 
 ### 網路位址樣本 {#network-address-samples}
 
-用 `ipv4()`、`localIpv4()`、`ipv6()` 和 `macAddress()` 產生網路測試資料。`ipv4()` 在 `1.0.0.0`–`127.255.255.255` 和 `128.0.0.0`–`255.255.255.254` 兩段中以相同機率選一段，再抽取位址，可能回傳私有或特殊用途位址。`localIpv4()` 在 `10/8`、`172.16/12` 和 `192.168/16` 中以相同機率選一段。IPv6 回傳八組未壓縮的小寫十六進位數，各組省略前導零。MAC 位址由六組以冒號分隔的兩位大寫十六進位數組成。四個方法均支援 `unique`。
+用 `ipv4()`、`local_ipv4()`、`ipv6()` 和 `mac_address()` 產生網路測試資料。`ipv4()` 在 `1.0.0.0`–`127.255.255.255` 和 `128.0.0.0`–`255.255.255.254` 兩段中以相同機率選一段，再抽取位址，可能回傳私有或特殊用途位址。`local_ipv4()` 在 `10/8`、`172.16/12` 和 `192.168/16` 中以相同機率選一段。IPv6 回傳八組未壓縮的小寫十六進位數，各組省略前導零。MAC 位址由六組以冒號分隔的兩位大寫十六進位數組成。四個方法均支援 `unique`。
 
 ### 網域名稱、URL 和 slug {#domain-url-slug-samples}
 
-用 `domainWord()?` 將產生的姓氏轉寫為小寫 ASCII，用 `tld()` 依支援語言地區的上游 Faker 權重抽取後綴，`domainName()?` 將兩者連接。`url()?` 使用上游 HTTP 和 HTTPS 範本，可帶 `www`、slug 和 `.html`。姓氏使用 OpenRust 的語言資料和轉寫規則，與上游 Faker 的 ICU 或備援映射可能不同。姓氏無法轉寫出可用字元時，網域名稱和 URL 產生器回傳錯誤。`slug(count, variable)` 用連字號拼接產生的詞。傳入 `None` 使用六個基準詞、`Some(0)` 回傳空字串，`false` 固定詞數。五個產生器均支援 `unique`。
+用 `domain_word()?` 將產生的姓氏轉寫為小寫 ASCII，用 `tld()` 依支援語言地區的上游 Faker 權重抽取後綴，`domain_name()?` 將兩者連接。`url()?` 使用上游 HTTP 和 HTTPS 範本，可帶 `www`、slug 和 `.html`。姓氏使用 OpenRust 的語言資料和轉寫規則，與上游 Faker 的 ICU 或備援映射可能不同。姓氏無法轉寫出可用字元時，網域名稱和 URL 產生器回傳錯誤。`slug(count, variable)` 用連字號拼接產生的詞。傳入 `None` 使用六個基準詞、`Some(0)` 回傳空字串，`false` 固定詞數。五個產生器均支援 `unique`。
 
 ### 電子郵件和密碼樣本 {#email-and-password-samples}
 
-用 `email()?` 產生一般電子郵件地址，或用 `companyEmail()?` 產生使用隨機網域的地址。簡體中文的一般電子郵件使用該地區的免費信箱清單。`safeEmail()` 使用保留的範例網域，`freeEmail()` 使用地區信箱服務網域。只需網域時用 `safeEmailDomain()` 或 `freeEmailDomain()`。使用者名稱使用地區姓名或詞庫並轉寫為 ASCII。若無可用字元，OpenRust 產生一個 ASCII 字母，保留既有使用者名稱及電子郵件方法的直接回傳型別。`password(min, max)?` 使用從 `!` 到 `~` 的可列印 ASCII 字元，長度含兩端，接受反向邊界，預設值為 6 和 20。以上產生器均支援 `unique`。
+用 `email()?` 產生一般電子郵件地址，或用 `company_email()?` 產生使用隨機網域的地址。簡體中文的一般電子郵件使用該地區的免費信箱清單。`safe_email()` 使用保留的範例網域，`free_email()` 使用地區信箱服務網域。只需網域時用 `safe_email_domain()` 或 `free_email_domain()`。使用者名稱使用地區姓名或詞庫並轉寫為 ASCII。若無可用字元，OpenRust 產生一個 ASCII 字母，保留既有使用者名稱及電子郵件方法的直接回傳型別。`password(min, max)?` 使用從 `!` 到 `~` 的可列印 ASCII 字元，長度含兩端，接受反向邊界，預設值為 6 和 20。以上產生器均支援 `unique`。
 
 ### 地區 URL 範本 {#regional-url-templates}
 
-`ne-NP` 的 `url()` 使用固定 HTTP 範本，依範本加上 `www`、`.np` 或路徑。`uk-UA` 的 `companyUrl()` 回傳原始西里爾字母公司標籤，可附加連字號與公司後綴。標籤沒有協定和網域後綴。兩個產生器均支援 `unique`。
+`ne-NP` 的 `url()` 使用固定 HTTP 範本，依範本加上 `www`、`.np` 或路徑。`uk-UA` 的 `company_url()` 回傳原始西里爾字母公司標籤，可附加連字號與公司後綴。標籤沒有協定和網域後綴。兩個產生器均支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_url_sample() -> DatabaseResult<(String, String)> {
-    Ok((fake(Some("ne-NP"))?.url()?, fake(Some("uk-UA"))?.companyUrl()?))
+    Ok((fake(Some("ne-NP"))?.url()?, fake(Some("uk-UA"))?.company_url()?))
 }
 ```
 
 ### 地區網域與信箱 {#regional-domains-and-email}
 
-`tld()` 和 `freeEmailDomain()` 從固定 Internet 詞表取樣，重複項目保留原權重。沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本的 `domainName()` 使用羅馬字姓氏詞表。其他地區組合 `domainWord()` 和網域後綴。尼泊爾的一般信箱範本包含兩個公司網域、一個免費網域、三個附加 `.np` 的公司網域。直接呼叫 `companyEmail()` 使用一般網域。
+`tld()` 和 `free_email_domain()` 從固定 Internet 詞表取樣，重複項目保留原權重。沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本的 `domain_name()` 使用羅馬字姓氏詞表。其他地區組合 `domain_word()` 和網域後綴。尼泊爾的一般信箱範本包含兩個公司網域、一個免費網域、三個附加 `.np` 的公司網域。直接呼叫 `company_email()` 使用一般網域。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -506,30 +506,30 @@ fn regional_email_sample() -> DatabaseResult<String> {
 
 ### 地區使用者名稱 {#regional-usernames}
 
-`userName()` 在沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本使用固定 上游 Faker 羅馬字姓名詞表。立陶宛範本從相同性別群組取名字與姓氏。簡體中文使用固定 Lorem 詞表和含底線的範本。`safeEmail()` 和 `freeEmail()` 共用此產生器作為信箱本地部分。通用路徑使用 Rust 音譯，音譯後只剩分隔符時產生一個字母，保留使用者名稱與信箱的無錯誤簽名。
+`user_name()` 在沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本使用固定 上游 Faker 羅馬字姓名詞表。立陶宛範本從相同性別群組取名字與姓氏。簡體中文使用固定 Lorem 詞表和含底線的範本。`safe_email()` 和 `free_email()` 共用此產生器作為信箱本地部分。通用路徑使用 Rust 音譯，音譯後只剩分隔符時產生一個字母，保留使用者名稱與信箱的無錯誤簽名。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn username_sample() -> DatabaseResult<String> {
-    fake(Some("lt-LT"))?.unique(false).userName()
+    fake(Some("lt-LT"))?.unique(false).user_name()
 }
 ```
 
-上述六個地區的 Internet Provider 提供 `firstNameAscii()` 和 `lastNameAscii()`，可直接從使用者名稱和網域名稱使用的詞表抽取，保留詞表原有拼法。這兩個方法支援 `unique()`，其他地區呼叫時回傳錯誤。
+上述六個地區的 Internet Provider 提供 `first_name_ascii()` 和 `last_name_ascii()`，可直接從使用者名稱和網域名稱使用的詞表抽取，保留詞表原有拼法。這兩個方法支援 `unique()`，其他地區呼叫時回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
     let faker = fake(Some("ar-EG"))?;
-    Ok((faker.unique(false).firstNameAscii()?, faker.lastNameAscii()?))
+    Ok((faker.unique(false).first_name_ascii()?, faker.last_name_ascii()?))
 }
 ```
 
 ### 電話號碼和 IMEI 樣本 {#phone-and-imei-samples}
 
-用 `phoneNumber()` 產生固定 上游 Faker 地區 Provider 的顯示號碼。地區沒有 PhoneNumber Provider 時使用美國顯示範本。孟加拉使用孟加拉數字，越南依所選區碼決定用戶號碼長度。巴西也提供僅含數字的 `phoneNumberCleared()`，支援 `unique()`。 `e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
+用 `phone_number()` 產生固定 上游 Faker 地區 Provider 的顯示號碼。地區沒有 PhoneNumber Provider 時使用美國顯示範本。孟加拉使用孟加拉數字，越南依所選區碼決定用戶號碼長度。巴西也提供僅含數字的 `phone_number_cleared()`，支援 `unique()`。 `e164_phone_number()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -537,15 +537,15 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn display_phone_sample() -> DatabaseResult<(String, String)> {
     let bangladesh = fake(Some("bn-BD"))?;
     let brazil = fake(Some("pt-BR"))?;
-    Ok((bangladesh.phoneNumber(), brazil.unique(false).phoneNumberCleared()?))
+    Ok((bangladesh.phone_number(), brazil.unique(false).phone_number_cleared()?))
 }
 ```
 
 ### 地區手機、市話與分機號碼樣本 {#regional-phone-samples}
 
-支援對應介面的地區可用 `mobileNumber()` 和 `fixedLineNumber()`。馬來西亞也支援 `mobileNumberWithOptions(countryCodePrefix, formatting)` 和 `fixedLineNumberWithOptions(countryCodePrefix, formatting)`，預設含國家前綴和分隔符號。巴西的 `cellphoneNumber(formatted)` 和 `landlineNumber(formatted)` 預設含格式。香港提供 `landlineNumber(None)`，韓國使用 `cellPhoneNumber()`，希臘保留 `mobilePhoneNumber()`。
+支援對應介面的地區可用 `mobile_number()` 和 `fixed_line_number()`。馬來西亞也支援 `mobile_number_with_options(country_code_prefix, formatting)` 和 `fixed_line_number_with_options(country_code_prefix, formatting)`，預設含國家前綴和分隔符號。巴西的 `cellphone_number(formatted)` 和 `landline_number(formatted)` 預設含格式。香港提供 `landline_number(None)`，韓國使用 `cell_phone_number()`，希臘保留 `mobile_phone_number()`。
 
-用 `phoneNumberWithExtension()` 產生美國或加拿大的分機號碼。地區沒有 PhoneNumber Provider 時回退至 `en-US`，沿用美國的分機與 E.164 規則。地區無對應介面時回傳錯誤。各介面皆支援 `unique()`。
+用 `phone_number_with_extension()` 產生美國或加拿大的分機號碼。地區沒有 PhoneNumber Provider 時回退至 `en-US`，沿用美國的分機與 E.164 規則。地區無對應介面時回傳錯誤。各介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -554,8 +554,8 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
     let malaysia = fake(Some("ms-MY"))?;
     let canada = fake(Some("en-CA"))?;
     Ok((
-        malaysia.mobileNumberWithOptions(false, false)?,
-        canada.unique(false).phoneNumberWithExtension()?,
+        malaysia.mobile_number_with_options(false, false)?,
+        canada.unique(false).phone_number_with_extension()?,
     ))
 }
 ```
@@ -577,31 +577,31 @@ fn named_phone_samples() -> DatabaseResult<[Value; 2]> {
 
 ### 免付費電話、服務號碼與 VoIP 樣本 {#phone-service-samples}
 
-美國、加拿大、德國和羅馬尼亞使用 `tollFreePhoneNumber()`。沒有 PhoneNumber Provider 的地區繼承美國格式。希臘、紐西蘭、南非和西班牙使用 `tollFreeNumber()`。新加坡提供 `tollFreeLineNumber()`、`tollFreeInternationalNumber()` 和 `premiumPhoneNumber()`。法國提供 `serviceNumber()`，羅馬尼亞提供 `premiumRatePhoneNumber()`，希臘提供 `personalNumber()`、`sharedCostNumber()` 和 `premiumRateNumber()`。
+美國、加拿大、德國和羅馬尼亞使用 `toll_free_phone_number()`。沒有 PhoneNumber Provider 的地區繼承美國格式。希臘、紐西蘭、南非和西班牙使用 `toll_free_number()`。新加坡提供 `toll_free_line_number()`、`toll_free_international_number()` 和 `premium_phone_number()`。法國提供 `service_number()`，羅馬尼亞提供 `premium_rate_phone_number()`，希臘提供 `personal_number()`、`shared_cost_number()` 和 `premium_rate_number()`。
 
-新加坡和馬來西亞提供 `voipNumber()`。馬來西亞也支援 `voipNumberWithOptions(countryCodePrefix, formatting)`，預設包含國家前綴和分隔符號。各方法皆支援 `unique()`，目前地區的 Provider 缺少對應介面時回傳錯誤。
+新加坡和馬來西亞提供 `voip_number()`。馬來西亞也支援 `voip_number_with_options(country_code_prefix, formatting)`，預設包含國家前綴和分隔符號。各方法皆支援 `unique()`，目前地區的 Provider 缺少對應介面時回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn phone_service_sample() -> DatabaseResult<(String, String)> {
     Ok((
-        fake(Some("en-SG"))?.unique(false).tollFreeLineNumber()?,
-        fake(Some("ms-MY"))?.voipNumberWithOptions(false, false)?,
+        fake(Some("en-SG"))?.unique(false).toll_free_line_number()?,
+        fake(Some("ms-MY"))?.voip_number_with_options(false, false)?,
     ))
 }
 ```
 
 ### 地區號碼組成 {#regional-phone-components}
 
-使用 `areaCode()`、`exchangeCode()` 和 `tollFreeAreaCode()` 產生支援的號碼組成。回傳字串以保留前導零。芬蘭提供本地區碼和國際區碼變體，`numberFormat()` 回傳含預留位置的範本。巴西的 `cellphone(formatted)`、`landline(formatted)` 和 `phone(formatted)` 產生不含區碼的用戶號碼。這些介面也支援 `unique()`。
+使用 `area_code()`、`exchange_code()` 和 `toll_free_area_code()` 產生支援的號碼組成。回傳字串以保留前導零。芬蘭提供本地區碼和國際區碼變體，`number_format()` 回傳含預留位置的範本。巴西的 `cellphone(formatted)`、`landline(formatted)` 和 `phone(formatted)` 產生不含區碼的用戶號碼。這些介面也支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn phone_component_sample() -> DatabaseResult<(String, String)> {
     Ok((
-        fake(Some("en-CA"))?.unique(false).tollFreeAreaCode()?,
+        fake(Some("en-CA"))?.unique(false).toll_free_area_code()?,
         fake(Some("pt-BR"))?.cellphone(Some(false))?,
     ))
 }
@@ -622,7 +622,7 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 
 ### 檔案範例 {#file-samples}
 
-`mimeType()` 從固定 上游 Faker 目錄選擇 MIME 類型。`fileExtension()` 先選 MIME 群組，再回傳不含點的副檔名。兩個方法與版本 3 的 `uuid()` 都支援 `unique`。`file(sourceDirectory, targetDirectory, fullPath)` 從既有目錄的頂層選取可讀檔案，再複製到另一個既有目錄，產生的檔名保留來源副檔名。Rust 使用明確路徑，失敗時回傳 I/O 錯誤。
+`mime_type()` 從固定 上游 Faker 目錄選擇 MIME 類型。`file_extension()` 先選 MIME 群組，再回傳不含點的副檔名。兩個方法與版本 3 的 `uuid()` 都支援 `unique`。`file(source_directory, target_directory, full_path)` 從既有目錄的頂層選取可讀檔案，再複製到另一個既有目錄，產生的檔名保留來源副檔名。Rust 使用明確路徑，失敗時回傳 I/O 錯誤。
 
 ```rust
 use std::{io, path::{Path, PathBuf}};
@@ -646,16 +646,16 @@ fn copy_named_sample(source: &str, target: &str) -> DatabaseResult<Value> {
 
 ### 預留圖片 {#placeholder-images}
 
-`format("imageUrl", arguments)` 依序接收寬、高、類別、隨機文字開關、指定文字、灰階開關和格式。`getFormats` 與 `getFormatConstants` 回傳 JSON。下載使用 `formatAsync("image", arguments).await`，參數依序為目錄、寬、高、類別、是否回傳完整路徑、隨機文字開關、指定文字、灰階開關和格式。遠端請求失敗回傳空值，本機 I/O 失敗回傳錯誤。
+`format("imageUrl", arguments)` 依序接收寬、高、類別、隨機文字開關、指定文字、灰階開關和格式。`get_formats` 與 `get_format_constants` 回傳 JSON。下載使用 `format_async("image", arguments).await`，參數依序為目錄、寬、高、類別、是否回傳完整路徑、隨機文字開關、指定文字、灰階開關和格式。遠端請求失敗回傳空值，本機 I/O 失敗回傳錯誤。
 
 
-用 `imageUrl(&ImageOptions)` 產生 上游 Faker 預留圖片 URL。預設是 640 × 480 的 PNG，隨機產生文字和背景，也支援 JPG 和 JPEG。`image(directory, fullPath, options).await` 下載圖片，省略目錄時使用系統暫存目錄。HTTP 請求失敗或回應中斷時回傳空路徑，無效選項與本機寫入失敗會回傳 I/O 錯誤。
+用 `image_url(&ImageOptions)` 產生 上游 Faker 預留圖片 URL。預設是 640 × 480 的 PNG，隨機產生文字和背景，也支援 JPG 和 JPEG。`image(directory, full_path, options).await` 下載圖片，省略目錄時使用系統暫存目錄。HTTP 請求失敗或回應中斷時回傳空路徑，無效選項與本機寫入失敗會回傳 I/O 錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
 
 fn placeholder_sample() -> DatabaseResult<String> {
-    fake(None)?.imageUrl(&ImageOptions {
+    fake(None)?.image_url(&ImageOptions {
         width: 320,
         height: 200,
         gray: true,
@@ -667,9 +667,9 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 ### 地區身分編號樣本 {#regional-identity-samples}
 
-具名身分識別方法接受 `YYYY-MM-DD` 文字日期，參數順序依地區提供器決定。例如 `pesel` 先接收出生日期再接收性別，`nik` 先接收性別再接收出生日期。`tcNoIsValid` 等具名驗證方法接收文字識別碼。
+具名身分識別方法接受 `YYYY-MM-DD` 文字日期，參數順序依地區提供器決定。例如 `pesel` 先接收出生日期再接收性別，`nik` 先接收性別再接收出生日期。`tc_no_is_valid` 等具名驗證方法接收文字識別碼。
 
-具名 `cnp` 接收性別、完整或部分出生日期、縣代碼和是否為居民。`myKadNumber` 的第二個參數可傳格式化開關或自訂分隔符號。臺灣 `vat` 回傳整數，`calculateModulus97` 回傳兩位數文字。
+具名 `cnp` 接收性別、完整或部分出生日期、縣代碼和是否為居民。`my_kad_number` 的第二個參數可傳格式化開關或自訂分隔符號。臺灣 `vat` 回傳整數，`calculate_modulus97` 回傳兩位數文字。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -686,63 +686,63 @@ fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
 ```
 
 
-使用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 產生測試資料。美國與英國編號沿用固定 上游 Faker 的範圍和前綴規則。臺灣編號會計算檢查碼，性別可傳入 `Some("male")`、`Some("female")` 或 `None` 隨機產生。三個方法都支援 `unique`，遇到未支援的語言會回傳錯誤。
+使用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personal_identity_number(gender)` 產生測試資料。美國與英國編號沿用固定 上游 Faker 的範圍和前綴規則。臺灣編號會計算檢查碼，性別可傳入 `Some("male")`、`Some("female")` 或 `None` 隨機產生。三個方法都支援 `unique`，遇到未支援的語言會回傳錯誤。
 
-`ssn()` 也支援 `th-TH`、`de-AT` 與 `is-IS`。泰語使用與美式英語相同的 上游 Faker 格式。奧地利和冰島格式從最近 100 年內取樣日期並計算檢查碼。使用 `de-AT` 時，可呼叫 `ssnWithBirthdate(Some(date))` 傳入 `jiff::civil::Date`，或用 `None` 取樣日期。兩個 SSN 方法共用 `unique` 歷史。
+`ssn()` 也支援 `th-TH`、`de-AT` 與 `is-IS`。泰語使用與美式英語相同的 上游 Faker 格式。奧地利和冰島格式從最近 100 年內取樣日期並計算檢查碼。使用 `de-AT` 時，可呼叫 `ssn_with_birthdate(Some(date))` 傳入 `jiff::civil::Date`，或用 `None` 取樣日期。兩個 SSN 方法共用 `unique` 歷史。
 
-`personalIdentityNumber(gender)` 也支援 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五種可透過 `personalIdentityNumberWithBirthdate(birthdate, gender)` 指定出生日期。立陶宛可用 `personalIdentityNumberWithSerial(birthdate, gender, serial)` 指定序號前綴。波蘭採用身分證格式。固定版挪威 provider 的末兩位隨機產生。
+`personal_identity_number(gender)` 也支援 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五種可透過 `personal_identity_number_with_birthdate(birthdate, gender)` 指定出生日期。立陶宛可用 `personal_identity_number_with_serial(birthdate, gender, serial)` 指定序號前綴。波蘭採用身分證格式。固定版挪威 provider 的末兩位隨機產生。
 
-使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `jiff::civil::Date`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 上游 Faker 的奇數性別位。`taxpayerIdentificationNumber()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
+使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `jiff::civil::Date`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 上游 Faker 的奇數性別位。`taxpayer_identification_number()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
 
 使用 `pt-BR` 時，可使用 `cpf(formatted)`、`rg(formatted)` 和 `cnpj(formatted)`。傳入 `None` 使用預設標點，傳入 `Some(false)` 只傳回數字。RG 沿用固定的聖保羅 provider，檢查碼為數字。CNPJ 使用分支號 `0001`。三個方法都支援 `unique`。
 
-`dni()` 在 `es-ES` 產生八位數字和模 23 檢查字母，在 `es-PE` 產生八位數字。秘魯的 `ruc(isNaturalPerson)` 預設使用 `20` 前綴，傳入 `Some(true)` 時使用 `10`，固定版產生器接著附加九位隨機數字。`licenceCode()` 依 `es-ES` 或 `en-ZA` 取樣駕照類別。以上方法都支援 `unique`。
+`dni()` 在 `es-ES` 產生八位數字和模 23 檢查字母，在 `es-PE` 產生八位數字。秘魯的 `ruc(is_natural_person)` 預設使用 `20` 前綴，傳入 `Some(true)` 時使用 `10`，固定版產生器接著附加九位隨機數字。`licence_code()` 依 `es-ES` 或 `en-ZA` 取樣駕照類別。以上方法都支援 `unique`。
 
-`idNumber()` 支援 `nl-NL`、`en-ZA`、`ar-SA` 和 `mn-MN`。南非可用 `idNumberWithBirthdate(birthdate, citizen, gender)` 指定出生日期、公民身分及性別。沙烏地阿拉伯的 `nationalIdNumber()` 固定使用前綴 `1`，`foreignerIdNumber()` 固定使用前綴 `2`。埃及可用 `nationalIdNumberWithGender(gender)` 控制登記序號奇偶，或用 `nationalIdNumber()` 採用預設規則。埃及產生器的末位隨機產生。蒙古語的 `alphabet()` 傳回一個西里爾字母，埃及的 `governorateId()` 傳回兩位省份代碼。以上方法都支援 `unique`。
+`id_number()` 支援 `nl-NL`、`en-ZA`、`ar-SA` 和 `mn-MN`。南非可用 `id_number_with_birthdate(birthdate, citizen, gender)` 指定出生日期、公民身分及性別。沙烏地阿拉伯的 `national_id_number()` 固定使用前綴 `1`，`foreigner_id_number()` 固定使用前綴 `2`。埃及可用 `national_id_number_with_gender(gender)` 控制登記序號奇偶，或用 `national_id_number()` 採用預設規則。埃及產生器的末位隨機產生。蒙古語的 `alphabet()` 傳回一個西里爾字母，埃及的 `governorate_id()` 傳回兩位省份代碼。以上方法都支援 `unique`。
 
-`passportNumber()` 在 `lt-LT` 傳回八位數字，在 `lv-LV` 傳回兩個小寫字母和七位數字。`tcNo()` 沿用固定土耳其產生器，允許前導零，並保留可能在後綴產生負號的上游帶符號餘數。`Faker::tcNoChecksum(prefix)` 接收九位 ASCII 數字，`Faker::tcNoIsValid(number)` 比對兩字元後綴，前綴無效時回傳錯誤。兩個產生方法都支援 `unique`。
+`passport_number()` 在 `lt-LT` 傳回八位數字，在 `lv-LV` 傳回兩個小寫字母和七位數字。`tc_no()` 沿用固定土耳其產生器，允許前導零，並保留可能在後綴產生負號的上游帶符號餘數。`Faker::tc_no_checksum(prefix)` 接收九位 ASCII 數字，`Faker::tc_no_is_valid(number)` 比對兩字元後綴，前綴無效時回傳錯誤。兩個產生方法都支援 `unique`。
 
-`en-US` 的 `ein()` 傳回兩位前綴、連字號和七位後綴。`ru-RU` 的 `inn10(area)` 和舊名 `inn(area)` 產生十位 INN。傳入 `None`、空字串或零時，從 01 至 91 抽樣地區編號。明確指定的地區編號須用 ASCII 數字表示 1 至 99。`kpp(inn)` 取 INN 前四位並附加 `01001`，省略或不足四個位元組時產生新 INN。`Faker::inn10Checksum` 根據九位前綴計算檢查碼，`Faker::inn10IsValid` 驗證完整號碼。四個產生方法都支援 `unique`。
+`en-US` 的 `ein()` 傳回兩位前綴、連字號和七位後綴。`ru-RU` 的 `inn10(area)` 和舊名 `inn(area)` 產生十位 INN。傳入 `None`、空字串或零時，從 01 至 91 抽樣地區編號。明確指定的地區編號須用 ASCII 數字表示 1 至 99。`kpp(inn)` 取 INN 前四位並附加 `01001`，省略或不足四個位元組時產生新 INN。`Faker::inn10_checksum` 根據九位前綴計算檢查碼，`Faker::inn10_is_valid` 驗證完整號碼。四個產生方法都支援 `unique`。
 
-`fr-FR` 的 `siret(None)` 依 3–3–3–5 分組產生法國機構編號，傳入 `Some(false)` 可取得無空格形式。九位 SIREN 前綴和十四位完整編號分別通過 Luhn 檢查。`pl-PL` 的 `regon()` 產生九位企業登記號，`regonLocal()` 以有效的 REGON 為前綴產生十四位本地登記號。兩者採用加權模 11 檢查，餘數為 10 時檢查碼為零。三個產生方法都支援 `unique`。
+`fr-FR` 的 `siret(None)` 依 3–3–3–5 分組產生法國機構編號，傳入 `Some(false)` 可取得無空格形式。九位 SIREN 前綴和十四位完整編號分別通過 Luhn 檢查。`pl-PL` 的 `regon()` 產生九位企業登記號，`regon_local()` 以有效的 REGON 為前綴產生十四位本地登記號。兩者採用加權模 11 檢查，餘數為 10 時檢查碼為零。三個產生方法都支援 `unique`。
 
 `cs-CZ` 的 `ico()` 產生帶有檢查碼的八位捷克企業編號。`da-DK` 的 `cvr()` 傳回八位數字，`p()` 傳回十位數字。`is-IS` 的 `vsk()` 傳回五位數字。丹麥和冰島的格式沿用上游樣本規則，首位為非零數字。四個方法都支援 `unique`。
 
-`ar-SA` 的 `companyIdNumber()` 產生以 `700` 開頭的十位沙烏地阿拉伯企業編號。`ar-EG` 的 `companyTaxIdNumber()` 傳回十位企業稅號，`companyTradeRegisterNumber()` 傳回七位商業登記號。埃及兩種編號允許前導零。三種格式都附加 Luhn 檢查碼並支援 `unique`。
+`ar-SA` 的 `company_id_number()` 產生以 `700` 開頭的十位沙烏地阿拉伯企業編號。`ar-EG` 的 `company_tax_id_number()` 傳回十位企業稅號，`company_trade_register_number()` 傳回七位商業登記號。埃及兩種編號允許前導零。三種格式都附加 Luhn 檢查碼並支援 `unique`。
 
-`kk-KZ` 的 `businessIdentificationNumber(date)` 傳回十二位 BIN。可以傳入登記日期指定年月，或傳入 `None` 從本年年初至目前時間取樣。`en-ZA` 的 `companyNumber()` 從過去五十年至目前時間取樣登記年份，傳回 `YYYY/NNNNNN/TT`。兩者都支援 `unique`。
+`kk-KZ` 的 `business_identification_number(date)` 傳回十二位 BIN。可以傳入登記日期指定年月，或傳入 `None` 從本年年初至目前時間取樣。`en-ZA` 的 `company_number()` 從過去五十年至目前時間取樣登記年份，傳回 `YYYY/NNNNNN/TT`。兩者都支援 `unique`。
 
-`zh-Hant` 的 `VAT()` 傳回八位臺灣稅號樣本，型別為整數。現有 `vat(...)` 在此地區傳回相同格式的數字字串，不加國家前綴。`el-GR` 的 `doy()` 從 21 個稅務機關抽樣，`object()` 從 19 種營業項目抽樣。每個方法都支援 `unique`。
+`zh-Hant` 的 `taiwan_vat()` 傳回八位臺灣稅號樣本，型別為整數。現有 `vat(...)` 在此地區傳回相同格式的數字字串，不加國家前綴。`el-GR` 的 `doy()` 從 21 個稅務機關抽樣，`object()` 從 19 種營業項目抽樣。每個方法都支援 `unique`。
 
-`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 上游 Faker 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區使用固定 Person 姓氏詞表。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
+`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 上游 Faker 公司名稱範本，`company_suffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區使用固定 Person 姓氏詞表。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
 
-`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 上游 Faker 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱使用固定日本姓氏詞表，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
+`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 上游 Faker 範本。這四個地區及 `pl-PL` 可用 `company_prefix()` 抽樣機構前綴。用 `zh-Hant` 的 `company_modifier()` 或 `company_en_suffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱使用固定日本姓氏詞表，`company_suffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
 
-`ar-EG`、`ar-JO` 和 `ar-SA` 的公司名稱使用固定上游的阿拉伯語前綴、地區姓氏與後綴。埃及範本也會使用城市名稱。產生器保留後綴詞表中的空格。三個地區的 `companyPrefix()` 和 `companySuffix()` 都支援 `unique`。
+`ar-EG`、`ar-JO` 和 `ar-SA` 的公司名稱使用固定上游的阿拉伯語前綴、地區姓氏與後綴。埃及範本也會使用城市名稱。產生器保留後綴詞表中的空格。三個地區的 `company_prefix()` 和 `company_suffix()` 都支援 `unique`。
 
-`de-DE`、`de-AT`、`de-CH` 和 `cs-CZ` 的 `company()` 使用固定上游的地區姓氏、範本與後綴。捷克名稱一律帶後綴，可以用空格、連字號或 `a` 連接兩個姓氏。三個德語地區也會產生僅含姓氏的公司名稱。`companySuffix()` 支援 `unique`，保留後綴拼寫與原有抽樣權重。
+`de-DE`、`de-AT`、`de-CH` 和 `cs-CZ` 的 `company()` 使用固定上游的地區姓氏、範本與後綴。捷克名稱一律帶後綴，可以用空格、連字號或 `a` 連接兩個姓氏。三個德語地區也會產生僅含姓氏的公司名稱。`company_suffix()` 支援 `unique`，保留後綴拼寫與原有抽樣權重。
 
-`da-DK`、`is-IS`、`fi-FI`、`sv-SE` 和 `nb-NO` 的 `company()` 使用固定上游的地區姓名與後綴詞表，保留範本中的連接詞、標點與抽樣權重。可用 `companySuffix()` 單獨抽樣後綴。兩個方法都支援 `unique`。
+`da-DK`、`is-IS`、`fi-FI`、`sv-SE` 和 `nb-NO` 的 `company()` 使用固定上游的地區姓名與後綴詞表，保留範本中的連接詞、標點與抽樣權重。可用 `company_suffix()` 單獨抽樣後綴。兩個方法都支援 `unique`。
 
-`es-AR`、`es-ES`、`es-PE`、`es-VE`、`pt-BR` 和 `pt-PT` 的 `company()` 使用固定上游的地區姓氏和公司範本。`companySuffix()` 使用對應的後綴詞表，例如巴西的 `Ltda.` 和葡萄牙的 `Lda.`。`companyPrefix()` 新增西班牙和委內瑞拉。三個方法均支援 `unique`。
+`es-AR`、`es-ES`、`es-PE`、`es-VE`、`pt-BR` 和 `pt-PT` 的 `company()` 使用固定上游的地區姓氏和公司範本。`company_suffix()` 使用對應的後綴詞表，例如巴西的 `Ltda.` 和葡萄牙的 `Lda.`。`company_prefix()` 新增西班牙和委內瑞拉。三個方法均支援 `unique`。
 
-`nl-NL` 的 `company()` 組合商品與店鋪類型，或在行業名稱後接姓氏，並可附加荷蘭公司後綴。`nl-BE` 使用比利時姓氏，可附加當地後綴。荷蘭姓氏保留原有大小寫，包括 `van` 等詞。兩個地區都支援 `companySuffix()` 和 `unique`。
+`nl-NL` 的 `company()` 組合商品與店鋪類型，或在行業名稱後接姓氏，並可附加荷蘭公司後綴。`nl-BE` 使用比利時姓氏，可附加當地後綴。荷蘭姓氏保留原有大小寫，包括 `van` 等詞。兩個地區都支援 `company_suffix()` 和 `unique`。
 
-`hr-HR`、`sk-SK` 和 `hu-HU` 的 `company()` 使用固定上游的地區姓名與範本。克羅埃西亞名稱可使用行業前綴或後綴，`companyPrefix()` 可單獨抽樣行業前綴。斯洛伐克範本保留連字號和原有的 `and`。匈牙利名稱可以僅由姓氏組成。三地都支援 `companySuffix()` 和 `unique`。
+`hr-HR`、`sk-SK` 和 `hu-HU` 的 `company()` 使用固定上游的地區姓名與範本。克羅埃西亞名稱可使用行業前綴或後綴，`company_prefix()` 可單獨抽樣行業前綴。斯洛伐克範本保留連字號和原有的 `and`。匈牙利名稱可以僅由姓氏組成。三地都支援 `company_suffix()` 和 `unique`。
 
-`el-GR` 的 `company()` 將希臘姓氏與法定後綴組合。`me-ME` 從固定蒙特內哥羅詞表組合企業名稱和法定類別，可用 `companyName()` 與 `companyType()` 分別抽樣。當地 `companySuffix()` 傳回繼承的 `Ltd`。四個方法都支援 `unique`。
+`el-GR` 的 `company()` 將希臘姓氏與法定後綴組合。`me-ME` 從固定蒙特內哥羅詞表組合企業名稱和法定類別，可用 `company_name()` 與 `company_type()` 分別抽樣。當地 `company_suffix()` 傳回繼承的 `Ltd`。四個方法都支援 `unique`。
 
-`en-GB` 和 `en-ZA` 的 `company()` 組合地區姓氏與繼承的 `Ltd` 後綴。`el-CY` 使用姓氏加賽普勒斯法定後綴，或用連字號連接兩個姓氏。三地都支援 `companySuffix()` 和 `unique`。
+`en-GB` 和 `en-ZA` 的 `company()` 組合地區姓氏與繼承的 `Ltd` 後綴。`el-CY` 使用姓氏加賽普勒斯法定後綴，或用連字號連接兩個姓氏。三地都支援 `company_suffix()` 和 `unique`。
 
-`fr-BE`、`fr-CA`、`fr-CH` 和 `it-CH` 的 `company()` 使用固定上游的地區姓氏與範本。加拿大法語繼承法國公司後綴，瑞士法語及義大利語分別使用自己的後綴，例如 `Sàrl` 和 `Sarl`。`company()` 和 `companySuffix()` 都支援 `unique`。
+`fr-BE`、`fr-CA`、`fr-CH` 和 `it-CH` 的 `company()` 使用固定上游的地區姓氏與範本。加拿大法語繼承法國公司後綴，瑞士法語及義大利語分別使用自己的後綴，例如 `Sàrl` 和 `Sarl`。`company()` 和 `company_suffix()` 都支援 `unique`。
 
-`lt-LT`、`sl-SI` 和 `tr-TR` 的 `company()` 使用固定上游的地區範本。立陶宛將法定類別放在名稱前，斯洛維尼亞獨資經營名稱以 `s.p.` 結尾，土耳其範本可包含營業領域。`tr-TR` 的 `companyField()` 可單獨抽樣營業領域，並支援 `unique`。
+`lt-LT`、`sl-SI` 和 `tr-TR` 的 `company()` 使用固定上游的地區範本。立陶宛將法定類別放在名稱前，斯洛維尼亞獨資經營名稱以 `s.p.` 結尾，土耳其範本可包含營業領域。`tr-TR` 的 `company_field()` 可單獨抽樣營業領域，並支援 `unique`。
 
-`ru-RU` 和 `kk-KZ` 的公司名稱組合了法定前綴、名稱詞素與可選的名稱尾部。可用 `companyNameElement()` 與 `companyNameSuffix()` 單獨抽樣，`companySuffix()` 仍傳回繼承的 `Ltd`。`uk-UA` 的 `companyName()` 抽樣基礎名稱，`company()` 可加入前綴、引號或連字號後綴。這些地區方法支援 `unique`。
+`ru-RU` 和 `kk-KZ` 的公司名稱組合了法定前綴、名稱詞素與可選的名稱尾部。可用 `company_name_element()` 與 `company_name_suffix()` 單獨抽樣，`company_suffix()` 仍傳回繼承的 `Ltd`。`uk-UA` 的 `company_name()` 抽樣基礎名稱，`company()` 可加入前綴、引號或連字號後綴。這些地區方法支援 `unique`。
 
 `fa-IR`、`he-IL`、`hy-AM` 和 `ka-GE` 的 `company()` 使用固定上游的地區範本與詞表。伊朗公司名稱可包含前綴與營業領域，該地區的 `contract()` 抽樣勞動契約類型。喬治亞公司名稱由前綴、詞素與名稱尾部組成，也可分別抽樣。這些方法支援 `unique`。
 
-`bn-BD` 的 `company()` 組合名稱與類別，也可透過 `companyName()` 和 `companyType()` 分別抽樣。印尼（`id-ID`）公司名稱由法定前綴和一到兩個姓氏組成，部分範本附帶後綴。馬來西亞（`ms-MY`）使用公司名稱詞表，或組合產業與地區姓名，並保留上游後綴權重。可單獨呼叫 `companyName()` 和 `industry()`。泰國（`th-TH`）使用當地姓氏和繼承的 `Ltd` 後綴，`slogan()` 組合三段泰語詞組。這些方法支援 `unique`。
+`bn-BD` 的 `company()` 組合名稱與類別，也可透過 `company_name()` 和 `company_type()` 分別抽樣。印尼（`id-ID`）公司名稱由法定前綴和一到兩個姓氏組成，部分範本附帶後綴。馬來西亞（`ms-MY`）使用公司名稱詞表，或組合產業與地區姓名，並保留上游後綴權重。可單獨呼叫 `company_name()` 和 `industry()`。泰國（`th-TH`）使用當地姓氏和繼承的 `Ltd` 後綴，`slogan()` 組合三段泰語詞組。這些方法支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -761,85 +761,85 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
         fake(Some("fa-IR"))?.contract()?.to_owned(),
-        fake(Some("ka-GE"))?.companyNameElement()?.to_owned(),
+        fake(Some("ka-GE"))?.company_name_element()?.to_owned(),
         fake(Some("he-IL"))?.company(),
-        fake(Some("ru-RU"))?.companyNameElement()?.to_owned(),
-        fake(Some("kk-KZ"))?.companyNameSuffix()?.to_owned(),
-        fake(Some("uk-UA"))?.companyName()?.to_owned(),
+        fake(Some("ru-RU"))?.company_name_element()?.to_owned(),
+        fake(Some("kk-KZ"))?.company_name_suffix()?.to_owned(),
+        fake(Some("uk-UA"))?.company_name()?.to_owned(),
         fake(Some("lt-LT"))?.company(),
-        fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
+        fake(Some("tr-TR"))?.unique(false).company_field()?.to_owned(),
         fake(Some("ms-MY"))?.unique(false).industry()?.to_owned(),
         fake(Some("th-TH"))?.unique(false).slogan()?,
         fake(Some("fr-CA"))?.company(),
-        fake(Some("it-CH"))?.companySuffix(),
+        fake(Some("it-CH"))?.company_suffix(),
         fake(Some("en-GB"))?.company(),
-        fake(Some("el-CY"))?.companySuffix(),
+        fake(Some("el-CY"))?.company_suffix(),
         greek.company(),
-        montenegrin.companyName()?.to_owned(),
-        montenegrin.companyType()?.to_owned(),
-        fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
+        montenegrin.company_name()?.to_owned(),
+        montenegrin.company_type()?.to_owned(),
+        fake(Some("hr-HR"))?.company_prefix()?.to_owned(),
         fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),
-        fake(Some("nl-BE"))?.unique(false).companySuffix()?,
-        fake(Some("es-VE"))?.companyPrefix()?.to_owned(),
+        fake(Some("nl-BE"))?.unique(false).company_suffix()?,
+        fake(Some("es-VE"))?.company_prefix()?.to_owned(),
         fake(Some("pt-PT"))?.company(),
         fake(Some("is-IS"))?.company(),
-        fake(Some("nb-NO"))?.unique(false).companySuffix()?,
+        fake(Some("nb-NO"))?.unique(false).company_suffix()?,
         fake(Some("cs-CZ"))?.company(),
-        fake(Some("de-AT"))?.unique(false).companySuffix()?,
+        fake(Some("de-AT"))?.unique(false).company_suffix()?,
         egypt.company(),
-        fake(Some("ar-JO"))?.companyPrefix()?.to_owned(),
+        fake(Some("ar-JO"))?.company_prefix()?.to_owned(),
         fake(Some("ko-KR"))?.company(),
-        taiwan.companyModifier()?.to_owned(),
-        taiwan.companyEnSuffix()?.to_owned(),
+        taiwan.company_modifier()?.to_owned(),
+        taiwan.company_en_suffix()?.to_owned(),
         polish.company(),
-        fake(Some("fr-FR"))?.companySuffix(),
-        fake(Some("zh-Hant"))?.VAT()?.to_string(),
+        fake(Some("fr-FR"))?.company_suffix(),
+        fake(Some("zh-Hant"))?.taiwan_vat()?.to_string(),
         greek.doy()?.to_owned(),
         greek.object()?.to_owned(),
-        fake(Some("kk-KZ"))?.businessIdentificationNumber(Some(birthdate))?,
-        fake(Some("en-ZA"))?.companyNumber()?,
-        fake(Some("ar-SA"))?.companyIdNumber()?,
-        egypt.companyTaxIdNumber()?,
-        egypt.companyTradeRegisterNumber()?,
+        fake(Some("kk-KZ"))?.business_identification_number(Some(birthdate))?,
+        fake(Some("en-ZA"))?.company_number()?,
+        fake(Some("ar-SA"))?.company_id_number()?,
+        egypt.company_tax_id_number()?,
+        egypt.company_trade_register_number()?,
         fake(Some("cs-CZ"))?.ico()?,
         danish.cvr()?,
         danish.p()?,
         fake(Some("is-IS"))?.vsk()?,
         fake(Some("fr-FR"))?.siret(None)?,
         polish.regon()?,
-        polish.unique(false).regonLocal()?,
+        polish.unique(false).regon_local()?,
         fake(Some("en-US"))?.ein()?,
         inn,
         kpp,
-        fake(Some("tr-TR"))?.tcNo()?,
-        fake(Some("lt-LT"))?.passportNumber()?,
-        fake(Some("lv-LV"))?.passportNumber()?,
-        fake(Some("mn-MN"))?.idNumber()?,
-        fake(Some("en-ZA"))?.idNumberWithBirthdate(Some(birthdate), Some(false), None)?,
-        fake(Some("ar-SA"))?.foreignerIdNumber()?,
+        fake(Some("tr-TR"))?.tc_no()?,
+        fake(Some("lt-LT"))?.passport_number()?,
+        fake(Some("lv-LV"))?.passport_number()?,
+        fake(Some("mn-MN"))?.id_number()?,
+        fake(Some("en-ZA"))?.id_number_with_birthdate(Some(birthdate), Some(false), None)?,
+        fake(Some("ar-SA"))?.foreigner_id_number()?,
         fake(Some("es-ES"))?.dni()?,
         fake(Some("es-PE"))?.dni()?,
         fake(Some("es-PE"))?.ruc(Some(true))?,
-        fake(Some("en-ZA"))?.licenceCode()?.to_owned(),
+        fake(Some("en-ZA"))?.licence_code()?.to_owned(),
         brazilian.cpf(None)?,
         brazilian.rg(Some(false))?,
         brazilian.unique(false).cnpj(None)?,
         polish.pesel(Some(birthdate), Some("F"))?,
-        polish.unique(false).taxpayerIdentificationNumber()?,
+        polish.unique(false).taxpayer_identification_number()?,
         fake(Some("en-US"))?.ssn()?,
-        fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
+        fake(Some("de-AT"))?.ssn_with_birthdate(Some(birthdate))?,
         fake(Some("is-IS"))?.ssn()?,
-        fake(Some("fi-FI"))?.personalIdentityNumberWithBirthdate(Some(birthdate), None)?,
+        fake(Some("fi-FI"))?.personal_identity_number_with_birthdate(Some(birthdate), None)?,
         fake(Some("en-GB"))?.nino()?,
-        fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
+        fake(Some("zh-Hant"))?.unique(false).personal_identity_number(None)?,
     ])
 }
 ```
 
 ### 台灣英文公司名稱 {#taiwanese-english-company-names}
 
-使用 `zh-TW` 或 `zh-Hant` 時，`companyEn()` 在同一產生器查找 `lastNameEn`。註冊回傳文字的 formatter 即可啟用。未註冊時沿用預設的缺少錯誤。透過 `companyEnWithLastName` 傳入可回傳錯誤的 Rust 閉包，範本每需要一個姓氏就呼叫一次。兩個方法的 `unique` 版本共用 `companyEn` 歷史。
+使用 `zh-TW` 或 `zh-Hant` 時，`company_en()` 在同一產生器查找 `lastNameEn`。註冊回傳文字的 formatter 即可啟用。未註冊時沿用預設的缺少錯誤。透過 `company_en_with_last_name` 傳入可回傳錯誤的 Rust 閉包，範本每需要一個姓氏就呼叫一次。兩個方法的 `unique` 版本共用 `company_en` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -847,27 +847,27 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn taiwanese_company_sample() -> DatabaseResult<String> {
     fake(Some("zh-Hant"))?
         .unique(false)
-        .companyEnWithLastName(|| Ok("Lin".into()))
+        .company_en_with_last_name(|| Ok("Lin".into()))
 }
 ```
 
 ### 職業名稱 {#job-titles}
 
-呼叫 `jobTitle()` 從目前地區的 Company provider 產生職業名稱。`de-DE`、`en-US`、`fr-FR`、`id-ID`、`nb-NO`、`nl-NL`、`ru-RU`、`sv-SE`、`tr-TR` 和 `uk-UA` 有獨立詞表。比利時、加拿大與瑞士的法語地區繼承法國詞表。Company provider 繼承基礎職業範本時回傳單個 Lorem 詞，缺少 Company provider 時使用美國詞表。可透過 `unique(false).jobTitle()` 去重。
+呼叫 `job_title()` 從目前地區的 Company provider 產生職業名稱。`de-DE`、`en-US`、`fr-FR`、`id-ID`、`nb-NO`、`nl-NL`、`ru-RU`、`sv-SE`、`tr-TR` 和 `uk-UA` 有獨立詞表。比利時、加拿大與瑞士的法語地區繼承法國詞表。Company provider 繼承基礎職業範本時回傳單個 Lorem 詞，缺少 Company provider 時使用美國詞表。可透過 `unique(false).job_title()` 去重。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn job_title_sample() -> DatabaseResult<String> {
-    fake(Some("id-ID"))?.unique(false).jobTitle()
+    fake(Some("id-ID"))?.unique(false).job_title()
 }
 ```
 
 ### 偏置取樣與產生器修飾器 {#faker-biased-and-modifiers}
 
-用 `biasedNumberBetween(min, max, function)?` 在包含端點的整數範圍內取樣。傳入 `None` 分別採用預設下限 0、上限 100 與平方根曲線。自訂曲線接收 [0, 1) 內的數並傳回 0 至 1 的機率。範圍反向、機率無效或取樣耗盡時回傳錯誤。此方法支援 `unique`。 透過名稱呼叫 `biasedNumberBetween` 時可傳入下限、上限與選用字串 `"sqrt"`。自訂曲線透過型別化方法接收 Rust 閉包。
+用 `biased_number_between(min, max, function)?` 在包含端點的整數範圍內取樣。傳入 `None` 分別採用預設下限 0、上限 100 與平方根曲線。自訂曲線接收 [0, 1) 內的數並傳回 0 至 1 的機率。範圍反向、機率無效或取樣耗盡時回傳錯誤。此方法支援 `unique`。 透過名稱呼叫 `biased_number_between` 時可傳入下限、上限與選用字串 `"sqrt"`。自訂曲線透過型別化方法接收 Rust 閉包。
 
-用 `optional(weight, default, generate)?` 依機率呼叫具型別的產生閉包，或傳回選用的預設值。預設權重為 0.5，大於 1 時依 上游 Faker 的百分比規則解讀。用 `valid(predicate, maxRetries, generate)?` 重試直到符合述詞，預設重試上限為 10,000。兩者都會傳遞產生錯誤。用 `uniqueWithRetries(reset, maxRetries)` 設定共用去重歷史的控制代碼可嘗試的次數。
+用 `optional(weight, default, generate)?` 依機率呼叫具型別的產生閉包，或傳回選用的預設值。預設權重為 0.5，大於 1 時依 上游 Faker 的百分比規則解讀。用 `valid(predicate, max_retries, generate)?` 重試直到符合述詞，預設重試上限為 10,000。兩者都會傳遞產生錯誤。用 `unique_with_retries(reset, max_retries)` 設定共用去重歷史的控制代碼可嘗試的次數。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -875,10 +875,10 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
     let faker = fake(None)?;
     let sample = faker.optional(Some(0.75), Some(0), |faker| {
-        faker.biasedNumberBetween(Some(1), Some(100), Some(&|x| x))
+        faker.biased_number_between(Some(1), Some(100), Some(&|x| x))
     })?;
     let even = faker.valid(|value| value % 2 == 0, None, |faker| {
-        Ok(faker.numberBetween(0, 100))
+        Ok(faker.number_between(0, 100))
     })?;
     Ok((sample, even))
 }
@@ -886,45 +886,45 @@ fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
 
 ### 語料文字 {#corpus-text-samples}
 
-用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 從固定 上游 Faker 語料以加權 Markov 鏈產生文字。各參數可傳入 `None`，採用預設最大長度 200、最小長度 160 或上下文長度 2。上下文長度支援 1 至 5。 `realTextBetween` 的 Unicode 字元數大於最小值，且不超過最大值。簡體中文等缺少上游語料的語言會回退至英語。繁體中文與日語以字元取樣。波斯語 `realText` 沿用上游的位元組長度。該語料沒有以大寫開頭的詞，`realTextBetween` 會回傳重試耗盡錯誤。兩個方法都支援 `unique`。
+用 `real_text(max_nb_chars, index_size)?` 或 `real_text_between(min_nb_chars, max_nb_chars, index_size)?` 從固定 上游 Faker 語料以加權 Markov 鏈產生文字。各參數可傳入 `None`，採用預設最大長度 200、最小長度 160 或上下文長度 2。上下文長度支援 1 至 5。 `real_text_between` 的 Unicode 字元數大於最小值，且不超過最大值。簡體中文等缺少上游語料的語言會回退至英語。繁體中文與日語以字元取樣。波斯語 `real_text` 沿用上游的位元組長度。該語料沒有以大寫開頭的詞，`real_text_between` 會回傳重試耗盡錯誤。兩個方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn corpus_sample() -> DatabaseResult<String> {
-    fake(Some("zh-Hant"))?.realTextBetween(Some(80), Some(120), Some(2))
+    fake(Some("zh-Hant"))?.real_text_between(Some(80), Some(120), Some(2))
 }
 ```
 
 ### HTML 樣本 {#html-samples}
 
-用 `randomHtml(maxDepth, max_width)?` 產生 HTML 文件，其中包含標題、範例登入表單和隨機內文子樹。兩個參數各自傳入 `None` 時預設為四。深度小於或等於一時只產生標題和表單。寬度限制每次隨機產生的同層節點數。表單與連結使用保留的範例網域。數字 ID 在單份文件內唯一，`unique` 單獨記錄完整文件。
+用 `random_html(max_depth, max_width)?` 產生 HTML 文件，其中包含標題、範例登入表單和隨機內文子樹。兩個參數各自傳入 `None` 時預設為四。深度小於或等於一時只產生標題和表單。寬度限制每次隨機產生的同層節點數。表單與連結使用保留的範例網域。數字 ID 在單份文件內唯一，`unique` 單獨記錄完整文件。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn html_sample() -> DatabaseResult<String> {
     let faker = fake(None)?;
-    faker.randomHtml(Some(3), None)
+    faker.random_html(Some(3), None)
 }
 ```
 
 ### 血型樣本 {#blood-group-samples}
 
-用 `bloodType()` 產生 A、AB、B 或 O，`bloodRh()` 產生 Rh 正負號。 `bloodGroup()` 獨立取樣兩部分並直接串接。各語言使用相同的取值。三個方法都支援 `unique`，並分別記錄去重歷史。
+用 `blood_type()` 產生 A、AB、B 或 O，`blood_rh()` 產生 Rh 正負號。 `blood_group()` 獨立取樣兩部分並直接串接。各語言使用相同的取值。三個方法都支援 `unique`，並分別記錄去重歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
     let faker = fake(None)?;
-    Ok((faker.bloodType(), faker.bloodRh(), faker.unique(false).bloodGroup()?))
+    Ok((faker.blood_type(), faker.blood_rh(), faker.unique(false).blood_group()?))
 }
 ```
 
 ### 色彩樣本 {#color-samples}
 
-用 `hexColor()` 產生六位 RGB 十六進位色碼。 `safeHexColor()` 沿用固定 上游 Faker 的範圍 `#000000` 至 `#00ffff`，每一對十六進位數字相同。 `rgbColor()` 與 `hslColor()` 傳回逗號分隔值，對應的 `AsArray` 方法傳回三個整數。 `rgbCssColor()` 與 `rgbaCssColor()` 產生 CSS 字串。 `safeColorName()` 與 `colorName()` 依解析後的語言選用 上游 Faker 詞表，缺少對應詞表時使用預設詞表。十個方法都支援 `unique`。
+用 `hex_color()` 產生六位 RGB 十六進位色碼。 `safe_hex_color()` 沿用固定 上游 Faker 的範圍 `#000000` 至 `#00ffff`，每一對十六進位數字相同。 `rgb_color()` 與 `hsl_color()` 傳回逗號分隔值，對應的 `AsArray` 方法傳回三個整數。 `rgb_css_color()` 與 `rgba_css_color()` 產生 CSS 字串。 `safe_color_name()` 與 `color_name()` 依解析後的語言選用 上游 Faker 詞表，缺少對應詞表時使用預設詞表。十個方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -932,7 +932,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
     let faker = fake(Some("zh-Hant"))?;
     let unique = faker.unique(false);
-    Ok((faker.rgbaCssColor(), unique.rgbColorAsArray()?, unique.colorName()?))
+    Ok((faker.rgba_css_color(), unique.rgb_color_as_array()?, unique.color_name()?))
 }
 ```
 
@@ -954,7 +954,7 @@ fn named_color_samples() -> DatabaseResult<[Value; 3]> {
 
 ### 瀏覽器 User-Agent {#browser-user-agent-samples}
 
-用 `user_agent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 上游 Faker 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
+用 `user_agent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internet_explorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 上游 Faker 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `mac_processor()`、`linux_processor()`、`windows_platform_token()`、`mac_platform_token()`、`linux_platform_token()` 和 `ios_mobile_token()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -967,7 +967,7 @@ fn browser_samples() -> DatabaseResult<(String, String)> {
 
 ### 銀行識別碼 {#bank-identifier-samples}
 
-用 `iban(countryCode, prefix, length)` 產生帶模 97 檢查碼的 IBAN 範例。傳入 `None` 隨機選擇國家，或指定兩字母代碼。已收錄國家使用固定 上游 Faker 格式，未收錄代碼使用指定長度的數字帳號，預設 24 位。前綴取代帳號開頭並保留前導零。Rust 接受由 ASCII 大寫字母和數字組成的前綴，帳號部分最長 30 個字元。`swiftBicNumber()` 產生 8 或 11 個字元的範例，兩者都支援 `unique`。
+用 `iban(country_code, prefix, length)` 產生帶模 97 檢查碼的 IBAN 範例。傳入 `None` 隨機選擇國家，或指定兩字母代碼。已收錄國家使用固定 上游 Faker 格式，未收錄代碼使用指定長度的數字帳號，預設 24 位。前綴取代帳號開頭並保留前導零。Rust 接受由 ASCII 大寫字母和數字組成的前綴，帳號部分最長 30 個字元。`swift_bic_number()` 產生 8 或 11 個字元的範例，兩者都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -975,13 +975,13 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn bank_samples() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en"))?;
     let unique = faker.unique(false);
-    Ok((unique.iban(Some("DE"), "0012", None)?, unique.swiftBicNumber()?))
+    Ok((unique.iban(Some("DE"), "0012", None)?, unique.swift_bic_number()?))
 }
 ```
 
 ### 地區銀行帳號 {#regional-bank-account-samples}
 
-用 `bankAccountNumber(prefix, countryCode, length)` 依 Faker 地區產生帳號。支援 IBAN 別名的地區預設使用本國代碼，可明確覆寫參數。埃及地區固定產生埃及 IBAN。美國英語、馬來西亞馬來語和尼泊爾語產生本地帳號。這四種地區傳入 `("", None, None)`。`bankRoutingNumber()` 為 `en-US` 產生九位路由號範例。`Faker::calculateRoutingNumberChecksum` 讀取前八位並回傳檢查碼。兩種產生方法都支援 `unique`。
+用 `bank_account_number(prefix, country_code, length)` 依 Faker 地區產生帳號。支援 IBAN 別名的地區預設使用本國代碼，可明確覆寫參數。埃及地區固定產生埃及 IBAN。美國英語、馬來西亞馬來語和尼泊爾語產生本地帳號。這四種地區傳入 `("", None, None)`。`bank_routing_number()` 為 `en-US` 產生九位路由號範例。`Faker::calculate_routing_number_checksum` 讀取前八位並回傳檢查碼。兩種產生方法都支援 `unique`。
 
 地區缺少本地 Payment 提供器時，美國提供器負責產生本地帳號和路由號。本地提供器缺少某項方法時，該方法回傳錯誤。回退帳號使用 `("", None, None)`。舊版 `at-AT` 別名使用奧地利帳號和 VAT 格式。
 
@@ -992,28 +992,28 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
     let uk = fake(Some("en-GB"))?;
     let us = fake(Some("en-CA"))?;
     Ok((
-        uk.bankAccountNumber("BANK", None, None)?,
-        us.unique(false).bankRoutingNumber()?,
+        uk.bank_account_number("BANK", None, None)?,
+        us.unique(false).bank_routing_number()?,
     ))
 }
 ```
 
 ### 金融機構 {#institution-samples}
 
-`bank()` 在 `de-DE`、`el-CY`、`ka-GE`、`kk-KZ`、`ms-MY`、`pl-PL`、`pt-BR`、`ru-RU`、`th-TH`、`uk-UA` 與 `zh-Hans` 使用固定地區目錄。馬來西亞馬來語另提供 `localBank`、`foreignBank`、`governmentBank`、`insurance` 和 `currencySymbol`。尼泊爾語提供 `commercialBank`、`developmentBank`、`financeCompany`、`microFinance` 和 `digitalWallet`。兩個地區的 `swiftCode()` 使用各自的目錄。這些產生器支援 `unique`，未支援的地區會回傳錯誤。
+`bank()` 在 `de-DE`、`el-CY`、`ka-GE`、`kk-KZ`、`ms-MY`、`pl-PL`、`pt-BR`、`ru-RU`、`th-TH`、`uk-UA` 與 `zh-Hans` 使用固定地區目錄。馬來西亞馬來語另提供 `local_bank`、`foreign_bank`、`government_bank`、`insurance` 和 `currency_symbol`。尼泊爾語提供 `commercial_bank`、`development_bank`、`finance_company`、`micro_finance` 和 `digital_wallet`。兩個地區的 `swift_code()` 使用各自的目錄。這些產生器支援 `unique`，未支援的地區會回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn institution_samples() -> DatabaseResult<(&'static str, String)> {
     let faker = fake(Some("ms-MY"))?;
-    Ok((faker.foreignBank()?, faker.unique(false).swiftCode()?))
+    Ok((faker.foreign_bank()?, faker.unique(false).swift_code()?))
 }
 ```
 
 ### VAT 範例 {#vat-samples}
 
-用 `vat(None)` 採用地區預設格式。對支援空格選項的地區，可用 `vat(Some(false))` 產生緊湊格式。支援 `bg-BG`、`de-AT`、`es-ES`、`fr-BE`、`nl-BE`、`fr-FR`、`en-GB`、`it-IT` 和 `nl-NL`。英國的 `vatWithType` 接受 `branch`、`gov` 和 `health`，其他值採用標準格式。法國 VAT 共用 `siren`，義大利 `vatId` 與荷蘭 `btw` 沿用各自的產生規則。各產生器均支援 `unique`。
+用 `vat(None)` 採用地區預設格式。對支援空格選項的地區，可用 `vat(Some(false))` 產生緊湊格式。支援 `bg-BG`、`de-AT`、`es-ES`、`fr-BE`、`nl-BE`、`fr-FR`、`en-GB`、`it-IT` 和 `nl-NL`。英國的 `vat_with_type` 接受 `branch`、`gov` 和 `health`，其他值採用標準格式。法國 VAT 共用 `siren`，義大利 `vat_id` 與荷蘭 `btw` 沿用各自的產生規則。各產生器均支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1021,30 +1021,30 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn vat_samples() -> DatabaseResult<(String, String)> {
     let french = fake(Some("fr-FR"))?;
     let uk = fake(Some("en-GB"))?;
-    Ok((french.unique(false).vat(None)?, uk.vatWithType(Some("branch"))?))
+    Ok((french.unique(false).vat(None)?, uk.vat_with_type(Some("branch"))?))
 }
 ```
 
 ### 信用卡範例 {#credit-card-samples}
 
-信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`creditCardExpirationDateString` 接受 Jiff 格式指令，預設 `%m/%y`，無效格式會回傳錯誤。五個方法都支援 `unique`。
+信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`credit_card_expiration_date_string` 接受 Jiff 格式指令，預設 `%m/%y`，無效格式會回傳錯誤。五個方法都支援 `unique`。
 
-`creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
+`credit_card_type()` · `credit_card_number(type, formatted, separator)` · `credit_card_expiration_date(valid)` · `credit_card_expiration_date_string(valid, format)` · `credit_card_details(valid)`
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{CreditCardDetails, fake}};
 
 fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
     let faker = fake(Some("pt-BR"))?;
-    let details = faker.unique(false).creditCardDetails(true)?;
-    let number = faker.creditCardNumber(Some("Elo"), true, None)?;
+    let details = faker.unique(false).credit_card_details(true)?;
+    let number = faker.credit_card_number(Some("Elo"), true, None)?;
     Ok((details, number))
 }
 ```
 
 ### 郵寄地址和稱謂 {#address-and-title-samples}
 
-具名地址、姓名和支付方法沿用目前產生器的語言。例如日語可用 `prefecture`，馬來西亞 `postcode` 可傳入州鍵，支援性別字尾的地區可向 `lastName` 傳入性別。缺少地區提供器時回傳錯誤。`creditCardNumber` 接收卡種、格式化開關和分隔符。`creditCardDetails` 回傳 JSON 物件。`creditCardExpirationDateString` 接收 PHP 格式標記，`iban` 接收國家代碼、帳戶前綴和帳戶長度。
+具名地址、姓名和支付方法沿用目前產生器的語言。例如日語可用 `prefecture`，馬來西亞 `postcode` 可傳入州鍵，支援性別字尾的地區可向 `last_name` 傳入性別。缺少地區提供器時回傳錯誤。`credit_card_number` 接收卡種、格式化開關和分隔符。`credit_card_details` 回傳 JSON 物件。`credit_card_expiration_date_string` 接收 PHP 格式標記，`iban` 接收國家代碼、帳戶前綴和帳戶長度。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -1058,7 +1058,7 @@ fn sample_named_regional() -> DatabaseResult<(Value, Value)> {
 ```
 
 
-用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。美國英語、簡體中文和繁體中文使用固定 上游 Faker 的城市、街道範本和地址詞表。其他地區仍可能使用 fake-rs 元件。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
+用 `street_address()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。美國英語、簡體中文和繁體中文使用固定 上游 Faker 的城市、街道範本和地址詞表。其他地區仍可能使用 fake-rs 元件。個別欄位可用 `building_number()`、`secondary_address()`、`postcode()`、`state()` 和 `state_abbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `title_male()` 和 `title_female()`。這些方法均支援 `unique`。
 
 簡體中文可用 `area()` 抽取區名，繁體中文可用 `street()` 抽取街道詞幹。臺灣城市樣本先抽取縣市，再從該縣市的區鄉鎮詞表取樣。兩個入口皆支援 `unique`。
 
@@ -1070,7 +1070,7 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
-`fr-FR` 使用固定的城市與街道範本及國家詞表。`streetPrefix()` 和 `region()` 從法國詞表取樣。`department()` 回傳行政區編號與名稱的字串組，保留前導零和 `2A` 等編號。`departmentNumber()` 和 `departmentName()` 分別獨立取樣。對 `zh-Hant-TW`，`randomChineseNumber()` 回傳一至九的漢字，`randomNumber2()` 和 `randomNumber3()` 分別回傳 1 到 100、1 到 1000 的整數，含端點。以上入口皆支援 `unique`。 這三個臺灣數字組成也可用對應方法名稱透過 `format` 呼叫，無須傳入參數。
+`fr-FR` 使用固定的城市與街道範本及國家詞表。`street_prefix()` 和 `region()` 從法國詞表取樣。`department()` 回傳行政區編號與名稱的字串組，保留前導零和 `2A` 等編號。`department_number()` 和 `department_name()` 分別獨立取樣。對 `zh-Hant-TW`，`random_chinese_number()` 回傳一至九的漢字，`random_number2()` 和 `random_number3()` 分別回傳 1 到 100、1 到 1000 的整數，含端點。以上入口皆支援 `unique`。 這三個臺灣數字組成也可用對應方法名稱透過 `format` 呼叫，無須傳入參數。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1080,25 +1080,25 @@ fn french_department_sample() -> DatabaseResult<(&'static str, &'static str)> {
 }
 ```
 
-比利時、瑞士和加拿大法語採用各自的城市、街道與郵遞區號範本。`cityName()` 用於比利時和瑞士，`province()` 用於比利時，`canton()` 回傳瑞士邦代碼與名稱的字串組。`cantonShort()` 和 `cantonName()` 分別獨立取樣。三地沿用法國的國家、大區和行政區詞表，瑞士使用自己的街道前綴。
+比利時、瑞士和加拿大法語採用各自的城市、街道與郵遞區號範本。`city_name()` 用於比利時和瑞士，`province()` 用於比利時，`canton()` 回傳瑞士邦代碼與名稱的字串組。`canton_short()` 和 `canton_name()` 分別獨立取樣。三地沿用法國的國家、大區和行政區詞表，瑞士使用自己的街道前綴。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn swiss_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("fr-CH"))?;
-    Ok((faker.address(), faker.unique(false).cantonShort()?))
+    Ok((faker.address(), faker.unique(false).canton_short()?))
 }
 ```
 
-加拿大、澳洲和紐西蘭英語地址依上游規則沿用美國詞表，並套用各地格式。加拿大提供 `province()`、`provinceAbbr()` 和郵遞區號專用字母 `randomPostcodeLetter()`。澳洲使用自己的州與郵遞區號詞表，並提供 `buildingLetter()`。紐西蘭使用 `region()` 和四位郵遞區號。地區方法皆支援 `unique`。
+加拿大、澳洲和紐西蘭英語地址依上游規則沿用美國詞表，並套用各地格式。加拿大提供 `province()`、`province_abbr()` 和郵遞區號專用字母 `random_postcode_letter()`。澳洲使用自己的州與郵遞區號詞表，並提供 `building_letter()`。紐西蘭使用 `region()` 和四位郵遞區號。地區方法皆支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn canadian_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("en-CA"))?;
-    Ok((faker.address(), faker.unique(false).provinceAbbr()?))
+    Ok((faker.address(), faker.unique(false).province_abbr()?))
 }
 ```
 
@@ -1113,7 +1113,7 @@ fn british_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-南非英語使用當地省份、簡稱、城市後綴和四位郵遞區號。烏干達英語提供 `cityName()`、`district()` 和 `region()`，郵遞區號為一至五位。奈及利亞英語提供 `county()` 和 `region()`，五位郵遞區號可含空格。上述地區方法皆支援 `unique`。
+南非英語使用當地省份、簡稱、城市後綴和四位郵遞區號。烏干達英語提供 `city_name()`、`district()` 和 `region()`，郵遞區號為一至五位。奈及利亞英語提供 `county()` 和 `region()`，五位郵遞區號可含空格。上述地區方法皆支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1124,29 +1124,29 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-新加坡英語沿用以姓氏組成的街名，並使用當地街道後綴與六位郵遞區號。完整地址可使用門牌號碼，也可使用棟號和單元列。固定版 上游 Faker 的 `floorNumber()` 與 `apartmentNumber()` 傳回原始範本字串，完整地址也保留這些字串。地區方法支援 `unique()`。
+新加坡英語沿用以姓氏組成的街名，並使用當地街道後綴與六位郵遞區號。完整地址可使用門牌號碼，也可使用棟號和單元列。固定版 上游 Faker 的 `floor_number()` 與 `apartment_number()` 傳回原始範本字串，完整地址也保留這些字串。地區方法支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn singapore_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en-SG"))?;
-    Ok((faker.address(), faker.blockNumber()?))
+    Ok((faker.address(), faker.block_number()?))
 }
 ```
 
-印度英語使用當地城市、邦和街區詞表。完整地址末尾是以 1–5 開頭的六位郵遞區號。街道地址由門牌和街區組成，也可包含住宅社區。`areaSuffix()` 保留詞表中的前導空格。街區和社區的五個方法皆支援 `unique()`。
+印度英語使用當地城市、邦和街區詞表。完整地址末尾是以 1–5 開頭的六位郵遞區號。街道地址由門牌和街區組成，也可包含住宅社區。`area_suffix()` 保留詞表中的前導空格。街區和社區的五個方法皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn indian_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en-IN"))?;
-    Ok((faker.address(), faker.unique(false).societyName()?))
+    Ok((faker.address(), faker.unique(false).society_name()?))
 }
 ```
 
-菲律賓英語地址使用當地省份、城市和市鎮，郵遞區號為四位，也可包含公寓或套房編號。`municipality()` 和 `barangay()` 提供當地欄位，獨立的 `state()` 和 `stateAbbr()` 沿用美國詞表。香港英語地址首列為街道、村落或屋苑，其後依序為地區和城市。繼承的五位 `postcode()` 可單獨呼叫。地區方法支援 `unique()`。
+菲律賓英語地址使用當地省份、城市和市鎮，郵遞區號為四位，也可包含公寓或套房編號。`municipality()` 和 `barangay()` 提供當地欄位，獨立的 `state()` 和 `state_abbr()` 沿用美國詞表。香港英語地址首列為街道、村落或屋苑，其後依序為地區和城市。繼承的五位 `postcode()` 可單獨呼叫。地區方法支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1158,7 +1158,7 @@ fn philippine_and_hong_kong_address_samples() -> DatabaseResult<(String, String)
 }
 ```
 
-日語地址以七位郵遞區號開頭，空兩格後依序接上都道府縣、市、區與街道，也可包含大樓名稱和編號。`postcode1()` 與 `postcode2()` 傳回三位和四位的郵遞區號組件。`prefecture()`、`ward()` 與 `areaNumber()` 也可單獨呼叫。這些地區方法支援 `unique()`。
+日語地址以七位郵遞區號開頭，空兩格後依序接上都道府縣、市、區與街道，也可包含大樓名稱和編號。`postcode1()` 與 `postcode2()` 傳回三位和四位的郵遞區號組件。`prefecture()`、`ward()` 與 `area_number()` 也可單獨呼叫。這些地區方法支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1169,14 +1169,14 @@ fn japanese_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-韓語完整地址先寫特別市或廣域市及其區，或寫道及市，接著是街道名與門牌號碼。基礎 `streetAddress()` 會將門牌號碼放在前面。`postcode()` 可單獨產生五位郵遞區號。`metropolitanCity()`、`province()` 和 `borough()` 支援 `unique()`。
+韓語完整地址先寫特別市或廣域市及其區，或寫道及市，接著是街道名與門牌號碼。基礎 `street_address()` 會將門牌號碼放在前面。`postcode()` 可單獨產生五位郵遞區號。`metropolitan_city()`、`province()` 和 `borough()` 支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn korean_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("ko-KR"))?;
-    Ok((faker.address(), faker.unique(false).metropolitanCity()?))
+    Ok((faker.address(), faker.unique(false).metropolitan_city()?))
 }
 ```
 
@@ -1187,7 +1187,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn vietnamese_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("vi-VN"))?;
-    Ok((faker.address(), faker.unique(false).districtName()?))
+    Ok((faker.address(), faker.unique(false).district_name()?))
 }
 ```
 
@@ -1202,7 +1202,7 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-印尼語地址在門牌號碼前加 `No.`，五位郵遞區號首位非零，末尾使用州名簡稱。馬來語地址的城鎮、郵遞區號和州名取自同一地區。可用 `postcodeWithState("perlis")` 按 上游 Faker 的州鍵產生郵遞區號。`postcode()` 隨機選擇地區，郵遞區號保留前導零。馬來語大樓和社區方法支援 `unique()`。
+印尼語地址在門牌號碼前加 `No.`，五位郵遞區號首位非零，末尾使用州名簡稱。馬來語地址的城鎮、郵遞區號和州名取自同一地區。可用 `postcode_with_state("perlis")` 按 上游 Faker 的州鍵產生郵遞區號。`postcode()` 隨機選擇地區，郵遞區號保留前導零。馬來語大樓和社區方法支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1210,7 +1210,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn indonesian_and_malaysian_address_samples() -> DatabaseResult<(String, String, String)> {
     let indonesia = fake(Some("id-ID"))?;
     let malaysia = fake(Some("ms-MY"))?;
-    Ok((indonesia.address(), malaysia.address(), malaysia.postcodeWithState("perlis")?))
+    Ok((indonesia.address(), malaysia.address(), malaysia.postcode_with_state("perlis")?))
 }
 ```
 
@@ -1226,7 +1226,7 @@ fn bengali_and_nepali_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-埃及、約旦和沙烏地阿拉伯的阿拉伯語地址將街道和城市分兩列，可附公寓或大樓資訊。約旦城市名稱可帶方位前綴，獨立的州名和簡稱沿用固定版的美國詞表。埃及提供 `governorate()` 和 `governorateId()`，沙烏地阿拉伯提供 `governorate()` 和 `subdivision()`。地區方法皆支援 `unique()`。固定版沙烏地提供器缺少城市前綴詞表，單獨呼叫 `cityPrefix()` 時沿用 Rust 現有的遞補行為。
+埃及、約旦和沙烏地阿拉伯的阿拉伯語地址將街道和城市分兩列，可附公寓或大樓資訊。約旦城市名稱可帶方位前綴，獨立的州名和簡稱沿用固定版的美國詞表。埃及提供 `governorate()` 和 `governorate_id()`，沙烏地阿拉伯提供 `governorate()` 和 `subdivision()`。地區方法皆支援 `unique()`。固定版沙烏地提供器缺少城市前綴詞表，單獨呼叫 `city_prefix()` 時沿用 Rust 現有的遞補行為。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1246,25 +1246,25 @@ fn persian_and_hebrew_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-土耳其語地址將門牌號碼放在街名後面。第二列以五位郵遞區號開頭，接著是 81 個城市詞表中的一個。街名沿用固定版名字與姓氏的抽樣權重。可用 `cityName()` 直接抽取城市，也支援 `unique()`。
+土耳其語地址將門牌號碼放在街名後面。第二列以五位郵遞區號開頭，接著是 81 個城市詞表中的一個。街名沿用固定版名字與姓氏的抽樣權重。可用 `city_name()` 直接抽取城市，也支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn turkish_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("tr-TR"))?;
-    Ok((faker.address(), faker.unique(false).cityName()?))
+    Ok((faker.address(), faker.unique(false).city_name()?))
 }
 ```
 
-俄語地址使用六位郵遞區號，城市和地區各自抽樣。烏克蘭語地址使用五位郵遞區號，城市與州成對抽樣，可透過 `cityAndRegion()` 單獨取得配對，也支援 `unique()`。哈薩克語地址以首位為零的六位郵遞區號開頭，街道後綴放在街名後。
+俄語地址使用六位郵遞區號，城市和地區各自抽樣。烏克蘭語地址使用五位郵遞區號，城市與州成對抽樣，可透過 `city_and_region()` 單獨取得配對，也支援 `unique()`。哈薩克語地址以首位為零的六位郵遞區號開頭，街道後綴放在街名後。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn ukrainian_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("uk-UA"))?;
-    Ok((faker.address(), faker.unique(false).cityAndRegion()?))
+    Ok((faker.address(), faker.unique(false).city_and_region()?))
 }
 ```
 
@@ -1278,7 +1278,7 @@ fn central_european_address_samples() -> DatabaseResult<(String, String, String)
 }
 ```
 
-德國、奧地利和瑞士的德語地址將門牌號碼放在街名後，第二列先寫郵遞區號再寫城市。奧地利從詞表抽取完整郵遞區號，瑞士德語街名可用城市名稱作為詞幹。`streetSuffixShort()` 和 `streetSuffixLong()` 提供當地街道後綴。瑞士德語的 `canton()` 傳回同一筆記錄中的邦簡稱和德語邦名。
+德國、奧地利和瑞士的德語地址將門牌號碼放在街名後，第二列先寫郵遞區號再寫城市。奧地利從詞表抽取完整郵遞區號，瑞士德語街名可用城市名稱作為詞幹。`street_suffix_short()` 和 `street_suffix_long()` 提供當地街道後綴。瑞士德語的 `canton()` 傳回同一筆記錄中的邦簡稱和德語邦名。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1289,7 +1289,7 @@ fn swiss_german_address_sample() -> DatabaseResult<(String, (&'static str, &'sta
 }
 ```
 
-荷蘭和比利時的荷蘭語地址將姓氏與街道後綴直接拼接，接著加上門牌號碼。兩地分別從自己的詞表抽取完整郵遞區號。比利時荷蘭語保留第二列郵遞區號前的一個空格。`cityName()` 和 `state()` 從當地城市與省名詞表抽樣。
+荷蘭和比利時的荷蘭語地址將姓氏與街道後綴直接拼接，接著加上門牌號碼。兩地分別從自己的詞表抽取完整郵遞區號。比利時荷蘭語保留第二列郵遞區號前的一個空格。`city_name()` 和 `state()` 從當地城市與省名詞表抽樣。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1299,7 +1299,7 @@ fn dutch_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-挪威語與瑞典語地址將門牌號碼放在街名之後，門牌末尾的字母使用大寫。挪威郵遞區號為四位，可用零開頭。瑞典郵遞區號為五位，可在第三位後加空格。`streetSuffixWord()` 從當地獨立街道後綴詞表抽樣，並支援 `unique()`。
+挪威語與瑞典語地址將門牌號碼放在街名之後，門牌末尾的字母使用大寫。挪威郵遞區號為四位，可用零開頭。瑞典郵遞區號為五位，可在第三位後加空格。`street_suffix_word()` 從當地獨立街道後綴詞表抽樣，並支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1309,7 +1309,7 @@ fn norwegian_and_swedish_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-丹麥語地址可附樓層和住戶方位，也可用 `buildingLevel()`、`buildingSide()` 和 `kommune()` 單獨產生欄位，並透過 `unique()` 抽樣。芬蘭語地址可附三位公寓編號和地區名。冰島語地址使用三位郵遞區號，門牌號碼可附大寫字母。
+丹麥語地址可附樓層和住戶方位，也可用 `building_level()`、`building_side()` 和 `kommune()` 單獨產生欄位，並透過 `unique()` 抽樣。芬蘭語地址可附三位公寓編號和地區名。冰島語地址使用三位郵遞區號，門牌號碼可附大寫字母。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1334,7 +1334,7 @@ fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-巴西地址以郵遞區號開頭，第二行包含州縮寫。可用 `region()` 和 `regionAbbr()` 抽取巴西五大區及其縮寫，也支援 `unique()`。葡萄牙地址使用固定城市詞表，郵遞區號有四位和七位兩種格式，門牌和樓層可選。
+巴西地址以郵遞區號開頭，第二行包含州縮寫。可用 `region()` 和 `region_abbr()` 抽取巴西五大區及其縮寫，也支援 `unique()`。葡萄牙地址使用固定城市詞表，郵遞區號有四位和七位兩種格式，門牌和樓層可選。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1364,7 +1364,7 @@ fn greek_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-羅馬尼亞與摩爾多瓦羅馬尼亞語地址保留四種街道配置，可包含樓棟、樓梯單元、樓層及公寓號碼。羅馬尼亞地址包含縣名與六位郵遞區號。摩爾多瓦羅馬尼亞語地址使用四位郵遞區號。樓層和公寓號碼可帶前導零。可用 `block()`、`blockSegment()`、`floor()` 和 `apartmentNumber()` 分別抽取這些欄位。`streetPlainName()` 回傳省略前綴的街名，`county()` 抽取羅馬尼亞縣名。
+羅馬尼亞與摩爾多瓦羅馬尼亞語地址保留四種街道配置，可包含樓棟、樓梯單元、樓層及公寓號碼。羅馬尼亞地址包含縣名與六位郵遞區號。摩爾多瓦羅馬尼亞語地址使用四位郵遞區號。樓層和公寓號碼可帶前導零。可用 `block()`、`block_segment()`、`floor()` 和 `apartment_number()` 分別抽取這些欄位。`street_plain_name()` 回傳省略前綴的街名，`county()` 抽取羅馬尼亞縣名。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1384,7 +1384,7 @@ fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-立陶宛郵遞區號使用 `LT-` 前綴，地址有三種配置，其中一種以連字號連接門牌與單元號碼。可用 `municipality()` 抽取立陶宛市鎮。拉脫維亞地址以 `LV-` 郵遞區號開頭，接著是地區和城市。兩地均可用 `regionSuffix()` 取得當地的地區後綴。
+立陶宛郵遞區號使用 `LT-` 前綴，地址有三種配置，其中一種以連字號連接門牌與單元號碼。可用 `municipality()` 抽取立陶宛市鎮。拉脫維亞地址以 `LV-` 郵遞區號開頭，接著是地區和城市。兩地均可用 `region_suffix()` 取得當地的地區後綴。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1394,7 +1394,7 @@ fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-亞美尼亞地址以地區開頭，以 `00` 開頭的四位郵遞區號結尾。喬治亞地址保留八種配置，國家和地區欄位可選。可用 `regionGenitiveForm()` 抽取與地區後綴連用的喬治亞語屬格地區名。
+亞美尼亞地址以地區開頭，以 `00` 開頭的四位郵遞區號結尾。喬治亞地址保留八種配置，國家和地區欄位可選。可用 `region_genitive_form()` 抽取與地區後綴連用的喬治亞語屬格地區名。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1419,7 +1419,7 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-匈牙利地址以四位郵遞區號開頭，按權重抽取首都、大城市及小城市模板。可用 `capital()`、`bigCity()` 或 `smallerCity()` 指定城市類別。地區缺少 上游 Faker Address 提供器時，`address()` 使用美國地址配置和地址詞表。地址中的人名仍採用指定地區現有的 Person 提供器。
+匈牙利地址以四位郵遞區號開頭，按權重抽取首都、大城市及小城市模板。可用 `capital()`、`big_city()` 或 `smaller_city()` 指定城市類別。地區缺少 上游 Faker Address 提供器時，`address()` 使用美國地址配置和地址詞表。地址中的人名仍採用指定地區現有的 Person 提供器。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1438,9 +1438,9 @@ OpenRust 已驗證固定 上游 Faker 版本的全部 71 個本地 Address 提�
 
 ### 依性別產生名字 {#given-names-by-gender}
 
-用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。
+用 `first_name_male()` 或 `first_name_female()` 從對應的上游 Faker 名字清單取樣。`first_name_with_gender(Some("male"))` 和 `name_with_gender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。
 
-`en-US`、`fr-FR`、`it-IT` 和 `ja-JP` 的 `name()`、`firstName()` 與 `lastName()` 使用固定 Person 範本和詞表。公司範本共用同一套姓氏。`firstNameWithGender` 和 `nameWithGender` 與對應的無參數方法共用 `unique` 歷史。
+`en-US`、`fr-FR`、`it-IT` 和 `ja-JP` 的 `name()`、`first_name()` 與 `last_name()` 使用固定 Person 範本和詞表。公司範本共用同一套姓氏。`first_name_with_gender` 和 `name_with_gender` 與對應的無參數方法共用 `unique` 歷史。
 
 `ar-SA`、`de-DE`、`fa-IR`、`nl-NL`、`pt-BR`、`pt-PT`、`tr-TR`、`zh-Hans` 和 `zh-Hant` 也使用對應的 Person 範本和詞表。荷蘭 Person 與 Company 使用同一套姓氏取樣規則，長姓、常見荷蘭姓、常見外來姓與一般荷蘭姓的權重依序為 1:10:5:10。
 
@@ -1454,25 +1454,25 @@ fn person_name_sample() -> DatabaseResult<String> {
 
 ### 北歐姓名 {#nordic-names}
 
-丹麥和冰島的姓名範本可以包含中間名。可用 `middleName()` 單獨產生。`is-IS` 的 `lastName()` 回傳父名詞幹，`lastNameMale()` 和 `lastNameFemale()` 加上對應後綴。芬蘭姓名可包含當地稱謂。瑞典語和挪威書面語姓名使用名字加姓氏。
+丹麥和冰島的姓名範本可以包含中間名。可用 `middle_name()` 單獨產生。`is-IS` 的 `last_name()` 回傳父名詞幹，`last_name_male()` 和 `last_name_female()` 加上對應後綴。芬蘭姓名可包含當地稱謂。瑞典語和挪威書面語姓名使用名字加姓氏。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn nordic_name_sample() -> DatabaseResult<String> {
-    fake(Some("is-IS"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("is-IS"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
 ### 波蘭和立陶宛姓名 {#polish-and-lithuanian-names}
 
-`pl-PL` 和 `lt-LT` 可透過 `lastNameWithGender(Some("male"))` 或 `lastNameWithGender(Some("female"))` 選擇姓氏詞表。`lastNameMale()` 和 `lastNameFemale()` 使用相同詞表。固定版立陶宛的無參數 `lastName()` 從名字取樣，全名則使用對應性別的姓氏。`lastNameWithGender` 和 `lastName` 共用去重歷史。
+`pl-PL` 和 `lt-LT` 可透過 `last_name_with_gender(Some("male"))` 或 `last_name_with_gender(Some("female"))` 選擇姓氏詞表。`last_name_male()` 和 `last_name_female()` 使用相同詞表。固定版立陶宛的無參數 `last_name()` 從名字取樣，全名則使用對應性別的姓氏。`last_name_with_gender` 和 `last_name` 共用去重歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn gendered_surname_sample() -> DatabaseResult<String> {
-    fake(Some("lt-LT"))?.unique(false).lastNameWithGender(Some("female"))
+    fake(Some("lt-LT"))?.unique(false).last_name_with_gender(Some("female"))
 }
 ```
 
@@ -1484,7 +1484,7 @@ fn gendered_surname_sample() -> DatabaseResult<String> {
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_person_sample() -> DatabaseResult<String> {
-    fake(Some("fr-CH"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("fr-CH"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
@@ -1496,31 +1496,31 @@ fn regional_person_sample() -> DatabaseResult<String> {
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn spanish_name_sample() -> DatabaseResult<String> {
-    fake(Some("es-VE"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("es-VE"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
 ### 中歐地區姓名 {#central-european-names}
 
-`de-AT`、`de-CH`、`cs-CZ`、`sk-SK`、`hu-HU` 和 `hr-HR` 使用固定 Person 範本，並與 Company 共用姓氏詞表。捷克和斯洛伐克支援 `lastNameWithGender`、`lastNameMale` 和 `lastNameFemale`。匈牙利範本保留姓氏在前及婚後姓名格式，可透過 `firstNameMaleNe()` 與 `lastNameFemaleMarried()` 單獨取樣。
+`de-AT`、`de-CH`、`cs-CZ`、`sk-SK`、`hu-HU` 和 `hr-HR` 使用固定 Person 範本，並與 Company 共用姓氏詞表。捷克和斯洛伐克支援 `last_name_with_gender`、`last_name_male` 和 `last_name_female`。匈牙利範本保留姓氏在前及婚後姓名格式，可透過 `first_name_male_ne()` 與 `last_name_female_married()` 單獨取樣。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn central_european_name_sample() -> DatabaseResult<String> {
-    fake(Some("cs-CZ"))?.unique(false).lastNameWithGender(Some("female"))
+    fake(Some("cs-CZ"))?.unique(false).last_name_with_gender(Some("female"))
 }
 ```
 
 ### 希臘、保加利亞和斯洛維尼亞姓名 {#balkan-names}
 
-`el-GR` 和 `bg-BG` 使用對應性別的姓氏詞表及全名範本。可用 `lastNameWithGender`、`lastNameMale` 或 `lastNameFemale` 選擇姓氏。斯洛維尼亞兩種姓氏方法使用同一詞表。`title(gender)` 使用統一的當地稱謂，`titleMale()` 與 `titleFemale()` 沿用基礎類別稱謂。
+`el-GR` 和 `bg-BG` 使用對應性別的姓氏詞表及全名範本。可用 `last_name_with_gender`、`last_name_male` 或 `last_name_female` 選擇姓氏。斯洛維尼亞兩種姓氏方法使用同一詞表。`title(gender)` 使用統一的當地稱謂，`title_male()` 與 `title_female()` 沿用基礎類別稱謂。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn balkan_name_sample() -> DatabaseResult<String> {
-    fake(Some("bg-BG"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("bg-BG"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
@@ -1538,31 +1538,31 @@ fn west_asian_name_sample() -> DatabaseResult<String> {
 
 ### 俄語、烏克蘭語和哈薩克語姓名 {#russian-ukrainian-and-kazakh-names}
 
-`ru-RU`、`uk-UA` 和 `kk-KZ` 使用固定 Person 的地區詞表和全名範本。俄語和烏克蘭語的 `middleName()` 從兩組父名取樣，`middleNameWithGender`、`middleNameMale()` 與 `middleNameFemale()` 可選擇分組。俄語姓氏支援性別選擇並保留固定的女性後綴。哈薩克語 PHP provider 使用數字性別常數。Rust 沿用統一的 `"male"` 和 `"female"` 選擇對應範本。
+`ru-RU`、`uk-UA` 和 `kk-KZ` 使用固定 Person 的地區詞表和全名範本。俄語和烏克蘭語的 `middle_name()` 從兩組父名取樣，`middle_name_with_gender`、`middle_name_male()` 與 `middle_name_female()` 可選擇分組。俄語姓氏支援性別選擇並保留固定的女性後綴。哈薩克語 PHP provider 使用數字性別常數。Rust 沿用統一的 `"male"` 和 `"female"` 選擇對應範本。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn patronymic_sample() -> DatabaseResult<&'static str> {
-    fake(Some("uk-UA"))?.unique(false).middleNameWithGender(Some("female"))
+    fake(Some("uk-UA"))?.unique(false).middle_name_with_gender(Some("female"))
 }
 ```
 
 ### 南亞、東南亞和韓國姓名 {#south-southeast-asian-and-korean-names}
 
-`bn-BD`、`id-ID`、`ms-MY`、`ko-KR`、`th-TH` 和 `vi-VN` 使用各地的姓名詞表與全名範本。印尼姓氏支援性別選擇。韓文全名姓氏在前，中間無空格。越南語 `middleName()` 從名字詞表抽樣，明確傳入性別的 `middleNameWithGender` 使用對應的中間名詞表。馬來西亞 `name()` 使用馬來、華人和印度裔全名範本，`firstName()` 也包含基督教名字。明確選擇男性或女性名字時，沿用固定 provider 繼承的 `John` 和 `Jane`。
+`bn-BD`、`id-ID`、`ms-MY`、`ko-KR`、`th-TH` 和 `vi-VN` 使用各地的姓名詞表與全名範本。印尼姓氏支援性別選擇。韓文全名姓氏在前，中間無空格。越南語 `middle_name()` 從名字詞表抽樣，明確傳入性別的 `middle_name_with_gender` 使用對應的中間名詞表。馬來西亞 `name()` 使用馬來、華人和印度裔全名範本，`first_name()` 也包含基督教名字。明確選擇男性或女性名字時，沿用固定 provider 繼承的 `John` 和 `Jane`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
-    fake(Some("vi-VN"))?.unique(false).middleNameWithGender(Some("female"))
+    fake(Some("vi-VN"))?.unique(false).middle_name_with_gender(Some("female"))
 }
 ```
 
-`ms-MY` 可直接產生姓名範本的各個成分。馬來姓名使用 `firstNameMaleMalay`、`firstNameFemaleMalay`、`lastNameMalay`、`muhammadName`、`nurName`、`haji`、`hajjah` 和 `titleMaleMalay`。其餘介面包括 `lastNameChinese`、`firstNameMaleChinese`、`firstNameFemaleChinese`、`firstNameMaleChristian`、`firstNameFemaleChristian`、`initialIndian`、`firstNameMaleIndian`、`firstNameFemaleIndian` 和 `lastNameIndian`。可選成分可以為空，非空時保留詞表原有的結尾空格。 這些範本組成也可透過 `format(name, &[])` 依名稱呼叫。
+`ms-MY` 可直接產生姓名範本的各個成分。馬來姓名使用 `first_name_male_malay`、`first_name_female_malay`、`last_name_malay`、`muhammad_name`、`nur_name`、`haji`、`hajjah` 和 `title_male_malay`。其餘介面包括 `last_name_chinese`、`first_name_male_chinese`、`first_name_female_chinese`、`first_name_male_christian`、`first_name_female_christian`、`initial_indian`、`first_name_male_indian`、`first_name_female_indian` 和 `last_name_indian`。可選成分可以為空，非空時保留詞表原有的結尾空格。 這些範本組成也可透過 `format(name, &[])` 依名稱呼叫。
 
-`myKadNumber(gender, formatted, separator)` 產生樣本號碼。關閉格式化時輸出 12 位數字，開啟後以連字號或指定分隔符號分為六位、兩位和四位三組。末位在 `"male"` 時為奇數，`"female"` 時為偶數，其餘情況無限制。月、日分別抽樣。以上介面均支援 `unique()`，在 `ms-MY` 以外的地區回傳錯誤。
+`my_kad_number(gender, formatted, separator)` 產生樣本號碼。關閉格式化時輸出 12 位數字，開啟後以連字號或指定分隔符號分為六位、兩位和四位三組。末位在 `"male"` 時為奇數，`"female"` 時為偶數，其餘情況無限制。月、日分別抽樣。以上介面均支援 `unique()`，在 `ms-MY` 以外的地區回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1570,7 +1570,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("ms-MY"))?;
     let unique = faker.unique(false);
-    Ok((unique.firstNameMaleMalay()?, unique.myKadNumber(Some("male"), true, None)?))
+    Ok((unique.first_name_male_malay()?, unique.my_kad_number(Some("male"), true, None)?))
 }
 ```
 
@@ -1578,7 +1578,7 @@ fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
 
 `ro-RO` 和 `ro-MD` 共用羅馬尼亞語姓名及稱謂詞表。`sr-RS` 和 `sr-Cyrl-RS` 使用各自的西里爾文字詞表，`sr-Latn-RS` 使用拉丁文字詞表。
 
-在 `ro-RO` 呼叫 `cnp(gender, dateOfBirth, county, isResident)` 可產生 13 位數樣本號碼。出生日期可省略，也可在 1800–2099 年內使用 `YYYY`、`YYYY-MM` 或 `YYYY-MM-DD`。日期缺少的欄位取自該年隨機一天。抽到的日若超出指定月份的天數，呼叫回傳錯誤。縣代碼區分大小寫。此方法會計算校驗位並支援 `unique()`。
+在 `ro-RO` 呼叫 `cnp(gender, date_of_birth, county, is_resident)` 可產生 13 位數樣本號碼。出生日期可省略，也可在 1800–2099 年內使用 `YYYY`、`YYYY-MM` 或 `YYYY-MM-DD`。日期缺少的欄位取自該年隨機一天。抽到的日若超出指定月份的天數，呼叫回傳錯誤。縣代碼區分大小寫。此方法會計算校驗位並支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1590,55 +1590,55 @@ fn romanian_cnp_sample() -> DatabaseResult<String> {
 
 ### 愛沙尼亞、拉脫維亞和蒙特內哥羅姓名 {#estonian-latvian-and-montenegrin-names}
 
-`et-EE`、`lv-LV` 和 `me-ME` 使用各地的名字和姓氏詞表，沿用名字在前的基礎範本。拉脫維亞 `driverLicence()` 輸出兩個小寫 ASCII 字母和六位數字。護照號碼使用七位數字。可用 `personalIdentityNumberWithBirthdate` 傳入公曆出生日期。這些身分格式化器均支援 `unique()`。
+`et-EE`、`lv-LV` 和 `me-ME` 使用各地的名字和姓氏詞表，沿用名字在前的基礎範本。拉脫維亞 `driver_licence()` 輸出兩個小寫 ASCII 字母和六位數字。護照號碼使用七位數字。可用 `personal_identity_number_with_birthdate` 傳入公曆出生日期。這些身分格式化器均支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn latvian_driver_licence() -> DatabaseResult<String> {
-    fake(Some("lv-LV"))?.unique(false).driverLicence()
+    fake(Some("lv-LV"))?.unique(false).driver_licence()
 }
 ```
 
 ### 印度英語和尼泊爾語姓名 {#indian-english-and-nepali-names}
 
-`en-IN` 和 `ne-NP` 使用各地的名字、姓氏和全名範本。印度英語提供 `middleNameMale()`，尼泊爾語同時提供 `middleNameMale()` 和 `middleNameFemale()`。可直接呼叫，或向 `middleNameWithGender` 傳入對應性別。兩個地區呼叫無參數的 `middleName()` 都會回傳該地區不支援此介面的錯誤。依性別產生的介面均支援 `unique()`。
+`en-IN` 和 `ne-NP` 使用各地的名字、姓氏和全名範本。印度英語提供 `middle_name_male()`，尼泊爾語同時提供 `middle_name_male()` 和 `middle_name_female()`。可直接呼叫，或向 `middle_name_with_gender` 傳入對應性別。兩個地區呼叫無參數的 `middle_name()` 都會回傳該地區不支援此介面的錯誤。依性別產生的介面均支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn nepali_middle_name() -> DatabaseResult<&'static str> {
-    fake(Some("ne-NP"))?.unique(false).middleNameFemale()
+    fake(Some("ne-NP"))?.unique(false).middle_name_female()
 }
 ```
 
 ### 奈及利亞和烏干達英語姓名 {#nigerian-and-ugandan-english-names}
 
-`en-NG` 和 `en-UG` 使用各地的姓名詞表與範本。奈及利亞全名可含一個或兩個名字，姓氏在後。烏干達範本可將名字或姓氏放在前面。烏干達無參數的 `lastName()` 從通用姓氏詞表抽樣。可用 `lastNameMale()`、`lastNameFemale()` 或向 `lastNameWithGender` 傳入明確的性別，從對應詞表抽樣。這些介面皆支援 `unique()`。
+`en-NG` 和 `en-UG` 使用各地的姓名詞表與範本。奈及利亞全名可含一個或兩個名字，姓氏在後。烏干達範本可將名字或姓氏放在前面。烏干達無參數的 `last_name()` 從通用姓氏詞表抽樣。可用 `last_name_male()`、`last_name_female()` 或向 `last_name_with_gender` 傳入明確的性別，從對應詞表抽樣。這些介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn ugandan_surname() -> DatabaseResult<String> {
-    fake(Some("en-UG"))?.unique(false).lastNameFemale()
+    fake(Some("en-UG"))?.unique(false).last_name_female()
 }
 ```
 
 ### 蒙古語姓名 {#mongolian-names}
 
-`mn-MN` 全名使用一個西里爾首字母、句點和名字，句點後沒有空格。`namePrefix()` 從 30 個姓名首字母中抽樣。`alphabet()` 使用 `idNumber()` 的獨立 35 字母詞表。兩個介面均回傳 Rust `char`，並支援 `unique()`。單獨呼叫姓氏產生介面會回傳基礎 provider 的 `Doe`。
+`mn-MN` 全名使用一個西里爾首字母、句點和名字，句點後沒有空格。`name_prefix()` 從 30 個姓名首字母中抽樣。`alphabet()` 使用 `id_number()` 的獨立 35 字母詞表。兩個介面均回傳 Rust `char`，並支援 `unique()`。單獨呼叫姓氏產生介面會回傳基礎 provider 的 `Doe`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn mongolian_initial() -> DatabaseResult<char> {
-    fake(Some("mn-MN"))?.unique(false).namePrefix()
+    fake(Some("mn-MN"))?.unique(false).name_prefix()
 }
 ```
 
 ### 新加坡英語姓名和證件樣本 {#singapore-english-names-and-identity-samples}
 
-`en-SG` 沿用基礎姓名 `John Doe` 和 `Jane Doe`。用 `nric(birthDate)` 或 `fin(issueDate)` 產生證件樣本，也可用 `singaporeId(issueDate, foreigner)` 指定類型。日期接受選填的公曆日期，省略時使用 `dateTimeThisCentury()` 的日期範圍。字首以 2000 年為分界。NRIC 從 1968 年起取年份後兩位，更早的日期從 `00` 和 `01` 抽樣。三個介面均計算結尾校驗字母並支援 `unique()`。
+`en-SG` 沿用基礎姓名 `John Doe` 和 `Jane Doe`。用 `nric(birth_date)` 或 `fin(issue_date)` 產生證件樣本，也可用 `singapore_id(issue_date, foreigner)` 指定類型。日期接受選填的公曆日期，省略時使用 `date_time_this_century()` 的日期範圍。字首以 2000 年為分界。NRIC 從 1968 年起取年份後兩位，更早的日期從 `00` 和 `01` 抽樣。三個介面均計算結尾校驗字母並支援 `unique()`。
 
 透過 `format("singaporeId", args)` 呼叫時，日期以 `YYYY-MM-DD` 或 null 表示，第二個參數是可選的 `foreigner` 布林值。
 
@@ -1652,7 +1652,7 @@ fn singapore_identity_sample() -> DatabaseResult<String> {
 
 ### 比利時荷蘭語姓名和 RRN 樣本 {#belgian-dutch-names-and-rrn-samples}
 
-`nl-BE` 使用當地名字和姓氏詞表，並沿用名字在前的基礎範本。`rrn(gender)` 使用 `dateTimeThisCentury()` 抽取出生日期並產生 11 位數樣本。三位序號在 `"male"` 時為奇數，`"female"` 時為偶數，其他情況不限。結尾兩位按模 97 計算，2000 年起的出生日期使用對應的世紀偏移。此介面支援 `unique()`。
+`nl-BE` 使用當地名字和姓氏詞表，並沿用名字在前的基礎範本。`rrn(gender)` 使用 `date_time_this_century()` 抽取出生日期並產生 11 位數樣本。三位序號在 `"male"` 時為奇數，`"female"` 時為偶數，其他情況不限。結尾兩位按模 97 計算，2000 年起的出生日期使用對應的世紀偏移。此介面支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1676,13 +1676,13 @@ fn person_affixes() -> DatabaseResult<(&'static str, Option<&'static str>)> {
 
 ### 日語假名姓名 {#japanese-kana-names}
 
-在 `ja-JP` 呼叫 `kanaName(gender)` 可產生片假名全名，姓氏在前，以一個空格分隔。`firstKanaName(gender)` 產生名字，`lastKanaName()` 產生姓氏。可傳入 `Some("male")`、`Some("female")` 或 `None`，分別選擇男性、女性或任一名字詞表。`firstKanaNameMale()` 和 `firstKanaNameFemale()` 直接選擇對應詞表。五個介面皆支援 `unique()`。
+在 `ja-JP` 呼叫 `kana_name(gender)` 可產生片假名全名，姓氏在前，以一個空格分隔。`first_kana_name(gender)` 產生名字，`last_kana_name()` 產生姓氏。可傳入 `Some("male")`、`Some("female")` 或 `None`，分別選擇男性、女性或任一名字詞表。`first_kana_name_male()` 和 `first_kana_name_female()` 直接選擇對應詞表。五個介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn japanese_kana_name() -> DatabaseResult<String> {
-    fake(Some("ja-JP"))?.unique(false).kanaName(Some("female"))
+    fake(Some("ja-JP"))?.unique(false).kana_name(Some("female"))
 }
 ```
 
@@ -1700,19 +1700,19 @@ fn swiss_avs_sample() -> DatabaseResult<String> {
 
 ### 捷克出生號碼和丹麥 CPR {#czech-birth-numbers-and-danish-cpr}
 
-在 `cs-CZ` 呼叫 `birthNumber(gender, minAge, maxAge, slashProbability)` 產生捷克出生號碼樣本，數值參數指定年齡上下限和出現斜線的百分比。`birthNumberMale()` 和 `birthNumberFemale()` 預設使用 0 到 100 歲及 50% 的斜線機率。產生器保留女性月份偏移、2004 年起的額外月份偏移和 1954 年起的校驗位。年齡上下限顛倒時回傳錯誤。`da-DK` 的 `cpr()` 抽取公曆出生日期及首位非零的四位序號。兩地介面皆支援 `unique()`。
+在 `cs-CZ` 呼叫 `birth_number(gender, min_age, max_age, slash_probability)` 產生捷克出生號碼樣本，數值參數指定年齡上下限和出現斜線的百分比。`birth_number_male()` 和 `birth_number_female()` 預設使用 0 到 100 歲及 50% 的斜線機率。產生器保留女性月份偏移、2004 年起的額外月份偏移和 1954 年起的校驗位。年齡上下限顛倒時回傳錯誤。`da-DK` 的 `cpr()` 抽取公曆出生日期及首位非零的四位序號。兩地介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn czech_birth_number() -> DatabaseResult<String> {
-    fake(Some("cs-CZ"))?.unique(false).birthNumber(Some("female"), 18, 65, 100)
+    fake(Some("cs-CZ"))?.unique(false).birth_number(Some("female"), 18, 65, 100)
 }
 ```
 
 ### 法國 NIR 和義大利稅號樣本 {#french-nir-and-italian-tax-id-samples}
 
-在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 選擇首位，或用 `None` 隨機選擇。NIR 使用法國省級行政區代碼和模 97 校驗位。緊湊格式有 15 個字元，含空格格式按 1–2–2–2–3–3–2 分組。在 `it-IT` 或 `it-CH` 中使用 `taxId()` 產生 上游 Faker 的 16 位大寫稅號樣本。兩個介面皆支援 `unique()`。
+在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 選擇首位，或用 `None` 隨機選擇。NIR 使用法國省級行政區代碼和模 97 校驗位。緊湊格式有 15 個字元，含空格格式按 1–2–2–2–3–3–2 分組。在 `it-IT` 或 `it-CH` 中使用 `tax_id()` 產生 上游 Faker 的 16 位大寫稅號樣本。兩個介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1724,7 +1724,7 @@ fn french_nir_sample() -> DatabaseResult<String> {
 
 ### 伊朗國民號碼和印尼 NIK 樣本 {#iranian-national-codes-and-indonesian-nik-samples}
 
-在 `fa-IR` 用 `nationalCode()` 產生十位數樣本，包含非零地區代碼和模 11 校驗位。在 `id-ID` 用 `nik(gender, birthDate)` 產生 16 位數樣本，開頭取自固定出生地代碼詞表，號碼內包含出生日期。女性樣本的出生日期日數加 40。日期傳入 `None` 時從過去 30 年抽樣，也可傳入 `jiff::civil::Date` 指定公曆日期。兩個介面皆支援 `unique()`。
+在 `fa-IR` 用 `national_code()` 產生十位數樣本，包含非零地區代碼和模 11 校驗位。在 `id-ID` 用 `nik(gender, birth_date)` 產生 16 位數樣本，開頭取自固定出生地代碼詞表，號碼內包含出生日期。女性樣本的出生日期日數加 40。日期傳入 `None` 時從過去 30 年抽樣，也可傳入 `jiff::civil::Date` 指定公曆日期。兩個介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1736,18 +1736,18 @@ fn indonesian_nik_sample() -> DatabaseResult<String> {
 
 ### 哈薩克 IIN 和委內瑞拉身分證號碼樣本 {#kazakh-iin-and-venezuelan-national-id-samples}
 
-在 `kk-KZ` 中使用 `individualIdentificationNumber(birthDate, gender)`。生日接受 1800–2099 年的選填公曆日期，預設從過去 30 年抽樣，性別預設為男性。`Faker::checkSum(prefix)` 接收 11 位 ASCII 數字並回傳校驗值，兩輪均得到 10 時，產生器會重新抽取序號。在 `es-VE` 中用 `nationalId(separator)` 設定 `V` 或 `E` 後的分隔符號。兩個產生器皆支援 `unique()`。
+在 `kk-KZ` 中使用 `individual_identification_number(birth_date, gender)`。生日接受 1800–2099 年的選填公曆日期，預設從過去 30 年抽樣，性別預設為男性。`Faker::check_sum(prefix)` 接收 11 位 ASCII 數字並回傳校驗值，兩輪均得到 10 時，產生器會重新抽取序號。在 `es-VE` 中用 `national_id(separator)` 設定 `V` 或 `E` 後的分隔符號。兩個產生器皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn kazakh_iin_sample() -> DatabaseResult<String> {
     fake(Some("kk-KZ"))?.unique(false)
-        .individualIdentificationNumber(jiff::civil::Date::new(2000, 2, 29).ok(), Some("female"))
+        .individual_identification_number(jiff::civil::Date::new(2000, 2, 29).ok(), Some("female"))
 }
 ```
 
-使用 `es-VE` 的 `taxpayerIdentificationNumber()` 產生委內瑞拉 RIF 樣本。格式由六種前綴之一（`J`、`G`、`V`、`E`、`P`、`C`）、八位主體數字和一位隨機尾數組成。用 `taxpayerIdentificationNumberWithSeparator(Some("-"))` 在主體兩側加入分隔符。兩個入口共用 `unique()` 的去重記錄。
+使用 `es-VE` 的 `taxpayer_identification_number()` 產生委內瑞拉 RIF 樣本。格式由六種前綴之一（`J`、`G`、`V`、`E`、`P`、`C`）、八位主體數字和一位隨機尾數組成。用 `taxpayer_identification_number_with_separator(Some("-"))` 在主體兩側加入分隔符。兩個入口共用 `unique()` 的去重記錄。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1755,55 +1755,55 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn venezuelan_rif_sample() -> DatabaseResult<String> {
     fake(Some("es-VE"))?
         .unique(false)
-        .taxpayerIdentificationNumberWithSeparator(Some("-"))
+        .taxpayer_identification_number_with_separator(Some("-"))
 }
 ```
 
 ### 葡萄牙 NIF 和臺灣華語名字詞表 {#portuguese-nif-and-taiwanese-name-pools}
 
-在 `pt-PT` 中用 `taxpayerIdentificationNumber()` 產生九位數 NIF 樣本。`Faker::dvCalcMod11(number)` 接收 ASCII 數字字串計算校驗位，可保留前導零。在 `zh-TW` 中，`randomName(pool, count)` 從字串切片獨立抽樣後拼接，可以重複抽到同一項。詞表為空或抽樣數為零時回傳空字串。兩個產生器皆支援 `unique()`。 透過 `format("randomName", args)` 呼叫時，依序傳入由文字值組成的 JSON 陣列或物件及整數數量。數量小於或等於零時回傳空字串。
+在 `pt-PT` 中用 `taxpayer_identification_number()` 產生九位數 NIF 樣本。`Faker::dv_calc_mod11(number)` 接收 ASCII 數字字串計算校驗位，可保留前導零。在 `zh-TW` 中，`random_name(pool, count)` 從字串切片獨立抽樣後拼接，可以重複抽到同一項。詞表為空或抽樣數為零時回傳空字串。兩個產生器皆支援 `unique()`。 透過 `format("randomName", args)` 呼叫時，依序傳入由文字值組成的 JSON 陣列或物件及整數數量。數量小於或等於零時回傳空字串。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn taiwanese_name_sample() -> DatabaseResult<String> {
-    fake(Some("zh-TW"))?.randomName(&["明", "安"], 2)
+    fake(Some("zh-TW"))?.random_name(&["明", "安"], 2)
 }
 ```
 
 ### 波羅的海駕駛執照和護照樣本 {#baltic-driving-licence-and-passport-samples}
 
-`lt-LT` 和 `lv-LV` 均支援 `driverLicence()` 與 `passportNumber()`。立陶宛兩種樣本都是八位 ASCII 數字，可保留前導零。拉脫維亞樣本以兩個小寫 ASCII 字母開頭，駕駛執照後接六位數字，護照後接七位數字。兩個介面皆支援 `unique()`。
+`lt-LT` 和 `lv-LV` 均支援 `driver_licence()` 與 `passport_number()`。立陶宛兩種樣本都是八位 ASCII 數字，可保留前導零。拉脫維亞樣本以兩個小寫 ASCII 字母開頭，駕駛執照後接六位數字，護照後接七位數字。兩個介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn baltic_driver_licence() -> DatabaseResult<String> {
-    fake(Some("lt-LT"))?.unique(false).driverLicence()
+    fake(Some("lt-LT"))?.unique(false).driver_licence()
 }
 ```
 
 ### 馬來西亞車牌 {#malaysian-registration-plates}
 
-使用 `ms-MY` 的 `jpjNumberPlate()` 產生馬來西亞車牌。帶權重的前綴、特殊前綴的大小寫及可為空的字母均沿用固定版 上游 Faker。也可個別呼叫 `peninsularPrefix()`、`sarawakPrefix()`、`sabahPrefix()`、`specialPrefix()`、`validAlphabet()` 和 `numberSequence()`。這些方法均支援 `unique()`。
+使用 `ms-MY` 的 `jpj_number_plate()` 產生馬來西亞車牌。帶權重的前綴、特殊前綴的大小寫及可為空的字母均沿用固定版 上游 Faker。也可個別呼叫 `peninsular_prefix()`、`sarawak_prefix()`、`sabah_prefix()`、`special_prefix()`、`valid_alphabet()` 和 `number_sequence()`。這些方法均支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn malaysian_plate_sample() -> DatabaseResult<String> {
-    fake(Some("ms-MY"))?.unique(false).jpjNumberPlate()
+    fake(Some("ms-MY"))?.unique(false).jpj_number_plate()
 }
 ```
 
 ### 波蘭車牌 {#polish-registration-plates}
 
-使用 `pl-PL` 的 `licensePlate()` 產生一般波蘭車牌。`licensePlateWithOptions(special, voivodeships, counties)` 可依省和縣名篩選。啟用特殊車牌後，可在省級篩選中指定 `army` 或 `services` 產生軍用或機構車牌。篩選沒有符合項目時，從該級可用項目中抽取。OpenRust 依地區選擇提供器，上游 Faker 需顯式註冊波蘭 LicensePlate 提供器。兩個 Rust 方法共用 `unique()` 歷史。
+使用 `pl-PL` 的 `license_plate()` 產生一般波蘭車牌。`license_plate_with_options(special, voivodeships, counties)` 可依省和縣名篩選。啟用特殊車牌後，可在省級篩選中指定 `army` 或 `services` 產生軍用或機構車牌。篩選沒有符合項目時，從該級可用項目中抽取。OpenRust 依地區選擇提供器，上游 Faker 需顯式註冊波蘭 LicensePlate 提供器。兩個 Rust 方法共用 `unique()` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn polish_plate_sample() -> DatabaseResult<String> {
-    fake(Some("pl-PL"))?.unique(false).licensePlateWithOptions(
+    fake(Some("pl-PL"))?.unique(false).license_plate_with_options(
         false, Some(&["dolnośląskie"]), Some(&["Wrocław"]),
     )
 }
@@ -1845,9 +1845,9 @@ fn person_fallback_sample() -> DatabaseResult<String> {
 
 ### 公司標語與商業短語 {#company-slogans-and-business-phrases}
 
-用 `catchPhrase()` 產生公司標語，用 `bs()` 產生商業短語。兩者皆使用目前地區的 Company Provider。地區沒有 Company Provider 時回退至 `en-US`。地區有自己的 Provider 但缺少對應介面時回傳錯誤。`ar-SA`、`ar-JO` 和 `hy-AM` 的 `bs()` 回傳空字串。`hy-AM` 的 `catchPhrase()` 也回傳空字串。`zh-TW` 的商業短語直接串接詞組，不加空格。
+用 `catch_phrase()` 產生公司標語，用 `bs()` 產生商業短語。兩者皆使用目前地區的 Company Provider。地區沒有 Company Provider 時回退至 `en-US`。地區有自己的 Provider 但缺少對應介面時回傳錯誤。`ar-SA`、`ar-JO` 和 `hy-AM` 的 `bs()` 回傳空字串。`hy-AM` 的 `catch_phrase()` 也回傳空字串。`zh-TW` 的商業短語直接串接詞組，不加空格。
 
-法語和捷克語 Company Provider 也提供 `catchPhraseNoun()`、`catchPhraseVerb()` 和 `catchPhraseAttribute()`，比利時、加拿大和瑞士的法語 Provider 同樣支援。法語標語會過濾重複出現的 `sécurité` 和 `simpl`。五個介面皆支援 `unique()`。
+法語和捷克語 Company Provider 也提供 `catch_phrase_noun()`、`catch_phrase_verb()` 和 `catch_phrase_attribute()`，比利時、加拿大和瑞士的法語 Provider 同樣支援。法語標語會過濾重複出現的 `sécurité` 和 `simpl`。五個介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1855,7 +1855,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn company_phrase_sample() -> DatabaseResult<(String, String)> {
     let french = fake(Some("fr-CA"))?;
     let taiwanese = fake(Some("zh-TW"))?;
-    Ok((french.unique(false).catchPhrase()?, taiwanese.bs()?))
+    Ok((french.unique(false).catch_phrase()?, taiwanese.bs()?))
 }
 ```
 
@@ -1878,11 +1878,11 @@ fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
 
 ### 座標 {#coordinate-samples}
 
-用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh-Hant` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 呼叫臺灣座標格式化器。
+用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`local_coordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh-Hant` 下由獨立的 `local_latitude()?` 和 `local_longitude()?` 提供。五個方法均支援 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 呼叫臺灣座標格式化器。
 
 ### 軟刪除狀態 {#trashed-state}
 
-對已設定 `softDeletes` 的模型，在工廠或批次工廠使用 `trashed(None)?`。它追加模型所宣告的刪除欄位狀態，依選定連線的應用程式時區計算前一日同一時間。傳入 `Some(value)` 可指定刪除日期。後續狀態和明確指定的建立屬性可覆寫此值。未啟用軟刪除的模型會回傳錯誤。工廠按照一般建立生命週期產生處於此狀態的新模型。
+對已設定 `soft_deletes` 的模型，在工廠或批次工廠使用 `trashed(None)?`。它追加模型所宣告的刪除欄位狀態，依選定連線的應用程式時區計算前一日同一時間。傳入 `Some(value)` 可指定刪除日期。後續狀態和明確指定的建立屬性可覆寫此值。未啟用軟刪除的模型會回傳錯誤。工廠按照一般建立生命週期產生處於此狀態的新模型。
 
 ```rust
 use openrust::database::{
@@ -1895,7 +1895,7 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Factory::<M>::new(|| Attributes::from([("name".into(), "Archived".into())]))
         .count(2)
         .trashed(None)?
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -1903,7 +1903,7 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ### 條件狀態 {#conditional-states}
 
-用 `when(condition, transform)` 在布林條件為真時轉換工廠，或用 `unless(condition, transform)` 在條件為假時轉換。`whenElse` 和 `unlessElse` 的第三個參數是備用轉換。選中的閉包在設定工廠時執行一次，並回傳工廠以繼續鏈式呼叫。這些方法可在 `count` 前後使用。
+用 `when(condition, transform)` 在布林條件為真時轉換工廠，或用 `unless(condition, transform)` 在條件為假時轉換。`when_else` 和 `unless_else` 的第三個參數是備用轉換。選中的閉包在設定工廠時執行一次，並回傳工廠以繼續鏈式呼叫。這些方法可在 `count` 前後使用。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -1912,7 +1912,7 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
     let _batch = Factory::<M>::new(Attributes::new)
         .when(featured, |factory| factory.set("featured", true))
         .count(2)
-        .unlessElse(
+        .unless_else(
             draft,
             |batch| batch.set("status", "published"),
             |batch| batch.set("status", "draft"),
@@ -1922,37 +1922,37 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 
 ## 使用工廠建立模型
 
-`state` 按宣告順序疊加。`sequence` 從零開始，同一建構器上的各次呼叫接續其索引。新建構器重新從零開始。並行呼叫取得不同索引，依實際執行順序分配。`make` 建立記憶體模型並執行 `afterMaking`。`create` 儲存模型、建立已宣告的子關聯，再執行 `afterCreating`。呼叫 `count` 後回傳 Eloquent 集合。工廠屬性略過大量賦值篩選，並繼續執行模型修改器與屬性轉換。
+`state` 按宣告順序疊加。`sequence` 從零開始，同一建構器上的各次呼叫接續其索引。新建構器重新從零開始。並行呼叫取得不同索引，依實際執行順序分配。`make` 建立記憶體模型並執行 `after_making`。`create` 儲存模型、建立已宣告的子關聯，再執行 `after_creating`。呼叫 `count` 後回傳 Eloquent 集合。工廠屬性略過大量賦值篩選，並繼續執行模型修改器與屬性轉換。
 
-用 `prependState` 將轉換放到目前所有已登記狀態之前。每個轉換都能讀取先前產生的屬性。用 `set(name, value)` 在末尾附加單一屬性覆寫。兩種方法皆可在 `count` 前後使用。直接傳入建立方法的屬性會在已登記狀態之後套用。
+用 `prepend_state` 將轉換放到目前所有已登記狀態之前。每個轉換都能讀取先前產生的屬性。用 `set(name, value)` 在末尾附加單一屬性覆寫。兩種方法皆可在 `count` 前後使用。直接傳入建立方法的屬性會在已登記狀態之後套用。
 
-批次工廠先建構所有模型，再執行 `afterMaking`。`create` 逐一儲存模型及其宣告的關聯，寫入完成後才執行該批次的 `afterCreating`。`afterMaking` 失敗時，該批模型尚未寫入，建構期間解析的上層工廠可能已寫入記錄。
+批次工廠先建構所有模型，再執行 `after_making`。`create` 逐一儲存模型及其宣告的關聯，寫入完成後才執行該批次的 `after_creating`。`after_making` 失敗時，該批模型尚未寫入，建構期間解析的上層工廠可能已寫入記錄。
 
-使用 `raw()` 或 `rawOn(connection)` 取得套用模型修改器和轉換前的展開屬性。指定數量時回傳屬性映射清單。原始屬性展開會略過目標工廠的回呼和子關聯，仍可能儲存宣告的上層模型以解析關聯鍵。使用 `createQuietly()` 或 `createQuietlyOn(connection)` 可儲存模型及關聯，同時抑制 Eloquent 模型事件。工廠回呼照常執行。
+使用 `raw()` 或 `raw_on(connection)` 取得套用模型修改器和轉換前的展開屬性。指定數量時回傳屬性映射清單。原始屬性展開會略過目標工廠的回呼和子關聯，仍可能儲存宣告的上層模型以解析關聯鍵。使用 `create_quietly()` 或 `create_quietly_on(connection)` 可儲存模型及關聯，同時抑制 Eloquent 模型事件。工廠回呼照常執行。
 
-用 `rawWith(attributes)` 或 `rawWithState(callback)` 追加僅本次生效的狀態。閉包接收每筆記錄在解析關聯鍵前的屬性。覆寫外鍵時會略過該鍵的解析，包括明確設為 null。對應的 `On` 方法可指定連線。
+用 `raw_with(attributes)` 或 `raw_with_state(callback)` 追加僅本次生效的狀態。閉包接收每筆記錄在解析關聯鍵前的屬性。覆寫外鍵時會略過該鍵的解析，包括明確設為 null。對應的 `On` 方法可指定連線。
 
-單筆和批次建構器皆可用 `rawWithParent(parent, callback)` 或 `rawWithParentOn(connection, parent, callback)` 借用父模型。型別相符的 `stateWithParent` 與本次閉包都可讀取父模型。傳入父模型本身不會新增關聯屬性。
+單筆和批次建構器皆可用 `raw_with_parent(parent, callback)` 或 `raw_with_parent_on(connection, parent, callback)` 借用父模型。型別相符的 `state_with_parent` 與本次閉包都可讀取父模型。傳入父模型本身不會新增關聯屬性。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::{Factory, HasFactory}}};
 
 async fn preview_with_state<M: Model + HasFactory>() -> DatabaseResult<Attributes> {
-    Factory::<M>::factoryForModel()
-        .rawWithState(|_| Attributes::from([("name".into(), "Preview".into())]))
+    Factory::<M>::factory_for_model()
+        .raw_with_state(|_| Attributes::from([("name".into(), "Preview".into())]))
         .await
 }
 
 async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResult<Attributes> {
-    Factory::<M>::factoryForModel()
-        .rawWithParent(parent, |_, parent| {
-            Attributes::from([("parent_key".into(), parent.getKey().cloned().unwrap_or(openrust::database::Value::Null))])
+    Factory::<M>::factory_for_model()
+        .raw_with_parent(parent, |_, parent| {
+            Attributes::from([("parent_key".into(), parent.get_key().cloned().unwrap_or(openrust::database::Value::Null))])
         })
         .await
 }
 ```
 
-用 `makeWithState`、`createWithState` 或 `createQuietlyWithState` 為這次操作附加末尾狀態。計數工廠也可以用 `make_with`、`createWith` 或 `createQuietlyWith` 接收屬性映射。單筆模型的映射入口為 `makeOne`、`createOne` 和 `createOneQuietly`。對應的 `On` 方法可以指定連線。
+用 `make_with_state`、`create_with_state` 或 `create_quietly_with_state` 為這次操作附加末尾狀態。計數工廠也可以用 `make_with`、`create_with` 或 `create_quietly_with` 接收屬性映射。單筆模型的映射入口為 `make_one`、`create_one` 和 `create_one_quietly`。對應的 `On` 方法可以指定連線。
 
 回呼會逐筆讀取已累積的屬性，此時尚未解析延遲屬性和父模型鍵。末尾狀態只作用於這次呼叫。
 
@@ -1966,7 +1966,7 @@ async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
     let drafts = batch.make_with(name("Preview")).await?;
     assert!(drafts.iter().all(|model| !model.state().exists()));
 
-    let saved = batch.createWithState(|attributes| {
+    let saved = batch.create_with_state(|attributes| {
         assert_eq!(attributes["name"], "Flight".into());
         name("Scheduled")
     }).await?;
@@ -1979,9 +1979,9 @@ async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-用 `createOne(attributes)` 建立單一模型，即使工廠已指定批次數量。用 `createMany(records)` 逐筆依序建立。傳入 `FactoryRecords::Default` 使用工廠數量，未指定時建立一筆。傳入 `FactoryRecords::Count(n)` 指定數量，或用 `FactoryRecords::Attributes(vec![…])` 為每筆記錄指定覆寫屬性。覆寫值在工廠狀態之後套用。每筆記錄完成兩個工廠回呼後才開始下一筆。後續記錄失敗時，先前寫入可能保留。用 `createOneQuietly` 和 `createManyQuietly` 抑制模型事件，或用對應的 `On` 方法指定連線。
+用 `create_one(attributes)` 建立單一模型，即使工廠已指定批次數量。用 `create_many(records)` 逐筆依序建立。傳入 `FactoryRecords::Default` 使用工廠數量，未指定時建立一筆。傳入 `FactoryRecords::Count(n)` 指定數量，或用 `FactoryRecords::Attributes(vec![…])` 為每筆記錄指定覆寫屬性。覆寫值在工廠狀態之後套用。每筆記錄完成兩個工廠回呼後才開始下一筆。後續記錄失敗時，先前寫入可能保留。用 `create_one_quietly` 和 `create_many_quietly` 抑制模型事件，或用對應的 `On` 方法指定連線。
 
-用 `makeOne(attributes)` 建構一個未儲存的模型，或用 `makeMany(records)` 依序建構多個未儲存的模型。兩者皆接受明確屬性並執行 `afterMaking`。`makeMany` 使用相同的 `FactoryRecords` 選項，數量為零時回傳空集合。`makeMany` 和 `createMany` 都會消耗已設定的預設數量。明確指定記錄、零筆及模型產生失敗時同樣生效。後續呼叫預設處理一筆記錄，Rust 批次介面仍回傳集合形式。兩種方法皆不儲存回傳的模型，解析已宣告的上層關聯時仍可能寫入上層模型。對應的 `On` 方法可指定連線。`lazy(attributes)` 回傳非同步回呼，呼叫並等待後才解析連線並建立單一模型或指定數量的批次。重複呼叫會重新建立。
+用 `make_one(attributes)` 建構一個未儲存的模型，或用 `make_many(records)` 依序建構多個未儲存的模型。兩者皆接受明確屬性並執行 `after_making`。`make_many` 使用相同的 `FactoryRecords` 選項，數量為零時回傳空集合。`make_many` 和 `create_many` 都會消耗已設定的預設數量。明確指定記錄、零筆及模型產生失敗時同樣生效。後續呼叫預設處理一筆記錄，Rust 批次介面仍回傳集合形式。兩種方法皆不儲存回傳的模型，解析已宣告的上層關聯時仍可能寫入上層模型。對應的 `On` 方法可指定連線。`lazy(attributes)` 回傳非同步回呼，呼叫並等待後才解析連線並建立單一模型或指定數量的批次。重複呼叫會重新建立。
 
 ```rust
 use openrust::database::{
@@ -1991,13 +1991,13 @@ use openrust::database::{
 
 async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
     let batch = Factory::<M>::new(Attributes::new).count(3);
-    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 3);
-    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 1);
+    assert_eq!(batch.make_many(FactoryRecords::Default).await?.len(), 3);
+    assert_eq!(batch.make_many(FactoryRecords::Default).await?.len(), 1);
     Ok(())
 }
 ```
 
-`makeOne` 保留已設定的批次數量，供下一次 `makeMany` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。未設定批次數量的工廠回傳的 `lazy` 回呼，每次成功執行會建立並回傳一個模型。範例驗證逐筆覆寫保留輸入順序，並檢查兩種回呼回傳的模型皆已儲存。 直接丟棄尚未開始輪詢的 Future，目標資料表不會寫入記錄。
+`make_one` 保留已設定的批次數量，供下一次 `make_many` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。未設定批次數量的工廠回傳的 `lazy` 回呼，每次成功執行會建立並回傳一個模型。範例驗證逐筆覆寫保留輸入順序，並檢查兩種回呼回傳的模型皆已儲存。 直接丟棄尚未開始輪詢的 Future，目標資料表不會寫入記錄。
 
 ```rust
 use openrust::database::{
@@ -2014,23 +2014,23 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
     });
     let previews = factory().count(2);
 
-    let one = previews.makeOne(Attributes::new()).await?;
+    let one = previews.make_one(Attributes::new()).await?;
     assert!(!one.state().exists());
-    let many = previews.makeMany(FactoryRecords::Default).await?;
+    let many = previews.make_many(FactoryRecords::Default).await?;
     assert_eq!(many.len(), 2);
     assert!(many.iter().all(|model| !model.state().exists()));
-    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
-    assert!(previews.makeMany(FactoryRecords::Count(0)).await?.is_empty());
+    assert_eq!(previews.make_many(FactoryRecords::Default).await?.len(), 1);
+    assert!(previews.make_many(FactoryRecords::Count(0)).await?.is_empty());
 
     let names = FactoryRecords::Attributes(vec![
         Attributes::from([("name".into(), "Morning flight".into())]),
         Attributes::from([("name".into(), "Evening flight".into())]),
     ]);
-    let custom = previews.makeMany(names).await?;
+    let custom = previews.make_many(names).await?;
     assert_eq!(custom.len(), 2);
     assert!(custom.iter().all(|model| !model.state().exists()));
-    assert_eq!(custom[0].getAttribute("name"), Some(&"Morning flight".into()));
-    assert_eq!(custom[1].getAttribute("name"), Some(&"Evening flight".into()));
+    assert_eq!(custom[0].get_attribute("name"), Some(&"Morning flight".into()));
+    assert_eq!(custom[1].get_attribute("name"), Some(&"Evening flight".into()));
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
@@ -2051,17 +2051,17 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-工廠在建構模型時暫停預設的關聯自動載入，批次結果維持關閉，包括 `makeMany` 和 `createMany`。帶計數的 `make` 和 `create` 仍使用模型定義的集合鍵。若要明確啟用該批次的自動載入，可呼叫 `withRelationshipAutoloading()`。後續查詢仍遵循模型設定的預設行為。
+工廠在建構模型時暫停預設的關聯自動載入，批次結果維持關閉，包括 `make_many` 和 `create_many`。帶計數的 `make` 和 `create` 仍使用模型定義的集合鍵。若要明確啟用該批次的自動載入，可呼叫 `with_relationship_autoloading()`。後續查詢仍遵循模型設定的預設行為。
 
 ```rust
 use openrust::database::eloquent::{Collection, Model};
 
 fn factory_relationship_loading_sample<M: Model>(models: Collection<M>) -> Collection<M> {
-    models.withRelationshipAutoloading()
+    models.with_relationship_autoloading()
 }
 ```
 
-用 `forEachSequence(states)` 為每個模型套用一組屬性，並依屬性組數決定批次數量。`crossJoinSequence(sequences)` 依宣告順序組合各序列，最後一個序列變化最快，同名屬性以後面的序列為準。另行設定批次數量，超過組合數時從頭循環。傳入空序列會回傳錯誤。
+用 `for_each_sequence(states)` 為每個模型套用一組屬性，並依屬性組數決定批次數量。`cross_join_sequence(sequences)` 依宣告順序組合各序列，最後一個序列變化最快，同名屬性以後面的序列為準。另行設定批次數量，超過組合數時從頭循環。傳入空序列會回傳錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
@@ -2075,7 +2075,7 @@ async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-用 `sequenceWithState` 讀取從零開始的索引與目前已合併的屬性。`sequenceWithParent` 也接收可選的型別化父模型借用，來源為外層關聯或明確指定父模型的入口。兩個方法依宣告位置執行，可讀取前序狀態，延遲屬性和呼叫端覆寫隨後處理。它們保留已設定的批次數量。同一工廠跨操作繼續推進各自的序列。明確指定的父模型提供上下文，需要關聯時另行設定外鍵。
+用 `sequence_with_state` 讀取從零開始的索引與目前已合併的屬性。`sequence_with_parent` 也接收可選的型別化父模型借用，來源為外層關聯或明確指定父模型的入口。兩個方法依宣告位置執行，可讀取前序狀態，延遲屬性和呼叫端覆寫隨後處理。它們保留已設定的批次數量。同一工廠跨操作繼續推進各自的序列。明確指定的父模型提供上下文，需要關聯時另行設定外鍵。
 
 ```rust
 use openrust::database::{
@@ -2090,11 +2090,11 @@ async fn contextual_sequence<M: Model, P: Model>(
     let batch = Factory::<M>::new(Attributes::new)
         .set("label", "earlier")
         .count(2)
-        .sequenceWithState(|index, attributes| {
+        .sequence_with_state(|index, attributes| {
             assert_eq!(attributes["label"], Value::from("earlier"));
             Attributes::from([("label".into(), format!("item-{index}").into())])
         })
-        .sequenceWithParent::<P>(|_, attributes, parent| {
+        .sequence_with_parent::<P>(|_, attributes, parent| {
             let suffix = if parent.is_some() { "parent" } else { "standalone" };
             let Value::Text(label) = &attributes["label"] else {
                 panic!("earlier sequence must set a label");
@@ -2103,16 +2103,16 @@ async fn contextual_sequence<M: Model, P: Model>(
         });
 
     let models = batch
-        .createWithParentOn(connection, parent, Attributes::new())
+        .create_with_parent_on(connection, parent, Attributes::new())
         .await?;
     assert_eq!(models.len(), 2);
-    assert_eq!(models[0].getAttribute("label"), Some(&"item-0-parent".into()));
-    assert_eq!(models[1].getAttribute("label"), Some(&"item-1-parent".into()));
+    assert_eq!(models[0].get_attribute("label"), Some(&"item-0-parent".into()));
+    assert_eq!(models[1].get_attribute("label"), Some(&"item-1-parent".into()));
     Ok(())
 }
 ```
 
-用 `sequenceEntries` 在同一循環中混合屬性映射和 `FactorySequence::resolve` 回呼。選中的回呼接收從零累計的 `position.index`、項目數 `position.count`、目前屬性及選用的型別化父模型。`forEachSequenceEntries` 將批次數量設為項目數，`sequenceEntries` 保留原數量。空清單不會加入狀態，傳給 `forEachSequenceEntries` 時批次數量為零。
+用 `sequence_entries` 在同一循環中混合屬性映射和 `FactorySequence::resolve` 回呼。選中的回呼接收從零累計的 `position.index`、項目數 `position.count`、目前屬性及選用的型別化父模型。`for_each_sequence_entries` 將批次數量設為項目數，`sequence_entries` 保留原數量。空清單不會加入狀態，傳給 `for_each_sequence_entries` 時批次數量為零。
 
 ```rust
 use openrust::database::{
@@ -2126,7 +2126,7 @@ async fn mixed_sequence<M: Model, P: Model>(
 ) -> DatabaseResult<()> {
     let batch = Factory::<M>::new(Attributes::new)
         .set("label", "earlier")
-        .forEachSequenceEntries(vec![
+        .for_each_sequence_entries(vec![
             Attributes::from([("label".into(), "fixed".into())]).into(),
             FactorySequence::resolve::<P>(|position, attributes, parent| {
                 assert_eq!(position.count, 2);
@@ -2138,15 +2138,15 @@ async fn mixed_sequence<M: Model, P: Model>(
                 )])
             }),
         ]);
-    let models = batch.createWithParentOn(connection, parent, Attributes::new()).await?;
+    let models = batch.create_with_parent_on(connection, parent, Attributes::new()).await?;
     assert_eq!(models.len(), 2);
-    assert_eq!(models[0].getAttribute("label"), Some(&"fixed".into()));
-    assert_eq!(models[1].getAttribute("label"), Some(&"1-parent".into()));
+    assert_eq!(models[0].get_attribute("label"), Some(&"fixed".into()));
+    assert_eq!(models[1].get_attribute("label"), Some(&"1-parent".into()));
     Ok(())
 }
 ```
 
-在單一模型或批次工廠上使用 `insert(attributes)` 批次寫入產生的列，或用 `insertOn(connection, attributes)` 指定連線。工廠會執行 `afterMaking` 並解析所需的上層鍵。批次寫入略過目標模型的持久化事件、子關聯建立及 `afterCreating`。寫入前，工廠透過讀取存取器和序列化轉換投影屬性，仍依可見清單篩選，包含符合條件的隱藏欄位並略過追加欄位。插入建構器接著重新套用修改器與寫入轉換。Rust 投影保留資料庫值型別，包含二進位資料。
+在單一模型或批次工廠上使用 `insert(attributes)` 批次寫入產生的列，或用 `insert_on(connection, attributes)` 指定連線。工廠會執行 `after_making` 並解析所需的上層鍵。批次寫入略過目標模型的持久化事件、子關聯建立及 `after_creating`。寫入前，工廠透過讀取存取器和序列化轉換投影屬性，仍依可見清單篩選，包含符合條件的隱藏欄位並略過追加欄位。插入建構器接著重新套用修改器與寫入轉換。Rust 投影保留資料庫值型別，包含二進位資料。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
@@ -2156,11 +2156,11 @@ async fn insert_projected<M: Model>(factory: Factory<M>) -> DatabaseResult<()> {
 }
 ```
 
-單筆和批次工廠皆可用 `makeWithParent(parent, attributes)` 和 `insertWithParent(parent, attributes)` 將父模型交給型別相符的 `stateWithParent` 閉包。對應的 `On` 方法可指定連線。父模型作為狀態上下文傳入，需要建立關聯時，由狀態或呼叫屬性指定外鍵。
+單筆和批次工廠皆可用 `make_with_parent(parent, attributes)` 和 `insert_with_parent(parent, attributes)` 將父模型交給型別相符的 `state_with_parent` 閉包。對應的 `On` 方法可指定連線。父模型作為狀態上下文傳入，需要建立關聯時，由狀態或呼叫屬性指定外鍵。
 
-單筆或批次工廠可以呼叫 `createWithParent(parent, attributes)`、`createQuietlyWithParent(parent, attributes)` 或 `lazyWithParent(parent, attributes)`。型別相符的 `stateWithParent` 和 `afterCreatingWithParent` 可以讀取借用的父模型。立即建立的 `On` 變體可指定連線，延遲回呼在等待時解析連線。父模型本身不會新增外鍵。
+單筆或批次工廠可以呼叫 `create_with_parent(parent, attributes)`、`create_quietly_with_parent(parent, attributes)` 或 `lazy_with_parent(parent, attributes)`。型別相符的 `state_with_parent` 和 `after_creating_with_parent` 可以讀取借用的父模型。立即建立的 `On` 變體可指定連線，延遲回呼在等待時解析連線。父模型本身不會新增外鍵。
 
-如果末尾狀態同時需要累積屬性和借用的父模型，可用 `makeWithParentState`、`createWithParentState` 或 `createQuietlyWithParentState`。這些方法支援單筆和計數工廠，`On` 變體可指定連線。回呼在解析延遲屬性和父鍵之前執行。
+如果末尾狀態同時需要累積屬性和借用的父模型，可用 `make_with_parent_state`、`create_with_parent_state` 或 `create_quietly_with_parent_state`。這些方法支援單筆和計數工廠，`On` 變體可指定連線。回呼在解析延遲屬性和父鍵之前執行。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Attributes, Model, factories::Factory}};
@@ -2171,16 +2171,16 @@ async fn seed_with_parent_state<P: Model, C: Model>(parent: &P) -> DatabaseResul
     }).count(2);
     let named = |attributes: &Attributes, parent: &P| {
         let (Some(Value::Text(prefix)), Some(Value::Text(name))) =
-            (parent.getAttribute("name"), attributes.get("name"))
+            (parent.get_attribute("name"), attributes.get("name"))
         else {
             return Attributes::new();
         };
         Attributes::from([("name".into(), format!("{prefix} {name}").into())])
     };
 
-    let drafts = children.makeWithParentState(parent, named).await?;
+    let drafts = children.make_with_parent_state(parent, named).await?;
     assert!(drafts.iter().all(|model| !model.state().exists()));
-    let saved = children.createWithParentState(parent, named).await?;
+    let saved = children.create_with_parent_state(parent, named).await?;
     assert_eq!(saved.len(), 2);
     Ok(())
 }
@@ -2194,7 +2194,7 @@ async fn create_for_parent<M: Model, P: Model>(
     parent: &P,
     attributes: Attributes,
 ) -> DatabaseResult<M> {
-    let create = factory.lazyWithParent(parent, attributes);
+    let create = factory.lazy_with_parent(parent, attributes);
     create().await
 }
 ```
@@ -2210,13 +2210,13 @@ async fn insert_for_parent<M: Model, P: Model>(
     parent: &P,
     attributes: Attributes,
 ) -> DatabaseResult<()> {
-    factory.insertWithParent(parent, attributes).await
+    factory.insert_with_parent(parent, attributes).await
 }
 ```
 
-在單一模型或批次工廠上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除該工廠已登記的對應回呼。之後可以重新登記回呼。另一階段的回呼及 Eloquent 模型事件照常執行。 這也適用於具名工廠在 `configure` 中新增的回呼。
+在單一模型或批次工廠上使用 `without_after_making()` 或 `without_after_creating()`，清除該工廠已登記的對應回呼。之後可以重新登記回呼。另一階段的回呼及 Eloquent 模型事件照常執行。 這也適用於具名工廠在 `configure` 中新增的回呼。
 
-在單一模型或批次工廠上使用 `connection(Some("archive"))` 指定命名連線。`getConnectionName()` 回傳工廠設定的覆寫值，`connection(None)` 清除該值。執行時依序查找工廠覆寫、模型連線和目前應用或 Seeder 的預設連線。`On` 方法對目標工廠使用明確傳入的連線。巢狀工廠優先使用自身覆寫或模型連線，再繼承外層連線。關聯連線驗證照常執行。
+在單一模型或批次工廠上使用 `connection(Some("archive"))` 指定命名連線。`get_connection_name()` 回傳工廠設定的覆寫值，`connection(None)` 清除該值。執行時依序查找工廠覆寫、模型連線和目前應用或 Seeder 的預設連線。`On` 方法對目標工廠使用明確傳入的連線。巢狀工廠優先使用自身覆寫或模型連線，再繼承外層連線。關聯連線驗證照常執行。
 
 ```rust
 use openrust::database::{
@@ -2229,7 +2229,7 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Factory::<M>::new(|| Attributes::from([("name".into(), "Flight".into())]))
         .sequence(|index| Attributes::from([("name".into(), format!("Flight {index}").into())]))
         .count(3)
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -2237,7 +2237,7 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ### 延後計算的工廠屬性 {#deferred-factory-attributes}
 
-用 `attribute` 在套用工廠狀態與明確覆寫後計算單一屬性。依相依順序登記屬性。用 `parentAttributeWith` 根據目前屬性建構關聯工廠。同名的明確值優先，包括設為 null 的外鍵。上層關聯排除規則也適用於 `parentAttributeWith`。
+用 `attribute` 在套用工廠狀態與明確覆寫後計算單一屬性。依相依順序登記屬性。用 `parent_attribute_with` 根據目前屬性建構關聯工廠。同名的明確值優先，包括設為 null 的外鍵。上層關聯排除規則也適用於 `parent_attribute_with`。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -2251,19 +2251,19 @@ fn deferred_factory<M: Model>() -> Factory<M> {
 }
 ```
 
-用 `modelAttribute("owner_id", &owner)` 將既有模型的主鍵用作工廠屬性。沒有主鍵的模型會產生 null，明確指定的屬性優先。建立時，工廠在儲存模型之後、建立子關聯之前清除快取中的空關聯集合。非空集合與單值關聯會保留，包括已快取的 null。
+用 `model_attribute("owner_id", &owner)` 將既有模型的主鍵用作工廠屬性。沒有主鍵的模型會產生 null，明確指定的屬性優先。建立時，工廠在儲存模型之後、建立子關聯之前清除快取中的空關聯集合。非空集合與單值關聯會保留，包括已快取的 null。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
 
 fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
-    Factory::new(Attributes::new).modelAttribute("owner_id", owner)
+    Factory::new(Attributes::new).model_attribute("owner_id", owner)
 }
 ```
 
 ## 工廠關聯
 
-設定數量後仍可繼續設定狀態、序列、回呼和關聯。`count(n)` 取代待處理數量，`forEachSequence(states)` 將數量設為序列長度。其他設定方法保留待處理數量。 直接向 `has` 或 `hasNamed` 傳入工廠時，每個父模型建立一筆子記錄。若子工廠已設定數量，會採用該數量，零筆也有效。 單筆子記錄會執行模型建構回呼，跳過批次集合鉤子。
+設定數量後仍可繼續設定狀態、序列、回呼和關聯。`count(n)` 取代待處理數量，`for_each_sequence(states)` 將數量設為序列長度。其他設定方法保留待處理數量。 直接向 `has` 或 `has_named` 傳入工廠時，每個父模型建立一筆子記錄。若子工廠已設定數量，會採用該數量，零筆也有效。 單筆子記錄會執行模型建構回呼，跳過批次集合鉤子。
 
 ```rust
 use openrust::database::{
@@ -2282,11 +2282,11 @@ async fn seed_counted_relationships<P: Model, C: Model>(
         .count(2)
         .has(relation, children)
         .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
-        .afterCreating(|parent| {
+        .after_creating(|parent| {
             assert!(parent.state().exists());
             Ok(())
         })
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -2295,7 +2295,7 @@ async fn seed_counted_relationships<P: Model, C: Model>(
 
 ### 狀態與回呼的父模型 {#factory-parent-context}
 
-當子工廠需要讀取透過 `has` 或 `hasAttached` 建立它的模型時，使用 `stateWithParent::<Parent>` 和 `afterCreatingWithParent::<Parent>`。型別相符時回呼接收 `Some(&Parent)`，獨立建立或父模型型別不同時接收 `None`。`afterMaking` 建構回呼仍只接收子模型。
+當子工廠需要讀取透過 `has` 或 `has_attached` 建立它的模型時，使用 `state_with_parent::<Parent>` 和 `after_creating_with_parent::<Parent>`。型別相符時回呼接收 `Some(&Parent)`，獨立建立或父模型型別不同時接收 `None`。`after_making` 建構回呼仍只接收子模型。
 
 ```rust
 use openrust::database::eloquent::{
@@ -2306,19 +2306,19 @@ use openrust::database::eloquent::{
 fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
     Factory::<C>::new(Attributes::new)
         .count(2)
-        .stateWithParent::<P>(|_, parent| {
+        .state_with_parent::<P>(|_, parent| {
             parent
-                .and_then(|model| model.getAttribute("name"))
+                .and_then(|model| model.get_attribute("name"))
                 .map(|name| Attributes::from([("label".into(), name.clone())]))
                 .unwrap_or_default()
         })
-        .afterCreatingWithParent::<P>(|_, _| Ok(()))
+        .after_creating_with_parent::<P>(|_, _| Ok(()))
 }
 ```
 
-`has` 接受 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 建立 `BelongsTo` 或 `MorphTo` 的上層模型，用 `forExisting` 關聯既有模型。每個 `for` 宣告依子模型與上層模型的資料庫連線組合解析一次所需的上層模型。同一建構器重複執行時重用該模型，新建構器獨立解析。`MorphTo` 描述元需要登錄目標模型與對應別名。`hasAttached` 接受 `BelongsToMany` 或 `MorphToMany` 並寫入中介表屬性。寫入依序執行。後續關聯失敗時，先前的寫入可能保留。
+`has` 接受 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 建立 `BelongsTo` 或 `MorphTo` 的上層模型，用 `for_existing` 關聯既有模型。每個 `for` 宣告依子模型與上層模型的資料庫連線組合解析一次所需的上層模型。同一建構器重複執行時重用該模型，新建構器獨立解析。`MorphTo` 描述元需要登錄目標模型與對應別名。`has_attached` 接受 `BelongsToMany` 或 `MorphToMany` 並寫入中介表屬性。寫入依序執行。後續關聯失敗時，先前的寫入可能保留。
 
-對 `BelongsTo` 和 `MorphTo`，同一外鍵以最後一次 `r#for` 或 `forExisting` 宣告覆寫工廠定義。之後可以用狀態或操作參數覆寫外鍵，包括傳入 `Value::Null`。此時不會建立或關聯上層模型。`MorphTo` 仍單獨提供類型預設值，狀態也可以覆寫類型。
+對 `BelongsTo` 和 `MorphTo`，同一外鍵以最後一次 `r#for` 或 `for_existing` 宣告覆寫工廠定義。之後可以用狀態或操作參數覆寫外鍵，包括傳入 `Value::Null`。此時不會建立或關聯上層模型。`MorphTo` 仍單獨提供類型預設值，狀態也可以覆寫類型。
 
 ```rust
 use openrust::database::{Value, eloquent::{Model, factories::Factory, relations::BelongsTo}};
@@ -2346,19 +2346,19 @@ pub async fn seed_comments<C: Model, P: Model>(
     posts: Factory<P>,
     subject: &str,
 ) -> DatabaseResult<()> {
-    comments.forNamed::<_, MorphTo<C>>(subject, posts).count(3)
-        .createOn(context.connection()).await?;
+    comments.for_named::<_, MorphTo<C>>(subject, posts).count(3)
+        .create_on(context.connection()).await?;
     Ok(())
 }
 ```
 
-子工廠先讀取工廠定義，再套用關聯查詢的預設屬性和明確狀態。直接及多型子關聯隨後補入外鍵和類型欄位，再執行 `afterMaking`。附加模型工廠也會在套用明確狀態前讀取關聯查詢的預設屬性。
+子工廠先讀取工廠定義，再套用關聯查詢的預設屬性和明確狀態。直接及多型子關聯隨後補入外鍵和類型欄位，再執行 `after_making`。附加模型工廠也會在套用明確狀態前讀取關聯查詢的預設屬性。
 
-用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名稱解析關聯。工廠使用 `Model::namedRelations` 或應用程式 `resolveRelationUsing` 登錄的描述元。明確傳入 Rust 描述元型別，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名稱不存在或型別不符時回傳錯誤。 使用 `forExistingNamed` 透過已註冊的關聯名稱關聯既有父模型。
+用 `has_named`、`for_named` 或 `has_attached_named` 按名稱解析關聯。工廠使用 `Model::named_relations` 或應用程式 `resolve_relation_using` 登錄的描述元。明確傳入 Rust 描述元型別，例如 `for_named::<_, MorphTo<Comment>>("subject", posts)`。名稱不存在或型別不符時回傳錯誤。 使用 `for_existing_named` 透過已註冊的關聯名稱關聯既有父模型。
 
-當關聯遵循相關 Rust 模型的命名時，可用 `hasInferred`。它先查找小駝峰複數關聯，模型未註冊該複數名稱時回退至單數。`hasAttachedInferred` 使用複數，`forInferred` 和 `forExistingInferred` 使用父模型的小駝峰名稱。關聯描述符仍明確指定。自訂關聯名稱使用對應的命名方法。
+當關聯遵循相關 Rust 模型的命名時，可用 `has_inferred`。它先查找小駝峰複數關聯，模型未註冊該複數名稱時回退至單數。`has_attached_inferred` 使用複數，`for_inferred` 和 `for_existing_inferred` 使用父模型的小駝峰名稱。關聯描述符仍明確指定。自訂關聯名稱使用對應的命名方法。
 
-將設定了 `forEachSequence(child_states)` 的子工廠傳給 `hasInferred`，即可依序為每筆子記錄套用一個狀態。序列長度決定每個父模型建立的子記錄數量。
+將設定了 `for_each_sequence(child_states)` 的子工廠傳給 `has_inferred`，即可依序為每筆子記錄套用一個狀態。序列長度決定每個父模型建立的子記錄數量。
 
 ```rust
 use openrust::database::{
@@ -2375,8 +2375,8 @@ async fn seed_inferred_children<P: Model, C: Model>(
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .hasInferred::<_, HasMany<P, C>>(children.forEachSequence(child_states))
-        .createOn(context.connection())
+        .has_inferred::<_, HasMany<P, C>>(children.for_each_sequence(child_states))
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -2396,28 +2396,28 @@ async fn seed_existing_owner<M: Model, R: Model>(
     owner: R,
 ) -> DatabaseResult<M> {
     factory
-        .forExistingNamed::<_, BelongsTo<M, R>>(relation, owner)
-        .createOn(context.connection())
+        .for_existing_named::<_, BelongsTo<M, R>>(relation, owner)
+        .create_on(context.connection())
         .await
 }
 ```
 
-用 `parentAttribute("owner_id", owners)` 宣告由另一工廠產生的外鍵屬性。它會展開為已儲存模型的鍵，也可重用相符的模型。定義、狀態或呼叫傳入的明確值優先。`withoutParents(vec![])` 停用所有工廠外鍵屬性。傳入 `FactoryParentSelector::attribute("owner_id")` 或 `FactoryParentSelector::model::<Owner>()` 可依屬性名稱或模型型別停用。停用的屬性展開為 null，明確的 `for` 和 `forExisting` 關聯仍會解析。
+用 `parent_attribute("owner_id", owners)` 宣告由另一工廠產生的外鍵屬性。它會展開為已儲存模型的鍵，也可重用相符的模型。定義、狀態或呼叫傳入的明確值優先。`without_parents(vec![])` 停用所有工廠外鍵屬性。傳入 `FactoryParentSelector::attribute("owner_id")` 或 `FactoryParentSelector::model::<Owner>()` 可依屬性名稱或模型型別停用。停用的屬性展開為 null，明確的 `for` 和 `for_existing` 關聯仍會解析。
 
-程序預設開啟展開。`Factory::<Owner>::dontExpandRelationshipsByDefault()` 會停用之後建構的工廠的展開，適用於所有模型型別。`expandRelationshipsByDefault()` 或 `flushState()` 可恢復預設值。既有工廠保留建構時的設定。完全停用後，再呼叫帶選擇器的 `withoutParents` 仍維持完全停用。
+程序預設開啟展開。`Factory::<Owner>::dont_expand_relationships_by_default()` 會停用之後建構的工廠的展開，適用於所有模型型別。`expand_relationships_by_default()` 或 `flush_state()` 可恢復預設值。既有工廠保留建構時的設定。完全停用後，再呼叫帶選擇器的 `without_parents` 仍維持完全停用。
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
 
 fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
-    Factory::<Owner>::dontExpandRelationshipsByDefault();
+    Factory::<Owner>::dont_expand_relationships_by_default();
     let factory = Factory::<Owner>::new(Attributes::new);
-    Factory::<Owner>::expandRelationshipsByDefault();
+    Factory::<Owner>::expand_relationships_by_default();
     factory
 }
 ```
 
-`hasAttachedNamed` 成功寫入後，如果該命名關聯已載入，或中間表變更會觸碰關聯模型，工廠會重新載入該關聯。`afterCreating` 可以讀取更新後的集合。設定自訂 Pivot 時，集合中的關聯模型會帶有對應的 Pivot 模型。
+`has_attached_named` 成功寫入後，如果該命名關聯已載入，或中間表變更會觸碰關聯模型，工廠會重新載入該關聯。`after_creating` 可以讀取更新後的集合。設定自訂 Pivot 時，集合中的關聯模型會帶有對應的 Pivot 模型。
 
 ```rust
 use openrust::database::eloquent::{
@@ -2428,7 +2428,7 @@ use openrust::database::eloquent::{
 
 fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
     Factory::new(Attributes::new)
-        .hasAttachedNamed::<R, BelongsToMany<M, R>>(
+        .has_attached_named::<R, BelongsToMany<M, R>>(
             "members", vec![related], Attributes::new(),
         )
 }
@@ -2436,17 +2436,17 @@ fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
 
 ### 重用既有模型 {#recycling-existing-models}
 
-用 `recycle` 傳入一個已儲存的模型，或用 `recycleMany` 傳入同類型模型的迭代器。這兩個方法可在 `count` 前後呼叫。模型池會傳給巢狀關聯工廠。解析上層模型時，工廠在同一連線和類型的候選模型中隨機選取一個，缺少符合項目時建立新上層模型。
+用 `recycle` 傳入一個已儲存的模型，或用 `recycle_many` 傳入同類型模型的迭代器。這兩個方法可在 `count` 前後呼叫。模型池會傳給巢狀關聯工廠。解析上層模型時，工廠在同一連線和類型的候選模型中隨機選取一個，缺少符合項目時建立新上層模型。
 
 可多次呼叫，將不同型別的模型加入同一個建構器的回收池。空集合不會加入候選項。`has` 宣告的子模型仍會新建，池中既有的子模型保留原歸屬。
 
-單筆或批次建構器皆可透過 `getRandomRecycledModel::<Owner>()` 依模型型別查詢重用池，無需存取資料庫。回傳模型借用或 `None`。關聯解析仍依上層模型的連線篩選候選。
+單筆或批次建構器皆可透過 `get_random_recycled_model::<Owner>()` 依模型型別查詢重用池，無需存取資料庫。回傳模型借用或 `None`。關聯解析仍依上層模型的連線篩選候選。
 
 ```rust
 use openrust::database::eloquent::{Model, factories::Factory};
 
 fn recycled_model<Child: Model, Owner: Model>(factory: &Factory<Child>) -> Option<&Owner> {
-    factory.getRandomRecycledModel::<Owner>()
+    factory.get_random_recycled_model::<Owner>()
 }
 ```
 
@@ -2465,11 +2465,11 @@ pub async fn reuse_owner<C: Model, P: Model>(
     owners: Factory<P>,
 ) -> DatabaseResult<Collection<C>> {
     children.r#for(relation, owners).count(3).recycle(owner)
-        .createOn(context.connection()).await
+        .create_on(context.connection()).await
 }
 ```
 
-向 `hasAttached` 或 `hasAttachedNamed` 傳入屬性映射清單，即可依關聯模型順序設定中介資料表屬性。關聯工廠數量超過清單長度時會循環。用 `FactoryPivot::resolve` 根據已儲存的父模型計算每次附加的屬性。單一屬性映射會套用到所有關聯。 中介資料表序列也會在同一建構器的不同父模型和重複呼叫之間接續。
+向 `has_attached` 或 `has_attached_named` 傳入屬性映射清單，即可依關聯模型順序設定中介資料表屬性。關聯工廠數量超過清單長度時會循環。用 `FactoryPivot::resolve` 根據已儲存的父模型計算每次附加的屬性。單一屬性映射會套用到所有關聯。 中介資料表序列也會在同一建構器的不同父模型和重複呼叫之間接續。
 
 傳入非空中介資料表屬性序列時，未指定數量的關聯工廠依序列長度產生模型。明確的 `count(n)` 優先，包括零。共用屬性和空序列預設產生一個關聯模型。
 
@@ -2481,14 +2481,14 @@ fn attach_with_pivot_count<P: Model, R: Model>(
     relation: BelongsToMany<P, R>,
     related: Factory<R>,
 ) -> Factory<P> {
-    parents.hasAttached(relation, related, vec![
+    parents.has_attached(relation, related, vec![
         Attributes::from([("active".into(), true.into())]),
         Attributes::from([("active".into(), false.into())]),
     ])
 }
 ```
 
-中介資料表的屬性映射可以包含結構化值。JSON 欄位可在共用映射或逐筆映射中傳入 `Value::Json`。透過自訂 Pivot 模型讀取此欄位時，在 `withPivot` 中選取該欄，並為它宣告 JSON 轉換。
+中介資料表的屬性映射可以包含結構化值。JSON 欄位可在共用映射或逐筆映射中傳入 `Value::Json`。透過自訂 Pivot 模型讀取此欄位時，在 `with_pivot` 中選取該欄，並為它宣告 JSON 轉換。
 
 ```rust
 use openrust::database::{
@@ -2502,8 +2502,8 @@ fn attach_json_pivots<P: Model, R: Model>(
     members: Factory<R>,
     relation: BelongsToMany<P, R>,
 ) -> Factory<P> {
-    owners.hasAttached(
-        relation.withPivot(["meta"]),
+    owners.has_attached(
+        relation.with_pivot(["meta"]),
         members,
         vec![
             Attributes::from([("meta".into(), Value::Null)]),

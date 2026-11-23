@@ -35,7 +35,7 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 在应用中声明注册函数，通过 `with_events(DiscoverEvents::new(&[register_orders]))` 接入。应用启动时加载编译后的清单。实现 `Subscriber` 后，可用 `Event::subscribe` 成组登记监听器。运行 `./artisan event:list --event=orders --json` 查看注册结果。
 
-在清单中调用 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 注册监听器类型，也可以在应用作用域内调用 `Event::listenClass`。在应用容器中为该类型绑定工厂，异步依赖可用 `bind_async`。派发到该监听器时，框架从所属应用的容器解析实例。缺少绑定会使派发失败。使用 `Delivery::AfterCommit` 时，实例在派发时解析，事务成功提交后调用。
+在清单中调用 `registry.listen_class::<OrderListener>("orders.created", Delivery::Sync)?` 注册监听器类型，也可以在应用作用域内调用 `Event::listen_class`。在应用容器中为该类型绑定工厂，异步依赖可用 `bind_async`。派发到该监听器时，框架从所属应用的容器解析实例。缺少绑定会使派发失败。使用 `Delivery::AfterCommit` 时，实例在派发时解析，事务成功提交后调用。
 
 需要动态发现时，实现 `ShouldBeDiscovered`，用 `withListener` 接入监听器注册。用 `with_events(discover_events())` 接入生成的清单。启动时，发现条件读取当前应用并决定是否注册监听器。条件返回错误时，本次清单注册失败。通过 `Event::listen` 手动注册的监听器独立于发现条件。
 
@@ -54,7 +54,7 @@ use openrust::{
 struct OrderListener;
 
 impl ShouldBeDiscovered for OrderListener {
-    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+    fn should_be_discovered(app: &Application) -> EventResult<bool> {
         app.environment(Some("production".into()))
             .map(bool::from)
             .map_err(EventError::Unavailable)
@@ -100,7 +100,7 @@ fn discover_events() -> DiscoverEvents {
 
 ## 数据库事务提交后派发
 
-通过 `Event::dispatchInTransaction` 显式传入当前事务。用 `Delivery::AfterCommit` 延后单个监听器，或实现 `ShouldDispatchAfterCommit` 并调用 `Event::dispatchAfterCommit` 延后整个事件。保存点成功提交后，回调留到最外层提交执行。回滚会清除受影响范围内的回调。没有活动事务时立即执行。提交后的回调失败以 `DatabaseError::AfterCommit` 报告。
+通过 `Event::dispatch_in_transaction` 显式传入当前事务。用 `Delivery::AfterCommit` 延后单个监听器，或实现 `ShouldDispatchAfterCommit` 并调用 `Event::dispatch_after_commit` 延后整个事件。保存点成功提交后，回调留到最外层提交执行。回滚会清除受影响范围内的回调。没有活动事务时立即执行。提交后的回调失败以 `DatabaseError::AfterCommit` 报告。
 
 模型专属回调见[观察者与数据库事务](../eloquent/getting-started.md#observers-and-database-transactions)。
 
@@ -142,12 +142,12 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
 
 ### 作用域内的事件替身 {#scoped-event-fakes}
 
-在应用作用域内，`Event::fakeFor` 使用临时替身执行异步回调，并返回回调的结果。空列表选择所有事件。`Event::fakeExceptFor` 允许列出的事件交给监听器，其余事件由替身记录。若要在整个应用中使用相同的排除规则，可调用 `Event::fakeExcept`，直到安装另一个替身。
+在应用作用域内，`Event::fake_for` 使用临时替身执行异步回调，并返回回调的结果。空列表选择所有事件。`Event::fake_except_for` 允许列出的事件交给监听器，其余事件由替身记录。若要在整个应用中使用相同的排除规则，可调用 `Event::fake_except`，直到安装另一个替身。
 
 ```rust
 use openrust::{events::NamedEvent, support::facades::Event};
 
-let order_id = Event::fakeFor(
+let order_id = Event::fake_for(
     async {
         Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
         Ok(42_u64)
@@ -161,7 +161,7 @@ assert_eq!(order_id, 42);
 
 ### 按事件负载筛选 {#matching-event-payloads}
 
-在应用作用域内，`Event::fakeWhen` 按事件全名或接收事件的回调选择事件。`Event::fakeForWhen` 在异步回调内应用相同规则。名称列表为空时，由筛选回调决定。`except` 和 `exceptWhen` 让符合排除规则的事件继续交给常规监听器，即使替身已选中该事件。
+在应用作用域内，`Event::fake_when` 按事件全名或接收事件的回调选择事件。`Event::fake_for_when` 在异步回调内应用相同规则。名称列表为空时，由筛选回调决定。`except` 和 `exceptWhen` 让符合排除规则的事件继续交给常规监听器，即使替身已选中该事件。
 
 ```rust
 use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
@@ -171,7 +171,7 @@ let is_priority = |event: &dyn Payload| {
         && event.downcast_ref::<NamedEvent<u64>>()
             .is_some_and(|order| *order.payload() >= 42)
 };
-let fake = Event::fakeWhen(&[], is_priority)?;
+let fake = Event::fake_when(&[], is_priority)?;
 Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
 Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
 
@@ -184,4 +184,4 @@ fake.assertDispatchedOnce("orders.created")
 
 ## 暂存事件
 
-`Dispatcher::push(Arc<dyn Event>)` 暂存事件，`flush(name, context)` 派发对应的 `_pushed` 监听器。重复 flush 会再次派发，需用 `forgetPushed` 显式清除；这与 `defer`、事务提交后派发不同。应用中的暂存数据随请求／队列作用域隔离；作用域内清除不会删除其他请求的共享监听器。
+`Dispatcher::push(Arc<dyn Event>)` 暂存事件，`flush(name, context)` 派发对应的 `_pushed` 监听器。重复 flush 会再次派发，需用 `forget_pushed` 显式清除；这与 `defer`、事务提交后派发不同。应用中的暂存数据随请求／队列作用域隔离；作用域内清除不会删除其他请求的共享监听器。

@@ -57,11 +57,11 @@ fn flush_invalidates_misses_and_reads_overlapping_flush() {
 fn tagged_flush_invalidates_pending_reads_in_every_tag_group() {
     let parent = store();
     let tagged = |name| {
-        let tags = Arc::new(TagSet::new(parent.repository.getStore(), &[name]));
+        let tags = Arc::new(TagSet::new(parent.repository.get_store(), &[name]));
         parent
             .state()
             .tagged
-            .entry(tags.getNames().to_vec())
+            .entry(tags.get_names().to_vec())
             .or_default();
         MemoizedStore {
             repository: Arc::clone(&parent.repository),

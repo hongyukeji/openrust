@@ -1,16 +1,15 @@
 use super::{Collection, CollectionError, CollectionResult, LazyCollection};
 use crate::support::arr::random_index;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
-    pub fn crossJoin(self, others: &'source [&'source [T]]) -> LazyCollection<'source, Vec<T>>
+    pub fn cross_join(self, others: &'source [&'source [T]]) -> LazyCollection<'source, Vec<T>>
     where
         T: Clone,
     {
-        self.passthru(move |items| items.crossJoin(others))
+        self.passthru(move |items| items.cross_join(others))
     }
 
-    pub fn randItem(&self) -> CollectionResult<T> {
+    pub fn rand_item(&self) -> CollectionResult<T> {
         let items = Self::collect(self)?;
         if items.is_empty() {
             return Err(CollectionError::ItemNotFound);

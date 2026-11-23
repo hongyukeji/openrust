@@ -33,11 +33,11 @@ impl Event for BroadcastNotificationCreated {
 }
 
 impl ShouldBroadcast for BroadcastNotificationCreated {
-    fn broadcastOn(&self) -> Vec<Subscription> {
+    fn broadcast_on(&self) -> Vec<Subscription> {
         self.channels.clone()
     }
 
-    fn broadcastAs(&self) -> Option<&str> {
+    fn broadcast_as(&self) -> Option<&str> {
         Some(
             self.name
                 .as_deref()
@@ -45,15 +45,15 @@ impl ShouldBroadcast for BroadcastNotificationCreated {
         )
     }
 
-    fn broadcastData(&self) -> BroadcastPayload {
+    fn broadcast_data(&self) -> BroadcastPayload {
         self.data.clone()
     }
 
-    fn broadcastQueueConnection(&self) -> Option<&str> {
+    fn broadcast_queue_connection(&self) -> Option<&str> {
         self.connection.as_deref()
     }
 
-    fn broadcastQueue(&self) -> Option<&str> {
+    fn broadcast_queue(&self) -> Option<&str> {
         self.queue.as_deref()
     }
 }

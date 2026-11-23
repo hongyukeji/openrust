@@ -37,10 +37,9 @@ pub struct RelatedCollection<M: Model> {
     pub(super) keys: Option<Vec<ArrayKey>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Eloquent collection access")]
 impl<M: Model> RelatedCollection<M> {
     /// Wraps shared model snapshots for explicit relation cache assignment.
-    pub fn fromShared(models: Vec<Arc<M>>) -> Self {
+    pub fn from_shared(models: Vec<Arc<M>>) -> Self {
         Self { models, keys: None }
     }
 
@@ -52,11 +51,11 @@ impl<M: Model> RelatedCollection<M> {
                     .unwrap_or_else(|shared| M::from_state(shared.state().clone()))
             })
             .collect();
-        let (models, keys) = M::newCollection(models).into_shared_parts();
+        let (models, keys) = M::new_collection(models).into_shared_parts();
         Self { models, keys }
     }
 
-    pub fn getByKey(&self, key: impl Into<ArrayKey>) -> Option<&M> {
+    pub fn get_by_key(&self, key: impl Into<ArrayKey>) -> Option<&M> {
         let key = key.into().normalized();
         match (&self.keys, key) {
             (Some(keys), key) => keys
@@ -91,7 +90,7 @@ impl<M: Model> RelatedCollection<M> {
 impl<M: Model> From<RelatedCollection<M>> for BaseCollection<Arc<M>> {
     fn from(group: RelatedCollection<M>) -> Self {
         match group.keys {
-            Some(keys) => BaseCollection::fromEntries(keys.into_iter().zip(group.models)),
+            Some(keys) => BaseCollection::from_entries(keys.into_iter().zip(group.models)),
             None => group.models.into_iter().collect(),
         }
     }
@@ -172,7 +171,6 @@ pub struct RelatedBatch<'a, M: Model> {
     aggregates: Vec<Attributes>,
 }
 
-#[allow(non_snake_case, reason = "Matches Eloquent's relationship access API")]
 impl<'a, M: Model> RelatedBatch<'a, M> {
     pub(super) fn new(models: impl Iterator<Item = &'a Arc<M>>) -> Self {
         Self::from_models(models.map(Arc::as_ref))
@@ -215,15 +213,15 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
     }
 
     /// Reads an attribute with deferred aggregates applied to this batch.
-    pub fn getAttribute(&self, index: usize, name: &str) -> Option<&Value> {
+    pub fn get_attribute(&self, index: usize, name: &str) -> Option<&Value> {
         self.aggregates
             .get(index)
             .and_then(|attributes| attributes.get(name))
-            .or_else(|| self.models.get(index)?.getAttribute(name))
+            .or_else(|| self.models.get(index)?.get_attribute(name))
     }
 
     /// Loads a relation count for every model in this batch.
-    pub async fn loadCount(
+    pub async fn load_count(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
@@ -241,7 +239,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
     }
 
     /// Loads the relationship across the batch on the first missing access.
-    pub async fn getRelationOrLoad<R: Relation<Parent = M>>(
+    pub async fn get_relation_or_load<R: Relation<Parent = M>>(
         &mut self,
         index: usize,
         name: &str,
@@ -257,7 +255,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
     }
 
     /// Continues the chain across every model in this batch.
-    pub async fn relatedModels<R>(
+    pub async fn related_models<R>(
         &mut self,
         name: &str,
         relation: &R,
@@ -276,7 +274,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
     }
 
     /// Opens the selected polymorphic type as the next batch.
-    pub async fn morphModels<T: Model>(
+    pub async fn morph_models<T: Model>(
         &mut self,
         name: &str,
         relation: &MorphTo<M>,
@@ -296,7 +294,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
         name: &str,
     ) -> DatabaseResult<&R::Output> {
         self.models[index]
-            .getRelation(name)
+            .get_relation(name)
             .or_else(|| self.loaded[index].get(name))
             .ok_or(DatabaseError::InvalidQuery("relationship output type"))
     }
@@ -318,7 +316,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
         if models.is_empty() {
             return Ok(());
         }
-        let values = relation.matchResults(&models).await?;
+        let values = relation.match_results(&models).await?;
         if indexes.len() != values.len() {
             return Err(DatabaseError::InvalidQuery("relation result cardinality"));
         }

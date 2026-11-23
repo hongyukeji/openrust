@@ -25,7 +25,7 @@ The verification request checks the authenticated user and the current email dig
 
 <span id="verification-after-email-change"></span>
 
-A verification link applies to the exact current email address, including case. When an application changes the address, clear `email_verified_at` in the same database update and send a new link. Persist verification with a conditional update for the current address and an unset verification timestamp. Use `whereExactText` to match the address independently of the database collation. Concurrent requests dispatch `Verified` only for the request that writes the timestamp.
+A verification link applies to the exact current email address, including case. When an application changes the address, clear `email_verified_at` in the same database update and send a new link. Persist verification with a conditional update for the current address and an unset verification timestamp. Use `where_exact_text` to match the address independently of the database collation. Concurrent requests dispatch `Verified` only for the request that writes the timestamp.
 
 <span id="default-email-verification-mail"></span>
 

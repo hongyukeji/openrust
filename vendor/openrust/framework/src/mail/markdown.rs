@@ -194,10 +194,10 @@ impl Markdown {
             if let Some(source) =
                 load_optional(&path, "Could not read the Markdown mail template.")?
             {
-                return views.renderInline(&source, data).map_err(composition);
+                return views.render_inline(&source, data).map_err(composition);
             }
         }
-        views.renderInline(default, data).map_err(composition)
+        views.render_inline(default, data).map_err(composition)
     }
 
     fn css(&self, theme: &str, views: &Factory, data: &ViewData) -> MailResult<Cow<'static, str>> {

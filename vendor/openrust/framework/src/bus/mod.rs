@@ -109,7 +109,7 @@ impl Bus {
         Ok(())
     }
 
-    pub fn pipeThrough(
+    pub fn pipe_through(
         pipes: Vec<std::sync::Arc<dyn crate::queue::middleware::JobMiddleware>>,
     ) -> QueueResult<()> {
         Queue::manager()?.set_bus_pipes(pipes);

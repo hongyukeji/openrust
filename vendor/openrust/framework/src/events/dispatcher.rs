@@ -144,7 +144,7 @@ impl Dispatcher {
         Ok(())
     }
 
-    pub fn forgetPushed(&self) -> EventResult<()> {
+    pub fn forget_pushed(&self) -> EventResult<()> {
         let state = self.pushed_events()?;
         let mut state = state.0.lock().expect("事件暂存锁中毒");
         state.events.clear();
@@ -185,12 +185,12 @@ impl Dispatcher {
         Ok(())
     }
 
-    pub fn listenClass<L: Listener + 'static>(
+    pub fn listen_class<L: Listener + 'static>(
         &self,
         event: &str,
         delivery: Delivery,
     ) -> EventResult<()> {
-        self.register(|registry| registry.listenClass::<L>(event, delivery))
+        self.register(|registry| registry.listen_class::<L>(event, delivery))
     }
 
     pub fn markAfterCommit<E: ShouldDispatchAfterCommit>(&self) {
@@ -234,8 +234,8 @@ impl Dispatcher {
         );
     }
 
-    pub fn hasListeners(&self, event: &str) -> bool {
-        self.has_listeners(event)
+    pub fn has_listeners(&self, event: &str) -> bool {
+        Contract::has_listeners(self, event)
     }
 
     pub(crate) fn observes(&self, name: &str) -> bool {
@@ -337,7 +337,7 @@ impl Dispatcher {
             .await
     }
 
-    pub async fn dispatchAfterCommit(
+    pub async fn dispatch_after_commit(
         &self,
         event: impl ShouldDispatchAfterCommit,
         context: &mut EventContext<'_>,
@@ -510,7 +510,7 @@ impl Dispatcher {
         else {
             return Ok(());
         };
-        if registration.immediate || event.shouldBroadcastNow() {
+        if registration.immediate || event.should_broadcast_now() {
             let owner = self.owner.upgrade().ok_or_else(|| {
                 EventError::Broadcast(BroadcastException::Backend(
                     std::io::Error::other("Broadcast application is unavailable.").into(),
@@ -525,9 +525,9 @@ impl Dispatcher {
             delivery.unique = registration.unique.and_then(|unique| unique(source));
             let payload = crate::queue::Payload::new(JOB, delivery).map_err(EventError::Queue)?;
             let options = crate::queue::DispatchOptions {
-                connection: event.broadcastQueueConnection().map(str::to_owned),
-                queue: event.broadcastQueue().map(str::to_owned),
-                after_commit: event.broadcastAfterCommit(),
+                connection: event.broadcast_queue_connection().map(str::to_owned),
+                queue: event.broadcast_queue().map(str::to_owned),
+                after_commit: event.broadcast_after_commit(),
                 ..Default::default()
             };
             self.queue()?
@@ -705,7 +705,7 @@ fn defer(
 ) -> EventResult<()> {
     let app = current_container();
     transaction
-        .afterCommit(move || {
+        .after_commit(move || {
             Box::pin(async move {
                 let result = if let Some(app) = app {
                     application_scope(app, callback).await

@@ -11,7 +11,7 @@ pub trait Mailer: Send + Sync {
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>>;
 
-    fn sendNow<'a>(
+    fn send_now<'a>(
         &'a self,
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>>;

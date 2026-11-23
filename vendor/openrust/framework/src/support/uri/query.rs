@@ -38,13 +38,12 @@ impl<'a> UriQueryString<'a> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Uri {
     pub fn query(&self) -> UriQueryString<'_> {
-        UriQueryString(self.queryString().unwrap_or_default())
+        UriQueryString(self.query_string().unwrap_or_default())
     }
 
-    pub fn replaceQuery(&self, parameters: &Value) -> Result<Self, InvalidUri> {
+    pub fn replace_query(&self, parameters: &Value) -> Result<Self, InvalidUri> {
         self.update_query(Value::Object(Map::new()), parameters, false)
     }
 
@@ -52,11 +51,11 @@ impl Uri {
         self.update_query(self.query().all()?, parameters, false)
     }
 
-    pub fn withQueryIfMissing(&self, parameters: &Value) -> Result<Self, InvalidUri> {
+    pub fn with_query_if_missing(&self, parameters: &Value) -> Result<Self, InvalidUri> {
         self.update_query(self.query().all()?, parameters, true)
     }
 
-    pub fn withoutQuery(&self, keys: &[&str]) -> Result<Self, InvalidUri> {
+    pub fn without_query(&self, keys: &[&str]) -> Result<Self, InvalidUri> {
         let mut query = self.query().all()?;
         for key in keys {
             Arr::forget(&mut query, key).map_err(|_| invalid_uri())?;
@@ -64,7 +63,7 @@ impl Uri {
         self.encode_query(query)
     }
 
-    pub fn pushOntoQuery(&self, key: &str, value: Value) -> Result<Self, InvalidUri> {
+    pub fn push_onto_query(&self, key: &str, value: Value) -> Result<Self, InvalidUri> {
         let mut query = self.query().all()?;
         super::super::data::check_depth(&value, 0).map_err(|_| invalid_uri())?;
         let current = data_get(&query, Some(key)).unwrap_or(Value::Null);

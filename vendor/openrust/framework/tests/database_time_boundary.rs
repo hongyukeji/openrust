@@ -21,7 +21,7 @@ async fn sqlite_preserves_date_text_and_fractional_timestamp_bindings() {
     let db = connection(json!({"driver":"sqlite", "database":":memory:"}));
     for stamp in ["2024-02-29 12:34:56", "2024-02-29 12:34:56.123456"] {
         let row = db
-            .selectOne(
+            .select_one(
                 "SELECT CAST(? AS TEXT) AS stamp, CAST(? AS TEXT) AS event_date",
                 &[stamp.into(), "2024-02-29".into()],
             )
@@ -64,7 +64,7 @@ async fn postgres_native_time_keeps_text_microseconds_and_extended_years() {
             .await
             .unwrap();
             let row = db
-                .selectOne(&format!("SELECT * FROM {table}"), &[])
+                .select_one(&format!("SELECT * FROM {table}"), &[])
                 .await
                 .unwrap()
                 .unwrap();
@@ -79,7 +79,7 @@ async fn postgres_native_time_keeps_text_microseconds_and_extended_years() {
         // Native binary decoding retains PostgreSQL dates beyond four-digit years.
         if !emulate {
             let row = db
-                .selectOne(
+                .select_one(
                     "SELECT TIMESTAMP '12000-01-02 03:04:05.123456' AS stamp, DATE '12000-01-02' AS event_date",
                     &[],
                 )
@@ -129,7 +129,7 @@ async fn mysql_native_time_keeps_datetime_and_time_precision() {
             .await
             .unwrap();
             let row = db
-                .selectOne(&format!("SELECT * FROM {table}"), &[])
+                .select_one(&format!("SELECT * FROM {table}"), &[])
                 .await
                 .unwrap()
                 .unwrap();

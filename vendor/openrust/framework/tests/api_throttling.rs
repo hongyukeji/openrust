@@ -63,18 +63,18 @@ impl ServiceProvider for Limits {
                             .then(|| Box::new(Identity) as Box<dyn Authenticatable>))
                     })
                 });
-            RateLimiter::forAsync("identity", |request| {
+            RateLimiter::for_async("identity", |request| {
                 Box::pin(async move {
                     let user = Auth::user(request)
                         .await?
                         .expect("限流前应完成路由指定的认证");
                     assert_eq!(user.get_auth_identifier(), AuthIdentifier::from(7_u64));
-                    Ok(Limit::perMinute(1).into())
+                    Ok(Limit::per_minute(1).into())
                 })
             })?;
             for (name, max) in [("api", 1), ("custom", 2)] {
                 RateLimiter::r#for(name, move |request| {
-                    Limit::perMinute(max).by(request.route("bucket").unwrap_or("missing"))
+                    Limit::per_minute(max).by(request.route("bucket").unwrap_or("missing"))
                 })?;
             }
             RateLimiter::r#for("session", |request| {
@@ -82,7 +82,7 @@ impl ServiceProvider for Limits {
                     request.has_session(),
                     "限流策略应在有状态 API 的会话中间件之后执行"
                 );
-                Limit::perMinute(1)
+                Limit::per_minute(1)
             })?;
             Ok(())
         })
@@ -96,12 +96,12 @@ fn empty(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn api() -> Result<(), RoutingError> {
     Route::bind::<String, _>("missing", |_| Box::pin(async { Ok(None) }))?;
     Route::get("/budget/{bucket}", empty)?;
-    Route::getWith("/private", empty, |route| {
+    Route::get_with("/private", empty, |route| {
         route.middleware_name("auth:header");
         Ok(())
     })?;
     Route::get("/missing/{missing}", empty)?;
-    Route::getWith("/excluded", empty, |route| {
+    Route::get_with("/excluded", empty, |route| {
         route.without_middleware("throttle:api");
         Ok(())
     })

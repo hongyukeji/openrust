@@ -30,6 +30,6 @@ pub trait Translator: Send + Sync {
 
     fn get_locale(&self) -> String;
     fn set_locale(&self, locale: &str) -> TranslationResult<()>;
-    fn getFallback(&self) -> String;
+    fn get_fallback(&self) -> String;
     fn set_fallback(&self, fallback: &str) -> TranslationResult<()>;
 }

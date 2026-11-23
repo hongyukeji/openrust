@@ -25,7 +25,6 @@ impl Facade for Cache {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cache {
     /// Registers a creator on the current application's cache manager.
     pub fn extend(
@@ -43,8 +42,8 @@ impl Cache {
         Self::get_facade_root()?.build(config)
     }
 
-    pub fn forgetDriver(name: Option<&str>) -> CacheResult<()> {
-        Self::get_facade_root()?.forgetDriver(name)?;
+    pub fn forget_driver(name: Option<&str>) -> CacheResult<()> {
+        Self::get_facade_root()?.forget_driver(name)?;
         Ok(())
     }
 
@@ -73,32 +72,32 @@ impl Cache {
         Ok(Self::store(None)?.get_name().map(str::to_owned))
     }
 
-    pub fn getStore() -> CacheResult<Arc<dyn Store>> {
-        Ok(Self::store(None)?.getStore())
+    pub fn get_store() -> CacheResult<Arc<dyn Store>> {
+        Ok(Self::store(None)?.get_store())
     }
 
-    pub fn getEventDispatcher() -> CacheResult<Option<Arc<dyn Dispatcher>>> {
-        Ok(Self::store(None)?.getEventDispatcher())
+    pub fn get_event_dispatcher() -> CacheResult<Option<Arc<dyn Dispatcher>>> {
+        Ok(Self::store(None)?.get_event_dispatcher())
     }
 
-    pub fn getDefaultCacheTime() -> CacheResult<Option<i64>> {
-        Ok(Self::store(None)?.getDefaultCacheTime())
+    pub fn get_default_cache_time() -> CacheResult<Option<i64>> {
+        Ok(Self::store(None)?.get_default_cache_time())
     }
 
-    pub async fn putWithDefault(key: &str, value: &Value) -> CacheResult<bool> {
-        Self::store(None)?.putWithDefault(key, value).await
+    pub async fn put_with_default(key: &str, value: &Value) -> CacheResult<bool> {
+        Self::store(None)?.put_with_default(key, value).await
     }
 
-    pub fn supportsTags() -> CacheResult<bool> {
-        Ok(Self::store(None)?.supportsTags())
+    pub fn supports_tags() -> CacheResult<bool> {
+        Ok(Self::store(None)?.supports_tags())
     }
 
     pub async fn many(keys: &[&str]) -> CacheResult<Vec<Option<Value>>> {
         Self::store(None)?.many(keys).await
     }
 
-    pub async fn putMany(values: &[(String, Value)], ttl: Option<Ttl>) -> CacheResult<bool> {
-        Self::store(None)?.putMany(values, ttl).await
+    pub async fn put_many(values: &[(String, Value)], ttl: Option<Ttl>) -> CacheResult<bool> {
+        Self::store(None)?.put_many(values, ttl).await
     }
 
     pub async fn get(key: &str) -> CacheResult<Option<Value>> {
@@ -109,11 +108,11 @@ impl Cache {
         Self::store(None)?.get_or(key, default).await
     }
 
-    pub async fn getOrElse<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
+    pub async fn get_or_else<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
     where
         F: Future<Output = CacheResult<Value>>,
     {
-        Self::store(None)?.getOrElse(key, default).await
+        Self::store(None)?.get_or_else(key, default).await
     }
 
     pub async fn put(key: &str, value: &Value, ttl: Option<Ttl>) -> CacheResult<bool> {
@@ -144,15 +143,15 @@ impl Cache {
         Self::store(None)?.pull(key).await
     }
 
-    pub async fn pullOr(key: &str, default: Value) -> CacheResult<Value> {
-        Self::store(None)?.pullOr(key, default).await
+    pub async fn pull_or(key: &str, default: Value) -> CacheResult<Value> {
+        Self::store(None)?.pull_or(key, default).await
     }
 
-    pub async fn pullOrElse<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
+    pub async fn pull_or_else<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
     where
         F: Future<Output = CacheResult<Value>>,
     {
-        Self::store(None)?.pullOrElse(key, default).await
+        Self::store(None)?.pull_or_else(key, default).await
     }
 
     pub async fn forget(key: &str) -> CacheResult<bool> {
@@ -175,31 +174,31 @@ impl Cache {
         Self::store(None)?.remember(key, ttl, resolve).await
     }
 
-    pub async fn rememberWithWarmth(
+    pub async fn remember_with_warmth(
         key: &str,
         ttl: Option<Ttl>,
         resolve: impl Future<Output = CacheResult<Value>>,
     ) -> CacheResult<(Value, bool)> {
         Self::store(None)?
-            .rememberWithWarmth(key, ttl, resolve)
+            .remember_with_warmth(key, ttl, resolve)
             .await
     }
 
-    pub async fn rememberWithWarmthFor(
+    pub async fn remember_with_warmth_for(
         key: &str,
         ttl: impl FnOnce(&Value) -> Option<Ttl>,
         resolve: impl Future<Output = CacheResult<Value>>,
     ) -> CacheResult<(Value, bool)> {
         Self::store(None)?
-            .rememberWithWarmthFor(key, ttl, resolve)
+            .remember_with_warmth_for(key, ttl, resolve)
             .await
     }
 
-    pub async fn rememberForever(
+    pub async fn remember_forever(
         key: &str,
         resolve: impl Future<Output = CacheResult<Value>>,
     ) -> CacheResult<Value> {
-        Self::store(None)?.rememberForever(key, resolve).await
+        Self::store(None)?.remember_forever(key, resolve).await
     }
 
     pub async fn sear(
@@ -220,7 +219,7 @@ impl Cache {
         Self::store(None)?.flexible(key, ttl, resolve).await
     }
 
-    pub async fn flexibleWith<F>(
+    pub async fn flexible_with<F>(
         key: &str,
         ttl: [Ttl; 2],
         resolve: impl FnOnce() -> F + Send + 'static,
@@ -230,16 +229,16 @@ impl Cache {
         F: Future<Output = CacheResult<Value>> + Send + 'static,
     {
         Self::store(None)?
-            .flexibleWith(key, ttl, resolve, options)
+            .flexible_with(key, ttl, resolve, options)
             .await
     }
 
-    pub fn supportsFlushingLocks() -> CacheResult<bool> {
-        Ok(Self::store(None)?.supportsFlushingLocks())
+    pub fn supports_flushing_locks() -> CacheResult<bool> {
+        Ok(Self::store(None)?.supports_flushing_locks())
     }
 
-    pub async fn flushLocks() -> CacheResult<bool> {
-        Self::store(None)?.flushLocks().await
+    pub async fn flush_locks() -> CacheResult<bool> {
+        Self::store(None)?.flush_locks().await
     }
 
     pub async fn flush() -> CacheResult<bool> {
@@ -263,7 +262,7 @@ impl Cache {
     }
 
     /// Uses explicit lease and wait durations in seconds, with an optional owner token.
-    pub async fn withoutOverlappingWith<T, F>(
+    pub async fn without_overlapping_with<T, F>(
         key: &str,
         callback: impl FnOnce() -> F,
         lock_for: u64,
@@ -274,7 +273,7 @@ impl Cache {
         F: Future<Output = CacheResult<T>>,
     {
         Self::store(None)?
-            .withoutOverlappingWith(key, callback, lock_for, wait_for, owner)
+            .without_overlapping_with(key, callback, lock_for, wait_for, owner)
             .await
     }
 
@@ -282,7 +281,7 @@ impl Cache {
         Self::store(None)?.lock(name, lease, None)
     }
 
-    pub fn restoreLock(name: &str, owner: &str) -> CacheResult<Box<dyn Lock>> {
+    pub fn restore_lock(name: &str, owner: &str) -> CacheResult<Box<dyn Lock>> {
         Self::store(None)?.restore_lock(name, owner)
     }
 }

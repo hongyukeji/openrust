@@ -126,7 +126,7 @@ fn accepted_channels_notify_once_after_writing_and_keep_the_original_payload() {
         .warning("stack once", &LogContext::new())
         .unwrap();
     cached
-        .withName("renamed")
+        .with_name("renamed")
         .notice("renamed", &LogContext::new())
         .unwrap();
     manager
@@ -141,7 +141,7 @@ fn accepted_channels_notify_once_after_writing_and_keep_the_original_payload() {
         .unwrap()
         .info("external", &LogContext::new())
         .unwrap();
-    manager.registerProcessor("rewrite", |_| {
+    manager.register_processor("rewrite", |_| {
         Ok(Arc::new(|record| {
             record.message = "processed".into();
             record.context.to_mut().insert("id".into(), json!(99));
@@ -156,7 +156,7 @@ fn accepted_channels_notify_once_after_writing_and_keep_the_original_payload() {
             &LogContext::from_iter([("id".into(), json!(9))]),
         )
         .unwrap();
-    manager.forgetChannel(Some("file"));
+    manager.forget_channel(Some("file"));
     manager.info("recreated", &LogContext::new()).unwrap();
     fs::write(root.0.join("occupied"), "file").unwrap();
     manager
@@ -293,7 +293,7 @@ fn normalized_exceptions_are_present_in_the_listener_context() {
         })
         .unwrap();
     manager
-        .logException(
+        .log_exception(
             Level::Error,
             "failure",
             &std::io::Error::other("listener exception"),
@@ -425,7 +425,7 @@ async fn request_observers_await_after_writes_and_preserve_filtering_order_and_s
     let owner = Arc::downgrade(&manager);
     let written = root.0.join("observed.log");
     manager
-        .listenForRequest(
+        .listen_for_request(
             move |_| {
                 fallback.lock().unwrap().push("snapshot");
                 Ok(())
@@ -458,12 +458,12 @@ async fn request_observers_await_after_writes_and_preserve_filtering_order_and_s
     manager
         .channel(Some("other"))
         .unwrap()
-        .logWithRequest(&mut request, Level::Info, "filtered", &LogContext::new())
+        .log_with_request(&mut request, Level::Info, "filtered", &LogContext::new())
         .await
         .unwrap();
     assert!(seen.lock().unwrap().is_empty());
     manager
-        .logWithRequest(
+        .log_with_request(
             &mut request,
             Level::Info,
             "written first",
@@ -485,7 +485,7 @@ async fn request_observer_errors_and_cancellation_keep_written_logs_and_allow_re
     let manager = root.manager();
     let after = Arc::new(AtomicBool::new(false));
     manager
-        .listenForRequest(
+        .listen_for_request(
             |_| Ok(()),
             Arc::new(|event, _| {
                 Box::pin(async move {
@@ -509,7 +509,7 @@ async fn request_observer_errors_and_cancellation_keep_written_logs_and_allow_re
     let mut request = Request::from_parts(parts, Body::empty());
     assert!(matches!(
         manager
-            .logWithRequest(&mut request, Level::Info, "failure", &LogContext::new())
+            .log_with_request(&mut request, Level::Info, "failure", &LogContext::new())
             .await,
         Err(LogError::FactoryFailed)
     ));
@@ -517,7 +517,7 @@ async fn request_observer_errors_and_cancellation_keep_written_logs_and_allow_re
     assert!(
         tokio::time::timeout(
             std::time::Duration::from_millis(10),
-            manager.logWithRequest(&mut request, Level::Info, "cancel", &LogContext::new())
+            manager.log_with_request(&mut request, Level::Info, "cancel", &LogContext::new())
         )
         .await
         .is_err()
@@ -526,7 +526,7 @@ async fn request_observer_errors_and_cancellation_keep_written_logs_and_allow_re
     let contents = fs::read_to_string(root.0.join("observed.log")).unwrap();
     assert!(contents.contains("failure") && contents.contains("cancel"));
     manager
-        .logWithRequest(&mut request, Level::Info, "recovered", &LogContext::new())
+        .log_with_request(&mut request, Level::Info, "recovered", &LogContext::new())
         .await
         .unwrap();
     assert!(after.load(Ordering::SeqCst));

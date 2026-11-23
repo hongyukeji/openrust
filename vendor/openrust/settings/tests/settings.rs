@@ -119,7 +119,7 @@ async fn locked_values_reject_changes_and_unlock_is_explicit() {
     s.save().await.unwrap();
     let stale = f.site().await;
     s.lock("name").await.unwrap();
-    assert!(s.isLocked("name").await.unwrap());
+    assert!(s.is_locked("name").await.unwrap());
     assert_eq!(
         s.fill(json!({"name":"replacement"})).await,
         Err(Error::Locked)
@@ -139,20 +139,20 @@ async fn nested_transaction_rollback_and_failed_savepoints_publish_nothing() {
     let f = Fixture::new().await;
     let s = f.site().await;
     s.fill(json!({"name":"Outer edit"})).await.unwrap();
-    let mut tx = f.connection.beginTransaction().await.unwrap();
+    let mut tx = f.connection.begin_transaction().await.unwrap();
     s.saveIn(&mut tx).await.unwrap();
-    assert_eq!(tx.transactionLevel(), 1);
-    tx.rollBack(None).await.unwrap();
+    assert_eq!(tx.transaction_level(), 1);
+    tx.roll_back(None).await.unwrap();
     assert_eq!(f.site().await.get().await.name, "Default");
     s.save().await.unwrap();
     assert_eq!(f.site().await.get().await.name, "Outer edit");
     s.fill(json!({"enabled":false})).await.unwrap();
-    let mut tx = f.connection.beginTransaction().await.unwrap();
+    let mut tx = f.connection.begin_transaction().await.unwrap();
     s.saveIn(&mut tx).await.unwrap();
     tx.commit().await.unwrap();
     s.refresh().await.unwrap();
     assert!(!s.get().await.enabled);
-    let mut tx = f.connection.beginTransaction().await.unwrap();
+    let mut tx = f.connection.begin_transaction().await.unwrap();
     let raw = f.repository.load("absent_group").await.unwrap();
     let bad = BTreeMap::from([
         ("a".into(), SettingsUpdate::Set(json!(1))),

@@ -8,9 +8,9 @@ use super::{
 };
 
 /// Executes queries on the current application's database connections.
-pub struct DB;
+pub struct Db;
 
-impl Facade for DB {
+impl Facade for Db {
     type Service = DatabaseManager;
 
     fn get_facade_accessor() -> ServiceKey {
@@ -26,8 +26,7 @@ macro_rules! statements {
     };
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-impl DB {
+impl Db {
     pub fn table(table: &str) -> DatabaseResult<super::query::Builder<'static>> {
         Ok(Self::connection(None)?.table(table))
     }
@@ -41,14 +40,14 @@ impl DB {
     }
 
     /// Controls destructive database Artisan commands for the current application.
-    pub fn prohibitDestructiveCommands(prohibit: bool) -> DatabaseResult<()> {
+    pub fn prohibit_destructive_commands(prohibit: bool) -> DatabaseResult<()> {
         Self::get_facade_root()?.set_destructive_commands_prohibited(prohibit);
         Ok(())
     }
 
     /// Returns the configured prefix of the current application's default connection.
-    pub fn getTablePrefix() -> DatabaseResult<String> {
-        Ok(Self::connection(None)?.getTablePrefix().to_owned())
+    pub fn get_table_prefix() -> DatabaseResult<String> {
+        Ok(Self::connection(None)?.get_table_prefix().to_owned())
     }
 
     pub fn disconnect(name: Option<&str>) -> DatabaseResult<()> {
@@ -69,20 +68,20 @@ impl DB {
         Self::connection(None)?.listen(listener)
     }
 
-    pub fn whenQueryingForLongerThan(
+    pub fn when_querying_for_longer_than(
         threshold: std::time::Duration,
         listener: std::sync::Arc<dyn crate::contracts::events::Listener>,
     ) -> DatabaseResult<()> {
-        Self::connection(None)?.whenQueryingForLongerThan(threshold, listener)
+        Self::connection(None)?.when_querying_for_longer_than(threshold, listener)
     }
 
-    pub fn enableQueryLog() -> DatabaseResult<()> {
-        Self::connection(None)?.enableQueryLog();
+    pub fn enable_query_log() -> DatabaseResult<()> {
+        Self::connection(None)?.enable_query_log();
         Ok(())
     }
 
-    pub fn disableQueryLog() -> DatabaseResult<()> {
-        Self::connection(None)?.disableQueryLog();
+    pub fn disable_query_log() -> DatabaseResult<()> {
+        Self::connection(None)?.disable_query_log();
         Ok(())
     }
 
@@ -90,35 +89,35 @@ impl DB {
         Ok(Self::connection(None)?.logging())
     }
 
-    pub fn flushQueryLog() -> DatabaseResult<()> {
-        Self::connection(None)?.flushQueryLog();
+    pub fn flush_query_log() -> DatabaseResult<()> {
+        Self::connection(None)?.flush_query_log();
         Ok(())
     }
 
-    pub fn getQueryLog() -> DatabaseResult<Vec<QueryLogEntry>> {
-        Ok(Self::connection(None)?.getQueryLog())
+    pub fn get_query_log() -> DatabaseResult<Vec<QueryLogEntry>> {
+        Ok(Self::connection(None)?.get_query_log())
     }
 
-    pub fn getRawQueryLog() -> DatabaseResult<Vec<RawQueryLogEntry>> {
-        Self::connection(None)?.getRawQueryLog()
+    pub fn get_raw_query_log() -> DatabaseResult<Vec<RawQueryLogEntry>> {
+        Self::connection(None)?.get_raw_query_log()
     }
 
-    pub async fn selectFromWriteConnection<'a>(
+    pub async fn select_from_write_connection<'a>(
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
         Self::connection(None)?
-            .selectFromWriteConnection(sql, bindings)
+            .select_from_write_connection(sql, bindings)
             .await
     }
 
-    pub async fn selectResultSets<'a>(
+    pub async fn select_result_sets<'a>(
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
         use_read: bool,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
         Self::connection(None)?
-            .selectResultSets(sql, bindings, use_read)
+            .select_result_sets(sql, bindings, use_read)
             .await
     }
 
@@ -128,17 +127,17 @@ impl DB {
         Self::connection(None)?.pretend(callback).await
     }
 
-    pub async fn withoutPretending<T>(
+    pub async fn without_pretending<T>(
         callback: impl Future<Output = DatabaseResult<T>>,
     ) -> DatabaseResult<T> {
-        Self::connection(None)?.withoutPretending(callback).await
+        Self::connection(None)?.without_pretending(callback).await
     }
 
     pub fn pretending() -> DatabaseResult<bool> {
         Ok(Self::connection(None)?.pretending())
     }
 
-    pub fn beforeExecuting(
+    pub fn before_executing(
         callback: impl for<'a> Fn(
             &'a str,
             Bindings<'a>,
@@ -149,11 +148,11 @@ impl DB {
         + Sync
         + 'static,
     ) -> DatabaseResult<()> {
-        Self::connection(None)?.beforeExecuting(callback);
+        Self::connection(None)?.before_executing(callback);
         Ok(())
     }
 
-    pub fn beforeStartingTransaction(
+    pub fn before_starting_transaction(
         callback: impl for<'a> Fn(
             &'a Connection,
             Option<&'a mut Transaction>,
@@ -162,12 +161,12 @@ impl DB {
         + Sync
         + 'static,
     ) -> DatabaseResult<()> {
-        Self::connection(None)?.beforeStartingTransaction(callback);
+        Self::connection(None)?.before_starting_transaction(callback);
         Ok(())
     }
 
-    pub async fn beginTransaction() -> DatabaseResult<Transaction> {
-        Self::connection(None)?.beginTransaction().await
+    pub async fn begin_transaction() -> DatabaseResult<Transaction> {
+        Self::connection(None)?.begin_transaction().await
     }
 
     pub async fn transaction<T>(
@@ -185,13 +184,13 @@ impl DB {
 
     statements! {
         select -> Vec<Row>;
-        selectOne -> Option<Row>;
+        select_one -> Option<Row>;
         scalar -> Value;
         insert -> bool;
         update -> u64;
         delete -> u64;
         statement -> bool;
-        affectingStatement -> u64;
+        affecting_statement -> u64;
     }
 
     pub async fn unprepared(sql: &str) -> DatabaseResult<bool> {

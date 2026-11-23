@@ -49,7 +49,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = M::queryOn(&self.connection);
+            let mut query = M::query_on(&self.connection);
             query.r#where(&self.identifier, "=", Value::from(id.clone()));
             let user = query.first().await?;
             Ok(user
@@ -77,12 +77,12 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = M::queryOn(&self.connection);
+            let mut query = M::query_on(&self.connection);
             query.r#where(column, "=", token);
             Ok(query
                 .first()
                 .await?
-                .filter(|user| providers::matches_api_token(user.getAttribute(column), token))
+                .filter(|user| providers::matches_api_token(user.get_attribute(column), token))
                 .map(erase))
         })
     }
@@ -94,7 +94,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
     ) -> AuthFuture<'a, AuthResult<()>> {
         Box::pin(async move {
             let model = M::from_state(ModelState::default());
-            providers::update_token(&self.connection, model.getTable(), user, token).await
+            providers::update_token(&self.connection, model.get_table(), user, token).await
         })
     }
 
@@ -103,7 +103,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = M::queryOn(&self.connection);
+            let mut query = M::query_on(&self.connection);
             let mut constrained = false;
             for (field, value) in credentials.fields() {
                 if field != &self.password && field != &self.remember {
@@ -137,7 +137,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
             providers::rehash(
                 self.hasher.as_ref(),
                 &self.connection,
-                model.getTable(),
+                model.get_table(),
                 user,
                 credentials,
                 force,

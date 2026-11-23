@@ -197,7 +197,7 @@ impl<T: SettingsGroup> Settings<T> {
         Ok(())
     }
 
-    pub async fn isLocked(&self, name: &str) -> SettingsResult<bool> {
+    pub async fn is_locked(&self, name: &str) -> SettingsResult<bool> {
         if !self.defaults.contains_key(name) {
             return Err(Error::UnknownProperty);
         }
@@ -284,7 +284,7 @@ impl<T: SettingsGroup> Settings<T> {
                             .encrypter
                             .as_ref()
                             .ok_or(Error::Encryption)?
-                            .encryptString(&plaintext)
+                            .encrypt_string(&plaintext)
                             .map_err(|_| Error::Encryption)?;
                         SettingsUpdate::Set(Value::String(ciphertext))
                     }
@@ -325,7 +325,7 @@ fn decode<T: SettingsGroup>(
             let ciphertext = property.payload.as_str().ok_or(Error::Decryption)?;
             let bytes = encrypter
                 .ok_or(Error::Decryption)?
-                .decryptString(ciphertext)
+                .decrypt_string(ciphertext)
                 .map_err(|_| Error::Decryption)?;
             serde_json::from_slice(&bytes).map_err(|_| Error::Decryption)?
         } else {

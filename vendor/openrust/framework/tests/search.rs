@@ -41,7 +41,7 @@ impl Model for Article {
 }
 
 impl Searchable for Article {
-    fn searchableColumns() -> &'static [SearchColumn] {
+    fn searchable_columns() -> &'static [SearchColumn] {
         &[
             SearchColumn::FullText("title"),
             SearchColumn::FullText("body"),
@@ -56,7 +56,7 @@ impl Model for Note {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("notes")
             .timestamps(None, None)
-            .softDeletes("deleted_at");
+            .soft_deletes("deleted_at");
         &META
     }
 
@@ -70,7 +70,7 @@ impl Model for Note {
         &mut self.0
     }
 
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("tenant", &Tenant)]
     }
 }
@@ -85,7 +85,7 @@ impl Scope<Note> for Tenant {
 }
 
 impl Searchable for Note {
-    fn searchableColumns() -> &'static [SearchColumn] {
+    fn searchable_columns() -> &'static [SearchColumn] {
         &[
             SearchColumn::Prefix("id"),
             SearchColumn::Contains("title"),
@@ -111,28 +111,28 @@ async fn seed_notes(db: &Connection) -> DatabaseResult<()> {
 async fn model_search_respects_scopes_soft_deletes_and_search_strategies() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
     seed_notes(&db).await.unwrap();
-    let rust = Note::searchOn(&db, "rust").paginate(1).await.unwrap();
+    let rust = Note::search_on(&db, "rust").paginate(1).await.unwrap();
     assert_eq!(rust.total(), 2);
-    assert_eq!(rust.items()[0].getKey(), Some(&123.into()));
-    let ordered = Note::searchOn(&db, "rust")
-        .orderBy("id", "asc")
+    assert_eq!(rust.items()[0].get_key(), Some(&123.into()));
+    let ordered = Note::search_on(&db, "rust")
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap();
-    assert_eq!(ordered.first().unwrap().getKey(), Some(&12.into()));
-    let numeric = Note::searchOn(&db, "12").get().await.unwrap();
+    assert_eq!(ordered.first().unwrap().get_key(), Some(&12.into()));
+    let numeric = Note::search_on(&db, "12").get().await.unwrap();
     assert_eq!(numeric.len(), 1);
-    assert_eq!(numeric.first().unwrap().getKey(), Some(&12.into()));
-    let archived = Note::searchOn(&db, "rust")
+    assert_eq!(numeric.first().unwrap().get_key(), Some(&12.into()));
+    let archived = Note::search_on(&db, "rust")
         .only_trashed()
         .get()
         .await
         .unwrap();
     assert_eq!(archived.len(), 1);
-    assert_eq!(archived.first().unwrap().getKey(), Some(&4.into()));
-    assert_eq!(Note::searchOn(&db, "  ").get().await.unwrap().len(), 3);
+    assert_eq!(archived.first().unwrap().get_key(), Some(&4.into()));
+    assert_eq!(Note::search_on(&db, "  ").get().await.unwrap().len(), 3);
     assert!(
-        Note::searchOn(&db, "rust")
+        Note::search_on(&db, "rust")
             .r#where("id", "=", 3)
             .get()
             .await
@@ -147,21 +147,21 @@ async fn full_text_binds_the_search_string_and_rejects_unsupported_dialects() {
     assert!(matches!(
         sqlite
             .table("articles")
-            .whereFullText(&["title"], "rust")
-            .toSql(),
+            .where_full_text(&["title"], "rust")
+            .to_sql(),
         Err(DatabaseError::InvalidQuery(_))
     ));
     let mysql = connection(json!({"driver":"mysql","database":"example","prefix":"app_"}));
     let mut query = mysql
         .table("articles")
         .r#where("published", "=", true)
-        .whereNested(|group| {
+        .where_nested(|group| {
             group
-                .whereFullText(&["articles.title", "articles.body"], "O'Reilly ?")
-                .orWhereFullTextWith(&["title"], "+rust -draft", FullTextOptions::Boolean)
+                .where_full_text(&["articles.title", "articles.body"], "O'Reilly ?")
+                .or_where_full_text_with(&["title"], "+rust -draft", FullTextOptions::Boolean)
         });
     assert_eq!(
-        query.toSql().unwrap(),
+        query.to_sql().unwrap(),
         "select * from `app_articles` where `published` = ? and (match (`app_articles`.`title`, `app_articles`.`body`) against (? in natural language mode) or match (`title`) against (? in boolean mode))"
     );
     assert_eq!(
@@ -169,7 +169,10 @@ async fn full_text_binds_the_search_string_and_rejects_unsupported_dialects() {
         [true.into(), "O'Reilly ?".into(), "+rust -draft".into()]
     );
     assert!(matches!(
-        mysql.table("articles").whereFullText(&[], "rust").toSql(),
+        mysql
+            .table("articles")
+            .where_full_text(&[], "rust")
+            .to_sql(),
         Err(DatabaseError::InvalidQuery(_))
     ));
 }
@@ -183,14 +186,14 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
     let prefix = format!("search_{:x}_", fastrand::u64(..));
     let db = connection(json!({"url":url,"prefix":prefix}));
     let table = "articles";
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create(table, |definition| {
             definition.id();
             definition.string("title", 150);
             definition.text("body");
             definition.string("slug", 80).default("");
-            definition.fullText(&["title", "body"], None);
+            definition.full_text(&["title", "body"], None);
         })
         .await
         .unwrap();
@@ -208,10 +211,10 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
 
     let page = db
         .table(table)
-        .whereFullText(&["title", "body"], "openrust")
-        .orderBy("id", "asc")
-        .paginateWith(PageOptions {
-            perPage: Some(1),
+        .where_full_text(&["title", "body"], "openrust")
+        .order_by("id", "asc")
+        .paginate_with(PageOptions {
+            per_page: Some(1),
             page: Some(2),
             ..Default::default()
         })
@@ -222,16 +225,16 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
         page.items()[0].get("title"),
         Some(&Value::from("OpenRust cookbook"))
     );
-    let mut model_query = Article::queryOn(&db);
-    model_query.whereFullText(&["title", "body"], "openrust");
+    let mut model_query = Article::query_on(&db);
+    model_query.where_full_text(&["title", "body"], "openrust");
     let article = model_query
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .first()
         .await
         .unwrap()
         .unwrap();
     assert_eq!(
-        article.getAttribute("title"),
+        article.get_attribute("title"),
         Some(&Value::from("OpenRust framework"))
     );
 
@@ -240,24 +243,24 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
         .update(BTreeMap::from([("slug".into(), "oxide-guide".into())]))
         .await
         .unwrap();
-    let page = Article::searchOn(&db, "openrust")
+    let page = Article::search_on(&db, "openrust")
         .r#where("id", ">", 1)
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .paginate(1)
         .await
         .unwrap();
     assert_eq!(page.total(), 1);
     assert_eq!(
-        page.items()[0].getAttribute("title"),
+        page.items()[0].get_attribute("title"),
         Some(&Value::from("OpenRust cookbook"))
     );
     assert_eq!(
-        Article::searchOn(&db, "oxide").get().await.unwrap().len(),
+        Article::search_on(&db, "oxide").get().await.unwrap().len(),
         1
     );
     let boolean = db
         .table(table)
-        .whereFullTextWith(
+        .where_full_text_with(
             &["title", "body"],
             "+openrust -cookbook",
             FullTextOptions::Boolean,
@@ -272,7 +275,7 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
     );
     assert!(
         !db.table(table)
-            .whereFullTextWith(
+            .where_full_text_with(
                 &["title", "body"],
                 "openrust",
                 FullTextOptions::QueryExpansion
@@ -283,7 +286,7 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
             .is_empty()
     );
 
-    let mut locker = db.beginTransaction().await.unwrap();
+    let mut locker = db.begin_transaction().await.unwrap();
     locker
         .table(table)
         .r#where("title", "=", "Organic gardening")
@@ -294,7 +297,7 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
     let release = Arc::new(std::sync::Mutex::new(Some(release)));
     let locker = tokio::spawn(async move {
         released.await.unwrap();
-        locker.rollBack(None).await.unwrap();
+        locker.roll_back(None).await.unwrap();
     });
     let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     db.transaction(
@@ -326,7 +329,7 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
     assert_eq!(attempts.load(std::sync::atomic::Ordering::SeqCst), 2);
     assert_eq!(
         db.table(table)
-            .whereFullText(&["title", "body"], "openrust")
+            .where_full_text(&["title", "body"], "openrust")
             .get()
             .await
             .unwrap()
@@ -340,14 +343,14 @@ async fn mysql_indexes_queries_pages_updates_and_deletes_searchable_rows() {
         .unwrap();
     assert_eq!(
         db.table(table)
-            .whereFullText(&["title", "body"], "openrust")
+            .where_full_text(&["title", "body"], "openrust")
             .get()
             .await
             .unwrap()
             .len(),
         2
     );
-    schema.dropIfExists(table).await.unwrap();
+    schema.drop_if_exists(table).await.unwrap();
 }
 
 #[tokio::test]
@@ -376,7 +379,7 @@ async fn model_search_paginates_through_the_http_entry_point() {
                 .map_err(internal)?;
             Response::json(
                 StatusCode::OK,
-                page.map(|note| match note.getKey() {
+                page.map(|note| match note.get_key() {
                     Some(Value::Integer(id)) => *id,
                     _ => panic!("expected integer key"),
                 }),
@@ -453,13 +456,15 @@ fn postgres_search_connection() -> Option<Connection> {
 }
 
 async fn postgres_articles(db: &Connection) {
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("articles", |table| {
             table.id();
             table.string("title", 100);
             table.text("body");
             table.string("slug", 80).default("");
-            table.fullText(&["title", "body"], None).language("english");
+            table
+                .full_text(&["title", "body"], None)
+                .language("english");
         })
         .await
         .unwrap();
@@ -471,7 +476,7 @@ async fn postgres_articles(db: &Connection) {
     ] {
         let generated = db
             .table("articles")
-            .insertGetId(BTreeMap::from([
+            .insert_get_id(BTreeMap::from([
                 ("title".into(), title.into()),
                 ("body".into(), body.into()),
             ]))
@@ -489,17 +494,17 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         return;
     };
     postgres_articles(&db).await;
-    assert!(db.getSchemaBuilder().hasTable("articles").await.unwrap());
-    let prefix = db.getTablePrefix();
-    let mut transaction = db.beginTransaction().await.unwrap();
+    assert!(db.get_schema_builder().has_table("articles").await.unwrap());
+    let prefix = db.get_table_prefix();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .statement("set local enable_seqscan = off", &[])
         .await
         .unwrap();
     let mut query = transaction
         .table("articles")
-        .whereFullText(&["title", "body"], "runs");
-    let sql = format!("explain {}", query.toSql().unwrap());
+        .where_full_text(&["title", "body"], "runs");
+    let sql = format!("explain {}", query.to_sql().unwrap());
     let bindings = query.get_bindings().unwrap();
     let plan = transaction.select(&sql, &bindings).await.unwrap();
     assert!(
@@ -509,38 +514,38 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         )),
         "{plan:?}"
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
 
     let mut query = db
         .table("articles")
-        .whereFullText(&["title", "body"], "runs");
-    assert!(!query.toSql().unwrap().contains("order by"));
+        .where_full_text(&["title", "body"], "runs");
+    assert!(!query.to_sql().unwrap().contains("order by"));
     assert_eq!(query.count("*").await.unwrap(), 3);
     let get_ids = |page| {
         let db = &db;
         async move {
             let options = PageOptions {
-                perPage: Some(1),
+                per_page: Some(1),
                 page: Some(page),
                 ..Default::default()
             };
-            let result = Article::searchOn(db, "runs")
-                .paginateWith(options)
+            let result = Article::search_on(db, "runs")
+                .paginate_with(options)
                 .await
                 .unwrap();
             assert_eq!(result.total(), 3);
-            result.items()[0].getAttribute("id").unwrap().clone()
+            result.items()[0].get_attribute("id").unwrap().clone()
         }
     };
     assert_eq!(get_ids(1).await, 1.into());
     assert_eq!(get_ids(2).await, 3.into());
     assert_eq!(get_ids(3).await, 2.into());
-    let explicit = Article::searchOn(&db, "runs")
-        .orderBy("id", "asc")
+    let explicit = Article::search_on(&db, "runs")
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap();
-    assert_eq!(explicit[1].getAttribute("id"), Some(&2.into()));
+    assert_eq!(explicit[1].get_attribute("id"), Some(&2.into()));
 
     let options = |mode| FullTextOptions::Postgres {
         language: "english",
@@ -554,7 +559,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
     ] {
         assert_eq!(
             db.table("articles")
-                .whereFullTextWith(&["title", "body"], term, options(mode))
+                .where_full_text_with(&["title", "body"], term, options(mode))
                 .count("*")
                 .await
                 .unwrap(),
@@ -562,10 +567,10 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         );
     }
 
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .table("articles", |table: &mut Blueprint| {
             table
-                .fullText(&["body"], Some("article_body_simple"))
+                .full_text(&["body"], Some("article_body_simple"))
                 .language("simple");
         })
         .await
@@ -577,7 +582,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
     };
     assert_eq!(
         db.table("articles")
-            .whereFullTextWith(&["body"], "running", simple)
+            .where_full_text_with(&["body"], "running", simple)
             .count("*")
             .await
             .unwrap(),
@@ -585,7 +590,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
     );
     assert_eq!(
         db.table("articles")
-            .whereFullTextWith(&["body"], "runs", simple)
+            .where_full_text_with(&["body"], "runs", simple)
             .count("*")
             .await
             .unwrap(),
@@ -596,22 +601,22 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
             row.get_at(0),
             Some(Value::Text(sql)) if sql.contains("USING gin") && sql.contains("'simple'::regconfig")
     )));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     assert!(
         schema
-            .hasIndex("articles", "article_body_simple")
+            .has_index("articles", "article_body_simple")
             .await
             .unwrap()
     );
     schema
         .table("articles", |table| {
-            table.dropFullText("article_body_simple")
+            table.drop_full_text("article_body_simple")
         })
         .await
         .unwrap();
     assert!(
         !schema
-            .hasIndex("articles", "article_body_simple")
+            .has_index("articles", "article_body_simple")
             .await
             .unwrap()
     );
@@ -619,7 +624,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         .table("articles", |table| {
             table
                 .tsvector("search_terms")
-                .storedAs("to_tsvector('english', body)");
+                .stored_as("to_tsvector('english', body)");
             table
                 .index(&["search_terms"], Some("article_search_terms"))
                 .algorithm("gin");
@@ -627,14 +632,14 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         .await
         .unwrap();
     let column = schema
-        .getColumn("articles", "search_terms")
+        .get_column("articles", "search_terms")
         .await
         .unwrap()
         .unwrap();
     assert_eq!(column.type_name, "tsvector");
     assert!(
         schema
-            .hasIndex("articles", "article_search_terms")
+            .has_index("articles", "article_search_terms")
             .await
             .unwrap()
     );
@@ -645,7 +650,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
     };
     let stored_rows = db
         .table("articles")
-        .whereFullTextWith(&["search_terms"], "runs", stored)
+        .where_full_text_with(&["search_terms"], "runs", stored)
         .get()
         .await
         .unwrap();
@@ -654,7 +659,7 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
         stored_rows[0].get("search_terms"),
         Some(Value::Bytes(_))
     ));
-    schema.dropIfExists("articles").await.unwrap();
+    schema.drop_if_exists("articles").await.unwrap();
 }
 
 #[tokio::test]
@@ -668,12 +673,12 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
 
     async fn count(db: &Connection, term: &str) -> DatabaseResult<u64> {
         db.table("articles")
-            .whereFullText(&["title", "body"], term)
+            .where_full_text(&["title", "body"], term)
             .count("*")
             .await
     }
 
-    let mut update = db.beginTransaction().await.unwrap();
+    let mut update = db.begin_transaction().await.unwrap();
     assert_eq!(
         update
             .table("articles")
@@ -689,7 +694,7 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
     assert_eq!(
         update
             .table("articles")
-            .whereFullText(&["title", "body"], "archives")
+            .where_full_text(&["title", "body"], "archives")
             .count("*")
             .await
             .unwrap(),
@@ -701,7 +706,7 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
     let observed = commits.clone();
     let reader = db.clone();
     update
-        .afterCommit(move || {
+        .after_commit(move || {
             Box::pin(async move {
                 assert_eq!(count(&reader, "archives").await?, 1);
                 assert_eq!(count(&reader, "runs").await?, 2);
@@ -714,7 +719,7 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
     assert_eq!(commits.load(Ordering::Relaxed), 1);
 
     for commit in [false, true] {
-        let mut delete = db.beginTransaction().await.unwrap();
+        let mut delete = db.begin_transaction().await.unwrap();
         assert_eq!(
             delete
                 .table("articles")
@@ -727,7 +732,7 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
         assert_eq!(
             delete
                 .table("articles")
-                .whereFullText(&["title", "body"], "archives")
+                .where_full_text(&["title", "body"], "archives")
                 .count("*")
                 .await
                 .unwrap(),
@@ -737,7 +742,7 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
         if commit {
             delete.commit().await.unwrap();
         } else {
-            delete.rollBack(None).await.unwrap();
+            delete.roll_back(None).await.unwrap();
         }
         assert_eq!(count(&db, "archives").await.unwrap(), u64::from(!commit));
     }
@@ -796,8 +801,8 @@ async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
     assert_eq!(count(&db, "observatory").await.unwrap(), 1);
     assert_eq!(count(&db, "telescope").await.unwrap(), 0);
     assert_eq!(count(&db, "runs").await.unwrap(), 1);
-    db.getSchemaBuilder()
-        .dropIfExists("articles")
+    db.get_schema_builder()
+        .drop_if_exists("articles")
         .await
         .unwrap();
 }
@@ -852,11 +857,15 @@ async fn postgres_retries_a_deadlock_before_publishing_index_updates() {
     left.unwrap();
     right.unwrap();
     assert_eq!(attempts.load(Ordering::Relaxed), 3);
-    let first = Article::searchOn(&db, "zephyr").get().await.unwrap().len();
-    let second = Article::searchOn(&db, "monsoon").get().await.unwrap().len();
+    let first = Article::search_on(&db, "zephyr").get().await.unwrap().len();
+    let second = Article::search_on(&db, "monsoon")
+        .get()
+        .await
+        .unwrap()
+        .len();
     assert!(matches!((first, second), (0, 2) | (2, 0)));
-    db.getSchemaBuilder()
-        .dropIfExists("articles")
+    db.get_schema_builder()
+        .drop_if_exists("articles")
         .await
         .unwrap();
 }

@@ -106,17 +106,17 @@ impl OneOfMany {
         foreign_key: &str,
         discriminator: Option<(&str, &str)>,
     ) -> DatabaseResult<Builder<'static, R>> {
-        let outer_foreign = related.qualifyColumn(foreign_key);
+        let outer_foreign = related.qualify_column(foreign_key);
         self.apply_grouped(related, None, |mut candidates| {
             if let Some((column, value)) = discriminator {
-                let column = candidates.qualifyColumn(column);
+                let column = candidates.qualify_column(column);
                 candidates = candidates.require_relation_value(&column, value);
             }
-            let candidate_foreign = candidates.qualifyColumn(foreign_key);
+            let candidate_foreign = candidates.qualify_column(foreign_key);
             Ok(candidates
                 .scoped()?
                 .0
-                .whereColumn(&candidate_foreign, "=", &outer_foreign))
+                .where_column(&candidate_foreign, "=", &outer_foreign))
         })
     }
 
@@ -139,20 +139,20 @@ impl OneOfMany {
         for (index, (column, aggregate)) in self.columns.iter().enumerate() {
             let mut candidates = related.relation_candidate(alias);
             if let Some(filter) = &self.filter {
-                candidates.whereNested(filter);
+                candidates.where_nested(filter);
             }
-            let candidate_column = candidates.qualifyColumn(column);
+            let candidate_column = candidates.qualify_column(column);
             let mut query = group(candidates)?;
             for previous in self.columns.keys().take(index) {
-                query = query.whereColumn(
+                query = query.where_column(
                     &format!("{alias}.{previous}"),
                     "=",
-                    &related.qualifyColumn(previous),
+                    &related.qualify_column(previous),
                 );
             }
             let mut query =
                 query.select_related_aggregate(aggregate.function(), &candidate_column)?;
-            let outer_column = related.qualifyColumn(column);
+            let outer_column = related.qualify_column(column);
             related = related.require_relation_subquery(&outer_column, &mut query)?;
         }
         Ok(related)

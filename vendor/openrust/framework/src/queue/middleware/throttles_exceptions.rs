@@ -210,11 +210,11 @@ impl Backend {
         match self {
             Self::Cache(limiter) => {
                 if limiter
-                    .tooManyAttempts(&quota.key, quota.max)
+                    .too_many_attempts(&quota.key, quota.max)
                     .await
                     .map_err(backend)?
                 {
-                    let seconds = limiter.availableIn(&quota.key).await.map_err(backend)?;
+                    let seconds = limiter.available_in(&quota.key).await.map_err(backend)?;
                     return Ok(ControlFlow::Break(Duration::from_secs(
                         seconds.saturating_add(3),
                     )));

@@ -11,21 +11,21 @@ use super::{
 };
 
 fn connection<M: Model>(model: &M) -> DatabaseResult<Connection> {
-    model.getConnection()
+    model.get_connection()
 }
 
 fn transaction_connection<M: Model>(
     model: &M,
     transaction: &Transaction,
 ) -> DatabaseResult<Connection> {
-    if transaction.transactionLevel() == 0 {
+    if transaction.transaction_level() == 0 {
         return Err(DatabaseError::TransactionClosed);
     }
     let connection = transaction.query_connection();
     let mismatch = match &model.state().connection {
         Some(source) => !transaction.belongs_to(source),
         None => model
-            .resolveConnectionName()?
+            .resolve_connection_name()?
             .as_deref()
             .is_some_and(|name| name != connection.get_name()),
     };
@@ -61,7 +61,7 @@ fn persisted_key<M: Model>(model: &M) -> DatabaseResult<Value> {
     state
         .original
         .get(M::metadata().primary_key)
-        .or_else(|| model.getKey())
+        .or_else(|| model.get_key())
         .filter(|value| !matches!(value, Value::Null))
         .cloned()
         .ok_or(DatabaseError::InvalidQuery("model primary key"))
@@ -103,7 +103,9 @@ fn reload_query_on<M: Model>(
     model: &M,
     connection: &Connection,
 ) -> DatabaseResult<Builder<'static, M>> {
-    let mut query = M::queryOn(connection).withoutGlobalScopes().useWritePdo();
+    let mut query = M::query_on(connection)
+        .without_global_scopes()
+        .use_write_pdo();
     query.casts.clone_from(&model.state().casts);
     query.for_persisted_model(model)
 }
@@ -128,7 +130,7 @@ pub(super) async fn refresh<'a, M: Model>(
     } else {
         Box::pin(reload_query(model)?.first()).await?
     }
-    .ok_or(DatabaseError::ModelNotFound(model.getTable()))?;
+    .ok_or(DatabaseError::ModelNotFound(model.get_table()))?;
     let state = model.state_mut();
     if let Some(link) = state.detached_autoload.take() {
         state.relations = link.visible_relations(state, |_| true);
@@ -179,15 +181,15 @@ async fn finish_transaction(
             Ok(saved)
         }
         Err(error) => {
-            transaction.rollBack(None).await?;
+            transaction.roll_back(None).await?;
             Err(error)
         }
     }
 }
 
 pub(super) async fn save_or_fail<M: Model>(model: &mut M) -> DatabaseResult<bool> {
-    let mut transaction = connection(model)?.beginTransaction().await?;
-    let result = model.saveInTransaction(&mut transaction).await;
+    let mut transaction = connection(model)?.begin_transaction().await?;
+    let result = model.save_in_transaction(&mut transaction).await;
     finish_transaction(&mut transaction, result).await
 }
 
@@ -195,8 +197,8 @@ pub(super) async fn delete_or_fail<M: Model>(model: &mut M) -> DatabaseResult<bo
     if !model.state().exists {
         return Ok(false);
     }
-    let mut transaction = connection(model)?.beginTransaction().await?;
-    let result = model.deleteInTransaction(&mut transaction).await;
+    let mut transaction = connection(model)?.begin_transaction().await?;
+    let result = model.delete_in_transaction(&mut transaction).await;
     finish_transaction(&mut transaction, result).await
 }
 
@@ -220,10 +222,10 @@ async fn save_model<M: Model>(
         return Ok(false);
     }
     let exists = model.state().exists;
-    if !exists && model.usesUniqueIdsForInstance() {
-        model.setUniqueIds().await?;
+    if !exists && model.uses_unique_ids_for_instance() {
+        model.set_unique_ids().await?;
     }
-    if exists && model.getDirty()?.is_empty() {
+    if exists && model.get_dirty()?.is_empty() {
         return finish_save(model, &connection, transaction).await;
     }
     if !fire_with_transaction(
@@ -238,7 +240,7 @@ async fn save_model<M: Model>(
         return Ok(false);
     }
     let mut attributes = if exists {
-        model.getDirty()?
+        model.get_dirty()?
     } else {
         model.state().attributes.clone()
     };
@@ -299,7 +301,7 @@ async fn save_model<M: Model>(
             return finish_save(model, &connection, transaction).await;
         }
         // 将驱动插入分支置于堆上，避免其 Future 扩大所有普通模型保存的调用栈。
-        let rows = Box::pin(query.insertOrIgnoreReturning(
+        let rows = Box::pin(query.insert_or_ignore_returning(
             std::slice::from_ref(&attributes),
             &["*"],
             unique_by,
@@ -309,7 +311,7 @@ async fn save_model<M: Model>(
         let Some(row) = rows.first() else {
             return Ok(false);
         };
-        if model.getIncrementingForInstance() {
+        if model.get_incrementing_for_instance() {
             let id = row
                 .get(metadata.primary_key)
                 .cloned()
@@ -320,9 +322,9 @@ async fn save_model<M: Model>(
         scoped_model(model, query)?
             .update(attributes.clone())
             .await?;
-    } else if model.getIncrementingForInstance() {
+    } else if model.get_incrementing_for_instance() {
         let id = query
-            .insertGetIdFor(attributes.clone(), metadata.primary_key)
+            .insert_get_id_for(attributes.clone(), metadata.primary_key)
             .await?;
         // MySQL reports zero for an explicitly supplied non-generated key.
         if !matches!(id, Value::Integer(0) | Value::Unsigned(0))
@@ -454,7 +456,7 @@ pub(super) async fn change_counters<M: Model>(
 
     if !model.state().exists {
         add_counter_timestamp::<M>(&connection, &mut extra)?;
-        let query = M::queryOn(&connection).scoped()?.0;
+        let query = M::query_on(&connection).scoped()?.0;
         return write_counters(query, columns, extra, decrement).await;
     }
 
@@ -492,9 +494,9 @@ async fn write_counters(
     decrement: bool,
 ) -> DatabaseResult<u64> {
     if decrement {
-        query.decrementEach(columns, extra).await
+        query.decrement_each(columns, extra).await
     } else {
-        query.incrementEach(columns, extra).await
+        query.increment_each(columns, extra).await
     }
 }
 
@@ -523,7 +525,7 @@ async fn change_counters_in_transaction<M: Model>(
 ) -> DatabaseResult<(ModelState, u64)> {
     let table = persistence_table(&model);
     let operator = if decrement { "-" } else { "+" };
-    let mut projection = scoped_model(&model, transaction.table(table))?.lockForUpdate();
+    let mut projection = scoped_model(&model, transaction.table(table))?.lock_for_update();
     let needs_cast = columns
         .keys()
         .any(|column| super::casts::has_increment_caster(&model, column));
@@ -532,7 +534,7 @@ async fn change_counters_in_transaction<M: Model>(
     }
     for (index, (column, step)) in columns.iter().enumerate() {
         let quoted = connection.grammar.column(column)?;
-        projection = projection.selectRaw(
+        projection = projection.select_raw(
             &format!("{quoted} {operator} ? as laravel_counter_{index}"),
             vec![step.clone()],
         );
@@ -562,13 +564,13 @@ async fn change_counters_in_transaction<M: Model>(
             assignments.extend(patch);
             *step = encoded_step;
         } else {
-            model.setAttribute(column, next.clone());
+            model.set_attribute(column, next.clone());
         }
     }
 
     let before_extra = model.state().attributes.clone();
     for (name, value) in extra {
-        model.setAttributeValueAsync(&name, value).await?;
+        model.set_attribute_value_async(&name, value).await?;
     }
     assignments.extend(
         model
@@ -628,7 +630,7 @@ async fn change_counters_in_transaction<M: Model>(
         .collect();
     let state = model.state_mut();
     state.apply_attributes(persisted.clone());
-    state.changes = state.getDirty();
+    state.changes = state.get_dirty();
     fire_with_transaction(&mut model, connection, Updated, false, Some(transaction)).await?;
     model.state_mut().original.extend(persisted);
     Ok((model.state().clone(), affected))
@@ -641,12 +643,12 @@ async fn refresh_saved_attributes<M: Model>(
 ) -> DatabaseResult<super::Attributes> {
     let metadata = M::metadata();
     let query = table(connection, transaction, persistence_table(model))
-        .useWritePdo()
+        .use_write_pdo()
         .select(metadata.refreshes.iter().copied());
     let state = model.state();
     let query = if let Some(identity) = state.pivot_identity {
         let query = identity.constrain(query, &state.original)?;
-        match model.getKey().filter(|key| **key != Value::Null) {
+        match model.get_key().filter(|key| **key != Value::Null) {
             Some(key)
                 if !identity
                     .columns()
@@ -658,7 +660,7 @@ async fn refresh_saved_attributes<M: Model>(
         }
     } else {
         let key = model
-            .getKey()
+            .get_key()
             .filter(|key| !matches!(key, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("model primary key"))?;
         query.r#where(metadata.primary_key, "=", key.clone())
@@ -692,7 +694,7 @@ pub(super) async fn update<M: Model>(
     if let Some(transaction) = transaction.as_deref() {
         transaction_connection(model, transaction)?;
     }
-    model.fillAsync(attributes).await?;
+    model.fill_async(attributes).await?;
     save(model, transaction).await
 }
 
@@ -790,8 +792,8 @@ pub(super) async fn restore<M: Model>(
     {
         return Ok(false);
     }
-    let previous = model.getAttribute(column).cloned();
-    model.state_mut().setAttribute(column, Value::Null);
+    let previous = model.get_attribute(column).cloned();
+    model.state_mut().set_attribute(column, Value::Null);
     let result = save(model, transaction.as_deref_mut()).await;
     if matches!(result, Ok(true)) {
         fire_with_transaction(model, &connection, Restored, false, transaction).await?;

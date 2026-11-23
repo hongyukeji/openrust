@@ -10,9 +10,8 @@ use openrust::{
 
 pub struct Definition;
 
-#[allow(non_snake_case)]
 impl Migration for Definition {
-    fn getConnection(&self, config: &dyn Repository) -> DatabaseResult<Option<String>> {
+    fn get_connection(&self, config: &dyn Repository) -> DatabaseResult<Option<String>> {
         match config.get("passport.connection") {
             None | Some(serde_json::Value::Null) => Ok(None),
             Some(serde_json::Value::String(name)) => Ok(Some(name)),
@@ -27,14 +26,14 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("oauth_clients", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.oauth_clients", &Default::default())?);
                     table
                         .uuid("id")
                         .primary()
                         .comment(__("schema.columns.id", &Default::default())?);
-                    table.nullableMorphs("owner", None, None);
+                    table.nullable_morphs("owner", None, None);
                     table
                         .string("name", None)
                         .comment(__("schema.columns.name", &Default::default())?);
@@ -64,7 +63,7 @@ impl Migration for Definition {
                         .nullable()
                         .comment(__("schema.columns.updated_at", &Default::default())?);
 
-                    for column in table.getColumnsMut() {
+                    for column in table.get_columns_mut() {
                         match column.get_name() {
                             "owner_type" => {
                                 column
@@ -87,8 +86,8 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
-                .dropIfExists("oauth_clients")
+                .get_schema_builder()
+                .drop_if_exists("oauth_clients")
                 .await
         })
     }

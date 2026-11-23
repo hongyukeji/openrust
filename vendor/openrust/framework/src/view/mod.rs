@@ -130,7 +130,7 @@ pub fn view(name: impl Into<Cow<'static, str>>) -> View {
         options: None,
     };
     if let Ok(factory) = ViewFacade::get_facade_root() {
-        view.creation_error = factory.callCreator(&mut view).err();
+        view.creation_error = factory.call_creator(&mut view).err();
     }
     view
 }
@@ -154,8 +154,7 @@ impl View {
     }
 
     /// Registers a fresh keyed iterator per Blade loop, with unknown length.
-    #[allow(non_snake_case, reason = "Matches the Blade view API naming")]
-    pub fn withIterator<I, F>(self, key: impl Into<String>, create: F) -> Self
+    pub fn with_iterator<I, F>(self, key: impl Into<String>, create: F) -> Self
     where
         I: Iterator<Item = (ViewValue, ViewValue)> + 'static,
         F: Fn() -> I + Send + Sync + 'static,
@@ -164,8 +163,7 @@ impl View {
     }
 
     /// Registers a fresh keyed iterator whose exact length is available without consuming it.
-    #[allow(non_snake_case, reason = "Matches the Blade view API naming")]
-    pub fn withExactSizeIterator<I, F>(self, key: impl Into<String>, create: F) -> Self
+    pub fn with_exact_size_iterator<I, F>(self, key: impl Into<String>, create: F) -> Self
     where
         I: ExactSizeIterator<Item = (ViewValue, ViewValue)> + 'static,
         F: Fn() -> I + Send + Sync + 'static,
@@ -189,8 +187,7 @@ impl View {
     }
 
     /// Adds a typed value or policy target for authorization directives.
-    #[allow(non_snake_case)]
-    pub fn withGateArgument<T: Send + Sync + 'static>(
+    pub fn with_gate_argument<T: Send + Sync + 'static>(
         mut self,
         name: impl Into<String>,
         argument: T,
@@ -207,14 +204,18 @@ impl View {
         non_snake_case,
         reason = "Matches the Blade stringable registration API"
     )]
-    pub fn withStringable<T: 'static>(self, key: impl Into<String>, value: &T) -> ViewResult<Self> {
+    pub fn with_stringable<T: 'static>(
+        self,
+        key: impl Into<String>,
+        value: &T,
+    ) -> ViewResult<Self> {
         use crate::support::facades::{Facade as _, View as ViewFacade};
 
         let formatted = match &self.binding {
-            Some(binding) => binding.factory.compiler().applyEchoHandler(value)?,
+            Some(binding) => binding.factory.compiler().apply_echo_handler(value)?,
             None => ViewFacade::get_facade_root()?
                 .compiler()
-                .applyEchoHandler(value)?,
+                .apply_echo_handler(value)?,
         };
         Ok(self.with(key, formatted))
     }
@@ -233,21 +234,18 @@ impl View {
     }
 
     /// Selects every captured Blade fragment.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn allFragments(mut self) -> Self {
+    pub fn all_fragments(mut self) -> Self {
         self.options.get_or_insert_default().fragments = Some(FragmentSelection::All);
         self
     }
 
     /// Selects a fragment when the caller's condition is true.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn fragmentIf(self, condition: bool, name: impl Into<String>) -> Self {
-        self.fragmentsIf(condition, [name])
+    pub fn fragment_if(self, condition: bool, name: impl Into<String>) -> Self {
+        self.fragments_if(condition, [name])
     }
 
     /// Selects fragments when the caller's condition is true.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn fragmentsIf(
+    pub fn fragments_if(
         mut self,
         condition: bool,
         names: impl IntoIterator<Item = impl Into<String>>,
@@ -309,7 +307,6 @@ impl From<crate::contracts::container::BindingResolutionError> for ViewError {
     }
 }
 
-#[allow(non_snake_case)]
 impl crate::contracts::support::Responsable for View {
     async fn to_response(self, request: &mut Request) -> Result<Response, HttpError> {
         self.render(request).await

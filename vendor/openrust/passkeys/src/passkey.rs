@@ -54,7 +54,7 @@ impl Passkey {
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, T> {
         openrust::database::eloquent::relations::BelongsTo::new(
             "user_id",
-            T::from_state(ModelState::default()).getKeyName(),
+            T::from_state(ModelState::default()).get_key_name(),
         )
     }
 }
@@ -84,7 +84,7 @@ fn display_value(values: &Attributes, theme: Option<&str>) -> Value {
 pub trait PasskeyModel: Model + Clone {
     fn credential(&self) -> PasskeyResult<StoredCredential> {
         credential_value(
-            self.getAttributeValue("credential")
+            self.get_attribute_value("credential")
                 .map_err(|_| crate::PasskeyError::Format)?,
         )
     }
@@ -93,7 +93,7 @@ pub trait PasskeyModel: Model + Clone {
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, T> {
         openrust::database::eloquent::relations::BelongsTo::new(
             "user_id",
-            T::from_state(ModelState::default()).getKeyName(),
+            T::from_state(ModelState::default()).get_key_name(),
         )
     }
 }

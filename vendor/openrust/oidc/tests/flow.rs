@@ -223,7 +223,7 @@ fn login(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         match Oidc::provider("work", r)
             .map_err(internal)?
-            .maxAge(60)
+            .max_age(60)
             .redirect()
             .await
         {
@@ -520,7 +520,7 @@ async fn mysql_shared_session_two_replicas_atomically_claim_callback() {
         .connection(None)
         .unwrap();
     let row = db
-        .selectOne("SELECT VERSION() AS version", &[])
+        .select_one("SELECT VERSION() AS version", &[])
         .await
         .unwrap()
         .unwrap();
@@ -589,7 +589,7 @@ async fn mysql_shared_session_two_replicas_atomically_claim_callback() {
         assert_eq!(b.status(), 403);
     }
     let count = db
-        .selectOne("SELECT COUNT(*) AS n FROM users", &[])
+        .select_one("SELECT COUNT(*) AS n FROM users", &[])
         .await
         .unwrap()
         .unwrap();

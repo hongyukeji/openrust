@@ -138,7 +138,7 @@ impl NativeWatcher {
                         .collect::<Vec<_>>()
                         .join(" "),
                 );
-                telescope.recordRedis(IncomingEntry::make(json!({"connection":event.connectionName,"command":command,"time":format!("{:.2}",event.time.as_secs_f64()*1000.0)}).as_object().unwrap().clone())?);
+                telescope.recordRedis(IncomingEntry::make(json!({"connection":event.connection_name,"command":command,"time":format!("{:.2}",event.time.as_secs_f64()*1000.0)}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::support::Dumped>() {
             if self.enabled("DumpWatcher") {

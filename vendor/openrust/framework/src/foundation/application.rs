@@ -453,7 +453,9 @@ impl Application {
         }
         let exception = Exception::Error(error);
         let _ = self.shared.exceptions.report(&exception).await;
-        self.shared.exceptions.renderForConsole(output, &exception);
+        self.shared
+            .exceptions
+            .render_for_console(output, &exception);
     }
 
     /// Executes an Artisan invocation and terminates its console kernel.

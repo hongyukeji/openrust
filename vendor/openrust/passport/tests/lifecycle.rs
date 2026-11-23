@@ -357,7 +357,7 @@ async fn serve(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()
             middleware.alias("custom", std::sync::Arc::new(CustomMiddleware));
         })
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
+            exceptions.should_render_json_when(|request, _| request.expects_json());
         })
         .create()
         .unwrap();

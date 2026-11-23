@@ -8,13 +8,12 @@ use serde_json::Value;
 use super::{ArrayKey, Collection, CollectionResult, LazyCollection};
 use crate::support::{data_get, data_has, escape_html};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
     pub fn to_array(&self) -> CollectionResult<Value> {
         Self::collect(self)?.to_array()
     }
 
-    pub fn jsonSerialize(&self) -> CollectionResult<Value> {
+    pub fn json_serialize(&self) -> CollectionResult<Value> {
         self.to_array()
     }
 
@@ -23,13 +22,13 @@ impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
     }
 
     /// Selects HTML escaping for the collection's explicit string conversion.
-    pub fn escapeWhenCastingToString(mut self, escape: bool) -> Self {
+    pub fn escape_when_casting_to_string(mut self, escape: bool) -> Self {
         self.escape_when_casting_to_string = escape;
         self
     }
 
     /// Converts the collection to JSON text, optionally escaped for HTML.
-    pub fn toString(&self) -> CollectionResult<String> {
+    pub fn to_string(&self) -> CollectionResult<String> {
         let json = self.to_json()?;
         if !self.escape_when_casting_to_string {
             return Ok(json);
@@ -44,10 +43,9 @@ impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: DeserializeOwned + Clone + 'source> LazyCollection<'source, T> {
-    pub fn fromJson(json: &str) -> CollectionResult<Self> {
-        Collection::fromJson(json).map(Into::into)
+    pub fn from_json(json: &str) -> CollectionResult<Self> {
+        Collection::from_json(json).map(Into::into)
     }
 }
 
@@ -67,15 +65,14 @@ impl<'de, 'source, T: Deserialize<'de> + Clone + 'source> Deserialize<'de>
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     /// Materializes keyed entries before projecting and joining them.
-    pub fn implodeBy<U: Display>(
+    pub fn implode_by<U: Display>(
         &self,
         project: impl FnMut(&T, &ArrayKey) -> U,
         glue: &str,
     ) -> CollectionResult<String> {
-        Ok(Self::collect(self)?.implodeBy(project, glue))
+        Ok(Self::collect(self)?.implode_by(project, glue))
     }
 }
 
@@ -89,16 +86,15 @@ impl<'source, T: Display + 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl LazyCollection<'_, Value> {
     pub fn value(&self, path: &str) -> CollectionResult<Option<Value>> {
         Ok(self
-            .firstWhere(|value, _| data_has(value, path))?
+            .first_where(|value, _| data_has(value, path))?
             .and_then(|value| data_get(&value, Some(path))))
     }
 
     /// Evaluates the fallback only when no item contains the path.
-    pub fn valueOrElse(
+    pub fn value_or_else(
         &self,
         path: &str,
         fallback: impl FnOnce() -> Value,
@@ -107,11 +103,11 @@ impl LazyCollection<'_, Value> {
     }
 
     pub fn dot(self) -> Self {
-        self.dotWithDepth(None)
+        self.dot_with_depth(None)
     }
 
-    pub fn dotWithDepth(self, depth: Option<usize>) -> Self {
-        self.try_passthru(move |items| items.dotWithDepth(depth))
+    pub fn dot_with_depth(self, depth: Option<usize>) -> Self {
+        self.try_passthru(move |items| items.dot_with_depth(depth))
     }
 
     pub fn undot(self) -> Self {

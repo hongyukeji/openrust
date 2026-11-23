@@ -33,19 +33,19 @@ impl StorageStore {
         })
     }
 
-    pub fn getDisk(&self) -> &FilesystemAdapter {
+    pub fn get_disk(&self) -> &FilesystemAdapter {
         &self.disk
     }
 
-    pub fn getDirectory(&self) -> &str {
+    pub fn get_directory(&self) -> &str {
         &self.directory
     }
 
-    pub fn getPrefix(&self) -> &str {
+    pub fn get_prefix(&self) -> &str {
         &self.prefix
     }
 
-    pub fn setPrefix(&mut self, prefix: String) {
+    pub fn set_prefix(&mut self, prefix: String) {
         self.prefix = prefix;
     }
 
@@ -227,7 +227,7 @@ impl Store for StorageStore {
     }
 
     fn get_prefix(&self) -> &str {
-        self.getPrefix()
+        self.get_prefix()
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {

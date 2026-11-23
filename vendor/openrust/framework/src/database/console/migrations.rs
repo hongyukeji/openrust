@@ -427,13 +427,13 @@ fn confirm_database_creation(
         writeln!(
             output,
             "The SQLite database configured for this application does not exist: {}",
-            connection.getDatabaseName()
+            connection.get_database_name()
         )
     } else {
         writeln!(
             output,
             "The database {:?} does not exist on the {:?} connection.",
-            connection.getDatabaseName(),
+            connection.get_database_name(),
             connection.get_name()
         )
     }

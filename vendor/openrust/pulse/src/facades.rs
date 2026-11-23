@@ -141,24 +141,24 @@ impl Pulse {
         r#type: &str,
         aggregates: &[String],
         interval: i64,
-        orderBy: Option<&str>,
+        order_by: Option<&str>,
         direction: &str,
         limit: u64,
     ) -> crate::Result<Vec<openrust::database::Row>> {
         Self::manager()?
-            .aggregate(r#type, aggregates, interval, orderBy, direction, limit)
+            .aggregate(r#type, aggregates, interval, order_by, direction, limit)
             .await
     }
     pub async fn aggregateTypes(
         types: &[String],
         aggregate: &str,
         interval: i64,
-        orderBy: Option<&str>,
+        order_by: Option<&str>,
         direction: &str,
         limit: u64,
     ) -> crate::Result<Vec<openrust::database::Row>> {
         Self::manager()?
-            .aggregateTypes(types, aggregate, interval, orderBy, direction, limit)
+            .aggregateTypes(types, aggregate, interval, order_by, direction, limit)
             .await
     }
     pub async fn aggregateTotal(

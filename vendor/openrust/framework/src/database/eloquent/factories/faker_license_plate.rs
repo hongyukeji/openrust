@@ -582,13 +582,12 @@ const SUFFIX_GROUP_2: &[&str] = &[
 static SUFFIX_PATTERNS_1: OnceLock<Vec<RegexPattern>> = OnceLock::new();
 static SUFFIX_PATTERNS_2: OnceLock<Vec<RegexPattern>> = OnceLock::new();
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
-    pub fn licensePlate(&self) -> DatabaseResult<String> {
-        self.licensePlateWithOptions(false, None, None)
+    pub fn license_plate(&self) -> DatabaseResult<String> {
+        self.license_plate_with_options(false, None, None)
     }
 
-    pub fn licensePlateWithOptions(
+    pub fn license_plate_with_options(
         &self,
         special: bool,
         voivodeships: Option<&[&str]>,
@@ -626,13 +625,12 @@ impl Faker {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
-    pub fn licensePlate(&self) -> DatabaseResult<String> {
-        self.licensePlateWithOptions(false, None, None)
+    pub fn license_plate(&self) -> DatabaseResult<String> {
+        self.license_plate_with_options(false, None, None)
     }
 
-    pub fn licensePlateWithOptions(
+    pub fn license_plate_with_options(
         &self,
         special: bool,
         voivodeships: Option<&[&str]>,
@@ -640,7 +638,7 @@ impl UniqueFaker<'_> {
     ) -> DatabaseResult<String> {
         self.try_generate("licensePlate", || {
             self.0
-                .licensePlateWithOptions(special, voivodeships, counties)
+                .license_plate_with_options(special, voivodeships, counties)
         })
     }
 }

@@ -146,8 +146,8 @@ impl ServiceProvider for TelescopeServiceProvider {
                 )?;
             crate::watchers::registerAll(app).await?;
             let redis = app.make::<openrust::redis::RedisManager>().await?;
-            redis.setEventDispatcher(app.make::<openrust::events::Dispatcher>().await?);
-            redis.enableEvents();
+            redis.set_event_dispatcher(app.make::<openrust::events::Dispatcher>().await?);
+            redis.enable_events();
             Ok(())
         })
     }

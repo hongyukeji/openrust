@@ -8,26 +8,26 @@ pub trait Paginator {
     type Item;
 
     fn items(&self) -> &[Self::Item];
-    fn perPage(&self) -> u64;
-    fn currentPage(&self) -> u64;
-    fn nextPageUrl(&self) -> Option<String>;
-    fn previousPageUrl(&self) -> Option<String>;
+    fn per_page(&self) -> u64;
+    fn current_page(&self) -> u64;
+    fn next_page_url(&self) -> Option<String>;
+    fn previous_page_url(&self) -> Option<String>;
 }
 
 pub trait LengthAwarePaginator: Paginator {
     fn total(&self) -> u64;
-    fn lastPage(&self) -> u64;
+    fn last_page(&self) -> u64;
 }
 
 pub trait CursorPaginator {
     type Item;
 
     fn items(&self) -> &[Self::Item];
-    fn perPage(&self) -> u64;
-    fn nextCursor(&self) -> Option<&Cursor>;
-    fn previousCursor(&self) -> Option<&Cursor>;
-    fn nextPageUrl(&self) -> PaginationResult<Option<String>>;
-    fn previousPageUrl(&self) -> PaginationResult<Option<String>>;
+    fn per_page(&self) -> u64;
+    fn next_cursor(&self) -> Option<&Cursor>;
+    fn previous_cursor(&self) -> Option<&Cursor>;
+    fn next_page_url(&self) -> PaginationResult<Option<String>>;
+    fn previous_page_url(&self) -> PaginationResult<Option<String>>;
 }
 
 macro_rules! offset_paginator {
@@ -37,17 +37,17 @@ macro_rules! offset_paginator {
             fn items(&self) -> &[T] {
                 pagination::Paginator::items(self)
             }
-            fn perPage(&self) -> u64 {
-                pagination::Paginator::perPage(self)
+            fn per_page(&self) -> u64 {
+                pagination::Paginator::per_page(self)
             }
-            fn currentPage(&self) -> u64 {
-                pagination::Paginator::currentPage(self)
+            fn current_page(&self) -> u64 {
+                pagination::Paginator::current_page(self)
             }
-            fn nextPageUrl(&self) -> Option<String> {
-                pagination::Paginator::nextPageUrl(self)
+            fn next_page_url(&self) -> Option<String> {
+                pagination::Paginator::next_page_url(self)
             }
-            fn previousPageUrl(&self) -> Option<String> {
-                pagination::Paginator::previousPageUrl(self)
+            fn previous_page_url(&self) -> Option<String> {
+                pagination::Paginator::previous_page_url(self)
             }
         }
     };
@@ -60,8 +60,8 @@ impl<T> LengthAwarePaginator for pagination::LengthAwarePaginator<T> {
     fn total(&self) -> u64 {
         self.total()
     }
-    fn lastPage(&self) -> u64 {
-        self.lastPage()
+    fn last_page(&self) -> u64 {
+        self.last_page()
     }
 }
 
@@ -70,19 +70,19 @@ impl<T> CursorPaginator for pagination::CursorPaginator<T> {
     fn items(&self) -> &[T] {
         self.items()
     }
-    fn perPage(&self) -> u64 {
-        self.perPage()
+    fn per_page(&self) -> u64 {
+        self.per_page()
     }
-    fn nextCursor(&self) -> Option<&Cursor> {
-        self.nextCursor()
+    fn next_cursor(&self) -> Option<&Cursor> {
+        self.next_cursor()
     }
-    fn previousCursor(&self) -> Option<&Cursor> {
-        self.previousCursor()
+    fn previous_cursor(&self) -> Option<&Cursor> {
+        self.previous_cursor()
     }
-    fn nextPageUrl(&self) -> PaginationResult<Option<String>> {
-        self.nextPageUrl()
+    fn next_page_url(&self) -> PaginationResult<Option<String>> {
+        self.next_page_url()
     }
-    fn previousPageUrl(&self) -> PaginationResult<Option<String>> {
-        self.previousPageUrl()
+    fn previous_page_url(&self) -> PaginationResult<Option<String>> {
+        self.previous_page_url()
     }
 }

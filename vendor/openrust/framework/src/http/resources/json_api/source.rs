@@ -36,7 +36,7 @@ pub trait JsonApiSource: Sized + Send {
 
 impl<M: Model> JsonApiSource for M {
     fn identifier(&self) -> Option<String> {
-        match self.getKey()? {
+        match self.get_key()? {
             AttributeValue::Text(value) => Some(value.clone()),
             AttributeValue::Integer(value) => Some(value.to_string()),
             AttributeValue::Unsigned(value) => Some(value.to_string()),
@@ -45,13 +45,13 @@ impl<M: Model> JsonApiSource for M {
     }
 
     fn attributes(&self) -> ResourceResult<Map<String, Value>> {
-        let mut attributes = self.attributesToArray()?;
-        attributes.shift_remove(self.getKeyName());
+        let mut attributes = self.attributes_to_array()?;
+        attributes.shift_remove(self.get_key_name());
         Ok(attributes)
     }
 
     fn status(&self) -> StatusCode {
-        if self.state().wasRecentlyCreated() {
+        if self.state().was_recently_created() {
             StatusCode::CREATED
         } else {
             StatusCode::OK

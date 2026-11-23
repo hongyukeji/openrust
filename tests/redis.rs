@@ -460,7 +460,7 @@ async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
     let right = "{two}:cache";
     assert!(
         repository
-            .putMany(
+            .put_many(
                 &[(left.into(), "left".into()), (right.into(), "right".into())],
                 ttl
             )
@@ -500,10 +500,10 @@ async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
     assert!(other.get().await.unwrap());
     assert!(other.release().await.unwrap());
     assert!(matches!(
-        repository.flushLocks().await,
+        repository.flush_locks().await,
         Err(CacheError::LockStoreNotSeparate)
     ));
-    assert!(repository.supportsTags());
+    assert!(repository.supports_tags());
     assert!(repository.flush().await.unwrap());
     assert_eq!(peer.get(right).await.unwrap(), None);
     for key in ["{one}:report", "{two}:report", "{three}:report"] {
@@ -654,7 +654,7 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         "migration-8430:".into(),
     )));
     let tags = tagged_store.tags(&["artists", "daily"]).unwrap();
-    let metadata = tags.getTags().tagKey("artists");
+    let metadata = tags.get_tags().tag_key("artists");
     assert_eq!(
         cluster_cli(&container, &port, &["CLUSTER", "KEYSLOT", &metadata]),
         slot
@@ -671,12 +671,12 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
     tags.forever("expired", &"will-expire".into())
         .await
         .unwrap();
-    let expired_item = tags.taggedItemKey("expired").await.unwrap();
+    let expired_item = tags.tagged_item_key("expired").await.unwrap();
     assert_eq!(
         cluster_cli(&container, &source_port, &["PEXPIREAT", &expired_item, "1"]),
         "1"
     );
-    let artists = tags.getTags().tagId("artists").await.unwrap();
+    let artists = tags.get_tags().tag_id("artists").await.unwrap();
     let artists_index = format!(
         "{}index:{artists}",
         metadata.rsplit_once("generation:").unwrap().0
@@ -797,7 +797,7 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         args.extend_from_slice(keys);
         assert_eq!(cluster_cli(&container, &source_port, &args), "OK");
     };
-    let tagged_item = tags.taggedItemKey("entry").await.unwrap();
+    let tagged_item = tags.tagged_item_key("entry").await.unwrap();
     migrate(&[&tagged_item]);
     let error = tags
         .forever("entry", &"interrupted".into())
@@ -806,7 +806,7 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
     assert!(format!("{error:?}").contains("TryAgain"), "{error:?}");
     let selected = tagged_store.tags(&["artists"]).unwrap();
     for error in [
-        selected.flushStale().await.unwrap_err(),
+        selected.flush_stale().await.unwrap_err(),
         tagged_store
             .get_store()
             .flush_stale_tags()
@@ -877,7 +877,7 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         tags.get("entry").await.unwrap(),
         Some("before-migration".into())
     );
-    selected.flushStale().await.unwrap();
+    selected.flush_stale().await.unwrap();
     tagged_store.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(
         cluster_cli(&container, &destination_port, &["ZCARD", &artists_index]),
@@ -990,7 +990,7 @@ async fn redis_cluster_flushes_only_a_separate_lock_database() {
         ("direct_cluster_alias", "data"),
     ] {
         assert!(matches!(
-            store(cache, locks).flushLocks().await,
+            store(cache, locks).flush_locks().await,
             Err(CacheError::LockStoreNotSeparate)
         ));
         assert_eq!(data.get(sentinel).await.unwrap(), Some("keep".into()));
@@ -1010,7 +1010,7 @@ async fn redis_cluster_flushes_only_a_separate_lock_database() {
             .lock("{two}:right", Some(Duration::from_secs(30)), None)
             .unwrap();
         assert!(left.get().await.unwrap() && right.get().await.unwrap());
-        assert!(store.flushLocks().await.unwrap());
+        assert!(store.flush_locks().await.unwrap());
         assert!(left.current_owner().await.unwrap().is_none());
         assert!(right.current_owner().await.unwrap().is_none());
         assert_eq!(store.get(sentinel).await.unwrap(), Some("keep".into()));
@@ -1094,8 +1094,8 @@ async fn redis_cluster_tags_flush_and_prune() {
             == RedisValue::Int(1)
     };
     let index = async |name: &str| {
-        let key = left.getTags().tagKey(name);
-        let id = left.getTags().tagId(name).await.unwrap();
+        let key = left.get_tags().tag_key(name);
+        let id = left.get_tags().tag_id(name).await.unwrap();
         format!("{}index:{id}", key.split_once("generation:").unwrap().0)
     };
     let count = async |key: &str| {
@@ -1138,27 +1138,27 @@ async fn redis_cluster_tags_flush_and_prune() {
     tokio::time::sleep(Duration::from_millis(1150)).await;
     assert_eq!(ordered.get("short").await.unwrap(), None);
     let artist = index("artists").await;
-    let unknown = left.getTags().tagKey("unknown");
+    let unknown = left.get_tags().tag_key("unknown");
     assert!(!exists(&unknown).await);
-    assert!(peer.tags(&[]).unwrap().flushStale().await.unwrap());
+    assert!(peer.tags(&[]).unwrap().flush_stale().await.unwrap());
     assert_eq!(count(&artist).await, RedisValue::Int(3));
     let memo = cache.memo(None).unwrap();
     let same = memo.tags(&["artists", "people"]).unwrap();
     assert_eq!(same.get("item").await.unwrap(), Some(2.into()));
     let selected = memo.tags(&["artists", "unknown", "artists"]).unwrap();
-    assert!(selected.flushStale().await.unwrap());
+    assert!(selected.flush_stale().await.unwrap());
     assert_eq!(count(&artist).await, RedisValue::Int(2));
     assert_eq!(count(&people).await, RedisValue::Int(3));
     assert!(!exists(&unknown).await);
     assert_eq!(ordered.get("item").await.unwrap(), Some(2.into()));
     assert_eq!(same.get("item").await.unwrap(), Some(2.into()));
-    assert!(selected.flushStale().await.unwrap());
+    assert!(selected.flush_stale().await.unwrap());
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&people).await, RedisValue::Int(2));
 
     let scored = plain.tags(&["scored", "scored-peer"]).unwrap();
     assert!(scored.forever("value", &11.into()).await.unwrap());
-    let scored_key = scored.taggedItemKey("value").await.unwrap();
+    let scored_key = scored.tagged_item_key("value").await.unwrap();
     let scoped_index = index("scored").await;
     let peer_index = index("scored-peer").await;
     for index in [&scoped_index, &peer_index] {
@@ -1167,7 +1167,14 @@ async fn redis_cluster_tags_flush_and_prune() {
             .await
             .unwrap();
     }
-    assert!(plain.tags(&["scored"]).unwrap().flushStale().await.unwrap());
+    assert!(
+        plain
+            .tags(&["scored"])
+            .unwrap()
+            .flush_stale()
+            .await
+            .unwrap()
+    );
     assert_eq!(count(&scoped_index).await, RedisValue::Int(0));
     assert_eq!(count(&peer_index).await, RedisValue::Int(1));
     plain.get_store().flush_stale_tags().await.unwrap();
@@ -1177,10 +1184,10 @@ async fn redis_cluster_tags_flush_and_prune() {
     let orphan = plain.tags(&["orphan", "orphan-peer"]).unwrap();
     let selection = peer.tags(&["orphan"]).unwrap();
     assert!(orphan.forever("old", &12.into()).await.unwrap());
-    let old_key = orphan.taggedItemKey("old").await.unwrap();
+    let old_key = orphan.tagged_item_key("old").await.unwrap();
     let old_index = index("orphan").await;
     let peer_index = index("orphan-peer").await;
-    let generation = orphan.getTags().tagKey("orphan");
+    let generation = orphan.get_tags().tag_key("orphan");
     connection
         .command("DEL", &[generation.as_bytes()])
         .await
@@ -1197,7 +1204,7 @@ async fn redis_cluster_tags_flush_and_prune() {
         .command("ZADD", &[old_index.as_bytes(), b"0", old_key.as_bytes()])
         .await
         .unwrap();
-    assert!(selection.flushStale().await.unwrap());
+    assert!(selection.flush_stale().await.unwrap());
     assert_eq!(count(&old_index).await, RedisValue::Int(0));
     assert_eq!(count(&current_index).await, RedisValue::Int(1));
     assert_eq!(count(&peer_index).await, RedisValue::Int(2));
@@ -1210,7 +1217,7 @@ async fn redis_cluster_tags_flush_and_prune() {
         let key = number.to_string();
         assert!(paged.forever(&key, &number.into()).await.unwrap());
         if number % 2 == 0 {
-            deleted.push(paged.taggedItemKey(&key).await.unwrap());
+            deleted.push(paged.tagged_item_key(&key).await.unwrap());
         }
     }
     let keys = deleted.iter().map(String::as_bytes).collect::<Vec<_>>();
@@ -1220,14 +1227,14 @@ async fn redis_cluster_tags_flush_and_prune() {
     );
     let paged_index = index("paged").await;
     assert_eq!(count(&paged_index).await, RedisValue::Int(320));
-    let foreign_key = foreign.taggedItemKey("item").await.unwrap();
+    let foreign_key = foreign.tagged_item_key("item").await.unwrap();
     let invalid_bytes = b"\xffinvalid";
     let (prefix, _) = paged_index.rsplit_once("index:").unwrap();
     let registry = format!("{prefix}indexes");
     let expired_only = plain.tags(&["expired-only"]).unwrap();
     assert!(expired_only.forever("gone", &6.into()).await.unwrap());
     let expired_index = index("expired-only").await;
-    let expired_key = expired_only.taggedItemKey("gone").await.unwrap();
+    let expired_key = expired_only.tagged_item_key("gone").await.unwrap();
     connection
         .command("DEL", &[registry.as_bytes(), expired_key.as_bytes()])
         .await
@@ -1263,8 +1270,8 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(!registered(&expired_index).await);
     assert!(registered(&recent_index).await);
     assert_eq!(recent.get("live").await.unwrap(), Some(7.into()));
-    let foreign_tag = foreign.getTags().tagKey("artists");
-    let foreign_id = foreign.getTags().tagId("artists").await.unwrap();
+    let foreign_tag = foreign.get_tags().tag_key("artists");
+    let foreign_id = foreign.get_tags().tag_id("artists").await.unwrap();
     let foreign_index = format!(
         "{}index:{foreign_id}",
         foreign_tag.rsplit_once("generation:").unwrap().0
@@ -1327,13 +1334,13 @@ async fn redis_cluster_tags_flush_and_prune() {
     }
 
     let mut physical = vec![
-        left.taggedItemKey("item").await.unwrap(),
-        reversed.taggedItemKey("item").await.unwrap(),
+        left.tagged_item_key("item").await.unwrap(),
+        reversed.tagged_item_key("item").await.unwrap(),
     ];
     for number in 0..130 {
         let key = number.to_string();
         assert!(left.add(&key, &number.into(), None).await.unwrap());
-        physical.push(left.taggedItemKey(&key).await.unwrap());
+        physical.push(left.tagged_item_key(&key).await.unwrap());
     }
     let artist = index("artists").await;
     let invalid = connection.key("tags*?:item");
@@ -1366,7 +1373,7 @@ async fn redis_cluster_tags_flush_and_prune() {
 
     let interrupted = plain.tags(&["interrupted"]).unwrap();
     assert!(interrupted.forever("retired", &7.into()).await.unwrap());
-    let retired_value = interrupted.taggedItemKey("retired").await.unwrap();
+    let retired_value = interrupted.tagged_item_key("retired").await.unwrap();
     let retired_index = index("interrupted").await;
     let (prefix, suffix) = retired_index.rsplit_once("index:").unwrap();
     let (tag, _) = suffix.split_once(':').unwrap();
@@ -1412,8 +1419,8 @@ async fn redis_cluster_tags_flush_and_prune() {
         )
         .await
         .unwrap();
-    assert!(interrupted.flushStale().await.unwrap());
-    assert!(interrupted.flushStale().await.unwrap());
+    assert!(interrupted.flush_stale().await.unwrap());
+    assert!(interrupted.flush_stale().await.unwrap());
     assert!(exists(&other_pending).await);
     assert!(exists(&retired_value).await);
     assert_eq!(count(&retired_index).await, RedisValue::Int(1));
@@ -1452,7 +1459,7 @@ async fn redis_cluster_tags_flush_and_prune() {
         .await
         .unwrap();
     connection.command("SADD", &members).await.unwrap();
-    assert!(interrupted.flushStale().await.unwrap());
+    assert!(interrupted.flush_stale().await.unwrap());
     assert!(registered(&retired_index).await);
     for orphan in selected_orphans {
         assert!(
@@ -1506,7 +1513,7 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(!exists(&pending).await);
     assert_eq!(interrupted.get("current").await.unwrap(), Some(8.into()));
 
-    let current_value = interrupted.taggedItemKey("current").await.unwrap();
+    let current_value = interrupted.tagged_item_key("current").await.unwrap();
     let current_index = index("interrupted").await;
     let (current_prefix, current_generation) = current_index.rsplit_once(':').unwrap();
     let mut pending_members = vec![pending.as_bytes(), b"malformed", b"\xff"];
@@ -1531,7 +1538,7 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(!exists(&older_index).await);
     assert!(!registered(&current_index).await);
 
-    let empty_generation = interrupted.getTags().tagId("interrupted").await.unwrap();
+    let empty_generation = interrupted.get_tags().tag_id("interrupted").await.unwrap();
     assert_ne!(
         empty_generation.rsplit_once(':').unwrap().1,
         current_generation
@@ -1544,7 +1551,7 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(exists(&pending).await);
     assert!(interrupted.flush().await.is_err());
     assert_eq!(
-        interrupted.getTags().tagId("interrupted").await.unwrap(),
+        interrupted.get_tags().tag_id("interrupted").await.unwrap(),
         empty_generation
     );
     connection

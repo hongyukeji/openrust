@@ -18,7 +18,6 @@ impl Facade for NotificationFacade {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl NotificationFacade {
     pub fn fake() -> NotificationResult<Arc<NotificationFake>> {
         Ok(Self::get_facade_root().map_err(delivery)?.fake())
@@ -45,14 +44,14 @@ impl NotificationFacade {
             .await
     }
 
-    pub async fn sendNow(
+    pub async fn send_now(
         recipients: &[&dyn Notifiable],
         notification: &dyn Notification,
         channels: Option<&[&str]>,
     ) -> NotificationResult<()> {
         Self::get_facade_root()
             .map_err(delivery)?
-            .sendNow(recipients, notification, channels)
+            .send_now(recipients, notification, channels)
             .await
     }
 }

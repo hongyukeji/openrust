@@ -21,7 +21,7 @@ pub trait Engine<M: Searchable>: Send + Sync {
     fn paginate<'a>(
         &'a self,
         builder: &'a Builder<M>,
-        perPage: u64,
+        per_page: u64,
         page: u64,
     ) -> ScoutFuture<'a, SearchResults>;
     fn flush<'a>(&'a self, model: &'a M) -> ScoutFuture<'a, ()>;
@@ -49,7 +49,7 @@ pub trait Engine<M: Searchable>: Send + Sync {
     ) -> ScoutFuture<'a, openrust::database::eloquent::Collection<M>> {
         Box::pin(async move {
             let results = builder.applyAfterRawSearchCallback(self.search(builder).await?)?;
-            Ok(M::newCollection(self.map(builder, &results).await?))
+            Ok(M::new_collection(self.map(builder, &results).await?))
         })
     }
     fn cursor<'a>(
@@ -76,7 +76,7 @@ pub trait Engine<M: Searchable>: Send + Sync {
         {
             Ok(query) => query
                 .reorder()
-                .inOrderOf(
+                .in_order_of(
                     &builder.model.getScoutKeyName(),
                     crate::searchable::normalizedKeys(&builder.model, results.ids.clone()),
                 )

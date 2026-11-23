@@ -11,7 +11,6 @@ use super::{BelongsToMany, ExistenceRelation, Relation, pivot_constraints::pivot
 /// Links two models through an intermediate table with a morph discriminator.
 pub struct MorphToMany<P: Model, R: Model>(BelongsToMany<P, R>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> MorphToMany<P, R> {
     pub const fn new(
         table: &'static str,
@@ -51,7 +50,7 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
             parent_key,
             related_key,
             type_column,
-            owner.getMorphClass()?,
+            owner.get_morph_class()?,
         ))
     }
 
@@ -64,31 +63,31 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
     }
 
     #[must_use]
-    pub fn withPivot(self, columns: impl IntoIterator<Item = &'static str>) -> Self {
-        Self(self.0.withPivot(columns))
+    pub fn with_pivot(self, columns: impl IntoIterator<Item = &'static str>) -> Self {
+        Self(self.0.with_pivot(columns))
     }
 
     #[must_use]
-    pub fn orderByPivot(self, column: &str, direction: &str) -> Self {
-        Self(self.0.orderByPivot(column, direction))
+    pub fn order_by_pivot(self, column: &str, direction: &str) -> Self {
+        Self(self.0.order_by_pivot(column, direction))
     }
 
     #[must_use]
-    pub fn orderByPivotDesc(self, column: &str) -> Self {
-        Self(self.0.orderByPivotDesc(column))
+    pub fn order_by_pivot_desc(self, column: &str) -> Self {
+        Self(self.0.order_by_pivot_desc(column))
     }
 
     #[must_use]
-    pub fn withTimestamps(self) -> Self {
-        Self(self.0.withTimestamps())
+    pub fn with_timestamps(self) -> Self {
+        Self(self.0.with_timestamps())
     }
 
-    pub fn withTimestampColumns(
+    pub fn with_timestamp_columns(
         self,
         created: Option<&'static str>,
         updated: Option<&'static str>,
     ) -> DatabaseResult<Self> {
-        self.0.withTimestampColumns(created, updated).map(Self)
+        self.0.with_timestamp_columns(created, updated).map(Self)
     }
 
     #[must_use]
@@ -100,27 +99,27 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         Self(self.0.chaperone())
     }
 
-    pub fn chaperoneWith(
+    pub fn chaperone_with(
         self,
         declaring: Option<&str>,
         related: Option<&str>,
     ) -> DatabaseResult<Self> {
-        self.0.chaperoneWith(declaring, related).map(Self)
+        self.0.chaperone_with(declaring, related).map(Self)
     }
 
     #[must_use]
-    pub fn withoutChaperone(self) -> Self {
-        Self(self.0.withoutChaperone())
+    pub fn without_chaperone(self) -> Self {
+        Self(self.0.without_chaperone())
     }
 
     #[must_use]
-    pub fn withTouchingParent(self) -> Self {
-        Self(self.0.withTouchingParent())
+    pub fn with_touching_parent(self) -> Self {
+        Self(self.0.with_touching_parent())
     }
 
     #[must_use]
-    pub fn withTouchingRelated(self) -> Self {
-        Self(self.0.withTouchingRelated())
+    pub fn with_touching_related(self) -> Self {
+        Self(self.0.with_touching_related())
     }
 
     pub(in crate::database::eloquent) fn into_inner(self) -> BelongsToMany<P, R> {
@@ -146,8 +145,8 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
     }
 
     /// Filters the relation and supplies the value when inserting new links.
-    pub fn withPivotValue(self, column: &str, value: impl Into<Value>) -> DatabaseResult<Self> {
-        self.0.withPivotValue(column, value).map(Self)
+    pub fn with_pivot_value(self, column: &str, value: impl Into<Value>) -> DatabaseResult<Self> {
+        self.0.with_pivot_value(column, value).map(Self)
     }
 
     #[must_use]
@@ -170,20 +169,19 @@ impl<P: Model, R: Model> Deref for MorphToMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
     type Parent = P;
     type Output = <BelongsToMany<P, R> as Relation>::Output;
 
-    fn isEmptyCollection(output: &Self::Output) -> bool {
+    fn is_empty_collection(output: &Self::Output) -> bool {
         output.is_empty()
     }
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -193,7 +191,7 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
         })
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -201,18 +199,18 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
         super::super::serialization::many(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         super::super::queueable::common_relations(output.iter().map(|model| model.as_ref()))
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -228,20 +226,20 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
         match transaction {
-            Some(tx) => self.0.matchResultsInTransaction(parents, tx),
-            None => self.0.matchResults(parents),
+            Some(tx) => self.0.match_results_in_transaction(parents, tx),
+            None => self.0.match_results(parents),
         }
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for MorphToMany<P, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>> {
-        self.0.getRelationExistenceQuery(connection, parent_table)
+        self.0
+            .get_relation_existence_query(connection, parent_table)
     }
 }
 

@@ -21,7 +21,6 @@ numbers!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn sum(&self) -> T
     where
@@ -30,7 +29,7 @@ impl<T> Collection<T> {
         self.items.values().sum()
     }
 
-    pub fn sumBy<U: Sum<U>>(&self, mut project: impl FnMut(&T, &ArrayKey) -> U) -> U {
+    pub fn sum_by<U: Sum<U>>(&self, mut project: impl FnMut(&T, &ArrayKey) -> U) -> U {
         self.iter().map(|(key, value)| project(value, key)).sum()
     }
 
@@ -38,7 +37,7 @@ impl<T> Collection<T> {
     where
         T: CollectionNumber,
     {
-        self.avgBy(|value, _| value.as_f64())
+        self.avg_by(|value, _| value.as_f64())
     }
 
     pub fn average(&self) -> Option<f64>
@@ -48,7 +47,7 @@ impl<T> Collection<T> {
         self.avg()
     }
 
-    pub fn avgBy<U: Into<Option<f64>>>(
+    pub fn avg_by<U: Into<Option<f64>>>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> Option<f64> {
@@ -65,10 +64,10 @@ impl<T> Collection<T> {
     where
         T: CollectionNumber,
     {
-        self.medianBy(|value, _| value.as_f64())
+        self.median_by(|value, _| value.as_f64())
     }
 
-    pub fn medianBy<U: Into<Option<f64>>>(
+    pub fn median_by<U: Into<Option<f64>>>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> Option<f64> {
@@ -100,11 +99,11 @@ impl<T> Collection<T> {
         self.items.values().max()
     }
 
-    pub fn minBy<U: Ord>(&self, mut project: impl FnMut(&T, &ArrayKey) -> U) -> Option<U> {
+    pub fn min_by<U: Ord>(&self, mut project: impl FnMut(&T, &ArrayKey) -> U) -> Option<U> {
         self.iter().map(|(key, value)| project(value, key)).min()
     }
 
-    pub fn maxBy<U: Ord>(&self, mut project: impl FnMut(&T, &ArrayKey) -> U) -> Option<U> {
+    pub fn max_by<U: Ord>(&self, mut project: impl FnMut(&T, &ArrayKey) -> U) -> Option<U> {
         self.iter().map(|(key, value)| project(value, key)).max()
     }
 }

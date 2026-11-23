@@ -63,7 +63,7 @@ impl PreparedMail {
             })
         };
         match locale.as_deref() {
-            Some(locale) => Lang::withLocale(locale, async { prepare() })
+            Some(locale) => Lang::with_locale(locale, async { prepare() })
                 .await
                 .map_err(super::composition)?,
             None => prepare(),

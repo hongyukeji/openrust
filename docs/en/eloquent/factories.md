@@ -63,15 +63,15 @@ impl HasFactory for Flight {
 
 fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
     let factory = FlightFactory::new(Attributes::from([("name".into(), "Initial".into())]));
-    assert_eq!(factory.modelName(), std::any::type_name::<Flight>());
-    assert!(!factory.newModel(Attributes::new())?.state().exists());
+    assert_eq!(factory.model_name(), std::any::type_name::<Flight>());
+    assert!(!factory.new_model(Attributes::new())?.state().exists());
     let _batch = FlightFactory::times(2);
     Ok(())
 }
 ```
 
-Use `FlightFactory::new(attributes)` or `FlightFactory::newWithState(callback)` to register the initial state before `configure`. `FlightFactory::times(2)` starts a configured batch of two. On either builder, `modelName()` returns the bound Rust type name. `newModel(attributes)` constructs an unsaved model using its normal mass-assignment rules, without evaluating the factory definition or states.
-Use `Factory::<Flight>::factoryForModel()` to obtain the factory bound by the model’s `HasFactory` implementation. The binding is explicit and uses the compiled model type.
+Use `FlightFactory::new(attributes)` or `FlightFactory::new_with_state(callback)` to register the initial state before `configure`. `FlightFactory::times(2)` starts a configured batch of two. On either builder, `model_name()` returns the bound Rust type name. `new_model(attributes)` constructs an unsaved model using its normal mass-assignment rules, without evaluating the factory definition or states.
+Use `Factory::<Flight>::factory_for_model()` to obtain the factory bound by the model’s `HasFactory` implementation. The binding is explicit and uses the compiled model type.
 
 For a nested factory such as `Fleet/FlightFactory`, Artisan infers the model in the corresponding `app::models::fleet` module. Pass `--model` or `-m` to choose another model. Declare the generated modules before compiling. The compiled association remains explicit through `FactoryDefinition::Model` and `HasFactory`.
 
@@ -109,16 +109,16 @@ The catalog below lists the supported formatters.
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
 
-Use `Factory::withFaker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr-FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safeEmail`, `city`, and `sentence`. Unsupported locales use English data.
+Use `Factory::with_faker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr-FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safe_email`, `city`, and `sentence`. Unsupported locales use English data.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
 
 pub fn profile_factory<M: Model>() -> Factory<M> {
-    Factory::withFaker(|faker| {
+    Factory::with_faker(|faker| {
         Attributes::from([
             ("name".into(), faker.name().into()),
-            ("email".into(), faker.safeEmail().into()),
+            ("email".into(), faker.safe_email().into()),
         ])
     })
 }
@@ -140,43 +140,43 @@ fn seeded_names() -> DatabaseResult<Vec<String>> {
     Ok((0..3).map(|_| faker.name()).collect())
 }
 ```
-Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userName`, `streetName`, `postcode`, `phoneNumber`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
+Other built-in formatters include `first_name`, `last_name`, `free_email`, `user_name`, `street_name`, `postcode`, `phone_number`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
 
-Use `numberBetween(first, second)` for an inclusive integer range in either order. `randomDigit()` returns 0 through 9, and `randomDigitNotNull()` returns 1 through 9. `dateTimeBetween(start, end)` takes explicit UTC date-times, samples at whole-second precision including both endpoints, and returns an error when the start second follows the end second. All four formatters support `unique`.
+Use `number_between(first, second)` for an inclusive integer range in either order. `random_digit()` returns 0 through 9, and `random_digit_not_null()` returns 1 through 9. `date_time_between(start, end)` takes explicit UTC date-times, samples at whole-second precision including both endpoints, and returns an error when the start second follows the end second. All four formatters support `unique`.
 
-`randomDigitNot(except)` excludes the supplied digit. `randomNumber(digits, strict)` uses a random width from one to nine when given `None`. Strict mode requires exactly the selected width. Non-strict mode also accepts zero digits and returns zero. Explicit widths above nine and strict zero digits return errors. Both methods support `unique`.
+`random_digit_not(except)` excludes the supplied digit. `random_number(digits, strict)` uses a random width from one to nine when given `None`. Strict mode requires exactly the selected width. Non-strict mode also accepts zero digits and returns zero. Explicit widths above nine and strict zero digits return errors. Both methods support `unique`.
 
-`randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Non-finite bounds return an error. Like PHP 8.5, the formatter keeps the sampled value when positive precision exceeds 308 or rescaling would overflow. Precision below −308 yields zero. `unique` treats positive and negative zero as the same result.
+`random_float(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Non-finite bounds return an error. Like PHP 8.5, the formatter keeps the sampled value when positive precision exceeds 308 or rescaling would overflow. Precision below −308 yields zero. `unique` treats positive and negative zero as the same result.
 
-Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Jiff format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
+Use `unix_time(max)` to sample Unix seconds between the epoch and the specified endpoint, or `date_time(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Jiff format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
 
-To reuse a PHP DateTime format from the framework, call `dateWithPhpFormat(format, max)` or `timeWithPhpFormat(format, max)`. Both render in the effective time zone. For example, `Y-m-d` uses PHP tokens and `%Y-%m-%d` uses Jiff tokens. Each PHP variant shares `unique` history with its corresponding Jiff method.
+To reuse a PHP DateTime format from the framework, call `date_with_php_format(format, max)` or `time_with_php_format(format, max)`. Both render in the effective time zone. For example, `Y-m-d` uses PHP tokens and `%Y-%m-%d` uses Jiff tokens. Each PHP variant shares `unique` history with its corresponding Jiff method.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn php_date_sample() -> DatabaseResult<String> {
-    fake(None)?.dateWithPhpFormat(r"Y-m-d\TH:i:sP", Some(jiff::Timestamp::UNIX_EPOCH))
+    fake(None)?.date_with_php_format(r"Y-m-d\TH:i:sP", Some(jiff::Timestamp::UNIX_EPOCH))
 }
 ```
 
-Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Jiff `SignedDuration`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `dateTimeInInterval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `SignedDuration` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as upstream Faker does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
+Use `date_time_in_interval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Jiff `SignedDuration`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `date_time_this_century(max)`, `date_time_this_decade(max)`, or `date_time_this_month(max)` to start 100 years, 10 years, or one month before now. `date_time_this_year(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `date_time_in_interval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `SignedDuration` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as upstream Faker does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `date_time_between`.
 
-Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The numeric month is zero-padded. The numeric day is also zero-padded except in `cs-CZ`. Czech, Turkish, Simplified Chinese, Traditional Chinese, and Georgian use local weekday and month names. Turkish and both Chinese locales also localize `amPm`. `dateTimeAD(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
+Use `am_pm(max)`, `day_of_month(max)`, `day_of_week(max)`, `month(max)`, `month_name(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The numeric month is zero-padded. The numeric day is also zero-padded except in `cs-CZ`. Czech, Turkish, Simplified Chinese, Traditional Chinese, and Georgian use local weekday and month names. Turkish and both Chinese locales also localize `am_pm`. `date_time_ad(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
 
-With `cs-CZ`, use `monthNameGenitive(max)` for the genitive month and `formattedDate()` for a display string such as `16. listopadu 2003`. The day, month, and year are sampled independently, so the result may fall outside the calendar. Both methods support `unique` and return an error in other locales. Named Czech date calls use the same local date parts. `format("formattedDate", &[])` expands the three component formatters, including application overrides. The qualified `DateTimeExtension` retains its core English date parts and calendar-period defaults.
+With `cs-CZ`, use `month_name_genitive(max)` for the genitive month and `formatted_date()` for a display string such as `16. listopadu 2003`. The day, month, and year are sampled independently, so the result may fall outside the calendar. Both methods support `unique` and return an error in other locales. Named Czech date calls use the same local date parts. `format("formattedDate", &[])` expands the three component formatters, including application overrides. The qualified `DateTimeExtension` retains its core English date parts and calendar-period defaults.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_date_sample() -> DatabaseResult<String> {
-    fake(Some("cs-CZ"))?.unique(false).formattedDate()
+    fake(Some("cs-CZ"))?.unique(false).formatted_date()
 }
 ```
 
-Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and uses IANA 2025b. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
+Use `timezone(country_code)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and uses IANA 2025b. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
 
-Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect. Use `format("setDefaultTimezone", &[zone])` with IANA text or null to clear it. `format("getDefaultTimezone", &[])` returns the override as text or null. Both operate on the current generator. Named date-time results use RFC 3339.
+Date strings use the generator’s `set_default_timezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `get_default_timezone()` to inspect it. Use `date_time_in_timezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect. Use `format("setDefaultTimezone", &[zone])` with IANA text or null to clear it. `format("getDefaultTimezone", &[])` returns the override as text or null. Both operate on the current generator. Named date-time results use RFC 3339.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -192,7 +192,7 @@ fn named_date_samples() -> DatabaseResult<[Value; 3]> {
 }
 ```
 
-Use the `InTimezone` variants of `dateTimeAD`, `dateTimeBetween`, `dateTimeInInterval`, and the four `dateTimeThis…` methods when the result needs to retain its output zone. The two expression-based range methods have zoned variants too. An explicit zone controls the result only. Relative expressions keep using the application time zone unless the expression specifies its own. Zoneless calls return UTC. `unique` shares history by formatter and distinguishes named output zones, even when their UTC offsets match. A repeated local time in the same zone during a daylight-saving rollback counts as a repeat.
+Use the `InTimezone` variants of `date_time_ad`, `date_time_between`, `date_time_in_interval`, and the four `dateTimeThis…` methods when the result needs to retain its output zone. The two expression-based range methods have zoned variants too. An explicit zone controls the result only. Relative expressions keep using the application time zone unless the expression specifies its own. Zoneless calls return UTC. `unique` shares history by formatter and distinguishes named output zones, even when their UTC offsets match. A repeated local time in the same zone during a daylight-saving rollback counts as a repeat.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -201,12 +201,12 @@ fn zoned_date_sample() -> DatabaseResult<String> {
     let epoch = jiff::Timestamp::UNIX_EPOCH;
     let tokyo = openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone");
     Ok(fake(None)?
-        .dateTimeBetweenInTimezone(epoch, epoch, Some(tokyo))?
+        .date_time_between_in_timezone(epoch, epoch, Some(tokyo))?
         .strftime("%Y-%m-%dT%H:%M:%S%:z").to_string())
 }
 ```
 
-Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. When an endpoint fails to parse, this method uses Unix second zero, matching upstream Faker’s numeric use of PHP’s `false`. A start later than the end still returns an error. This method shares `unique` history with `dateTimeBetween`.
+Use `date_time_between_expressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. When an endpoint fails to parse, this method uses Unix second zero, matching upstream Faker’s numeric use of PHP’s `false`. A start later than the end still returns an error. This method shares `unique` history with `date_time_between`.
 
 For named zones in date expressions, use PHP’s spelling rules. For example, `America/New_York` and `Us/Eastern` are accepted. An uppercase first segment such as `US/Eastern` fails parsing. To select a fixed numeric offset in an expression, write it directly, such as `-05:00`.
 
@@ -214,16 +214,16 @@ For named zones in date expressions, use PHP’s spelling rules. For example, `A
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn date_expression_sample() -> DatabaseResult<i64> {
-    let date = fake(None)?.resolveDateMax("2024-01-01 12:34:56 America/New_York")?;
+    let date = fake(None)?.resolve_date_max("2024-01-01 12:34:56 America/New_York")?;
     Ok(date.as_second())
 }
 ```
 
-Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative interval, such as `Some("+1 month")` or `Some("5 days ago")`. The end is calculated in the starting date’s time zone, using civil time across daylight-saving changes. The sampled instant is returned in UTC. Omitting the date uses 30 years ago, and omitting the interval uses five calendar days. The interval string accepts relative expressions and rejects absolute dates, times, and zone identifiers. It shares `unique` history with `dateTimeInInterval`.
+Use `date_time_in_interval_expressions(date, interval)` for a PHP-style relative interval, such as `Some("+1 month")` or `Some("5 days ago")`. The end is calculated in the starting date’s time zone, using civil time across daylight-saving changes. The sampled instant is returned in UTC. Omitting the date uses 30 years ago, and omitting the interval uses five calendar days. The interval string accepts relative expressions and rejects absolute dates, times, and zone identifiers. It shares `unique` history with `date_time_in_interval`.
 
-Use `resolveDateMax(expression)` to pass a PHP-style upper bound to any date formatter that takes `max`. Resolve once to share the same bound across calls, then pass it as `Some(max)`. Decimal and exponent-form numeric strings are truncated toward zero as Unix seconds. An empty string uses the current time. Date text uses the application time zone unless it specifies a zone. Invalid or out-of-range values return an error.
+Use `resolve_date_max(expression)` to pass a PHP-style upper bound to any date formatter that takes `max`. Resolve once to share the same bound across calls, then pass it as `Some(max)`. Decimal and exponent-form numeric strings are truncated toward zero as Unix seconds. An empty string uses the current time. Date text uses the application time zone unless it specifies a zone. Invalid or out-of-range values return an error.
 
-Use `unixTimeExpression(max)` to sample Unix seconds directly from a string bound, including timestamps and expanded years outside Jiff’s date range. It shares `unique` history with `unixTime`. A malformed bound uses Unix second zero. Use `resolveDateMax` to validate an input before sampling. Parser limits and out-of-range values still return errors. Finite numeric strings beyond the signed 64-bit range saturate, and numeric strings that overflow to infinity resolve to zero, following PHP’s integer cast. Date-returning methods still require a bound representable by Jiff.
+Use `unix_time_expression(max)` to sample Unix seconds directly from a string bound, including timestamps and expanded years outside Jiff’s date range. It shares `unique` history with `unix_time`. A malformed bound uses Unix second zero. Use `resolve_date_max` to validate an input before sampling. Parser limits and out-of-range values still return errors. Finite numeric strings beyond the signed 64-bit range saturate, and numeric strings that overflow to infinity resolve to zero, following PHP’s integer cast. Date-returning methods still require a bound representable by Jiff.
 
 ```rust
 use jiff::{Timestamp, SignedDuration};
@@ -233,20 +233,20 @@ use openrust::database::{
 };
 
 pub fn activity_factory<M: Model>() -> Factory<M> {
-    Factory::tryWithFaker(|faker| -> DatabaseResult<Attributes> {
+    Factory::try_with_faker(|faker| -> DatabaseResult<Attributes> {
         let start = Timestamp::UNIX_EPOCH;
         let end = Timestamp::from_second(86_400).unwrap();
-        let happened_at = faker.dateTimeBetween(start, end)?;
-        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(SignedDuration::from_hours(120)))?;
-        let sampled_this_year = faker.dateTimeThisYear(None)?;
-        let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
-        let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
-        let cutoff = faker.resolveDateMax("2024-12-31 23:59:59 UTC")?;
+        let happened_at = faker.date_time_between(start, end)?;
+        let reviewed_at = faker.date_time_in_interval(Some(happened_at), Some(SignedDuration::from_hours(120)))?;
+        let sampled_this_year = faker.date_time_this_year(None)?;
+        let historical = faker.date_time_between_expressions("-30 years", "now")?;
+        let archived_at = faker.date_time_in_interval_expressions(Some("2024-01-31"), Some("+1 month"))?;
+        let cutoff = faker.resolve_date_max("2024-12-31 23:59:59 UTC")?;
         let published_at = faker.iso8601(Some(cutoff));
-        let epoch_seconds = faker.unixTimeExpression("+1000000-01-01 UTC")?;
+        let epoch_seconds = faker.unix_time_expression("+1000000-01-01 UTC")?;
         Ok(Attributes::from([
-            ("score".into(), faker.numberBetween(1, 100).into()),
-            ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
+            ("score".into(), faker.number_between(1, 100).into()),
+            ("ratio".into(), Value::Real(faker.random_float(Some(2), 0.0, Some(1.0))?)),
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
             ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
@@ -257,19 +257,19 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("archived_at".into(), archived_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
             ("published_at".into(), published_at.into()),
             ("epoch_seconds".into(), epoch_seconds.into()),
-            ("weekday".into(), faker.dateTimeInTimezone(Some(Timestamp::UNIX_EPOCH), None).strftime("%A").to_string().into()),
+            ("weekday".into(), faker.date_time_in_timezone(Some(Timestamp::UNIX_EPOCH), None).strftime("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
-            ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
+            ("category".into(), faker.random_element(&["launch", "review"]).copied().unwrap_or("launch").into()),
             ("active".into(), faker.boolean(Some(75)).into()),
-            ("sample_locale".into(), faker.randomLocale().into()),
-            ("currency".into(), faker.currencyCode().into()),
+            ("sample_locale".into(), faker.random_locale().into()),
+            ("currency".into(), faker.currency_code().into()),
             ("sample_digest".into(), faker.sha256().into()),
-            ("sample_ip".into(), faker.localIpv4().into()),
+            ("sample_ip".into(), faker.local_ipv4().into()),
             ("website".into(), faker.url()?.into()),
-            ("contact".into(), faker.safeEmail().into()),
-            ("phone".into(), faker.e164PhoneNumber().into()),
+            ("contact".into(), faker.safe_email().into()),
+            ("phone".into(), faker.e164_phone_number().into()),
             ("address".into(), faker.address().into()),
-            ("display_name".into(), faker.nameWithGender(Some("female")).into()),
+            ("display_name".into(), faker.name_with_gender(Some("female")).into()),
             ("latitude".into(), openrust::database::Value::Real(faker.latitude(None, None)?)),
         ]))
     })
@@ -278,17 +278,17 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### Custom Faker Providers {#custom-faker-providers}
 
-Build a `FakerProvider` with named Rust callbacks and install it with `addProvider`. Registration applies to that generator. A newer provider wins for a matching name regardless of ASCII case. `getFormatter` returns the callback resolved at the time of lookup. Later calls to `format` resolve again. Custom callbacks receive the active generator and a slice of `Value` arguments, and any error they return propagates to the caller.
+Build a `FakerProvider` with named Rust callbacks and install it with `add_provider`. Registration applies to that generator. A newer provider wins for a matching name regardless of ASCII case. `get_formatter` returns the callback resolved at the time of lookup. Later calls to `format` resolve again. Custom callbacks receive the active generator and a slice of `Value` arguments, and any error they return propagates to the caller.
 
-Use `parse` to expand tokens such as `{{ code }}` from zero-argument scalar formatters. Unknown names return `UnknownFakerFormatter`. The named call supports registered formatters and the built-in defaults `address`, `city`, `company`, `companyEn`, `email`, `firstName`, `freeEmail`, `lastName`, `name`, `phoneNumber`, `postcode`, `safeEmail`, `userName`, and `uuid`. The generator methods `parse`, `mimeType`, `fileExtension`, `bloodType`, and `bloodRh` take precedence over providers in named calls. Typed calls such as `faker.name()` continue to use the built-in implementation. Use the generator you intend to customize, since `fake()` and factory definitions use separate generators.
+Use `parse` to expand tokens such as `{{ code }}` from zero-argument scalar formatters. Unknown names return `UnknownFakerFormatter`. The named call supports registered formatters and the built-in defaults `address`, `city`, `company`, `company_en`, `email`, `first_name`, `free_email`, `last_name`, `name`, `phone_number`, `postcode`, `safe_email`, `user_name`, and `uuid`. The generator methods `parse`, `mime_type`, `file_extension`, `blood_type`, and `blood_rh` take precedence over providers in named calls. Typed calls such as `faker.name()` continue to use the built-in implementation. Use the generator you intend to customize, since `fake()` and factory definitions use separate generators.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{Faker, FakerProvider}};
 
 fn sample_provider() -> DatabaseResult<String> {
     let faker = Faker::new("en-US")?;
-    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("sample".into())));
-    faker.addProvider(FakerProvider::new().formatter("Code", |_, _| Ok("demo".into())));
+    faker.add_provider(FakerProvider::new().formatter("code", |_, _| Ok("sample".into())));
+    faker.add_provider(FakerProvider::new().formatter("Code", |_, _| Ok("demo".into())));
     faker.parse("account-{{ code }}")
 }
 ```
@@ -303,7 +303,7 @@ use openrust::database::{
 
 fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
     let faker = Faker::new("en-US")?;
-    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("demo".into())));
+    faker.add_provider(FakerProvider::new().formatter("code", |_, _| Ok("demo".into())));
 
     let distinct = faker.unique(true).format("code", &[])?;
     let fallback = faker.optional(Some(0.0), Some("skip".into()), |faker| {
@@ -321,9 +321,9 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 
 ### Numeric and Pattern Formatter Arguments {#numeric-pattern-formatter-arguments}
 
-Pass positional arguments to `format` or a callback from `getFormatter`. The numeric generator methods `numberBetween`, `randomDigit`, `randomDigitNot`, `randomDigitNotZero`, `randomNumber`, and `randomFloat` take precedence over providers. `boolean`, `latitude`, `longitude`, `randomDigitNotNull`, `randomLetter`, `randomAscii`, `numerify`, `lexify`, `bothify`, `asciify`, and `regexify` are provider defaults.
+Pass positional arguments to `format` or a callback from `get_formatter`. The numeric generator methods `number_between`, `random_digit`, `random_digit_not`, `randomDigitNotZero`, `random_number`, and `random_float` take precedence over providers. `boolean`, `latitude`, `longitude`, `random_digit_not_null`, `random_letter`, `random_ascii`, `numerify`, `lexify`, `bothify`, `asciify`, and `regexify` are provider defaults.
 
-Omitted arguments use upstream Faker defaults. An explicit `Value::Null` retains the formatter’s null behavior where it differs from omission. For example, `numberBetween(7, null)` samples from zero through seven, and `numerify(null)` returns null. Use integer values for counts and percentages, boolean values for strict mode, numeric values for float bounds, and text values for patterns. Rust validates these types and rejects extra arguments for parameterized formatters.
+Omitted arguments use upstream Faker defaults. An explicit `Value::Null` retains the formatter’s null behavior where it differs from omission. For example, `number_between(7, null)` samples from zero through seven, and `numerify(null)` returns null. Use integer values for counts and percentages, boolean values for strict mode, numeric values for float bounds, and text values for patterns. Rust validates these types and rejects extra arguments for parameterized formatters.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -331,7 +331,7 @@ use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
     let faker = Faker::new("en-US")?;
     let number = faker.format("numberBetween", &[7.into(), 7.into()])?;
-    let pattern = faker.getFormatter("regexify")?;
+    let pattern = faker.get_formatter("regexify")?;
     let code = pattern(&["^X{2}$".into()])?;
     Ok((number, code))
 }
@@ -341,7 +341,7 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
 
 Register extension methods with `add_extension` and resolve them with `ext(id)` or `format("Vendor\Package->method", args)`. Extension identifiers are case-sensitive. Method lookup ignores ASCII case. Qualified lookup goes directly to the extension. An unknown extension returns `UnknownFakerExtension`. A missing method on a registered extension returns `UnknownFakerFormatter`.
 
-Built-in identifiers under `Faker\Extension\` cover `BarcodeExtension`, `BloodExtension`, `ColorExtension`, `FileExtension` (`mimeType`, `extension`, and `filePath`), `NumberExtension`, and `UuidExtension` (`uuid3`). Replacing an identifier replaces its method set. The named generator methods for numbers, barcodes, blood groups, and files use the registered extension. Typed Rust methods continue to use their built-in implementations. A handle or formatter obtained before replacement retains its resolved callbacks.
+Built-in identifiers under `Faker\Extension\` cover `BarcodeExtension`, `BloodExtension`, `ColorExtension`, `FileExtension` (`mime_type`, `extension`, and `file_path`), `NumberExtension`, and `UuidExtension` (`uuid3`). Replacing an identifier replaces its method set. The named generator methods for numbers, barcodes, blood groups, and files use the registered extension. Typed Rust methods continue to use their built-in implementations. A handle or formatter obtained before replacement retains its resolved callbacks.
 
 The qualified name also works in `parse` and `unique(false).format(name, args)`. Pass it to `format` inside the existing `optional` and `valid` closures.
 
@@ -365,9 +365,9 @@ fn sample_extension() -> DatabaseResult<(Value, String)> {
 
 ### Date, Version, and Temporary File Extensions {#date-version-file-extensions}
 
-Use `DateTimeExtension` for `date`, `time`, `unixTime`, `dateTime`, `dateTimeAD`, `iso8601`, `amPm`, `dayOfMonth`, `dayOfWeek`, `month`, `monthName`, `year`, `century`, and `timezone`. Date and time formats use PHP tokens. Bounds accept Unix seconds or supported date expressions. The named `dateTime` and `dateTimeAD` methods return RFC 3339 text with the chosen IANA time zone offset. Invalid zones return an error.
+Use `DateTimeExtension` for `date`, `time`, `unix_time`, `date_time`, `date_time_ad`, `iso8601`, `am_pm`, `day_of_month`, `day_of_week`, `month`, `month_name`, `year`, `century`, and `timezone`. Date and time formats use PHP tokens. Bounds accept Unix seconds or supported date expressions. The named `date_time` and `date_time_ad` methods return RFC 3339 text with the chosen IANA time zone offset. Invalid zones return an error.
 
-`VersionExtension` supports `semver(preRelease, build)`. Both flags default to false. Each true flag enables optional metadata. The prerelease label may include a numeric identifier. Build metadata uses a seven-character hash or a timestamp. `FileExtension->filePath` and `filePath()` create an empty temporary file and return its path. The caller removes the file when finished. File creation uses OS randomness and remains independent of the Faker seed.
+`VersionExtension` supports `semver(pre_release, build)`. Both flags default to false. Each true flag enables optional metadata. The prerelease label may include a numeric identifier. Build metadata uses a seven-character hash or a timestamp. `FileExtension->filePath` and `file_path()` create an empty temporary file and return its path. The caller removes the file when finished. File creation uses OS randomness and remains independent of the Faker seed.
 
 ```rust
 use openrust::database::{
@@ -384,7 +384,7 @@ fn sample_core_extensions() -> DatabaseResult<(Value, Value)> {
 }
 ```
 
-The named date extension also exposes `dateTimeBetween`, `dateTimeInInterval`, and `dateTimeThisWeek`, `dateTimeThisMonth`, `dateTimeThisYear`, `dateTimeThisDecade`, and `dateTimeThisCentury`. Intervals accept relative date expressions and can run backward. Period methods start at the upstream calendar boundary and accept an optional end. These methods return RFC 3339 text. Date expressions use the application time zone, and the optional IANA time zone selects the output offset.
+The named date extension also exposes `date_time_between`, `date_time_in_interval`, and `dateTimeThisWeek`, `date_time_this_month`, `date_time_this_year`, `date_time_this_decade`, and `date_time_this_century`. Intervals accept relative date expressions and can run backward. Period methods start at the upstream calendar boundary and accept an optional end. These methods return RFC 3339 text. Date expressions use the application time zone, and the optional IANA time zone selects the output offset.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -403,9 +403,9 @@ fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
 
 ### Text Generation {#text-generation}
 
-Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentenceWithWordCount(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as upstream Faker. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
+Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentence_with_word_count(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as upstream Faker. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
 
-Use `format` with `word`, `words`, `sentence`, `sentences`, `paragraph`, `paragraphs`, `text`, `realText`, and `realTextBetween`. The plural methods return JSON arrays, or join the samples as text when the second argument is true. Pass false as the second argument to `sentence`, `paragraph`, or `slug` to keep the count fixed. `password` accepts minimum and maximum lengths. Named Internet and user-agent methods reuse the existing generators.
+Use `format` with `word`, `words`, `sentence`, `sentences`, `paragraph`, `paragraphs`, `text`, `real_text`, and `real_text_between`. The plural methods return JSON arrays, or join the samples as text when the second argument is true. Pass false as the second argument to `sentence`, `paragraph`, or `slug` to keep the count fixed. `password` accepts minimum and maximum lengths. Named Internet and user-agent methods reuse the existing generators.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -420,17 +420,17 @@ fn sample_named_text() -> DatabaseResult<(Value, Value)> {
 
 ### Pattern Formatters {#pattern-formatters}
 
-Use `numerify(Some(pattern))` to replace `#` with digits and `%` with nonzero digits. `lexify` replaces `?` with lowercase ASCII letters. `bothify` expands all three and replaces each `*` with a digit or lowercase letter, with equal probability for the two classes. `asciify` replaces `*` with printable ASCII from `!` through `~`. Other characters are preserved. Pass `None` to use the upstream Faker default pattern. `randomLetter()` and `randomAscii()` return individual Rust characters. All six methods support `unique`.
+Use `numerify(Some(pattern))` to replace `#` with digits and `%` with nonzero digits. `lexify` replaces `?` with lowercase ASCII letters. `bothify` expands all three and replaces each `*` with a digit or lowercase letter, with equal probability for the two classes. `asciify` replaces `*` with printable ASCII from `!` through `~`. Other characters are preserved. Pass `None` to use the upstream Faker default pattern. `random_letter()` and `random_ascii()` return individual Rust characters. All six methods support `unique`.
 
 Use `regexify(pattern)?` to generate a sample from a basic regular expression. It accepts optional slash delimiters and outer anchors, literals, ASCII classes and ranges, `\d`, `\w`, dots, ordinary groups, alternatives and bounded repeats. As in upstream Faker, `*` and `+` choose a per-pattern upper bound from one through nine. Invalid syntax, unsupported features such as lookarounds and backreferences, and oversized generation return errors. `unique(false).regexify(pattern)?` deduplicates generated strings.
 
 ### Collection Sampling {#collection-sampling}
 
-Use `randomElement(values)` to borrow one item or get `None` from an empty slice. `randomKey(values)` returns its zero-based position. To choose from map keys or enum variants, pass a slice of the keys or variants to `randomElement`. With `randomElements(values, count, allowDuplicates)?`, use `Some(n)` for a fixed count or `None` for a random count from one through the slice length. With replacement disabled, each position is selected at most once. Equal values at different positions can still appear together. A zero count returns an empty vector. A nonzero sample requires a nonempty slice, and sampling without replacement rejects counts above its length.
+Use `random_element(values)` to borrow one item or get `None` from an empty slice. `random_key(values)` returns its zero-based position. To choose from map keys or enum variants, pass a slice of the keys or variants to `random_element`. With `random_elements(values, count, allow_duplicates)?`, use `Some(n)` for a fixed count or `None` for a random count from one through the slice length. With replacement disabled, each position is selected at most once. Equal values at different positions can still appear together. A zero count returns an empty vector. A nonzero sample requires a nonempty slice, and sampling without replacement rejects counts above its length.
 
-Use `shuffleArray(values)` to return a shuffled clone and `shuffleString(value)` to shuffle Unicode scalar values. `boolean(None)` uses a 50% chance of true. Pass `Some(75)` for a 75% chance. These methods support `unique`, which compares JSON-serialized values for generic samples and shuffled arrays.
+Use `shuffle_array(values)` to return a shuffled clone and `shuffle_string(value)` to shuffle Unicode scalar values. `boolean(None)` uses a 50% chance of true. Pass `Some(75)` for a 75% chance. These methods support `unique`, which compares JSON-serialized values for generic samples and shuffled arrays.
 
-Named `randomElement`, `randomElements`, `randomKey`, `shuffle`, `shuffleArray`, and `shuffleString` accept runtime values through `format`. Supply `Value::Json` arrays or objects for collections. Sampling values and shuffling collections return JSON arrays for multi-value results. `randomKey` returns a numeric array index or a JSON object’s key as text. An empty `randomElement` or `randomKey` returns null. Omitting the count for `randomElements` selects one element, while an explicit null selects a random positive count from a nonempty collection. `shuffleString` uses UTF-8 code points. `passthrough` returns the supplied `Value` with its type intact.
+Named `random_element`, `random_elements`, `random_key`, `shuffle`, `shuffle_array`, and `shuffle_string` accept runtime values through `format`. Supply `Value::Json` arrays or objects for collections. Sampling values and shuffling collections return JSON arrays for multi-value results. `random_key` returns a numeric array index or a JSON object’s key as text. An empty `random_element` or `random_key` returns null. Omitting the count for `random_elements` selects one element, while an explicit null selects a random positive count from a nonempty collection. `shuffle_string` uses UTF-8 code points. `passthrough` returns the supplied `Value` with its type intact.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -447,7 +447,7 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### Locale, Country and Currency Samples {#locale-and-code-samples}
 
-Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en-GB` or `zh-Hant`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`. Call these catalogs by name with `format`. The name `locale` samples fixture data and `faker.locale()` reads the configured generator locale.
+Use `language_code()`, `country_code()`, `country_iso_alpha3()`, `currency_code()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `random_locale()` samples a locale identifier such as `en-GB` or `zh-Hant`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`. Call these catalogs by name with `format`. The name `locale` samples fixture data and `faker.locale()` reads the configured generator locale.
 
 Use `toLower` and `toUpper` through `format` to convert UTF-8 text with Unicode case rules. An omitted argument yields an empty string.
 
@@ -470,31 +470,31 @@ Use `md5()`, `sha1()`, and `sha256()` to generate lowercase hexadecimal fixture 
 
 ### Network Address Samples {#network-address-samples}
 
-Use `ipv4()`, `localIpv4()`, `ipv6()`, and `macAddress()` for network fixtures. `ipv4()` samples the ranges `1.0.0.0`–`127.255.255.255` and `128.0.0.0`–`255.255.255.254` with equal probability for each range. The result can include private or special-use addresses. `localIpv4()` chooses among `10/8`, `172.16/12`, and `192.168/16` with equal probability. IPv6 uses eight uncompressed lowercase hexadecimal groups without leading zeros. MAC addresses use six uppercase two-digit octets separated by colons. All four support `unique`.
+Use `ipv4()`, `local_ipv4()`, `ipv6()`, and `mac_address()` for network fixtures. `ipv4()` samples the ranges `1.0.0.0`–`127.255.255.255` and `128.0.0.0`–`255.255.255.254` with equal probability for each range. The result can include private or special-use addresses. `local_ipv4()` chooses among `10/8`, `172.16/12`, and `192.168/16` with equal probability. IPv6 uses eight uncompressed lowercase hexadecimal groups without leading zeros. MAC addresses use six uppercase two-digit octets separated by colons. All four support `unique`.
 
 ### Domains, URLs and Slugs {#domain-url-slug-samples}
 
-Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and `tld()` to sample a suffix using the upstream Faker weights for supported locales. `domainName()?` joins them. `url()?` uses the upstream HTTP and HTTPS templates with optional `www`, slug and `.html`. Names use OpenRust’s locale data and transliteration, which can differ from upstream Faker’s ICU or fallback mappings. If the surname yields no usable characters, the domain and URL formatters return an error. `slug(count, variable)` joins generated words with hyphens. Pass `None` for six base words, `Some(0)` for an empty result, or `false` for an exact count. All five formatters support `unique`.
+Use `domain_word()?` to transliterate a generated surname to lowercase ASCII, and `tld()` to sample a suffix using the upstream Faker weights for supported locales. `domain_name()?` joins them. `url()?` uses the upstream HTTP and HTTPS templates with optional `www`, slug and `.html`. Names use OpenRust’s locale data and transliteration, which can differ from upstream Faker’s ICU or fallback mappings. If the surname yields no usable characters, the domain and URL formatters return an error. `slug(count, variable)` joins generated words with hyphens. Pass `None` for six base words, `Some(0)` for an empty result, or `false` for an exact count. All five formatters support `unique`.
 
 ### Email and Password Samples {#email-and-password-samples}
 
-Use `email()?` for a general address or `companyEmail()?` for an address on a generated domain. The simplified Chinese locale uses its free-provider list for general email. `safeEmail()` uses reserved example domains and `freeEmail()` uses localized provider domains. Use `safeEmailDomain()` and `freeEmailDomain()` to sample only the domain. Usernames use localized names or words with ASCII transliteration. If the result contains no usable characters, OpenRust generates an ASCII letter to preserve the infallible username and email methods. `password(min, max)?` generates printable ASCII from `!` through `~` with inclusive bounds in either order. The defaults are 6 and 20. These formatters support `unique`.
+Use `email()?` for a general address or `company_email()?` for an address on a generated domain. The simplified Chinese locale uses its free-provider list for general email. `safe_email()` uses reserved example domains and `free_email()` uses localized provider domains. Use `safe_email_domain()` and `free_email_domain()` to sample only the domain. Usernames use localized names or words with ASCII transliteration. If the result contains no usable characters, OpenRust generates an ASCII letter to preserve the infallible username and email methods. `password(min, max)?` generates printable ASCII from `!` through `~` with inclusive bounds in either order. The defaults are 6 and 20. These formatters support `unique`.
 
 ### Regional URL Templates {#regional-url-templates}
 
-`url()` with `ne-NP` uses the pinned HTTP templates, which can add a `www` prefix, a `.np` suffix, or a path. `companyUrl()` with `uk-UA` returns the original Cyrillic company label with an optional hyphenated suffix. The label has no scheme or domain suffix. Both formatters support `unique`.
+`url()` with `ne-NP` uses the pinned HTTP templates, which can add a `www` prefix, a `.np` suffix, or a path. `company_url()` with `uk-UA` returns the original Cyrillic company label with an optional hyphenated suffix. The label has no scheme or domain suffix. Both formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_url_sample() -> DatabaseResult<(String, String)> {
-    Ok((fake(Some("ne-NP"))?.url()?, fake(Some("uk-UA"))?.companyUrl()?))
+    Ok((fake(Some("ne-NP"))?.url()?, fake(Some("uk-UA"))?.company_url()?))
 }
 ```
 
 ### Regional Domains and Email {#regional-domains-and-email}
 
-Use `tld()` and `freeEmailDomain()` to sample the pinned Internet catalogs. Repeated entries retain their upstream weight. `domainName()` uses the Romanized surname catalog in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Other locales use `domainWord()` followed by a suffix. General email in Nepal uses two company, one free-provider, and three company-with-`.np` template slots. Direct `companyEmail()` uses the ordinary domain there.
+Use `tld()` and `free_email_domain()` to sample the pinned Internet catalogs. Repeated entries retain their upstream weight. `domain_name()` uses the Romanized surname catalog in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Other locales use `domain_word()` followed by a suffix. General email in Nepal uses two company, one free-provider, and three company-with-`.np` template slots. Direct `company_email()` uses the ordinary domain there.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -506,30 +506,30 @@ fn regional_email_sample() -> DatabaseResult<String> {
 
 ### Regional Usernames {#regional-usernames}
 
-`userName()` uses upstream Faker’s romanized name catalogs in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Lithuanian templates pair names and surnames from the same gender group. Simplified Chinese uses the pinned Lorem word list and includes an underscore template. The same generator supplies the local part for `safeEmail()` and `freeEmail()`. The general path uses Rust transliteration. When transliteration leaves only separators, it generates a letter so the username and email APIs remain infallible.
+`user_name()` uses upstream Faker’s romanized name catalogs in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Lithuanian templates pair names and surnames from the same gender group. Simplified Chinese uses the pinned Lorem word list and includes an underscore template. The same generator supplies the local part for `safe_email()` and `free_email()`. The general path uses Rust transliteration. When transliteration leaves only separators, it generates a letter so the username and email APIs remain infallible.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn username_sample() -> DatabaseResult<String> {
-    fake(Some("lt-LT"))?.unique(false).userName()
+    fake(Some("lt-LT"))?.unique(false).user_name()
 }
 ```
 
-The same six regional Internet providers expose `firstNameAscii()` and `lastNameAscii()` for direct sampling from their name catalogs. They preserve the stored spellings and share those catalogs with usernames and domains. These formatters support `unique()` and return an error for other locales.
+The same six regional Internet providers expose `first_name_ascii()` and `last_name_ascii()` for direct sampling from their name catalogs. They preserve the stored spellings and share those catalogs with usernames and domains. These formatters support `unique()` and return an error for other locales.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
     let faker = fake(Some("ar-EG"))?;
-    Ok((faker.unique(false).firstNameAscii()?, faker.lastNameAscii()?))
+    Ok((faker.unique(false).first_name_ascii()?, faker.last_name_ascii()?))
 }
 ```
 
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
-Use `phoneNumber()` for display numbers from the pinned upstream Faker regional providers. Where a locale has no PhoneNumber provider, it uses the US display templates. Bangladesh uses Bangla digits, while Vietnamese subscriber length follows the selected area code. Brazil also provides `phoneNumberCleared()` for digits-only numbers and supports `unique()`. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
+Use `phone_number()` for display numbers from the pinned upstream Faker regional providers. Where a locale has no PhoneNumber provider, it uses the US display templates. Bangladesh uses Bangla digits, while Vietnamese subscriber length follows the selected area code. Brazil also provides `phone_number_cleared()` for digits-only numbers and supports `unique()`. `e164_phone_number()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -537,15 +537,15 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn display_phone_sample() -> DatabaseResult<(String, String)> {
     let bangladesh = fake(Some("bn-BD"))?;
     let brazil = fake(Some("pt-BR"))?;
-    Ok((bangladesh.phoneNumber(), brazil.unique(false).phoneNumberCleared()?))
+    Ok((bangladesh.phone_number(), brazil.unique(false).phone_number_cleared()?))
 }
 ```
 
 ### Regional mobile, landline, and extension samples {#regional-phone-samples}
 
-Use `mobileNumber()` and `fixedLineNumber()` for the regions that expose those formatters. Malaysia also provides `mobileNumberWithOptions(countryCodePrefix, formatting)` and `fixedLineNumberWithOptions(countryCodePrefix, formatting)`. Its default includes the country prefix and separators. Brazil provides `cellphoneNumber(formatted)` and `landlineNumber(formatted)`, with formatting enabled by default. Hong Kong provides `landlineNumber(None)`, Korea uses `cellPhoneNumber()`, and Greece retains `mobilePhoneNumber()`.
+Use `mobile_number()` and `fixed_line_number()` for the regions that expose those formatters. Malaysia also provides `mobile_number_with_options(country_code_prefix, formatting)` and `fixed_line_number_with_options(country_code_prefix, formatting)`. Its default includes the country prefix and separators. Brazil provides `cellphone_number(formatted)` and `landline_number(formatted)`, with formatting enabled by default. Hong Kong provides `landline_number(None)`, Korea uses `cell_phone_number()`, and Greece retains `mobile_phone_number()`.
 
-Use `phoneNumberWithExtension()` for the US or Canadian PhoneNumber provider. The same US extension and E.164 behavior applies when the chosen locale lacks a PhoneNumber provider and falls back to `en-US`. Regional methods return an error when unavailable. Each supports `unique()`.
+Use `phone_number_with_extension()` for the US or Canadian PhoneNumber provider. The same US extension and E.164 behavior applies when the chosen locale lacks a PhoneNumber provider and falls back to `en-US`. Regional methods return an error when unavailable. Each supports `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -554,8 +554,8 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
     let malaysia = fake(Some("ms-MY"))?;
     let canada = fake(Some("en-CA"))?;
     Ok((
-        malaysia.mobileNumberWithOptions(false, false)?,
-        canada.unique(false).phoneNumberWithExtension()?,
+        malaysia.mobile_number_with_options(false, false)?,
+        canada.unique(false).phone_number_with_extension()?,
     ))
 }
 ```
@@ -577,31 +577,31 @@ fn named_phone_samples() -> DatabaseResult<[Value; 2]> {
 
 ### Toll-free, service, and VoIP samples {#phone-service-samples}
 
-Use `tollFreePhoneNumber()` for US, Canadian, German, and Romanian formats. Locales without a PhoneNumber provider inherit the US formatter. Greece, New Zealand, South Africa, and Spain use `tollFreeNumber()`. Singapore provides `tollFreeLineNumber()`, `tollFreeInternationalNumber()`, and `premiumPhoneNumber()`. France provides `serviceNumber()`, Romania provides `premiumRatePhoneNumber()`, and Greece provides `personalNumber()`, `sharedCostNumber()`, and `premiumRateNumber()`.
+Use `toll_free_phone_number()` for US, Canadian, German, and Romanian formats. Locales without a PhoneNumber provider inherit the US formatter. Greece, New Zealand, South Africa, and Spain use `toll_free_number()`. Singapore provides `toll_free_line_number()`, `toll_free_international_number()`, and `premium_phone_number()`. France provides `service_number()`, Romania provides `premium_rate_phone_number()`, and Greece provides `personal_number()`, `shared_cost_number()`, and `premium_rate_number()`.
 
-Singapore and Malaysia provide `voipNumber()`. Malaysia also supports `voipNumberWithOptions(countryCodePrefix, formatting)`. Its default includes the country prefix and separators. The formatters support `unique()` and return an error when the selected provider lacks the method.
+Singapore and Malaysia provide `voip_number()`. Malaysia also supports `voip_number_with_options(country_code_prefix, formatting)`. Its default includes the country prefix and separators. The formatters support `unique()` and return an error when the selected provider lacks the method.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn phone_service_sample() -> DatabaseResult<(String, String)> {
     Ok((
-        fake(Some("en-SG"))?.unique(false).tollFreeLineNumber()?,
-        fake(Some("ms-MY"))?.voipNumberWithOptions(false, false)?,
+        fake(Some("en-SG"))?.unique(false).toll_free_line_number()?,
+        fake(Some("ms-MY"))?.voip_number_with_options(false, false)?,
     ))
 }
 ```
 
 ### Regional phone components {#regional-phone-components}
 
-Use `areaCode()`, `exchangeCode()`, and `tollFreeAreaCode()` to sample supported phone components. The values are strings, so leading zeros are preserved. Finland provides local and international area code variants. Its `numberFormat()` returns a mask with placeholders. Brazil provides `cellphone(formatted)`, `landline(formatted)`, and `phone(formatted)` for subscriber numbers without an area code. These formatters also support `unique()`.
+Use `area_code()`, `exchange_code()`, and `toll_free_area_code()` to sample supported phone components. The values are strings, so leading zeros are preserved. Finland provides local and international area code variants. Its `number_format()` returns a mask with placeholders. Brazil provides `cellphone(formatted)`, `landline(formatted)`, and `phone(formatted)` for subscriber numbers without an area code. These formatters also support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn phone_component_sample() -> DatabaseResult<(String, String)> {
     Ok((
-        fake(Some("en-CA"))?.unique(false).tollFreeAreaCode()?,
+        fake(Some("en-CA"))?.unique(false).toll_free_area_code()?,
         fake(Some("pt-BR"))?.cellphone(Some(false))?,
     ))
 }
@@ -622,7 +622,7 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 
 ### File Samples {#file-samples}
 
-`mimeType()` samples a MIME type from the fixed upstream Faker catalog. `fileExtension()` samples a MIME group and returns one of its extensions without a dot. Both support `unique`, as does the version 3 `uuid()` formatter. `file(sourceDirectory, targetDirectory, fullPath)` copies a readable file from the top level of an existing directory to another existing directory. Its generated name retains the source extension. Rust uses explicit paths and returns an I/O error if copying fails.
+`mime_type()` samples a MIME type from the fixed upstream Faker catalog. `file_extension()` samples a MIME group and returns one of its extensions without a dot. Both support `unique`, as does the version 3 `uuid()` formatter. `file(source_directory, target_directory, full_path)` copies a readable file from the top level of an existing directory to another existing directory. Its generated name retains the source extension. Rust uses explicit paths and returns an I/O error if copying fails.
 
 ```rust
 use std::{io, path::{Path, PathBuf}};
@@ -646,16 +646,16 @@ fn copy_named_sample(source: &str, target: &str) -> DatabaseResult<Value> {
 
 ### Placeholder Images {#placeholder-images}
 
-`format("imageUrl", arguments)` accepts width, height, category, randomize, word, grayscale, and format in that order. `getFormats` and `getFormatConstants` return JSON. Use `formatAsync("image", arguments).await` to download. It accepts directory, width, height, category, full path, randomize, word, grayscale, and format. A remote failure returns null, and a local I/O failure returns an error.
+`format("imageUrl", arguments)` accepts width, height, category, randomize, word, grayscale, and format in that order. `get_formats` and `get_format_constants` return JSON. Use `format_async("image", arguments).await` to download. It accepts directory, width, height, category, full path, randomize, word, grayscale, and format. A remote failure returns null, and a local I/O failure returns an error.
 
 
-Use `imageUrl(&ImageOptions)` to build a upstream Faker placeholder URL. The defaults are 640 × 480 PNG with randomized text and background. JPG and JPEG are also supported. `image(directory, fullPath, options).await` downloads from the provider, using the system temporary directory when omitted. A failed HTTP request or interrupted response returns no path. Invalid options and local write failures return an I/O error.
+Use `image_url(&ImageOptions)` to build a upstream Faker placeholder URL. The defaults are 640 × 480 PNG with randomized text and background. JPG and JPEG are also supported. `image(directory, full_path, options).await` downloads from the provider, using the system temporary directory when omitted. A failed HTTP request or interrupted response returns no path. Invalid options and local write failures return an I/O error.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
 
 fn placeholder_sample() -> DatabaseResult<String> {
-    fake(None)?.imageUrl(&ImageOptions {
+    fake(None)?.image_url(&ImageOptions {
         width: 320,
         height: 200,
         gray: true,
@@ -667,9 +667,9 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 ### Regional Identity Samples {#regional-identity-samples}
 
-Named identity methods accept civil dates as `YYYY-MM-DD` text and keep the locale-specific argument order. For example, `pesel` accepts a birth date followed by sex, and `nik` accepts gender followed by a birth date. Named checks such as `tcNoIsValid` accept the identifier as text.
+Named identity methods accept civil dates as `YYYY-MM-DD` text and keep the locale-specific argument order. For example, `pesel` accepts a birth date followed by sex, and `nik` accepts gender followed by a birth date. Named checks such as `tc_no_is_valid` accept the identifier as text.
 
-Named `cnp` accepts gender, a full or partial birth date, county, and residency. The second `myKadNumber` argument accepts a formatting flag or a custom separator. Taiwanese `vat` returns an integer, and `calculateModulus97` returns a two-digit string.
+Named `cnp` accepts gender, a full or partial birth date, county, and residency. The second `my_kad_number` argument accepts a formatting flag or a custom separator. Taiwanese `vat` returns an integer, and `calculate_modulus97` returns a two-digit string.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -686,63 +686,63 @@ fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
 ```
 
 
-Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed upstream Faker ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
+Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personal_identity_number(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed upstream Faker ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
 
-The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same upstream Faker format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `jiff::civil::Date`, or `None` to sample a date. Both SSN methods share the `unique` history.
+The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same upstream Faker format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssn_with_birthdate(Some(date))` to pass a `jiff::civil::Date`, or `None` to sample a date. Both SSN methods share the `unique` history.
 
-`personalIdentityNumber(gender)` also supports `lt-LT`, `lv-LV`, `fi-FI`, `nb-NO`, `sv-SE` and `pl-PL`. The first five accept a civil date through `personalIdentityNumberWithBirthdate(birthdate, gender)`. Lithuania accepts a serial prefix through `personalIdentityNumberWithSerial(birthdate, gender, serial)`. Poland uses the identity card format. The pinned Norwegian provider generates two random trailing digits.
+`personal_identity_number(gender)` also supports `lt-LT`, `lv-LV`, `fi-FI`, `nb-NO`, `sv-SE` and `pl-PL`. The first five accept a civil date through `personal_identity_number_with_birthdate(birthdate, gender)`. Lithuania accepts a serial prefix through `personal_identity_number_with_serial(birthdate, gender, serial)`. Poland uses the identity card format. The pinned Norwegian provider generates two random trailing digits.
 
-For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `jiff::civil::Date` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in upstream Faker. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
+For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `jiff::civil::Date` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in upstream Faker. `taxpayer_identification_number()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
 
 For `pt-BR`, use `cpf(formatted)`, `rg(formatted)`, and `cnpj(formatted)`. Pass `None` for the default punctuation or `Some(false)` for digits only. RG follows the pinned São Paulo provider, with a numeric check digit. CNPJ uses branch `0001`. All three methods support `unique`.
 
-Use `dni()` with `es-ES` for eight digits and a modulo-23 check letter, or with `es-PE` for eight digits. The Peruvian `ruc(isNaturalPerson)` defaults to the `20` prefix and uses `10` for `Some(true)`. The pinned provider appends nine random digits. Use `licenceCode()` for a driving licence category from `es-ES` or `en-ZA`. These methods support `unique`.
+Use `dni()` with `es-ES` for eight digits and a modulo-23 check letter, or with `es-PE` for eight digits. The Peruvian `ruc(is_natural_person)` defaults to the `20` prefix and uses `10` for `Some(true)`. The pinned provider appends nine random digits. Use `licence_code()` for a driving licence category from `es-ES` or `en-ZA`. These methods support `unique`.
 
-Use `idNumber()` with `nl-NL`, `en-ZA`, `ar-SA`, or `mn-MN`. South Africa also accepts a civil date, citizenship flag and gender through `idNumberWithBirthdate(birthdate, citizen, gender)`. With `ar-SA`, `nationalIdNumber()` fixes prefix `1` and `foreignerIdNumber()` fixes prefix `2`. With `ar-EG`, use `nationalIdNumberWithGender(gender)` to control the registration parity, or `nationalIdNumber()` for the default. The Egyptian provider generates its last digit randomly. The Mongolian `alphabet()` returns one Cyrillic character. The Egyptian `governorateId()` returns a two-character code. These methods support `unique`.
+Use `id_number()` with `nl-NL`, `en-ZA`, `ar-SA`, or `mn-MN`. South Africa also accepts a civil date, citizenship flag and gender through `id_number_with_birthdate(birthdate, citizen, gender)`. With `ar-SA`, `national_id_number()` fixes prefix `1` and `foreigner_id_number()` fixes prefix `2`. With `ar-EG`, use `national_id_number_with_gender(gender)` to control the registration parity, or `national_id_number()` for the default. The Egyptian provider generates its last digit randomly. The Mongolian `alphabet()` returns one Cyrillic character. The Egyptian `governorate_id()` returns a two-character code. These methods support `unique`.
 
-Use `passportNumber()` with `lt-LT` for eight digits or `lv-LV` for two lowercase letters followed by seven digits. `tcNo()` samples the pinned Turkish formatter. The generator permits a leading zero and preserves the upstream signed remainder, which can produce a minus sign in the suffix. `Faker::tcNoChecksum(prefix)` requires nine ASCII digits. `Faker::tcNoIsValid(number)` compares a two-character suffix and returns an error for malformed prefixes. Both generators support `unique`.
+Use `passport_number()` with `lt-LT` for eight digits or `lv-LV` for two lowercase letters followed by seven digits. `tc_no()` samples the pinned Turkish formatter. The generator permits a leading zero and preserves the upstream signed remainder, which can produce a minus sign in the suffix. `Faker::tc_no_checksum(prefix)` requires nine ASCII digits. `Faker::tc_no_is_valid(number)` compares a two-character suffix and returns an error for malformed prefixes. Both generators support `unique`.
 
-Use `ein()` with `en-US` for a two-digit provider prefix and a seven-digit suffix. With `ru-RU`, `inn10(area)` and its legacy name `inn(area)` generate a ten-digit INN. Pass `None`, an empty string, or zero to sample an area from 01 to 91. An explicit area must represent a number from 1 to 99 using ASCII digits. `kpp(inn)` uses the first four digits of an INN and appends `01001`. A missing or short input samples a fresh INN. Use `Faker::inn10Checksum` on a nine-digit prefix and `Faker::inn10IsValid` on a complete number. All four generators support `unique`.
+Use `ein()` with `en-US` for a two-digit provider prefix and a seven-digit suffix. With `ru-RU`, `inn10(area)` and its legacy name `inn(area)` generate a ten-digit INN. Pass `None`, an empty string, or zero to sample an area from 01 to 91. An explicit area must represent a number from 1 to 99 using ASCII digits. `kpp(inn)` uses the first four digits of an INN and appends `01001`. A missing or short input samples a fresh INN. Use `Faker::inn10_checksum` on a nine-digit prefix and `Faker::inn10_is_valid` on a complete number. All four generators support `unique`.
 
-Use `siret(None)` with `fr-FR` for a French establishment identifier formatted as 3–3–3–5 digits. Pass `Some(false)` for the compact form. The nine-digit SIREN prefix and the full fourteen-digit identifier each have a Luhn check digit. With `pl-PL`, `regon()` generates a nine-digit business register number and `regonLocal()` extends a valid REGON prefix to fourteen digits. Both use a weighted modulo-11 check digit, mapping a remainder of 10 to zero. All three generators support `unique`.
+Use `siret(None)` with `fr-FR` for a French establishment identifier formatted as 3–3–3–5 digits. Pass `Some(false)` for the compact form. The nine-digit SIREN prefix and the full fourteen-digit identifier each have a Luhn check digit. With `pl-PL`, `regon()` generates a nine-digit business register number and `regon_local()` extends a valid REGON prefix to fourteen digits. Both use a weighted modulo-11 check digit, mapping a remainder of 10 to zero. All three generators support `unique`.
 
 Use `ico()` with `cs-CZ` for an eight-digit Czech business number with a check digit. With `da-DK`, `cvr()` returns eight digits and `p()` returns ten. With `is-IS`, `vsk()` returns five digits. The Danish and Icelandic formats start with a nonzero digit and follow the upstream sample masks. All four generators support `unique`.
 
-With `ar-SA`, `companyIdNumber()` generates a ten-digit Saudi company ID beginning with `700`. With `ar-EG`, `companyTaxIdNumber()` returns ten digits and `companyTradeRegisterNumber()` returns seven. The Egyptian formats may start with zero. All three append a Luhn check digit and support `unique`.
+With `ar-SA`, `company_id_number()` generates a ten-digit Saudi company ID beginning with `700`. With `ar-EG`, `company_tax_id_number()` returns ten digits and `company_trade_register_number()` returns seven. The Egyptian formats may start with zero. All three append a Luhn check digit and support `unique`.
 
-With `kk-KZ`, `businessIdentificationNumber(date)` returns a twelve-digit BIN. Pass a civil registration date to set its year and month, or `None` to sample a date from the start of this year through now. With `en-ZA`, `companyNumber()` samples a registration year from the last fifty years through now and returns `YYYY/NNNNNN/TT`. Both support `unique`.
+With `kk-KZ`, `business_identification_number(date)` returns a twelve-digit BIN. Pass a civil registration date to set its year and month, or `None` to sample a date from the start of this year through now. With `en-ZA`, `company_number()` samples a registration year from the last fifty years through now and returns `YYYY/NNNNNN/TT`. Both support `unique`.
 
-With `zh-Hant`, `VAT()` returns the Taiwanese eight-digit sample as an integer. The existing `vat(...)` interface also accepts this locale and returns those digits as a string, without a country prefix. With `el-GR`, `doy()` samples one of 21 tax offices and `object()` samples one of 19 business activities. Each formatter supports `unique`.
+With `zh-Hant`, `taiwan_vat()` returns the Taiwanese eight-digit sample as an integer. The existing `vat(...)` interface also accepts this locale and returns those digits as a string, without a country prefix. With `el-GR`, `doy()` samples one of 21 tax offices and `object()` samples one of 19 business activities. Each formatter supports `unique`.
 
-For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the upstream Faker name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the pinned Person surname catalogs. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
+For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the upstream Faker name templates and `company_suffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the pinned Person surname catalogs. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
 
-For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding upstream Faker templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the pinned Japanese surname catalog. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
+For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding upstream Faker templates. `company_prefix()` samples a prefix in these four locales and `pl-PL`. Use `company_modifier()` or `company_en_suffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the pinned Japanese surname catalog. Japanese `company_suffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
 
-With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes, regional surnames and suffixes. The Egyptian templates also use city names. The generators preserve spaces in the suffix catalog. All three locales support `companyPrefix()` and `companySuffix()` with `unique`.
+With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes, regional surnames and suffixes. The Egyptian templates also use city names. The generators preserve spaces in the suffix catalog. All three locales support `company_prefix()` and `company_suffix()` with `unique`.
 
-With `de-DE`, `de-AT`, `de-CH`, and `cs-CZ`, `company()` uses the pinned regional surnames, templates, and suffixes. Czech names always include a suffix and can join two surnames with a space, hyphen, or `a`. The three German-language providers also generate names consisting of a surname alone. `companySuffix()` supports `unique` and preserves the original suffix spellings and sampling weights.
+With `de-DE`, `de-AT`, `de-CH`, and `cs-CZ`, `company()` uses the pinned regional surnames, templates, and suffixes. Czech names always include a suffix and can join two surnames with a space, hyphen, or `a`. The three German-language providers also generate names consisting of a surname alone. `company_suffix()` supports `unique` and preserves the original suffix spellings and sampling weights.
 
-With `da-DK`, `is-IS`, `fi-FI`, `sv-SE`, and `nb-NO`, `company()` uses the pinned regional name and suffix catalogs. The templates retain their original conjunctions, punctuation, and sampling weights. Use `companySuffix()` to sample just the suffix. Both methods support `unique`.
+With `da-DK`, `is-IS`, `fi-FI`, `sv-SE`, and `nb-NO`, `company()` uses the pinned regional name and suffix catalogs. The templates retain their original conjunctions, punctuation, and sampling weights. Use `company_suffix()` to sample just the suffix. Both methods support `unique`.
 
-For `es-AR`, `es-ES`, `es-PE`, `es-VE`, `pt-BR`, and `pt-PT`, `company()` uses the pinned regional surnames and company templates. `companySuffix()` uses the corresponding suffix catalog, including `Ltda.` in Brazil and `Lda.` in Portugal. `companyPrefix()` also supports Spain and Venezuela. All three methods support `unique`.
+For `es-AR`, `es-ES`, `es-PE`, `es-VE`, `pt-BR`, and `pt-PT`, `company()` uses the pinned regional surnames and company templates. `company_suffix()` uses the corresponding suffix catalog, including `Ltda.` in Brazil and `Lda.` in Portugal. `company_prefix()` also supports Spain and Venezuela. All three methods support `unique`.
 
-With `nl-NL`, `company()` combines product and shop terms or a trade followed by a surname. It can append a Dutch company suffix. With `nl-BE`, it uses a Belgian surname with an optional Belgian suffix. Dutch surnames retain their original capitalization, including particles such as `van`. Both locales support `companySuffix()` and `unique`.
+With `nl-NL`, `company()` combines product and shop terms or a trade followed by a surname. It can append a Dutch company suffix. With `nl-BE`, it uses a Belgian surname with an optional Belgian suffix. Dutch surnames retain their original capitalization, including particles such as `van`. Both locales support `company_suffix()` and `unique`.
 
-With `hr-HR`, `sk-SK`, and `hu-HU`, `company()` uses the pinned regional name lists and templates. Croatian names can use a trade prefix or a suffix, and `companyPrefix()` returns a Croatian trade prefix. Slovak templates retain the hyphen and the literal `and`. Hungarian names can consist of a surname alone. All three support `companySuffix()` and `unique`.
+With `hr-HR`, `sk-SK`, and `hu-HU`, `company()` uses the pinned regional name lists and templates. Croatian names can use a trade prefix or a suffix, and `company_prefix()` returns a Croatian trade prefix. Slovak templates retain the hyphen and the literal `and`. Hungarian names can consist of a surname alone. All three support `company_suffix()` and `unique`.
 
-With `el-GR`, `company()` uses a Greek surname followed by a legal suffix. With `me-ME`, it combines names and legal types from the pinned Montenegrin catalogs. Use `companyName()` and `companyType()` to sample those components. Montenegrin `companySuffix()` returns the inherited `Ltd`. All four methods support `unique`.
+With `el-GR`, `company()` uses a Greek surname followed by a legal suffix. With `me-ME`, it combines names and legal types from the pinned Montenegrin catalogs. Use `company_name()` and `company_type()` to sample those components. Montenegrin `company_suffix()` returns the inherited `Ltd`. All four methods support `unique`.
 
-With `en-GB` or `en-ZA`, `company()` combines a regional surname with the inherited `Ltd` suffix. With `el-CY`, it combines a surname with a Cypriot legal suffix or joins two surnames with a hyphen. `companySuffix()` and `unique` are available in all three locales.
+With `en-GB` or `en-ZA`, `company()` combines a regional surname with the inherited `Ltd` suffix. With `el-CY`, it combines a surname with a Cypriot legal suffix or joins two surnames with a hyphen. `company_suffix()` and `unique` are available in all three locales.
 
-With `fr-BE`, `fr-CA`, `fr-CH`, and `it-CH`, `company()` uses the pinned regional surnames and templates. French Canada inherits the French company suffixes. The two Swiss providers use their own suffixes, including `Sàrl` in French and `Sarl` in Italian. Both `company()` and `companySuffix()` support `unique`.
+With `fr-BE`, `fr-CA`, `fr-CH`, and `it-CH`, `company()` uses the pinned regional surnames and templates. French Canada inherits the French company suffixes. The two Swiss providers use their own suffixes, including `Sàrl` in French and `Sarl` in Italian. Both `company()` and `company_suffix()` support `unique`.
 
-For `lt-LT`, `sl-SI`, and `tr-TR`, `company()` uses the pinned regional templates. Lithuanian legal designations precede the name, Slovenian sole-proprietor names end in `s.p.`, and Turkish templates can include a business field. Use `companyField()` with `tr-TR` for a field on its own. It also supports `unique`.
+For `lt-LT`, `sl-SI`, and `tr-TR`, `company()` uses the pinned regional templates. Lithuanian legal designations precede the name, Slovenian sole-proprietor names end in `s.p.`, and Turkish templates can include a business field. Use `company_field()` with `tr-TR` for a field on its own. It also supports `unique`.
 
-With `ru-RU` and `kk-KZ`, company names combine a legal prefix with name elements and an optional name ending. Use `companyNameElement()` and `companyNameSuffix()` to sample those parts. `companySuffix()` still returns the inherited `Ltd`. With `uk-UA`, `companyName()` samples the base name, and `company()` can add a prefix, quoted name, or hyphenated suffix. The regional formatters support `unique`.
+With `ru-RU` and `kk-KZ`, company names combine a legal prefix with name elements and an optional name ending. Use `company_name_element()` and `company_name_suffix()` to sample those parts. `company_suffix()` still returns the inherited `Ltd`. With `uk-UA`, `company_name()` samples the base name, and `company()` can add a prefix, quoted name, or hyphenated suffix. The regional formatters support `unique`.
 
 With `fa-IR`, `he-IL`, `hy-AM`, and `ka-GE`, `company()` uses the pinned regional templates and catalogs. Iranian companies can include a prefix and a business field. In this locale, `contract()` samples an employment contract type. Georgian company names use a prefix, name elements, and a name ending, which can also be sampled individually. These methods support `unique`.
 
-With `bn-BD`, `company()` combines a catalog name and type, also available from `companyName()` and `companyType()`. Indonesian companies (`id-ID`) use a legal prefix and one or two surnames, with an optional suffix. Malaysian companies (`ms-MY`) use a catalog name or an industry and a regional name. The suffix sampler preserves the upstream weights. Use `companyName()` and `industry()` independently. Thai companies (`th-TH`) use a local surname and the inherited `Ltd` suffix. Use `slogan()` for a three-part Thai slogan. These formatters support `unique`.
+With `bn-BD`, `company()` combines a catalog name and type, also available from `company_name()` and `company_type()`. Indonesian companies (`id-ID`) use a legal prefix and one or two surnames, with an optional suffix. Malaysian companies (`ms-MY`) use a catalog name or an industry and a regional name. The suffix sampler preserves the upstream weights. Use `company_name()` and `industry()` independently. Thai companies (`th-TH`) use a local surname and the inherited `Ltd` suffix. Use `slogan()` for a three-part Thai slogan. These formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -761,85 +761,85 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
         fake(Some("fa-IR"))?.contract()?.to_owned(),
-        fake(Some("ka-GE"))?.companyNameElement()?.to_owned(),
+        fake(Some("ka-GE"))?.company_name_element()?.to_owned(),
         fake(Some("he-IL"))?.company(),
-        fake(Some("ru-RU"))?.companyNameElement()?.to_owned(),
-        fake(Some("kk-KZ"))?.companyNameSuffix()?.to_owned(),
-        fake(Some("uk-UA"))?.companyName()?.to_owned(),
+        fake(Some("ru-RU"))?.company_name_element()?.to_owned(),
+        fake(Some("kk-KZ"))?.company_name_suffix()?.to_owned(),
+        fake(Some("uk-UA"))?.company_name()?.to_owned(),
         fake(Some("lt-LT"))?.company(),
-        fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
+        fake(Some("tr-TR"))?.unique(false).company_field()?.to_owned(),
         fake(Some("ms-MY"))?.unique(false).industry()?.to_owned(),
         fake(Some("th-TH"))?.unique(false).slogan()?,
         fake(Some("fr-CA"))?.company(),
-        fake(Some("it-CH"))?.companySuffix(),
+        fake(Some("it-CH"))?.company_suffix(),
         fake(Some("en-GB"))?.company(),
-        fake(Some("el-CY"))?.companySuffix(),
+        fake(Some("el-CY"))?.company_suffix(),
         greek.company(),
-        montenegrin.companyName()?.to_owned(),
-        montenegrin.companyType()?.to_owned(),
-        fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
+        montenegrin.company_name()?.to_owned(),
+        montenegrin.company_type()?.to_owned(),
+        fake(Some("hr-HR"))?.company_prefix()?.to_owned(),
         fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),
-        fake(Some("nl-BE"))?.unique(false).companySuffix()?,
-        fake(Some("es-VE"))?.companyPrefix()?.to_owned(),
+        fake(Some("nl-BE"))?.unique(false).company_suffix()?,
+        fake(Some("es-VE"))?.company_prefix()?.to_owned(),
         fake(Some("pt-PT"))?.company(),
         fake(Some("is-IS"))?.company(),
-        fake(Some("nb-NO"))?.unique(false).companySuffix()?,
+        fake(Some("nb-NO"))?.unique(false).company_suffix()?,
         fake(Some("cs-CZ"))?.company(),
-        fake(Some("de-AT"))?.unique(false).companySuffix()?,
+        fake(Some("de-AT"))?.unique(false).company_suffix()?,
         egypt.company(),
-        fake(Some("ar-JO"))?.companyPrefix()?.to_owned(),
+        fake(Some("ar-JO"))?.company_prefix()?.to_owned(),
         fake(Some("ko-KR"))?.company(),
-        taiwan.companyModifier()?.to_owned(),
-        taiwan.companyEnSuffix()?.to_owned(),
+        taiwan.company_modifier()?.to_owned(),
+        taiwan.company_en_suffix()?.to_owned(),
         polish.company(),
-        fake(Some("fr-FR"))?.companySuffix(),
-        fake(Some("zh-Hant"))?.VAT()?.to_string(),
+        fake(Some("fr-FR"))?.company_suffix(),
+        fake(Some("zh-Hant"))?.taiwan_vat()?.to_string(),
         greek.doy()?.to_owned(),
         greek.object()?.to_owned(),
-        fake(Some("kk-KZ"))?.businessIdentificationNumber(Some(birthdate))?,
-        fake(Some("en-ZA"))?.companyNumber()?,
-        fake(Some("ar-SA"))?.companyIdNumber()?,
-        egypt.companyTaxIdNumber()?,
-        egypt.companyTradeRegisterNumber()?,
+        fake(Some("kk-KZ"))?.business_identification_number(Some(birthdate))?,
+        fake(Some("en-ZA"))?.company_number()?,
+        fake(Some("ar-SA"))?.company_id_number()?,
+        egypt.company_tax_id_number()?,
+        egypt.company_trade_register_number()?,
         fake(Some("cs-CZ"))?.ico()?,
         danish.cvr()?,
         danish.p()?,
         fake(Some("is-IS"))?.vsk()?,
         fake(Some("fr-FR"))?.siret(None)?,
         polish.regon()?,
-        polish.unique(false).regonLocal()?,
+        polish.unique(false).regon_local()?,
         fake(Some("en-US"))?.ein()?,
         inn,
         kpp,
-        fake(Some("tr-TR"))?.tcNo()?,
-        fake(Some("lt-LT"))?.passportNumber()?,
-        fake(Some("lv-LV"))?.passportNumber()?,
-        fake(Some("mn-MN"))?.idNumber()?,
-        fake(Some("en-ZA"))?.idNumberWithBirthdate(Some(birthdate), Some(false), None)?,
-        fake(Some("ar-SA"))?.foreignerIdNumber()?,
+        fake(Some("tr-TR"))?.tc_no()?,
+        fake(Some("lt-LT"))?.passport_number()?,
+        fake(Some("lv-LV"))?.passport_number()?,
+        fake(Some("mn-MN"))?.id_number()?,
+        fake(Some("en-ZA"))?.id_number_with_birthdate(Some(birthdate), Some(false), None)?,
+        fake(Some("ar-SA"))?.foreigner_id_number()?,
         fake(Some("es-ES"))?.dni()?,
         fake(Some("es-PE"))?.dni()?,
         fake(Some("es-PE"))?.ruc(Some(true))?,
-        fake(Some("en-ZA"))?.licenceCode()?.to_owned(),
+        fake(Some("en-ZA"))?.licence_code()?.to_owned(),
         brazilian.cpf(None)?,
         brazilian.rg(Some(false))?,
         brazilian.unique(false).cnpj(None)?,
         polish.pesel(Some(birthdate), Some("F"))?,
-        polish.unique(false).taxpayerIdentificationNumber()?,
+        polish.unique(false).taxpayer_identification_number()?,
         fake(Some("en-US"))?.ssn()?,
-        fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
+        fake(Some("de-AT"))?.ssn_with_birthdate(Some(birthdate))?,
         fake(Some("is-IS"))?.ssn()?,
-        fake(Some("fi-FI"))?.personalIdentityNumberWithBirthdate(Some(birthdate), None)?,
+        fake(Some("fi-FI"))?.personal_identity_number_with_birthdate(Some(birthdate), None)?,
         fake(Some("en-GB"))?.nino()?,
-        fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
+        fake(Some("zh-Hant"))?.unique(false).personal_identity_number(None)?,
     ])
 }
 ```
 
 ### Taiwanese English Company Names {#taiwanese-english-company-names}
 
-With `zh-TW` or `zh-Hant`, `companyEn()` looks up `lastNameEn` on the same generator. Register a formatter that returns text to enable it. Without a registration, the default missing formatter error is preserved. Use `companyEnWithLastName` to supply a fallible Rust closure for the surname formatter. The closure runs once per surname in the selected template. The `unique` variants share the `companyEn` history.
+With `zh-TW` or `zh-Hant`, `company_en()` looks up `lastNameEn` on the same generator. Register a formatter that returns text to enable it. Without a registration, the default missing formatter error is preserved. Use `company_en_with_last_name` to supply a fallible Rust closure for the surname formatter. The closure runs once per surname in the selected template. The `unique` variants share the `company_en` history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -847,27 +847,27 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn taiwanese_company_sample() -> DatabaseResult<String> {
     fake(Some("zh-Hant"))?
         .unique(false)
-        .companyEnWithLastName(|| Ok("Lin".into()))
+        .company_en_with_last_name(|| Ok("Lin".into()))
 }
 ```
 
 ### Job Titles {#job-titles}
 
-Use `jobTitle()` for a profession from the locale’s Company provider. Dedicated lists are available for `de-DE`, `en-US`, `fr-FR`, `id-ID`, `nb-NO`, `nl-NL`, `ru-RU`, `sv-SE`, `tr-TR`, and `uk-UA`. Belgium, Canada, and Switzerland use the French catalog for their French locales. A locale whose Company provider inherits the base job format yields a single Lorem word. A locale without a Company provider uses the US catalog. Use `unique(false).jobTitle()` to avoid repeats.
+Use `job_title()` for a profession from the locale’s Company provider. Dedicated lists are available for `de-DE`, `en-US`, `fr-FR`, `id-ID`, `nb-NO`, `nl-NL`, `ru-RU`, `sv-SE`, `tr-TR`, and `uk-UA`. Belgium, Canada, and Switzerland use the French catalog for their French locales. A locale whose Company provider inherits the base job format yields a single Lorem word. A locale without a Company provider uses the US catalog. Use `unique(false).job_title()` to avoid repeats.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn job_title_sample() -> DatabaseResult<String> {
-    fake(Some("id-ID"))?.unique(false).jobTitle()
+    fake(Some("id-ID"))?.unique(false).job_title()
 }
 ```
 
 ### Biased Sampling and Modifiers {#faker-biased-and-modifiers}
 
-Use `biasedNumberBetween(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`. For a named `biasedNumberBetween` call, supply the minimum and maximum and optionally the string `"sqrt"`. Pass custom curves as closures to the typed method.
+Use `biased_number_between(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`. For a named `biased_number_between` call, supply the minimum and maximum and optionally the string `"sqrt"`. Pass custom curves as closures to the typed method.
 
-Use `optional(weight, default, generate)?` to call a typed formatter or return the optional default. The default weight is 0.5. Values above one use upstream Faker percentage interpretation. Use `valid(predicate, maxRetries, generate)?` to reject samples until the predicate passes. The default retry limit is 10,000. Both closures propagate formatter errors. Use `uniqueWithRetries(reset, maxRetries)` to set the attempt limit on a handle that shares the Faker formatter history.
+Use `optional(weight, default, generate)?` to call a typed formatter or return the optional default. The default weight is 0.5. Values above one use upstream Faker percentage interpretation. Use `valid(predicate, max_retries, generate)?` to reject samples until the predicate passes. The default retry limit is 10,000. Both closures propagate formatter errors. Use `unique_with_retries(reset, max_retries)` to set the attempt limit on a handle that shares the Faker formatter history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -875,10 +875,10 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
     let faker = fake(None)?;
     let sample = faker.optional(Some(0.75), Some(0), |faker| {
-        faker.biasedNumberBetween(Some(1), Some(100), Some(&|x| x))
+        faker.biased_number_between(Some(1), Some(100), Some(&|x| x))
     })?;
     let even = faker.valid(|value| value % 2 == 0, None, |faker| {
-        Ok(faker.numberBetween(0, 100))
+        Ok(faker.number_between(0, 100))
     })?;
     Ok((sample, even))
 }
@@ -886,45 +886,45 @@ fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
 
 ### Corpus-Based Text {#corpus-text-samples}
 
-Use `realText(maxNbChars, indexSize)?` or `realTextBetween(minNbChars, maxNbChars, indexSize)?` to generate text from the fixed upstream Faker corpus with a weighted Markov chain. Use `None` for the default maximum of 200, minimum of 160, or context size of two, respectively. The context size accepts one through five. For `realTextBetween`, the output has more than the minimum and at most the maximum number of Unicode characters. Unsupported locales, including Simplified Chinese, use the upstream English fallback. Traditional Chinese and Japanese sample by character. Persian `realText` uses the upstream byte limit. Its `realTextBetween` returns a retry error because the corpus has no uppercase starting words. Both methods support `unique`.
+Use `real_text(max_nb_chars, index_size)?` or `real_text_between(min_nb_chars, max_nb_chars, index_size)?` to generate text from the fixed upstream Faker corpus with a weighted Markov chain. Use `None` for the default maximum of 200, minimum of 160, or context size of two, respectively. The context size accepts one through five. For `real_text_between`, the output has more than the minimum and at most the maximum number of Unicode characters. Unsupported locales, including Simplified Chinese, use the upstream English fallback. Traditional Chinese and Japanese sample by character. Persian `real_text` uses the upstream byte limit. Its `real_text_between` returns a retry error because the corpus has no uppercase starting words. Both methods support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn corpus_sample() -> DatabaseResult<String> {
-    fake(Some("zh-Hant"))?.realTextBetween(Some(80), Some(120), Some(2))
+    fake(Some("zh-Hant"))?.real_text_between(Some(80), Some(120), Some(2))
 }
 ```
 
 ### Sample HTML {#html-samples}
 
-Use `randomHtml(maxDepth, max_width)?` to generate an HTML document with a title, a sample login form and a random body subtree. Pass `None` for either limit to use four. A depth of one or less produces only the title and form. Width bounds each random sibling draw. The generated form and links use reserved example domains. Numeric IDs are unique within each document, and `unique` tracks entire documents separately.
+Use `random_html(max_depth, max_width)?` to generate an HTML document with a title, a sample login form and a random body subtree. Pass `None` for either limit to use four. A depth of one or less produces only the title and form. Width bounds each random sibling draw. The generated form and links use reserved example domains. Numeric IDs are unique within each document, and `unique` tracks entire documents separately.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn html_sample() -> DatabaseResult<String> {
     let faker = fake(None)?;
-    faker.randomHtml(Some(3), None)
+    faker.random_html(Some(3), None)
 }
 ```
 
 ### Blood Group Samples {#blood-group-samples}
 
-Use `bloodType()` for A, AB, B or O, `bloodRh()` for the Rh sign, and `bloodGroup()` to sample both independently and join them without a separator. The same sample values are available in every locale. All three formatters support `unique` with separate histories.
+Use `blood_type()` for A, AB, B or O, `blood_rh()` for the Rh sign, and `blood_group()` to sample both independently and join them without a separator. The same sample values are available in every locale. All three formatters support `unique` with separate histories.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
     let faker = fake(None)?;
-    Ok((faker.bloodType(), faker.bloodRh(), faker.unique(false).bloodGroup()?))
+    Ok((faker.blood_type(), faker.blood_rh(), faker.unique(false).blood_group()?))
 }
 ```
 
 ### Color Samples {#color-samples}
 
-Use `hexColor()` for six-digit RGB hex, or `safeHexColor()` for the fixed upstream Faker range `#000000` through `#00ffff` with paired hex digits. `rgbColor()` and `hslColor()` return comma-separated values, and their `AsArray` variants return three integers. `rgbCssColor()` and `rgbaCssColor()` produce CSS strings. `safeColorName()` and `colorName()` use the upstream Faker catalog for the resolved locale when available and fall back to the default catalog. All ten formatters support `unique`.
+Use `hex_color()` for six-digit RGB hex, or `safe_hex_color()` for the fixed upstream Faker range `#000000` through `#00ffff` with paired hex digits. `rgb_color()` and `hsl_color()` return comma-separated values, and their `AsArray` variants return three integers. `rgb_css_color()` and `rgba_css_color()` produce CSS strings. `safe_color_name()` and `color_name()` use the upstream Faker catalog for the resolved locale when available and fall back to the default catalog. All ten formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -932,7 +932,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
     let faker = fake(Some("zh-Hant"))?;
     let unique = faker.unique(false);
-    Ok((faker.rgbaCssColor(), unique.rgbColorAsArray()?, unique.colorName()?))
+    Ok((faker.rgba_css_color(), unique.rgb_color_as_array()?, unique.color_name()?))
 }
 ```
 
@@ -954,7 +954,7 @@ fn named_color_samples() -> DatabaseResult<[Value; 3]> {
 
 ### Browser User Agents {#browser-user-agent-samples}
 
-Use `user_agent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed upstream Faker browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
+Use `user_agent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internet_explorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed upstream Faker browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `mac_processor()`, `linux_processor()`, `windows_platform_token()`, `mac_platform_token()`, `linux_platform_token()` and `ios_mobile_token()` for individual tokens. All formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -967,7 +967,7 @@ fn browser_samples() -> DatabaseResult<(String, String)> {
 
 ### Bank Identifiers {#bank-identifier-samples}
 
-Use `iban(countryCode, prefix, length)` for IBAN samples with a modulo 97 checksum. Pass `None` for a random country or supply a two-letter code. Known countries use the fixed upstream Faker layouts. An unlisted code uses a numeric account body with the requested length, defaulting to 24 digits. The prefix replaces the beginning of that body and preserves leading zeros. Rust accepts uppercase ASCII letters and digits in the prefix and caps the account body at 30 characters. `swiftBicNumber()` returns an 8- or 11-character sample. Both methods support `unique`.
+Use `iban(country_code, prefix, length)` for IBAN samples with a modulo 97 checksum. Pass `None` for a random country or supply a two-letter code. Known countries use the fixed upstream Faker layouts. An unlisted code uses a numeric account body with the requested length, defaulting to 24 digits. The prefix replaces the beginning of that body and preserves leading zeros. Rust accepts uppercase ASCII letters and digits in the prefix and caps the account body at 30 characters. `swift_bic_number()` returns an 8- or 11-character sample. Both methods support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -975,13 +975,13 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn bank_samples() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en"))?;
     let unique = faker.unique(false);
-    Ok((unique.iban(Some("DE"), "0012", None)?, unique.swiftBicNumber()?))
+    Ok((unique.iban(Some("DE"), "0012", None)?, unique.swift_bic_number()?))
 }
 ```
 
 ### Regional Bank Accounts {#regional-bank-account-samples}
 
-Use `bankAccountNumber(prefix, countryCode, length)` to select the account format for the Faker locale. The supported IBAN aliases default to their own country and accept explicit overrides. The Egyptian provider always generates an Egyptian IBAN. US English, Malaysian Malay and Nepali generate domestic formats. For these four providers, pass `("", None, None)`. `bankRoutingNumber()` generates a nine-digit routing sample for `en-US`. `Faker::calculateRoutingNumberChecksum` reads the first eight digits and returns the check digit. Both generators support `unique`.
+Use `bank_account_number(prefix, country_code, length)` to select the account format for the Faker locale. The supported IBAN aliases default to their own country and accept explicit overrides. The Egyptian provider always generates an Egyptian IBAN. US English, Malaysian Malay and Nepali generate domestic formats. For these four providers, pass `("", None, None)`. `bank_routing_number()` generates a nine-digit routing sample for `en-US`. `Faker::calculate_routing_number_checksum` reads the first eight digits and returns the check digit. Both generators support `unique`.
 
 If a locale lacks a local Payment provider, it uses the US provider for domestic accounts and routing numbers. A local Payment provider that lacks either method returns an error for that method. Use `("", None, None)` for a fallback bank account. The legacy `at-AT` alias uses Austrian account and VAT formats.
 
@@ -992,28 +992,28 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
     let uk = fake(Some("en-GB"))?;
     let us = fake(Some("en-CA"))?;
     Ok((
-        uk.bankAccountNumber("BANK", None, None)?,
-        us.unique(false).bankRoutingNumber()?,
+        uk.bank_account_number("BANK", None, None)?,
+        us.unique(false).bank_routing_number()?,
     ))
 }
 ```
 
 ### Financial Institutions {#institution-samples}
 
-`bank()` uses the fixed locale catalog for `de-DE`, `el-CY`, `ka-GE`, `kk-KZ`, `ms-MY`, `pl-PL`, `pt-BR`, `ru-RU`, `th-TH`, `uk-UA`, and `zh-Hans`. Malaysian Malay also provides `localBank`, `foreignBank`, `governmentBank`, `insurance`, and `currencySymbol`. Nepali provides `commercialBank`, `developmentBank`, `financeCompany`, `microFinance`, and `digitalWallet`. Both provide `swiftCode()` from their respective catalogs. These formatters support `unique` and return errors for unsupported locales.
+`bank()` uses the fixed locale catalog for `de-DE`, `el-CY`, `ka-GE`, `kk-KZ`, `ms-MY`, `pl-PL`, `pt-BR`, `ru-RU`, `th-TH`, `uk-UA`, and `zh-Hans`. Malaysian Malay also provides `local_bank`, `foreign_bank`, `government_bank`, `insurance`, and `currency_symbol`. Nepali provides `commercial_bank`, `development_bank`, `finance_company`, `micro_finance`, and `digital_wallet`. Both provide `swift_code()` from their respective catalogs. These formatters support `unique` and return errors for unsupported locales.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn institution_samples() -> DatabaseResult<(&'static str, String)> {
     let faker = fake(Some("ms-MY"))?;
-    Ok((faker.foreignBank()?, faker.unique(false).swiftCode()?))
+    Ok((faker.foreign_bank()?, faker.unique(false).swift_code()?))
 }
 ```
 
 ### VAT Samples {#vat-samples}
 
-Use `vat(None)` for the locale default and `vat(Some(false))` for compact output where the upstream provider accepts spacing. Supported locales are `bg-BG`, `de-AT`, `es-ES`, `fr-BE`, `nl-BE`, `fr-FR`, `en-GB`, `it-IT`, and `nl-NL`. For the UK, `vatWithType` accepts `branch`, `gov`, and `health`; other values use the standard format. French VAT uses `siren`, and the Italian `vatId` and Dutch `btw` aliases follow their own providers. The generators support `unique` and preserve their upstream sample rules.
+Use `vat(None)` for the locale default and `vat(Some(false))` for compact output where the upstream provider accepts spacing. Supported locales are `bg-BG`, `de-AT`, `es-ES`, `fr-BE`, `nl-BE`, `fr-FR`, `en-GB`, `it-IT`, and `nl-NL`. For the UK, `vat_with_type` accepts `branch`, `gov`, and `health`; other values use the standard format. French VAT uses `siren`, and the Italian `vat_id` and Dutch `btw` aliases follow their own providers. The generators support `unique` and preserve their upstream sample rules.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1021,30 +1021,30 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn vat_samples() -> DatabaseResult<(String, String)> {
     let french = fake(Some("fr-FR"))?;
     let uk = fake(Some("en-GB"))?;
-    Ok((french.unique(false).vat(None)?, uk.vatWithType(Some("branch"))?))
+    Ok((french.unique(false).vat(None)?, uk.vat_with_type(Some("branch"))?))
 }
 ```
 
 ### Credit Card Samples {#credit-card-samples}
 
-The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Jiff directives and defaults to `%m/%y`; invalid formats return an error. All five formatters support `unique`.
+The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `credit_card_expiration_date_string` accepts Jiff directives and defaults to `%m/%y`; invalid formats return an error. All five formatters support `unique`.
 
-`creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
+`credit_card_type()` · `credit_card_number(type, formatted, separator)` · `credit_card_expiration_date(valid)` · `credit_card_expiration_date_string(valid, format)` · `credit_card_details(valid)`
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{CreditCardDetails, fake}};
 
 fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
     let faker = fake(Some("pt-BR"))?;
-    let details = faker.unique(false).creditCardDetails(true)?;
-    let number = faker.creditCardNumber(Some("Elo"), true, None)?;
+    let details = faker.unique(false).credit_card_details(true)?;
+    let number = faker.credit_card_number(Some("Elo"), true, None)?;
     Ok((details, number))
 }
 ```
 
 ### Postal Addresses and Titles {#address-and-title-samples}
 
-Named address, person, and payment formatters use the generator’s locale. For example, use `prefecture` with Japanese, `postcode` with a Malaysian state key, or `lastName` with a gender on a provider that supports it. Region-specific methods return an error when their provider is unavailable. `creditCardNumber` accepts type, formatting flag, and separator. `creditCardDetails` returns a JSON object. `creditCardExpirationDateString` accepts PHP format tokens, and `iban` accepts a country code, account prefix, and account length.
+Named address, person, and payment formatters use the generator’s locale. For example, use `prefecture` with Japanese, `postcode` with a Malaysian state key, or `last_name` with a gender on a provider that supports it. Region-specific methods return an error when their provider is unavailable. `credit_card_number` accepts type, formatting flag, and separator. `credit_card_details` returns a JSON object. `credit_card_expiration_date_string` accepts PHP format tokens, and `iban` accepts a country code, account prefix, and account length.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -1058,7 +1058,7 @@ fn sample_named_regional() -> DatabaseResult<(Value, Value)> {
 ```
 
 
-Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. US English, Simplified Chinese, and Traditional Chinese use the pinned upstream Faker city and street templates and address catalogs. Other locales may still use fake-rs components. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
+Use `street_address()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. US English, Simplified Chinese, and Traditional Chinese use the pinned upstream Faker city and street templates and address catalogs. Other locales may still use fake-rs components. Use `building_number()`, `secondary_address()`, `postcode()`, `state()`, and `state_abbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `title_male()` and `title_female()` select directly. These methods support `unique`.
 
 Use `area()` with Simplified Chinese to sample a district, and `street()` with Traditional Chinese to sample the street stem. Taiwanese city samples combine a county or municipality with one of its own districts. Both direct formatters support `unique`.
 
@@ -1070,7 +1070,7 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
-The `fr-FR` formatter uses the pinned city and street templates and country vocabulary. `streetPrefix()` and `region()` sample the French catalogs. `department()` returns a pair of strings for the code and name, preserving leading zeroes and codes such as `2A`. `departmentNumber()` and `departmentName()` sample the corresponding field independently. For `zh-Hant-TW`, `randomChineseNumber()` returns a digit from 一 to 九, and `randomNumber2()` and `randomNumber3()` return integers in the inclusive ranges 1–100 and 1–1000. All these methods support `unique`. The three Taiwanese number components also accept their method names through `format` and need no arguments.
+The `fr-FR` formatter uses the pinned city and street templates and country vocabulary. `street_prefix()` and `region()` sample the French catalogs. `department()` returns a pair of strings for the code and name, preserving leading zeroes and codes such as `2A`. `department_number()` and `department_name()` sample the corresponding field independently. For `zh-Hant-TW`, `random_chinese_number()` returns a digit from 一 to 九, and `random_number2()` and `random_number3()` return integers in the inclusive ranges 1–100 and 1–1000. All these methods support `unique`. The three Taiwanese number components also accept their method names through `format` and need no arguments.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1080,25 +1080,25 @@ fn french_department_sample() -> DatabaseResult<(&'static str, &'static str)> {
 }
 ```
 
-Belgian, Swiss, and Canadian French use their regional city, street, and postal layouts. Use `cityName()` for Belgium or Switzerland, `province()` for Belgium, and `canton()` for a Swiss code/name pair. `cantonShort()` and `cantonName()` sample their field independently. The three providers inherit the French country, region, and department catalogs, while Swiss street prefixes override the inherited list.
+Belgian, Swiss, and Canadian French use their regional city, street, and postal layouts. Use `city_name()` for Belgium or Switzerland, `province()` for Belgium, and `canton()` for a Swiss code/name pair. `canton_short()` and `canton_name()` sample their field independently. The three providers inherit the French country, region, and department catalogs, while Swiss street prefixes override the inherited list.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn swiss_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("fr-CH"))?;
-    Ok((faker.address(), faker.unique(false).cantonShort()?))
+    Ok((faker.address(), faker.unique(false).canton_short()?))
 }
 ```
 
-Canadian, Australian, and New Zealand English reuse the US Address catalogs where the pinned providers inherit them. Canada uses `province()`, `provinceAbbr()`, and a restricted postcode alphabet exposed by `randomPostcodeLetter()`. Australia uses its own state and postcode catalogs and offers `buildingLetter()`. New Zealand uses `region()` and four-digit postcodes. The regional methods support `unique`.
+Canadian, Australian, and New Zealand English reuse the US Address catalogs where the pinned providers inherit them. Canada uses `province()`, `province_abbr()`, and a restricted postcode alphabet exposed by `random_postcode_letter()`. Australia uses its own state and postcode catalogs and offers `building_letter()`. New Zealand uses `region()` and four-digit postcodes. The regional methods support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn canadian_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("en-CA"))?;
-    Ok((faker.address(), faker.unique(false).provinceAbbr()?))
+    Ok((faker.address(), faker.unique(false).province_abbr()?))
 }
 ```
 
@@ -1113,7 +1113,7 @@ fn british_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-South African English uses its own province names, abbreviations, city suffixes, and four-digit postcodes. Ugandan English offers `cityName()`, `district()`, and `region()` and samples one- to five-digit postcodes. Nigerian English offers `county()` and `region()` and supports both spaced and unspaced five-digit postcodes. All these regional formatters support `unique`.
+South African English uses its own province names, abbreviations, city suffixes, and four-digit postcodes. Ugandan English offers `city_name()`, `district()`, and `region()` and samples one- to five-digit postcodes. Nigerian English offers `county()` and `region()` and supports both spaced and unspaced five-digit postcodes. All these regional formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1124,29 +1124,29 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-Singapore English uses inherited surname-based street names, local street suffixes, and six-digit postcodes. Full addresses use a street number or a block number and unit line. The pinned upstream Faker provider returns literal patterns from `floorNumber()` and `apartmentNumber()`, including in the full address. The regional formatters support `unique()`.
+Singapore English uses inherited surname-based street names, local street suffixes, and six-digit postcodes. Full addresses use a street number or a block number and unit line. The pinned upstream Faker provider returns literal patterns from `floor_number()` and `apartment_number()`, including in the full address. The regional formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn singapore_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en-SG"))?;
-    Ok((faker.address(), faker.blockNumber()?))
+    Ok((faker.address(), faker.block_number()?))
 }
 ```
 
-Indian English uses local city, state, and locality catalogs. A full address ends with a six-digit postcode starting with 1–5. The street line uses a building and locality, optionally with a housing society. `areaSuffix()` preserves leading spaces in the catalog, and the five locality and society formatters support `unique()`.
+Indian English uses local city, state, and locality catalogs. A full address ends with a six-digit postcode starting with 1–5. The street line uses a building and locality, optionally with a housing society. `area_suffix()` preserves leading spaces in the catalog, and the five locality and society formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn indian_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en-IN"))?;
-    Ok((faker.address(), faker.unique(false).societyName()?))
+    Ok((faker.address(), faker.unique(false).society_name()?))
 }
 ```
 
-Philippine English uses local provinces, cities and municipalities, with a four-digit postcode and optional apartment or suite. Use `municipality()` and `barangay()` for local fields. The independent `state()` and `stateAbbr()` retain their inherited U.S. catalogs. Hong Kong English uses a street, village or estate on the first line, then the town and city. The inherited five-digit `postcode()` formatter is available separately. The regional formatters support `unique()`.
+Philippine English uses local provinces, cities and municipalities, with a four-digit postcode and optional apartment or suite. Use `municipality()` and `barangay()` for local fields. The independent `state()` and `state_abbr()` retain their inherited U.S. catalogs. Hong Kong English uses a street, village or estate on the first line, then the town and city. The inherited five-digit `postcode()` formatter is available separately. The regional formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1158,7 +1158,7 @@ fn philippine_and_hong_kong_address_samples() -> DatabaseResult<(String, String)
 }
 ```
 
-Japanese addresses start with a seven-digit postcode, followed by two spaces, then the prefecture, city, ward, and street. A building name and number may follow. `postcode1()` and `postcode2()` return the three- and four-digit components. `prefecture()`, `ward()`, and `areaNumber()` are also available separately. These regional formatters support `unique()`.
+Japanese addresses start with a seven-digit postcode, followed by two spaces, then the prefecture, city, ward, and street. A building name and number may follow. `postcode1()` and `postcode2()` return the three- and four-digit components. `prefecture()`, `ward()`, and `area_number()` are also available separately. These regional formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1169,14 +1169,14 @@ fn japanese_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-Korean full addresses use a metropolitan city and borough, or a province and city, followed by the street name and building number. The inherited `streetAddress()` formatter puts the building number first. `postcode()` samples five digits separately. The regional `metropolitanCity()`, `province()`, and `borough()` formatters support `unique()`.
+Korean full addresses use a metropolitan city and borough, or a province and city, followed by the street name and building number. The inherited `street_address()` formatter puts the building number first. `postcode()` samples five digits separately. The regional `metropolitan_city()`, `province()`, and `borough()` formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn korean_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("ko-KR"))?;
-    Ok((faker.address(), faker.unique(false).metropolitanCity()?))
+    Ok((faker.address(), faker.unique(false).metropolitan_city()?))
 }
 ```
 
@@ -1187,7 +1187,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn vietnamese_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("vi-VN"))?;
-    Ok((faker.address(), faker.unique(false).districtName()?))
+    Ok((faker.address(), faker.unique(false).district_name()?))
 }
 ```
 
@@ -1202,7 +1202,7 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-Indonesian addresses place `No.` before the building number, use a five-digit postcode with a nonzero first digit, and end with a state abbreviation. Malaysian addresses keep the town, postcode, and state in the same region. Use `postcodeWithState("perlis")` for a specific upstream Faker state key. `postcode()` samples a region, and postcodes preserve leading zeroes. Malaysian building and township formatters support `unique()`.
+Indonesian addresses place `No.` before the building number, use a five-digit postcode with a nonzero first digit, and end with a state abbreviation. Malaysian addresses keep the town, postcode, and state in the same region. Use `postcode_with_state("perlis")` for a specific upstream Faker state key. `postcode()` samples a region, and postcodes preserve leading zeroes. Malaysian building and township formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1210,7 +1210,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn indonesian_and_malaysian_address_samples() -> DatabaseResult<(String, String, String)> {
     let indonesia = fake(Some("id-ID"))?;
     let malaysia = fake(Some("ms-MY"))?;
-    Ok((indonesia.address(), malaysia.address(), malaysia.postcodeWithState("perlis")?))
+    Ok((indonesia.address(), malaysia.address(), malaysia.postcode_with_state("perlis")?))
 }
 ```
 
@@ -1226,7 +1226,7 @@ fn bengali_and_nepali_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-Egyptian, Jordanian, and Saudi Arabic addresses place the street and city on separate lines. An apartment or building detail is optional. Jordanian city names can have a directional prefix, and the independent state formatters use the pinned U.S. state names and abbreviations. Egypt provides `governorate()` and `governorateId()`, and Saudi Arabia provides `governorate()` and `subdivision()`. These regional formatters support `unique()`. The pinned Saudi provider has no city-prefix catalog, so a standalone `cityPrefix()` uses the existing Rust fallback.
+Egyptian, Jordanian, and Saudi Arabic addresses place the street and city on separate lines. An apartment or building detail is optional. Jordanian city names can have a directional prefix, and the independent state formatters use the pinned U.S. state names and abbreviations. Egypt provides `governorate()` and `governorate_id()`, and Saudi Arabia provides `governorate()` and `subdivision()`. These regional formatters support `unique()`. The pinned Saudi provider has no city-prefix catalog, so a standalone `city_prefix()` uses the existing Rust fallback.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1246,25 +1246,25 @@ fn persian_and_hebrew_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-Turkish addresses put the building number after the street name. The second line starts with a five-digit postcode, followed by a city from the 81-entry catalog. Street names use the pinned given-name and surname weights. Use `cityName()` to sample the city catalog directly, including through `unique()`.
+Turkish addresses put the building number after the street name. The second line starts with a five-digit postcode, followed by a city from the 81-entry catalog. Street names use the pinned given-name and surname weights. Use `city_name()` to sample the city catalog directly, including through `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn turkish_address_sample() -> DatabaseResult<(String, &'static str)> {
     let faker = fake(Some("tr-TR"))?;
-    Ok((faker.address(), faker.unique(false).cityName()?))
+    Ok((faker.address(), faker.unique(false).city_name()?))
 }
 ```
 
-Russian addresses use six-digit postcodes and sample cities and regions independently. Ukrainian addresses use five-digit postcodes and keep the city and region paired. Use `cityAndRegion()` to sample the pair, including through `unique()`. Kazakh addresses start with a six-digit postcode whose first digit is zero and put the street suffix after the street name.
+Russian addresses use six-digit postcodes and sample cities and regions independently. Ukrainian addresses use five-digit postcodes and keep the city and region paired. Use `city_and_region()` to sample the pair, including through `unique()`. Kazakh addresses start with a six-digit postcode whose first digit is zero and put the street suffix after the street name.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn ukrainian_address_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("uk-UA"))?;
-    Ok((faker.address(), faker.unique(false).cityAndRegion()?))
+    Ok((faker.address(), faker.unique(false).city_and_region()?))
 }
 ```
 
@@ -1278,7 +1278,7 @@ fn central_european_address_samples() -> DatabaseResult<(String, String, String)
 }
 ```
 
-German, Austrian, and Swiss German addresses put the building number after the street name and the postcode before the city on the second line. Austria samples complete postcodes from its catalog. Swiss German street names can use a city stem. Use `streetSuffixShort()` and `streetSuffixLong()` for the regional suffixes. Swiss German `canton()` returns the abbreviation and German name from the same entry.
+German, Austrian, and Swiss German addresses put the building number after the street name and the postcode before the city on the second line. Austria samples complete postcodes from its catalog. Swiss German street names can use a city stem. Use `street_suffix_short()` and `street_suffix_long()` for the regional suffixes. Swiss German `canton()` returns the abbreviation and German name from the same entry.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1289,7 +1289,7 @@ fn swiss_german_address_sample() -> DatabaseResult<(String, (&'static str, &'sta
 }
 ```
 
-Dutch addresses in the Netherlands and Belgium join a surname and street suffix, followed by the building number. Both locales sample complete postcodes from their own catalogs. Belgian Dutch preserves a leading space before the postcode on the second line. `cityName()` and `state()` sample the local city and province catalogs.
+Dutch addresses in the Netherlands and Belgium join a surname and street suffix, followed by the building number. Both locales sample complete postcodes from their own catalogs. Belgian Dutch preserves a leading space before the postcode on the second line. `city_name()` and `state()` sample the local city and province catalogs.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1299,7 +1299,7 @@ fn dutch_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-Norwegian and Swedish addresses put the building number after the street name. Letter suffixes on building numbers are uppercase. Norwegian postcodes use four digits and may start with zero. Swedish postcodes use five digits with an optional space after the third digit. `streetSuffixWord()` samples each locale’s standalone street suffix and supports `unique()`.
+Norwegian and Swedish addresses put the building number after the street name. Letter suffixes on building numbers are uppercase. Norwegian postcodes use four digits and may start with zero. Swedish postcodes use five digits with an optional space after the third digit. `street_suffix_word()` samples each locale’s standalone street suffix and supports `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1309,7 +1309,7 @@ fn norwegian_and_swedish_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
-Danish addresses can append a floor and building side. Use `buildingLevel()`, `buildingSide()`, and `kommune()` for the individual fields, including through `unique()`. Finnish addresses can include a three-digit apartment number and a region. Icelandic addresses use a three-digit postcode and can put an uppercase letter after the building number.
+Danish addresses can append a floor and building side. Use `building_level()`, `building_side()`, and `kommune()` for the individual fields, including through `unique()`. Finnish addresses can include a three-digit apartment number and a region. Icelandic addresses use a three-digit postcode and can put an uppercase letter after the building number.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1334,7 +1334,7 @@ fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-Brazilian addresses place the postcode first and include the state abbreviation on the second line. Use `region()` and `regionAbbr()` for the five Brazilian regions, including through `unique()`. Portuguese addresses use the pinned city list, four- or seven-digit postcodes, and optional building and floor details.
+Brazilian addresses place the postcode first and include the state abbreviation on the second line. Use `region()` and `region_abbr()` for the five Brazilian regions, including through `unique()`. Portuguese addresses use the pinned city list, four- or seven-digit postcodes, and optional building and floor details.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1364,7 +1364,7 @@ fn greek_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-Romanian and Moldovan Romanian addresses preserve four street layouts, including optional block, stairwell, floor, and apartment fields. Romanian addresses include a county and a six-digit postcode. Moldovan Romanian addresses use a four-digit postcode. The numeric floor and apartment fields can contain a leading zero. Use `block()`, `blockSegment()`, `floor()`, and `apartmentNumber()` to sample these fields individually. `streetPlainName()` returns a street name without its prefix, and `county()` samples a Romanian county.
+Romanian and Moldovan Romanian addresses preserve four street layouts, including optional block, stairwell, floor, and apartment fields. Romanian addresses include a county and a six-digit postcode. Moldovan Romanian addresses use a four-digit postcode. The numeric floor and apartment fields can contain a leading zero. Use `block()`, `block_segment()`, `floor()`, and `apartment_number()` to sample these fields individually. `street_plain_name()` returns a street name without its prefix, and `county()` samples a Romanian county.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1384,7 +1384,7 @@ fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-Lithuanian addresses use the `LT-` postcode prefix and three address layouts, including one with a hyphenated building and unit number. Use `municipality()` to sample a Lithuanian municipality. Latvian addresses begin with an `LV-` postcode followed by the region and city. Both locales expose their local region label through `regionSuffix()`.
+Lithuanian addresses use the `LT-` postcode prefix and three address layouts, including one with a hyphenated building and unit number. Use `municipality()` to sample a Lithuanian municipality. Latvian addresses begin with an `LV-` postcode followed by the region and city. Both locales expose their local region label through `region_suffix()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1394,7 +1394,7 @@ fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-Armenian addresses place the region first and end with a four-digit postcode beginning with `00`. Georgian addresses preserve eight layouts with optional country and region fields. Use `regionGenitiveForm()` to sample the Georgian region name used with the region suffix.
+Armenian addresses place the region first and end with a four-digit postcode beginning with `00`. Georgian addresses preserve eight layouts with optional country and region fields. Use `region_genitive_form()` to sample the Georgian region name used with the region suffix.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1419,7 +1419,7 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-Hungarian addresses begin with a four-digit postcode and use weighted capital, large city, and smaller city templates. Use `capital()`, `bigCity()`, or `smallerCity()` to select a tier explicitly. For locales without a upstream Faker Address provider, `address()` uses the US address layout and address catalogs. Person fields within the address still use the requested locale when its Person provider exists.
+Hungarian addresses begin with a four-digit postcode and use weighted capital, large city, and smaller city templates. Use `capital()`, `big_city()`, or `smaller_city()` to select a tier explicitly. For locales without a upstream Faker Address provider, `address()` uses the US address layout and address catalogs. Person fields within the address still use the requested locale when its Person provider exists.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1438,9 +1438,9 @@ OpenRust exercises all 71 local Address providers from the pinned upstream Faker
 
 ### Given Names by Gender {#given-names-by-gender}
 
-Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
+Use `first_name_male()` or `first_name_female()` to draw from the corresponding upstream Faker catalog. `first_name_with_gender(Some("male"))` and `name_with_gender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
 
-With `en-US`, `fr-FR`, `it-IT`, and `ja-JP`, `name()`, `firstName()`, and `lastName()` use the pinned Person templates and catalogs. The Company templates use the same surnames. `firstNameWithGender` and `nameWithGender` share their corresponding `unique` history with the no-argument methods.
+With `en-US`, `fr-FR`, `it-IT`, and `ja-JP`, `name()`, `first_name()`, and `last_name()` use the pinned Person templates and catalogs. The Company templates use the same surnames. `first_name_with_gender` and `name_with_gender` share their corresponding `unique` history with the no-argument methods.
 
 The same Person behavior also applies to `ar-SA`, `de-DE`, `fa-IR`, `nl-NL`, `pt-BR`, `pt-PT`, `tr-TR`, `zh-Hans`, and `zh-Hant`. Dutch Person and Company formatters share the pinned surname categories, weighted 1:10:5:10 for long, common Dutch, common foreign, and general Dutch surnames.
 
@@ -1454,25 +1454,25 @@ fn person_name_sample() -> DatabaseResult<String> {
 
 ### Nordic Names {#nordic-names}
 
-Danish and Icelandic templates can include a middle name. Use `middleName()` with `da-DK` or `is-IS`. In Icelandic, `lastName()` returns the patronymic stem, and `lastNameMale()` and `lastNameFemale()` append the respective endings. Finnish names may include a local honorific. Swedish and Norwegian Bokmål names use a given name followed by a surname.
+Danish and Icelandic templates can include a middle name. Use `middle_name()` with `da-DK` or `is-IS`. In Icelandic, `last_name()` returns the patronymic stem, and `last_name_male()` and `last_name_female()` append the respective endings. Finnish names may include a local honorific. Swedish and Norwegian Bokmål names use a given name followed by a surname.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn nordic_name_sample() -> DatabaseResult<String> {
-    fake(Some("is-IS"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("is-IS"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
 ### Polish and Lithuanian Names {#polish-and-lithuanian-names}
 
-Use `lastNameWithGender(Some("male"))` or `lastNameWithGender(Some("female"))` with `pl-PL` and `lt-LT` to select a surname catalog. `lastNameMale()` and `lastNameFemale()` sample the same catalogs. In the pinned Lithuanian provider, the no-argument `lastName()` samples given names, while full names use gendered surnames. `lastNameWithGender` and `lastName` share uniqueness history.
+Use `last_name_with_gender(Some("male"))` or `last_name_with_gender(Some("female"))` with `pl-PL` and `lt-LT` to select a surname catalog. `last_name_male()` and `last_name_female()` sample the same catalogs. In the pinned Lithuanian provider, the no-argument `last_name()` samples given names, while full names use gendered surnames. `last_name_with_gender` and `last_name` share uniqueness history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn gendered_surname_sample() -> DatabaseResult<String> {
-    fake(Some("lt-LT"))?.unique(false).lastNameWithGender(Some("female"))
+    fake(Some("lt-LT"))?.unique(false).last_name_with_gender(Some("female"))
 }
 ```
 
@@ -1484,7 +1484,7 @@ The Person catalogs for `en-GB`, `en-ZA`, `el-CY`, `fr-BE`, `fr-CA`, `fr-CH`, an
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_person_sample() -> DatabaseResult<String> {
-    fake(Some("fr-CH"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("fr-CH"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
@@ -1496,31 +1496,31 @@ The Person catalogs for `es-AR`, `es-ES`, `es-PE`, and `es-VE` use the pinned gi
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn spanish_name_sample() -> DatabaseResult<String> {
-    fake(Some("es-VE"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("es-VE"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
 ### Central European Names {#central-european-names}
 
-The `de-AT`, `de-CH`, `cs-CZ`, `sk-SK`, `hu-HU`, and `hr-HR` name formatters use the pinned Person templates and share surname catalogs with Company. Czech and Slovak surnames support `lastNameWithGender`, `lastNameMale`, and `lastNameFemale`. Hungarian templates preserve surname-first order and married-name forms. Use `firstNameMaleNe()` and `lastNameFemaleMarried()` to sample those forms directly.
+The `de-AT`, `de-CH`, `cs-CZ`, `sk-SK`, `hu-HU`, and `hr-HR` name formatters use the pinned Person templates and share surname catalogs with Company. Czech and Slovak surnames support `last_name_with_gender`, `last_name_male`, and `last_name_female`. Hungarian templates preserve surname-first order and married-name forms. Use `first_name_male_ne()` and `last_name_female_married()` to sample those forms directly.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn central_european_name_sample() -> DatabaseResult<String> {
-    fake(Some("cs-CZ"))?.unique(false).lastNameWithGender(Some("female"))
+    fake(Some("cs-CZ"))?.unique(false).last_name_with_gender(Some("female"))
 }
 ```
 
 ### Greek, Bulgarian, and Slovenian Names {#balkan-names}
 
-The `el-GR` and `bg-BG` providers use gender-specific surname catalogs and full-name templates. Use `lastNameWithGender`, `lastNameMale`, or `lastNameFemale` to select the catalog. In `sl-SI`, both surname methods use the common catalog. Slovenian `title(gender)` uses the same local catalog for any gender, while `titleMale()` and `titleFemale()` use the inherited title lists.
+The `el-GR` and `bg-BG` providers use gender-specific surname catalogs and full-name templates. Use `last_name_with_gender`, `last_name_male`, or `last_name_female` to select the catalog. In `sl-SI`, both surname methods use the common catalog. Slovenian `title(gender)` uses the same local catalog for any gender, while `title_male()` and `title_female()` use the inherited title lists.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn balkan_name_sample() -> DatabaseResult<String> {
-    fake(Some("bg-BG"))?.unique(false).nameWithGender(Some("female"))
+    fake(Some("bg-BG"))?.unique(false).name_with_gender(Some("female"))
 }
 ```
 
@@ -1538,31 +1538,31 @@ fn west_asian_name_sample() -> DatabaseResult<String> {
 
 ### Russian, Ukrainian, and Kazakh Names {#russian-ukrainian-and-kazakh-names}
 
-The `ru-RU`, `uk-UA`, and `kk-KZ` Person providers use pinned regional name catalogs and full-name templates. With Russian and Ukrainian, `middleName()` samples both patronymic groups, while `middleNameWithGender`, `middleNameMale()`, and `middleNameFemale()` select a group. Russian surnames also support gender selection and keep the fixed feminine ending. Kazakh PHP uses numeric gender constants. Rust uses the shared `"male"` and `"female"` selectors to select the corresponding templates.
+The `ru-RU`, `uk-UA`, and `kk-KZ` Person providers use pinned regional name catalogs and full-name templates. With Russian and Ukrainian, `middle_name()` samples both patronymic groups, while `middle_name_with_gender`, `middle_name_male()`, and `middle_name_female()` select a group. Russian surnames also support gender selection and keep the fixed feminine ending. Kazakh PHP uses numeric gender constants. Rust uses the shared `"male"` and `"female"` selectors to select the corresponding templates.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn patronymic_sample() -> DatabaseResult<&'static str> {
-    fake(Some("uk-UA"))?.unique(false).middleNameWithGender(Some("female"))
+    fake(Some("uk-UA"))?.unique(false).middle_name_with_gender(Some("female"))
 }
 ```
 
 ### South and Southeast Asian and Korean Names {#south-southeast-asian-and-korean-names}
 
-The Person catalogs for `bn-BD`, `id-ID`, `ms-MY`, `ko-KR`, `th-TH`, and `vi-VN` use local spellings and full-name templates. Indonesian surnames support gender selection. Korean full names put the surname first and omit the space. Vietnamese `middleName()` draws from the given-name catalogs, while `middleNameWithGender(Some("male"))` and its female counterpart use the middle-name catalogs. Malaysian `name()` uses Malay, Chinese, and Indian templates. Malaysian `firstName()` also includes Christian given names. Its explicit male and female first-name formatters inherit `John` and `Jane` from the pinned provider.
+The Person catalogs for `bn-BD`, `id-ID`, `ms-MY`, `ko-KR`, `th-TH`, and `vi-VN` use local spellings and full-name templates. Indonesian surnames support gender selection. Korean full names put the surname first and omit the space. Vietnamese `middle_name()` draws from the given-name catalogs, while `middle_name_with_gender(Some("male"))` and its female counterpart use the middle-name catalogs. Malaysian `name()` uses Malay, Chinese, and Indian templates. Malaysian `first_name()` also includes Christian given names. Its explicit male and female first-name formatters inherit `John` and `Jane` from the pinned provider.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
-    fake(Some("vi-VN"))?.unique(false).middleNameWithGender(Some("female"))
+    fake(Some("vi-VN"))?.unique(false).middle_name_with_gender(Some("female"))
 }
 ```
 
-The `ms-MY` provider also exposes its template parts directly. Use `firstNameMaleMalay`, `firstNameFemaleMalay`, `lastNameMalay`, `muhammadName`, `nurName`, `haji`, `hajjah`, and `titleMaleMalay` for Malay name components. The other formatters are `lastNameChinese`, `firstNameMaleChinese`, `firstNameFemaleChinese`, `firstNameMaleChristian`, `firstNameFemaleChristian`, `initialIndian`, `firstNameMaleIndian`, `firstNameFemaleIndian`, and `lastNameIndian`. Optional components can be empty and preserve their trailing space when present. These template parts also work by name with `format(name, &[])`.
+The `ms-MY` provider also exposes its template parts directly. Use `first_name_male_malay`, `first_name_female_malay`, `last_name_malay`, `muhammad_name`, `nur_name`, `haji`, `hajjah`, and `title_male_malay` for Malay name components. The other formatters are `last_name_chinese`, `first_name_male_chinese`, `first_name_female_chinese`, `first_name_male_christian`, `first_name_female_christian`, `initial_indian`, `first_name_male_indian`, `first_name_female_indian`, and `last_name_indian`. Optional components can be empty and preserve their trailing space when present. These template parts also work by name with `format(name, &[])`.
 
-`myKadNumber(gender, formatted, separator)` generates sample data. It emits 12 digits when `formatted` is false. When true, it inserts a hyphen or the supplied separator between the six-, two-, and four-digit groups. The last digit is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The month and day are sampled independently. All these formatters support `unique()` and return an error outside `ms-MY`.
+`my_kad_number(gender, formatted, separator)` generates sample data. It emits 12 digits when `formatted` is false. When true, it inserts a hyphen or the supplied separator between the six-, two-, and four-digit groups. The last digit is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The month and day are sampled independently. All these formatters support `unique()` and return an error outside `ms-MY`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1570,7 +1570,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("ms-MY"))?;
     let unique = faker.unique(false);
-    Ok((unique.firstNameMaleMalay()?, unique.myKadNumber(Some("male"), true, None)?))
+    Ok((unique.first_name_male_malay()?, unique.my_kad_number(Some("male"), true, None)?))
 }
 ```
 
@@ -1578,7 +1578,7 @@ fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
 
 The `ro-RO` and `ro-MD` providers share Romanian name and title catalogs. `sr-RS` and `sr-Cyrl-RS` use separate Cyrillic catalogs, while `sr-Latn-RS` uses its Latin catalog.
 
-Use `cnp(gender, dateOfBirth, county, isResident)` with `ro-RO` to generate a sample 13-digit identifier. The optional birth date accepts `YYYY`, `YYYY-MM`, or `YYYY-MM-DD` within 1800–2099. A partial date draws missing fields from a random day in that year. When the sampled day does not exist in the supplied month, the call returns an error. County codes are case-sensitive. The method calculates the checksum and supports `unique()`.
+Use `cnp(gender, date_of_birth, county, is_resident)` with `ro-RO` to generate a sample 13-digit identifier. The optional birth date accepts `YYYY`, `YYYY-MM`, or `YYYY-MM-DD` within 1800–2099. A partial date draws missing fields from a random day in that year. When the sampled day does not exist in the supplied month, the call returns an error. County codes are case-sensitive. The method calculates the checksum and supports `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1590,55 +1590,55 @@ fn romanian_cnp_sample() -> DatabaseResult<String> {
 
 ### Estonian, Latvian, and Montenegrin Names {#estonian-latvian-and-montenegrin-names}
 
-The `et-EE`, `lv-LV`, and `me-ME` providers use their own given names and surnames with the base given-name-first template. Latvian `driverLicence()` emits two lower-case ASCII letters followed by six digits. Its passport formatter uses seven digits. Use `personalIdentityNumberWithBirthdate` to supply a civil birth date. These identity formatters support `unique()`.
+The `et-EE`, `lv-LV`, and `me-ME` providers use their own given names and surnames with the base given-name-first template. Latvian `driver_licence()` emits two lower-case ASCII letters followed by six digits. Its passport formatter uses seven digits. Use `personal_identity_number_with_birthdate` to supply a civil birth date. These identity formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn latvian_driver_licence() -> DatabaseResult<String> {
-    fake(Some("lv-LV"))?.unique(false).driverLicence()
+    fake(Some("lv-LV"))?.unique(false).driver_licence()
 }
 ```
 
 ### Indian English and Nepali Names {#indian-english-and-nepali-names}
 
-The `en-IN` and `ne-NP` providers use regional given names, surnames, and full-name templates. Indian English exposes `middleNameMale()`. Nepali exposes both `middleNameMale()` and `middleNameFemale()`. Use these methods directly or pass the corresponding gender to `middleNameWithGender`. The no-argument `middleName()` returns an unsupported-locale error for these providers. The gendered methods support `unique()`.
+The `en-IN` and `ne-NP` providers use regional given names, surnames, and full-name templates. Indian English exposes `middle_name_male()`. Nepali exposes both `middle_name_male()` and `middle_name_female()`. Use these methods directly or pass the corresponding gender to `middle_name_with_gender`. The no-argument `middle_name()` returns an unsupported-locale error for these providers. The gendered methods support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn nepali_middle_name() -> DatabaseResult<&'static str> {
-    fake(Some("ne-NP"))?.unique(false).middleNameFemale()
+    fake(Some("ne-NP"))?.unique(false).middle_name_female()
 }
 ```
 
 ### Nigerian and Ugandan English Names {#nigerian-and-ugandan-english-names}
 
-The `en-NG` and `en-UG` providers use regional names and templates. Nigerian full names can include one or two given names, followed by a surname. Ugandan templates can put either the given name or the surname first. Ugandan `lastName()` samples the general surname catalog. Use `lastNameMale()`, `lastNameFemale()`, or `lastNameWithGender` with an explicit gender for the corresponding catalog. The formatters support `unique()`.
+The `en-NG` and `en-UG` providers use regional names and templates. Nigerian full names can include one or two given names, followed by a surname. Ugandan templates can put either the given name or the surname first. Ugandan `last_name()` samples the general surname catalog. Use `last_name_male()`, `last_name_female()`, or `last_name_with_gender` with an explicit gender for the corresponding catalog. The formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn ugandan_surname() -> DatabaseResult<String> {
-    fake(Some("en-UG"))?.unique(false).lastNameFemale()
+    fake(Some("en-UG"))?.unique(false).last_name_female()
 }
 ```
 
 ### Mongolian Names {#mongolian-names}
 
-For `mn-MN`, full names use one Cyrillic initial, a period, and a given name without an intervening space. `namePrefix()` samples the set of 30 initials. `alphabet()` samples the separate set of 35 letters used by `idNumber()`. Both return a Rust `char` and support `unique()`. The standalone surname formatter inherits `Doe` from the base provider.
+For `mn-MN`, full names use one Cyrillic initial, a period, and a given name without an intervening space. `name_prefix()` samples the set of 30 initials. `alphabet()` samples the separate set of 35 letters used by `id_number()`. Both return a Rust `char` and support `unique()`. The standalone surname formatter inherits `Doe` from the base provider.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn mongolian_initial() -> DatabaseResult<char> {
-    fake(Some("mn-MN"))?.unique(false).namePrefix()
+    fake(Some("mn-MN"))?.unique(false).name_prefix()
 }
 ```
 
 ### Singapore English Names and Identity Samples {#singapore-english-names-and-identity-samples}
 
-The `en-SG` provider inherits the base names `John Doe` and `Jane Doe`. Use `nric(birthDate)` or `fin(issueDate)` to generate a sample identifier, or `singaporeId(issueDate, foreigner)` to select the type explicitly. Dates are optional civil dates. Omitting the date uses the same date range as `dateTimeThisCentury()`. The prefix changes at 2000. NRICs use the year’s last two digits from 1968 onward and sample `00` or `01` for earlier dates. Each formatter calculates the final checksum letter and supports `unique()`.
+The `en-SG` provider inherits the base names `John Doe` and `Jane Doe`. Use `nric(birth_date)` or `fin(issue_date)` to generate a sample identifier, or `singapore_id(issue_date, foreigner)` to select the type explicitly. Dates are optional civil dates. Omitting the date uses the same date range as `date_time_this_century()`. The prefix changes at 2000. NRICs use the year’s last two digits from 1968 onward and sample `00` or `01` for earlier dates. Each formatter calculates the final checksum letter and supports `unique()`.
 
 For `format("singaporeId", args)`, pass a civil date as `YYYY-MM-DD` or null, followed by the optional `foreigner` boolean.
 
@@ -1652,7 +1652,7 @@ fn singapore_identity_sample() -> DatabaseResult<String> {
 
 ### Belgian Dutch Names and RRN Samples {#belgian-dutch-names-and-rrn-samples}
 
-The `nl-BE` provider uses Belgian Dutch given-name and surname catalogs with the base given-name-first template. `rrn(gender)` generates an 11-digit sample from a birth date drawn by `dateTimeThisCentury()`. The three-digit serial is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The final two digits are a modulo-97 checksum that accounts for birth years from 2000 onward. The formatter supports `unique()`.
+The `nl-BE` provider uses Belgian Dutch given-name and surname catalogs with the base given-name-first template. `rrn(gender)` generates an 11-digit sample from a birth date drawn by `date_time_this_century()`. The three-digit serial is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The final two digits are a modulo-97 checksum that accounts for birth years from 2000 onward. The formatter supports `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1676,13 +1676,13 @@ fn person_affixes() -> DatabaseResult<(&'static str, Option<&'static str>)> {
 
 ### Japanese Kana Names {#japanese-kana-names}
 
-Use `kanaName(gender)` with `ja-JP` to generate a katakana surname followed by a space and a given name. `firstKanaName(gender)` returns a given name, and `lastKanaName()` returns a surname. Pass `Some("male")`, `Some("female")`, or `None` for either given-name catalog. `firstKanaNameMale()` and `firstKanaNameFemale()` select a catalog directly. All five formatters support `unique()`.
+Use `kana_name(gender)` with `ja-JP` to generate a katakana surname followed by a space and a given name. `first_kana_name(gender)` returns a given name, and `last_kana_name()` returns a surname. Pass `Some("male")`, `Some("female")`, or `None` for either given-name catalog. `first_kana_name_male()` and `first_kana_name_female()` select a catalog directly. All five formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn japanese_kana_name() -> DatabaseResult<String> {
-    fake(Some("ja-JP"))?.unique(false).kanaName(Some("female"))
+    fake(Some("ja-JP"))?.unique(false).kana_name(Some("female"))
 }
 ```
 
@@ -1700,19 +1700,19 @@ fn swiss_avs_sample() -> DatabaseResult<String> {
 
 ### Czech Birth Numbers and Danish CPR {#czech-birth-numbers-and-danish-cpr}
 
-Use `birthNumber(gender, minAge, maxAge, slashProbability)` with `cs-CZ` to sample a Czech birth number. The numeric arguments specify age bounds and the percent chance of a slash. `birthNumberMale()` and `birthNumberFemale()` use ages 0 to 100 and a 50% slash probability. The formatter applies the female month offset, the additional month offset available from 2004, and the check digit from 1954. Inverted age bounds return an error. With `da-DK`, `cpr()` samples a civil birth date and a four-digit serial whose first digit is nonzero. Both providers support `unique()`.
+Use `birth_number(gender, min_age, max_age, slash_probability)` with `cs-CZ` to sample a Czech birth number. The numeric arguments specify age bounds and the percent chance of a slash. `birth_number_male()` and `birth_number_female()` use ages 0 to 100 and a 50% slash probability. The formatter applies the female month offset, the additional month offset available from 2004, and the check digit from 1954. Inverted age bounds return an error. With `da-DK`, `cpr()` samples a civil birth date and a four-digit serial whose first digit is nonzero. Both providers support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn czech_birth_number() -> DatabaseResult<String> {
-    fake(Some("cs-CZ"))?.unique(false).birthNumber(Some("female"), 18, 65, 100)
+    fake(Some("cs-CZ"))?.unique(false).birth_number(Some("female"), 18, 65, 100)
 }
 ```
 
 ### French NIR and Italian Tax ID Samples {#french-nir-and-italian-tax-id-samples}
 
-Use `nir(gender, formatted)` with `fr-FR` or `fr-CH`. Pass `Some("male")` or `Some("female")` to select the first digit, or `None` to sample it. The NIR uses the French department catalog and a modulo-97 check key. The compact form has 15 characters. The formatted form separates the same characters as 1–2–2–2–3–3–2. Use `taxId()` with `it-IT` or `it-CH` for the uppercase 16-character sample mask used by upstream Faker. Both formatters support `unique()`.
+Use `nir(gender, formatted)` with `fr-FR` or `fr-CH`. Pass `Some("male")` or `Some("female")` to select the first digit, or `None` to sample it. The NIR uses the French department catalog and a modulo-97 check key. The compact form has 15 characters. The formatted form separates the same characters as 1–2–2–2–3–3–2. Use `tax_id()` with `it-IT` or `it-CH` for the uppercase 16-character sample mask used by upstream Faker. Both formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1724,7 +1724,7 @@ fn french_nir_sample() -> DatabaseResult<String> {
 
 ### Iranian National Codes and Indonesian NIK Samples {#iranian-national-codes-and-indonesian-nik-samples}
 
-Use `nationalCode()` with `fa-IR` to generate a ten-digit sample with a nonzero area code and a modulo-11 check digit. Use `nik(gender, birthDate)` with `id-ID` to generate a 16-digit sample. It starts with a code from the pinned birthplace catalog and includes the birth date. For female samples the day is increased by 40. Pass `None` for the date to sample from the past 30 years, or pass a `jiff::civil::Date` to choose a civil date. Both formatters support `unique()`.
+Use `national_code()` with `fa-IR` to generate a ten-digit sample with a nonzero area code and a modulo-11 check digit. Use `nik(gender, birth_date)` with `id-ID` to generate a 16-digit sample. It starts with a code from the pinned birthplace catalog and includes the birth date. For female samples the day is increased by 40. Pass `None` for the date to sample from the past 30 years, or pass a `jiff::civil::Date` to choose a civil date. Both formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1736,18 +1736,18 @@ fn indonesian_nik_sample() -> DatabaseResult<String> {
 
 ### Kazakh IIN and Venezuelan National ID Samples {#kazakh-iin-and-venezuelan-national-id-samples}
 
-Use `individualIdentificationNumber(birthDate, gender)` with `kk-KZ`. Birth dates are optional civil dates in 1800–2099. The default is a date from the past 30 years and male gender. `Faker::checkSum(prefix)` takes eleven ASCII digits and returns the control value. When both checksum passes yield 10, the generator retries with another serial. Use `nationalId(separator)` with `es-VE` to select the separator after the `V` or `E` prefix. Both generators support `unique()`.
+Use `individual_identification_number(birth_date, gender)` with `kk-KZ`. Birth dates are optional civil dates in 1800–2099. The default is a date from the past 30 years and male gender. `Faker::check_sum(prefix)` takes eleven ASCII digits and returns the control value. When both checksum passes yield 10, the generator retries with another serial. Use `national_id(separator)` with `es-VE` to select the separator after the `V` or `E` prefix. Both generators support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn kazakh_iin_sample() -> DatabaseResult<String> {
     fake(Some("kk-KZ"))?.unique(false)
-        .individualIdentificationNumber(jiff::civil::Date::new(2000, 2, 29).ok(), Some("female"))
+        .individual_identification_number(jiff::civil::Date::new(2000, 2, 29).ok(), Some("female"))
 }
 ```
 
-For Venezuelan RIF samples, use `taxpayerIdentificationNumber()` with `es-VE`. The format has one of six prefixes (`J`, `G`, `V`, `E`, `P`, `C`), eight body digits and a final random digit. Use `taxpayerIdentificationNumberWithSeparator(Some("-"))` to insert a separator on both sides of the body. Both calls share the `unique()` formatter history.
+For Venezuelan RIF samples, use `taxpayer_identification_number()` with `es-VE`. The format has one of six prefixes (`J`, `G`, `V`, `E`, `P`, `C`), eight body digits and a final random digit. Use `taxpayer_identification_number_with_separator(Some("-"))` to insert a separator on both sides of the body. Both calls share the `unique()` formatter history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1755,55 +1755,55 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn venezuelan_rif_sample() -> DatabaseResult<String> {
     fake(Some("es-VE"))?
         .unique(false)
-        .taxpayerIdentificationNumberWithSeparator(Some("-"))
+        .taxpayer_identification_number_with_separator(Some("-"))
 }
 ```
 
 ### Portuguese NIF and Taiwanese Name Pools {#portuguese-nif-and-taiwanese-name-pools}
 
-Use `taxpayerIdentificationNumber()` with `pt-PT` for a nine-digit NIF sample. `Faker::dvCalcMod11(number)` computes the check digit from ASCII digits, preserving leading zeros in the input. With `zh-TW`, `randomName(pool, count)` concatenates independent draws from a slice of strings. Entries can repeat. An empty pool or a count of zero yields an empty string. Both generators support `unique()`. For `format("randomName", args)`, pass a JSON array or object of text values and an integer count. Nonpositive counts yield an empty string.
+Use `taxpayer_identification_number()` with `pt-PT` for a nine-digit NIF sample. `Faker::dv_calc_mod11(number)` computes the check digit from ASCII digits, preserving leading zeros in the input. With `zh-TW`, `random_name(pool, count)` concatenates independent draws from a slice of strings. Entries can repeat. An empty pool or a count of zero yields an empty string. Both generators support `unique()`. For `format("randomName", args)`, pass a JSON array or object of text values and an integer count. Nonpositive counts yield an empty string.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn taiwanese_name_sample() -> DatabaseResult<String> {
-    fake(Some("zh-TW"))?.randomName(&["明", "安"], 2)
+    fake(Some("zh-TW"))?.random_name(&["明", "安"], 2)
 }
 ```
 
 ### Baltic Driving Licence and Passport Samples {#baltic-driving-licence-and-passport-samples}
 
-Use `driverLicence()` and `passportNumber()` with `lt-LT` or `lv-LV`. Lithuanian samples for both methods contain eight ASCII digits and can start with zero. Latvian samples start with two lower-case ASCII letters followed by six digits for a driving licence or seven digits for a passport. Both methods support `unique()`.
+Use `driver_licence()` and `passport_number()` with `lt-LT` or `lv-LV`. Lithuanian samples for both methods contain eight ASCII digits and can start with zero. Latvian samples start with two lower-case ASCII letters followed by six digits for a driving licence or seven digits for a passport. Both methods support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn baltic_driver_licence() -> DatabaseResult<String> {
-    fake(Some("lt-LT"))?.unique(false).driverLicence()
+    fake(Some("lt-LT"))?.unique(false).driver_licence()
 }
 ```
 
 ### Malaysian registration plates {#malaysian-registration-plates}
 
-Use `jpjNumberPlate()` with `ms-MY` to sample Malaysian registration plates. The weighted prefix catalogs, mixed-case special prefixes, and optional empty letters follow the pinned upstream Faker provider. The provider also exposes `peninsularPrefix()`, `sarawakPrefix()`, `sabahPrefix()`, `specialPrefix()`, `validAlphabet()`, and `numberSequence()`. All support `unique()`.
+Use `jpj_number_plate()` with `ms-MY` to sample Malaysian registration plates. The weighted prefix catalogs, mixed-case special prefixes, and optional empty letters follow the pinned upstream Faker provider. The provider also exposes `peninsular_prefix()`, `sarawak_prefix()`, `sabah_prefix()`, `special_prefix()`, `valid_alphabet()`, and `number_sequence()`. All support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn malaysian_plate_sample() -> DatabaseResult<String> {
-    fake(Some("ms-MY"))?.unique(false).jpjNumberPlate()
+    fake(Some("ms-MY"))?.unique(false).jpj_number_plate()
 }
 ```
 
 ### Polish registration plates {#polish-registration-plates}
 
-Use `licensePlate()` with `pl-PL` for ordinary Polish plates. `licensePlateWithOptions(special, voivodeships, counties)` also accepts province and county names. When you enable special plates, include `army` or `services` in the province filter to select military or agency plates. A filter that matches no available name falls back to the available choices at that level. OpenRust selects the provider by locale. upstream Faker requires registering the Polish LicensePlate provider explicitly. Both Rust methods share the same `unique()` history.
+Use `license_plate()` with `pl-PL` for ordinary Polish plates. `license_plate_with_options(special, voivodeships, counties)` also accepts province and county names. When you enable special plates, include `army` or `services` in the province filter to select military or agency plates. A filter that matches no available name falls back to the available choices at that level. OpenRust selects the provider by locale. upstream Faker requires registering the Polish LicensePlate provider explicitly. Both Rust methods share the same `unique()` history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn polish_plate_sample() -> DatabaseResult<String> {
-    fake(Some("pl-PL"))?.unique(false).licensePlateWithOptions(
+    fake(Some("pl-PL"))?.unique(false).license_plate_with_options(
         false, Some(&["dolnośląskie"]), Some(&["Wrocław"]),
     )
 }
@@ -1845,9 +1845,9 @@ fn person_fallback_sample() -> DatabaseResult<String> {
 
 ### Company slogans and business phrases {#company-slogans-and-business-phrases}
 
-Use `catchPhrase()` for company slogans and `bs()` for business phrases. Both use the selected Company provider. A locale without a Company provider falls back to `en-US`. If a locale has its own provider but it lacks the formatter, the call returns an error. For `ar-SA`, `ar-JO`, and `hy-AM`, `bs()` returns an empty string. Armenian `catchPhrase()` also returns an empty string. In `zh-TW`, `bs()` joins words without spaces.
+Use `catch_phrase()` for company slogans and `bs()` for business phrases. Both use the selected Company provider. A locale without a Company provider falls back to `en-US`. If a locale has its own provider but it lacks the formatter, the call returns an error. For `ar-SA`, `ar-JO`, and `hy-AM`, `bs()` returns an empty string. Armenian `catch_phrase()` also returns an empty string. In `zh-TW`, `bs()` joins words without spaces.
 
-French and Czech Company providers also expose `catchPhraseNoun()`, `catchPhraseVerb()`, and `catchPhraseAttribute()`. This includes the French providers for Belgium, Canada, and Switzerland. French slogans filter out repeated occurrences of `sécurité` and `simpl`. All five formatters work with `unique()`.
+French and Czech Company providers also expose `catch_phrase_noun()`, `catch_phrase_verb()`, and `catch_phrase_attribute()`. This includes the French providers for Belgium, Canada, and Switzerland. French slogans filter out repeated occurrences of `sécurité` and `simpl`. All five formatters work with `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1855,7 +1855,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn company_phrase_sample() -> DatabaseResult<(String, String)> {
     let french = fake(Some("fr-CA"))?;
     let taiwanese = fake(Some("zh-TW"))?;
-    Ok((french.unique(false).catchPhrase()?, taiwanese.bs()?))
+    Ok((french.unique(false).catch_phrase()?, taiwanese.bs()?))
 }
 ```
 
@@ -1878,11 +1878,11 @@ fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
 
 ### Coordinates {#coordinate-samples}
 
-Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh-Hant`. All five methods support `unique`. Use `format("localLatitude", &[])` and `format("localLongitude", &[])` with `zh-Hant-TW` for the two Taiwanese coordinate formatters.
+Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `local_coordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `local_latitude()?` and `local_longitude()?` methods with `zh-Hant`. All five methods support `unique`. Use `format("localLatitude", &[])` and `format("localLongitude", &[])` with `zh-Hant-TW` for the two Taiwanese coordinate formatters.
 
 ### Soft-deleted State {#trashed-state}
 
-Use `trashed(None)?` on a factory or counted batch for a model configured with `softDeletes`. It appends the model’s deletion column as a state, using the previous calendar day in the selected connection’s application time zone. Use `Some(value)` for an explicit deletion date. Later states and explicit creation attributes can override it. Unsupported models return an error. The factory creates a new model in this state through its ordinary creation lifecycle.
+Use `trashed(None)?` on a factory or counted batch for a model configured with `soft_deletes`. It appends the model’s deletion column as a state, using the previous calendar day in the selected connection’s application time zone. Use `Some(value)` for an explicit deletion date. Later states and explicit creation attributes can override it. Unsupported models return an error. The factory creates a new model in this state through its ordinary creation lifecycle.
 
 ```rust
 use openrust::database::{
@@ -1895,7 +1895,7 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Factory::<M>::new(|| Attributes::from([("name".into(), "Archived".into())]))
         .count(2)
         .trashed(None)?
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -1903,7 +1903,7 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ### Conditional States {#conditional-states}
 
-Use `when(condition, transform)` to transform a factory when a boolean is true, or `unless(condition, transform)` when it is false. `whenElse` and `unlessElse` take a fallback transformation as the third argument. The selected closure runs once when configuring the factory and returns it for chaining. These methods work before or after `count`.
+Use `when(condition, transform)` to transform a factory when a boolean is true, or `unless(condition, transform)` when it is false. `when_else` and `unless_else` take a fallback transformation as the third argument. The selected closure runs once when configuring the factory and returns it for chaining. These methods work before or after `count`.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -1912,7 +1912,7 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
     let _batch = Factory::<M>::new(Attributes::new)
         .when(featured, |factory| factory.set("featured", true))
         .count(2)
-        .unlessElse(
+        .unless_else(
             draft,
             |batch| batch.set("status", "published"),
             |batch| batch.set("status", "draft"),
@@ -1922,37 +1922,37 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 
 ## Creating Models Using Factories
 
-Apply `state` in declaration order. Each `sequence` starts at zero and retains its index across operations on the same builder. A fresh builder starts again at zero. Concurrent operations receive distinct indices, with assignment following execution order. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.
+Apply `state` in declaration order. Each `sequence` starts at zero and retains its index across operations on the same builder. A fresh builder starts again at zero. Concurrent operations receive distinct indices, with assignment following execution order. `make` builds the model and runs `after_making`. `create` saves it, creates its declared children, then runs `after_creating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.
 
-Use `prependState` to run a transformation before all currently registered states. Each transformation sees the attributes produced so far. Use `set(name, value)` to append a single attribute override. Both work before or after `count`. Attributes passed directly to a creation method are applied after the registered states.
+Use `prepend_state` to run a transformation before all currently registered states. Each transformation sees the attributes produced so far. Use `set(name, value)` to append a single attribute override. Both work before or after `count`. Attributes passed directly to a creation method are applied after the registered states.
 
-For a counted batch, all models are constructed before `afterMaking` runs. `create` then saves each model and its declared relations. The batch runs `afterCreating` after those writes finish. If `afterMaking` fails, the batch itself has yet to be saved. Owner factories resolved during construction may already have written records.
+For a counted batch, all models are constructed before `after_making` runs. `create` then saves each model and its declared relations. The batch runs `after_creating` after those writes finish. If `after_making` fails, the batch itself has yet to be saved. Owner factories resolved during construction may already have written records.
 
-Use `raw()` or `rawOn(connection)` to get expanded attributes before model setters and casts. A counted factory returns a vector of attribute maps. Raw expansion skips the target factory’s callbacks and child relationships. It can still persist a declared parent to resolve its key. Use `createQuietly()` or `createQuietlyOn(connection)` to persist models and relationships while suppressing Eloquent model events. Factory callbacks still run.
+Use `raw()` or `raw_on(connection)` to get expanded attributes before model setters and casts. A counted factory returns a vector of attribute maps. Raw expansion skips the target factory’s callbacks and child relationships. It can still persist a declared parent to resolve its key. Use `create_quietly()` or `create_quietly_on(connection)` to persist models and relationships while suppressing Eloquent model events. Factory callbacks still run.
 
-Use `rawWith(attributes)` or `rawWithState(callback)` to append a state for one call. The callback receives the accumulated attributes for each row before relationship keys are resolved. A foreign-key override, including null, skips resolution for that key. Use the corresponding `On` methods to select a connection.
+Use `raw_with(attributes)` or `raw_with_state(callback)` to append a state for one call. The callback receives the accumulated attributes for each row before relationship keys are resolved. A foreign-key override, including null, skips resolution for that key. Use the corresponding `On` methods to select a connection.
 
-Use `rawWithParent(parent, callback)` or `rawWithParentOn(connection, parent, callback)` on either builder to supply a borrowed parent. Matching `stateWithParent` callbacks and the final callback can read it. Supplying the parent adds no relationship attributes by itself.
+Use `raw_with_parent(parent, callback)` or `raw_with_parent_on(connection, parent, callback)` on either builder to supply a borrowed parent. Matching `state_with_parent` callbacks and the final callback can read it. Supplying the parent adds no relationship attributes by itself.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::{Factory, HasFactory}}};
 
 async fn preview_with_state<M: Model + HasFactory>() -> DatabaseResult<Attributes> {
-    Factory::<M>::factoryForModel()
-        .rawWithState(|_| Attributes::from([("name".into(), "Preview".into())]))
+    Factory::<M>::factory_for_model()
+        .raw_with_state(|_| Attributes::from([("name".into(), "Preview".into())]))
         .await
 }
 
 async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResult<Attributes> {
-    Factory::<M>::factoryForModel()
-        .rawWithParent(parent, |_, parent| {
-            Attributes::from([("parent_key".into(), parent.getKey().cloned().unwrap_or(openrust::database::Value::Null))])
+    Factory::<M>::factory_for_model()
+        .raw_with_parent(parent, |_, parent| {
+            Attributes::from([("parent_key".into(), parent.get_key().cloned().unwrap_or(openrust::database::Value::Null))])
         })
         .await
 }
 ```
 
-Use `makeWithState`, `createWithState`, or `createQuietlyWithState` to apply a final state for one operation. Counted factories also accept an attribute map through `make_with`, `createWith`, or `createQuietlyWith`. For one model, the map forms are `makeOne`, `createOne`, and `createOneQuietly`. The corresponding `On` forms select a connection.
+Use `make_with_state`, `create_with_state`, or `create_quietly_with_state` to apply a final state for one operation. Counted factories also accept an attribute map through `make_with`, `create_with`, or `create_quietly_with`. For one model, the map forms are `make_one`, `create_one`, and `create_one_quietly`. The corresponding `On` forms select a connection.
 
 The callback receives the attributes accumulated for each model before deferred attributes and parent keys are resolved. The final state applies only to that call.
 
@@ -1966,7 +1966,7 @@ async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
     let drafts = batch.make_with(name("Preview")).await?;
     assert!(drafts.iter().all(|model| !model.state().exists()));
 
-    let saved = batch.createWithState(|attributes| {
+    let saved = batch.create_with_state(|attributes| {
         assert_eq!(attributes["name"], "Flight".into());
         name("Scheduled")
     }).await?;
@@ -1979,9 +1979,9 @@ async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-Use `createOne(attributes)` to create one model even on a counted factory. Use `createMany(records)` to create records one at a time, in order. Pass `FactoryRecords::Default` for the configured count (one on an uncounted factory), `FactoryRecords::Count(n)` for an explicit count, or `FactoryRecords::Attributes(vec![…])` for per-record overrides. The overrides apply after factory states. Each record runs both factory callbacks before the next one starts. If a later record fails, earlier writes can remain. Use `createOneQuietly` and `createManyQuietly` to suppress model events, or the corresponding `On` methods to select a connection.
+Use `create_one(attributes)` to create one model even on a counted factory. Use `create_many(records)` to create records one at a time, in order. Pass `FactoryRecords::Default` for the configured count (one on an uncounted factory), `FactoryRecords::Count(n)` for an explicit count, or `FactoryRecords::Attributes(vec![…])` for per-record overrides. The overrides apply after factory states. Each record runs both factory callbacks before the next one starts. If a later record fails, earlier writes can remain. Use `create_one_quietly` and `create_many_quietly` to suppress model events, or the corresponding `On` methods to select a connection.
 
-Use `makeOne(attributes)` to build one unsaved model, or `makeMany(records)` to build unsaved models in order. Both run `afterMaking` and accept explicit attributes. Use the same `FactoryRecords` variants with `makeMany`. A zero count yields an empty collection. Both `makeMany` and `createMany` consume the configured default count. This also applies to explicit input, zero records, and errors during model generation. Subsequent calls default to one model, and Rust batch methods continue to return collection-shaped results. The make methods leave the returned models unsaved. Resolving a declared parent can still write that parent. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.
+Use `make_one(attributes)` to build one unsaved model, or `make_many(records)` to build unsaved models in order. Both run `after_making` and accept explicit attributes. Use the same `FactoryRecords` variants with `make_many`. A zero count yields an empty collection. Both `make_many` and `create_many` consume the configured default count. This also applies to explicit input, zero records, and errors during model generation. Subsequent calls default to one model, and Rust batch methods continue to return collection-shaped results. The make methods leave the returned models unsaved. Resolving a declared parent can still write that parent. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.
 
 ```rust
 use openrust::database::{
@@ -1991,13 +1991,13 @@ use openrust::database::{
 
 async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
     let batch = Factory::<M>::new(Attributes::new).count(3);
-    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 3);
-    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 1);
+    assert_eq!(batch.make_many(FactoryRecords::Default).await?.len(), 3);
+    assert_eq!(batch.make_many(FactoryRecords::Default).await?.len(), 1);
     Ok(())
 }
 ```
 
-`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The example checks that per-model overrides preserve input order and that both forms of the callback return saved models. Dropping an unpolled future leaves the target table unchanged.
+`make_one` leaves the configured batch count available for the next `make_many` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The example checks that per-model overrides preserve input order and that both forms of the callback return saved models. Dropping an unpolled future leaves the target table unchanged.
 
 ```rust
 use openrust::database::{
@@ -2014,23 +2014,23 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
     });
     let previews = factory().count(2);
 
-    let one = previews.makeOne(Attributes::new()).await?;
+    let one = previews.make_one(Attributes::new()).await?;
     assert!(!one.state().exists());
-    let many = previews.makeMany(FactoryRecords::Default).await?;
+    let many = previews.make_many(FactoryRecords::Default).await?;
     assert_eq!(many.len(), 2);
     assert!(many.iter().all(|model| !model.state().exists()));
-    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
-    assert!(previews.makeMany(FactoryRecords::Count(0)).await?.is_empty());
+    assert_eq!(previews.make_many(FactoryRecords::Default).await?.len(), 1);
+    assert!(previews.make_many(FactoryRecords::Count(0)).await?.is_empty());
 
     let names = FactoryRecords::Attributes(vec![
         Attributes::from([("name".into(), "Morning flight".into())]),
         Attributes::from([("name".into(), "Evening flight".into())]),
     ]);
-    let custom = previews.makeMany(names).await?;
+    let custom = previews.make_many(names).await?;
     assert_eq!(custom.len(), 2);
     assert!(custom.iter().all(|model| !model.state().exists()));
-    assert_eq!(custom[0].getAttribute("name"), Some(&"Morning flight".into()));
-    assert_eq!(custom[1].getAttribute("name"), Some(&"Evening flight".into()));
+    assert_eq!(custom[0].get_attribute("name"), Some(&"Morning flight".into()));
+    assert_eq!(custom[1].get_attribute("name"), Some(&"Evening flight".into()));
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
@@ -2051,17 +2051,17 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-Factories suspend default relationship autoloading during model construction. Factory batches, including `makeMany` and `createMany`, leave it disabled on the result. Counted `make` and `create` still use the model’s custom collection keys. To opt in for that batch, call `withRelationshipAutoloading()`. Later queries still use the model’s configured default.
+Factories suspend default relationship autoloading during model construction. Factory batches, including `make_many` and `create_many`, leave it disabled on the result. Counted `make` and `create` still use the model’s custom collection keys. To opt in for that batch, call `with_relationship_autoloading()`. Later queries still use the model’s configured default.
 
 ```rust
 use openrust::database::eloquent::{Collection, Model};
 
 fn factory_relationship_loading_sample<M: Model>(models: Collection<M>) -> Collection<M> {
-    models.withRelationshipAutoloading()
+    models.with_relationship_autoloading()
 }
 ```
 
-Use `forEachSequence(states)` to apply one attribute map per model and set the batch count to the number of maps. `crossJoinSequence(sequences)` combines the maps from each input sequence in order, with the last sequence changing fastest. Later maps override earlier maps on matching keys. Set the count separately to select how many combinations to use. The sequence repeats if the count exceeds the number of combinations. An empty input sequence returns an error.
+Use `for_each_sequence(states)` to apply one attribute map per model and set the batch count to the number of maps. `cross_join_sequence(sequences)` combines the maps from each input sequence in order, with the last sequence changing fastest. Later maps override earlier maps on matching keys. Set the count separately to select how many combinations to use. The sequence repeats if the count exceeds the number of combinations. An empty input sequence returns an error.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
@@ -2075,7 +2075,7 @@ async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-Use `sequenceWithState` to read the zero-based index and the attributes assembled so far. `sequenceWithParent` also receives an optional reference to a typed parent supplied by the enclosing relationship or an explicit parent entry point. Both run at their declaration position, after earlier states and before deferred attributes and late overrides. They keep the configured batch size. Each sequence advances across operations on the same factory. An explicit parent supplies context. Set the foreign key separately when needed.
+Use `sequence_with_state` to read the zero-based index and the attributes assembled so far. `sequence_with_parent` also receives an optional reference to a typed parent supplied by the enclosing relationship or an explicit parent entry point. Both run at their declaration position, after earlier states and before deferred attributes and late overrides. They keep the configured batch size. Each sequence advances across operations on the same factory. An explicit parent supplies context. Set the foreign key separately when needed.
 
 ```rust
 use openrust::database::{
@@ -2090,11 +2090,11 @@ async fn contextual_sequence<M: Model, P: Model>(
     let batch = Factory::<M>::new(Attributes::new)
         .set("label", "earlier")
         .count(2)
-        .sequenceWithState(|index, attributes| {
+        .sequence_with_state(|index, attributes| {
             assert_eq!(attributes["label"], Value::from("earlier"));
             Attributes::from([("label".into(), format!("item-{index}").into())])
         })
-        .sequenceWithParent::<P>(|_, attributes, parent| {
+        .sequence_with_parent::<P>(|_, attributes, parent| {
             let suffix = if parent.is_some() { "parent" } else { "standalone" };
             let Value::Text(label) = &attributes["label"] else {
                 panic!("earlier sequence must set a label");
@@ -2103,16 +2103,16 @@ async fn contextual_sequence<M: Model, P: Model>(
         });
 
     let models = batch
-        .createWithParentOn(connection, parent, Attributes::new())
+        .create_with_parent_on(connection, parent, Attributes::new())
         .await?;
     assert_eq!(models.len(), 2);
-    assert_eq!(models[0].getAttribute("label"), Some(&"item-0-parent".into()));
-    assert_eq!(models[1].getAttribute("label"), Some(&"item-1-parent".into()));
+    assert_eq!(models[0].get_attribute("label"), Some(&"item-0-parent".into()));
+    assert_eq!(models[1].get_attribute("label"), Some(&"item-1-parent".into()));
     Ok(())
 }
 ```
 
-Use `sequenceEntries` to mix attribute maps and `FactorySequence::resolve` callbacks in one cycle. The selected callback receives the absolute zero-based `position.index`, the entry count as `position.count`, the current attributes, and the optional typed parent. `forEachSequenceEntries` sets the batch size to the number of entries. `sequenceEntries` keeps the existing size. An empty list leaves the states unchanged and sets the size to zero only when passed to `forEachSequenceEntries`.
+Use `sequence_entries` to mix attribute maps and `FactorySequence::resolve` callbacks in one cycle. The selected callback receives the absolute zero-based `position.index`, the entry count as `position.count`, the current attributes, and the optional typed parent. `for_each_sequence_entries` sets the batch size to the number of entries. `sequence_entries` keeps the existing size. An empty list leaves the states unchanged and sets the size to zero only when passed to `for_each_sequence_entries`.
 
 ```rust
 use openrust::database::{
@@ -2126,7 +2126,7 @@ async fn mixed_sequence<M: Model, P: Model>(
 ) -> DatabaseResult<()> {
     let batch = Factory::<M>::new(Attributes::new)
         .set("label", "earlier")
-        .forEachSequenceEntries(vec![
+        .for_each_sequence_entries(vec![
             Attributes::from([("label".into(), "fixed".into())]).into(),
             FactorySequence::resolve::<P>(|position, attributes, parent| {
                 assert_eq!(position.count, 2);
@@ -2138,15 +2138,15 @@ async fn mixed_sequence<M: Model, P: Model>(
                 )])
             }),
         ]);
-    let models = batch.createWithParentOn(connection, parent, Attributes::new()).await?;
+    let models = batch.create_with_parent_on(connection, parent, Attributes::new()).await?;
     assert_eq!(models.len(), 2);
-    assert_eq!(models[0].getAttribute("label"), Some(&"fixed".into()));
-    assert_eq!(models[1].getAttribute("label"), Some(&"1-parent".into()));
+    assert_eq!(models[0].get_attribute("label"), Some(&"fixed".into()));
+    assert_eq!(models[1].get_attribute("label"), Some(&"1-parent".into()));
     Ok(())
 }
 ```
 
-Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. Before writing, the factory projects attributes through read accessors and serialization casts, includes hidden attributes subject to the visible allowlist, and skips appended attributes. The insert builder then reapplies setters and write casts. Rust keeps typed database values during this projection, including binary data.
+Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insert_on(connection, attributes)` to select the connection explicitly. The factory runs `after_making` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `after_creating`. Before writing, the factory projects attributes through read accessors and serialization casts, includes hidden attributes subject to the visible allowlist, and skips appended attributes. The insert builder then reapplies setters and write casts. Rust keeps typed database values during this projection, including binary data.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
@@ -2156,11 +2156,11 @@ async fn insert_projected<M: Model>(factory: Factory<M>) -> DatabaseResult<()> {
 }
 ```
 
-Use `makeWithParent(parent, attributes)` and `insertWithParent(parent, attributes)` to supply the parent to matching `stateWithParent` callbacks on a single or counted factory. The `On` variants accept an explicit connection. The parent is state context. Set the foreign key in the state or call attributes when the row should reference it.
+Use `make_with_parent(parent, attributes)` and `insert_with_parent(parent, attributes)` to supply the parent to matching `state_with_parent` callbacks on a single or counted factory. The `On` variants accept an explicit connection. The parent is state context. Set the foreign key in the state or call attributes when the row should reference it.
 
-Use `createWithParent(parent, attributes)`, `createQuietlyWithParent(parent, attributes)`, or `lazyWithParent(parent, attributes)` on a single or counted factory. The borrowed parent is available to matching `stateWithParent` and `afterCreatingWithParent` callbacks. Use the `On` variants for immediate creation on a particular connection. The lazy callback uses the connection resolved when awaited. The parent alone adds no foreign key.
+Use `create_with_parent(parent, attributes)`, `create_quietly_with_parent(parent, attributes)`, or `lazy_with_parent(parent, attributes)` on a single or counted factory. The borrowed parent is available to matching `state_with_parent` and `after_creating_with_parent` callbacks. Use the `On` variants for immediate creation on a particular connection. The lazy callback uses the connection resolved when awaited. The parent alone adds no foreign key.
 
-Use `makeWithParentState`, `createWithParentState`, or `createQuietlyWithParentState` when the final state needs both the accumulated attributes and the borrowed parent. These methods support single and counted factories, with `On` forms for an explicit connection. The callback runs before deferred attributes and owner keys are resolved.
+Use `make_with_parent_state`, `create_with_parent_state`, or `create_quietly_with_parent_state` when the final state needs both the accumulated attributes and the borrowed parent. These methods support single and counted factories, with `On` forms for an explicit connection. The callback runs before deferred attributes and owner keys are resolved.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Attributes, Model, factories::Factory}};
@@ -2171,16 +2171,16 @@ async fn seed_with_parent_state<P: Model, C: Model>(parent: &P) -> DatabaseResul
     }).count(2);
     let named = |attributes: &Attributes, parent: &P| {
         let (Some(Value::Text(prefix)), Some(Value::Text(name))) =
-            (parent.getAttribute("name"), attributes.get("name"))
+            (parent.get_attribute("name"), attributes.get("name"))
         else {
             return Attributes::new();
         };
         Attributes::from([("name".into(), format!("{prefix} {name}").into())])
     };
 
-    let drafts = children.makeWithParentState(parent, named).await?;
+    let drafts = children.make_with_parent_state(parent, named).await?;
     assert!(drafts.iter().all(|model| !model.state().exists()));
-    let saved = children.createWithParentState(parent, named).await?;
+    let saved = children.create_with_parent_state(parent, named).await?;
     assert_eq!(saved.len(), 2);
     Ok(())
 }
@@ -2194,7 +2194,7 @@ async fn create_for_parent<M: Model, P: Model>(
     parent: &P,
     attributes: Attributes,
 ) -> DatabaseResult<M> {
-    let create = factory.lazyWithParent(parent, attributes);
+    let create = factory.lazy_with_parent(parent, attributes);
     create().await
 }
 ```
@@ -2210,13 +2210,13 @@ async fn insert_for_parent<M: Model, P: Model>(
     parent: &P,
     attributes: Attributes,
 ) -> DatabaseResult<()> {
-    factory.insertWithParent(parent, attributes).await
+    factory.insert_with_parent(parent, attributes).await
 }
 ```
 
-Use `withoutAfterMaking()` or `withoutAfterCreating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run. This includes callbacks added in the named factory’s `configure` hook.
+Use `without_after_making()` or `without_after_creating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run. This includes callbacks added in the named factory’s `configure` hook.
 
-Use `connection(Some("archive"))` to select a named connection on a factory or counted batch. `getConnectionName()` returns the configured override, and `connection(None)` clears it. Operations resolve the override first, then the model connection, then the current application or Seeder default. The `On` methods use the connection supplied for the target factory. Nested factories use their own override or model connection before inheriting the enclosing connection. Relationship connection checks still apply.
+Use `connection(Some("archive"))` to select a named connection on a factory or counted batch. `get_connection_name()` returns the configured override, and `connection(None)` clears it. Operations resolve the override first, then the model connection, then the current application or Seeder default. The `On` methods use the connection supplied for the target factory. Nested factories use their own override or model connection before inheriting the enclosing connection. Relationship connection checks still apply.
 
 ```rust
 use openrust::database::{
@@ -2229,7 +2229,7 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Factory::<M>::new(|| Attributes::from([("name".into(), "Flight".into())]))
         .sequence(|index| Attributes::from([("name".into(), format!("Flight {index}").into())]))
         .count(3)
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -2237,7 +2237,7 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ### Deferred Factory Attributes {#deferred-factory-attributes}
 
-Use `attribute` to compute one value after factory states and explicit overrides have been applied. Register dependent attributes in evaluation order. Use `parentAttributeWith` to build a related factory from the current values. An explicit value for the same key takes precedence, including a null foreign key. Parent exclusion also applies to `parentAttributeWith`.
+Use `attribute` to compute one value after factory states and explicit overrides have been applied. Register dependent attributes in evaluation order. Use `parent_attribute_with` to build a related factory from the current values. An explicit value for the same key takes precedence, including a null foreign key. Parent exclusion also applies to `parent_attribute_with`.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
@@ -2251,19 +2251,19 @@ fn deferred_factory<M: Model>() -> Factory<M> {
 }
 ```
 
-Use `modelAttribute("owner_id", &owner)` to capture an existing model’s primary key for a factory attribute. A model without a key yields null. Explicit attributes take precedence. During creation, after saving a model and before creating its children, the factory clears cached empty relation collections. Nonempty collections and single relations, including cached nulls, remain available.
+Use `model_attribute("owner_id", &owner)` to capture an existing model’s primary key for a factory attribute. A model without a key yields null. Explicit attributes take precedence. During creation, after saving a model and before creating its children, the factory clears cached empty relation collections. Nonempty collections and single relations, including cached nulls, remain available.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
 
 fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
-    Factory::new(Attributes::new).modelAttribute("owner_id", owner)
+    Factory::new(Attributes::new).model_attribute("owner_id", owner)
 }
 ```
 
 ## Factory Relationships
 
-Counted factories can still configure states, sequences, callbacks, and relationships. `count(n)` replaces the pending size, and `forEachSequence(states)` sets it to the sequence length. Other configuration methods preserve the pending size. Pass a factory directly to `has` or `hasNamed` to create one child per parent. A counted child factory uses its explicit count, including zero. The single-child path uses the model’s construction callbacks and skips the batch collection hook.
+Counted factories can still configure states, sequences, callbacks, and relationships. `count(n)` replaces the pending size, and `for_each_sequence(states)` sets it to the sequence length. Other configuration methods preserve the pending size. Pass a factory directly to `has` or `has_named` to create one child per parent. A counted child factory uses its explicit count, including zero. The single-child path uses the model’s construction callbacks and skips the batch collection hook.
 
 ```rust
 use openrust::database::{
@@ -2282,11 +2282,11 @@ async fn seed_counted_relationships<P: Model, C: Model>(
         .count(2)
         .has(relation, children)
         .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
-        .afterCreating(|parent| {
+        .after_creating(|parent| {
             assert!(parent.state().exists());
             Ok(())
         })
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -2295,7 +2295,7 @@ async fn seed_counted_relationships<P: Model, C: Model>(
 
 ### Parent Context for States and Callbacks {#factory-parent-context}
 
-Use `stateWithParent::<Parent>` and `afterCreatingWithParent::<Parent>` when a child factory needs to read the model that creates it through `has` or `hasAttached`. The callback receives `Some(&Parent)` for the matching type and `None` for standalone creation or a different parent type. Construction callbacks registered with `afterMaking` still receive the child only.
+Use `state_with_parent::<Parent>` and `after_creating_with_parent::<Parent>` when a child factory needs to read the model that creates it through `has` or `has_attached`. The callback receives `Some(&Parent)` for the matching type and `None` for standalone creation or a different parent type. Construction callbacks registered with `after_making` still receive the child only.
 
 ```rust
 use openrust::database::eloquent::{
@@ -2306,19 +2306,19 @@ use openrust::database::eloquent::{
 fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
     Factory::<C>::new(Attributes::new)
         .count(2)
-        .stateWithParent::<P>(|_, parent| {
+        .state_with_parent::<P>(|_, parent| {
             parent
-                .and_then(|model| model.getAttribute("name"))
+                .and_then(|model| model.get_attribute("name"))
                 .map(|name| Attributes::from([("label".into(), name.clone())]))
                 .unwrap_or_default()
         })
-        .afterCreatingWithParent::<P>(|_, _| Ok(()))
+        .after_creating_with_parent::<P>(|_, _| Ok(()))
 }
 ```
 
-Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. Each `for` declaration resolves its required owner once per pair of child and owner database connections. Repeated calls on the same builder reuse that owner. A fresh builder resolves its own owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
+Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `for_existing` to associate an existing model. Each `for` declaration resolves its required owner once per pair of child and owner database connections. Repeated calls on the same builder reuse that owner. A fresh builder resolves its own owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `has_attached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
 
-For `BelongsTo` and `MorphTo`, the last `r#for` or `forExisting` targeting a foreign key replaces the definition of that key. A state or explicit operation attribute can then replace it, including with `Value::Null`. In that case the owner is neither created nor associated. A `MorphTo` declaration still supplies its type as a separate default, which a state can also replace.
+For `BelongsTo` and `MorphTo`, the last `r#for` or `for_existing` targeting a foreign key replaces the definition of that key. A state or explicit operation attribute can then replace it, including with `Value::Null`. In that case the owner is neither created nor associated. A `MorphTo` declaration still supplies its type as a separate default, which a state can also replace.
 
 ```rust
 use openrust::database::{Value, eloquent::{Model, factories::Factory, relations::BelongsTo}};
@@ -2346,19 +2346,19 @@ pub async fn seed_comments<C: Model, P: Model>(
     posts: Factory<P>,
     subject: &str,
 ) -> DatabaseResult<()> {
-    comments.forNamed::<_, MorphTo<C>>(subject, posts).count(3)
-        .createOn(context.connection()).await?;
+    comments.for_named::<_, MorphTo<C>>(subject, posts).count(3)
+        .create_on(context.connection()).await?;
     Ok(())
 }
 ```
 
-Child factories apply relation query defaults after the definition and before explicit states. Direct and polymorphic child relations then supply the foreign key and discriminator before `afterMaking`. Attached model factories also see the relation query defaults before their explicit states.
+Child factories apply relation query defaults after the definition and before explicit states. Direct and polymorphic child relations then supply the foreign key and discriminator before `after_making`. Attached model factories also see the relation query defaults before their explicit states.
 
-Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by name. The factory uses a descriptor registered through `Model::namedRelations` or the application’s `resolveRelationUsing`. Pass the Rust descriptor type explicitly, for example `forNamed::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors. Use `forExistingNamed` to associate an existing owner through a registered relationship.
+Use `has_named`, `for_named`, or `has_attached_named` to resolve a relationship by name. The factory uses a descriptor registered through `Model::named_relations` or the application’s `resolve_relation_using`. Pass the Rust descriptor type explicitly, for example `for_named::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors. Use `for_existing_named` to associate an existing owner through a registered relationship.
 
-Use `hasInferred` when a relationship follows the related Rust model’s name. It tries the plural camel-case name first and falls back to the singular when the plural is absent from the model’s registered relationships. `hasAttachedInferred` uses the plural name. `forInferred` and `forExistingInferred` use the owner’s camel-case name. The descriptor type is explicit. For a custom relationship name, use the corresponding named method.
+Use `has_inferred` when a relationship follows the related Rust model’s name. It tries the plural camel-case name first and falls back to the singular when the plural is absent from the model’s registered relationships. `has_attached_inferred` uses the plural name. `for_inferred` and `for_existing_inferred` use the owner’s camel-case name. The descriptor type is explicit. For a custom relationship name, use the corresponding named method.
 
-Pass a child factory configured with `forEachSequence(child_states)` to `hasInferred` to apply one state per child. The sequence length determines how many children each parent creates, in the order supplied.
+Pass a child factory configured with `for_each_sequence(child_states)` to `has_inferred` to apply one state per child. The sequence length determines how many children each parent creates, in the order supplied.
 
 ```rust
 use openrust::database::{
@@ -2375,8 +2375,8 @@ async fn seed_inferred_children<P: Model, C: Model>(
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .hasInferred::<_, HasMany<P, C>>(children.forEachSequence(child_states))
-        .createOn(context.connection())
+        .has_inferred::<_, HasMany<P, C>>(children.for_each_sequence(child_states))
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -2396,28 +2396,28 @@ async fn seed_existing_owner<M: Model, R: Model>(
     owner: R,
 ) -> DatabaseResult<M> {
     factory
-        .forExistingNamed::<_, BelongsTo<M, R>>(relation, owner)
-        .createOn(context.connection())
+        .for_existing_named::<_, BelongsTo<M, R>>(relation, owner)
+        .create_on(context.connection())
         .await
 }
 ```
 
-Use `parentAttribute("owner_id", owners)` to declare a foreign-key attribute backed by another factory. It expands to a saved model key and can reuse a matching recycled model. An explicit value from the definition, a state, or the operation takes precedence. `withoutParents(vec![])` disables all factory-valued attributes. Pass `FactoryParentSelector::attribute("owner_id")` or `FactoryParentSelector::model::<Owner>()` to disable specific ones. Disabled attributes expand to null. Explicit `for` and `forExisting` relationships still resolve.
+Use `parent_attribute("owner_id", owners)` to declare a foreign-key attribute backed by another factory. It expands to a saved model key and can reuse a matching recycled model. An explicit value from the definition, a state, or the operation takes precedence. `without_parents(vec![])` disables all factory-valued attributes. Pass `FactoryParentSelector::attribute("owner_id")` or `FactoryParentSelector::model::<Owner>()` to disable specific ones. Disabled attributes expand to null. Explicit `for` and `for_existing` relationships still resolve.
 
-The process-wide default starts enabled. `Factory::<Owner>::dontExpandRelationshipsByDefault()` disables expansion for factories built afterward, across model types. `expandRelationshipsByDefault()` or `flushState()` restores the default. Existing factories retain the setting they were built with. A later selective `withoutParents` call keeps full suppression in effect.
+The process-wide default starts enabled. `Factory::<Owner>::dont_expand_relationships_by_default()` disables expansion for factories built afterward, across model types. `expand_relationships_by_default()` or `flush_state()` restores the default. Existing factories retain the setting they were built with. A later selective `without_parents` call keeps full suppression in effect.
 
 ```rust
 use openrust::database::eloquent::{Attributes, Model, factories::Factory};
 
 fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
-    Factory::<Owner>::dontExpandRelationshipsByDefault();
+    Factory::<Owner>::dont_expand_relationships_by_default();
     let factory = Factory::<Owner>::new(Attributes::new);
-    Factory::<Owner>::expandRelationshipsByDefault();
+    Factory::<Owner>::expand_relationships_by_default();
     factory
 }
 ```
 
-After a successful `hasAttachedNamed` write, the factory reloads the named relationship if it was already loaded or if the pivot change touches the related models. The refreshed collection is available to `afterCreating` and includes custom Pivot models when configured.
+After a successful `has_attached_named` write, the factory reloads the named relationship if it was already loaded or if the pivot change touches the related models. The refreshed collection is available to `after_creating` and includes custom Pivot models when configured.
 
 ```rust
 use openrust::database::eloquent::{
@@ -2428,7 +2428,7 @@ use openrust::database::eloquent::{
 
 fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
     Factory::new(Attributes::new)
-        .hasAttachedNamed::<R, BelongsToMany<M, R>>(
+        .has_attached_named::<R, BelongsToMany<M, R>>(
             "members", vec![related], Attributes::new(),
         )
 }
@@ -2436,17 +2436,17 @@ fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
 
 ### Recycling Existing Models {#recycling-existing-models}
 
-Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match.
+Call `recycle` with a saved model or `recycle_many` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match.
 
 Repeated calls can add models of different types to the same builder. An empty input adds no candidates. A declared `has` child still creates a new model and leaves any existing child in the pool with its original owner.
 
-Use `getRandomRecycledModel::<Owner>()` on a single or batch builder to inspect its pool by model type. It returns a borrowed model or `None` without querying the database. Relation resolution still filters candidates by the owner connection.
+Use `get_random_recycled_model::<Owner>()` on a single or batch builder to inspect its pool by model type. It returns a borrowed model or `None` without querying the database. Relation resolution still filters candidates by the owner connection.
 
 ```rust
 use openrust::database::eloquent::{Model, factories::Factory};
 
 fn recycled_model<Child: Model, Owner: Model>(factory: &Factory<Child>) -> Option<&Owner> {
-    factory.getRandomRecycledModel::<Owner>()
+    factory.get_random_recycled_model::<Owner>()
 }
 ```
 
@@ -2465,11 +2465,11 @@ pub async fn reuse_owner<C: Model, P: Model>(
     owners: Factory<P>,
 ) -> DatabaseResult<Collection<C>> {
     children.r#for(relation, owners).count(3).recycle(owner)
-        .createOn(context.connection()).await
+        .create_on(context.connection()).await
 }
 ```
 
-Pass a vector of attribute maps to `hasAttached` or `hasAttachedNamed` to apply pivot attributes in related-model order. The sequence cycles when the related factory count exceeds its length. Use `FactoryPivot::resolve` to compute attributes for each attachment from the saved parent model. An attribute map applies the same values to all attachments. The pivot sequence also continues across parents and repeated calls on the same builder.
+Pass a vector of attribute maps to `has_attached` or `has_attached_named` to apply pivot attributes in related-model order. The sequence cycles when the related factory count exceeds its length. Use `FactoryPivot::resolve` to compute attributes for each attachment from the saved parent model. An attribute map applies the same values to all attachments. The pivot sequence also continues across parents and repeated calls on the same builder.
 
 With a nonempty pivot sequence and an uncounted related factory, the sequence length determines the number of related models. An explicit `count(n)` takes precedence, including zero. Shared attributes and empty sequences default to one generated related model.
 
@@ -2481,14 +2481,14 @@ fn attach_with_pivot_count<P: Model, R: Model>(
     relation: BelongsToMany<P, R>,
     related: Factory<R>,
 ) -> Factory<P> {
-    parents.hasAttached(relation, related, vec![
+    parents.has_attached(relation, related, vec![
         Attributes::from([("active".into(), true.into())]),
         Attributes::from([("active".into(), false.into())]),
     ])
 }
 ```
 
-Pivot maps can include structured values. For JSON columns, pass `Value::Json` in the shared map or in the maps for individual attachments. To read the column through a custom Pivot model, include it in `withPivot` and declare its JSON cast.
+Pivot maps can include structured values. For JSON columns, pass `Value::Json` in the shared map or in the maps for individual attachments. To read the column through a custom Pivot model, include it in `with_pivot` and declare its JSON cast.
 
 ```rust
 use openrust::database::{
@@ -2502,8 +2502,8 @@ fn attach_json_pivots<P: Model, R: Model>(
     members: Factory<R>,
     relation: BelongsToMany<P, R>,
 ) -> Factory<P> {
-    owners.hasAttached(
-        relation.withPivot(["meta"]),
+    owners.has_attached(
+        relation.with_pivot(["meta"]),
         members,
         vec![
             Attributes::from([("meta".into(), Value::Null)]),

@@ -81,7 +81,7 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
         1
     );
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("payment_orders", |t| {
             t.string("id", 32).primary();
             t.string("status", 16);
@@ -241,18 +241,18 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
         "{driver}: migration, rollback, cancellation, eight concurrent callbacks, duplicate, amount mismatch and identity reuse passed"
     );
     connection
-        .getSchemaBuilder()
-        .dropIfExists("payment_orders")
+        .get_schema_builder()
+        .drop_if_exists("payment_orders")
         .await
         .unwrap();
     connection
-        .getSchemaBuilder()
-        .dropIfExists("payment_notifications")
+        .get_schema_builder()
+        .drop_if_exists("payment_notifications")
         .await
         .unwrap();
     connection
-        .getSchemaBuilder()
-        .dropIfExists("pay_migrations")
+        .get_schema_builder()
+        .drop_if_exists("pay_migrations")
         .await
         .unwrap();
     db.disconnect(None).unwrap();

@@ -77,15 +77,15 @@ async fn native_worker_isolates_feature_values_across_success_and_failed_jobs() 
         .connection(None)
         .unwrap();
     connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("jobs", |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();

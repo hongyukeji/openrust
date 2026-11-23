@@ -10,11 +10,10 @@ use super::{
 /// A pooled connection honors the requested read role. A transaction always
 /// uses its own session. Begin, commit and rollback belong to the concrete
 /// connection and transaction APIs because the transaction owns that session.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ConnectionInterface: Send {
     fn table(&mut self, table: &str, alias: Option<&str>) -> query::Builder<'_>;
-    fn getSchemaBuilder(&mut self) -> schema::Builder<'_>;
-    fn getDatabaseName(&self) -> &str;
+    fn get_schema_builder(&mut self) -> schema::Builder<'_>;
+    fn get_database_name(&self) -> &str;
 
     fn raw(&self, sql: &str) -> query::Expression {
         query::Expression::new(sql)
@@ -27,7 +26,7 @@ pub trait ConnectionInterface: Send {
         use_read: bool,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Row>>>;
 
-    fn selectOne<'a>(
+    fn select_one<'a>(
         &'a mut self,
         sql: &'a str,
         bindings: Bindings<'a>,
@@ -41,7 +40,7 @@ pub trait ConnectionInterface: Send {
         use_read: bool,
     ) -> DatabaseFuture<'a, DatabaseResult<Value>> {
         Box::pin(async move {
-            self.selectOne(sql, bindings, use_read)
+            self.select_one(sql, bindings, use_read)
                 .await?
                 .map_or(Ok(Value::Null), Row::scalar)
         })
@@ -67,7 +66,7 @@ pub trait ConnectionInterface: Send {
         sql: &'a str,
         bindings: Bindings<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        self.affectingStatement(sql, bindings)
+        self.affecting_statement(sql, bindings)
     }
 
     fn delete<'a>(
@@ -75,7 +74,7 @@ pub trait ConnectionInterface: Send {
         sql: &'a str,
         bindings: Bindings<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        self.affectingStatement(sql, bindings)
+        self.affecting_statement(sql, bindings)
     }
 
     fn statement<'a>(
@@ -84,7 +83,7 @@ pub trait ConnectionInterface: Send {
         bindings: Bindings<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
 
-    fn affectingStatement<'a>(
+    fn affecting_statement<'a>(
         &'a mut self,
         sql: &'a str,
         bindings: Bindings<'a>,
@@ -98,12 +97,12 @@ impl ConnectionInterface for Connection {
         Connection::table(self, &table_name(table, alias))
     }
 
-    fn getSchemaBuilder(&mut self) -> schema::Builder<'_> {
-        Connection::getSchemaBuilder(self)
+    fn get_schema_builder(&mut self) -> schema::Builder<'_> {
+        Connection::get_schema_builder(self)
     }
 
-    fn getDatabaseName(&self) -> &str {
-        Connection::getDatabaseName(self)
+    fn get_database_name(&self) -> &str {
+        Connection::get_database_name(self)
     }
 
     fn select<'a>(
@@ -115,11 +114,11 @@ impl ConnectionInterface for Connection {
         if use_read {
             Box::pin(Connection::select(self, sql, bindings))
         } else {
-            Box::pin(self.selectFromWriteConnection(sql, bindings))
+            Box::pin(self.select_from_write_connection(sql, bindings))
         }
     }
 
-    fn selectOne<'a>(
+    fn select_one<'a>(
         &'a mut self,
         sql: &'a str,
         bindings: Bindings<'a>,
@@ -145,12 +144,12 @@ impl ConnectionInterface for Connection {
         Box::pin(Connection::statement(self, sql, bindings))
     }
 
-    fn affectingStatement<'a>(
+    fn affecting_statement<'a>(
         &'a mut self,
         sql: &'a str,
         bindings: Bindings<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        Box::pin(Connection::affectingStatement(self, sql, bindings))
+        Box::pin(Connection::affecting_statement(self, sql, bindings))
     }
 
     fn unprepared<'a>(&'a mut self, sql: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {
@@ -163,12 +162,12 @@ impl ConnectionInterface for Transaction {
         Transaction::table(self, &table_name(table, alias))
     }
 
-    fn getSchemaBuilder(&mut self) -> schema::Builder<'_> {
-        Transaction::getSchemaBuilder(self)
+    fn get_schema_builder(&mut self) -> schema::Builder<'_> {
+        Transaction::get_schema_builder(self)
     }
 
-    fn getDatabaseName(&self) -> &str {
-        self.query_connection().getDatabaseName()
+    fn get_database_name(&self) -> &str {
+        self.query_connection().get_database_name()
     }
 
     fn select<'a>(
@@ -180,13 +179,13 @@ impl ConnectionInterface for Transaction {
         Box::pin(Transaction::select(self, sql, bindings))
     }
 
-    fn selectOne<'a>(
+    fn select_one<'a>(
         &'a mut self,
         sql: &'a str,
         bindings: Bindings<'a>,
         _use_read: bool,
     ) -> DatabaseFuture<'a, DatabaseResult<Option<Row>>> {
-        Box::pin(Transaction::selectOne(self, sql, bindings))
+        Box::pin(Transaction::select_one(self, sql, bindings))
     }
 
     fn cursor<'a>(
@@ -206,12 +205,12 @@ impl ConnectionInterface for Transaction {
         Box::pin(Transaction::statement(self, sql, bindings))
     }
 
-    fn affectingStatement<'a>(
+    fn affecting_statement<'a>(
         &'a mut self,
         sql: &'a str,
         bindings: Bindings<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        Box::pin(Transaction::affectingStatement(self, sql, bindings))
+        Box::pin(Transaction::affecting_statement(self, sql, bindings))
     }
 
     fn unprepared<'a>(&'a mut self, sql: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {

@@ -16,25 +16,25 @@ fn faker_color_formats_preserve_php_ranges_and_delimiters() {
         assert!(values.iter().any(|&channel| channel != 0));
     };
     for _ in 0..256 {
-        let sample = faker.hexColor();
+        let sample = faker.hex_color();
         assert!(hex.is_match(&sample));
         assert_ne!(sample, "#000000");
-        let sample = faker.safeHexColor();
+        let sample = faker.safe_hex_color();
         assert!(hex.is_match(&sample));
         let bytes = sample.as_bytes();
         assert_eq!(&bytes[1..3], b"00");
         assert_eq!(bytes[3], bytes[4]);
         assert_eq!(bytes[5], bytes[6]);
 
-        assert_ne!(faker.rgbColorAsArray(), [0, 0, 0]);
-        rgb(&faker.rgbColor());
-        let sample = faker.rgbCssColor();
+        assert_ne!(faker.rgb_color_as_array(), [0, 0, 0]);
+        rgb(&faker.rgb_color());
+        let sample = faker.rgb_css_color();
         rgb(sample
             .strip_prefix("rgb(")
             .unwrap()
             .strip_suffix(')')
             .unwrap());
-        let sample = faker.rgbaCssColor();
+        let sample = faker.rgba_css_color();
         let (channels, alpha) = sample
             .strip_prefix("rgba(")
             .unwrap()
@@ -51,9 +51,9 @@ fn faker_color_formats_preserve_php_ranges_and_delimiters() {
         );
 
         for [hue, saturation, lightness] in [
-            faker.hslColorAsArray(),
+            faker.hsl_color_as_array(),
             faker
-                .hslColor()
+                .hsl_color()
                 .split(',')
                 .map(|component| component.parse::<u16>().unwrap())
                 .collect::<Vec<_>>()
@@ -78,15 +78,15 @@ fn faker_color_names_follow_locale_fallbacks_and_unique_history() {
         let faker = fake(Some(locale)).unwrap();
         let unique = faker.unique(true);
         let names: HashSet<_> = (0..count)
-            .map(|_| unique.safeColorName().unwrap())
+            .map(|_| unique.safe_color_name().unwrap())
             .collect();
         assert!(names.contains(safe), "{locale}");
-        assert!(unique.safeColorName().is_err(), "{locale}");
-        assert!(faker.unique(true).safeColorName().is_ok(), "{locale}");
+        assert!(unique.safe_color_name().is_err(), "{locale}");
+        assert!(faker.unique(true).safe_color_name().is_ok(), "{locale}");
 
         let unique = faker.unique(true);
         let mut found = false;
-        while let Ok(name) = unique.colorName() {
+        while let Ok(name) = unique.color_name() {
             found |= name == full;
         }
         assert!(found, "{locale} missing {full}");
@@ -95,11 +95,11 @@ fn faker_color_names_follow_locale_fallbacks_and_unique_history() {
     let faker = fake(None).unwrap();
     let unique = faker.unique(true);
     assert_ne!(
-        unique.rgbColorAsArray().unwrap(),
-        unique.rgbColorAsArray().unwrap()
+        unique.rgb_color_as_array().unwrap(),
+        unique.rgb_color_as_array().unwrap()
     );
     assert_ne!(
-        unique.hslColorAsArray().unwrap(),
-        unique.hslColorAsArray().unwrap()
+        unique.hsl_color_as_array().unwrap(),
+        unique.hsl_color_as_array().unwrap()
     );
 }

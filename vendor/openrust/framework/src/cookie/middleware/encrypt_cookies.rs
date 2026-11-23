@@ -54,8 +54,8 @@ impl EncryptCookies {
     fn decrypt_value(encrypter: &dyn Encrypter, name: &str, value: &mut Value) -> Result<(), ()> {
         match value {
             Value::String(ciphertext) => {
-                let clear = Zeroizing::new(encrypter.decryptString(ciphertext).map_err(|_| ())?);
-                *value = CookieValuePrefix::validate(name, &clear, encrypter.getAllKeys())
+                let clear = Zeroizing::new(encrypter.decrypt_string(ciphertext).map_err(|_| ())?);
+                *value = CookieValuePrefix::validate(name, &clear, encrypter.get_all_keys())
                     .and_then(|bytes| std::str::from_utf8(bytes).ok())
                     .map_or(Value::Null, |text| Value::String(text.to_owned()));
             }
@@ -151,14 +151,15 @@ impl EncryptCookies {
         let mut clear = Zeroizing::new(Vec::with_capacity(41 + value.len()));
         clear.extend_from_slice(&CookieValuePrefix::create(
             &decoded_name,
-            encrypter.getKey(),
+            encrypter.get_key(),
         ));
         clear.extend_from_slice(value.as_bytes());
-        let ciphertext = encrypter
-            .encryptString(&clear)
-            .map_err(|source| HttpError::Internal {
-                source: Box::new(source),
-            })?;
+        let ciphertext =
+            encrypter
+                .encrypt_string(&clear)
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
         let ciphertext =
             utf8_percent_encode(&ciphertext, super::super::cookie_definition::URL_ENCODE);
         let wire = if attributes.is_empty() {

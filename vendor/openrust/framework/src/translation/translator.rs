@@ -123,7 +123,8 @@ impl Translator {
             return Err(TranslationError::InvalidKey);
         }
         let mut loaded = self.loaded.lock().unwrap();
-        self.loader.add_namespace(namespace.to_owned(), path);
+        self.loader
+            .register_namespace_path(namespace.to_owned(), path);
         loaded
             .retain(|key, catalog| catalog.runtime || key.namespace.as_deref() != Some(namespace));
         Ok(())
@@ -131,7 +132,7 @@ impl Translator {
 
     pub(crate) fn add_package_json_path(&self, path: PathBuf) {
         let mut loaded = self.loaded.lock().unwrap();
-        self.loader.addJsonPath(path);
+        self.loader.add_json_path(path);
         loaded.retain(|key, catalog| {
             catalog.runtime || key.group != "*" || key.namespace.as_deref() != Some("*")
         });
@@ -139,39 +140,40 @@ impl Translator {
 
     /// Adds a language directory for subsequent group and literal JSON loads.
     /// 返回当前选择器句柄，替换后已取出的句柄仍可继续使用。
-    pub fn getSelector(&self) -> Arc<dyn Selector> {
+    pub fn get_selector(&self) -> Arc<dyn Selector> {
         self.selector
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 
-    pub fn setSelector(&self, selector: impl Selector + 'static) {
+    pub fn set_selector(&self, selector: impl Selector + 'static) {
         *self
             .selector
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::new(selector);
     }
 
-    pub fn getLoader(&self) -> Arc<FileLoader> {
+    pub fn get_loader(&self) -> Arc<FileLoader> {
         self.loader.clone()
     }
 
-    pub fn addPath(&self, path: PathBuf) {
-        self.loader.addPath(path);
+    pub fn add_path(&self, path: PathBuf) {
+        self.loader.add_path(path);
     }
 
     /// Adds a directory for subsequent anonymous JSON catalog loads.
-    pub fn addJsonPath(&self, path: PathBuf) {
-        self.loader.addJsonPath(path);
+    pub fn add_json_path(&self, path: PathBuf) {
+        self.loader.add_json_path(path);
     }
 
     /// Adds or replaces a package namespace for subsequent loads.
-    pub fn addNamespace(&self, namespace: &str, path: PathBuf) -> TranslationResult<()> {
+    pub fn add_namespace(&self, namespace: &str, path: PathBuf) -> TranslationResult<()> {
         if !valid_segment(namespace) {
             return Err(TranslationError::InvalidKey);
         }
-        self.loader.add_namespace(namespace.to_owned(), path);
+        self.loader
+            .register_namespace_path(namespace.to_owned(), path);
         Ok(())
     }
 
@@ -189,7 +191,7 @@ impl Translator {
     }
 
     /// Materializes exact groups from an asynchronous loader before publishing them together.
-    pub async fn loadFrom(
+    pub async fn load_from(
         &self,
         loader: &dyn Loader,
         resources: &[TranslationResource<'_>],
@@ -243,7 +245,7 @@ impl Translator {
     }
 
     /// Adds dotted keys to the loaded groups of the given locale and namespace.
-    pub fn addLines(
+    pub fn add_lines(
         &self,
         lines: impl IntoIterator<Item = (String, Line)>,
         locale: &str,
@@ -286,7 +288,7 @@ impl Translator {
             .unwrap_or_else(|| self.locales().locale)
     }
 
-    pub async fn withLocale<T>(
+    pub async fn with_locale<T>(
         &self,
         locale: &str,
         operation: impl Future<Output = T>,
@@ -313,31 +315,31 @@ impl Translator {
             .is_some_and(|line| line.exists(key)))
     }
 
-    pub fn hasForLocale(&self, key: &str, locale: Option<&str>) -> TranslationResult<bool> {
+    pub fn has_for_locale(&self, key: &str, locale: Option<&str>) -> TranslationResult<bool> {
         self.has(key, locale, false)
     }
 
     /// Installs an application-level handler for missing keys.
-    pub fn handleMissingKeysUsing(
+    pub fn handle_missing_keys_using(
         &self,
         handler: impl Fn(MissingTranslation<'_>) -> Option<String> + Send + Sync + 'static,
     ) {
         self.hooks.set_missing(Some(Arc::new(handler)));
     }
 
-    pub fn clearMissingKeyHandler(&self) {
+    pub fn clear_missing_key_handler(&self) {
         self.hooks.set_missing(None);
     }
 
     /// Replaces the search order for grouped translations with fallback enabled.
-    pub fn determineLocalesUsing(
+    pub fn determine_locales_using(
         &self,
         resolver: impl Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
     ) {
         self.hooks.set_locales(Some(Arc::new(resolver)));
     }
 
-    pub fn clearLocaleResolver(&self) {
+    pub fn clear_locale_resolver(&self) {
         self.hooks.set_locales(None);
     }
 
@@ -402,7 +404,7 @@ impl Translator {
     }
 
     /// Translates text with ordered scalar, tag, and object replacements.
-    pub fn stringWith(
+    pub fn string_with(
         &self,
         key: &str,
         args: &[(&str, Replacement<'_>)],
@@ -439,7 +441,7 @@ impl Translator {
     }
 
     /// Applies ordered replacements to every text leaf in a group or list.
-    pub fn arrayWith(
+    pub fn array_with(
         &self,
         key: &str,
         args: &[(&str, Replacement<'_>)],
@@ -484,7 +486,7 @@ impl Translator {
     }
 
     /// Selects a plural form before invoking replacement callbacks.
-    pub fn choiceWith(
+    pub fn choice_with(
         &self,
         key: &str,
         count: impl Into<PluralCount>,
@@ -514,7 +516,7 @@ impl Translator {
             .filter(|found| found.exists(key))
         {
             Some(line) => Some(line),
-            None => self.lookup(key, &self.getFallback(), true)?,
+            None => self.lookup(key, &self.get_fallback(), true)?,
         };
         let (line, selected) = match found {
             Some(ResolvedLine {
@@ -524,11 +526,11 @@ impl Translator {
             }) => (line, locale),
             Some(_) => return Err(TranslationError::UnexpectedType),
             None => (
-                self.missing(key, &Replacements::new(), &self.getFallback()),
-                self.getFallback(),
+                self.missing(key, &Replacements::new(), &self.get_fallback()),
+                self.get_fallback(),
             ),
         };
-        self.getSelector().choose(&line, count, &selected)
+        self.get_selector().choose(&line, count, &selected)
     }
 
     fn resolve_locale(&self, locale: Option<&str>) -> TranslationResult<String> {
@@ -573,7 +575,7 @@ impl Translator {
                     literal: false,
                 }));
         }
-        for locale in self.hooks.locales(locale, &self.getFallback())? {
+        for locale in self.hooks.locales(locale, &self.get_fallback())? {
             if let Some(line) = self.group_line(&locale, group, namespace, item)? {
                 return Ok(Some(ResolvedLine {
                     line,
@@ -683,7 +685,7 @@ impl Translator {
     pub fn set_locale(&self, locale: &str) -> TranslationResult<()> {
         <Self as Contract>::set_locale(self, locale)
     }
-    pub fn getFallback(&self) -> String {
+    pub fn get_fallback(&self) -> String {
         self.locales().fallback
     }
     pub fn set_fallback(&self, fallback: &str) -> TranslationResult<()> {
@@ -692,8 +694,8 @@ impl Translator {
 }
 
 impl Contract for Translator {
-    fn getFallback(&self) -> String {
-        self.getFallback()
+    fn get_fallback(&self) -> String {
+        self.get_fallback()
     }
     fn set_fallback(&self, fallback: &str) -> TranslationResult<()> {
         let fallback = canonical_locale(fallback)?;

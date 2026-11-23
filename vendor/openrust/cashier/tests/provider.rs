@@ -71,7 +71,7 @@ fn customer(
             .retrieve("customers", "cus_1")
             .await
             .map_err(|_| openrust::http::HttpError::InvalidRequest)?;
-        Cashier::forgetDrivers().unwrap();
+        Cashier::forget_drivers().unwrap();
         Ok(openrust::http::Response::new(
             http::StatusCode::OK,
             openrust::http::Body::empty(),
@@ -145,7 +145,7 @@ async fn canonical_provider_configuration_and_named_account_overrides_are_distin
         "Bearer api_secret_fixture"
     );
     repo.set("cashier.drivers", json!({})).unwrap();
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert_eq!(
         manager.driver("stripe").unwrap().provider(),
         Provider::Stripe

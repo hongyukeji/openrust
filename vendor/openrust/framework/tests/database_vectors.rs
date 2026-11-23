@@ -39,7 +39,7 @@ impl Model for Document {
         &mut self.0
     }
 
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("visible", &VisibleDocuments)]
     }
 }
@@ -68,14 +68,14 @@ async fn vector_queries_compile_native_expressions_and_keep_binding_order() {
         let connection = connection(driver, None);
         let mut query = connection
             .table("documents as d")
-            .orderByVectorDistance("d.embedding", &[0.0, 1.0])
+            .order_by_vector_distance("d.embedding", &[0.0, 1.0])
             .unwrap()
             .r#where("d.id", ">", 4)
-            .orWhereVectorDistanceLessThan("d.embedding", &[1.0, 0.0], 0.5)
+            .or_where_vector_distance_less_than("d.embedding", &[1.0, 0.0], 0.5)
             .unwrap()
-            .selectVectorDistance("d.embedding", &[0.5, 0.5], None)
+            .select_vector_distance("d.embedding", &[0.5, 0.5], None)
             .unwrap();
-        let sql = query.toSql().unwrap();
+        let sql = query.to_sql().unwrap();
         assert!(sql.contains(&format!("select {expression} as")));
         assert!(sql.contains("embedding_distance"));
         assert!(sql.contains(&format!("or {expression} <= ?")));
@@ -95,11 +95,11 @@ async fn vector_queries_compile_native_expressions_and_keep_binding_order() {
             .table("documents")
             .select(["embedding"])
             .r#where("id", ">", 3)
-            .unionAll(&mut other)
+            .union_all(&mut other)
             .unwrap()
-            .orderByVectorDistance("embedding", &[1.0, 0.0])
+            .order_by_vector_distance("embedding", &[1.0, 0.0])
             .unwrap();
-        assert!(union.toSql().unwrap().contains("union all"));
+        assert!(union.to_sql().unwrap().contains("union all"));
         assert_eq!(
             union.get_bindings().unwrap(),
             [3.into(), "[1.0,0.0]".into()]
@@ -113,7 +113,7 @@ async fn vector_queries_reject_unsupported_drivers_and_invalid_inputs() {
         assert!(matches!(
             connection(driver, None)
                 .table("documents")
-                .orderByVectorDistance("embedding", &[1.0, 0.0]),
+                .order_by_vector_distance("embedding", &[1.0, 0.0]),
             Err(DatabaseError::UnsupportedOperation(
                 "vector distance queries"
             ))
@@ -123,18 +123,18 @@ async fn vector_queries_reject_unsupported_drivers_and_invalid_inputs() {
     for invalid in [&[][..], &[f64::NAN], &[f64::INFINITY]] {
         assert!(matches!(
             db.table("documents")
-                .selectVectorDistance("embedding", invalid, None),
+                .select_vector_distance("embedding", invalid, None),
             Err(DatabaseError::InvalidQuery(_))
         ));
     }
     assert!(matches!(
         db.table("documents")
-            .whereVectorSimilarTo("embedding", &[1.0], 1.5, true),
+            .where_vector_similar_to("embedding", &[1.0], 1.5, true),
         Err(DatabaseError::InvalidQuery(_))
     ));
     assert!(matches!(
         db.table("documents")
-            .whereVectorDistanceLessThan("embedding", &[1.0], f64::NAN),
+            .where_vector_distance_less_than("embedding", &[1.0], f64::NAN),
         Err(DatabaseError::InvalidQuery(_))
     ));
 }
@@ -146,12 +146,12 @@ async fn nested_vector_predicates_compile_with_the_outer_query_grammar() {
         let mut query = db
             .table("documents")
             .r#where("id", "<", 3)
-            .whereNested(|group| {
+            .where_nested(|group| {
                 group
-                    .whereVectorDistanceLessThan("embedding", &[1.0, 0.0], 0.3)
-                    .orWhereVectorDistanceLessThan("embedding", &[0.0, 1.0], 0.0)
+                    .where_vector_distance_less_than("embedding", &[1.0, 0.0], 0.3)
+                    .or_where_vector_distance_less_than("embedding", &[0.0, 1.0], 0.0)
             });
-        let sql = query.toSql().unwrap();
+        let sql = query.to_sql().unwrap();
         assert!(sql.contains("< ? and ("));
         assert!(sql.contains(" <= ? or "));
         assert!(sql.ends_with(" <= ?)"));
@@ -170,8 +170,8 @@ async fn nested_vector_predicates_compile_with_the_outer_query_grammar() {
     assert!(matches!(
         sqlite
             .table("documents")
-            .whereNested(|group| group.whereVectorDistanceLessThan("embedding", &[1.0], 0.3))
-            .toSql(),
+            .where_nested(|group| group.where_vector_distance_less_than("embedding", &[1.0], 0.3))
+            .to_sql(),
         Err(DatabaseError::UnsupportedOperation(
             "vector distance queries"
         ))
@@ -202,11 +202,11 @@ async fn verify_distances(db: &Connection) {
     let rows = db
         .table("documents")
         .select(["id"])
-        .selectVectorDistance("embedding", &vector, Some("distance"))
+        .select_vector_distance("embedding", &vector, Some("distance"))
         .unwrap()
-        .whereVectorDistanceLessThan("embedding", &vector, 0.3)
+        .where_vector_distance_less_than("embedding", &vector, 0.3)
         .unwrap()
-        .orderByVectorDistance("embedding", &vector)
+        .order_by_vector_distance("embedding", &vector)
         .unwrap()
         .get()
         .await
@@ -224,9 +224,9 @@ async fn verify_distances(db: &Connection) {
     let matches = db
         .table("documents")
         .select(["id"])
-        .whereVectorSimilarTo("embedding", &vector, 0.7, false)
+        .where_vector_similar_to("embedding", &vector, 0.7, false)
         .unwrap()
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap();
@@ -234,7 +234,7 @@ async fn verify_distances(db: &Connection) {
     let exact = db
         .table("documents")
         .select(["id"])
-        .whereVectorSimilarTo("embedding", &vector, 1.0, true)
+        .where_vector_similar_to("embedding", &vector, 1.0, true)
         .unwrap()
         .get()
         .await
@@ -244,9 +244,9 @@ async fn verify_distances(db: &Connection) {
         .table("documents")
         .select(["id"])
         .r#where("id", "=", 3)
-        .orWhereVectorDistanceLessThan("embedding", &vector, 0.0)
+        .or_where_vector_distance_less_than("embedding", &vector, 0.0)
         .unwrap()
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap();
@@ -260,40 +260,40 @@ async fn verify_model_queries(db: &Connection) {
         .table("documents")
         .select(["id"])
         .r#where("id", "<", 3)
-        .whereNested(|group| {
+        .where_nested(|group| {
             group
-                .whereVectorDistanceLessThan("embedding", &vector, 0.3)
-                .orWhereVectorDistanceLessThan("embedding", &orthogonal, 0.0)
+                .where_vector_distance_less_than("embedding", &vector, 0.3)
+                .or_where_vector_distance_less_than("embedding", &orthogonal, 0.0)
         })
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap();
     assert_eq!(ids(&rows), [1, 2]);
 
-    let mut query = Document::queryOn(db)
+    let mut query = Document::query_on(db)
         .select(["id"])
-        .selectVectorDistance("embedding", &vector, Some("distance"))
+        .select_vector_distance("embedding", &vector, Some("distance"))
         .unwrap()
-        .whereVectorSimilarTo("embedding", &vector, 0.7, true)
+        .where_vector_similar_to("embedding", &vector, 0.7, true)
         .unwrap();
     // The orthogonal document satisfies the OR arm but is outside the global scope.
-    query.orWhereVectorDistanceLessThan("embedding", &orthogonal, 0.0);
+    query.or_where_vector_distance_less_than("embedding", &orthogonal, 0.0);
     let rows = query.get().await.unwrap();
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0].getAttribute("id"), Some(&2.into()));
-    assert_eq!(rows[1].getAttribute("id"), Some(&1.into()));
+    assert_eq!(rows[0].get_attribute("id"), Some(&2.into()));
+    assert_eq!(rows[1].get_attribute("id"), Some(&1.into()));
     assert!(
-        matches!(rows[1].getAttribute("distance"), Some(Value::Real(distance)) if (*distance - 0.2).abs() < 1e-6)
+        matches!(rows[1].get_attribute("distance"), Some(Value::Real(distance)) if (*distance - 0.2).abs() < 1e-6)
     );
 
-    let mut query = Document::queryOn(db).select(["id"]).orderBy("id", "asc");
+    let mut query = Document::query_on(db).select(["id"]).order_by("id", "asc");
     query
-        .whereVectorDistanceLessThan("embedding", &vector, 0.3)
-        .whereNested(|group| group.orWhereVectorDistanceLessThan("embedding", &vector, 0.3));
+        .where_vector_distance_less_than("embedding", &vector, 0.3)
+        .where_nested(|group| group.or_where_vector_distance_less_than("embedding", &vector, 0.3));
     let rows = query.get().await.unwrap();
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0].getAttribute("id"), Some(&1.into()));
+    assert_eq!(rows[0].get_attribute("id"), Some(&1.into()));
 }
 
 #[tokio::test]
@@ -306,12 +306,12 @@ async fn vector_queries_run_on_pgvector() {
     db.transaction(
         |transaction| {
             Box::pin(async move {
-                let mut schema = transaction.getSchemaBuilder();
+                let mut schema = transaction.get_schema_builder();
                 let error = schema
                     .table("documents", |table| {
                         table.integer("online_probe");
                         table
-                            .vectorIndex("embedding", Some("online_probe_idx"))
+                            .vector_index("embedding", Some("online_probe_idx"))
                             .online();
                     })
                     .await
@@ -322,7 +322,7 @@ async fn vector_queries_run_on_pgvector() {
                         "PostgreSQL online indexes require autocommit"
                     )
                 ));
-                assert!(!schema.hasColumn("documents", "online_probe").await?);
+                assert!(!schema.has_column("documents", "online_probe").await?);
                 Ok(())
             })
         },
@@ -331,32 +331,32 @@ async fn vector_queries_run_on_pgvector() {
     .await
     .unwrap();
 
-    let mut session = db.getSchemaBuilder().session().await.unwrap();
-    let mut schema = session.getSchemaBuilder();
+    let mut session = db.get_schema_builder().session().await.unwrap();
+    let mut schema = session.get_schema_builder();
     schema
         .table("documents", |table| {
             table
-                .vectorIndex("embedding", Some("session_online_probe"))
+                .vector_index("embedding", Some("session_online_probe"))
                 .online();
         })
         .await
         .unwrap();
     assert!(
         schema
-            .hasIndex("documents", "session_online_probe")
+            .has_index("documents", "session_online_probe")
             .await
             .unwrap()
     );
     schema
         .table("documents", |table| {
-            table.dropVectorIndex("session_online_probe")
+            table.drop_vector_index("session_online_probe")
         })
         .await
         .unwrap();
     session.close().await.unwrap();
     let rows = db
         .table("documents")
-        .whereVectorSimilarTo("embedding", &[1.0, 0.0], 0.7, true)
+        .where_vector_similar_to("embedding", &[1.0, 0.0], 0.7, true)
         .unwrap()
         .get()
         .await
@@ -377,7 +377,7 @@ async fn vector_queries_run_on_mariadb() {
     verify_model_queries(&db).await;
     let rows = db
         .table("documents")
-        .whereVectorSimilarTo("embedding", &[1.0, 0.0], 0.7, true)
+        .where_vector_similar_to("embedding", &[1.0, 0.0], 0.7, true)
         .unwrap()
         .get()
         .await

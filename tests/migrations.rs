@@ -166,8 +166,8 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection, path:
         ledger().pluck("migration").await.unwrap(),
         [migration_name.into()]
     );
-    let mut schema = db.getSchemaBuilder();
-    let columns = schema.getColumns("personal_access_tokens").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    let columns = schema.get_columns("personal_access_tokens").await.unwrap();
     assert_eq!(
         columns
             .iter()
@@ -186,7 +186,7 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection, path:
             "updated_at",
         ]
     );
-    let indexes = schema.getIndexes("personal_access_tokens").await.unwrap();
+    let indexes = schema.get_indexes("personal_access_tokens").await.unwrap();
     for (columns, unique) in [
         (&["id"][..], true),
         (&["tokenable_type", "tokenable_id"][..], false),
@@ -238,21 +238,21 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection, path:
         1
     );
     assert!(run(&["migrate:rollback", "--path", path, "--step=1"]).contains("DONE"));
-    assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
+    assert!(!schema.has_table("personal_access_tokens").await.unwrap());
     assert_eq!(ledger().count("*").await.unwrap(), 0);
     assert!(run(&["migrate", "--path", path]).contains("DONE"));
     assert_eq!(
         ledger().pluck("migration").await.unwrap(),
         [migration_name.into()]
     );
-    assert!(schema.hasTable("personal_access_tokens").await.unwrap());
+    assert!(schema.has_table("personal_access_tokens").await.unwrap());
     assert_eq!(
         db.table("personal_access_tokens").count("*").await.unwrap(),
         0
     );
     assert!(run(&["migrate:rollback", "--path", path, "--step=1"]).contains("DONE"));
-    assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
-    assert!(schema.hasTable("users").await.unwrap());
+    assert!(!schema.has_table("personal_access_tokens").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
     assert!(run(&["migrate", "--path", path]).contains("DONE"));
     verify_token_storage(db).await;
     db.table("personal_access_tokens").delete().await.unwrap();
@@ -349,10 +349,10 @@ async fn verify_token_storage(db: &Connection) {
         );
         assert_eq!(token.expires_at, Some(expiry));
         assert!(token.can("read") && token.cant("write"));
-        assert!(!token.isExpired(expiry - jiff::SignedDuration::from_secs(1), None));
-        assert!(!token.isExpired(expiry, None));
-        assert!(token.isExpired(expiry + jiff::SignedDuration::from_secs(1), None));
-        assert!(token.isExpired(
+        assert!(!token.is_expired(expiry - jiff::SignedDuration::from_secs(1), None));
+        assert!(!token.is_expired(expiry, None));
+        assert!(token.is_expired(expiry + jiff::SignedDuration::from_secs(1), None));
+        assert!(token.is_expired(
             token.created_at.unwrap() + jiff::SignedDuration::from_mins(1),
             Some(jiff::SignedDuration::from_mins(1))
         ));
@@ -401,7 +401,7 @@ fn crc32fast_for_fixture(bytes: &[u8]) -> u32 {
 async fn verify(mysql: Option<&str>) {
     let root = Root::new();
     let db = root.connection(mysql);
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     for name in [
         "personal_access_tokens",
         "sms_deliveries",
@@ -420,7 +420,7 @@ async fn verify(mysql: Option<&str>) {
         "users",
         "migrations",
     ] {
-        schema.dropIfExists(name).await.unwrap();
+        schema.drop_if_exists(name).await.unwrap();
     }
     let run = |args: &[&str]| root.run("local", mysql, args);
     let rollback_sms = || {
@@ -440,12 +440,12 @@ async fn verify(mysql: Option<&str>) {
     );
     assert_eq!(cancelled.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&cancelled.stdout).contains("cancelled"));
-    assert!(!schema.hasTable("migrations").await.unwrap());
+    assert!(!schema.has_table("migrations").await.unwrap());
 
     let preview = success(run(&["migrate", "--pretend"]));
     assert!(preview.contains("create table") && preview.contains("users"));
     assert!(preview.contains("job_batches"));
-    assert!(!schema.hasTable("users").await.unwrap());
+    assert!(!schema.has_table("users").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
     assert!(success(run(&["migrate:status", "--pending"])).contains("Pending"));
     let pending = run(&["migrate:status", "--pending=17"]);
@@ -468,8 +468,8 @@ async fn verify(mysql: Option<&str>) {
     );
     assert!(success(run(&["migrate:status"])).contains("[1] Ran"));
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 1);
-    assert!(schema.hasTable("users").await.unwrap());
-    assert!(schema.hasTable("sessions").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
+    assert!(schema.has_table("sessions").await.unwrap());
     schema
         .create("cache", |table| {
             table.id();
@@ -482,26 +482,26 @@ async fn verify(mysql: Option<&str>) {
     let graceful = success(run(&["migrate", "--graceful"]));
     assert!(graceful.contains("WARN") && graceful.contains("create_cache_table"));
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 1);
-    assert!(schema.hasTable("users").await.unwrap());
-    assert!(!schema.hasTable("jobs").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
+    assert!(!schema.has_table("jobs").await.unwrap());
     schema.drop("cache").await.unwrap();
     let repaired = success(run(&["migrate", "--graceful"]));
     assert!(repaired.contains("DONE") && !repaired.contains("WARN"));
-    assert!(schema.hasTable("cache").await.unwrap());
-    assert!(schema.hasTable("cache_locks").await.unwrap());
-    assert!(schema.hasTable("jobs").await.unwrap());
-    assert!(schema.hasTable("failed_jobs").await.unwrap());
-    assert!(schema.hasTable("job_batches").await.unwrap());
+    assert!(schema.has_table("cache").await.unwrap());
+    assert!(schema.has_table("cache_locks").await.unwrap());
+    assert!(schema.has_table("jobs").await.unwrap());
+    assert!(schema.has_table("failed_jobs").await.unwrap());
+    assert!(schema.has_table("job_batches").await.unwrap());
     let preview = success(run(&["migrate:rollback", "--pretend"]));
     assert!(preview.contains("create_cache_table:") && !preview.contains("create_users_table:"));
-    assert!(schema.hasTable("cache").await.unwrap());
+    assert!(schema.has_table("cache").await.unwrap());
     let rollback = success(run(&["migrate:rollback"]));
     assert!(
         rollback.contains("create_cache_table DONE")
             && !rollback.contains("create_users_table DONE")
     );
-    assert!(!schema.hasTable("cache").await.unwrap());
-    assert!(schema.hasTable("users").await.unwrap());
+    assert!(!schema.has_table("cache").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 1);
     assert!(success(run(&["migrate"])).contains("create_cache_table DONE"));
     verify_batches(db.clone()).await;
@@ -524,14 +524,14 @@ async fn verify(mysql: Option<&str>) {
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
-    assert!(schema.hasTable("users").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
     assert_eq!(
-        schema.hasTable("personal_access_tokens").await.unwrap(),
+        schema.has_table("personal_access_tokens").await.unwrap(),
         sanctum_migration().is_some()
     );
-    assert!(schema.hasTable("sms_deliveries").await.unwrap());
+    assert!(schema.has_table("sms_deliveries").await.unwrap());
     rollback_sms();
-    assert!(!schema.hasTable("sms_deliveries").await.unwrap());
+    assert!(!schema.has_table("sms_deliveries").await.unwrap());
     if let Some(path) = sanctum_migration() {
         #[cfg(feature = "sanctum")]
         verify_sanctum(&root, mysql, &db, path).await;
@@ -539,9 +539,9 @@ async fn verify(mysql: Option<&str>) {
         assert!(success(run(&["migrate:rollback", "--path", path, "--step=1"])).contains("DONE"));
     }
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_jobs_table"));
-    assert!(!schema.hasTable("job_batches").await.unwrap());
-    assert!(!schema.hasTable("failed_jobs").await.unwrap());
-    assert!(!schema.hasTable("jobs").await.unwrap());
+    assert!(!schema.has_table("job_batches").await.unwrap());
+    assert!(!schema.has_table("failed_jobs").await.unwrap());
+    assert!(!schema.has_table("jobs").await.unwrap());
     let upgrade = success(run(&["migrate"]));
     assert!(upgrade.contains("create_jobs_table"));
     assert!(upgrade.contains("create_sms_deliveries_table"));
@@ -554,18 +554,18 @@ async fn verify(mysql: Option<&str>) {
         );
     }
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_jobs_table"));
-    assert!(!schema.hasTable("failed_jobs").await.unwrap());
-    assert!(!schema.hasTable("jobs").await.unwrap());
-    assert!(schema.hasTable("cache").await.unwrap());
+    assert!(!schema.has_table("failed_jobs").await.unwrap());
+    assert!(!schema.has_table("jobs").await.unwrap());
+    assert!(schema.has_table("cache").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("cache").await.unwrap());
-    assert!(schema.hasTable("users").await.unwrap());
+    assert!(!schema.has_table("cache").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("users").await.unwrap());
+    assert!(!schema.has_table("users").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
 
     success(run(&["migrate:refresh"]));
-    assert!(schema.hasTable("users").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
     db.statement(
         "insert into users (name, email, password) values ('Hold', 'hold@example.test', 'example')",
         &[],
@@ -594,13 +594,13 @@ async fn verify(mysql: Option<&str>) {
         .await
         .unwrap();
         success(run(&["migrate:fresh", "--drop-views"]));
-        assert!(!schema.hasTable("extra").await.unwrap());
+        assert!(!schema.has_table("extra").await.unwrap());
         assert!(db.select("select * from extra_view", &[]).await.is_err());
-        assert!(schema.hasTable("users").await.unwrap());
+        assert!(schema.has_table("users").await.unwrap());
     }
     success(run(&["migrate:reset"]));
-    assert!(!schema.hasTable("users").await.unwrap());
-    assert!(!schema.hasTable("jobs").await.unwrap());
+    assert!(!schema.has_table("users").await.unwrap());
+    assert!(!schema.has_table("jobs").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
 }
 
@@ -729,7 +729,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     };
     let root = Root::new();
     let db = root.connection(Some(&url));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     let run = |args: &[&str]| root.run("local", Some(&url), args);
     success(run(&["db:wipe", "--drop-views"]));
     success(run(&["migrate"]));
@@ -737,19 +737,19 @@ async fn mysql_fresh_wipes_the_selected_schema() {
         "create table wipe_parent (id bigint primary key);          create table wipe_child (parent bigint references wipe_parent(id));          create view wipe_view as select id from wipe_parent",
     ).await.unwrap();
     success(run(&["migrate:fresh", "--drop-views", "--step"]));
-    assert!(!schema.hasTable("wipe_parent").await.unwrap());
+    assert!(!schema.has_table("wipe_parent").await.unwrap());
     assert!(db.select("select * from wipe_view", &[]).await.is_err());
-    assert!(schema.hasTable("users").await.unwrap());
-    assert!(schema.hasTable("cache").await.unwrap());
-    assert!(schema.hasTable("cache_locks").await.unwrap());
-    assert!(schema.hasTable("jobs").await.unwrap());
-    assert!(schema.hasTable("failed_jobs").await.unwrap());
-    assert!(schema.hasTable("job_batches").await.unwrap());
+    assert!(schema.has_table("users").await.unwrap());
+    assert!(schema.has_table("cache").await.unwrap());
+    assert!(schema.has_table("cache_locks").await.unwrap());
+    assert!(schema.has_table("jobs").await.unwrap());
+    assert!(schema.has_table("failed_jobs").await.unwrap());
+    assert!(schema.has_table("job_batches").await.unwrap());
     assert_application_migration_ledger(&db).await;
     success(run(&["db:wipe", "--drop-views"]));
     assert!(
         schema
-            .getTables(Some(db.getDatabaseName()))
+            .get_tables(Some(db.get_database_name()))
             .await
             .unwrap()
             .is_empty()
@@ -803,7 +803,7 @@ async fn mysql_artisan_migrate_isolated_coordinates_two_real_processes() {
     );
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
 
-    let mut gate = db.beginTransaction().await.unwrap();
+    let mut gate = db.begin_transaction().await.unwrap();
     // The empty InnoDB ledger range prevents the first process from recording a migration.
     gate.select("select id from migrations where id >= 0 for update", &[])
         .await
@@ -843,7 +843,7 @@ async fn mysql_artisan_migrate_isolated_coordinates_two_real_processes() {
     );
     assert_eq!(redis.get(&key).await.unwrap(), Some(owner));
 
-    gate.rollBack(None).await.unwrap();
+    gate.roll_back(None).await.unwrap();
     let output = tokio::time::timeout(Duration::from_secs(15), holder.wait_with_output())
         .await
         .expect("migration holder finished after releasing the ledger")
@@ -1014,15 +1014,15 @@ async fn sqlite_artisan_dumps_and_restores_schema_and_migration_history() {
     let failed = target.run("local", None, &["migrate", "--schema-path=broken.sql"]);
     assert_eq!(failed.status.code(), Some(1));
     let restored = target.connection(None);
-    let mut schema = restored.getSchemaBuilder();
-    assert!(!schema.hasTable("partial_snapshot").await.unwrap());
+    let mut schema = restored.get_schema_builder();
+    assert!(!schema.has_table("partial_snapshot").await.unwrap());
     assert_eq!(restored.table("migrations").count("*").await.unwrap(), 0);
     let path = snapshot.to_str().unwrap();
     let options = ["migrate", "--schema-path", path, "--path", migration];
     let output = success(target.run("local", None, &options));
     assert!(output.contains("Loading stored database schemas."));
     assert!(output.contains("Nothing to migrate."));
-    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert!(schema.has_view("snapshot_view").await.unwrap());
     assert_eq!(restored.table("migrations").count("*").await.unwrap(), 1);
     assert_eq!(restored.table("snapshot_rows").count("*").await.unwrap(), 0);
     assert_eq!(
@@ -1061,7 +1061,7 @@ async fn sqlite_artisan_dumps_and_restores_schema_and_migration_history() {
         ],
     ));
     assert!(fresh.contains("Loading stored database schemas."));
-    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert!(schema.has_view("snapshot_view").await.unwrap());
     assert_eq!(restored.table("snapshot_rows").count("*").await.unwrap(), 0);
 
     let memory = success(
@@ -1174,9 +1174,9 @@ async fn artisan_dumps_and_restores_schema_and_migration_history(driver: &str, u
     assert!(applications.join("mod.rs").is_file() && applications.join("notes.txt").is_file());
 
     success(run(&["db:wipe", "--drop-views"]));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     assert!(success(run(&["migrate", "--pretend"])).contains(name));
-    assert!(!schema.hasTable("snapshot_rows").await.unwrap());
+    assert!(!schema.has_table("snapshot_rows").await.unwrap());
     let invalid = root.0.join("database/schema/invalid.sql");
     fs::write(&invalid, "THIS IS INVALID SQL;").unwrap();
     let failed = run(&["migrate", "--schema-path=database/schema/invalid.sql"]);
@@ -1185,13 +1185,13 @@ async fn artisan_dumps_and_restores_schema_and_migration_history(driver: &str, u
         String::from_utf8_lossy(&failed.stderr)
             .contains(&format!("database schema command {driver} failed"))
     );
-    assert!(!schema.hasTable("migrations").await.unwrap());
+    assert!(!schema.has_table("migrations").await.unwrap());
 
     let output = success(run(&["migrate"]));
     assert!(output.contains("Loading stored database schemas."));
     assert!(!output.contains(&format!("{name} DONE")));
-    assert!(schema.hasTable("snapshot_rows").await.unwrap());
-    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert!(schema.has_table("snapshot_rows").await.unwrap());
+    assert!(schema.has_view("snapshot_view").await.unwrap());
     assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
     db.statement(
         "insert into snapshot_rows (label) values ('trigger restored')",
@@ -1219,7 +1219,7 @@ async fn artisan_dumps_and_restores_schema_and_migration_history(driver: &str, u
     ]));
     assert!(output.contains("Loading stored database schemas."));
     assert!(!output.contains(&format!("{name} DONE")));
-    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert!(schema.has_view("snapshot_view").await.unwrap());
     assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
 
     let (endpoint, _) = url.rsplit_once('/').unwrap();
@@ -1244,7 +1244,7 @@ async fn artisan_dumps_and_restores_schema_and_migration_history(driver: &str, u
     let output = success(run(&["migrate:refresh", "--no-interaction"]));
     assert!(output.contains("Loading stored database schemas."));
     assert!(!output.contains(&format!("{name} DONE")));
-    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert!(schema.has_view("snapshot_view").await.unwrap());
     assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
     assert!(db.table("migrations").count("*").await.unwrap() > 1);
 }
@@ -1303,7 +1303,13 @@ async fn mysql_artisan_creates_only_confirmed_missing_databases() {
     assert!(output.contains("create_users_table DONE"));
     assert!(exists(name).await);
     let created = root.connection(Some(target.as_str()));
-    assert!(created.getSchemaBuilder().hasTable("users").await.unwrap());
+    assert!(
+        created
+            .get_schema_builder()
+            .has_table("users")
+            .await
+            .unwrap()
+    );
     let recorded = created.table("migrations").count("*").await.unwrap();
     assert!(recorded > 0);
     assert!(
@@ -1339,14 +1345,20 @@ async fn mysql_artisan_creates_only_confirmed_missing_databases() {
             .contains("create_users_table DONE")
     );
     let fresh_db = root.connection(Some(&fresh_url));
-    assert!(fresh_db.getSchemaBuilder().hasTable("users").await.unwrap());
+    assert!(
+        fresh_db
+            .get_schema_builder()
+            .has_table("users")
+            .await
+            .unwrap()
+    );
     assert!(fresh_db.table("migrations").count("*").await.unwrap() > 0);
 
     let existing_name = "openrust-fresh-no-ledger";
     let existing_url = format!("{endpoint}/{existing_name}");
     admin
-        .getSchemaBuilder()
-        .createDatabase(existing_name)
+        .get_schema_builder()
+        .create_database(existing_name)
         .await
         .unwrap();
     let existing = root.connection(Some(&existing_url));
@@ -1364,12 +1376,18 @@ async fn mysql_artisan_creates_only_confirmed_missing_databases() {
     ));
     assert!(
         existing
-            .getSchemaBuilder()
-            .hasTable("independent_sentinel")
+            .get_schema_builder()
+            .has_table("independent_sentinel")
             .await
             .unwrap()
     );
-    assert!(existing.getSchemaBuilder().hasTable("users").await.unwrap());
+    assert!(
+        existing
+            .get_schema_builder()
+            .has_table("users")
+            .await
+            .unwrap()
+    );
 }
 
 #[test]

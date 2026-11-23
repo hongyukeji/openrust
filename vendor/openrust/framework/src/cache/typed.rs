@@ -19,7 +19,7 @@ macro_rules! typed_reads {
                 where
                     F: Future<Output = CacheResult<Value>>,
                 {
-                    let value = self.getOrElse(key, default).await?;
+                    let value = self.get_or_else(key, default).await?;
                     ($parse)(value).ok_or_else(|| CacheError::InvalidType { key: key.into(), expected: $expected })
                 }
             )+

@@ -359,13 +359,13 @@ fn login(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let fresh = r.input(Some("fresh")).await?.is_some();
         let mut p = Oidc::provider("work", r).map_err(internal)?;
         if force {
-            p.prompt("login").maxAge(0);
+            p.prompt("login").max_age(0);
         }
         if silent {
             p.prompt("none");
         }
         if fresh {
-            p.maxAge(60);
+            p.max_age(60);
         }
         Ok(p.redirect().await.map_err(internal)?.into())
     })
@@ -555,7 +555,7 @@ async fn mysql_browser_two_rps_sso_reauthentication_and_logout_boundaries() {
         .connection(None)
         .unwrap();
     let version = db
-        .selectOne("SELECT VERSION() AS version", &[])
+        .select_one("SELECT VERSION() AS version", &[])
         .await
         .unwrap()
         .unwrap();

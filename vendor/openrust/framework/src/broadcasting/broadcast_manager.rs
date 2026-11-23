@@ -125,7 +125,7 @@ impl Broadcaster for LocalBroadcaster {
         Box::pin(async { Err(BroadcastException::AccessDenied) })
     }
 
-    fn validAuthenticationResponse<'a>(
+    fn valid_authentication_response<'a>(
         &'a self,
         _: &'a mut Request,
         _: ChannelAuthorization,

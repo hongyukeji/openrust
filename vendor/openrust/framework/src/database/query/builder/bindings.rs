@@ -59,9 +59,8 @@ fn index(kind: Option<&str>) -> DatabaseResult<usize> {
         .ok_or(DatabaseError::InvalidQuery("绑定类别无效"))
 }
 
-#[allow(non_snake_case, reason = "保留查询构建器公开方法名")]
 impl Builder<'_> {
-    pub fn getRawBindings(&self) -> DatabaseResult<IndexMap<&'static str, Vec<Value>>> {
+    pub fn get_raw_bindings(&self) -> DatabaseResult<IndexMap<&'static str, Vec<Value>>> {
         TYPES
             .iter()
             .enumerate()
@@ -73,14 +72,14 @@ impl Builder<'_> {
             .collect()
     }
 
-    pub fn setBindings(mut self, values: Vec<Value>, kind: Option<&str>) -> DatabaseResult<Self> {
+    pub fn set_bindings(mut self, values: Vec<Value>, kind: Option<&str>) -> DatabaseResult<Self> {
         let kind = index(kind)?;
         let prefix = self.natural_bindings(kind)?.len();
         self.binding_changes.get_or_insert_default()[kind] = Some(Change { values, prefix });
         Ok(self)
     }
 
-    pub fn addBinding(
+    pub fn add_binding(
         self,
         values: impl Into<BindingValues>,
         kind: Option<&str>,
@@ -92,13 +91,13 @@ impl Builder<'_> {
             BindingValues::Value(value) => bindings.push(value),
             BindingValues::Values(values) => bindings.extend(values),
         }
-        self.setBindings(bindings, kind)
+        self.set_bindings(bindings, kind)
     }
 
-    pub fn mergeBindings(mut self, query: &Builder<'_>) -> DatabaseResult<Self> {
-        let incoming = query.getRawBindings()?;
+    pub fn merge_bindings(mut self, query: &Builder<'_>) -> DatabaseResult<Self> {
+        let incoming = query.get_raw_bindings()?;
         for (kind, values) in incoming {
-            self = self.addBinding(values, Some(kind))?;
+            self = self.add_binding(values, Some(kind))?;
         }
         Ok(self)
     }

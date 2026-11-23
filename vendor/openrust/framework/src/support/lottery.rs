@@ -47,7 +47,6 @@ impl fmt::Display for InvalidLottery {
 }
 impl std::error::Error for InvalidLottery {}
 
-#[allow(non_snake_case)]
 impl Lottery {
     pub fn odds(
         chances: impl Into<LotteryChance>,
@@ -73,38 +72,38 @@ impl Lottery {
         RESULTS.scope(RefCell::new(None), operation).await
     }
 
-    pub fn scopeSync<R>(operation: impl FnOnce() -> R) -> R {
+    pub fn scope_sync<R>(operation: impl FnOnce() -> R) -> R {
         RESULTS.sync_scope(RefCell::new(None), operation)
     }
 
-    pub fn setResultFactory(
+    pub fn set_result_factory(
         factory: impl Fn(LotteryChance, Option<u64>) -> bool + Send + Sync + 'static,
     ) {
         set_factory(Some(Arc::new(factory)));
     }
 
-    pub fn alwaysWin() {
-        Self::setResultFactory(|_, _| true);
+    pub fn always_win() {
+        Self::set_result_factory(|_, _| true);
     }
-    pub fn alwaysLose() {
-        Self::setResultFactory(|_, _| false);
+    pub fn always_lose() {
+        Self::set_result_factory(|_, _| false);
     }
-    pub fn determineResultNormally() {
+    pub fn determine_result_normally() {
         set_factory(None);
     }
-    pub fn determineResultsNormally() {
-        Self::determineResultNormally();
+    pub fn determine_results_normally() {
+        Self::determine_result_normally();
     }
     pub fn fix(sequence: impl IntoIterator<Item = bool>) {
-        Self::forceResultWithSequence(sequence, None);
+        Self::force_result_with_sequence(sequence, None);
     }
 
-    pub fn forceResultWithSequence(
+    pub fn force_result_with_sequence(
         sequence: impl IntoIterator<Item = bool>,
         when_missing: Option<Arc<ResultFactory>>,
     ) {
         let sequence = Mutex::new(sequence.into_iter().collect::<VecDeque<_>>());
-        Self::setResultFactory(move |chances, out_of| {
+        Self::set_result_factory(move |chances, out_of| {
             let next = sequence
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -159,8 +158,7 @@ impl<R, W: Fn() -> R, L: Fn() -> R> Lottery<W, L> {
         }
     }
 
-    #[allow(non_snake_case)]
-    pub fn chooseTimes(&self, times: usize) -> Vec<R> {
+    pub fn choose_times(&self, times: usize) -> Vec<R> {
         (0..times).map(|_| self.choose()).collect()
     }
 }

@@ -14,7 +14,7 @@ impl ConfirmedPasswordStatusController {
         Box::pin(async move {
             let now = now(None)
                 .map_err(internal)?
-                .asDateTime()
+                .as_date_time()
                 .timestamp()
                 .as_nanosecond()
                 .div_euclid(1_000_000_000) as i64;

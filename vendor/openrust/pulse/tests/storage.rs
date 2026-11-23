@@ -90,14 +90,14 @@ impl Fixture {
         assert!(
             !self
                 .connection
-                .getSchemaBuilder()
-                .hasTable("pulse_entries")
+                .get_schema_builder()
+                .has_table("pulse_entries")
                 .await
                 .unwrap()
         );
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists("pulse_test_migrations")
+            .get_schema_builder()
+            .drop_if_exists("pulse_test_migrations")
             .await
             .unwrap();
         self.connection.disconnect();
@@ -125,7 +125,7 @@ fn metric(timestamp: i64, key: &str, value: i64) -> Item {
 #[tokio::test]
 async fn database_storage_matches_upstream_aggregation_values_and_window_queries() {
     let fixture = Fixture::new().await;
-    if fixture.connection.getDriverName() == "pgsql" {
+    if fixture.connection.get_driver_name() == "pgsql" {
         use openrust::database::Value as Sql;
         let values = [
             Sql::Text("123456789012.12345678".into()),
@@ -143,7 +143,7 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
         ]) {
             let row = fixture
                 .connection
-                .selectOne("select cast(? as numeric) as value", &[value][..])
+                .select_one("select cast(? as numeric) as value", &[value][..])
                 .await
                 .unwrap()
                 .unwrap();
@@ -163,7 +163,7 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
         assert!(
             fixture
                 .connection
-                .selectOne(
+                .select_one(
                     "select cast(? as numeric)",
                     &[Sql::Text("invalid".into())][..]
                 )
@@ -195,9 +195,9 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
     let rows = fixture
         .connection
         .table("pulse_aggregates")
-        .orderBy("period", "asc")
-        .orderBy("aggregate", "asc")
-        .orderBy("key", "asc")
+        .order_by("period", "asc")
+        .order_by("aggregate", "asc")
+        .order_by("key", "asc")
         .get()
         .await
         .unwrap();
@@ -207,9 +207,9 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
     let rows = fixture
         .connection
         .table("pulse_aggregates")
-        .orderBy("period", "asc")
-        .orderBy("aggregate", "asc")
-        .orderBy("key", "asc")
+        .order_by("period", "asc")
+        .order_by("aggregate", "asc")
+        .order_by("key", "asc")
         .get()
         .await
         .unwrap();
@@ -350,7 +350,7 @@ async fn check_windows_atomicity_and_retention(connection: &Connection, now: i64
     storage.purge(None).await.unwrap();
     let reject = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let failure = reject.clone();
-    connection.beforeExecuting(move |sql, _, _, _| {
+    connection.before_executing(move |sql, _, _, _| {
         let fail = sql.to_ascii_lowercase().contains("insert into")
             && sql.contains("pulse_aggregates")
             && failure.load(std::sync::atomic::Ordering::SeqCst);

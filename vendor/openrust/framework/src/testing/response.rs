@@ -136,9 +136,9 @@ impl TestResponse {
         let cookie = self.cookie_value(name);
         if let Some(expected) = expected {
             let encrypter = self.encrypter.as_ref().expect("应用没有绑定 Cookie 解密器");
-            let clear = encrypter.decryptString(&cookie).expect("Cookie 解密失败");
+            let clear = encrypter.decrypt_string(&cookie).expect("Cookie 解密失败");
             let clear =
-                crate::cookie::CookieValuePrefix::validate(name, &clear, encrypter.getAllKeys())
+                crate::cookie::CookieValuePrefix::validate(name, &clear, encrypter.get_all_keys())
                     .expect("Cookie 名称前缀无效");
             assert_eq!(
                 std::str::from_utf8(clear).expect("Cookie 不是 UTF-8"),
@@ -416,7 +416,7 @@ fn normalized_text(value: &str) -> String {
     static WHITESPACE: LazyLock<regex::Regex> =
         LazyLock::new(|| regex::Regex::new(r"\s+").expect("空白匹配表达式"));
     let stripped = crate::support::Stringable::from(value)
-        .stripTags(&[])
+        .strip_tags(&[])
         .into_string();
     let decoded = crate::support::decode_html_entities(&stripped);
     WHITESPACE

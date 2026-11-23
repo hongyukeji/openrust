@@ -63,7 +63,7 @@ async fn exercise() -> CacheResult<i64> {
 async fn exercise_tags(initial: i64) -> CacheResult<()> {
     let plain = Cache::store(Some("redis"))?;
     let memo = Cache::memo(Some("redis"))?;
-    assert!(memo.supportsTags());
+    assert!(memo.supports_tags());
     let live = plain.tags(&["memo-first", "memo-second"])?;
     let first = memo.tags(&["memo-first"])?;
     let ordered = memo.tags(&["memo-first", "memo-second"])?;
@@ -90,7 +90,7 @@ async fn exercise_tags(initial: i64) -> CacheResult<()> {
     live.forever("key", &4.into()).await?;
     live.forever("missing", &5.into()).await?;
     let reopened = Cache::memo(None)?.tags(&["memo-first", "memo-second"])?;
-    assert!(reopened.flushStale().await?);
+    assert!(reopened.flush_stale().await?);
     assert_eq!(
         reopened.many(&["missing", "key", "key"]).await?,
         [None, Some(initial.into()), Some(initial.into())]
@@ -98,7 +98,7 @@ async fn exercise_tags(initial: i64) -> CacheResult<()> {
     assert!(!reopened.add("key", &6.into(), None).await?);
     assert_eq!(ordered.get("key").await?, Some(4.into()));
     live.forever("key", &9.into()).await?;
-    reopened.flushMemoized();
+    reopened.flush_memoized();
     assert_eq!(ordered.get("key").await?, Some(9.into()));
     assert_eq!(unrelated.get("key").await?, Some(7.into()));
     assert!(live.flush().await?);
@@ -342,7 +342,7 @@ async fn memo_handle_cannot_serve_a_stale_snapshot_after_its_scope_closes() -> R
     assert!(live.flush().await?);
     assert_eq!(tagged.get("example").await?, None);
     assert!(matches!(
-        tagged.flushStale().await,
+        tagged.flush_stale().await,
         Err(CacheError::StaleTagPruningUnsupported)
     ));
     tagged.forever("example", &"after tag flush".into()).await?;

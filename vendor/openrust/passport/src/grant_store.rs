@@ -30,19 +30,19 @@ pub(crate) trait GrantRecord: Send + Sync {
 struct Record<M>(M);
 impl<M: Model> GrantRecord for Record<M> {
     fn get_key(&self) -> Option<&Value> {
-        self.0.getKey()
+        self.0.get_key()
     }
     fn attribute(&self, name: &str) -> Option<&Value> {
-        self.0.getAttribute(name)
+        self.0.get_attribute(name)
     }
     fn value(&self, name: &str) -> DatabaseResult<Option<Value>> {
-        self.0.getAttributeValue(name)
+        self.0.get_attribute_value(name)
     }
     fn fill(&mut self, attributes: Attributes) -> DatabaseResult<()> {
-        self.0.forceFill(attributes).map(|_| ())
+        self.0.force_fill(attributes).map(|_| ())
     }
     fn fill_async(&mut self, attributes: Attributes) -> DatabaseFuture<'_, DatabaseResult<()>> {
-        Box::pin(async move { self.0.forceFillAsync(attributes).await.map(|_| ()) })
+        Box::pin(async move { self.0.force_fill_async(attributes).await.map(|_| ()) })
     }
     fn save(&mut self) -> DatabaseFuture<'_, DatabaseResult<bool>> {
         Box::pin(self.0.save())
@@ -51,13 +51,13 @@ impl<M: Model> GrantRecord for Record<M> {
         &'a mut self,
         transaction: &'a mut Transaction,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
-        Box::pin(self.0.saveInTransaction(transaction))
+        Box::pin(self.0.save_in_transaction(transaction))
     }
     fn lock<'a>(
         &'a mut self,
         transaction: &'a mut Transaction,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async move { self.0.refreshForUpdate(transaction).await.map(|_| ()) })
+        Box::pin(async move { self.0.refresh_for_update(transaction).await.map(|_| ()) })
     }
 }
 pub(crate) trait GrantStore: Send + Sync {
@@ -95,7 +95,7 @@ fn erased<M: Model>(model: M) -> Box<dyn GrantRecord> {
 }
 impl<M: Model> GrantStore for Store<M> {
     fn new_record(&self, parent: &Connection) -> DatabaseResult<Box<dyn GrantRecord>> {
-        M::newInstanceOn(&self.connection(parent)?, Attributes::new()).map(erased)
+        M::new_instance_on(&self.connection(parent)?, Attributes::new()).map(erased)
     }
     fn find<'a>(
         &'a self,
@@ -103,7 +103,7 @@ impl<M: Model> GrantStore for Store<M> {
         id: &'a str,
     ) -> DatabaseFuture<'a, DatabaseResult<Option<Box<dyn GrantRecord>>>> {
         Box::pin(async move {
-            Ok(M::queryOn(&self.connection(parent)?)
+            Ok(M::query_on(&self.connection(parent)?)
                 .find(id)
                 .await?
                 .map(erased))
@@ -116,7 +116,7 @@ impl<M: Model> GrantStore for Store<M> {
         after: String,
     ) -> DatabaseFuture<'a, DatabaseResult<Option<Box<dyn GrantRecord>>>> {
         Box::pin(async move {
-            let mut query = M::queryOn(&self.connection(parent)?);
+            let mut query = M::query_on(&self.connection(parent)?);
             query
                 .r#where("user_code", "=", code)
                 .where_null("user_id")

@@ -15,7 +15,6 @@ pub struct Cursor {
     next: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cursor {
     pub fn new<K: AsRef<str>>(
         parameters: impl IntoIterator<Item = (K, Value)>,
@@ -40,7 +39,7 @@ impl Cursor {
         names.iter().map(|name| self.parameter(name)).collect()
     }
 
-    pub fn fromEncoded(encoded: &str) -> PaginationResult<Self> {
+    pub fn from_encoded(encoded: &str) -> PaginationResult<Self> {
         if encoded.len() > MAX_ENCODED {
             return Err(PaginationError::InvalidCursor);
         }
@@ -70,11 +69,11 @@ impl Cursor {
         Ok(encoded)
     }
 
-    pub const fn pointsToNextItems(&self) -> bool {
+    pub const fn points_to_next_items(&self) -> bool {
         self.next
     }
 
-    pub const fn pointsToPreviousItems(&self) -> bool {
+    pub const fn points_to_previous_items(&self) -> bool {
         !self.next
     }
 

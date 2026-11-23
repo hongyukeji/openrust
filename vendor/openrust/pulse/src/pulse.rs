@@ -514,13 +514,13 @@ impl Pulse {
         r#type: &str,
         aggregates: &[String],
         interval: i64,
-        orderBy: Option<&str>,
+        order_by: Option<&str>,
         direction: &str,
         limit: u64,
     ) -> Result<Vec<openrust::database::Row>> {
         self.ignore(
             self.storage
-                .aggregate(r#type, aggregates, interval, orderBy, direction, limit),
+                .aggregate(r#type, aggregates, interval, order_by, direction, limit),
         )
         .await
     }
@@ -529,13 +529,13 @@ impl Pulse {
         types: &[String],
         aggregate: &str,
         interval: i64,
-        orderBy: Option<&str>,
+        order_by: Option<&str>,
         direction: &str,
         limit: u64,
     ) -> Result<Vec<openrust::database::Row>> {
         self.ignore(
             self.storage
-                .aggregateTypes(types, aggregate, interval, orderBy, direction, limit),
+                .aggregateTypes(types, aggregate, interval, order_by, direction, limit),
         )
         .await
     }

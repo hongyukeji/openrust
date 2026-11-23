@@ -2,7 +2,6 @@ use std::{collections::HashSet, iter, rc::Rc};
 
 use super::{ArrayKey, Collection, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn only<K: Into<ArrayKey>>(self, keys: impl IntoIterator<Item = K>) -> Self {
         let keys: HashSet<_> = keys
@@ -11,7 +10,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             .collect();
         Self::from_iterators(move || {
             let mut remaining = keys.clone();
-            let mut source = self.getIterator();
+            let mut source = self.get_iterator();
             let mut finished = false;
             iter::from_fn(move || {
                 if finished {
@@ -37,11 +36,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.passthru(move |items| items.except(&keys))
     }
 
-    pub fn keyBy<K: Into<ArrayKey>>(self, project: impl Fn(&T, &ArrayKey) -> K + 'source) -> Self {
+    pub fn key_by<K: Into<ArrayKey>>(self, project: impl Fn(&T, &ArrayKey) -> K + 'source) -> Self {
         let project = Rc::new(project);
         Self::from_iterators(move || {
             let project = Rc::clone(&project);
-            self.getIterator().map(move |entry| {
+            self.get_iterator().map(move |entry| {
                 entry.map(|(key, value)| (project(&value, &key).into().normalized(), value))
             })
         })
@@ -54,7 +53,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.map(move |value, _| project(value)).values()
     }
 
-    pub fn pluckWithKeys<K: Into<ArrayKey>, U: 'source>(
+    pub fn pluck_with_keys<K: Into<ArrayKey>, U: 'source>(
         self,
         key: impl Fn(&T) -> K + 'source,
         value: impl Fn(&T) -> U + 'source,
@@ -62,12 +61,12 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         let project = Rc::new(move |item: &T| (key(item).into().normalized(), value(item)));
         LazyCollection::from_iterators(move || {
             let project = Rc::clone(&project);
-            self.getIterator()
+            self.get_iterator()
                 .map(move |entry| entry.map(|(_, item)| project(&item)))
         })
     }
 
-    pub fn mapWithKeys<K, U, I>(
+    pub fn map_with_keys<K, U, I>(
         self,
         callback: impl Fn(&T, &ArrayKey) -> I + 'source,
     ) -> LazyCollection<'source, U>
@@ -80,7 +79,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         let callback = Rc::new(callback);
         LazyCollection::from_iterators(move || {
             let callback = Rc::clone(&callback);
-            let mut source = self.getIterator();
+            let mut source = self.get_iterator();
             let mut projected: Option<I::IntoIter> = None;
             iter::from_fn(move || {
                 loop {
@@ -96,25 +95,25 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn groupBy<K: Into<ArrayKey>>(
+    pub fn group_by<K: Into<ArrayKey>>(
         self,
         project: impl Fn(&T, &ArrayKey) -> K + 'source,
         preserve_keys: bool,
     ) -> LazyCollection<'source, Collection<T>> {
-        self.passthru(move |items| items.groupBy(&project, preserve_keys))
+        self.passthru(move |items| items.group_by(&project, preserve_keys))
     }
 
-    pub fn mapToDictionary<K: Into<ArrayKey>, U: 'source>(
+    pub fn map_to_dictionary<K: Into<ArrayKey>, U: 'source>(
         self,
         project: impl Fn(&T, &ArrayKey) -> (K, U) + 'source,
     ) -> LazyCollection<'source, Vec<U>> {
-        self.passthru(move |items| items.mapToDictionary(&project))
+        self.passthru(move |items| items.map_to_dictionary(&project))
     }
 
-    pub fn mapToGroups<K: Into<ArrayKey>, U: 'source>(
+    pub fn map_to_groups<K: Into<ArrayKey>, U: 'source>(
         self,
         project: impl Fn(&T, &ArrayKey) -> (K, U) + 'source,
     ) -> LazyCollection<'source, Collection<U>> {
-        self.passthru(move |items| items.mapToGroups(&project))
+        self.passthru(move |items| items.map_to_groups(&project))
     }
 }

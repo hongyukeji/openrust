@@ -42,7 +42,7 @@ impl DatabaseTokenRepository {
     fn query(&self, email: &str) -> Builder<'static> {
         self.database
             .table(&self.table)
-            .useWritePdo()
+            .use_write_pdo()
             .r#where("email", "=", email)
     }
 
@@ -107,10 +107,10 @@ impl TokenRepository for DatabaseTokenRepository {
             .into();
             let updated = self
                 .query(email)
-                .whereNested(|query| {
+                .where_nested(|query| {
                     query
                         .r#where("created_at", "<=", timestamp(cutoff))
-                        .orWhereNull("created_at")
+                        .or_where_null("created_at")
                 })
                 .update(values.clone())
                 .await?;
@@ -122,7 +122,7 @@ impl TokenRepository for DatabaseTokenRepository {
             let inserted = self
                 .database
                 .table(&self.table)
-                .insertOrIgnore(&[values])
+                .insert_or_ignore(&[values])
                 .await?;
             Ok((inserted == 1).then_some(token))
         })

@@ -63,8 +63,8 @@ impl DatabaseSettingsRepository {
         let rows = tx
             .table(&self.table)
             .r#where("group", "=", group)
-            .orderBy("name", "asc")
-            .lockForUpdate()
+            .order_by("name", "asc")
+            .lock_for_update()
             .limit((MAX_PROPERTIES + 2) as u64)
             .get()
             .await
@@ -167,7 +167,7 @@ impl SettingsRepository for DatabaseSettingsRepository {
             let rows = self
                 .connection
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .r#where("group", "=", group)
                 .limit((MAX_PROPERTIES + 2) as u64)
                 .get()
@@ -185,7 +185,7 @@ impl SettingsRepository for DatabaseSettingsRepository {
         Box::pin(async move {
             let mut tx = self
                 .connection
-                .beginTransaction()
+                .begin_transaction()
                 .await
                 .map_err(|_| Error::Database)?;
             match self.apply(&mut tx, group, expected, changes).await {
@@ -194,7 +194,7 @@ impl SettingsRepository for DatabaseSettingsRepository {
                     Ok(result)
                 }
                 Err(error) => {
-                    tx.rollBack(None).await.map_err(|_| Error::Database)?;
+                    tx.roll_back(None).await.map_err(|_| Error::Database)?;
                     Err(error)
                 }
             }
@@ -208,18 +208,18 @@ impl SettingsRepository for DatabaseSettingsRepository {
         changes: &'a BTreeMap<String, SettingsUpdate>,
     ) -> SettingsFuture<'a, SettingsSnapshot> {
         Box::pin(async move {
-            let level = tx.transactionLevel();
+            let level = tx.transaction_level();
             if level == 0 {
                 return Err(Error::Database);
             }
-            tx.beginTransaction().await.map_err(|_| Error::Database)?;
+            tx.begin_transaction().await.map_err(|_| Error::Database)?;
             match self.apply(tx, group, expected, changes).await {
                 Ok(result) => {
                     tx.commit().await.map_err(|_| Error::Commit)?;
                     Ok(result)
                 }
                 Err(error) => {
-                    tx.rollBack(Some(level))
+                    tx.roll_back(Some(level))
                         .await
                         .map_err(|_| Error::Database)?;
                     Err(error)

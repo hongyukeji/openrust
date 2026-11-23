@@ -77,16 +77,16 @@ impl Blueprint {
         (mediumInteger, MediumInteger), (integer, Integer), (bigInteger, BigInteger),
         (tinyText, TinyText), (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
         (double, Double), (binary, Binary), (json, Json), (jsonb, Jsonb), (tsvector, TsVector),
-        (date, Date), (year, Year), (ipAddress, IpAddress), (macAddress, MacAddress),
+        (date, Date), (year, Year), (ipAddress, IpAddress), (mac_address, MacAddress),
     }
 
     /// Returns the logical table reference supplied to the schema builder.
-    pub fn getTable(&self) -> &str {
+    pub fn get_table(&self) -> &str {
         &self.table
     }
 
     /// Returns the table prefix of the connection that owns this blueprint.
-    pub fn getPrefix(&self) -> &str {
+    pub fn get_prefix(&self) -> &str {
         &self.prefix
     }
 
@@ -102,7 +102,7 @@ impl Blueprint {
     }
 
     /// Iterates over pending column definitions in declaration order.
-    pub fn getColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
+    pub fn get_columns(&self) -> impl Iterator<Item = &ColumnDefinition> {
         self.commands.iter().filter_map(|command| match command {
             Command::Column(column) => Some(column),
             _ => None,
@@ -110,7 +110,7 @@ impl Blueprint {
     }
 
     /// Iterates over pending columns for setting modifiers on helper-created columns.
-    pub fn getColumnsMut(&mut self) -> impl Iterator<Item = &mut ColumnDefinition> {
+    pub fn get_columns_mut(&mut self) -> impl Iterator<Item = &mut ColumnDefinition> {
         self.commands
             .iter_mut()
             .filter_map(|command| match command {
@@ -119,72 +119,72 @@ impl Blueprint {
             })
     }
 
-    pub fn getAddedColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
-        self.getColumns().filter(|column| !column.change)
+    pub fn get_added_columns(&self) -> impl Iterator<Item = &ColumnDefinition> {
+        self.get_columns().filter(|column| !column.change)
     }
 
-    pub fn getChangedColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
-        self.getColumns().filter(|column| column.change)
+    pub fn get_changed_columns(&self) -> impl Iterator<Item = &ColumnDefinition> {
+        self.get_columns().filter(|column| column.change)
     }
 
     pub fn id(&mut self) -> &mut ColumnDefinition {
-        self.idWith("id")
+        self.id_with("id")
     }
 
     /// Declares an auto-incrementing primary key with a custom column name.
-    pub fn idWith(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.bigIncrements(name)
+    pub fn id_with(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.big_increments(name)
     }
 
     /// Removes a pending column definition without issuing a drop statement.
-    pub fn removeColumn(&mut self, name: &str) -> &mut Self {
+    pub fn remove_column(&mut self, name: &str) -> &mut Self {
         self.commands
             .retain(|command| !matches!(command, Command::Column(column) if column.name == name));
         self
     }
 
-    pub fn tinyIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.unsignedTinyInteger(name).autoIncrement()
+    pub fn tiny_increments(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.unsigned_tiny_integer(name).auto_increment()
     }
 
-    pub fn smallIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.unsignedSmallInteger(name).autoIncrement()
+    pub fn small_increments(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.unsigned_small_integer(name).auto_increment()
     }
 
-    pub fn mediumIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.unsignedMediumInteger(name).autoIncrement()
+    pub fn medium_increments(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.unsigned_medium_integer(name).auto_increment()
     }
 
     pub fn increments(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.unsignedInteger(name).autoIncrement()
+        self.unsigned_integer(name).auto_increment()
     }
 
     /// Declares an unsigned auto-incrementing integer, like `increments`.
-    pub fn integerIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
+    pub fn integer_increments(&mut self, name: &str) -> &mut ColumnDefinition {
         self.increments(name)
     }
 
-    pub fn bigIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.unsignedBigInteger(name).autoIncrement()
+    pub fn big_increments(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.unsigned_big_integer(name).auto_increment()
     }
 
-    pub fn unsignedTinyInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+    pub fn unsigned_tiny_integer(&mut self, name: &str) -> &mut ColumnDefinition {
         self.tinyInteger(name).unsigned()
     }
 
-    pub fn unsignedSmallInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+    pub fn unsigned_small_integer(&mut self, name: &str) -> &mut ColumnDefinition {
         self.smallInteger(name).unsigned()
     }
 
-    pub fn unsignedMediumInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+    pub fn unsigned_medium_integer(&mut self, name: &str) -> &mut ColumnDefinition {
         self.mediumInteger(name).unsigned()
     }
 
-    pub fn unsignedBigInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+    pub fn unsigned_big_integer(&mut self, name: &str) -> &mut ColumnDefinition {
         self.bigInteger(name).unsigned()
     }
 
-    pub fn unsignedInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+    pub fn unsigned_integer(&mut self, name: &str) -> &mut ColumnDefinition {
         self.integer(name).unsigned()
     }
 
@@ -216,7 +216,7 @@ impl Blueprint {
     }
 
     /// A fixed or variable binary column. Zero selects the ordinary binary type.
-    pub fn binaryWith(&mut self, name: &str, length: u32, fixed: bool) -> &mut ColumnDefinition {
+    pub fn binary_with(&mut self, name: &str, length: u32, fixed: bool) -> &mut ColumnDefinition {
         if length == 0 {
             return self.binary(name);
         }
@@ -263,11 +263,11 @@ impl Blueprint {
     }
 
     pub fn ulid(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.ulidWith(name, 26)
+        self.ulid_with(name, 26)
     }
 
     /// Defines a ULID column with an explicit character length.
-    pub fn ulidWith(&mut self, name: &str, length: u32) -> &mut ColumnDefinition {
+    pub fn ulid_with(&mut self, name: &str, length: u32) -> &mut ColumnDefinition {
         self.char(name, length)
     }
 
@@ -279,38 +279,43 @@ impl Blueprint {
     }
 
     pub fn morphs(&mut self, name: &str) {
-        self.morphsWith(name, None, None);
+        self.morphs_with(name, None, None);
     }
 
-    pub fn morphsWith(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn morphs_with(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, self.defaults.morph_key_type, false, index, after);
     }
 
-    pub fn nullableMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn nullable_morphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, self.defaults.morph_key_type, true, index, after);
     }
 
-    pub fn numericMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn numeric_morphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, MorphKeyType::Int, false, index, after);
     }
 
-    pub fn nullableNumericMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn nullable_numeric_morphs(
+        &mut self,
+        name: &str,
+        index: Option<&str>,
+        after: Option<&str>,
+    ) {
         self.add_morphs(name, MorphKeyType::Int, true, index, after);
     }
 
-    pub fn uuidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn uuid_morphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, MorphKeyType::Uuid, false, index, after);
     }
 
-    pub fn nullableUuidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn nullable_uuid_morphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, MorphKeyType::Uuid, true, index, after);
     }
 
-    pub fn ulidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn ulid_morphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, MorphKeyType::Ulid, false, index, after);
     }
 
-    pub fn nullableUlidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+    pub fn nullable_ulid_morphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
         self.add_morphs(name, MorphKeyType::Ulid, true, index, after);
     }
 
@@ -333,7 +338,7 @@ impl Blueprint {
         }
 
         let id_column = match key_type {
-            MorphKeyType::Int => self.unsignedBigInteger(&id),
+            MorphKeyType::Int => self.unsigned_big_integer(&id),
             MorphKeyType::Uuid => self.uuid(&id),
             MorphKeyType::Ulid => self.ulid(&id),
         };
@@ -348,22 +353,22 @@ impl Blueprint {
 
     /// Adds a floating-point column using default precision of 53 bits.
     pub fn float(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.floatWith(name, 53)
+        self.float_with(name, 53)
     }
 
     /// Adds a floating-point column with explicit binary precision.
-    pub fn floatWith(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn float_with(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
         self.column(name, ColumnType::Float(precision))
     }
 
     /// Defines a SQL Server computed column using a trusted SQL expression.
     pub fn computed(&mut self, name: &str, expression: impl Into<String>) -> &mut ColumnDefinition {
         self.column(name, ColumnType::Computed)
-            .virtualAs(expression)
+            .virtual_as(expression)
     }
 
     /// Adds a column using a trusted, database-specific SQL definition.
-    pub fn rawColumn(
+    pub fn raw_column(
         &mut self,
         name: &str,
         definition: impl Into<String>,
@@ -384,7 +389,7 @@ impl Blueprint {
         self.column(name, ColumnType::Timestamp(precision))
     }
 
-    pub fn dateTime(
+    pub fn date_time(
         &mut self,
         name: &str,
         precision: impl Into<Option<u8>>,
@@ -398,15 +403,15 @@ impl Blueprint {
         self.column(name, ColumnType::Time(precision))
     }
 
-    pub fn dateTimeTz(
+    pub fn date_time_tz(
         &mut self,
         name: &str,
         precision: impl Into<Option<u8>>,
     ) -> &mut ColumnDefinition {
-        self.dateTime(name, precision)
+        self.date_time(name, precision)
     }
 
-    pub fn timeTz(
+    pub fn time_tz(
         &mut self,
         name: &str,
         precision: impl Into<Option<u8>>,
@@ -414,7 +419,7 @@ impl Blueprint {
         self.time(name, precision)
     }
 
-    pub fn timestampTz(
+    pub fn timestamp_tz(
         &mut self,
         name: &str,
         precision: impl Into<Option<u8>>,
@@ -423,34 +428,34 @@ impl Blueprint {
     }
 
     pub fn timestamps(&mut self) {
-        self.timestampsWith(None);
+        self.timestamps_with(None);
     }
 
-    pub fn timestampsWith(&mut self, precision: impl Into<Option<u8>>) {
+    pub fn timestamps_with(&mut self, precision: impl Into<Option<u8>>) {
         let precision = precision.into();
         self.timestamp("created_at", precision).nullable();
         self.timestamp("updated_at", precision).nullable();
     }
 
-    pub fn timestampsTz(&mut self) {
-        self.timestampsTzWith(None);
+    pub fn timestamps_tz(&mut self) {
+        self.timestamps_tz_with(None);
     }
 
-    pub fn timestampsTzWith(&mut self, precision: impl Into<Option<u8>>) {
-        self.timestampsWith(precision);
+    pub fn timestamps_tz_with(&mut self, precision: impl Into<Option<u8>>) {
+        self.timestamps_with(precision);
     }
 
     pub fn datetimes(&mut self, precision: impl Into<Option<u8>>) {
         let precision = precision.into();
-        self.dateTime("created_at", precision).nullable();
-        self.dateTime("updated_at", precision).nullable();
+        self.date_time("created_at", precision).nullable();
+        self.date_time("updated_at", precision).nullable();
     }
 
-    pub fn softDeletes(&mut self) -> &mut ColumnDefinition {
-        self.softDeletesWith(None, None)
+    pub fn soft_deletes(&mut self) -> &mut ColumnDefinition {
+        self.soft_deletes_with(None, None)
     }
 
-    pub fn softDeletesWith(
+    pub fn soft_deletes_with(
         &mut self,
         column: Option<&str>,
         precision: impl Into<Option<u8>>,
@@ -459,69 +464,69 @@ impl Blueprint {
             .nullable()
     }
 
-    pub fn softDeletesTz(&mut self) -> &mut ColumnDefinition {
-        self.softDeletesTzWith(None, None)
+    pub fn soft_deletes_tz(&mut self) -> &mut ColumnDefinition {
+        self.soft_deletes_tz_with(None, None)
     }
 
-    pub fn softDeletesTzWith(
+    pub fn soft_deletes_tz_with(
         &mut self,
         column: Option<&str>,
         precision: impl Into<Option<u8>>,
     ) -> &mut ColumnDefinition {
-        self.softDeletesWith(column, precision)
+        self.soft_deletes_with(column, precision)
     }
 
-    pub fn softDeletesDatetime(
+    pub fn soft_deletes_datetime(
         &mut self,
         column: Option<&str>,
         precision: impl Into<Option<u8>>,
     ) -> &mut ColumnDefinition {
-        self.dateTime(column.unwrap_or("deleted_at"), precision)
+        self.date_time(column.unwrap_or("deleted_at"), precision)
             .nullable()
     }
 
-    pub fn rememberToken(&mut self) -> &mut ColumnDefinition {
+    pub fn remember_token(&mut self) -> &mut ColumnDefinition {
         self.string("remember_token", 100).nullable()
     }
 
-    pub fn nullableTimestamps(&mut self) {
+    pub fn nullable_timestamps(&mut self) {
         self.timestamps();
     }
 
-    pub fn nullableTimestampsTz(&mut self) {
-        self.timestampsTz();
+    pub fn nullable_timestamps_tz(&mut self) {
+        self.timestamps_tz();
     }
 
-    pub fn foreignId(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
-        self.unsignedBigInteger(name);
+    pub fn foreign_id(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
+        self.unsigned_big_integer(name);
         ForeignIdColumnDefinition::new(self, name)
     }
 
-    pub fn foreignUuid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
+    pub fn foreign_uuid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
         self.uuid(name);
         ForeignIdColumnDefinition::new(self, name)
     }
 
-    pub fn foreignUlid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
-        self.foreignUlidWith(name, 26)
+    pub fn foreign_ulid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
+        self.foreign_ulid_with(name, 26)
     }
 
     /// Defines a foreign ULID column with an explicit character length.
-    pub fn foreignUlidWith(&mut self, name: &str, length: u32) -> ForeignIdColumnDefinition<'_> {
-        self.ulidWith(name, length);
+    pub fn foreign_ulid_with(&mut self, name: &str, length: u32) -> ForeignIdColumnDefinition<'_> {
+        self.ulid_with(name, length);
         ForeignIdColumnDefinition::new(self, name)
     }
 
-    pub fn foreignIdFor<M: Model>(
+    pub fn foreign_id_for<M: Model>(
         &mut self,
         column: Option<&str>,
     ) -> ForeignIdColumnDefinition<'_> {
         let model = M::from_state(ModelState::default());
-        let key_type = model.getKeyType();
+        let key_type = model.get_key_type();
         self.foreign_model_id(&model, column, key_type)
     }
 
-    pub fn foreignUuidFor<M: Model>(
+    pub fn foreign_uuid_for<M: Model>(
         &mut self,
         column: Option<&str>,
     ) -> ForeignIdColumnDefinition<'_> {
@@ -529,7 +534,7 @@ impl Blueprint {
         self.foreign_model_id(&model, column, ModelKeyType::Uuid)
     }
 
-    pub fn foreignUlidFor<M: Model>(
+    pub fn foreign_ulid_for<M: Model>(
         &mut self,
         column: Option<&str>,
     ) -> ForeignIdColumnDefinition<'_> {
@@ -543,13 +548,13 @@ impl Blueprint {
         column: Option<&str>,
         key_type: ModelKeyType,
     ) -> ForeignIdColumnDefinition<'_> {
-        let name = column.map_or_else(|| model.getForeignKey(), str::to_owned);
+        let name = column.map_or_else(|| model.get_foreign_key(), str::to_owned);
         let definition = match key_type {
-            ModelKeyType::Integer => self.foreignId(&name),
-            ModelKeyType::Uuid | ModelKeyType::String => self.foreignUuid(&name),
-            ModelKeyType::Ulid => self.foreignUlid(&name),
+            ModelKeyType::Integer => self.foreign_id(&name),
+            ModelKeyType::Uuid | ModelKeyType::String => self.foreign_uuid(&name),
+            ModelKeyType::Ulid => self.foreign_ulid(&name),
         };
-        definition.for_model(model.getTable(), model.getKeyName())
+        definition.for_model(model.get_table(), model.get_key_name())
     }
 
     pub fn foreign(&mut self, columns: &[&str], name: Option<&str>) -> &mut ForeignKeyDefinition {
@@ -580,7 +585,7 @@ impl Blueprint {
     }
 
     /// Adds a named index using trusted, database-specific SQL for the key list.
-    pub fn rawIndex(&mut self, expression: &str, name: &str) -> &mut IndexDefinition {
+    pub fn raw_index(&mut self, expression: &str, name: &str) -> &mut IndexDefinition {
         let index = self.index(&[], Some(name));
         index.raw_expression = Some(expression.to_owned());
         index
@@ -594,15 +599,15 @@ impl Blueprint {
         self.add_index(IndexType::Primary, columns, name)
     }
 
-    pub fn fullText(&mut self, columns: &[&str], name: Option<&str>) -> &mut IndexDefinition {
+    pub fn full_text(&mut self, columns: &[&str], name: Option<&str>) -> &mut IndexDefinition {
         self.add_index(IndexType::FullText, columns, name)
     }
 
-    pub fn spatialIndex(&mut self, columns: &[&str], name: Option<&str>) -> &mut IndexDefinition {
+    pub fn spatial_index(&mut self, columns: &[&str], name: Option<&str>) -> &mut IndexDefinition {
         self.add_index(IndexType::Spatial, columns, name)
     }
 
-    pub fn vectorIndex(&mut self, column: &str, name: Option<&str>) -> &mut IndexDefinition {
+    pub fn vector_index(&mut self, column: &str, name: Option<&str>) -> &mut IndexDefinition {
         self.add_index(IndexType::Vector, &[column], name)
     }
 
@@ -618,7 +623,7 @@ impl Blueprint {
         self.table_options.engine = Some(engine.to_owned());
     }
 
-    pub fn innoDb(&mut self) {
+    pub fn inno_db(&mut self) {
         self.engine("InnoDB");
     }
 
@@ -630,12 +635,12 @@ impl Blueprint {
         self.temporary = true;
     }
 
-    pub fn renameColumn(&mut self, from: &str, to: &str) {
+    pub fn rename_column(&mut self, from: &str, to: &str) {
         self.commands
             .push(Command::RenameColumn(from.into(), to.into()));
     }
 
-    pub fn dropColumn(&mut self, columns: &[&str]) -> &mut DropColumnDefinition {
+    pub fn drop_column(&mut self, columns: &[&str]) -> &mut DropColumnDefinition {
         self.commands
             .push(Command::DropColumn(DropColumnDefinition::new(columns)));
         let Some(Command::DropColumn(drop)) = self.commands.last_mut() else {
@@ -644,142 +649,142 @@ impl Blueprint {
         drop
     }
 
-    pub fn dropMorphs(&mut self, name: &str, index: Option<&str>) {
+    pub fn drop_morphs(&mut self, name: &str, index: Option<&str>) {
         let kind = format!("{name}_type");
         let id = format!("{name}_id");
         if let Some(index) = index {
-            self.dropIndex(index);
+            self.drop_index(index);
         } else {
-            self.dropIndexColumns(&[&kind, &id]);
+            self.drop_index_columns(&[&kind, &id]);
         }
-        self.dropColumn(&[&kind, &id]);
+        self.drop_column(&[&kind, &id]);
     }
 
-    pub fn dropTimestamps(&mut self) {
-        self.dropColumn(&["created_at", "updated_at"]);
+    pub fn drop_timestamps(&mut self) {
+        self.drop_column(&["created_at", "updated_at"]);
     }
 
-    pub fn dropTimestampsTz(&mut self) {
-        self.dropTimestamps();
+    pub fn drop_timestamps_tz(&mut self) {
+        self.drop_timestamps();
     }
 
-    pub fn dropSoftDeletes(&mut self, column: Option<&str>) {
-        self.dropColumn(&[column.unwrap_or("deleted_at")]);
+    pub fn drop_soft_deletes(&mut self, column: Option<&str>) {
+        self.drop_column(&[column.unwrap_or("deleted_at")]);
     }
 
-    pub fn dropSoftDeletesTz(&mut self, column: Option<&str>) {
-        self.dropSoftDeletes(column);
+    pub fn drop_soft_deletes_tz(&mut self, column: Option<&str>) {
+        self.drop_soft_deletes(column);
     }
 
-    pub fn dropRememberToken(&mut self) {
-        self.dropColumn(&["remember_token"]);
+    pub fn drop_remember_token(&mut self) {
+        self.drop_column(&["remember_token"]);
     }
 
-    pub fn dropConstrainedForeignId(&mut self, column: &str) {
-        self.dropForeignColumns(&[column]);
-        self.dropColumn(&[column]);
+    pub fn drop_constrained_foreign_id(&mut self, column: &str) {
+        self.drop_foreign_columns(&[column]);
+        self.drop_column(&[column]);
     }
 
-    pub fn dropForeignIdFor<M: Model>(&mut self, column: Option<&str>) {
+    pub fn drop_foreign_id_for<M: Model>(&mut self, column: Option<&str>) {
         let name = column.map_or_else(
-            || M::from_state(ModelState::default()).getForeignKey(),
+            || M::from_state(ModelState::default()).get_foreign_key(),
             str::to_owned,
         );
-        self.dropColumn(&[&name]);
+        self.drop_column(&[&name]);
     }
 
-    pub fn dropConstrainedForeignIdFor<M: Model>(&mut self, column: Option<&str>) {
+    pub fn drop_constrained_foreign_id_for<M: Model>(&mut self, column: Option<&str>) {
         let name = column.map_or_else(
-            || M::from_state(ModelState::default()).getForeignKey(),
+            || M::from_state(ModelState::default()).get_foreign_key(),
             str::to_owned,
         );
-        self.dropConstrainedForeignId(&name);
+        self.drop_constrained_foreign_id(&name);
     }
 
-    pub fn renameIndex(&mut self, from: &str, to: &str) {
+    pub fn rename_index(&mut self, from: &str, to: &str) {
         self.commands
             .push(Command::RenameIndex(from.into(), to.into()));
     }
 
-    pub fn dropIndex(&mut self, name: &str) {
+    pub fn drop_index(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Index, name.into()));
     }
 
     /// Drops the index named by the table, ordered columns, and index kind.
-    pub fn dropIndexColumns(&mut self, columns: &[&str]) {
-        self.drop_index_columns(IndexType::Index, columns);
+    pub fn drop_index_columns(&mut self, columns: &[&str]) {
+        self.drop_index_columns_of_type(IndexType::Index, columns);
     }
 
-    pub fn dropUnique(&mut self, name: &str) {
+    pub fn drop_unique(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Unique, name.into()));
     }
 
     /// Drops the index named by the table, ordered columns, and index kind.
-    pub fn dropUniqueColumns(&mut self, columns: &[&str]) {
-        self.drop_index_columns(IndexType::Unique, columns);
+    pub fn drop_unique_columns(&mut self, columns: &[&str]) {
+        self.drop_index_columns_of_type(IndexType::Unique, columns);
     }
 
-    pub fn dropPrimary(&mut self) {
+    pub fn drop_primary(&mut self) {
         self.commands
             .push(Command::DropIndex(IndexType::Primary, String::new()));
     }
 
     /// Drops a primary key by its constraint name on SQL Server.
-    pub fn dropPrimaryNamed(&mut self, name: &str) {
+    pub fn drop_primary_named(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Primary, name.into()));
     }
 
     /// Drops the primary key named by the table and ordered columns on SQL Server.
-    pub fn dropPrimaryColumns(&mut self, columns: &[&str]) {
-        self.drop_index_columns(IndexType::Primary, columns);
+    pub fn drop_primary_columns(&mut self, columns: &[&str]) {
+        self.drop_index_columns_of_type(IndexType::Primary, columns);
     }
 
-    pub fn dropFullText(&mut self, name: &str) {
+    pub fn drop_full_text(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::FullText, name.into()));
     }
 
     /// Drops the index named by the table, ordered columns, and index kind.
-    pub fn dropFullTextColumns(&mut self, columns: &[&str]) {
-        self.drop_index_columns(IndexType::FullText, columns);
+    pub fn drop_full_text_columns(&mut self, columns: &[&str]) {
+        self.drop_index_columns_of_type(IndexType::FullText, columns);
     }
 
-    pub fn dropSpatialIndex(&mut self, name: &str) {
+    pub fn drop_spatial_index(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Spatial, name.into()));
     }
 
     /// Drops the index named by the table, ordered columns, and index kind.
-    pub fn dropSpatialIndexColumns(&mut self, columns: &[&str]) {
-        self.drop_index_columns(IndexType::Spatial, columns);
+    pub fn drop_spatial_index_columns(&mut self, columns: &[&str]) {
+        self.drop_index_columns_of_type(IndexType::Spatial, columns);
     }
 
-    pub fn dropVectorIndex(&mut self, name: &str) {
+    pub fn drop_vector_index(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Vector, name.into()));
     }
 
-    pub fn dropVectorIndexColumns(&mut self, columns: &[&str]) {
-        self.drop_index_columns(IndexType::Vector, columns);
+    pub fn drop_vector_index_columns(&mut self, columns: &[&str]) {
+        self.drop_index_columns_of_type(IndexType::Vector, columns);
     }
 
-    fn drop_index_columns(&mut self, kind: IndexType, columns: &[&str]) {
+    fn drop_index_columns_of_type(&mut self, kind: IndexType, columns: &[&str]) {
         self.commands.push(Command::DropIndexColumns(
             kind,
             columns.iter().map(|column| (*column).to_owned()).collect(),
         ));
     }
 
-    pub fn dropForeignColumns(&mut self, columns: &[&str]) {
+    pub fn drop_foreign_columns(&mut self, columns: &[&str]) {
         self.commands.push(Command::DropForeignColumns(
             columns.iter().map(|column| (*column).to_owned()).collect(),
         ));
     }
 
-    pub fn dropForeign(&mut self, name: &str) {
+    pub fn drop_foreign(&mut self, name: &str) {
         self.commands.push(Command::DropForeign(name.into()));
     }
 }

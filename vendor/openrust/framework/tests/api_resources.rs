@@ -43,7 +43,6 @@ struct Account(ModelState);
 struct IndexedAccount(ModelState);
 struct Membership(ModelState);
 
-#[allow(non_snake_case, reason = "Implements the Eloquent model contract")]
 impl Model for IndexedAccount {
     fn metadata() -> &'static ModelMetadata {
         Account::metadata()
@@ -61,9 +60,9 @@ impl Model for IndexedAccount {
         &mut self.0
     }
 
-    fn newCollection(models: Vec<Self>) -> ModelCollection<Self> {
-        ModelCollection::fromEntries(models.into_iter().map(|model| {
-            let Some(Value::Integer(id)) = model.getKey() else {
+    fn new_collection(models: Vec<Self>) -> ModelCollection<Self> {
+        ModelCollection::from_entries(models.into_iter().map(|model| {
+            let Some(Value::Integer(id)) = model.get_key() else {
                 panic!("expected account id");
             };
             (*id * 10, model)
@@ -93,7 +92,7 @@ impl Model for Membership {
 }
 
 impl Model for Account {
-    fn namedRelations() -> NamedRelations<Self> {
+    fn named_relations() -> NamedRelations<Self> {
         NamedRelations::default().nested("directReports", || {
             HasMany::<Self, Self>::new("id", "manager_id")
         })
@@ -136,7 +135,6 @@ impl UseResource for Account {
 
 struct IndexedAccounts(ResourceCollection<ModelResource<IndexedAccount>>);
 
-#[allow(non_snake_case, reason = "Implements the resource collection contract")]
 impl UseResource for IndexedAccount {
     type Resource = ModelResource<Self>;
 
@@ -176,7 +174,7 @@ impl JsonResource for IndexedAccounts {
 
 impl JsonResource for AccountResource {
     fn to_array(&self, request: &Request) -> ResourceResult<Json> {
-        let mut fields = self.0.attributesToArray().map_err(internal)?;
+        let mut fields = self.0.attributes_to_array().map_err(internal)?;
         Conditional::insert(
             &mut fields,
             "admin",
@@ -238,7 +236,6 @@ impl From<Account> for PersonResource {
     }
 }
 
-#[allow(non_snake_case, reason = "Implements the JSON:API contract")]
 impl JsonApiResource for PersonResource {
     type Model = Account;
 
@@ -291,7 +288,7 @@ impl JsonApiResource for PersonResource {
                 }
                 Ok(self
                     .account
-                    .getRelation::<RelatedCollection<Account>>("directReports")
+                    .get_relation::<RelatedCollection<Account>>("directReports")
                     .into_iter()
                     .flatten()
                     .map(|account| {
@@ -305,12 +302,12 @@ impl JsonApiResource for PersonResource {
                 }
                 let reports: Vec<_> = self
                     .account
-                    .getRelation::<RelatedCollection<Account>>("directReports")
+                    .get_relation::<RelatedCollection<Account>>("directReports")
                     .into_iter()
                     .flatten()
                     .filter(|account| {
                         !request.headers().contains_key("x-empty-collection")
-                            && !matches!(account.getAttribute("name"), Some(Value::Text(name)) if name == "Private")
+                            && !matches!(account.get_attribute("name"), Some(Value::Text(name)) if name == "Private")
                     })
                     .map(|account| PersonResource::make(Account::from_state(account.state().clone())))
                     .collect();
@@ -331,7 +328,6 @@ impl JsonApiResource for PersonResource {
 
 struct FractionalResource(f64);
 
-#[allow(non_snake_case, reason = "Implements the JSON resource contract")]
 impl JsonResource for FractionalResource {
     fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(json!({"reading_time":self.0,"path":"/café/😀"}))
@@ -355,7 +351,6 @@ impl JsonResource for FractionalResource {
 
 struct Preserved(Json);
 
-#[allow(non_snake_case, reason = "Implements the JSON resource contract")]
 impl JsonResource for Preserved {
     fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(self.0.clone())
@@ -389,24 +384,24 @@ fn routes() -> Result<(), RoutingError> {
                 "directReports",
                 HasMany::<Account, Account>::new("id", "manager_id"),
             )
-            .withCount(
+            .with_count(
                 "directReports",
                 &HasMany::<Account, Account>::new("id", "manager_id"),
             )
             .map_err(internal)?
-            .findOrFail(1)
+            .find_or_fail(1)
             .await
             .map_err(internal)?;
-        Ok(account.toResource())
+        Ok(account.to_resource())
     })?;
     Route::get("/missing", || async {
-        let account = Account::findOrFail(99).await.map_err(internal)?;
-        Ok(account.toResource())
+        let account = Account::find_or_fail(99).await.map_err(internal)?;
+        Ok(account.to_resource())
     })?;
     Route::get("/list", || async {
         let accounts = Account::query()
             .map_err(internal)?
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .get()
             .await
             .map_err(internal)?;
@@ -416,7 +411,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/simple", || async {
         let page = Account::query()
             .map_err(internal)?
-            .simplePaginate(2)
+            .simple_paginate(2)
             .await
             .map_err(internal)?;
         Ok(page.to_resource_collection())
@@ -424,7 +419,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/cursor", || async {
         let page = Account::query()
             .map_err(internal)?
-            .cursorPaginate(2)
+            .cursor_paginate(2)
             .await
             .map_err(internal)?;
         Ok(page.to_resource_collection_with::<AccountResource>())
@@ -457,7 +452,7 @@ fn routes() -> Result<(), RoutingError> {
         ]))
         .await
         .map_err(internal)?;
-        Ok(new.toResourceWith::<ModelResource<_>>())
+        Ok(new.to_resource_with::<ModelResource<_>>())
     })?;
     Ok(())
 }
@@ -487,11 +482,11 @@ fn json_api_routes() -> Result<(), RoutingError> {
     })?;
     Route::get("/thing/invalid", || thing(json!(true)))?;
     Route::get("/person/auto", || async {
-        let person = Account::findOrFail(1).await.map_err(internal)?;
+        let person = Account::find_or_fail(1).await.map_err(internal)?;
         Ok(PersonResource::make(person))
     })?;
     Route::get("/person/ignore-query", || async {
-        let person = Account::findOrFail(1).await.map_err(internal)?;
+        let person = Account::find_or_fail(1).await.map_err(internal)?;
         Ok(PersonResource {
             ignore_query: true,
             ..PersonResource::make(person)
@@ -501,7 +496,7 @@ fn json_api_routes() -> Result<(), RoutingError> {
         let person = Account::query()
             .map_err(internal)?
             .with("directReports", nested_report_relation())
-            .findOrFail(1)
+            .find_or_fail(1)
             .await
             .map_err(internal)?;
         Ok(PersonResource {
@@ -512,7 +507,7 @@ fn json_api_routes() -> Result<(), RoutingError> {
     Route::get("/person/auto-page", || async {
         let page = Account::query()
             .map_err(internal)?
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .paginate(2)
             .await
             .map_err(internal)?;
@@ -522,7 +517,7 @@ fn json_api_routes() -> Result<(), RoutingError> {
         let person = Account::query()
             .map_err(internal)?
             .with("directReports", nested_report_relation())
-            .findOrFail(1)
+            .find_or_fail(1)
             .await
             .map_err(internal)?;
         Ok(PersonResource::make(person))
@@ -531,26 +526,26 @@ fn json_api_routes() -> Result<(), RoutingError> {
         let mut query = Account::query()
             .map_err(internal)?
             .with("directReports", nested_report_relation())
-            .orderBy("id", "asc");
+            .order_by("id", "asc");
         query.r#where("id", "<", 3);
         let people = query.get().await.map_err(internal)?;
         Ok(PersonResource::collection(people))
     })?;
     Route::get("/person", || async {
-        let account = Account::findOrFail(1).await.map_err(internal)?;
-        Ok(account.toResourceWith::<PersonResource>())
+        let account = Account::find_or_fail(1).await.map_err(internal)?;
+        Ok(account.to_resource_with::<PersonResource>())
     })?;
     Route::get("/person/alias", || async {
-        let account = Account::findOrFail(1).await.map_err(internal)?;
+        let account = Account::find_or_fail(1).await.map_err(internal)?;
         Ok(PersonResource {
             use_alias: true,
             ..PersonResource::make(account)
         })
     })?;
     Route::get("/person/list", || async {
-        let account = Account::findOrFail(1).await.map_err(internal)?;
+        let account = Account::find_or_fail(1).await.map_err(internal)?;
         Ok(
-            PersonResource::collection(Collection::fromEntries([("first", account)]))
+            PersonResource::collection(Collection::from_entries([("first", account)]))
                 .preserve_keys(true),
         )
     })?;
@@ -616,7 +611,7 @@ fn resolved_routes() -> Result<(), RoutingError> {
     Route::get("/resolved", || async {
         let models = IndexedAccount::query()
             .map_err(internal)?
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .get()
             .await
             .map_err(internal)?;
@@ -633,7 +628,7 @@ fn resolved_routes() -> Result<(), RoutingError> {
     Route::get("/resolved/explicit", || async {
         let models = IndexedAccount::query()
             .map_err(internal)?
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .get()
             .await
             .map_err(internal)?;
@@ -652,7 +647,7 @@ fn resolved_routes() -> Result<(), RoutingError> {
 
 fn keyed_routes() -> Result<(), RoutingError> {
     let input = || {
-        Collection::fromEntries([
+        Collection::from_entries([
             ("01", json!("first")),
             ("7", json!("second")),
             ("1e2", json!(null)),
@@ -673,12 +668,12 @@ fn keyed_routes() -> Result<(), RoutingError> {
     Route::get("/keys/mixed", || async {
         let mut accounts = Account::query()
             .map_err(internal)?
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .get()
             .await
             .map_err(internal)?
             .into_iter();
-        let items = ModelCollection::fromEntries([
+        let items = ModelCollection::from_entries([
             (ArrayKey::from("team"), accounts.next().unwrap()),
             (ArrayKey::from(9_i64), accounts.next().unwrap()),
         ]);
@@ -693,11 +688,11 @@ fn keyed_routes() -> Result<(), RoutingError> {
                 "directReports",
                 HasMany::<Account, IndexedAccount>::new("id", "manager_id"),
             )
-            .findOrFail(1)
+            .find_or_fail(1)
             .await
             .map_err(internal)?;
         let reports = owner
-            .getRelation::<RelatedCollection<IndexedAccount>>("directReports")
+            .get_relation::<RelatedCollection<IndexedAccount>>("directReports")
             .unwrap()
             .clone();
         let items = ResourceItems::from(reports)
@@ -718,7 +713,7 @@ fn keyed_routes() -> Result<(), RoutingError> {
     Route::get("/keys/simple", || async {
         let page = IndexedAccount::query()
             .map_err(internal)?
-            .simplePaginate(2)
+            .simple_paginate(2)
             .await
             .map_err(internal)?;
         Ok(
@@ -729,7 +724,7 @@ fn keyed_routes() -> Result<(), RoutingError> {
     Route::get("/keys/cursor", || async {
         let page = IndexedAccount::query()
             .map_err(internal)?
-            .cursorPaginate(2)
+            .cursor_paginate(2)
             .await
             .map_err(internal)?;
         Ok(
@@ -755,7 +750,7 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
                 HasOne::<Account, Account>::new("id", "manager_id"),
             );
         }
-        let mut model = query.findOrFail(id).await.map_err(internal)?;
+        let mut model = query.find_or_fail(id).await.map_err(internal)?;
         if load {
             model.append(&["label"]);
         }
@@ -772,7 +767,7 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
             "appended",
             Conditional::when_appended(&model, "label", || {
                 model
-                    .attributesToArray()
+                    .attributes_to_array()
                     .map(|values| values["label"].clone())
             })
             .transpose()
@@ -819,7 +814,7 @@ async fn pivots() -> ResourceResult<Plain> {
     const TABLE: &str = "resource_memberships";
     let pivot = || {
         BelongsToMany::<Account, Account>::new(TABLE, "owner_id", "member_id", "id", "id")
-            .withPivot(["level"])
+            .with_pivot(["level"])
     };
     let owner = Account::query()
         .map_err(internal)?
@@ -828,15 +823,15 @@ async fn pivots() -> ResourceResult<Plain> {
             "subscribers",
             pivot().r#as("membership").using::<Membership>(),
         )
-        .findOrFail(1)
+        .find_or_fail(1)
         .await
         .map_err(internal)?;
     let member = owner
-        .getRelation::<RelatedCollection<Account>>("members")
+        .get_relation::<RelatedCollection<Account>>("members")
         .unwrap()[0]
         .as_ref();
     let subscriber = owner
-        .getRelation::<RelatedCollection<Account>>("subscribers")
+        .get_relation::<RelatedCollection<Account>>("subscribers")
         .unwrap()[0]
         .as_ref();
     let mut fields = Map::new();
@@ -844,9 +839,9 @@ async fn pivots() -> ResourceResult<Plain> {
         &mut fields,
         "ordinary",
         Conditional::when_pivot_loaded(member, TABLE, || {
-            let row = member.getRelation::<Pivot>("pivot").unwrap();
-            assert_eq!(row.getTable(), TABLE);
-            level(row.getAttribute("level"))
+            let row = member.get_relation::<Pivot>("pivot").unwrap();
+            assert_eq!(row.get_table(), TABLE);
+            level(row.get_attribute("level"))
         }),
     );
     Conditional::insert(
@@ -858,8 +853,8 @@ async fn pivots() -> ResourceResult<Plain> {
         &mut fields,
         "typed",
         Conditional::when_pivot_loaded_as_type::<Membership, _>(subscriber, "membership", |row| {
-            assert_eq!(row.getTable(), TABLE);
-            level(row.getAttribute("level"))
+            assert_eq!(row.get_table(), TABLE);
+            level(row.get_attribute("level"))
         }),
     );
     for (name, value) in [
@@ -1234,7 +1229,7 @@ async fn verify_json_api_autoload(address: SocketAddr, mysql: Option<&Connection
 
 async fn select_count(connection: &Connection) -> u64 {
     let row = connection
-        .selectOne("SHOW SESSION STATUS LIKE 'Com_select'", &[])
+        .select_one("SHOW SESSION STATUS LIKE 'Com_select'", &[])
         .await
         .unwrap()
         .unwrap();
@@ -1538,7 +1533,6 @@ async fn resource_responses_on_mysql() {
 
 struct ForcedResource;
 
-#[allow(non_snake_case, reason = "Implements the JSON resource contract")]
 impl JsonResource for ForcedResource {
     fn to_array(&self, _: &Request) -> ResourceResult<Json> {
         Ok(json!({"items":{"id":1}}))
@@ -1571,7 +1565,6 @@ fn wrapping_metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Res
 #[derive(Default)]
 struct PreparedResource(Option<Json>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JsonResource for PreparedResource {
     fn prepare_response(
         &mut self,
@@ -1619,20 +1612,20 @@ impl ResourceController {
 fn wrapping_routes() -> Result<(), RoutingError> {
     Route::get("/person", || {
         let mut state = ModelState::default();
-        state.setAttribute("id", "external-id");
+        state.set_attribute("id", "external-id");
         let mut person = Account::from_state(state);
         let mut child = ModelState::default();
-        child.setAttribute("id", "child");
+        child.set_attribute("id", "child");
         let mut child = Account::from_state(child);
         let mut grandchild = ModelState::default();
-        grandchild.setAttribute("id", "grandchild");
-        child.setRelation::<HasMany<Account, Account>>(
+        grandchild.set_attribute("id", "grandchild");
+        child.set_relation::<HasMany<Account, Account>>(
             "directReports",
-            RelatedCollection::fromShared(vec![Arc::new(Account::from_state(grandchild))]),
+            RelatedCollection::from_shared(vec![Arc::new(Account::from_state(grandchild))]),
         );
-        person.setRelation::<HasMany<Account, Account>>(
+        person.set_relation::<HasMany<Account, Account>>(
             "directReports",
-            RelatedCollection::fromShared(vec![Arc::new(child)]),
+            RelatedCollection::from_shared(vec![Arc::new(child)]),
         );
         PersonResource::make(person)
     })?;

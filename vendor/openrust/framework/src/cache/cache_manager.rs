@@ -84,7 +84,6 @@ enum Options {
     },
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CacheManager {
     pub fn new(config: Arc<dyn Config>, database: Arc<DatabaseManager>, base: PathBuf) -> Self {
         let redis = Arc::new(RedisManager::new(config.clone()));
@@ -173,11 +172,11 @@ impl CacheManager {
     }
 
     /// Returns the application container when the manager belongs to an application.
-    pub fn getContainer(&self) -> Option<Arc<Container>> {
+    pub fn get_container(&self) -> Option<Arc<Container>> {
         self.inner.owner.upgrade()
     }
 
-    pub fn setDefaultDriver(&self, name: &str) -> CacheResult<()> {
+    pub fn set_default_driver(&self, name: &str) -> CacheResult<()> {
         if name.is_empty() {
             return Err(CacheError::InvalidConfiguration);
         }
@@ -199,13 +198,13 @@ impl CacheManager {
     }
 
     /// Removes a cached repository so the next access resolves the store again.
-    pub fn forgetDriver(&self, name: Option<&str>) -> CacheResult<&Self> {
+    pub fn forget_driver(&self, name: Option<&str>) -> CacheResult<&Self> {
         self.inner.stores.forget(&self.store_name(name)?);
         Ok(self)
     }
 
     pub fn purge(&self, name: Option<&str>) -> CacheResult<()> {
-        self.forgetDriver(name)?;
+        self.forget_driver(name)?;
         Ok(())
     }
 

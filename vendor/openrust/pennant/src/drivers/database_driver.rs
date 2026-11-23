@@ -149,7 +149,7 @@ impl Driver for DatabaseDriver {
                 let mut query = self.connection.table(&self.table);
                 for (feature, scopes) in features {
                     for scope in scopes {
-                        query = query.orWhereNested(|query| {
+                        query = query.or_where_nested(|query| {
                             query.r#where("name", "=", feature.as_str()).r#where(
                                 "scope",
                                 "=",
@@ -325,7 +325,7 @@ fn record(
 fn timestamp(timezone: &openrust::support::DateTimezone) -> Result<Sql> {
     Ok(openrust::support::Date::now(Some(timezone.clone()))
         .map_err(|_| Error::InvalidValue)?
-        .asDateTime()
+        .as_date_time()
         .strftime("%Y-%m-%d %H:%M:%S")
         .to_string()
         .into())

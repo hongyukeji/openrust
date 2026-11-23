@@ -111,13 +111,13 @@ impl DatabaseQueue {
                 "update {table} set reserved_at = {clock}, attempts = attempts + 1 where id = (select id from {table} where {ready} order by id limit 1) returning id, payload, attempts"
             );
             self.connection
-                .selectFromWriteConnection(&sql, &bindings)
+                .select_from_write_connection(&sql, &bindings)
                 .await
                 .map_err(backend)?
                 .into_iter()
                 .next()
         } else {
-            let mut transaction = self.connection.beginTransaction().await.map_err(backend)?;
+            let mut transaction = self.connection.begin_transaction().await.map_err(backend)?;
             let lock = if self.connection.is_postgres() {
                 "for update skip locked"
             } else if self.connection.is_mariadb() {
@@ -136,7 +136,7 @@ impl DatabaseQueue {
                 )
             };
             let row = transaction
-                .selectOne(&sql, &bindings)
+                .select_one(&sql, &bindings)
                 .await
                 .map_err(backend)?;
             if let Some(row) = &row {
@@ -145,7 +145,7 @@ impl DatabaseQueue {
                     "update {table} set reserved_at = {clock}, attempts = attempts + 1 where id = ?"
                 );
                 transaction
-                    .affectingStatement(&sql, &[id])
+                    .affecting_statement(&sql, &[id])
                     .await
                     .map_err(backend)?;
             }
@@ -214,7 +214,7 @@ impl ClearableQueue for DatabaseQueue {
             let queue = queue_name(Some(queue), &self.queue)?;
             let sql = format!("delete from {} where queue = ?", self.table_sql()?);
             self.connection
-                .affectingStatement(&sql, &[queue.into()])
+                .affecting_statement(&sql, &[queue.into()])
                 .await
                 .map_err(backend)
         })
@@ -226,7 +226,7 @@ impl Contract for DatabaseQueue {
         Some(self)
     }
 
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
 
@@ -243,7 +243,7 @@ impl Contract for DatabaseQueue {
             );
             let rows = self
                 .connection
-                .selectFromWriteConnection(&sql, &[queue.into()])
+                .select_from_write_connection(&sql, &[queue.into()])
                 .await
                 .map_err(backend)?;
             number(field(
@@ -268,7 +268,7 @@ impl Contract for DatabaseQueue {
             );
             let rows = self
                 .connection
-                .selectFromWriteConnection(&sql, &[queue.into()])
+                .select_from_write_connection(&sql, &[queue.into()])
                 .await
                 .map_err(backend)?;
             let row = rows.first().ok_or(QueueError::InvalidPayload)?;
@@ -341,7 +341,7 @@ impl Reservation for DatabaseReservation {
             let deleted = self
                 .driver
                 .connection
-                .affectingStatement(&sql, &bindings)
+                .affecting_statement(&sql, &bindings)
                 .await
                 .map_err(backend)?;
             require_one(deleted)
@@ -391,11 +391,11 @@ impl DatabaseReservation {
         let mut transaction = self
             .driver
             .connection
-            .beginTransaction()
+            .begin_transaction()
             .await
             .map_err(backend)?;
         let deleted = transaction
-            .affectingStatement(&delete, &delete_bindings)
+            .affecting_statement(&delete, &delete_bindings)
             .await
             .map_err(backend)?;
         require_one(deleted)?;

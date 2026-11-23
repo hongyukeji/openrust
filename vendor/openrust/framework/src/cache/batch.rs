@@ -6,10 +6,9 @@ use crate::contracts::cache::Repository as _;
 
 use super::{Cache, CacheResult, Repository, Ttl, Value};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     /// Reads a set of keys with a separate default for each key.
-    pub async fn manyOr(&self, entries: &[(&str, Value)]) -> CacheResult<IndexMap<String, Value>> {
+    pub async fn many_or(&self, entries: &[(&str, Value)]) -> CacheResult<IndexMap<String, Value>> {
         let defaults: IndexMap<_, _> = entries.iter().map(|(key, value)| (*key, value)).collect();
         let keys: Vec<_> = defaults.keys().copied().collect();
         Ok(self
@@ -26,7 +25,7 @@ impl Repository {
     }
 
     /// Reads once and resolves defaults only for missing or null keys.
-    pub async fn manyOrElse<'a, F>(
+    pub async fn many_or_else<'a, F>(
         &self,
         keys: &[&'a str],
         mut default: impl FnMut(&'a str) -> F,
@@ -47,7 +46,7 @@ impl Repository {
     }
 
     /// Reads each key once, applying the same default to all misses.
-    pub async fn getMultiple(
+    pub async fn get_multiple(
         &self,
         keys: &[&str],
         default: Option<Value>,
@@ -77,19 +76,19 @@ impl Repository {
         self.put(key, value, ttl).await
     }
 
-    pub async fn setMultiple(
+    pub async fn set_multiple(
         &self,
         values: &[(String, Value)],
         ttl: Option<Ttl>,
     ) -> CacheResult<bool> {
-        self.putMany(values, ttl).await
+        self.put_many(values, ttl).await
     }
 
     pub async fn delete(&self, key: &str) -> CacheResult<bool> {
         self.forget(key).await
     }
 
-    pub async fn deleteMultiple(&self, keys: &[&str]) -> CacheResult<bool> {
+    pub async fn delete_multiple(&self, keys: &[&str]) -> CacheResult<bool> {
         let mut removed = true;
         for key in keys {
             removed &= self.forget(key).await?;
@@ -102,43 +101,42 @@ impl Repository {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cache {
-    pub async fn manyOr(entries: &[(&str, Value)]) -> CacheResult<IndexMap<String, Value>> {
-        Self::store(None)?.manyOr(entries).await
+    pub async fn many_or(entries: &[(&str, Value)]) -> CacheResult<IndexMap<String, Value>> {
+        Self::store(None)?.many_or(entries).await
     }
 
-    pub async fn manyOrElse<'a, F>(
+    pub async fn many_or_else<'a, F>(
         keys: &[&'a str],
         default: impl FnMut(&'a str) -> F,
     ) -> CacheResult<IndexMap<String, Value>>
     where
         F: Future<Output = CacheResult<Value>>,
     {
-        Self::store(None)?.manyOrElse(keys, default).await
+        Self::store(None)?.many_or_else(keys, default).await
     }
 
-    pub async fn getMultiple(
+    pub async fn get_multiple(
         keys: &[&str],
         default: Option<Value>,
     ) -> CacheResult<IndexMap<String, Option<Value>>> {
-        Self::store(None)?.getMultiple(keys, default).await
+        Self::store(None)?.get_multiple(keys, default).await
     }
 
     pub async fn set(key: &str, value: &Value, ttl: Option<Ttl>) -> CacheResult<bool> {
         Self::put(key, value, ttl).await
     }
 
-    pub async fn setMultiple(values: &[(String, Value)], ttl: Option<Ttl>) -> CacheResult<bool> {
-        Self::putMany(values, ttl).await
+    pub async fn set_multiple(values: &[(String, Value)], ttl: Option<Ttl>) -> CacheResult<bool> {
+        Self::put_many(values, ttl).await
     }
 
     pub async fn delete(key: &str) -> CacheResult<bool> {
         Self::forget(key).await
     }
 
-    pub async fn deleteMultiple(keys: &[&str]) -> CacheResult<bool> {
-        Self::store(None)?.deleteMultiple(keys).await
+    pub async fn delete_multiple(keys: &[&str]) -> CacheResult<bool> {
+        Self::store(None)?.delete_multiple(keys).await
     }
 
     pub async fn clear() -> CacheResult<bool> {

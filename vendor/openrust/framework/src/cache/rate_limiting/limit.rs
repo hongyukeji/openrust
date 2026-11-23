@@ -6,13 +6,12 @@ use super::{AfterCallback, ResponseCallback, Unlimited};
 
 /// An attempt budget and decay period, with an optional key and response hooks.
 #[derive(Clone)]
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Limit {
     pub key: String,
-    pub maxAttempts: u64,
-    pub decaySeconds: u64,
-    pub afterCallback: Option<Arc<AfterCallback>>,
-    pub responseCallback: Option<Arc<ResponseCallback>>,
+    pub max_attempts: u64,
+    pub decay_seconds: u64,
+    pub after_callback: Option<Arc<AfterCallback>>,
+    pub response_callback: Option<Arc<ResponseCallback>>,
 }
 
 impl Default for Limit {
@@ -21,35 +20,34 @@ impl Default for Limit {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Limit {
     pub fn new(key: impl Into<String>, max_attempts: u64, decay_seconds: u64) -> Self {
         Self {
             key: key.into(),
-            maxAttempts: max_attempts,
-            decaySeconds: decay_seconds,
-            afterCallback: None,
-            responseCallback: None,
+            max_attempts,
+            decay_seconds,
+            after_callback: None,
+            response_callback: None,
         }
     }
 
-    pub fn perSecond(max_attempts: u64) -> Self {
+    pub fn per_second(max_attempts: u64) -> Self {
         Self::new("", max_attempts, 1)
     }
 
-    pub fn perMinute(max_attempts: u64) -> Self {
-        Self::perMinutes(1, max_attempts)
+    pub fn per_minute(max_attempts: u64) -> Self {
+        Self::per_minutes(1, max_attempts)
     }
 
-    pub fn perMinutes(decay_minutes: u64, max_attempts: u64) -> Self {
+    pub fn per_minutes(decay_minutes: u64, max_attempts: u64) -> Self {
         Self::new("", max_attempts, decay_minutes.saturating_mul(60))
     }
 
-    pub fn perHour(max_attempts: u64) -> Self {
+    pub fn per_hour(max_attempts: u64) -> Self {
         Self::new("", max_attempts, 3_600)
     }
 
-    pub fn perDay(max_attempts: u64) -> Self {
+    pub fn per_day(max_attempts: u64) -> Self {
         Self::new("", max_attempts, 86_400)
     }
 
@@ -63,7 +61,7 @@ impl Limit {
     }
 
     pub fn after(mut self, callback: impl Fn(&Response) -> bool + Send + Sync + 'static) -> Self {
-        self.afterCallback = Some(Arc::new(callback));
+        self.after_callback = Some(Arc::new(callback));
         self
     }
 
@@ -71,12 +69,15 @@ impl Limit {
         mut self,
         callback: impl Fn(&Request, HeaderMap) -> Response + Send + Sync + 'static,
     ) -> Self {
-        self.responseCallback = Some(Arc::new(callback));
+        self.response_callback = Some(Arc::new(callback));
         self
     }
 
-    pub fn fallbackKey(&self) -> String {
-        let suffix = format!("attempts:{}:decay:{}", self.maxAttempts, self.decaySeconds);
+    pub fn fallback_key(&self) -> String {
+        let suffix = format!(
+            "attempts:{}:decay:{}",
+            self.max_attempts, self.decay_seconds
+        );
         if matches!(self.key.as_str(), "" | "0") {
             suffix
         } else {

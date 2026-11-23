@@ -42,7 +42,6 @@ pub struct HasManyThrough<P: Model, I: Model, R: Model> {
     intermediate: PhantomData<fn() -> I>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     pub const fn new(
         first_key: &'static str,
@@ -75,7 +74,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 
     #[must_use]
-    pub fn withTrashedParents(mut self) -> Self {
+    pub fn with_trashed_parents(mut self) -> Self {
         self.include_trashed_parents = true;
         self
     }
@@ -94,69 +93,69 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.paginateWith(
+        self.paginate_with(
             parent,
             PageOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..PageOptions::default()
             },
         )
         .await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<R>> {
         self.pagination_query(parent, options.columns)?
-            .paginateWith(options)
+            .paginate_with(options)
             .await
     }
 
-    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
-        self.simplePaginateWith(
+    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.simple_paginate_with(
             parent,
             PageOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..PageOptions::default()
             },
         )
         .await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<R>> {
         self.pagination_query(parent, options.columns)?
-            .simplePaginateWith(options)
+            .simple_paginate_with(options)
             .await
     }
 
-    pub async fn cursorPaginate(
+    pub async fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<CursorPaginator<R>> {
-        self.cursorPaginateWith(
+        self.cursor_paginate_with(
             parent,
             CursorOptions {
-                perPage: Some(per_page),
+                per_page: Some(per_page),
                 ..CursorOptions::default()
             },
         )
         .await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<R>> {
         self.pagination_query(parent, options.columns)?
-            .cursorPaginateWith(options)
+            .cursor_paginate_with(options)
             .await
     }
 
@@ -210,7 +209,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, i64) -> Fut,
@@ -222,7 +221,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         self.pagination_query(parent, &["*"])?
-            .eachById(
+            .each_by_id(
                 callback,
                 count,
                 column,
@@ -233,7 +232,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
 
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -246,7 +245,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         self.pagination_query(parent, &["*"])?
-            .orderedChunkById(
+            .ordered_chunk_by_id(
                 count,
                 callback,
                 column,
@@ -273,14 +272,14 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         columns: &[&str],
     ) -> DatabaseResult<Builder<'static, R>> {
         let connection = self.keys.connection(parent)?;
-        let query = R::queryOn(&connection);
-        let projection = query.qualifyColumn("*");
+        let query = R::query_on(&connection);
+        let projection = query.qualify_column("*");
         let query = if columns.is_empty() || columns == ["*"] {
             query.select_relation_columns([projection.as_str()])
         } else {
             let columns: Vec<_> = columns
                 .iter()
-                .map(|column| query.qualifyColumn(column))
+                .map(|column| query.qualify_column(column))
                 .collect();
             query.select_relation_columns(columns.iter().map(String::as_str))
         };
@@ -331,7 +330,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             alias,
             match_key: format!("{alias}.{}", self.first_key),
             intermediate_key: format!("{alias}.{}", self.second_local_key),
-            related_key: related.qualifyColumn(self.keys.related),
+            related_key: related.qualify_column(self.keys.related),
             morph: self
                 .intermediate_morph
                 .map(|(column, value)| (format!("{alias}.{column}"), value)),
@@ -359,9 +358,9 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             let middle = candidates
                 .subquery(&join.source)
                 .select([query::Expression::new("1")])
-                .whereColumn(&join.intermediate_key, "=", &join.related_key)
-                .whereColumn(&join.match_key, "=", &outer.match_key);
-            candidates.whereExists(&mut join.filter_intermediate(middle))
+                .where_column(&join.intermediate_key, "=", &join.related_key)
+                .where_column(&join.match_key, "=", &outer.match_key);
+            candidates.where_exists(&mut join.filter_intermediate(middle))
         })
     }
 
@@ -371,17 +370,17 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         }
         let (Some(parent_key), Some(related_key)) = (
             parent
-                .getAttribute(self.keys.parent)
+                .get_attribute(self.keys.parent)
                 .filter(|key| !matches!(key, Value::Null)),
-            related.getKey().filter(|key| !matches!(key, Value::Null)),
+            related.get_key().filter(|key| !matches!(key, Value::Null)),
         ) else {
             return Ok(false);
         };
         let connection = self.keys.connection(parent)?;
-        let query = self.keys.configure(R::queryOn(&connection))?;
+        let query = self.keys.configure(R::query_on(&connection))?;
         let join = self.join(&query, None, &connection)?;
         let query = self.select_one(query, &join, &connection)?;
-        let primary = query.qualifyColumn(R::metadata().primary_key);
+        let primary = query.qualify_column(R::metadata().primary_key);
         let query = query
             .restrict_relation(&join.match_key, std::slice::from_ref(parent_key))
             .restrict_relation(&primary, std::slice::from_ref(related_key));
@@ -401,16 +400,16 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         }
         let connection = self.keys.connection(parent)?;
         self.keys
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .upsert(rows, unique_by, update)
             .await
     }
 
     /// Finds the related primary key through the join or returns an unsaved model.
-    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+    pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         match self.find(parent, key).await? {
             Some(model) => Ok(model),
-            None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
+            None => R::new_instance_on(&self.keys.connection(parent)?, Attributes::new()),
         }
     }
 
@@ -451,11 +450,11 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .into_iter()
             .map(owned_model)
             .collect();
-        Ok(R::newCollection(models))
+        Ok(R::new_collection(models))
     }
 
     /// Finds a related row or makes an unsaved model using the supplied attributes.
-    pub async fn firstOrNew(
+    pub async fn first_or_new(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -468,12 +467,12 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         attributes.extend(values);
         let connection = self.keys.connection(parent)?;
         self.keys
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .make_async(attributes)
             .await
     }
 
-    pub async fn firstOrCreate(
+    pub async fn first_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -483,7 +482,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
-    pub async fn createOrFirst(
+    pub async fn create_or_first(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -493,23 +492,23 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
-    pub async fn updateOrCreate(
+    pub async fn update_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
         let mut model = self
-            .firstOrCreate(parent, attributes, values.clone())
+            .first_or_create(parent, attributes, values.clone())
             .await?;
-        if !model.state().wasRecentlyCreated() {
-            model.fillAsync(values).await?;
+        if !model.state().was_recently_created() {
+            model.fill_async(values).await?;
             model.save().await?;
         }
         Ok(model)
     }
 
-    pub async fn restoreOrCreate(
+    pub async fn restore_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -523,7 +522,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         Ok(model)
     }
 
-    pub async fn createOrRestore(
+    pub async fn create_or_restore(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -537,7 +536,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         Ok(model)
     }
 
-    pub async fn incrementOrCreate(
+    pub async fn increment_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -557,7 +556,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         let model = self
             .find_or_create(parent, attributes, values, false, false)
             .await?;
-        if model.state().wasRecentlyCreated() {
+        if model.state().was_recently_created() {
             return Ok(model);
         }
         increment_related(model, column, step, extra).await
@@ -572,7 +571,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         insert_first: bool,
     ) -> DatabaseResult<R> {
         if parent
-            .getAttribute(self.keys.parent)
+            .get_attribute(self.keys.parent)
             .is_none_or(|key| matches!(key, Value::Null))
         {
             return Err(DatabaseError::InvalidQuery("relationship parent key"));
@@ -592,7 +591,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         insert.extend(values);
         let mut model = self
             .keys
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .make_async(insert)
             .await?;
         match model.save().await {
@@ -644,7 +643,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let query = self
                     .keys
                     .configure(
-                        R::queryOn(&connection).select_relation_columns([projection.as_str()]),
+                        R::query_on(&connection).select_relation_columns([projection.as_str()]),
                     )?
                     .apply_default_counts()?;
                 let query = if lookup.as_ref().is_some_and(|lookup| lookup.include_trashed) {
@@ -664,7 +663,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let match_column = format!("{} as laravel_through_key", join.match_key);
                 let rows = join
                     .apply(query.scoped()?.0)
-                    .addSelect([match_column.as_str()])
+                    .add_select([match_column.as_str()])
                     .get_with_transaction(transaction.as_deref_mut())
                     .await?;
                 let mut matches = Vec::with_capacity(rows.len());
@@ -731,20 +730,19 @@ impl ThroughJoin {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
 
-    fn isEmptyCollection(output: &Self::Output) -> bool {
+    fn is_empty_collection(output: &Self::Output) -> bool {
         output.is_empty()
     }
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -754,7 +752,7 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         })
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -762,18 +760,18 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         super::super::serialization::many(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         super::super::queueable::common_relations(output.iter().map(Arc::as_ref))
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -798,9 +796,8 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> ExistenceRelation for HasManyThrough<P, I, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
@@ -811,7 +808,7 @@ impl<P: Model, I: Model, R: Model> ExistenceRelation for HasManyThrough<P, I, R>
         let parent = format!("{parent_table}.{}", self.keys.parent);
         Ok(join
             .apply(related.scoped()?.0)
-            .whereColumn(&join.match_key, "=", &parent))
+            .where_column(&join.match_key, "=", &parent))
     }
 }
 

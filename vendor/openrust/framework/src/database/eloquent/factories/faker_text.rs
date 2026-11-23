@@ -12,37 +12,36 @@ use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker};
 const MIN_MAX_ERROR: DatabaseError =
     DatabaseError::InvalidQuery("Faker real text maximum length must be at least 10");
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
-    pub fn realText(
+    pub fn real_text(
         &self,
-        maxNbChars: Option<usize>,
-        indexSize: Option<usize>,
+        max_nb_chars: Option<usize>,
+        index_size: Option<usize>,
     ) -> DatabaseResult<String> {
-        let max = maxNbChars.unwrap_or(200);
+        let max = max_nb_chars.unwrap_or(200);
         if self.provider_locale() == "fa_IR" {
-            validate(1, max, indexSize.unwrap_or(2))?;
-            let (model, syntax) = text_model(self.provider_locale(), indexSize.unwrap_or(2));
+            validate(1, max, index_size.unwrap_or(2))?;
+            let (model, syntax) = text_model(self.provider_locale(), index_size.unwrap_or(2));
             return Ok(model.generate(&self.random, max, syntax, true));
         }
         let min = max - (max / 5 + usize::from(max % 5 >= 3));
-        let mut text = self.realTextBetween(Some(min), Some(max), indexSize)?;
+        let mut text = self.real_text_between(Some(min), Some(max), index_size)?;
         if self.provider_locale() == "cs_CZ" {
             text.retain(|ch| !matches!(ch, '„' | '“'));
         }
         Ok(text)
     }
 
-    pub fn realTextBetween(
+    pub fn real_text_between(
         &self,
-        minNbChars: Option<usize>,
-        maxNbChars: Option<usize>,
-        indexSize: Option<usize>,
+        min_nb_chars: Option<usize>,
+        max_nb_chars: Option<usize>,
+        index_size: Option<usize>,
     ) -> DatabaseResult<String> {
         let (min, max, index) = (
-            minNbChars.unwrap_or(160),
-            maxNbChars.unwrap_or(200),
-            indexSize.unwrap_or(2),
+            min_nb_chars.unwrap_or(160),
+            max_nb_chars.unwrap_or(200),
+            index_size.unwrap_or(2),
         );
         validate(min, max, index)?;
         let (model, syntax) = text_model(self.provider_locale(), index);
@@ -58,24 +57,24 @@ impl Faker {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
-    pub fn realText(
+    pub fn real_text(
         &self,
-        maxNbChars: Option<usize>,
-        indexSize: Option<usize>,
+        max_nb_chars: Option<usize>,
+        index_size: Option<usize>,
     ) -> DatabaseResult<String> {
-        self.try_generate("realText", || self.0.realText(maxNbChars, indexSize))
+        self.try_generate("realText", || self.0.real_text(max_nb_chars, index_size))
     }
 
-    pub fn realTextBetween(
+    pub fn real_text_between(
         &self,
-        minNbChars: Option<usize>,
-        maxNbChars: Option<usize>,
-        indexSize: Option<usize>,
+        min_nb_chars: Option<usize>,
+        max_nb_chars: Option<usize>,
+        index_size: Option<usize>,
     ) -> DatabaseResult<String> {
         self.try_generate("realTextBetween", || {
-            self.0.realTextBetween(minNbChars, maxNbChars, indexSize)
+            self.0
+                .real_text_between(min_nb_chars, max_nb_chars, index_size)
         })
     }
 }

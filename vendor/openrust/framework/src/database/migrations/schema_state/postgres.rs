@@ -33,16 +33,16 @@ pub(super) async fn dump(
 }
 
 async fn ledger_pattern(connection: &Connection, reference: &str) -> DatabaseResult<String> {
-    let builder = connection.getSchemaBuilder();
-    let (schema, table) = builder.parseSchemaAndTable(reference, SchemaFallback::None)?;
+    let builder = connection.get_schema_builder();
+    let (schema, table) = builder.parse_schema_and_table(reference, SchemaFallback::None)?;
     let table = connection
         .grammar
-        .quote(&format!("{}{table}", connection.getTablePrefix()))?;
+        .quote(&format!("{}{table}", connection.get_table_prefix()))?;
     let target = match schema {
         Some(schema) => format!("{}.{table}", connection.grammar.quote(schema)?),
         None => table.clone(),
     };
-    let rows = connection.selectFromWriteConnection(
+    let rows = connection.select_from_write_connection(
         "select n.nspname::text as name from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.oid = pg_catalog.to_regclass(?)",
         &[target.into()],
     ).await?;

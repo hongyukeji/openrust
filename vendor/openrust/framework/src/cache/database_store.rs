@@ -27,12 +27,12 @@ impl DatabaseStore {
         // A bare name and a schema-qualified name can refer to the same table.
         let data_name = format!(
             "{}{}",
-            connection.getTablePrefix(),
+            connection.get_table_prefix(),
             table.rsplit('.').next().unwrap_or(&table)
         );
         let lock_name = format!(
             "{}{}",
-            lock_connection.getTablePrefix(),
+            lock_connection.get_table_prefix(),
             lock_table.rsplit('.').next().unwrap_or(&lock_table)
         );
         let separate_locks = !data_name.eq_ignore_ascii_case(&lock_name);
@@ -68,7 +68,7 @@ impl DatabaseBackend {
         let row = self
             .connection
             .table(&self.table)
-            .useWritePdo()
+            .use_write_pdo()
             .r#where("key", "=", key.as_str())
             .first()
             .await?;
@@ -114,7 +114,7 @@ impl DatabaseBackend {
                         let current = tx
                             .table(&table)
                             .r#where("key", "=", key.as_ref())
-                            .lockForUpdate()
+                            .lock_for_update()
                             .first()
                             .await?;
                         let result = (|| {
@@ -130,7 +130,7 @@ impl DatabaseBackend {
                                 Change::Remove => SqlChange::Remove,
                                 Change::Write(entry) => SqlChange::Write(
                                     encode(&entry, column)?,
-                                    databaseExpiration(entry.expires)?,
+                                    database_expiration(entry.expires)?,
                                 ),
                             };
                             Ok((change, value))
@@ -207,7 +207,7 @@ fn expiration(row: &Row) -> Option<i64> {
     non_snake_case,
     reason = "Names the database expiration adapter explicitly"
 )]
-fn databaseExpiration(expires: i64) -> CacheResult<i64> {
+fn database_expiration(expires: i64) -> CacheResult<i64> {
     if expires == FOREVER {
         (now()? / 1000)
             .checked_add(315_360_000)

@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 
 use super::{ArrayKey, Collection, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn sort(self) -> Self
     where
@@ -11,38 +10,38 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.passthru(Collection::sort)
     }
 
-    pub fn sortDesc(self) -> Self
+    pub fn sort_desc(self) -> Self
     where
         T: Ord,
     {
-        self.passthru(Collection::sortDesc)
+        self.passthru(Collection::sort_desc)
     }
 
-    pub fn sortUsing(self, compare: impl Fn(&T, &T) -> Ordering + 'source) -> Self {
-        self.passthru(move |items| items.sortUsing(&compare))
+    pub fn sort_using(self, compare: impl Fn(&T, &T) -> Ordering + 'source) -> Self {
+        self.passthru(move |items| items.sort_using(&compare))
     }
 
-    pub fn sortBy<K: Ord>(self, project: impl Fn(&T, &ArrayKey) -> K + 'source) -> Self {
-        self.passthru(move |items| items.sortBy(&project))
+    pub fn sort_by<K: Ord>(self, project: impl Fn(&T, &ArrayKey) -> K + 'source) -> Self {
+        self.passthru(move |items| items.sort_by(&project))
     }
 
-    pub fn sortByDesc<K: Ord>(self, project: impl Fn(&T, &ArrayKey) -> K + 'source) -> Self {
-        self.passthru(move |items| items.sortByDesc(&project))
+    pub fn sort_by_desc<K: Ord>(self, project: impl Fn(&T, &ArrayKey) -> K + 'source) -> Self {
+        self.passthru(move |items| items.sort_by_desc(&project))
     }
 
-    pub fn sortKeys(self) -> Self {
-        self.passthru(Collection::sortKeys)
+    pub fn sort_keys(self) -> Self {
+        self.passthru(Collection::sort_keys)
     }
 
-    pub fn sortKeysDesc(self) -> Self {
-        self.passthru(Collection::sortKeysDesc)
+    pub fn sort_keys_desc(self) -> Self {
+        self.passthru(Collection::sort_keys_desc)
     }
 
-    pub fn sortKeysUsing(
+    pub fn sort_keys_using(
         self,
         compare: impl Fn(&ArrayKey, &ArrayKey) -> Ordering + 'source,
     ) -> Self {
-        self.passthru(move |items| items.sortKeysUsing(&compare))
+        self.passthru(move |items| items.sort_keys_using(&compare))
     }
 
     pub fn reverse(self) -> Self {
@@ -56,14 +55,14 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.passthru(Collection::duplicates)
     }
 
-    pub fn duplicatesStrict(self) -> Self
+    pub fn duplicates_strict(self) -> Self
     where
         T: PartialEq,
     {
         self.duplicates()
     }
 
-    pub fn duplicatesBy<U: PartialEq + 'source>(
+    pub fn duplicates_by<U: PartialEq + 'source>(
         self,
         project: impl Fn(&T, &ArrayKey) -> U + 'source,
     ) -> LazyCollection<'source, U> {

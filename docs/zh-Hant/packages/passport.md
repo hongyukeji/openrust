@@ -101,11 +101,11 @@ pub async fn create_client(
 
 機密用戶端重用應用既有的 Eloquent 非同步雜湊服務。建立或輪替的 `Client` 在 `plainSecret` 暫時保留 setter 輸入，重新讀庫不會還原明文。預設 JSON 隱藏 `secret`，不附加明文。只在交付擁有者時複製新產生的秘密，不要記錄日誌。`record.model::<M>()` 回傳的 `Arc<tokio::sync::Mutex<M>>` 指向實際選定模型；`sameInstance` 檢查共用物件身分，不代表兩行模型的主鍵相等。
 
-`client.append(&["plain_secret"])` 顯式附加該實例的暫時明文；重新讀庫的模型附加後得到 null。附加仍遵守 `makeHidden` 與 `setVisible`。
+`client.append(&["plain_secret"])` 顯式附加該實例的暫時明文；重新讀庫的模型附加後得到 null。附加仍遵守 `make_hidden` 與 `set_visible`。
 
 `ClientModel::hasScope` 與 `ClientRecord::hasScope` 在未設定 `scopes` 或其原始值為 null 時允許所有 scope；已設定時按陣列內容檢查，成員判斷沿用 PHP 非嚴格比較。預設不開啟父 scope 繼承。若在目前應用上呼叫 `passport.withInheritedScopes.store(true, std::sync::atomic::Ordering::Relaxed)`，`orders` 也允許 `orders:read` 等後代。`*` 在這裡是一般 scope 名稱。開關儲存在各應用自己的實例中，呼叫須位於所屬應用的請求或 Artisan 生命週期。
 
-在應用裝配時、解析儲存庫前呼叫 `passport.useClientModel::<CustomClient>()`。編譯期類型實作 `ClientModel` 和 Eloquent `Model`，保留唯一識別校驗、全域作用域、事件與轉換。格式錯誤的 UUID／ULID 在解析連線前直接未命中。儲存庫查詢與未綁定實例的 `Client::query()`／`save()` 優先使用模型顯式連線，接著是 `passport.connection`，最後是資料庫預設連線。建立和讀出的模型保留實際連線；隨後更改設定也不會把該模型的儲存轉到其他連線。`Client::queryOn(&connection)` 顯式選擇連線。交易寫入檢查模型的有效連線，拒絕不同連線的交易。Rust 的 `resolveConnectionName()` 回傳可擁有的名稱，以讀取應用設定；`getConnection()` 回傳實際連線。秘密賦值使用 PHP 純量字串轉換。雜湊失敗保留既有雜湊，並在 `plainSecret` 中保留本次 setter 輸入。批次賦值沿用 Rust 既有的屬性鍵順序；後續 setter 失敗時保留先前成功的賦值。
+在應用裝配時、解析儲存庫前呼叫 `passport.useClientModel::<CustomClient>()`。編譯期類型實作 `ClientModel` 和 Eloquent `Model`，保留唯一識別校驗、全域作用域、事件與轉換。格式錯誤的 UUID／ULID 在解析連線前直接未命中。儲存庫查詢與未綁定實例的 `Client::query()`／`save()` 優先使用模型顯式連線，接著是 `passport.connection`，最後是資料庫預設連線。建立和讀出的模型保留實際連線；隨後更改設定也不會把該模型的儲存轉到其他連線。`Client::query_on(&connection)` 顯式選擇連線。交易寫入檢查模型的有效連線，拒絕不同連線的交易。Rust 的 `resolve_connection_name()` 回傳可擁有的名稱，以讀取應用設定；`get_connection()` 回傳實際連線。秘密賦值使用 PHP 純量字串轉換。雜湊失敗保留既有雜湊，並在 `plainSecret` 中保留本次 setter 輸入。批次賦值沿用 Rust 既有的屬性鍵順序；後續 setter 失敗時保留先前成功的賦值。
 
 ## 用戶端工廠
 

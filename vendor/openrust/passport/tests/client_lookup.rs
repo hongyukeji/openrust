@@ -131,15 +131,15 @@ async fn cleanup(app: &Application) {
     manager
         .connection(Some("oauth"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("oauth_clients")
+        .get_schema_builder()
+        .drop_if_exists("oauth_clients")
         .await
         .unwrap();
     manager
         .connection(Some("main"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("history")
+        .get_schema_builder()
+        .drop_if_exists("history")
         .await
         .unwrap();
 }
@@ -184,8 +184,8 @@ async fn mysql_lookup_retries_errors_shares_models_and_isolates_request_caches()
         root_repo.find(ID).await.unwrap().is_some(),
         "query failures must not become cached misses"
     );
-    db.enableQueryLog();
-    db.flushQueryLog();
+    db.enable_query_log();
+    db.flush_query_log();
     app.container()
         .scope(async {
             let first = app.make::<ClientRepository>().await.unwrap();
@@ -196,20 +196,20 @@ async fn mysql_lookup_retries_errors_shares_models_and_isolates_request_caches()
             let a = a.unwrap().unwrap();
             let b = b.unwrap().unwrap();
             assert!(a.sameInstance(&b));
-            assert_eq!(db.getQueryLog().len(), 1);
+            assert_eq!(db.get_query_log().len(), 1);
             let model = a.model::<Client>().unwrap();
             model
                 .lock()
                 .await
-                .setAttributeValue("revoked", true)
+                .set_attribute_value("revoked", true)
                 .unwrap();
             assert!(first.findActive(ID).await.unwrap().is_none());
-            assert_eq!(db.getQueryLog().len(), 1);
+            assert_eq!(db.get_query_log().len(), 1);
             assert!(first.find(MISSING).await.unwrap().is_none());
             insert(&db, MISSING, "created after miss", false).await;
-            let before = db.getQueryLog().len();
+            let before = db.get_query_log().len();
             assert!(same.find(MISSING).await.unwrap().is_none());
-            assert_eq!(db.getQueryLog().len(), before);
+            assert_eq!(db.get_query_log().len(), before);
         })
         .await;
     app.container()
@@ -239,11 +239,11 @@ impl Model for CustomClient {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("ulid_clients")
             .connection("main")
-            .uniqueId(UniqueId::Ulid)
+            .unique_id(UniqueId::Ulid)
             .guarded(&[]);
         &META
     }
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("visible", &Visible)]
     }
     fn casts() -> &'static [(
@@ -282,7 +282,7 @@ impl openrust::database::eloquent::concerns::ModelEventListener<CustomClient> fo
             self.0.fetch_add(1, Ordering::Relaxed);
             model
                 .state_mut()
-                .setAttribute("name", "retrieved through model event");
+                .set_attribute("name", "retrieved through model event");
             Ok(openrust::database::eloquent::concerns::ModelEventResponse::Continue)
         })
     }
@@ -297,7 +297,7 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
     let app = root.application().await;
     let manager = app.make::<DatabaseManager>().await.unwrap();
     let db = manager.connection(Some("main")).unwrap();
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("ulid_clients", |table| {
             table.char("id", 26).primary();
             table.string("name", None);
@@ -321,20 +321,20 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
     let passport = app.make::<Passport>().await.unwrap();
     passport.useClientModel::<CustomClient>();
     let observed = Arc::new(AtomicUsize::new(0));
-    CustomClient::registerModelEvent(
+    CustomClient::register_model_event(
         &app,
         openrust::database::eloquent::concerns::ModelEvent::Retrieved,
         Retrieved(observed.clone()),
     )
     .unwrap();
     assert!(passport.clientModel().ends_with("CustomClient"));
-    db.enableQueryLog();
-    db.flushQueryLog();
+    db.enable_query_log();
+    db.flush_query_log();
     app.container()
         .scope(async {
             let repo = app.make::<ClientRepository>().await.unwrap();
             assert!(repo.find(ID).await.unwrap().is_none());
-            assert!(db.getQueryLog().is_empty());
+            assert!(db.get_query_log().is_empty());
             let visible = repo
                 .find("01ARZ3NDEKTSV4RRFFQ69G5FAV")
                 .await
@@ -342,7 +342,7 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
                 .unwrap();
             assert!(visible.model::<CustomClient>().is_some());
             assert_eq!(
-                visible.getAttributeValue("name").await.unwrap(),
+                visible.get_attribute_value("name").await.unwrap(),
                 Some("retrieved through model event".into())
             );
             assert_eq!(observed.load(Ordering::Relaxed), 1);
@@ -361,11 +361,11 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
                     .unwrap()
                     .is_none()
             );
-            assert_eq!(db.getQueryLog().len(), 2);
+            assert_eq!(db.get_query_log().len(), 2);
         })
         .await;
-    db.getSchemaBuilder()
-        .dropIfExists("ulid_clients")
+    db.get_schema_builder()
+        .drop_if_exists("ulid_clients")
         .await
         .unwrap();
 }
@@ -434,10 +434,10 @@ async fn mysql_http_lookup_keeps_two_apps_and_successive_requests_isolated() {
     let db2 = manager2.connection(Some("oauth")).unwrap();
     insert(&db1, ID, "first app", false).await;
     insert(&db2, ID, "second app", false).await;
-    db1.enableQueryLog();
-    db2.enableQueryLog();
-    db1.flushQueryLog();
-    db2.flushQueryLog();
+    db1.enable_query_log();
+    db2.enable_query_log();
+    db1.flush_query_log();
+    db2.flush_query_log();
     let (a, b) = tokio::join!(serve(first), serve(second));
     let client = reqwest::Client::new();
     for _ in 0..2 {
@@ -454,8 +454,8 @@ async fn mysql_http_lookup_keeps_two_apps_and_successive_requests_isolated() {
             assert!(body["client"].get("secret").is_none());
         }
     }
-    assert_eq!(db1.getQueryLog().len(), 2);
-    assert_eq!(db2.getQueryLog().len(), 2);
+    assert_eq!(db1.get_query_log().len(), 2);
+    assert_eq!(db2.get_query_log().len(), 2);
     let missing = client
         .get(format!("http://{}/lookup/{MISSING}", a.0))
         .send()
@@ -470,15 +470,15 @@ async fn mysql_http_lookup_keeps_two_apps_and_successive_requests_isolated() {
         manager
             .connection(Some("oauth"))
             .unwrap()
-            .getSchemaBuilder()
-            .dropIfExists("oauth_clients")
+            .get_schema_builder()
+            .drop_if_exists("oauth_clients")
             .await
             .unwrap();
         manager
             .connection(Some("main"))
             .unwrap()
-            .getSchemaBuilder()
-            .dropIfExists("history")
+            .get_schema_builder()
+            .drop_if_exists("history")
             .await
             .unwrap();
     }
@@ -542,7 +542,7 @@ impl openrust::database::eloquent::concerns::ModelEventListener<Client> for Crea
             if let Some(plain) = &model.plainSecret {
                 assert_eq!(plain.len(), 40);
                 assert!(
-                    matches!(model.getAttribute("secret"),Some(Value::Text(hash)) if hash.starts_with("$2y$04$"))
+                    matches!(model.get_attribute("secret"),Some(Value::Text(hash)) if hash.starts_with("$2y$04$"))
                 );
             }
             self.0.fetch_add(1, Ordering::Relaxed);
@@ -567,14 +567,14 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
         .unwrap();
     let hasher = app.make::<dyn Hasher>().await.unwrap();
     let creations = Arc::new(AtomicUsize::new(0));
-    Client::registerModelEvent(
+    Client::register_model_event(
         &app,
         openrust::database::eloquent::concerns::ModelEvent::Creating,
         Creating(creations.clone()),
     )
     .unwrap();
     let user =
-        OwnerUser::newInstanceOn(&db, Attributes::from([("id".into(), 7_i64.into())])).unwrap();
+        OwnerUser::new_instance_on(&db, Attributes::from([("id".into(), 7_i64.into())])).unwrap();
     let owner = openrust_passport::ClientOwner::for_user(&user).unwrap();
     app.container()
         .scope(async {
@@ -604,11 +604,11 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .await
                     .unwrap()
             );
-            let id = created.getKey().await.unwrap();
-            assert!(matches!(&id,Value::Text(id) if Client::isValidUniqueId(id)));
+            let id = created.get_key().await.unwrap();
+            assert!(matches!(&id,Value::Text(id) if Client::is_valid_unique_id(id)));
             let json = created.to_array().await.unwrap();
             assert_eq!(json["owner_id"], 7);
-            assert_eq!(json["owner_type"], user.getMorphClass().unwrap());
+            assert_eq!(json["owner_type"], user.get_morph_class().unwrap());
             assert!(json.get("secret").is_none());
             let loaded = repo.find(id.clone()).await.unwrap().unwrap();
             assert!(!created.sameInstance(&loaded));
@@ -621,7 +621,8 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .plainSecret
                     .is_none()
             );
-            let Some(Value::Text(hash)) = loaded.getAttributeValue("secret").await.unwrap() else {
+            let Some(Value::Text(hash)) = loaded.get_attribute_value("secret").await.unwrap()
+            else {
                 panic!("missing persisted hash")
             };
             assert!(
@@ -636,7 +637,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .unwrap()
             );
             assert_eq!(
-                loaded.getAttributeValue("name").await.unwrap(),
+                loaded.get_attribute_value("name").await.unwrap(),
                 Some("renamed app".into())
             );
             assert_eq!(
@@ -653,13 +654,13 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 .clone()
                 .unwrap();
             assert!(rotated.as_str() != secret.as_str());
-            let fresh = Client::queryOn(&db)
+            let fresh = Client::query_on(&db)
                 .find(id.clone())
                 .await
                 .unwrap()
                 .unwrap();
             assert!(fresh.plainSecret.is_none());
-            let Some(Value::Text(new_hash)) = fresh.getAttribute("secret") else {
+            let Some(Value::Text(new_hash)) = fresh.get_attribute("secret") else {
                 panic!("missing rotated hash")
             };
             assert!(
@@ -707,7 +708,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
             assert!(!password.confidential().await);
             assert!(password.hasGrantType("password").await.unwrap());
             assert_eq!(
-                password.getAttributeValue("provider").await.unwrap(),
+                password.get_attribute_value("provider").await.unwrap(),
                 Some("users".into())
             );
             let personal = repo
@@ -722,9 +723,9 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 .unwrap();
             assert!(machine.confidential().await);
             assert!(machine.hasGrantType("client_credentials").await.unwrap());
-            assert!(Client::queryOn(&db).get().await.unwrap().len() == 7);
+            assert!(Client::query_on(&db).get().await.unwrap().len() == 7);
             assert_eq!(creations.load(Ordering::Relaxed), 7);
-            let own_id = loaded.getKey().await.unwrap();
+            let own_id = loaded.get_key().await.unwrap();
             assert!(
                 repo.findForUser(own_id.clone(), &owner)
                     .await
@@ -732,7 +733,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .is_some()
             );
             let other_user =
-                OwnerUser::newInstanceOn(&db, Attributes::from([("id".into(), 8_i64.into())]))
+                OwnerUser::new_instance_on(&db, Attributes::from([("id".into(), 8_i64.into())]))
                     .unwrap();
             let other_owner = openrust_passport::ClientOwner::for_user(&other_user).unwrap();
             assert!(
@@ -743,7 +744,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
             );
             let owned = repo.for_user(&owner).await.unwrap();
             assert_eq!(owned.count(), 1);
-            assert_eq!(owned.first().unwrap().getKey().await, Some(own_id.clone()));
+            assert_eq!(owned.first().unwrap().get_key().await, Some(own_id.clone()));
             db.table("oauth_clients")
                 .r#where("id", "=", own_id)
                 .update(Attributes::from([("revoked".into(), true.into())]))
@@ -769,20 +770,20 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 (&password, "2023-01-01 00:00:00"),
             ] {
                 db.table("oauth_clients")
-                    .r#where("id", "=", record.getKey().await.unwrap())
+                    .r#where("id", "=", record.get_key().await.unwrap())
                     .update(Attributes::from([("created_at".into(), created.into())]))
                     .await
                     .unwrap();
             }
             let selected = repo.personalAccessClient("users").await.unwrap();
-            assert_eq!(selected.getKey().await, legacy_pat.getKey().await);
+            assert_eq!(selected.get_key().await, legacy_pat.get_key().await);
             assert_eq!(
                 repo.personalAccessClient("admins")
                     .await
                     .unwrap()
-                    .getKey()
+                    .get_key()
                     .await,
-                other_pat.getKey().await
+                other_pat.get_key().await
             );
             let missing = repo.personalAccessClient("missing").await.unwrap_err();
             assert_eq!(
@@ -799,7 +800,7 @@ impl Model for DatedClient {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("dated_clients")
             .connection("main")
-            .uniqueId(UniqueId::Uuid)
+            .unique_id(UniqueId::Uuid)
             .timestamps(Some("born_at"), None)
             .guarded(&[]);
         &META
@@ -834,13 +835,13 @@ async fn mysql_personal_client_selection_uses_the_selected_models_timestamp_colu
         .unwrap()
         .connection(Some("main"))
         .unwrap();
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("dated_clients", |table| {
             table.char("id", 36).primary();
             table.string("provider", None).nullable();
             table.boolean("revoked");
             table.text("grant_types");
-            table.dateTime("born_at", None);
+            table.date_time("born_at", None);
         })
         .await
         .unwrap();
@@ -868,11 +869,11 @@ async fn mysql_personal_client_selection_uses_the_selected_models_timestamp_colu
             let repo = app.make::<ClientRepository>().await.unwrap();
             let client = repo.personalAccessClient("users").await.unwrap();
             assert!(client.model::<DatedClient>().is_some());
-            assert_eq!(client.getKey().await, Some(MISSING.into()));
+            assert_eq!(client.get_key().await, Some(MISSING.into()));
         })
         .await;
-    db.getSchemaBuilder()
-        .dropIfExists("dated_clients")
+    db.get_schema_builder()
+        .drop_if_exists("dated_clients")
         .await
         .unwrap();
 }
@@ -907,12 +908,12 @@ async fn mysql_documented_client_helper_runs_inside_its_application_lifecycle() 
             );
             let repo = app.make::<ClientRepository>().await.unwrap();
             let loaded = repo
-                .findActive(record.getKey().await.unwrap())
+                .findActive(record.get_key().await.unwrap())
                 .await
                 .unwrap()
                 .unwrap();
             assert_eq!(
-                loaded.getAttributeValue("name").await.unwrap(),
+                loaded.get_attribute_value("name").await.unwrap(),
                 Some("My application".into())
             );
             assert!(
@@ -942,7 +943,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
         .unwrap()
         .connection(Some("oauth"))
         .unwrap();
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("oauth_clients", |table| {
             table.uuid("id").primary();
             table.bigInteger("user_id").nullable();
@@ -958,7 +959,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
         .await
         .unwrap();
     let user =
-        OwnerUser::newInstanceOn(&db, Attributes::from([("id".into(), 7_i64.into())])).unwrap();
+        OwnerUser::new_instance_on(&db, Attributes::from([("id".into(), 7_i64.into())])).unwrap();
     let owner = openrust_passport::ClientOwner::for_user(&user).unwrap();
     app.container()
         .scope(async {
@@ -974,7 +975,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
                 .await
                 .unwrap();
             assert_eq!(
-                created.getAttributeValue("user_id").await.unwrap(),
+                created.get_attribute_value("user_id").await.unwrap(),
                 Some(7_i64.into())
             );
             assert!(!created.firstParty().await.unwrap());
@@ -989,7 +990,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
                     .unwrap()
             );
             let loaded = repo
-                .find(created.getKey().await.unwrap())
+                .find(created.get_key().await.unwrap())
                 .await
                 .unwrap()
                 .unwrap();
@@ -1037,16 +1038,16 @@ fn model_connections(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 
 async fn verify_model_connections() -> DatabaseResult<Json> {
     use openrust::support::facades::Config;
-    let configured = Client::default().getConnection()?;
+    let configured = Client::default().get_connection()?;
     assert_eq!(configured.get_name(), "oauth");
     assert_eq!(
         CustomClient::from_state(Default::default())
-            .getConnection()?
+            .get_connection()?
             .get_name(),
         "main"
     );
     let mut client = Client::default();
-    client.forceFill(Attributes::from([
+    client.force_fill(Attributes::from([
         ("name".into(), "direct model".into()),
         ("redirect_uris".into(), Value::Json(json!([]))),
         (
@@ -1056,10 +1057,10 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
         ("revoked".into(), false.into()),
     ]))?;
     assert!(client.save().await?);
-    let key = client.getKey().unwrap().clone();
+    let key = client.get_key().unwrap().clone();
     let mut loaded = Client::find(key.clone()).await?.unwrap();
     assert_eq!(
-        loaded.getAttributeValue("name")?,
+        loaded.get_attribute_value("name")?,
         Some("direct model".into())
     );
 
@@ -1067,17 +1068,17 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
         .make::<DatabaseManager>()
         .map_err(openrust::database::DatabaseError::Unavailable)?;
     let main = manager.connection(Some("main"))?;
-    let mut wrong = main.beginTransaction().await?;
+    let mut wrong = main.begin_transaction().await?;
     let mut unbound = Client::default();
     assert!(matches!(
-        unbound.saveInTransaction(&mut wrong).await,
+        unbound.save_in_transaction(&mut wrong).await,
         Err(openrust::database::DatabaseError::InvalidQuery(
             "model transaction connection"
         ))
     ));
-    wrong.rollBack(None).await?;
-    let mut correct = configured.beginTransaction().await?;
-    unbound.forceFill(Attributes::from([
+    wrong.roll_back(None).await?;
+    let mut correct = configured.begin_transaction().await?;
+    unbound.force_fill(Attributes::from([
         ("name".into(), "rolled back".into()),
         ("redirect_uris".into(), Value::Json(json!([]))),
         (
@@ -1086,33 +1087,33 @@ async fn verify_model_connections() -> DatabaseResult<Json> {
         ),
         ("revoked".into(), false.into()),
     ]))?;
-    assert!(unbound.saveInTransaction(&mut correct).await?);
-    correct.rollBack(None).await?;
+    assert!(unbound.save_in_transaction(&mut correct).await?);
+    correct.roll_back(None).await?;
 
     Config::set("passport.connection", json!("main")).unwrap();
-    loaded.setAttributeValue("name", "retained original connection")?;
+    loaded.set_attribute_value("name", "retained original connection")?;
     assert!(loaded.save().await?);
-    assert_eq!(loaded.getConnection()?.get_name(), "oauth");
-    assert_eq!(Client::default().getConnection()?.get_name(), "main");
+    assert_eq!(loaded.get_connection()?.get_name(), "oauth");
+    assert_eq!(Client::default().get_connection()?.get_name(), "main");
     assert_eq!(
-        Client::queryOn(&configured)
+        Client::query_on(&configured)
             .find(key.clone())
             .await?
             .unwrap()
-            .getAttributeValue("name")?,
+            .get_attribute_value("name")?,
         Some("retained original connection".into())
     );
     Config::set("passport.connection", Json::Null).unwrap();
-    assert_eq!(Client::default().getConnection()?.get_name(), "main");
+    assert_eq!(Client::default().get_connection()?.get_name(), "main");
     Config::set("passport.connection", json!(["invalid"])).unwrap();
     assert!(matches!(
-        Client::default().getConnection(),
+        Client::default().get_connection(),
         Err(openrust::database::DatabaseError::InvalidConfiguration(
             "passport.connection"
         ))
     ));
     assert!(Client::query().is_err());
-    assert_eq!(loaded.getConnection()?.get_name(), "oauth");
+    assert_eq!(loaded.get_connection()?.get_name(), "oauth");
     Config::set("passport.connection", json!("oauth")).unwrap();
     assert!(loaded.delete().await?);
     assert!(Client::find(key).await?.is_none());
@@ -1143,15 +1144,15 @@ async fn mysql_direct_client_models_resolve_configuration_and_preserve_bound_tra
     manager
         .connection(Some("oauth"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("oauth_clients")
+        .get_schema_builder()
+        .drop_if_exists("oauth_clients")
         .await
         .unwrap();
     manager
         .connection(Some("main"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("history")
+        .get_schema_builder()
+        .drop_if_exists("history")
         .await
         .unwrap();
     assert_eq!(status, 200, "{body}");
@@ -1175,14 +1176,14 @@ fn scope_oracle(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 continue;
             }
             let mut state = ModelState::default();
-            state.setAttribute("scopes", Value::Json(case["scopes"].clone()));
+            state.set_attribute("scopes", Value::Json(case["scopes"].clone()));
             let client = Client::from_state(state);
             results.push(client.hasScope(case["scope"].as_str().unwrap()).unwrap());
         }
         let mut invalid = Client::default();
-        invalid.state_mut().setAttribute("scopes", "null");
+        invalid.state_mut().set_attribute("scopes", "null");
         assert!(invalid.hasScope("orders").is_err());
-        invalid.state_mut().setAttribute("scopes", "12");
+        invalid.state_mut().set_attribute("scopes", "12");
         assert!(invalid.hasScope("orders").is_err());
         Response::json(StatusCode::OK, json!(results))
     })
@@ -1239,8 +1240,8 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async move {
         use openrust_passport::database::factories::ClientFactory;
         let factory = Client::factory().unwrap();
-        assert_eq!(factory.getConnectionName(), Some("oauth"));
-        assert_eq!(factory.modelName(), std::any::type_name::<Client>());
+        assert_eq!(factory.get_connection_name(), Some("oauth"));
+        assert_eq!(factory.model_name(), std::any::type_name::<Client>());
         let raw = factory.raw().await.unwrap();
         assert_eq!(raw["owner_id"], Value::Null);
         assert_eq!(raw["owner_type"], Value::Null);
@@ -1310,7 +1311,7 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 let plain = model.plainSecret.as_ref().unwrap();
                 assert_eq!(plain.len(), 40);
                 assert_ne!(
-                    model.state().getAttribute("secret"),
+                    model.state().get_attribute("secret"),
                     Some(&Value::Text(plain.to_string()))
                 );
             }
@@ -1324,7 +1325,7 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             .await
             .unwrap();
         assert_eq!(
-            model.getAttributeValue("name").unwrap(),
+            model.get_attribute_value("name").unwrap(),
             Some("overridden".into())
         );
         assert_eq!(
@@ -1333,8 +1334,8 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         );
         assert!(!model.confidential());
         let custom = ClientFactory::<CustomClient>::new().unwrap();
-        assert_eq!(custom.modelName(), std::any::type_name::<CustomClient>());
-        assert_eq!(custom.getConnectionName(), Some("main"));
+        assert_eq!(custom.model_name(), std::any::type_name::<CustomClient>());
+        assert_eq!(custom.get_connection_name(), Some("main"));
         openrust::support::facades::Config::set("passport.connection", json!([])).unwrap();
         assert!(Client::factory().is_err());
         Response::json(StatusCode::OK, json!({"passed":true}))
@@ -1351,12 +1352,12 @@ fn factory_create(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let plain = model.plainSecret.as_ref().unwrap();
         let stored = Client::query()
             .unwrap()
-            .find(model.getKey().unwrap().clone())
+            .find(model.get_key().unwrap().clone())
             .await
             .unwrap()
             .unwrap();
         assert!(stored.plainSecret.is_none());
-        let Some(Value::Text(hash)) = stored.getAttributeValue("secret").unwrap() else {
+        let Some(Value::Text(hash)) = stored.get_attribute_value("secret").unwrap() else {
             panic!("hash")
         };
         let hasher = openrust::container::Container::get_instance()
@@ -1412,15 +1413,15 @@ async fn mysql_client_factory_create_reloads_hash_without_plaintext() {
     manager
         .connection(Some("oauth"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("oauth_clients")
+        .get_schema_builder()
+        .drop_if_exists("oauth_clients")
         .await
         .unwrap();
     manager
         .connection(Some("main"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("history")
+        .get_schema_builder()
+        .drop_if_exists("history")
         .await
         .unwrap();
 }

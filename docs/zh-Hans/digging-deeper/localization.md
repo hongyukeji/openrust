@@ -45,7 +45,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 配置、API、资源、文档 URL、HTML 和 HTTP 统一使用 BCP 47。`set_locale("zh-CN")` 后仍为 `zh-CN`；`is_locale("ZH-cn")` 为真，`is_locale("zh-Hans")` 为假。规范化保留文字体系、地区、变体和支持的扩展，资源选择单独处理。旧下划线输入会明确报错。
 
-`App` Facade 当前提供上述语言方法；其他框架App 方法未通过这个 Facade 暴露。模板继续使用下文的翻译助手。`Lang::withLocale` 仅用于临时译器语言作用域，不修改应用语言配置。
+`App` Facade 当前提供上述语言方法；其他框架App 方法未通过这个 Facade 暴露。模板继续使用下文的翻译助手。`Lang::with_locale` 仅用于临时译器语言作用域，不修改应用语言配置。
 
 ### 浏览器语言 {#welcome-page-language}
 
@@ -96,11 +96,11 @@ APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 候选优先级为显式 `middleware.set_locale(...)` → `app.supported_locales` → 资源自动发现，显式空列表同样优先。配置列表和显式列表均跳过扫描。默认中间件在 HTTP 启动时保存一次候选；修改后重启应用，使用配置缓存时同时重建缓存。本配置不改变 `app.locale`、`app.fallback_locale` 或请求来源优先级。
 
 
-Provider加载器包含框架内置语言；直接 `FileLoader::new(path)` 仍只加载指定的文件来源。`FileLoader::availableLocales()` 发现 `<语言>.json` 和包含分组 JSON 资源的语言目录，也支持嵌套分组。扫描路径与翻译加载一致：存在 `resources/lang` 时使用该目录，否则使用 `lang`，并包含 `addPath` 登记的应用路径和 `addJsonPath` 登记的顶层 JSON 文件。包命名空间、`vendor`、隐藏项、符号链接和空语言目录不会启用语言。文件及目录名必须已是规范 BCP 47 标签，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。结果去重并按标签排序；发现过程不解析词条内容，也不判断翻译是否完整。
+Provider加载器包含框架内置语言；直接 `FileLoader::new(path)` 仍只加载指定的文件来源。`FileLoader::available_locales()` 发现 `<语言>.json` 和包含分组 JSON 资源的语言目录，也支持嵌套分组。扫描路径与翻译加载一致：存在 `resources/lang` 时使用该目录，否则使用 `lang`，并包含 `add_path` 登记的应用路径和 `add_json_path` 登记的顶层 JSON 文件。包命名空间、`vendor`、隐藏项、符号链接和空语言目录不会启用语言。文件及目录名必须已是规范 BCP 47 标签，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。结果去重并按标签排序；发现过程不解析词条内容，也不判断翻译是否完整。
 
 默认中间件在应用 Provider 启动完成后、接收请求前保存这份候选。每个请求不再扫描；添加或移除语言资源后需重启应用。候选发现独立于配置缓存。显式 `set_locale` 优先于配置；未显式设置时，`app.supported_locales` 数组跳过扫描。未发现语言时保留应用配置的语言并隐藏欢迎页切换菜单。仅来自数据库的语言通过显式候选启用；发现过程不查询数据库，也不自动启用所有包的语言。
 
-例如增加 `lang/ja/welcome.json`，以及内容为 `{"name":"日本語"}` 的 `lang/ja/languages.json`，即可增加日语，无需修改控制器或菜单。缺少文案继续使用正常翻译回退。模板可通过 `Lang::hasForLocale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
+例如增加 `lang/ja/welcome.json`，以及内容为 `{"name":"日本語"}` 的 `lang/ja/languages.json`，即可增加日语，无需修改控制器或菜单。缺少文案继续使用正常翻译回退。模板可通过 `Lang::has_for_locale('languages.name', $choice)` 判断该语言自身是否提供名称。右至左页面在该语言的 `languages.json` 中增加 `"direction":"rtl"`，欢迎页据此设置 HTML `dir="rtl"`；菜单支持长列表滚动。未提供方向时使用文档默认的左至右布局。新增界面翻译不会创建文档目录，欢迎页文档链接仍须对应实际提供的文档。
 
 ### URL 语言选择 {#locale-query}
 
@@ -277,9 +277,9 @@ pub fn register() -> Result<(), RoutingError> {
 
 ### 登记目录和运行期翻译行 {#registering-translation-sources}
 
-在应用作用域内首次查找之前，用 `Lang::addPath`、`Lang::addJsonPath` 或 `Lang::addNamespace` 登记目录。较晚登记的目录覆盖较早的目录。分组资源递归合并，包括列表索引。JSON 字面键按整项覆盖。应用目录在 JSON 专用目录之后加载。
+在应用作用域内首次查找之前，用 `Lang::add_path`、`Lang::add_json_path` 或 `Lang::add_namespace` 登记目录。较晚登记的目录覆盖较早的目录。分组资源递归合并，包括列表索引。JSON 字面键按整项覆盖。应用目录在 JSON 专用目录之后加载。
 
-用 `Lang::addLines` 登记带点号的分组键。首次登记的分组以提供的翻译行为准。要扩展文件中的分组，先调用 `Lang::load`。加载后的分组在应用内缓存，后续路径登记作用于之后加载的分组。
+用 `Lang::add_lines` 登记带点号的分组键。首次登记的分组以提供的翻译行为准。要扩展文件中的分组，先调用 `Lang::load`。加载后的分组在应用内缓存，后续路径登记作用于之后加载的分组。
 
 ```rust
 use std::path::PathBuf;
@@ -290,9 +290,9 @@ use openrust::{
 };
 
 pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
-    Lang::addPath(directory)?;
+    Lang::add_path(directory)?;
     Lang::load(None, "messages", "en")?;
-    Lang::addLines(
+    Lang::add_lines(
         [("messages.runtime".into(), Line::Text("Registered :name".into()))],
         "en",
         None,
@@ -302,7 +302,7 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 
 ### 从自定义来源加载分组 {#loading-custom-translation-sources}
 
-在应用的异步入口向 `Lang::loadFrom` 传入 `Loader`。每个资源指定语言、分组和可选命名空间。框架一次性替换这批分组。读取失败或其中一个分组在加载期间被运行期更新时，保留当前目录。之后的翻译查询仍为同步调用。
+在应用的异步入口向 `Lang::load_from` 传入 `Loader`。每个资源指定语言、分组和可选命名空间。框架一次性替换这批分组。读取失败或其中一个分组在加载期间被运行期更新时，保留当前目录。之后的翻译查询仍为同步调用。
 
 ```rust
 use openrust::{
@@ -312,7 +312,7 @@ use openrust::{
 };
 
 pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
-    Lang::loadFrom(
+    Lang::load_from(
         source,
         &[TranslationResource {
             locale: "en",
@@ -326,7 +326,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### 数据库翻译源（扩展） {#database-translation-loader}
 
-在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `DB::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
+在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
 
 先通过应用迁移创建表，再加载翻译。可使用以下最小结构：
 
@@ -334,7 +334,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 use openrust::database::{Connection, DatabaseResult};
 
 pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> {
-    connection.getSchemaBuilder().create("language_lines", |table| {
+    connection.get_schema_builder().create("language_lines", |table| {
         table.id();
         table.string("group", None).index();
         table.string("key", None);
@@ -365,7 +365,7 @@ pub async fn load_database_translations(
         .withTable("language_lines")?
         .withMaxRows(10_000)?
         .withFallback(Arc::new(FileLoader::new(language_directory)));
-    Lang::loadFrom(
+    Lang::load_from(
         &source,
         &[
             TranslationResource { locale: "fr", group: "messages", namespace: None },
@@ -379,7 +379,7 @@ pub async fn load_database_translations(
 
 `withFallback` 从文件来源加载相同语言、组和命名空间，再用数据库词条覆盖。组和列表索引递归合并，字面 JSON 值整体替换。数据库空字符串仍为有效覆盖；删除一行后，显式重新加载该资源即可恢复文件值。语言回退继续使用译器配置；需要数据库回退词条时，同时加载所选语言和回退语言资源。
 
-`Lang::loadFrom` 一次发布全部请求组。数据库、文件或解析错误会返回失败，并保留先前发布的目录；没有词条的资源提供空数据库覆盖。数据库按组读取，发布原子性不提供横跨所有读取的数据库事务快照。重新加载由应用显式触发。写入、迁移和刷新时机由应用管理，包不会自动选择来源或启动后台任务。
+`Lang::load_from` 一次发布全部请求组。数据库、文件或解析错误会返回失败，并保留先前发布的目录；没有词条的资源提供空数据库覆盖。数据库按组读取，发布原子性不提供横跨所有读取的数据库事务快照。重新加载由应用显式触发。写入、迁移和刷新时机由应用管理，包不会自动选择来源或启动后台任务。
 
 与 Spatie 的 PHP 模型不同，本来源读取每行时不执行语言回退；翻译器在加载精确语言后按自身配置回退，也因此保留所选语言的文件词条。缺表会返回错误，避免显式重载失败时静默用文件替换已发布的数据库目录。
 
@@ -389,13 +389,13 @@ pub async fn load_database_translations(
 
 ### 语言回退与缺失键 {#translation-lookup-hooks}
 
-使用 `Lang::has(key, locale, true)` 检查包含回退语言的翻译，使用 `Lang::hasForLocale(key, locale)` 仅检查指定语言。两种检查都会跳过缺键回调。在应用作用域内登记钩子后，可调整分组翻译的回退顺序，JSON 字面键仍优先。缺键回调返回的文本会继续处理占位符，返回 `None` 时使用原键。
+使用 `Lang::has(key, locale, true)` 检查包含回退语言的翻译，使用 `Lang::has_for_locale(key, locale)` 仅检查指定语言。两种检查都会跳过缺键回调。在应用作用域内登记钩子后，可调整分组翻译的回退顺序，JSON 字面键仍优先。缺键回调返回的文本会继续处理占位符，返回 `None` 时使用原键。
 
 ```rust
 use openrust::{support::facades::Lang, translation::TranslationResult};
 
 pub fn register_lookup_hooks() -> TranslationResult<()> {
-    Lang::determineLocalesUsing(|locales| {
+    Lang::determine_locales_using(|locales| {
         let mut locales = locales.to_vec();
         if locales.first().is_some_and(|locale| locale == "fr-CA") {
             locales.insert(1, "fr".into());
@@ -403,7 +403,7 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
         locales
     })?;
 
-    Lang::handleMissingKeysUsing(|missing| {
+    Lang::handle_missing_keys_using(|missing| {
         (missing.key == "messages.welcome").then(|| "Hello, :name".into())
     })
 }
@@ -411,7 +411,7 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
 
 ### 替换翻译字符串中的参数 {#replacing-parameters-in-translation-strings}
 
-使用 `Lang::getWith` 按顺序传入文本、标签和对象。回调接收同一行上每个匹配的 `<name>…</name>` 的内容。标签回调按参数顺序执行，随后替换文本占位符。使用 `Lang::arrayWith` 替换分组或列表中的值。使用 `Lang::choiceWith` 时先选择复数分支，再替换。
+使用 `Lang::get_with` 按顺序传入文本、标签和对象。回调接收同一行上每个匹配的 `<name>…</name>` 的内容。标签回调按参数顺序执行，随后替换文本占位符。使用 `Lang::array_with` 替换分组或列表中的值。使用 `Lang::choice_with` 时先选择复数分支，再替换。
 
 #### 格式化对象替换值 {#object-replacement-formatting}
 
@@ -436,7 +436,7 @@ pub fn register_formatters() -> TranslationResult<()> {
 }
 
 pub fn payment_notice(amount: &Amount) -> TranslationResult<String> {
-    Lang::getWith(
+    Lang::get_with(
         "payments.notice",
         &[
             ("amount", Replacement::object(amount)),
@@ -460,7 +460,7 @@ use openrust::{
 };
 
 pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
-    Lang::withLocale(locale, async {
+    Lang::with_locale(locale, async {
         let replacements = BTreeMap::from([("name".into(), "ada".into())]);
         Ok((
             __("messages.welcome", &replacements)?,
@@ -493,11 +493,11 @@ APP_LOCALE=zh-Hant ./artisan help list
 
 ## 契约语言设置
 
-Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`getFallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`withLocale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
+Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。旧自定义 Loader／Translator 消费者应将契约中的 snake_case 调用迁移为上述原名。
 
 ## 语言设置的所有权
 
-语言及回退语言的读取方法返回拥有所有权的 `String` 快照。设置方法接收 `&self`，返回 `TranslationResult<()>`，非法标签返回错误；`zh-CN` 和 `zh-Hans` 保持不同。启动值作为默认值，请求或队列任务期间的修改只保留在当前容器作用域。`withLocale` 只临时覆盖当前任务，完成后恢复外层语言。
+语言及回退语言的读取方法返回拥有所有权的 `String` 快照。设置方法接收 `&self`，返回 `TranslationResult<()>`，非法标签返回错误；`zh-CN` 和 `zh-Hans` 保持不同。启动值作为默认值，请求或队列任务期间的修改只保留在当前容器作用域。`with_locale` 只临时覆盖当前任务，完成后恢复外层语言。
 
 ## 升级语言标识 {#bcp47-upgrade}
 
@@ -515,12 +515,12 @@ Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_lo
 
 数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
 
-Faker 原生 provider 键仅保留在私有边界，`locale()`、`randomLocale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
+Faker 原生 provider 键仅保留在私有边界，`locale()`、`random_locale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
 
 
 ## 替换复数选择器
 
-`Translator::getSelector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::translation::Selector` 后传入 `setSelector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `setSelector(MessageSelector)` 恢复默认选择器。`getLoader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
+`Translator::get_selector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::translation::Selector` 后传入 `set_selector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `set_selector(MessageSelector)` 恢复默认选择器。`get_loader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
 
 ## 随附语言资源 {#bundled-locales}
 

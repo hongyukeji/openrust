@@ -152,22 +152,21 @@ async fn truncate_connection(
     filters: &DatabaseTruncationTables,
     ledger: &str,
 ) -> TestResult<()> {
-    let (schema, table) = ledger
-        .rsplit_once('.')
-        .map_or((connection.getDatabaseName(), ledger), |(schema, name)| {
-            (schema, name)
-        });
-    let ledger = format!("{schema}.{}{table}", connection.getTablePrefix());
-    let database = connection.getDatabaseName().to_owned();
+    let (schema, table) = ledger.rsplit_once('.').map_or(
+        (connection.get_database_name(), ledger),
+        |(schema, name)| (schema, name),
+    );
+    let ledger = format!("{schema}.{}{table}", connection.get_table_prefix());
+    let database = connection.get_database_name().to_owned();
     let filters = filters.clone();
-    let builder = connection.getSchemaBuilder();
+    let builder = connection.get_schema_builder();
     test_events::without_connections(vec![connection.clone()], async move {
         builder
-            .withoutForeignKeyConstraints(move |session| {
+            .without_foreign_key_constraints(move |session| {
                 Box::pin(async move {
                     let tables = session
-                        .getSchemaBuilder()
-                        .getTables(Some(&database))
+                        .get_schema_builder()
+                        .get_tables(Some(&database))
                         .await?;
                     for table in tables
                         .into_iter()

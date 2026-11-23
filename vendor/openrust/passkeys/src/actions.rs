@@ -137,7 +137,7 @@ impl VerifyPasskey {
                 invalid("Passkey not recognized. It may have been removed from your account.")
             })?;
         let connection = passkey.connection().await.map_err(internal)?;
-        let mut transaction = connection.beginTransaction().await.map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         let result = async {
             let expected = user
                 .map(|user| self.0.account(user).map(|account| account.key))
@@ -160,7 +160,7 @@ impl VerifyPasskey {
         match result {
             Ok(()) => transaction.commit().await.map_err(internal)?,
             Err(error) => {
-                transaction.rollBack(None).await.map_err(internal)?;
+                transaction.roll_back(None).await.map_err(internal)?;
                 return Err(error);
             }
         }

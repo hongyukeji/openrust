@@ -36,7 +36,7 @@ impl Grammar {
         Self {
             grammar: connection.grammar.clone(),
             prefix_indexes: connection.prefix_indexes,
-            database: connection.getDatabaseName().into(),
+            database: connection.get_database_name().into(),
             postgres_schemas: Arc::clone(&connection.postgres_schemas),
             table_options: connection.table_options.clone(),
             sqlite_json_types: connection.sqlite_json_types,

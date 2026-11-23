@@ -23,9 +23,9 @@ impl<M: ClientModel> std::ops::Deref for ClientFactory<M> {
 impl<M: ClientModel> ClientFactory<M> {
     pub fn new() -> DatabaseResult<Self> {
         let model = M::from_state(ModelState::default());
-        let connection = model.resolveConnectionName()?;
+        let connection = model.resolve_connection_name()?;
         Ok(Self(
-            Factory::tryWithFaker(|faker| {
+            Factory::try_with_faker(|faker| {
                 Ok(Attributes::from([
                     ("owner_id".into(), Value::Null),
                     ("owner_type".into(), Value::Null),

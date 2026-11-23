@@ -111,7 +111,7 @@ impl Mailer {
         self.deliver(mailable, Recipients::default()).await
     }
 
-    pub async fn sendNow(&self, mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
+    pub async fn send_now(&self, mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {
         self.send_now_to(mailable, Recipients::default()).await
     }
 
@@ -169,7 +169,7 @@ impl Mailer {
             .transpose()
             .map_err(super::composition)?;
         let message = match locale.as_deref() {
-            Some(locale) => Lang::withLocale(locale, self.compose(mailable, &recipients))
+            Some(locale) => Lang::with_locale(locale, self.compose(mailable, &recipients))
                 .await
                 .map_err(super::composition)??,
             None => self.compose(mailable, &recipients).await?,
@@ -295,7 +295,7 @@ impl Contract for Mailer {
         Box::pin(self.send(mailable))
     }
 
-    fn sendNow<'a>(
+    fn send_now<'a>(
         &'a self,
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>> {

@@ -336,7 +336,7 @@ fn deprecation(message: &str) {
                     .to_string()
                     .into(),
             );
-            logger.logException(
+            logger.log_exception(
                 crate::log::Level::Warning,
                 message,
                 &std::io::Error::other(message),

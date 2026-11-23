@@ -19,7 +19,6 @@ pub struct SessionStore(StoreCore, Arc<SessionBackend>);
 
 super::store::impl_store!(SessionStore);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SessionStore {
     pub fn new(application: Weak<Container>, namespace: String) -> CacheResult<Self> {
         if namespace.is_empty() {
@@ -44,11 +43,11 @@ impl SessionStore {
             .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new())))
     }
 
-    pub fn itemKey(&self, key: &str) -> String {
+    pub fn item_key(&self, key: &str) -> String {
         self.1.item_key(key)
     }
 
-    pub fn getPrefix(&self) -> &str {
+    pub fn get_prefix(&self) -> &str {
         ""
     }
 }

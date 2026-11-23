@@ -73,7 +73,7 @@ Route::get("/reports/{id}", || Report)?;
 在需要快取策略的路由上使用 `cache.headers`。選項名稱使用 `snake_case`，以分號分隔。中介層處理成功的 GET 和 HEAD 回應。指定 `etag` 時沿用既有驗證器，或以與框架`xxh128` 相同的 XXH3-128 摘要計算回應本文。串流回應可用 `etag=value` 明確提供驗證器，無須緩衝整個串流。
 
 ```rust
-Route::getWith("/cacheable", cache_response, |route| {
+Route::get_with("/cacheable", cache_response, |route| {
     route.middleware_name("cache.headers:public;max_age=2628000;etag");
     Ok(())
 })?;

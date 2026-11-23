@@ -21,7 +21,7 @@ struct Author(ModelState);
 struct Entry(ModelState);
 
 impl Model for Author {
-    fn namedRelations() -> NamedRelations<Self> {
+    fn named_relations() -> NamedRelations<Self> {
         NamedRelations::default()
             .nested("entries", || {
                 HasMany::<Author, Entry>::new("id", "author_id")
@@ -29,13 +29,12 @@ impl Model for Author {
             .nested("entry", || HasOne::<Author, Entry>::new("id", "author_id"))
     }
 
-    fn automaticallyEagerLoadRelationships() -> bool {
+    fn automatically_eager_load_relationships() -> bool {
         true
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn newCollection(models: Vec<Self>) -> Collection<Self> {
-        Collection::fromEntries(
+    fn new_collection(models: Vec<Self>) -> Collection<Self> {
+        Collection::from_entries(
             models
                 .into_iter()
                 .enumerate()
@@ -63,17 +62,16 @@ impl Model for Author {
 }
 
 impl Model for Entry {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn newCollection(mut models: Vec<Self>) -> Collection<Self> {
+    fn new_collection(mut models: Vec<Self>) -> Collection<Self> {
         for model in &mut models {
-            if model.getAttribute("name") == Some(&"explicit child".into()) {
-                model.setAttribute("name", "collection hook ran");
+            if model.get_attribute("name") == Some(&"explicit child".into()) {
+                model.set_attribute("name", "collection hook ran");
             }
         }
         Collection::new(models)
     }
 
-    fn namedRelations() -> NamedRelations<Self> {
+    fn named_relations() -> NamedRelations<Self> {
         NamedRelations::default().nested("author", || {
             BelongsTo::<Entry, Author>::new("author_id", "id")
         })
@@ -136,21 +134,21 @@ async fn verify(config: Json, id: &str) {
     let previews = authors()
         .state(|_| Attributes::from([("name".into(), "preview".into())]))
         .count(2)
-        .makeOn(&connection)
+        .make_on(&connection)
         .await
         .unwrap();
-    assert!(previews.getByKey("author-0").is_some());
-    assert!(previews.getByKey("author-1").is_some());
+    assert!(previews.get_by_key("author-0").is_some());
+    assert!(previews.get_by_key("author-1").is_some());
     assert!(previews.iter().all(|author| !author.state().exists()));
-    assert_eq!(Author::queryOn(&connection).get().await.unwrap().len(), 0);
+    assert_eq!(Author::query_on(&connection).get().await.unwrap().len(), 0);
 
     let author = authors()
-        .afterMaking(|author| {
+        .after_making(|author| {
             assert!(!author.state().exists());
-            author.setAttribute("name", "made");
+            author.set_attribute("name", "made");
             Ok(())
         })
-        .afterCreating(|author| {
+        .after_creating(|author| {
             assert!(author.state().exists());
             Ok(())
         })
@@ -162,40 +160,40 @@ async fn verify(config: Json, id: &str) {
                 })
                 .count(2),
         )
-        .createOn(&connection)
+        .create_on(&connection)
         .await
         .unwrap();
-    assert_eq!(author.getAttribute("name"), Some(&Value::from("made")));
+    assert_eq!(author.get_attribute("name"), Some(&Value::from("made")));
     let related: RelatedCollection<Entry> = HasMany::new("id", "author_id")
-        .constrain(|query| query.orderBy("id", "asc"))
-        .getResults(&author)
+        .constrain(|query| query.order_by("id", "asc"))
+        .get_results(&author)
         .await
         .unwrap();
     assert_eq!(related.len(), 2);
-    assert_eq!(related[1].getAttribute("name"), Some(&"entry 1".into()));
+    assert_eq!(related[1].get_attribute("name"), Some(&"entry 1".into()));
 
-    let author_id = author.getKey().cloned();
+    let author_id = author.get_key().cloned();
     let entry = entries()
         .count(1)
-        .forExistingInferred::<_, BelongsTo<Entry, Author>>(author)
-        .createOneOn(&connection, Attributes::new())
+        .for_existing_inferred::<_, BelongsTo<Entry, Author>>(author)
+        .create_one_on(&connection, Attributes::new())
         .await
         .unwrap();
-    assert_eq!(entry.getAttribute("author_id"), author_id.as_ref());
+    assert_eq!(entry.get_attribute("author_id"), author_id.as_ref());
     let entry = entries()
         .count(1)
-        .forInferred::<_, BelongsTo<Entry, Author>>(authors())
-        .createOneOn(&connection, Attributes::new())
+        .for_inferred::<_, BelongsTo<Entry, Author>>(authors())
+        .create_one_on(&connection, Attributes::new())
         .await
         .unwrap();
-    assert!(entry.getAttribute("author_id").is_some());
-    assert_eq!(Author::queryOn(&connection).get().await.unwrap().len(), 2);
+    assert!(entry.get_attribute("author_id").is_some());
+    assert_eq!(Author::query_on(&connection).get().await.unwrap().len(), 2);
     let links = || {
         BelongsToMany::<Author, Entry>::new("factory_links", "author_id", "entry_id", "id", "id")
     };
     let linked = authors()
         .count(1)
-        .hasAttached(
+        .has_attached(
             links().constrain(|query| {
                 query.with_attributes(
                     Attributes::from([("name".into(), "attachment default".into())]),
@@ -211,31 +209,31 @@ async fn verify(config: Json, id: &str) {
                 .count(1),
             Attributes::from([("label".into(), "featured".into())]),
         )
-        .createOn(&connection)
+        .create_on(&connection)
         .await
         .unwrap();
     let attached = links()
-        .withPivot(["label"])
-        .getResults(&linked[0])
+        .with_pivot(["label"])
+        .get_results(&linked[0])
         .await
         .unwrap();
     assert_eq!(attached.len(), 1);
     assert_eq!(
-        attached[0].getAttribute("name"),
+        attached[0].get_attribute("name"),
         Some(&"explicit attachment".into())
     );
     assert_eq!(
         attached[0]
-            .getRelation::<Pivot>("pivot")
+            .get_relation::<Pivot>("pivot")
             .unwrap()
-            .getAttribute("label"),
+            .get_attribute("label"),
         Some(&"featured".into())
     );
 
     assert!(
         authors()
             .count(0)
-            .createOn(&connection)
+            .create_on(&connection)
             .await
             .unwrap()
             .is_empty()
@@ -257,22 +255,22 @@ async fn verify(config: Json, id: &str) {
                 ("author_id".into(), 999.into()),
             ])
         })
-        .afterMaking(|child| {
-            assert_ne!(child.getAttribute("author_id"), Some(&999.into()));
-            assert!(child.getAttribute("author_id").is_some());
-            assert_eq!(child.getAttribute("name"), Some(&"explicit child".into()));
+        .after_making(|child| {
+            assert_ne!(child.get_attribute("author_id"), Some(&999.into()));
+            assert!(child.get_attribute("author_id").is_some());
+            assert_eq!(child.get_attribute("name"), Some(&"explicit child".into()));
             Ok(())
         })
-        .afterCreating(move |child| {
-            assert!(child.getAttribute("author_id").is_some());
+        .after_creating(move |child| {
+            assert!(child.get_attribute("author_id").is_some());
             child_stages.lock().unwrap().push("child");
             Ok(())
         });
 
     let batch = authors()
         .count(5)
-        .afterMaking(observe("make"))
-        .afterCreating(observe("created"))
+        .after_making(observe("make"))
+        .after_creating(observe("created"))
         .has(
             HasMany::new("id", "author_id").constrain(|query| {
                 query.with_attributes(
@@ -284,17 +282,17 @@ async fn verify(config: Json, id: &str) {
         )
         .sequence(|index| Attributes::from([("name".into(), format!("batch {index}").into())]))
         .count(2)
-        .createOn(&connection)
+        .create_on(&connection)
         .await
         .unwrap();
     assert_eq!(
         *stages.lock().unwrap(),
         ["make", "make", "child", "child", "created", "created"]
     );
-    let before = Author::queryOn(&connection).get().await.unwrap().len();
+    let before = Author::query_on(&connection).get().await.unwrap().len();
     let failed = authors()
-        .afterMaking(|author| {
-            if author.getAttribute("name") == Some(&"failure 1".into()) {
+        .after_making(|author| {
+            if author.get_attribute("name") == Some(&"failure 1".into()) {
                 return Err(openrust::database::DatabaseError::InvalidQuery(
                     "rejected draft",
                 ));
@@ -302,7 +300,7 @@ async fn verify(config: Json, id: &str) {
             Ok(())
         })
         .count(2)
-        .createWithStateOn(&connection, {
+        .create_with_state_on(&connection, {
             let mut index = 0;
             move |_| {
                 let attributes =
@@ -314,37 +312,40 @@ async fn verify(config: Json, id: &str) {
         .await;
     assert!(failed.is_err());
     assert_eq!(
-        Author::queryOn(&connection).get().await.unwrap().len(),
+        Author::query_on(&connection).get().await.unwrap().len(),
         before
     );
     for (index, model) in batch.iter().enumerate() {
         assert!(model.state().exists());
         assert_eq!(
-            model.getAttribute("name"),
+            model.get_attribute("name"),
             Some(&format!("batch {index}").into())
         );
         assert_eq!(
-            batch.getByKey(format!("author-{index}")).unwrap().getKey(),
-            model.getKey()
+            batch
+                .get_by_key(format!("author-{index}"))
+                .unwrap()
+                .get_key(),
+            model.get_key()
         );
     }
 
     let relation = HasMany::<Author, Entry>::new("id", "author_id");
     let sequence = authors()
         .count(7)
-        .forEachSequence(vec![
+        .for_each_sequence(vec![
             Attributes::from([("name".into(), "one".into())]),
             Attributes::from([("name".into(), "two".into())]),
         ])
-        .makeOn(&connection)
+        .make_on(&connection)
         .await
         .unwrap();
     assert_eq!(sequence.len(), 2);
-    assert_eq!(sequence[0].getAttribute("name"), Some(&"one".into()));
-    assert_eq!(sequence[1].getAttribute("name"), Some(&"two".into()));
+    assert_eq!(sequence[0].get_attribute("name"), Some(&"one".into()));
+    assert_eq!(sequence[1].get_attribute("name"), Some(&"two".into()));
     let crossed = authors()
         .count(3)
-        .crossJoinSequence(vec![
+        .cross_join_sequence(vec![
             vec![Attributes::new(), Attributes::new()],
             vec![Attributes::from([("name".into(), "crossed".into())])],
         ])
@@ -353,14 +354,14 @@ async fn verify(config: Json, id: &str) {
             assert_eq!(attributes.get("name"), Some(&"crossed".into()));
             Ok("derived".into())
         })
-        .makeOn(&connection)
+        .make_on(&connection)
         .await
         .unwrap();
     assert_eq!(crossed.len(), 3);
     assert!(
         crossed
             .iter()
-            .all(|author| author.getAttribute("derived_name") == Some(&"derived".into()))
+            .all(|author| author.get_attribute("derived_name") == Some(&"derived".into()))
     );
 
     let entries_before = connection
@@ -371,15 +372,15 @@ async fn verify(config: Json, id: &str) {
     let titles = ["first entry", "second entry", "third entry"];
     let named = authors()
         .count(2)
-        .hasInferred::<_, HasMany<Author, Entry>>(
-            entries().forEachSequence(
+        .has_inferred::<_, HasMany<Author, Entry>>(
+            entries().for_each_sequence(
                 titles
                     .into_iter()
                     .map(|name| Attributes::from([("name".into(), name.into())]))
                     .collect(),
             ),
         )
-        .createOn(&connection)
+        .create_on(&connection)
         .await
         .unwrap();
     assert_eq!(named.len(), 2);
@@ -387,8 +388,8 @@ async fn verify(config: Json, id: &str) {
         assert_eq!(
             connection
                 .table("factory_entries")
-                .r#where("author_id", "=", owner.getKey().unwrap().clone())
-                .orderBy("id", "asc")
+                .r#where("author_id", "=", owner.get_key().unwrap().clone())
+                .order_by("id", "asc")
                 .pluck("name")
                 .await
                 .unwrap(),
@@ -396,13 +397,13 @@ async fn verify(config: Json, id: &str) {
         );
     }
     let owner = authors()
-        .hasNamed::<_, HasMany<Author, Entry>>("entries", entries().count(0))
-        .createOn(&connection)
+        .has_named::<_, HasMany<Author, Entry>>("entries", entries().count(0))
+        .create_on(&connection)
         .await
         .unwrap();
     let invalid = entries()
-        .forExistingNamed::<_, BelongsTo<Entry, Author>>("missing", owner)
-        .createOn(&connection)
+        .for_existing_named::<_, BelongsTo<Entry, Author>>("missing", owner)
+        .create_on(&connection)
         .await;
     assert!(invalid.is_err());
     assert_eq!(
@@ -414,43 +415,43 @@ async fn verify(config: Json, id: &str) {
         entries_before + 6,
     );
 
-    let mut constructed = authors().count(2).createOn(&connection).await.unwrap();
+    let mut constructed = authors().count(2).create_on(&connection).await.unwrap();
     constructed
-        .getRelationOrLoad(0, "entries", &relation)
+        .get_relation_or_load(0, "entries", &relation)
         .await
         .unwrap();
     assert!(!constructed[1].relation_loaded("entries"));
 
     let mut created_many = authors()
-        .createManyOn(&connection, FactoryRecords::Count(2))
+        .create_many_on(&connection, FactoryRecords::Count(2))
         .await
         .unwrap();
     created_many
-        .getRelationOrLoad(0, "entries", &relation)
+        .get_relation_or_load(0, "entries", &relation)
         .await
         .unwrap();
     assert!(!created_many[1].relation_loaded("entries"));
 
     let mut made_many = authors()
-        .makeManyOn(&connection, FactoryRecords::Count(2))
+        .make_many_on(&connection, FactoryRecords::Count(2))
         .await
         .unwrap();
     made_many
-        .getRelationOrLoad(0, "entries", &relation)
+        .get_relation_or_load(0, "entries", &relation)
         .await
         .unwrap();
     assert!(!made_many[1].relation_loaded("entries"));
 
-    let mut queried = Author::queryOn(&connection).get().await.unwrap();
+    let mut queried = Author::query_on(&connection).get().await.unwrap();
     queried
-        .getRelationOrLoad(0, "entries", &relation)
+        .get_relation_or_load(0, "entries", &relation)
         .await
         .unwrap();
     assert!(queried[1].relation_loaded("entries"));
 
-    let mut opted_in = constructed.withRelationshipAutoloading();
+    let mut opted_in = constructed.with_relationship_autoloading();
     opted_in
-        .getRelationOrLoad(1, "all_entries", &relation)
+        .get_relation_or_load(1, "all_entries", &relation)
         .await
         .unwrap();
     assert!(opted_in[0].relation_loaded("all_entries"));
@@ -479,13 +480,13 @@ impl FactoryDefinition for ConfiguredAuthor {
 
     fn configure(factory: Factory<Author>) -> Factory<Author> {
         factory
-            .afterMaking(|author| {
-                author.setAttribute("name", "made");
+            .after_making(|author| {
+                author.set_attribute("name", "made");
                 Ok(())
             })
-            .afterCreating(|author| {
+            .after_creating(|author| {
                 assert!(author.state().exists());
-                author.setAttribute("name", "created");
+                author.set_attribute("name", "created");
                 Ok(())
             })
     }
@@ -493,75 +494,78 @@ impl FactoryDefinition for ConfiguredAuthor {
 
 async fn verify_configured_callbacks(connection: &Connection) {
     let no_making = ConfiguredAuthor::factory()
-        .withoutAfterMaking()
-        .createOn(connection)
+        .without_after_making()
+        .create_on(connection)
         .await
         .unwrap();
     let no_creating = ConfiguredAuthor::times(2)
-        .withoutAfterCreating()
-        .createOn(connection)
+        .without_after_creating()
+        .create_on(connection)
         .await
         .unwrap();
-    assert_eq!(no_making.getAttribute("name"), Some(&"created".into()));
+    assert_eq!(no_making.get_attribute("name"), Some(&"created".into()));
     assert_eq!(no_creating.len(), 2);
     assert!(
         no_creating
             .iter()
-            .all(|a| a.getAttribute("name") == Some(&"made".into()))
+            .all(|a| a.get_attribute("name") == Some(&"made".into()))
     );
-    let persisted = Author::queryOn(connection)
-        .find(no_making.getKey().unwrap().clone())
+    let persisted = Author::query_on(connection)
+        .find(no_making.get_key().unwrap().clone())
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(persisted.getAttribute("name"), Some(&"defined".into()));
+    assert_eq!(persisted.get_attribute("name"), Some(&"defined".into()));
     let fresh = ConfiguredAuthor::factory()
-        .createOn(connection)
+        .create_on(connection)
         .await
         .unwrap();
-    assert_eq!(fresh.getAttribute("name"), Some(&"created".into()));
-    let persisted = Author::queryOn(connection)
-        .find(fresh.getKey().unwrap().clone())
+    assert_eq!(fresh.get_attribute("name"), Some(&"created".into()));
+    let persisted = Author::query_on(connection)
+        .find(fresh.get_key().unwrap().clone())
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(persisted.getAttribute("name"), Some(&"made".into()));
+    assert_eq!(persisted.get_attribute("name"), Some(&"made".into()));
 }
 
 async fn verify_recycled_children(connection: &Connection) {
-    let owner = authors().createOn(connection).await.unwrap();
-    let owner_key = owner.getKey().unwrap().clone();
+    let owner = authors().create_on(connection).await.unwrap();
+    let owner_key = owner.get_key().unwrap().clone();
     let owned = entries()
-        .forExisting(BelongsTo::new("author_id", "id"), owner)
-        .createOn(connection)
+        .for_existing(BelongsTo::new("author_id", "id"), owner)
+        .create_on(connection)
         .await
         .unwrap();
-    let owned_key = owned.getKey().unwrap().clone();
+    let owned_key = owned.get_key().unwrap().clone();
 
     let recycled = authors()
-        .recycleMany(std::iter::empty::<Entry>())
+        .recycle_many(std::iter::empty::<Entry>())
         .recycle(owned)
-        .recycleMany([authors().createOn(connection).await.unwrap()])
+        .recycle_many([authors().create_on(connection).await.unwrap()])
         .has(HasMany::new("id", "author_id"), entries());
     assert_eq!(
-        recycled.getRandomRecycledModel::<Entry>().unwrap().getKey(),
+        recycled
+            .get_random_recycled_model::<Entry>()
+            .unwrap()
+            .get_key(),
         Some(&owned_key)
     );
-    assert!(recycled.getRandomRecycledModel::<Author>().is_some());
+    assert!(recycled.get_random_recycled_model::<Author>().is_some());
 
-    let parent = recycled.createOn(connection).await.unwrap();
+    let parent = recycled.create_on(connection).await.unwrap();
     let children = HasMany::<Author, Entry>::new("id", "author_id")
-        .getResults(&parent)
+        .get_results(&parent)
         .await
         .unwrap();
     assert_eq!(children.len(), 1);
-    assert_ne!(children[0].getKey(), Some(&owned_key));
-    let prior = Entry::queryOn(connection)
+    assert_ne!(children[0].get_key(), Some(&owned_key));
+    let prior = Entry::query_on(connection)
         .find(owned_key)
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(prior.getAttribute("author_id"), Some(&owner_key));
+    assert_eq!(prior.get_attribute("author_id"), Some(&owner_key));
 
     let before = connection
         .table("factory_authors")
@@ -569,9 +573,9 @@ async fn verify_recycled_children(connection: &Connection) {
         .await
         .unwrap();
     entries()
-        .recycleMany(std::iter::empty::<Author>())
+        .recycle_many(std::iter::empty::<Author>())
         .r#for(BelongsTo::new("author_id", "id"), authors())
-        .createOn(connection)
+        .create_on(connection)
         .await
         .unwrap();
     assert_eq!(
@@ -620,13 +624,13 @@ async fn verify_child_relation_defaults(connection: &Connection) {
                 }
                 .count(2),
             )
-            .createOn(connection)
+            .create_on(connection)
             .await
             .unwrap();
         let rows = connection
             .table("factory_entries")
-            .r#where("author_id", "=", owner.getKey().unwrap().clone())
-            .orderBy("id", "asc")
+            .r#where("author_id", "=", owner.get_key().unwrap().clone())
+            .order_by("id", "asc")
             .get()
             .await
             .unwrap();
@@ -655,18 +659,18 @@ async fn verify_final_state(connection: &Connection) {
     let before = author_rows().count("*").await.unwrap();
     let draft = authors()
         .state(move |_| named("configured"))
-        .makeWithStateOn(connection, |attributes| {
+        .make_with_state_on(connection, |attributes| {
             assert_eq!(attributes["name"], "configured".into());
             named("single override")
         })
         .await
         .unwrap();
-    assert_eq!(draft.getAttribute("name"), Some(&"single override".into()));
+    assert_eq!(draft.get_attribute("name"), Some(&"single override".into()));
     assert!(!draft.state().exists());
 
-    let drafts = entries().parentAttribute("author_id", authors()).count(2);
+    let drafts = entries().parent_attribute("author_id", authors()).count(2);
     let made = drafts
-        .makeWithOn(
+        .make_with_on(
             connection,
             Attributes::from([("author_id".into(), 100.into())]),
         )
@@ -674,7 +678,7 @@ async fn verify_final_state(connection: &Connection) {
         .unwrap();
     assert_eq!(made.len(), 2);
     assert!(made.iter().all(|entry| {
-        !entry.state().exists() && entry.getAttribute("author_id") == Some(&100.into())
+        !entry.state().exists() && entry.get_attribute("author_id") == Some(&100.into())
     }));
     assert_eq!(author_rows().count("*").await.unwrap(), before);
 
@@ -688,12 +692,12 @@ async fn verify_final_state(connection: &Connection) {
     };
     let batch = authors()
         .state(move |_| named("configured"))
-        .afterMaking(observe("make"))
-        .afterCreating(observe("create"))
+        .after_making(observe("make"))
+        .after_creating(observe("create"))
         .count(2);
     let mut names = ["first", "second"].into_iter();
     let models = batch
-        .createWithStateOn(connection, |attributes| {
+        .create_with_state_on(connection, |attributes| {
             assert_eq!(attributes["name"], "configured".into());
             named(names.next().unwrap())
         })
@@ -703,27 +707,27 @@ async fn verify_final_state(connection: &Connection) {
         *phases.lock().unwrap(),
         ["make", "make", "create", "create"]
     );
-    assert_eq!(models[0].getAttribute("name"), Some(&"first".into()));
-    assert_eq!(models[1].getAttribute("name"), Some(&"second".into()));
-    let original = batch.makeOn(connection).await.unwrap();
+    assert_eq!(models[0].get_attribute("name"), Some(&"first".into()));
+    assert_eq!(models[1].get_attribute("name"), Some(&"second".into()));
+    let original = batch.make_on(connection).await.unwrap();
     assert_eq!(original.len(), 2);
     assert!(
         original
             .iter()
-            .all(|model| model.getAttribute("name") == Some(&"configured".into()))
+            .all(|model| model.get_attribute("name") == Some(&"configured".into()))
     );
 
     let quiet = batch
-        .createQuietlyWithOn(connection, named("quiet"))
+        .create_quietly_with_on(connection, named("quiet"))
         .await
         .unwrap();
     assert_eq!(quiet.len(), 2);
     assert!(quiet.iter().all(|model| model.state().exists()));
     let quiet_one = authors()
-        .createQuietlyWithStateOn(connection, |_| named("one quiet"))
+        .create_quietly_with_state_on(connection, |_| named("one quiet"))
         .await
         .unwrap();
-    assert_eq!(quiet_one.getAttribute("name"), Some(&"one quiet".into()));
+    assert_eq!(quiet_one.get_attribute("name"), Some(&"one quiet".into()));
     assert_eq!(author_rows().count("*").await.unwrap(), before + 5);
 }
 

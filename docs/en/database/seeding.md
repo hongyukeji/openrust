@@ -12,9 +12,9 @@ Artisan temporarily disables Eloquent mass-assignment protection while a seeder 
 
 ### Calling Additional Seeders
 
-`DatabaseSeeder` is the default entry point. Use `call` to run child seeders in order. `callSilent` suppresses child progress output. `callOnce` skips a seeder that already completed in the current invocation. Use `callWith` to pass values that the child reads from `parameters()`.
+`DatabaseSeeder` is the default entry point. Use `call` to run child seeders in order. `call_silent` suppresses child progress output. `call_once` skips a seeder that already completed in the current invocation. Use `call_with` to pass values that the child reads from `parameters()`.
 
-Use `callWithMany(names, parameters)` to pass the same values to multiple seeders in order. Use `callSilentWith(names, parameters)` to suppress their progress lines, or `callOnceWith(names, silent, parameters)` to skip previously successful seeders and choose whether to show progress. Each seeder reads the values with `parameters()`. An error stops the list. A failed seeder can be retried because it has yet to complete successfully.
+Use `call_with_many(names, parameters)` to pass the same values to multiple seeders in order. Use `call_silent_with(names, parameters)` to suppress their progress lines, or `call_once_with(names, silent, parameters)` to skip previously successful seeders and choose whether to show progress. Each seeder reads the values with `parameters()`. An error stops the list. A failed seeder can be retried because it has yet to complete successfully.
 
 The following seeder assumes a `plans` table with a unique `code` column and a `label` column. Its upsert makes repeat execution update the same row.
 
@@ -68,7 +68,7 @@ impl Seeder for DatabaseSeeder {
         &'a self,
         context: &'a mut SeederContext<'_>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(context.callOnceWith(
+        Box::pin(context.call_once_with(
             &["CatalogSeeder"],
             true,
             Record::from([("label".into(), "Standard plan".into())]),
@@ -79,7 +79,7 @@ impl Seeder for DatabaseSeeder {
 
 ## Running Seeders
 
-Use `db:seed` to run `DatabaseSeeder`, which can call other seeders explicitly. Specify a class with `--class` or the positional class argument. For a seeder generated as `Admin/CatalogSeeder`, use `--class='Admin\CatalogSeeder'`. Use `--database` to select a connection. Within the seeder, `DB` resolves that connection by default without changing other tasks' connection selection.
+Use `db:seed` to run `DatabaseSeeder`, which can call other seeders explicitly. Specify a class with `--class` or the positional class argument. For a seeder generated as `Admin/CatalogSeeder`, use `--class='Admin\CatalogSeeder'`. Use `--database` to select a connection. Within the seeder, `Db` resolves that connection by default without changing other tasks' connection selection.
 
 ```sh
 ./artisan db:seed
@@ -103,7 +103,7 @@ See [Eloquent Factories](../eloquent/factories.md#factory-model-binding) for mod
 
 The application ships a default `UserFactory` in `database/factories`. After migrating an empty database, `./artisan db:seed` uses it to create the verified sample account `test@example.com` with the password `password`. The model hashes the password using the selected application configuration. The default seeder uses the selected database and mutes model events during the run. Repeating the default seeder against the same account returns a duplicate-email error.
 
-Pass the seeder’s selected connection to `createOn`, including when running `db:seed --database=…`. The following function can be called from a seeder’s `run` method.
+Pass the seeder’s selected connection to `create_on`, including when running `db:seed --database=…`. The following function can be called from a seeder’s `run` method.
 
 ```rust
 use openrust::database::{
@@ -116,7 +116,7 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Factory::<M>::new(|| Attributes::from([("name".into(), "Flight".into())]))
         .sequence(|index| Attributes::from([("name".into(), format!("Flight {index}").into())]))
         .count(3)
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -124,11 +124,11 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## Muting Model Events {#muting-model-events}
 
-Call `withoutModelEvents()` on the file's `ENTRY` to mute Eloquent model events while it runs. Child seeders called from it inherit the scope. Model events resume when it returns, including on error. Seeder progress output and factory callbacks still run.
+Call `without_model_events()` on the file's `ENTRY` to mute Eloquent model events while it runs. Child seeders called from it inherit the scope. Model events resume when it returns, including on error. Seeder progress output and factory callbacks still run.
 
 ```rust
 use openrust::database::seeder::SeederEntry;
 
 pub(super) const ENTRY: SeederEntry =
-    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).without_model_events();
 ```

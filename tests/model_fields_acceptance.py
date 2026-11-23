@@ -268,20 +268,20 @@ async fn main() {
 #[tokio::main]
 async fn main() {
     let db = database();
-    let mut query = FieldReferenceProbe::queryOn(&db);
+    let mut query = FieldReferenceProbe::query_on(&db);
     query.r#where(FieldReferenceProbe::NAME, "=", "张三");
     query.where_null(FieldReferenceProbe::PARENT_ID);
-    let users = query.orderBy(FieldReferenceProbe::ORDER, "asc").get().await.unwrap();
+    let users = query.order_by(FieldReferenceProbe::ORDER, "asc").get().await.unwrap();
     assert_eq!(FieldReferenceProbe::TABLE, "field_reference_probes");
-    assert_eq!(FieldReferenceProbe::from_state(Default::default()).getTable(), FieldReferenceProbe::TABLE);
-    let mut strings = FieldReferenceProbe::queryOn(&db);
+    assert_eq!(FieldReferenceProbe::from_state(Default::default()).get_table(), FieldReferenceProbe::TABLE);
+    let mut strings = FieldReferenceProbe::query_on(&db);
     strings.r#where("name", "=", "张三");
     assert_eq!(strings.get().await.unwrap().len(), users.len());
     let aliased = db.table(&format!("{} as u", FieldReferenceProbe::TABLE));
     let aliased = aliased.r#where(&format!("u.{}", FieldReferenceProbe::NAME), "=", "张三");
     assert_eq!(aliased.select([format!("u.{}", FieldReferenceProbe::ID).as_str()]).get().await.unwrap().len(), 1);
     assert_eq!(users.len(), 1);
-    assert_eq!(users[0].getAttribute(FieldReferenceProbe::ID), Some(&1.into()));
+    assert_eq!(users[0].get_attribute(FieldReferenceProbe::ID), Some(&1.into()));
 }
 ''', executable=True)
         run('consumer-run', [str(consumer)])
@@ -442,7 +442,7 @@ async fn main() {
             assert 'ModelMetadata::new(SourceTableProbe::TABLE)' in custom_model.read_text()
             compile_code('source-table', custom_model.read_text(), deny_warnings=True)
             getter = custom_source.replace('impl Model for SourceTableProbe {',
-                "impl Model for SourceTableProbe {\n    fn getTable(&self) -> &'static str { \"" + table + "\" }")
+                "impl Model for SourceTableProbe {\n    fn get_table(&self) -> &'static str { \"" + table + "\" }")
             getter = getter.replace(f'ModelMetadata::new("{table}")', 'ModelMetadata::new("fallback")')
             custom_model.write_text(getter)
             artisan('custom-table-getter', 'model:fields', 'SourceTableProbe', f'--table={table}')
@@ -648,7 +648,7 @@ async fn main() {
 #[tokio::main]
 async fn main() {
     let db = database();
-    let mut query = PrefixProbe::queryOn(&db);
+    let mut query = PrefixProbe::query_on(&db);
     query.r#where(PrefixProbe::TITLE, "=", "前缀表");
     assert_eq!(query.get().await.unwrap().len(), 1);
     assert_eq!(db.table(PrefixProbe::TABLE).get().await.unwrap().len(), 1);

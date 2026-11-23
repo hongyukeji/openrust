@@ -48,7 +48,7 @@ impl PersonalAccessToken {
         !self.can(ability)
     }
 
-    pub fn isExpired(&self, now: Timestamp, expiration: Option<SignedDuration>) -> bool {
+    pub fn is_expired(&self, now: Timestamp, expiration: Option<SignedDuration>) -> bool {
         self.expires_at.is_some_and(|expires_at| expires_at < now)
             || expiration.is_some_and(|lifetime| {
                 self.created_at

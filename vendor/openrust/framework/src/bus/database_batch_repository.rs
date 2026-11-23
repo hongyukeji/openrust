@@ -45,7 +45,7 @@ impl DatabaseBatchRepository {
     }
 
     pub(crate) async fn begin(&self) -> QueueResult<Transaction> {
-        self.connection.beginTransaction().await.map_err(backend)
+        self.connection.begin_transaction().await.map_err(backend)
     }
 
     pub(crate) async fn store_in_transaction(
@@ -132,7 +132,7 @@ impl DatabaseBatchRepository {
                         let Some(row) = transaction
                             .table(&repository.table)
                             .r#where("id", "=", id.as_str())
-                            .lockForUpdate()
+                            .lock_for_update()
                             .first()
                             .await?
                         else {
@@ -220,8 +220,8 @@ impl DatabaseBatchRepository {
         let mut query = self
             .connection
             .table(&self.table)
-            .useWritePdo()
-            .orderBy("id", "desc")
+            .use_write_pdo()
+            .order_by("id", "desc")
             .limit(limit.min(100));
         if let Some(before) = before {
             query = query.r#where("id", "<", before);
@@ -239,7 +239,7 @@ impl DatabaseBatchRepository {
     pub async fn find(&self, id: &str) -> QueueResult<Option<Batch>> {
         self.connection
             .table(&self.table)
-            .useWritePdo()
+            .use_write_pdo()
             .r#where("id", "=", id)
             .first()
             .await
@@ -381,7 +381,7 @@ impl DatabaseBatchRepository {
         let mut total = 0;
         loop {
             let count = predicate(self.connection.table(&self.table))
-                .orderBy("id", "asc")
+                .order_by("id", "asc")
                 .limit(1000)
                 .delete()
                 .await
@@ -410,7 +410,7 @@ impl DatabaseBatchRepository {
                         let Some(row) = transaction
                             .table(&table)
                             .r#where("id", "=", id.as_str())
-                            .lockForUpdate()
+                            .lock_for_update()
                             .first()
                             .await?
                         else {

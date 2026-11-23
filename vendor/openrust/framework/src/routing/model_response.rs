@@ -20,7 +20,7 @@ trait ModelOutput: Send {
 
 impl<M: Model> ModelOutput for M {
     fn into_response(self) -> Result<Response, HttpError> {
-        let status = if self.state().wasRecentlyCreated() {
+        let status = if self.state().was_recently_created() {
             StatusCode::CREATED
         } else {
             StatusCode::OK

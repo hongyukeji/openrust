@@ -9,13 +9,12 @@ use crate::contracts::support::Htmlable;
 #[serde(transparent)]
 pub struct HtmlString(String);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl HtmlString {
     pub fn new(html: impl Into<String>) -> Self {
         Self(html.into())
     }
 
-    pub fn toHtml(&self) -> &str {
+    pub fn to_html(&self) -> &str {
         &self.0
     }
 
@@ -29,14 +28,14 @@ impl HtmlString {
 }
 
 impl Htmlable for HtmlString {
-    fn toHtml(&self) -> &str {
-        self.toHtml()
+    fn to_html(&self) -> &str {
+        self.to_html()
     }
 }
 
 impl fmt::Display for HtmlString {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.toHtml())
+        formatter.write_str(self.to_html())
     }
 }
 

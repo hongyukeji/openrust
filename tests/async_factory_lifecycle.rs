@@ -304,7 +304,7 @@ fn application(
         .with_commands(commands)
         .with_routing(Routing::default().web(routes))
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|_, _| true);
+            exceptions.should_render_json_when(|_, _| true);
         })
         .create()
         .unwrap();

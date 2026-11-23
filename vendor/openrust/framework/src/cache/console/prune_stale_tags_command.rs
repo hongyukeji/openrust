@@ -6,7 +6,6 @@ use crate::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
-    contracts::cache::Repository as _,
     foundation::Application,
 };
 

@@ -7,14 +7,13 @@ use std::{
 
 use super::{Entry, LazyCollection, SourceIterator};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
-    pub fn takeUntilTimeout(self, timeout: Instant) -> Self {
+    pub fn take_until_timeout(self, timeout: Instant) -> Self {
         Self::from_iterators(move || -> SourceIterator<'source, T> {
             if Instant::now() >= timeout {
                 return Box::new(iter::empty());
             }
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             let mut yielded = false;
             Box::new(iter::from_fn(move || {
                 if yielded && Instant::now() >= timeout {
@@ -27,7 +26,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn takeUntilTimeoutWith(
+    pub fn take_until_timeout_with(
         self,
         timeout: Instant,
         callback: impl Fn(Option<(&T, &super::ArrayKey)>) + 'source,
@@ -42,7 +41,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 return Box::new(iter::empty());
             }
             let callback = Rc::clone(&callback);
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             let mut previous: Option<Entry<T>> = None;
             Box::new(iter::from_fn(move || {
                 if let Some((key, value)) = previous.as_ref()
@@ -60,7 +59,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn throttle(self, interval: Duration) -> Self {
         Self::from_iterators(move || {
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             let mut previous: Option<Instant> = None;
             iter::from_fn(move || {
                 if let Some(start) = previous {
@@ -76,12 +75,12 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn withHeartbeat(self, interval: Duration, callback: impl Fn() + 'source) -> Self {
+    pub fn with_heartbeat(self, interval: Duration, callback: impl Fn() + 'source) -> Self {
         let callback = Rc::new(callback);
         Self::from_iterators(move || {
             let callback = Rc::clone(&callback);
             let mut start = Instant::now();
-            let mut iterator = self.getIterator();
+            let mut iterator = self.get_iterator();
             iter::from_fn(move || {
                 let entry = iterator.next()?;
                 let now = Instant::now();

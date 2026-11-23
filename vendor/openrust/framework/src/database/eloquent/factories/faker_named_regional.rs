@@ -6,86 +6,88 @@ use crate::{
 
 pub(super) fn formatter(name: &str) -> Option<Builtin> {
     Some(match name {
-        "cityprefix" => |faker, _| Ok(faker.cityPrefix().into()),
-        "citysuffix" => |faker, _| Ok(faker.citySuffix().into()),
-        "streetname" => |faker, _| Ok(faker.streetName().into()),
-        "streetsuffix" => |faker, _| Ok(faker.streetSuffix().into()),
-        "streetaddress" => |faker, _| Ok(faker.streetAddress().into()),
-        "buildingnumber" => |faker, _| Ok(faker.buildingNumber().into()),
-        "secondaryaddress" => |faker, _| Ok(faker.secondaryAddress().into()),
+        "cityprefix" => |faker, _| Ok(faker.city_prefix().into()),
+        "citysuffix" => |faker, _| Ok(faker.city_suffix().into()),
+        "streetname" => |faker, _| Ok(faker.street_name().into()),
+        "streetsuffix" => |faker, _| Ok(faker.street_suffix().into()),
+        "streetaddress" => |faker, _| Ok(faker.street_address().into()),
+        "buildingnumber" => |faker, _| Ok(faker.building_number().into()),
+        "secondaryaddress" => |faker, _| Ok(faker.secondary_address().into()),
         "country" => |faker, _| Ok(faker.country().into()),
         "state" => |faker, _| Ok(faker.state().into()),
-        "stateabbr" => |faker, _| Ok(faker.stateAbbr().into()),
+        "stateabbr" => |faker, _| Ok(faker.state_abbr().into()),
         "alphabet" => |faker, _| {
             faker
                 .alphabet()
                 .map(|character| character.to_string().into())
         },
         "bs" => |faker, _| faker.bs().map(Value::from),
-        "catchphrase" => |faker, _| faker.catchPhrase().map(Value::from),
-        "catchphraseattribute" => |faker, _| faker.catchPhraseAttribute().map(Value::from),
-        "catchphrasenoun" => |faker, _| faker.catchPhraseNoun().map(Value::from),
-        "catchphraseverb" => |faker, _| faker.catchPhraseVerb().map(Value::from),
-        "companyfield" => |faker, _| faker.companyField().map(Value::from),
-        "companyname" => |faker, _| faker.companyName().map(Value::from),
-        "companynameelement" => |faker, _| faker.companyNameElement().map(Value::from),
-        "companynamesuffix" => |faker, _| faker.companyNameSuffix().map(Value::from),
-        "companytype" => |faker, _| faker.companyType().map(Value::from),
-        "companyurl" => |faker, _| faker.companyUrl().map(Value::from),
+        "catchphrase" => |faker, _| faker.catch_phrase().map(Value::from),
+        "catchphraseattribute" => |faker, _| faker.catch_phrase_attribute().map(Value::from),
+        "catchphrasenoun" => |faker, _| faker.catch_phrase_noun().map(Value::from),
+        "catchphraseverb" => |faker, _| faker.catch_phrase_verb().map(Value::from),
+        "companyfield" => |faker, _| faker.company_field().map(Value::from),
+        "companyname" => |faker, _| faker.company_name().map(Value::from),
+        "companynameelement" => |faker, _| faker.company_name_element().map(Value::from),
+        "companynamesuffix" => |faker, _| faker.company_name_suffix().map(Value::from),
+        "companytype" => |faker, _| faker.company_type().map(Value::from),
+        "companyurl" => |faker, _| faker.company_url().map(Value::from),
         "contract" => |faker, _| faker.contract().map(Value::from),
-        "firstnamefemalechinese" => |faker, _| faker.firstNameFemaleChinese().map(Value::from),
-        "firstnamefemalechristian" => |faker, _| faker.firstNameFemaleChristian().map(Value::from),
-        "firstnamefemaleindian" => |faker, _| faker.firstNameFemaleIndian().map(Value::from),
-        "firstnamefemalemalay" => |faker, _| faker.firstNameFemaleMalay().map(Value::from),
-        "firstnamemalechinese" => |faker, _| faker.firstNameMaleChinese().map(Value::from),
-        "firstnamemalechristian" => |faker, _| faker.firstNameMaleChristian().map(Value::from),
-        "firstnamemaleindian" => |faker, _| faker.firstNameMaleIndian().map(Value::from),
-        "firstnamemalemalay" => |faker, _| faker.firstNameMaleMalay().map(Value::from),
+        "firstnamefemalechinese" => |faker, _| faker.first_name_female_chinese().map(Value::from),
+        "firstnamefemalechristian" => {
+            |faker, _| faker.first_name_female_christian().map(Value::from)
+        }
+        "firstnamefemaleindian" => |faker, _| faker.first_name_female_indian().map(Value::from),
+        "firstnamefemalemalay" => |faker, _| faker.first_name_female_malay().map(Value::from),
+        "firstnamemalechinese" => |faker, _| faker.first_name_male_chinese().map(Value::from),
+        "firstnamemalechristian" => |faker, _| faker.first_name_male_christian().map(Value::from),
+        "firstnamemaleindian" => |faker, _| faker.first_name_male_indian().map(Value::from),
+        "firstnamemalemalay" => |faker, _| faker.first_name_male_malay().map(Value::from),
         "haji" => |faker, _| faker.haji().map(Value::from),
         "hajjah" => |faker, _| faker.hajjah().map(Value::from),
         "industry" => |faker, _| faker.industry().map(Value::from),
-        "initialindian" => |faker, _| faker.initialIndian().map(Value::from),
-        "jobtitle" => |faker, _| Ok(faker.jobTitle().into()),
-        "lastnamechinese" => |faker, _| faker.lastNameChinese().map(Value::from),
-        "lastnameindian" => |faker, _| faker.lastNameIndian().map(Value::from),
-        "lastnamemalay" => |faker, _| faker.lastNameMalay().map(Value::from),
-        "muhammadname" => |faker, _| faker.muhammadName().map(Value::from),
+        "initialindian" => |faker, _| faker.initial_indian().map(Value::from),
+        "jobtitle" => |faker, _| Ok(faker.job_title().into()),
+        "lastnamechinese" => |faker, _| faker.last_name_chinese().map(Value::from),
+        "lastnameindian" => |faker, _| faker.last_name_indian().map(Value::from),
+        "lastnamemalay" => |faker, _| faker.last_name_malay().map(Value::from),
+        "muhammadname" => |faker, _| faker.muhammad_name().map(Value::from),
         "nameprefix" => |faker, _| {
             faker
-                .namePrefix()
+                .name_prefix()
                 .map(|character| character.to_string().into())
         },
-        "nurname" => |faker, _| faker.nurName().map(Value::from),
+        "nurname" => |faker, _| faker.nur_name().map(Value::from),
         "randomname" => random_name,
         "slogan" => |faker, _| faker.slogan().map(Value::from),
-        "titlemalemalay" => |faker, _| faker.titleMaleMalay().map(Value::from),
-        "firstnamemale" => |faker, _| Ok(faker.firstNameMale().into()),
-        "firstnamefemale" => |faker, _| Ok(faker.firstNameFemale().into()),
-        "titlemale" => |faker, _| Ok(faker.titleMale().into()),
-        "titlefemale" => |faker, _| Ok(faker.titleFemale().into()),
-        "companysuffix" => |faker, _| Ok(faker.companySuffix().into()),
-        "creditcardtype" => |faker, _| Ok(faker.creditCardType().into()),
-        "swiftbicnumber" => |faker, _| Ok(faker.swiftBicNumber().into()),
-        "e164phonenumber" => |faker, _| Ok(faker.e164PhoneNumber().into()),
+        "titlemalemalay" => |faker, _| faker.title_male_malay().map(Value::from),
+        "firstnamemale" => |faker, _| Ok(faker.first_name_male().into()),
+        "firstnamefemale" => |faker, _| Ok(faker.first_name_female().into()),
+        "titlemale" => |faker, _| Ok(faker.title_male().into()),
+        "titlefemale" => |faker, _| Ok(faker.title_female().into()),
+        "companysuffix" => |faker, _| Ok(faker.company_suffix().into()),
+        "creditcardtype" => |faker, _| Ok(faker.credit_card_type().into()),
+        "swiftbicnumber" => |faker, _| Ok(faker.swift_bic_number().into()),
+        "e164phonenumber" => |faker, _| Ok(faker.e164_phone_number().into()),
         "imei" => |faker, _| Ok(faker.imei().into()),
         "area" => |faker, _| faker.area().map(Value::from),
         "street" => |faker, _| faker.street().map(Value::from),
         "community" => |faker, _| faker.community().map(Value::from),
-        "streetprefix" => |faker, _| faker.streetPrefix().map(Value::from),
-        "streetnumber" => |faker, _| faker.streetNumber().map(Value::from),
-        "blocknumber" => |faker, _| faker.blockNumber().map(Value::from),
-        "floornumber" => |faker, _| faker.floorNumber().map(Value::from),
-        "apartmentnumber" => |faker, _| faker.apartmentNumber().map(Value::from),
+        "streetprefix" => |faker, _| faker.street_prefix().map(Value::from),
+        "streetnumber" => |faker, _| faker.street_number().map(Value::from),
+        "blocknumber" => |faker, _| faker.block_number().map(Value::from),
+        "floornumber" => |faker, _| faker.floor_number().map(Value::from),
+        "apartmentnumber" => |faker, _| faker.apartment_number().map(Value::from),
         "block" => |faker, _| faker.block().map(Value::from),
-        "blocksegment" => |faker, _| faker.blockSegment().map(Value::from),
+        "blocksegment" => |faker, _| faker.block_segment().map(Value::from),
         "floor" => |faker, _| faker.floor().map(Value::from),
-        "streetplainname" => |faker, _| faker.streetPlainName().map(Value::from),
-        "townname" => |faker, _| faker.townName().map(Value::from),
+        "streetplainname" => |faker, _| faker.street_plain_name().map(Value::from),
+        "townname" => |faker, _| faker.town_name().map(Value::from),
         "locality" => |faker, _| faker.locality().map(Value::from),
-        "localityname" => |faker, _| faker.localityName().map(Value::from),
-        "areasuffix" => |faker, _| faker.areaSuffix().map(Value::from),
-        "societyname" => |faker, _| faker.societyName().map(Value::from),
-        "societysuffix" => |faker, _| faker.societySuffix().map(Value::from),
+        "localityname" => |faker, _| faker.locality_name().map(Value::from),
+        "areasuffix" => |faker, _| faker.area_suffix().map(Value::from),
+        "societyname" => |faker, _| faker.society_name().map(Value::from),
+        "societysuffix" => |faker, _| faker.society_suffix().map(Value::from),
         "municipality" => |faker, _| faker.municipality().map(Value::from),
         "barangay" => |faker, _| faker.barangay().map(Value::from),
         "town" => |faker, _| faker.town().map(Value::from),
@@ -93,132 +95,142 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "estate" => |faker, _| faker.estate().map(Value::from),
         "syllable" => |faker, _| faker.syllable().map(Value::from),
         "direction" => |faker, _| faker.direction().map(Value::from),
-        "englishstreetname" => |faker, _| faker.englishStreetName().map(Value::from),
-        "villagesuffix" => |faker, _| faker.villageSuffix().map(Value::from),
-        "estatesuffix" => |faker, _| faker.estateSuffix().map(Value::from),
+        "englishstreetname" => |faker, _| faker.english_street_name().map(Value::from),
+        "villagesuffix" => |faker, _| faker.village_suffix().map(Value::from),
+        "estatesuffix" => |faker, _| faker.estate_suffix().map(Value::from),
         "prefecture" => |faker, _| faker.prefecture().map(Value::from),
         "ward" => |faker, _| faker.ward().map(Value::from),
         "postcode1" => |faker, _| faker.postcode1().map(Value::from),
         "postcode2" => |faker, _| faker.postcode2().map(Value::from),
-        "areanumber" => |faker, _| faker.areaNumber().map(Value::from),
-        "metropolitancity" => |faker, _| faker.metropolitanCity().map(Value::from),
+        "areanumber" => |faker, _| faker.area_number().map(Value::from),
+        "metropolitancity" => |faker, _| faker.metropolitan_city().map(Value::from),
         "borough" => |faker, _| faker.borough().map(Value::from),
-        "hamletname" => |faker, _| faker.hamletName().map(Value::from),
-        "hamletprefix" => |faker, _| faker.hamletPrefix().map(Value::from),
-        "wardname" => |faker, _| faker.wardName().map(Value::from),
-        "wardprefix" => |faker, _| faker.wardPrefix().map(Value::from),
-        "districtname" => |faker, _| faker.districtName().map(Value::from),
-        "districtprefix" => |faker, _| faker.districtPrefix().map(Value::from),
-        "buildingprefix" => |faker, _| faker.buildingPrefix().map(Value::from),
+        "hamletname" => |faker, _| faker.hamlet_name().map(Value::from),
+        "hamletprefix" => |faker, _| faker.hamlet_prefix().map(Value::from),
+        "wardname" => |faker, _| faker.ward_name().map(Value::from),
+        "wardprefix" => |faker, _| faker.ward_prefix().map(Value::from),
+        "districtname" => |faker, _| faker.district_name().map(Value::from),
+        "districtprefix" => |faker, _| faker.district_prefix().map(Value::from),
+        "buildingprefix" => |faker, _| faker.building_prefix().map(Value::from),
         "township" => |faker, _| faker.township().map(Value::from),
-        "townshipprefixabbr" => |faker, _| faker.townshipPrefixAbbr().map(Value::from),
-        "townshipprefix" => |faker, _| faker.townshipPrefix().map(Value::from),
-        "townshipsuffix" => |faker, _| faker.townshipSuffix().map(Value::from),
-        "townstate" => |faker, _| faker.townState().map(Value::from),
-        "banglastreetname" => |faker, _| faker.banglaStreetName().map(Value::from),
-        "wardnumber" => |faker, _| faker.wardNumber().map(Value::from),
+        "townshipprefixabbr" => |faker, _| faker.township_prefix_abbr().map(Value::from),
+        "townshipprefix" => |faker, _| faker.township_prefix().map(Value::from),
+        "townshipsuffix" => |faker, _| faker.township_suffix().map(Value::from),
+        "townstate" => |faker, _| faker.town_state().map(Value::from),
+        "banglastreetname" => |faker, _| faker.bangla_street_name().map(Value::from),
+        "wardnumber" => |faker, _| faker.ward_number().map(Value::from),
         "governorate" => |faker, _| faker.governorate().map(Value::from),
         "subdivision" => |faker, _| faker.subdivision().map(Value::from),
-        "buildingnameprefix" => |faker, _| faker.buildingNamePrefix().map(Value::from),
-        "buildingnumberprefix" => |faker, _| faker.buildingNumberPrefix().map(Value::from),
-        "postcodeprefix" => |faker, _| faker.postcodePrefix().map(Value::from),
+        "buildingnameprefix" => |faker, _| faker.building_name_prefix().map(Value::from),
+        "buildingnumberprefix" => |faker, _| faker.building_number_prefix().map(Value::from),
+        "postcodeprefix" => |faker, _| faker.postcode_prefix().map(Value::from),
         "building" => |faker, _| faker.building().map(Value::from),
-        "regiongenitiveform" => |faker, _| faker.regionGenitiveForm().map(Value::from),
-        "regionsuffix" => |faker, _| faker.regionSuffix().map(Value::from),
-        "cityandregion" => |faker, _| faker.cityAndRegion().map(Value::from),
-        "streetsuffixshort" => |faker, _| faker.streetSuffixShort().map(Value::from),
-        "streetsuffixlong" => |faker, _| faker.streetSuffixLong().map(Value::from),
-        "streetsuffixword" => |faker, _| faker.streetSuffixWord().map(Value::from),
-        "buildinglevel" => |faker, _| faker.buildingLevel().map(Value::from),
-        "buildingside" => |faker, _| faker.buildingSide().map(Value::from),
+        "regiongenitiveform" => |faker, _| faker.region_genitive_form().map(Value::from),
+        "regionsuffix" => |faker, _| faker.region_suffix().map(Value::from),
+        "cityandregion" => |faker, _| faker.city_and_region().map(Value::from),
+        "streetsuffixshort" => |faker, _| faker.street_suffix_short().map(Value::from),
+        "streetsuffixlong" => |faker, _| faker.street_suffix_long().map(Value::from),
+        "streetsuffixword" => |faker, _| faker.street_suffix_word().map(Value::from),
+        "buildinglevel" => |faker, _| faker.building_level().map(Value::from),
+        "buildingside" => |faker, _| faker.building_side().map(Value::from),
         "kommune" => |faker, _| faker.kommune().map(Value::from),
         "capital" => |faker, _| faker.capital().map(Value::from),
-        "bigcity" => |faker, _| faker.bigCity().map(Value::from),
-        "smallercity" => |faker, _| faker.smallerCity().map(Value::from),
-        "cityname" => |faker, _| faker.cityName().map(Value::from),
+        "bigcity" => |faker, _| faker.big_city().map(Value::from),
+        "smallercity" => |faker, _| faker.smaller_city().map(Value::from),
+        "cityname" => |faker, _| faker.city_name().map(Value::from),
         "county" => |faker, _| faker.county().map(Value::from),
         "province" => |faker, _| faker.province().map(Value::from),
-        "provinceabbr" => |faker, _| faker.provinceAbbr().map(Value::from),
-        "randompostcodeletter" => |faker, _| faker.randomPostcodeLetter().map(Value::from),
-        "buildingletter" => |faker, _| faker.buildingLetter().map(Value::from),
-        "cantonshort" => |faker, _| faker.cantonShort().map(Value::from),
-        "cantonname" => |faker, _| faker.cantonName().map(Value::from),
+        "provinceabbr" => |faker, _| faker.province_abbr().map(Value::from),
+        "randompostcodeletter" => |faker, _| faker.random_postcode_letter().map(Value::from),
+        "buildingletter" => |faker, _| faker.building_letter().map(Value::from),
+        "cantonshort" => |faker, _| faker.canton_short().map(Value::from),
+        "cantonname" => |faker, _| faker.canton_name().map(Value::from),
         "district" => |faker, _| faker.district().map(Value::from),
-        "regionabbr" => |faker, _| faker.regionAbbr().map(Value::from),
+        "regionabbr" => |faker, _| faker.region_abbr().map(Value::from),
         "region" => |faker, _| faker.region().map(Value::from),
-        "departmentname" => |faker, _| faker.departmentName().map(Value::from),
-        "departmentnumber" => |faker, _| faker.departmentNumber().map(Value::from),
-        "middlename" => |faker, _| faker.middleName().map(Value::from),
-        "middlenamemale" => |faker, _| faker.middleNameMale().map(Value::from),
-        "middlenamefemale" => |faker, _| faker.middleNameFemale().map(Value::from),
-        "lastnamemale" => |faker, _| faker.lastNameMale().map(Value::from),
-        "lastnamefemale" => |faker, _| faker.lastNameFemale().map(Value::from),
-        "firstnamemalene" => |faker, _| faker.firstNameMaleNe().map(Value::from),
-        "lastnamefemalemarried" => |faker, _| faker.lastNameFemaleMarried().map(Value::from),
-        "firstnameascii" => |faker, _| faker.firstNameAscii().map(Value::from),
-        "lastnameascii" => |faker, _| faker.lastNameAscii().map(Value::from),
+        "departmentname" => |faker, _| faker.department_name().map(Value::from),
+        "departmentnumber" => |faker, _| faker.department_number().map(Value::from),
+        "middlename" => |faker, _| faker.middle_name().map(Value::from),
+        "middlenamemale" => |faker, _| faker.middle_name_male().map(Value::from),
+        "middlenamefemale" => |faker, _| faker.middle_name_female().map(Value::from),
+        "lastnamemale" => |faker, _| faker.last_name_male().map(Value::from),
+        "lastnamefemale" => |faker, _| faker.last_name_female().map(Value::from),
+        "firstnamemalene" => |faker, _| faker.first_name_male_ne().map(Value::from),
+        "lastnamefemalemarried" => |faker, _| faker.last_name_female_married().map(Value::from),
+        "firstnameascii" => |faker, _| faker.first_name_ascii().map(Value::from),
+        "lastnameascii" => |faker, _| faker.last_name_ascii().map(Value::from),
         "prefix" => |faker, _| faker.prefix().map(Value::from),
-        "firstkananamemale" => |faker, _| faker.firstKanaNameMale().map(Value::from),
-        "firstkananamefemale" => |faker, _| faker.firstKanaNameFemale().map(Value::from),
-        "lastkananame" => |faker, _| faker.lastKanaName().map(Value::from),
-        "companyprefix" => |faker, _| faker.companyPrefix().map(Value::from),
-        "companymodifier" => |faker, _| faker.companyModifier().map(Value::from),
-        "companyensuffix" => |faker, _| faker.companyEnSuffix().map(Value::from),
+        "firstkananamemale" => |faker, _| faker.first_kana_name_male().map(Value::from),
+        "firstkananamefemale" => |faker, _| faker.first_kana_name_female().map(Value::from),
+        "lastkananame" => |faker, _| faker.last_kana_name().map(Value::from),
+        "companyprefix" => |faker, _| faker.company_prefix().map(Value::from),
+        "companymodifier" => |faker, _| faker.company_modifier().map(Value::from),
+        "companyensuffix" => |faker, _| faker.company_en_suffix().map(Value::from),
         "bank" => |faker, _| faker.bank().map(Value::from),
-        "microfinance" => |faker, _| faker.microFinance().map(Value::from),
-        "swiftcode" => |faker, _| faker.swiftCode().map(Value::from),
-        "bankroutingnumber" => |faker, _| faker.bankRoutingNumber().map(Value::from),
-        "vatid" => |faker, _| faker.vatId().map(Value::from),
+        "microfinance" => |faker, _| faker.micro_finance().map(Value::from),
+        "swiftcode" => |faker, _| faker.swift_code().map(Value::from),
+        "bankroutingnumber" => |faker, _| faker.bank_routing_number().map(Value::from),
+        "vatid" => |faker, _| faker.vat_id().map(Value::from),
         "btw" => |faker, _| faker.btw().map(Value::from),
-        "localbank" => |faker, _| faker.localBank().map(Value::from),
-        "foreignbank" => |faker, _| faker.foreignBank().map(Value::from),
-        "governmentbank" => |faker, _| faker.governmentBank().map(Value::from),
+        "localbank" => |faker, _| faker.local_bank().map(Value::from),
+        "foreignbank" => |faker, _| faker.foreign_bank().map(Value::from),
+        "governmentbank" => |faker, _| faker.government_bank().map(Value::from),
         "insurance" => |faker, _| faker.insurance().map(Value::from),
-        "currencysymbol" => |faker, _| faker.currencySymbol().map(Value::from),
-        "commercialbank" => |faker, _| faker.commercialBank().map(Value::from),
-        "developmentbank" => |faker, _| faker.developmentBank().map(Value::from),
-        "financecompany" => |faker, _| faker.financeCompany().map(Value::from),
-        "digitalwallet" => |faker, _| faker.digitalWallet().map(Value::from),
-        "phonenumbercleared" => |faker, _| faker.phoneNumberCleared().map(Value::from),
-        "name" => |faker, args| gendered(faker, args, Faker::nameWithGender),
-        "firstname" => |faker, args| gendered(faker, args, Faker::firstNameWithGender),
-        "lastname" => |faker, args| gendered(faker, args, Faker::lastNameWithGender),
+        "currencysymbol" => |faker, _| faker.currency_symbol().map(Value::from),
+        "commercialbank" => |faker, _| faker.commercial_bank().map(Value::from),
+        "developmentbank" => |faker, _| faker.development_bank().map(Value::from),
+        "financecompany" => |faker, _| faker.finance_company().map(Value::from),
+        "digitalwallet" => |faker, _| faker.digital_wallet().map(Value::from),
+        "phonenumbercleared" => |faker, _| faker.phone_number_cleared().map(Value::from),
+        "name" => |faker, args| gendered(faker, args, Faker::name_with_gender),
+        "firstname" => |faker, args| gendered(faker, args, Faker::first_name_with_gender),
+        "lastname" => |faker, args| gendered(faker, args, Faker::last_name_with_gender),
         "title" => |faker, args| gendered(faker, args, Faker::title),
         "middlenamewithgender" => |faker, args| {
             let [gender] = arguments(args)?;
-            faker.middleNameWithGender(text(gender)?).map(Value::from)
+            faker
+                .middle_name_with_gender(text(gender)?)
+                .map(Value::from)
         },
         "kananame" => |faker, args| {
             let [gender] = arguments(args)?;
-            faker.kanaName(text(gender)?).map(Value::from)
+            faker.kana_name(text(gender)?).map(Value::from)
         },
         "firstkananame" => |faker, args| {
             let [gender] = arguments(args)?;
-            faker.firstKanaName(text(gender)?).map(Value::from)
+            faker.first_kana_name(text(gender)?).map(Value::from)
         },
         "suffix" => |faker, _| Ok(faker.suffix()?.map_or(Value::Null, Value::from)),
         "postcode" => |faker, args| {
             let [state] = arguments(args)?;
             match text(state)? {
-                Some(state) => faker.postcodeWithState(state).map(Value::from),
+                Some(state) => faker.postcode_with_state(state).map(Value::from),
                 None => Ok(faker.postcode().into()),
             }
         },
-        "randomchinesenumber" => |faker, _| faker.randomChineseNumber().map(Value::from),
-        "randomnumber2" => |faker, _| faker.randomNumber2().map(|number| i64::from(number).into()),
-        "randomnumber3" => |faker, _| faker.randomNumber3().map(|number| i64::from(number).into()),
-        "locallatitude" => |faker, _| taiwan_coordinate(faker, Faker::localLatitude),
-        "locallongitude" => |faker, _| taiwan_coordinate(faker, Faker::localLongitude),
+        "randomchinesenumber" => |faker, _| faker.random_chinese_number().map(Value::from),
+        "randomnumber2" => |faker, _| {
+            faker
+                .random_number2()
+                .map(|number| i64::from(number).into())
+        },
+        "randomnumber3" => |faker, _| {
+            faker
+                .random_number3()
+                .map(|number| i64::from(number).into())
+        },
+        "locallatitude" => |faker, _| taiwan_coordinate(faker, Faker::local_latitude),
+        "locallongitude" => |faker, _| taiwan_coordinate(faker, Faker::local_longitude),
         "licenseplate" => license_plate,
-        "jpjnumberplate" => |faker, _| faker.jpjNumberPlate().map(Value::from),
-        "peninsularprefix" => |faker, _| faker.peninsularPrefix().map(Value::from),
-        "sarawakprefix" => |faker, _| faker.sarawakPrefix().map(Value::from),
-        "sabahprefix" => |faker, _| faker.sabahPrefix().map(Value::from),
-        "specialprefix" => |faker, _| faker.specialPrefix().map(Value::from),
-        "validalphabet" => |faker, _| faker.validAlphabet().map(Value::from),
-        "numbersequence" => |faker, _| faker.numberSequence().map(Value::from),
+        "jpjnumberplate" => |faker, _| faker.jpj_number_plate().map(Value::from),
+        "peninsularprefix" => |faker, _| faker.peninsular_prefix().map(Value::from),
+        "sarawakprefix" => |faker, _| faker.sarawak_prefix().map(Value::from),
+        "sabahprefix" => |faker, _| faker.sabah_prefix().map(Value::from),
+        "specialprefix" => |faker, _| faker.special_prefix().map(Value::from),
+        "validalphabet" => |faker, _| faker.valid_alphabet().map(Value::from),
+        "numbersequence" => |faker, _| faker.number_sequence().map(Value::from),
         "localcoordinates" => |faker, _| {
-            let coordinates = faker.localCoordinates()?;
+            let coordinates = faker.local_coordinates()?;
             Ok(Value::Json(serde_json::json!(coordinates)))
         },
         "canton" => |faker, _| {
@@ -232,17 +244,17 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "creditcardnumber" => |faker, args| {
             let [kind, formatted, separator] = arguments(args)?;
             faker
-                .creditCardNumber(text(kind)?, flag(formatted)?, text(separator)?)
+                .credit_card_number(text(kind)?, flag(formatted)?, text(separator)?)
                 .map(Value::from)
         },
         "creditcardexpirationdate" => |faker, args| {
             let [valid] = arguments(args)?;
-            let date = faker.creditCardExpirationDate(validity(valid)?)?;
+            let date = faker.credit_card_expiration_date(validity(valid)?)?;
             Ok(super::rfc3339_seconds(&date).into())
         },
         "creditcardexpirationdatestring" => |faker, args| {
             let [valid, format] = arguments(args)?;
-            let date = faker.creditCardExpirationDate(validity(valid)?)?;
+            let date = faker.credit_card_expiration_date(validity(valid)?)?;
             calendar::format_php_date(
                 date.timestamp(),
                 date.time_zone().clone(),
@@ -253,7 +265,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         },
         "creditcarddetails" => |faker, args| {
             let [valid] = arguments(args)?;
-            let card = faker.creditCardDetails(validity(valid)?)?;
+            let card = faker.credit_card_details(validity(valid)?)?;
             Ok(Value::Json(serde_json::json!(card)))
         },
         "iban" => |faker, args| {
@@ -269,7 +281,7 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "bankaccountnumber" => |faker, args| {
             let [prefix, country, length] = arguments(args)?;
             faker
-                .bankAccountNumber(
+                .bank_account_number(
                     text(prefix)?.unwrap_or(""),
                     text(country)?,
                     account_length(length)?,
@@ -283,9 +295,9 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "vat" => |faker, args| {
             let [kind] = arguments(args)?;
             if faker.provider_locale() == "zh_TW" {
-                faker.VAT().map(Value::from)
+                faker.taiwan_vat().map(Value::from)
             } else if faker.provider_locale() == "en_GB" {
-                faker.vatWithType(text(kind)?).map(Value::from)
+                faker.vat_with_type(text(kind)?).map(Value::from)
             } else {
                 faker
                     .vat(kind.map(|value| flag(Some(value))).transpose()?)
@@ -344,7 +356,7 @@ fn license_plate(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
     let provinces = plate_area_names(provinces)?;
     let counties = plate_area_names(counties)?;
     faker
-        .licensePlateWithOptions(special, Some(&provinces), Some(&counties))
+        .license_plate_with_options(special, Some(&provinces), Some(&counties))
         .map(Value::from)
 }
 
@@ -370,7 +382,7 @@ fn random_name(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
     let count = usize::try_from(count.max(0))
         .map_err(|_| DatabaseError::InvalidQuery("Faker name length is out of range"))?;
     let pool = required_text_collection(pool)?;
-    faker.randomName(&pool, count).map(Value::from)
+    faker.random_name(&pool, count).map(Value::from)
 }
 
 fn required_text_collection(value: Option<&Value>) -> DatabaseResult<Vec<&str>> {

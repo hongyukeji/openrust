@@ -2,9 +2,9 @@
 
 ## 执行数据库查询
 
-在应用生命周期内使用 `DB::table("users")?`，或对具名连接调用 `connection.table("users")`。事务中使用 `transaction.table("users")`，让查询继续使用同一条写库物理连接。查询执行方法为异步，返回 `Result`。
+在应用生命周期内使用 `Db::table("users")?`，或对具名连接调用 `connection.table("users")`。事务中使用 `transaction.table("users")`，让查询继续使用同一条写库物理连接。查询执行方法为异步，返回 `Result`。
 
-`get` 返回行列表。`first` 和 `find` 返回可选行。`value` 返回单个值，找不到行时返回 `Value::Null`。`pluck` 返回一列的值列表。用 `exists` 或 `doesntExist` 判断是否存在匹配行。`useWritePdo` 将该查询发送到写库。
+`get` 返回行列表。`first` 和 `find` 返回可选行。`value` 返回单个值，找不到行时返回 `Value::Null`。`pluck` 返回一列的值列表。用 `exists` 或 `doesnt_exist` 判断是否存在匹配行。`use_write_pdo` 将该查询发送到写库。
 
 ### 聚合
 
@@ -19,7 +19,7 @@ use futures_util::TryStreamExt as _;
 use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
-    let mut rows = db.table("reports").orderBy("id", "asc").cursor();
+    let mut rows = db.table("reports").order_by("id", "asc").cursor();
     rows.try_next().await
 }
 ```
@@ -30,7 +30,7 @@ async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
 
 在已排序的查询上调用 `chunk(count, callback)`。异步回调收到非空批次和从 1 开始的页码。返回 `Ok(false)` 提前停止，返回 `Err` 传播错误。现有偏移量用于跳过开头的行，现有限制用于控制总行数。分批通过偏移量翻页，遍历期间修改匹配条件所涉及的行可能导致漏读或重复读取。
 
-用 `chunkById(count, callback, column, alias)` 或 `chunkByIdDesc` 按唯一且非空的键逐批读取。将 `column` 设为 `None` 时使用 `id`。SQL 投影名与列名不同时，用 `alias` 指定投影名。偏移量仅用于首批，限制控制所有批次的总行数。处理期间保持分批键稳定。回调可在检查分批键前停止。用 `fromSub` 包装联合查询，使键值条件作用于全部分支。
+用 `chunk_by_id(count, callback, column, alias)` 或 `chunk_by_id_desc` 按唯一且非空的键逐批读取。将 `column` 设为 `None` 时使用 `id`。SQL 投影名与列名不同时，用 `alias` 指定投影名。偏移量仅用于首批，限制控制所有批次的总行数。处理期间保持分批键稳定。回调可在检查分批键前停止。用 `from_sub` 包装联合查询，使键值条件作用于全部分支。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult};
@@ -38,7 +38,7 @@ use openrust::database::{Connection, DatabaseResult};
 async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
     db.table("reports")
         .select(["id as batch_id"])
-        .chunkByIdDesc(200, |rows, page| async move {
+        .chunk_by_id_desc(200, |rows, page| async move {
             println!("{}: {}", page, rows.len());
             Ok(true)
         }, None, Some("batch_id"))
@@ -46,17 +46,17 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 }
 ```
 
-用 `each(callback, count)` 逐条处理偏移量分批结果，每批索引从零开始。`eachById(callback, count, column, alias)` 按键升序分批读取，索引跨批递进。回调返回 `Ok(false)` 可立即停止，返回 `Err` 可传播错误。
+用 `each(callback, count)` 逐条处理偏移量分批结果，每批索引从零开始。`each_by_id(callback, count, column, alias)` 按键升序分批读取，索引跨批递进。回调返回 `Ok(false)` 可立即停止，返回 `Err` 可传播错误。
 
-用 `lazy(count)`、`lazyById(count, column, alias)` 或 `lazyByIdDesc` 将逐批读取的行作为异步流消费。读取流时会检查参数并返回数据库错误。丢弃流后即停止获取后续批次。按键读取的满批需要投影边界键，最后一批不足批量时可直接结束。`chunkMap(callback, count)` 异步映射每条记录，返回重新编号的结果集合。
+用 `lazy(count)`、`lazy_by_id(count, column, alias)` 或 `lazy_by_id_desc` 将逐批读取的行作为异步流消费。读取流时会检查参数并返回数据库错误。丢弃流后即停止获取后续批次。按键读取的满批需要投影边界键，最后一批不足批量时可直接结束。`chunk_map(callback, count)` 异步映射每条记录，返回重新编号的结果集合。
 
 ## SELECT 语句
 
-用 `select` 指定返回列，用 `addSelect` 追加列。列名支持 `as` 别名。`distinct()` 去除重复行。语法编译器引用标识符并应用连接的表前缀。用 `selectRaw` 或 `DB::raw` 显式传入可信表达式。值单独绑定，标识符从应用预先定义的名称中选择。
+用 `select` 指定返回列，用 `add_select` 追加列。列名支持 `as` 别名。`distinct()` 去除重复行。语法编译器引用标识符并应用连接的表前缀。用 `select_raw` 或 `Db::raw` 显式传入可信表达式。值单独绑定，标识符从应用预先定义的名称中选择。
 
 ### 索引提示 {#index-hints}
 
-同一查询以最后设置的索引提示为准。MySQL 和 MariaDB 支持 `useIndex`、`forceIndex` 和 `ignoreIndex`，可指定单个或以逗号分隔的多个名称。SQL Server 的 `forceIndex` 接收一个索引，并与同表的行锁提示合并。SQLite 的 `forceIndex` 对单个非 `PRIMARY` 索引生效。SQL Server 和 SQLite 忽略其余两种方法。PostgreSQL 忽略这三种提示。请使用应用定义的索引名称。
+同一查询以最后设置的索引提示为准。MySQL 和 MariaDB 支持 `use_index`、`force_index` 和 `ignore_index`，可指定单个或以逗号分隔的多个名称。SQL Server 的 `force_index` 接收一个索引，并与同表的行锁提示合并。SQLite 的 `force_index` 对单个非 `PRIMARY` 索引生效。SQL Server 和 SQLite 忽略其余两种方法。PostgreSQL 忽略这三种提示。请使用应用定义的索引名称。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -64,9 +64,9 @@ use openrust::database::{Connection, DatabaseResult, Row};
 pub async fn indexed_items(connection: &Connection, score: i64) -> DatabaseResult<Vec<Row>> {
     connection
         .table("items")
-        .forceIndex("idx_score")
+        .force_index("idx_score")
         .r#where("score", "=", score)
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .get()
         .await
 }
@@ -74,7 +74,7 @@ pub async fn indexed_items(connection: &Connection, score: i64) -> DatabaseResul
 
 ## 联结
 
-使用 `join`、`leftJoin`、`rightJoin` 或 `crossJoin`。需要多个 ON 条件时，给 `joinWith` 或 `leftJoinWith` 传入闭包。`on` 比较列，`r#where` 绑定值。`joinSub` 可联结派生查询。
+使用 `join`、`left_join`、`right_join` 或 `cross_join`。需要多个 ON 条件时，给 `join_with` 或 `left_join_with` 传入闭包。`on` 比较列，`r#where` 绑定值。`join_sub` 可联结派生查询。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -87,9 +87,9 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
         .r#where("g.region", "=", region);
 
     items
-        .joinSub(&groups, "regional", |join| join.on("i.group_id", "=", "regional.id"))?
+        .join_sub(&groups, "regional", |join| join.on("i.group_id", "=", "regional.id"))?
         .select(["i.code", "i.stock"])
-        .orderBy("i.code", "asc")
+        .order_by("i.code", "asc")
         .get()
         .await
 }
@@ -97,7 +97,7 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
 
 ### 交叉联结与固定顺序联结 {#cross-and-straight-joins}
 
-使用 `crossJoinSub` 将每一条外层记录与派生查询的每一条记录配对。MySQL 和 MariaDB 的 `straightJoin` 保持左侧来源先于右侧来源。使用 `straightJoinWhere` 在联结条件中绑定值，`straightJoinWith` 接收闭包，`straightJoinSub` 接收派生查询。
+使用 `cross_join_sub` 将每一条外层记录与派生查询的每一条记录配对。MySQL 和 MariaDB 的 `straight_join` 保持左侧来源先于右侧来源。使用 `straight_join_where` 在联结条件中绑定值，`straight_join_with` 接收闭包，`straight_join_sub` 接收派生查询。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -107,11 +107,11 @@ pub async fn label_paid_orders(connection: &Connection) -> DatabaseResult<Vec<Ro
     let labels = orders.subquery("labels").r#where("active", "=", 1);
 
     orders
-        .straightJoin("payments as p", "o.id", "=", "p.order_id")
-        .crossJoinSub(&labels, "label")?
+        .straight_join("payments as p", "o.id", "=", "p.order_id")
+        .cross_join_sub(&labels, "label")?
         .r#where("p.state", "=", "paid")
         .select(["o.id", "label.code"])
-        .orderBy("label.code", "asc")
+        .order_by("label.code", "asc")
         .get()
         .await
 }
@@ -119,7 +119,7 @@ pub async fn label_paid_orders(connection: &Connection) -> DatabaseResult<Vec<Ro
 
 ### 关联子查询联结 {#lateral-joins}
 
-PostgreSQL、MySQL 8.0.14+ 和 SQL Server 支持 `joinLateral` 与 `leftJoinLateral`。在子查询中用 `whereColumn` 引用外层列。左联结保留未匹配的外层行，右侧列返回 null。PostgreSQL 与 MySQL 使用 `JOIN LATERAL`，SQL Server 使用 `CROSS APPLY` 或 `OUTER APPLY`。
+PostgreSQL、MySQL 8.0.14+ 和 SQL Server 支持 `join_lateral` 与 `left_join_lateral`。在子查询中用 `where_column` 引用外层列。左联结保留未匹配的外层行，右侧列返回 null。PostgreSQL 与 MySQL 使用 `JOIN LATERAL`，SQL Server 使用 `CROSS APPLY` 或 `OUTER APPLY`。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -129,15 +129,15 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     let posts = users
         .subquery("posts as p")
         .select(["p.id as post_id"])
-        .whereColumn("p.user_id", "=", "u.id")
+        .where_column("p.user_id", "=", "u.id")
         .r#where("p.published", "=", 1)
-        .orderByDesc("p.id")
+        .order_by_desc("p.id")
         .limit(1);
 
     users
-        .leftJoinLateral(&posts, "latest")?
+        .left_join_lateral(&posts, "latest")?
         .select(["u.id", "latest.post_id"])
-        .orderBy("u.id", "asc")
+        .order_by("u.id", "asc")
         .get()
         .await
 }
@@ -145,13 +145,13 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 ## UNION
 
-调用 `union(&other)?` 去重，或用 `unionAll(&other)?` 保留重复行。合并前设置的排序或行数限制作用于第一条查询，合并后设置的作用于合并结果。
+调用 `union(&other)?` 去重，或用 `union_all(&other)?` 保留重复行。合并前设置的排序或行数限制作用于第一条查询，合并后设置的作用于合并结果。
 
 ## 基本 WHERE 子句
 
-Rust 中 `where` 是关键字，使用 `r#where(column, operator, value)` 对应 `where`。`orWhere` 用 OR 连接条件，用 `whereNested` 加括号分组，用 `where_not` 否定分组。可用 `where_null`、`where_not_null`、`where_in`、`where_not_in`、`whereBetween` 或 `whereColumn` 表达相应比较。空 IN 不匹配任何行，空 NOT IN 匹配所有行。
+Rust 中 `where` 是关键字，使用 `r#where(column, operator, value)` 对应 `where`。`or_where` 用 OR 连接条件，用 `where_nested` 加括号分组，用 `where_not` 否定分组。可用 `where_null`、`where_not_null`、`where_in`、`where_not_in`、`where_between` 或 `where_column` 表达相应比较。空 IN 不匹配任何行，空 NOT IN 匹配所有行。
 
-`whereLike` 接受区分大小写参数。`whereDate` 和 `whereTime` 分别接收 `jiff::civil::Date` 和 `jiff::civil::Time`。可用 `toSql()` 和 `get_bindings()` 查看 SQL 和按执行顺序排列的参数。
+`where_like` 接受区分大小写参数。`where_date` 和 `where_time` 分别接收 `jiff::civil::Date` 和 `jiff::civil::Time`。可用 `to_sql()` 和 `get_bindings()` 查看 SQL 和按执行顺序排列的参数。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row, Value};
@@ -161,13 +161,13 @@ pub async fn active_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
         .table("users")
         .select(["id", "name"])
         .r#where("active", "=", true)
-        .whereNested(|query| {
+        .where_nested(|query| {
             query
                 .where_null("archived_at")
-                .orWhere("name", "=", "Admin")
+                .or_where("name", "=", "Admin")
         })
-        .orderBy("id", "asc")
-        .forPage(1, 20)
+        .order_by("id", "asc")
+        .for_page(1, 20)
         .get()
         .await
 }
@@ -183,7 +183,7 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 ## 高级 WHERE 子句
 
-用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查询。`selectSub` 添加标量投影，`fromSub` 从派生表读取。事务中用外层构造器的 `subquery` 创建子查询，整条语句通过外层事务连接执行。
+用 `where_exists`、`where_not_exists`、`where_in_sub` 或 `where_sub` 引入子查询。`select_sub` 添加标量投影，`from_sub` 从派生表读取。事务中用外层构造器的 `subquery` 创建子查询，整条语句通过外层事务连接执行。
 
 ### MySQL 跨库子查询 {#mysql-cross-schema-subqueries}
 
@@ -202,8 +202,8 @@ async fn active_customers(
         .r#where("active", "=", 1);
     primary
         .table("customers")
-        .whereInSub("id", &active)?
-        .orderBy("id", "asc")
+        .where_in_sub("id", &active)?
+        .order_by("id", "asc")
         .pluck("id")
         .await
 }
@@ -215,7 +215,7 @@ MySQL 用外层连接的权限执行整条语句。外层连接的账号需要�
 
 向量查询使用 PostgreSQL 的 `pgvector` 扩展或 MariaDB 11.7 及以上版本的余弦距离。启用 PostgreSQL 扩展、声明列和索引的方法见[向量列](./migrations.md#vector-columns)。
 
-`whereVectorSimilarTo` 接收数值向量、0 到 1 的最低相似度，以及是否将最相似的行排在前面的标志。传入 `false` 可自行排序。相似度 1 匹配方向相同的向量。
+`where_vector_similar_to` 接收数值向量、0 到 1 的最低相似度，以及是否将最相似的行排在前面的标志。传入 `false` 可自行排序。相似度 1 匹配方向相同的向量。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -227,28 +227,28 @@ pub async fn related_documents(
     connection
         .table("documents")
         .select(["id"])
-        .selectVectorDistance("embedding", embedding, Some("distance"))?
-        .whereVectorSimilarTo("embedding", embedding, 0.7, true)?
+        .select_vector_distance("embedding", embedding, Some("distance"))?
+        .where_vector_similar_to("embedding", embedding, 0.7, true)?
         .limit(10)
         .get()
         .await
 }
 ```
 
-可独立使用 `selectVectorDistance`、`whereVectorDistanceLessThan`、`orWhereVectorDistanceLessThan` 和 `orderByVectorDistance`。距离过滤包含等于上限的结果。查询 PostgreSQL 向量列时，结果以文本表示向量。MariaDB 返回向量的字节值。
+可独立使用 `select_vector_distance`、`where_vector_distance_less_than`、`or_where_vector_distance_less_than` 和 `order_by_vector_distance`。距离过滤包含等于上限的结果。查询 PostgreSQL 向量列时，结果以文本表示向量。MariaDB 返回向量的字节值。
 
-Eloquent 构建器提供同样的向量方法。在 `whereNested` 里可以将距离谓词与其他条件分组。Eloquent 全局作用域约束整个分组，包括每个 `orWhereVectorDistanceLessThan` 分支。
+Eloquent 构建器提供同样的向量方法。在 `where_nested` 里可以将距离谓词与其他条件分组。Eloquent 全局作用域约束整个分组，包括每个 `or_where_vector_distance_less_than` 分支。
 
 ```rust
 use openrust::database::eloquent::Model;
 
-let mut query = Document::queryOn(&connection).select(["id"]);
-query.whereNested(|group| {
+let mut query = Document::query_on(&connection).select(["id"]);
+query.where_nested(|group| {
     group
-        .whereVectorDistanceLessThan("embedding", &primary, 0.3)
-        .orWhereVectorDistanceLessThan("embedding", &alternate, 0.2)
+        .where_vector_distance_less_than("embedding", &primary, 0.3)
+        .or_where_vector_distance_less_than("embedding", &alternate, 0.2)
 });
-let documents = query.orderByVectorDistance("embedding", &primary)?.get().await?;
+let documents = query.order_by_vector_distance("embedding", &primary)?.get().await?;
 ```
 
 #### 文本嵌入 {#text-embeddings}
@@ -272,9 +272,9 @@ Query Builder 和 Eloquent 中带 `Text` 后缀的方法先异步生成向量，
 let documents = connection
     .table("documents")
     .select(["id"])
-    .selectVectorDistanceText("embedding", "Rust web frameworks", Some("distance"))
+    .select_vector_distance_text("embedding", "Rust web frameworks", Some("distance"))
     .await?
-    .whereVectorSimilarToText("embedding", "Rust web frameworks", 0.7, true)
+    .where_vector_similar_to_text("embedding", "Rust web frameworks", 0.7, true)
     .await?
     .limit(10)
     .get()
@@ -283,7 +283,7 @@ let documents = connection
 
 ## JSON WHERE 子句
 
-用 `whereJsonContains` 和 `whereJsonDoesntContain` 判断 JSON 是否包含指定值，用 `whereJsonContainsKey` 和 `whereJsonDoesntContainKey` 检查路径是否存在，用 `whereJsonLength` 比较长度。用 `->` 分隔路径段，也可附加 `groups[0]` 这样的索引。每个方法都有 `orWhere` 变体。
+用 `where_json_contains` 和 `where_json_doesnt_contain` 判断 JSON 是否包含指定值，用 `where_json_contains_key` 和 `where_json_doesnt_contain_key` 检查路径是否存在，用 `where_json_length` 比较长度。用 `->` 分隔路径段，也可附加 `groups[0]` 这样的索引。每个方法都有 `or_where` 变体。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -292,9 +292,9 @@ use serde_json::json;
 pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     connection
         .table("users")
-        .whereJsonContains("options->languages", json!("en"))
-        .whereJsonContainsKey("options->timezone")
-        .whereJsonLength("options->languages", ">", 1)
+        .where_json_contains("options->languages", json!("en"))
+        .where_json_contains_key("options->timezone")
+        .where_json_length("options->languages", ">", 1)
         .get()
         .await
 }
@@ -306,7 +306,7 @@ SQL Server 使用 `OPENJSON` 检查标量包含、键存在和长度。长度条
 
 ### JSON 重叠 {#json-overlap}
 
-`whereJsonOverlaps` 检查选中的 JSON 值是否与候选值共享元素或键值对。MySQL 使用 `JSON_OVERLAPS`。`whereJsonDoesntOverlap` 对谓词取反，两者均有 `orWhere` 变体。路径不存在或文档为 SQL NULL 时，MySQL 返回 SQL NULL，WHERE 会过滤该行，取反时也是如此。
+`where_json_overlaps` 检查选中的 JSON 值是否与候选值共享元素或键值对。MySQL 使用 `JSON_OVERLAPS`。`where_json_doesnt_overlap` 对谓词取反，两者均有 `or_where` 变体。路径不存在或文档为 SQL NULL 时，MySQL 返回 SQL NULL，WHERE 会过滤该行，取反时也是如此。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
@@ -315,8 +315,8 @@ use serde_json::json;
 async fn eligible_user_ids(connection: &Connection) -> DatabaseResult<Vec<Value>> {
     connection
         .table("users")
-        .whereJsonOverlaps("options->languages", json!(["en", "fr"]))
-        .orderBy("id", "asc")
+        .where_json_overlaps("options->languages", json!(["en", "fr"]))
+        .order_by("id", "asc")
         .pluck("id")
         .await
 }
@@ -326,7 +326,7 @@ async fn eligible_user_ids(connection: &Connection) -> DatabaseResult<Vec<Value>
 
 ## 排序、分组、限制和偏移
 
-用 `orderBy("id", "asc")` 或 `orderByDesc("id")` 排序。`reorder()` 清除已有排序。用 `groupBy` 和 `having` 筛选分组。`limit` 和 `offset` 选取指定范围的行。`forPage(page, per_page)` 的页码从 1 开始。SQLite 和 MySQL 执行偏移查询时要求同时指定限制行数。分页时请指定能稳定确定行顺序的排序条件。
+用 `order_by("id", "asc")` 或 `order_by_desc("id")` 排序。`reorder()` 清除已有排序。用 `group_by` 和 `having` 筛选分组。`limit` 和 `offset` 选取指定范围的行。`for_page(page, per_page)` 的页码从 1 开始。SQLite 和 MySQL 执行偏移查询时要求同时指定限制行数。分页时请指定能稳定确定行顺序的排序条件。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -335,10 +335,10 @@ pub async fn departments(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     connection
         .table("users")
         .select(["department"])
-        .selectRaw("count(*) as total", Vec::new())
-        .groupBy(&["department"])
+        .select_raw("count(*) as total", Vec::new())
+        .group_by(&["department"])
         .having("total", ">=", 2)
-        .orderByDesc("total")
+        .order_by_desc("total")
         .get()
         .await
 }
@@ -346,18 +346,18 @@ pub async fn departments(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 ### 值范围与指定顺序 {#value-ranges-and-ordering}
 
-用 `whereValueBetween(value, [lower, upper])` 将绑定值与每行的两个列边界比较，范围包含端点。取反用 `whereValueNotBetween`，两种形式都有 OR 变体。
+用 `where_value_between(value, [lower, upper])` 将绑定值与每行的两个列边界比较，范围包含端点。取反用 `where_value_not_between`，两种形式都有 OR 变体。
 
-`inOrderOf` 让列出的值按指定顺序排在前面。列表外的值和空值同属最后一档。需要固定同档顺序时再加一项排序。空列表保留已有排序。可信 SQL 操作数可用 `Expression` 并单独绑定参数。
+`in_order_of` 让列出的值按指定顺序排在前面。列表外的值和空值同属最后一档。需要固定同档顺序时再加一项排序。空列表保留已有排序。可信 SQL 操作数可用 `Expression` 并单独绑定参数。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
 
 pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Value>> {
     connection.table("order_ranges")
-        .whereValueBetween(5, ["lower_bound", "upper_bound"])
-        .inOrderOf("status", vec!["active".into(), "pending".into()])
-        .orderBy("id", "asc")
+        .where_value_between(5, ["lower_bound", "upper_bound"])
+        .in_order_of("status", vec!["active".into(), "pending".into()])
+        .order_by("id", "asc")
         .pluck("id")
         .await
 }
@@ -365,7 +365,7 @@ pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Valu
 
 ### 限制每组返回的行数 {#group-limit}
 
-调用 `groupLimit(count, column)` 限制分区列每个值对应的返回行数。用 `orderBy` 决定每组保留哪些行。需要确定顺序时，加入唯一列作为同值排序条件。`offset` 在每组内跳过指定行数，分组限额为零时返回空结果。
+调用 `group_limit(count, column)` 限制分区列每个值对应的返回行数。用 `order_by` 决定每组保留哪些行。需要确定顺序时，加入唯一列作为同值排序条件。`offset` 在每组内跳过指定行数，分组限额为零时返回空结果。
 
 查询构造器使用 `row_number()` 排名，返回的行隐藏内部排名列。需要对 UNION 结果分组限额时，先把 UNION 构造成派生表。
 
@@ -375,9 +375,9 @@ use openrust::database::{Connection, DatabaseResult, Row};
 pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<Row>> {
     connection.table("group_items")
         .r#where("active", "=", true)
-        .orderByDesc("score")
-        .orderBy("id", "asc")
-        .groupLimit(1, "category")
+        .order_by_desc("score")
+        .order_by("id", "asc")
+        .group_limit(1, "category")
         .offset(1)
         .get()
         .await
@@ -386,13 +386,13 @@ pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<
 
 ## 插入语句
 
-`insert` 接收一个或多个 `Record`，批量记录使用相同的列。`insertOrIgnore` 使用驱动原生的忽略行为，并返回影响行数。`insertUsing` 接收目标列和选择查询。`insertGetId` 从同一次执行结果取得主键。
+`insert` 接收一个或多个 `Record`，批量记录使用相同的列。`insert_or_ignore` 使用驱动原生的忽略行为，并返回影响行数。`insert_using` 接收目标列和选择查询。`insert_get_id` 从同一次执行结果取得主键。
 
 ### 生成的主键与插入行 {#insert-results}
 
-在 PostgreSQL 上使用 `insertGetIdFor(record, "item_key")` 返回指定主键列。其他驱动沿用原生生成 ID 的方式。PostgreSQL 的 `insertOrIgnore` 和 `insertOrIgnoreUsing` 使用 `ON CONFLICT DO NOTHING`。SQL Server 对这两种忽略冲突写入返回不支持。
+在 PostgreSQL 上使用 `insert_get_id_for(record, "item_key")` 返回指定主键列。其他驱动沿用原生生成 ID 的方式。PostgreSQL 的 `insert_or_ignore` 和 `insert_or_ignore_using` 使用 `ON CONFLICT DO NOTHING`。SQL Server 对这两种忽略冲突写入返回不支持。
 
-PostgreSQL 和 SQLite 上的 `insertOrIgnoreReturning` 只返回新插入的行。指定返回列，并可指定要忽略冲突的唯一列。其他约束发生冲突时仍返回错误。
+PostgreSQL 和 SQLite 上的 `insert_or_ignore_returning` 只返回新插入的行。指定返回列，并可指定要忽略冲突的唯一列。其他约束发生冲突时仍返回错误。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row, query::Record};
@@ -402,7 +402,7 @@ pub async fn register_item(connection: &Connection, code: &str) -> DatabaseResul
 
     connection
         .table("items")
-        .insertOrIgnoreReturning(&[item], &["item_key", "code"], Some(&["code"]))
+        .insert_or_ignore_returning(&[item], &["item_key", "code"], Some(&["code"]))
         .await
 }
 ```
@@ -415,7 +415,7 @@ pub async fn register_item(connection: &Connection, code: &str) -> DatabaseResul
 use openrust::database::{Connection, DatabaseResult, query::Record};
 
 pub async fn save_stock(connection: &Connection, code: &str, stock: i64) -> DatabaseResult<u64> {
-    let mut transaction = connection.beginTransaction().await?;
+    let mut transaction = connection.begin_transaction().await?;
     let row = Record::from([("code".into(), code.into()), ("stock".into(), stock.into())]);
     let affected = transaction
         .table("items")
@@ -428,7 +428,7 @@ pub async fn save_stock(connection: &Connection, code: &str, stock: i64) -> Data
 
 #### 冲突时赋值 {#upsert-conflict-assignments}
 
-需要在冲突时同时使用插入值和指定值时，调用 `upsertWith`。`UpsertUpdate::FromInsert` 复制待插入记录里的指定列，`UpsertUpdate::Value` 绑定固定值，`UpsertUpdate::Expression` 接收可信 SQL 和独立绑定。没有冲突的记录按插入值和表默认值写入。
+需要在冲突时同时使用插入值和指定值时，调用 `upsert_with`。`UpsertUpdate::FromInsert` 复制待插入记录里的指定列，`UpsertUpdate::Value` 绑定固定值，`UpsertUpdate::Expression` 接收可信 SQL 和独立绑定。没有冲突的记录按插入值和表默认值写入。
 
 ```rust
 use openrust::database::{
@@ -440,7 +440,7 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
     let row = Record::from([("code".into(), code.into()), ("stock".into(), stock.into())]);
     connection
         .table("items")
-        .upsertWith(
+        .upsert_with(
             &[row],
             &["code"],
             &[
@@ -454,7 +454,7 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 ## 更新语句
 
-`update` 返回影响行数。`updateOrInsert` 先检查记录是否存在，再执行写入。需要在一条 SQL 内处理插入和冲突时使用 `upsert`。`increment` 和 `decrement` 在 SQL 中运算，并可附带更新其他列。
+`update` 返回影响行数。`update_or_insert` 先检查记录是否存在，再执行写入。需要在一条 SQL 内处理插入和冲突时使用 `upsert`。`increment` 和 `decrement` 在 SQL 中运算，并可附带更新其他列。
 
 PostgreSQL 的联结或限额更新和删除通过 `ctid` 子查询选出目标行。
 
@@ -464,7 +464,7 @@ MySQL 和 MariaDB 的更新返回实际修改的行数。把匹配行更新为�
 
 ### 更新表达式与标量子查询 {#update-expressions}
 
-使用 `updateWith` 混合绑定值、可信 SQL `Expression` 和 `UpdateValue::Subquery` 赋值。通过目标构造器的 `subquery` 创建关联子查询，数据库对每条匹配记录求值，并按自身规则处理空结果或多行结果。MySQL、MariaDB 和 PostgreSQL 的 JSON 路径支持表达式。SQLite 合并补丁接收字面值。
+使用 `update_with` 混合绑定值、可信 SQL `Expression` 和 `UpdateValue::Subquery` 赋值。通过目标构造器的 `subquery` 创建关联子查询，数据库对每条匹配记录求值，并按自身规则处理空结果或多行结果。MySQL、MariaDB 和 PostgreSQL 的 JSON 路径支持表达式。SQLite 合并补丁接收字面值。
 
 ```rust
 use std::collections::BTreeMap;
@@ -478,13 +478,13 @@ pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult
     let accounts = connection.table("accounts as a");
     let credits = accounts
         .subquery("entries as e")
-        .selectRaw("sum(amount)", vec![])
-        .whereColumn("e.account_id", "=", "a.id")
+        .select_raw("sum(amount)", vec![])
+        .where_column("e.account_id", "=", "a.id")
         .r#where("e.state", "=", "posted");
 
     accounts
         .r#where("a.id", "=", id)
-        .updateWith(BTreeMap::from([
+        .update_with(BTreeMap::from([
             ("credits".into(), UpdateValue::Subquery(&credits)),
             (
                 "note".into(),
@@ -499,7 +499,7 @@ pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult
 
 ### PostgreSQL 联结来源更新 {#postgresql-update-from}
 
-在 PostgreSQL 上调用 `updateFrom`，根据联结来源更新目标表。PostgreSQL 在 `FROM` 中列出来源，并将联结条件接在 `WHERE` 的查询条件之后。这种写法会忽略排序、限额和偏移。绑定普通值可使用 `Record`。需要混合绑定值和可信 SQL 表达式时使用 `ValueOperand`。
+在 PostgreSQL 上调用 `update_from`，根据联结来源更新目标表。PostgreSQL 在 `FROM` 中列出来源，并将联结条件接在 `WHERE` 的查询条件之后。这种写法会忽略排序、限额和偏移。绑定普通值可使用 `Record`。需要混合绑定值和可信 SQL 表达式时使用 `ValueOperand`。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, query::Record};
@@ -509,7 +509,7 @@ pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> 
         .table("orders as o")
         .join("payments as p", "o.id", "=", "p.order_id")
         .r#where("p.state", "=", "paid")
-        .updateFrom(Record::from([("status".into(), "verified".into())]))
+        .update_from(Record::from([("status".into(), "verified".into())]))
         .await
 }
 ```
@@ -526,7 +526,7 @@ pub async fn activate_latest(connection: &Connection) -> DatabaseResult<u64> {
     connection
         .table("event_archive")
         .r#where("score", "=", 0)
-        .orderBy("id", "desc")
+        .order_by("id", "desc")
         .limit(1)
         .update(BTreeMap::from([("score".into(), 1.into())]))
         .await
@@ -579,11 +579,11 @@ SQL Server 执行原生 `TRUNCATE TABLE`，重置标识列起始值。若目标�
 
 ## 悲观锁
 
-在事务内使用 `lockForUpdate` 或 `sharedLock`。`lock(true)` 和 `lock(false)` 对应相同的模式。加锁查询使用写连接。SQLite 采用自身的事务锁定方式，省略行锁子句。
+在事务内使用 `lock_for_update` 或 `shared_lock`。`lock(true)` 和 `lock(false)` 对应相同的模式。加锁查询使用写连接。SQLite 采用自身的事务锁定方式，省略行锁子句。
 
 ### 原生锁定子句 {#native-locking-clauses}
 
-可向 `lock` 传入应用定义的 SQL 子句。MySQL 和 PostgreSQL 可用 `FOR UPDATE SKIP LOCKED`，SQL Server 可用 `WITH (UPDLOCK, ROWLOCK, READPAST)`。SQL Server 同时使用 `forceIndex` 时，自定义锁必须写成 `WITH (...)` 列表。请勿将请求输入拼入子句。
+可向 `lock` 传入应用定义的 SQL 子句。MySQL 和 PostgreSQL 可用 `FOR UPDATE SKIP LOCKED`，SQL Server 可用 `WITH (UPDLOCK, ROWLOCK, READPAST)`。SQL Server 同时使用 `force_index` 时，自定义锁必须写成 `WITH (...)` 列表。请勿将请求输入拼入子句。
 
 ```rust
 use openrust::database::{DatabaseResult, Row, Transaction};
@@ -594,7 +594,7 @@ pub async fn next_unlocked(
 ) -> DatabaseResult<Option<Row>> {
     transaction
         .table("job_slots")
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .lock(lock_clause)
         .first()
         .await
@@ -603,41 +603,41 @@ pub async fn next_unlocked(
 
 ## 执行回调与 SQL 展开
 
-`beforeQuery` 返回修改后的 Builder，成功应用后清空，读取与写入都调用。失败保留回调，允许下次重试。`afterQuery` 接收并返回 `Vec<Row>`，空集合表示空结果。`toRawSql` 复用驱动的绑定展开，仅用于调试；执行仍使用参数绑定。`toSql` / `toRawSql` 会应用执行前回调，因此需要 `&mut self`；嵌入子查询也需要 `&mut Builder`，防止重复执行回调。旧调用端需声明 `let mut query` 并传入 `&mut query`。
+`before_query` 返回修改后的 Builder，成功应用后清空，读取与写入都调用。失败保留回调，允许下次重试。`after_query` 接收并返回 `Vec<Row>`，空集合表示空结果。`to_raw_sql` 复用驱动的绑定展开，仅用于调试；执行仍使用参数绑定。`to_sql` / `to_raw_sql` 会应用执行前回调，因此需要 `&mut self`；嵌入子查询也需要 `&mut Builder`，防止重复执行回调。旧调用端需声明 `let mut query` 并传入 `&mut query`。
 
 ```rust
 let mut query = connection.table("users")
-    .beforeQuery(|query| Ok(query.r#where("active", "=", true)));
-let sql = query.toRawSql()?;
-let rows = query.afterQuery(|rows| Ok(rows)).get().await?;
+    .before_query(|query| Ok(query.r#where("active", "=", true)));
+let sql = query.to_raw_sql()?;
+let rows = query.after_query(|rows| Ok(rows)).get().await?;
 ```
 
 ## 绑定类别 {#binding-categories}
 
-`getRawBindings()` 按顺序返回 `select`、`from`、`join`、`where`、`groupBy`、`having`、`order`、`union`、`unionOrder` 九类绑定。`setBindings(values, kind)` 替换一类，`addBinding(value_or_values, kind)` 追加单值或一组值。类别传 `None` 默认使用 `where`，也可传 `Some("join")`；未知类别返回错误。这些方法通过 `Result` 消费并返回查询构建器。
+`get_raw_bindings()` 按顺序返回 `select`、`from`、`join`、`where`、`group_by`、`having`、`order`、`union`、`unionOrder` 九类绑定。`set_bindings(values, kind)` 替换一类，`add_binding(value_or_values, kind)` 追加单值或一组值。类别传 `None` 默认使用 `where`，也可传 `Some("join")`；未知类别返回错误。这些方法通过 `Result` 消费并返回查询构建器。
 
 ```rust
 let query = connection.table("users")
-    .whereRaw("id > ? and id < ?", Vec::new())
-    .addBinding([1_i64, 10], None)?
-    .setBindings(vec![2.into(), 9.into()], None)?
+    .where_raw("id > ? and id < ?", Vec::new())
+    .add_binding([1_i64, 10], None)?
+    .set_bindings(vec![2.into(), 9.into()], None)?
     .r#where("active", "=", true);
-let bindings = query.getRawBindings()?;
+let bindings = query.get_raw_bindings()?;
 assert_eq!(bindings["where"], vec![2.into(), 9.into(), true.into()]);
 ```
 
-手动替换后，新条件仍在已有绑定后追加参数。`select` 清空投影绑定，`reorder` 同时清空普通与联合排序绑定。`mergeBindings(&other)` 按类别追加绑定，不复制 SQL，须确保 SQL 中有对应占位符。所有类型化值始终使用参数绑定，包括包含 SQL 文本的值。`get_bindings()` 返回编译后实际执行的参数；分组限量查询会将排序参数移至窗口投影，并追加绑定的数值限额。`getRawBindings()` 则保留原始逻辑类别。
+手动替换后，新条件仍在已有绑定后追加参数。`select` 清空投影绑定，`reorder` 同时清空普通与联合排序绑定。`merge_bindings(&other)` 按类别追加绑定，不复制 SQL，须确保 SQL 中有对应占位符。所有类型化值始终使用参数绑定，包括包含 SQL 文本的值。`get_bindings()` 返回编译后实际执行的参数；分组限量查询会将排序参数移至窗口投影，并追加绑定的数值限额。`get_raw_bindings()` 则保留原始逻辑类别。
 
 ## 补充查询条件 {#additional-query-conditions}
 
-`fromRaw(sql, bindings)` 设置可信 SQL 来源。`joinWhere`、`leftJoinWhere`、`rightJoinWhere` 将连接列与绑定值比较。原始 SQL 由应用代码提供，用户输入通过绑定传入。
+`from_raw(sql, bindings)` 设置可信 SQL 来源。`join_where`、`left_join_where`、`right_join_where` 将连接列与绑定值比较。原始 SQL 由应用代码提供，用户输入通过绑定传入。
 
-`whereBinary`、`whereNotBinary` 及其 `or` 变体使用 MySQL 二进制比较，其他驱动返回不支持错误。四种 `whereIntegerInRaw` / `whereIntegerNotInRaw` 变体接收 `Vec<i64>`；正向空集不匹配任何行，反向空集匹配全部行。`whereRowValues` 和 `orWhereRowValues` 返回 `Result`，列和值数量不一致或运算符非法时立即报错，所有值均通过绑定传入。
+`where_binary`、`where_not_binary` 及其 `or` 变体使用 MySQL 二进制比较，其他驱动返回不支持错误。四种 `where_integer_in_raw` / `where_integer_not_in_raw` 变体接收 `Vec<i64>`；正向空集不匹配任何行，反向空集匹配全部行。`where_row_values` 和 `or_where_row_values` 返回 `Result`，列和值数量不一致或运算符非法时立即报错，所有值均通过绑定传入。
 
-`havingNull` / `havingNotNull` 及其 `or` 变体接收列切片。`havingBetween` / `havingNotBetween` 及其 `or` 变体接收两个边界值。`havingNested` 和 `orHavingNested` 的回调接收查询构造器，返回的 HAVING 条件合并为一组；空回调不添加条件。
+`having_null` / `having_not_null` 及其 `or` 变体接收列切片。`having_between` / `having_not_between` 及其 `or` 变体接收两个边界值。`having_nested` 和 `or_having_nested` 的回调接收查询构造器，返回的 HAVING 条件合并为一组；空回调不添加条件。
 
-`inRandomOrder(None)` 使用驱动的随机函数，`Some(seed)` 为 MySQL 指定种子。`reorder()` 同时清除 union 排序，`reorderDesc(column)` 重新按指定列降序。`forPageBeforeId(perPage, lastId, column)` 与 `forPageAfterId` 替换该列的排序并保留其他排序；`lastId` 传 `None` 时只过滤空 ID，不添加 ID 边界。
+`in_random_order(None)` 使用驱动的随机函数，`Some(seed)` 为 MySQL 指定种子。`reorder()` 同时清除 union 排序，`reorder_desc(column)` 重新按指定列降序。`for_page_before_id(per_page, last_id, column)` 与 `for_page_after_id` 替换该列的排序并保留其他排序；`last_id` 传 `None` 时只过滤空 ID，不添加 ID 边界。
 
-`rawValue(expression, bindings)` 追加原始投影，取首行首列；没有结果返回 `Value::Null`，既有投影仍优先。PostgreSQL 可将无类型的参数投影推断为文本，因此 `select ?` 可能返回 `Value::Text`；需要指定结果类型时显式使用 SQL 类型转换。
+`raw_value(expression, bindings)` 追加原始投影，取首行首列；没有结果返回 `Value::Null`，既有投影仍优先。PostgreSQL 可将无类型的参数投影推断为文本，因此 `select ?` 可能返回 `Value::Text`；需要指定结果类型时显式使用 SQL 类型转换。
 
-`existsOr` 和 `doesntExistOr` 接收返回 `DatabaseResult<T>` 的惰性异步回调。条件成立返回 `query::ExistsOr::Satisfied`，否则执行回调并返回 `Callback(T)`。查询失败不调用回调，回调错误继续向上传播。
+`exists_or` 和 `doesnt_exist_or` 接收返回 `DatabaseResult<T>` 的惰性异步回调。条件成立返回 `query::ExistsOr::Satisfied`，否则执行回调并返回 `Callback(T)`。查询失败不调用回调，回调错误继续向上传播。

@@ -19,7 +19,7 @@ use openrust::{
         http::Kernel as _,
         mail::Attachable,
     },
-    database::{DB, DatabaseManager, Value},
+    database::{DatabaseManager, Db, Value},
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{
         Application,
@@ -95,7 +95,7 @@ struct RemoteReport(String);
 
 impl Attachable for RemoteReport {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+    fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
         Attachment::fromUrl(&self.0)
     }
 }
@@ -130,7 +130,7 @@ impl Mailable for AttachmentReceipt {
                 .withMime("application/x-openrust"),
             Attachment::fromCloudStorage("nested/object.bin")?,
             Attachment::fromData(vec![0, 255, 1], "generated.bin"),
-            RemoteReport(Config::string("fixture.attachment_url").unwrap()).toMailAttachment()?,
+            RemoteReport(Config::string("fixture.attachment_url").unwrap()).to_mail_attachment()?,
         ])
     }
 }
@@ -173,7 +173,7 @@ fn uploaded_mail_from_http(request: &mut Request) -> HttpFuture<'_, Result<Respo
             .await
             .map(|_| ())
         } else {
-            mail.sendNow(&receipt).await.map(|_| ())
+            mail.send_now(&receipt).await.map(|_| ())
         };
         result?;
         Response::json(http::StatusCode::OK, json!({"accepted":true}))
@@ -185,7 +185,7 @@ fn attachment_mail_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
         let file = Config::string("fixture.attachment_file").unwrap();
         Mail::to("to@example.test")
             .unwrap()
-            .sendNow(&AttachmentReceipt {
+            .send_now(&AttachmentReceipt {
                 path: file.into(),
                 subject: "Source attachments HTTP",
             })
@@ -684,7 +684,7 @@ fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
         let blocked = send("blocked@example.test").await?.is_none();
         let forced = Mail::to("blocked@example.test")
             .unwrap()
-            .sendNow(&NamedReceipt("fixture", false))
+            .send_now(&NamedReceipt("fixture", false))
             .await;
         let forced_blocked = forced.unwrap().is_none();
         Response::json(
@@ -749,33 +749,33 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
         });
         mail.assertFrom("sales@example.test", Some("Sales"))
             .assertTo("sam@example.test", None)
-            .assertHasTo("sam@example.test", None)
+            .assert_has_to("sam@example.test", None)
             .assertHasCc("copy@example.test", None)
             .assertHasBcc("audit@example.test", None)
             .assertHasReplyTo("support@example.test", None)
-            .assertHasSubject("Receipt for Sam")
-            .assertSeeInHtml("A & <Sam>", true)
+            .assert_has_subject("Receipt for Sam")
+            .assert_see_in_html("A & <Sam>", true)
             .await
-            .assertSeeInHtml("<span>", false)
+            .assert_see_in_html("<span>", false)
             .await
-            .assertDontSeeInHtml("private-note", false)
+            .assert_dont_see_in_html("private-note", false)
             .await
-            .assertSeeInOrderInHtml(&["fr", "A & <Sam>", "café", "final"], true)
+            .assert_see_in_order_in_html(&["fr", "A & <Sam>", "café", "final"], true)
             .await
-            .assertSeeInText("Plain fr")
+            .assert_see_in_text("Plain fr")
             .await
-            .assertDontSeeInText("<span>")
+            .assert_dont_see_in_text("<span>")
             .await
-            .assertSeeInOrderInText(&["Plain", "fr", "receipt"])
+            .assert_see_in_order_in_text(&["Plain", "fr", "receipt"])
             .await;
         assert!(!mail.hasFrom("sales@example.test", Some("Support")).unwrap());
         assert!(!mail.hasTo("other@example.test", None).unwrap());
-        assert!(!mail.hasSubject("Different subject").unwrap());
+        assert!(!mail.has_subject("Different subject").unwrap());
         for assertion in [
-            mail.assertSeeInHtml("A & <Sam>", false),
-            mail.assertDontSeeInText("Plain fr"),
-            mail.assertSeeInOrderInHtml(&["final", "fr"], false),
-            mail.assertSeeInOrderInText(&["receipt", "receipt"]),
+            mail.assert_see_in_html("A & <Sam>", false),
+            mail.assert_dont_see_in_text("Plain fr"),
+            mail.assert_see_in_order_in_html(&["final", "fr"], false),
+            mail.assert_see_in_order_in_text(&["receipt", "receipt"]),
         ] {
             assert!(AssertUnwindSafe(assertion).catch_unwind().await.is_err());
         }
@@ -783,13 +783,13 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
             text: Some("Only text".into()),
             ..Default::default()
         })
-        .assertSeeInHtml("Only text", false)
+        .assert_see_in_html("Only text", false)
         .await;
         AssertionMail(Content {
             markdown: Some("assertion-markdown".into()),
             ..Default::default()
         })
-        .assertSeeInText("Markdown proof")
+        .assert_see_in_text("Markdown proof")
         .await;
         assert_eq!(Lang::get_locale().unwrap(), "en");
         assert!(Mail::mailer(None).unwrap().sent().unwrap().is_empty());
@@ -846,7 +846,7 @@ impl Notice for DeliveryNotice {
             .withMessage(MessageCustomization::new("fixture.append", Json::Null));
         message
             .assertHasBcc("audit@example.test", None)
-            .assertHasAttachedData(b"memory bytes", "memory.txt", Some("text/plain"));
+            .assert_has_attached_data(b"memory bytes", "memory.txt", Some("text/plain"));
         Ok(Some(MailDelivery::Message(Box::new(message))))
     }
 
@@ -1093,7 +1093,7 @@ fn slack_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
                 .notifyNow(&notice, None)
                 .await
         } else {
-            Notification::sendNow(
+            Notification::send_now(
                 &[&openrust::notifications::AnonymousNotifiable::default()],
                 &notice,
                 None,
@@ -1131,7 +1131,7 @@ fn notification_preview_from_http(
                             .collect(),
                     )
                     .template("missing");
-                mail.assertSeeInText("Text Beta").await;
+                mail.assert_see_in_text("Text Beta").await;
                 mail
             }
             Some("text") => {
@@ -1147,7 +1147,7 @@ fn notification_preview_from_http(
                     .text("missing", Default::default())
                     .markdown("notice-markdown", data())
                     .theme("notice-accent");
-                mail.assertSeeInText("Markdown Acme").await;
+                mail.assert_see_in_text("Markdown Acme").await;
                 mail
             }
             Some("template") => message.template("notice-template"),
@@ -1188,7 +1188,7 @@ fn notification_format_from_http(_: &mut Request) -> HttpFuture<'_, Result<Respo
             .lines(["After action", "Final line"])
             .salutation("Sincerely, Finance");
         let html = Mail::render(&mail).await.unwrap();
-        mail.assertSeeInOrderInText(&[
+        mail.assert_see_in_order_in_text(&[
             "Hello <Sam>",
             "First line continued",
             "Second line",
@@ -1211,7 +1211,7 @@ fn notification_format_from_http(_: &mut Request) -> HttpFuture<'_, Result<Respo
         let sent = Mail::mailer(None).unwrap().sent().unwrap();
         assert_eq!(sent.len(), 1);
         assert_eq!(sent[0].message.envelope().subject, "Invoice Paid");
-        let error_html = Lang::withLocale("fr", Mail::render(&MailMessage::new().error()))
+        let error_html = Lang::with_locale("fr", Mail::render(&MailMessage::new().error()))
             .await
             .unwrap()
             .unwrap();
@@ -1325,7 +1325,7 @@ impl Command for SendFixture {
             let sent = Mail::to("to@example.test")
                 .unwrap()
                 .bcc("blind@example.test")
-                .sendNow(mailable)
+                .send_now(mailable)
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             let mime = String::from_utf8(sent.expect("邮件未被取消").message.formatted()).unwrap();
@@ -1377,11 +1377,11 @@ impl Command for AssertFakes {
             assert!(queued.is_none());
             Mail::to("sent@example.test")
                 .unwrap()
-                .sendNow(&Receipt)
+                .send_now(&Receipt)
                 .await
                 .unwrap();
-            named.sendNow(&AddressedReceipt).await.unwrap();
-            cached_mailer.sendNow(&AddressedReceipt).await.unwrap();
+            named.send_now(&AddressedReceipt).await.unwrap();
+            cached_mailer.send_now(&AddressedReceipt).await.unwrap();
             mail.assertSentOnce(kind)
                 .assertQueuedOnce(kind)
                 .assertOutgoingCount(4)
@@ -1569,9 +1569,9 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
         .call(
             Callback::new(&[], |_| async {
                 Receipt
-                    .assertHasTag("receipt")
-                    .assertHasMetadata("order-id", "R123");
-                assert!(!Receipt.hasMetadata("order-id", "other").unwrap());
+                    .assert_has_tag("receipt")
+                    .assert_has_metadata("order-id", "R123");
+                assert!(!Receipt.has_metadata("order-id", "other").unwrap());
                 let mut envelope = Receipt.envelope().unwrap();
                 envelope.to = vec!["to@example.test".into()];
                 envelope.tags.push("shipment".into());
@@ -1587,7 +1587,7 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
                 let postmark = Mail::mailer(Some("postmark")).unwrap();
                 assert!(
                     postmark
-                        .sendNow(&TrackingFixture(envelope.clone()))
+                        .send_now(&TrackingFixture(envelope.clone()))
                         .await
                         .err()
                         .unwrap()
@@ -1600,7 +1600,7 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
                     .insert("key\r\nInjected".into(), "value".into());
                 assert!(
                     postmark
-                        .sendNow(&TrackingFixture(invalid))
+                        .send_now(&TrackingFixture(invalid))
                         .await
                         .err()
                         .unwrap()
@@ -1610,7 +1610,7 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
                 envelope.tags = vec!["receipt\nInjected: value".into()];
                 assert!(
                     postmark
-                        .sendNow(&TrackingFixture(envelope))
+                        .send_now(&TrackingFixture(envelope))
                         .await
                         .err()
                         .unwrap()
@@ -1621,7 +1621,7 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
                     Mail::to("to@example.test")
                         .unwrap()
                         .bcc("blind@example.test")
-                        .sendNow(&NamedReceipt(name, inline))
+                        .send_now(&NamedReceipt(name, inline))
                         .await
                 };
                 let ses = send("ses", false).await.unwrap();
@@ -1994,7 +1994,7 @@ fi
                     Mail::to("to@example.test")
                         .unwrap()
                         .bcc("blind@example.test")
-                        .sendNow(&Receipt)
+                        .send_now(&Receipt)
                         .await
                         .unwrap();
                     Ok(())
@@ -2564,7 +2564,7 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
             for theme in [Some("receipt"), None, Some("")] {
                 Mail::to("theme@example.test")
                     .unwrap()
-                    .sendNow(&MarkdownReceipt {
+                    .send_now(&MarkdownReceipt {
                         plain_view: true,
                         options_fixture: true,
                         theme: theme.map(str::to_owned),
@@ -2575,7 +2575,7 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
             }
             let missing = Mail::to("theme@example.test")
                 .unwrap()
-                .sendNow(&MarkdownReceipt {
+                .send_now(&MarkdownReceipt {
                     plain_view: true,
                     options_fixture: true,
                     theme: Some("missing".into()),
@@ -3032,7 +3032,7 @@ async fn smtp_delivery_fixture() {
             Callback::new(&[], move |_| async move {
                 let result = Mail::to("recipient@example.test")
                     .unwrap()
-                    .sendNow(&Receipt)
+                    .send_now(&Receipt)
                     .await;
                 if rejection {
                     let error = result
@@ -3062,7 +3062,7 @@ async fn artisan_mail_fixture() {
     let args: Vec<OsString> = args.into_iter().map(OsString::from).collect();
     if markdown {
         let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root)).unwrap();
-        fixture.travel_to(Date::fromUtc(
+        fixture.travel_to(Date::from_utc(
             "2030-01-01T01:00:00Z".parse().unwrap(),
             jiff::tz::TimeZone::UTC,
         ));
@@ -3117,7 +3117,7 @@ fn user() -> User {
 
 async fn drop_delivery_tables(db: &openrust::database::Connection) {
     for table in ["notifications", "jobs", "failed_jobs", "sms_deliveries"] {
-        db.getSchemaBuilder().dropIfExists(table).await.unwrap();
+        db.get_schema_builder().drop_if_exists(table).await.unwrap();
     }
 }
 
@@ -3133,7 +3133,7 @@ async fn setup(app: &Application) -> openrust::database::Connection {
         .connection(None)
         .unwrap();
     drop_delivery_tables(&db).await;
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("notifications", |table| {
             DatabaseNotification::schema(table, |table| {
@@ -3147,10 +3147,10 @@ async fn setup(app: &Application) -> openrust::database::Connection {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedInteger("reserved_at").nullable();
-            table.unsignedInteger("available_at");
-            table.unsignedInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_integer("reserved_at").nullable();
+            table.unsigned_integer("available_at");
+            table.unsigned_integer("created_at");
         })
         .await
         .unwrap();
@@ -3182,7 +3182,7 @@ async fn mail_composes_views_mime_headers_and_keeps_application_capture_isolated
                     .unwrap()
                     .cc("cc@example.test")
                     .bcc("blind@example.test")
-                    .sendNow(&Receipt)
+                    .send_now(&Receipt)
                     .await
                     .unwrap();
                 assert_eq!(
@@ -3279,7 +3279,7 @@ async fn database_notification_is_polymorphic_localized_and_cancellable() {
                 Delivery::Sync,
             )
             .unwrap();
-            Notification::sendNow(&[&user], &Payment { queued: true }, Some(&["mail"]))
+            Notification::send_now(&[&user], &Payment { queued: true }, Some(&["mail"]))
                 .await
                 .unwrap();
             assert_eq!(Mail::mailer(None).unwrap().sent().unwrap().len(), 1);
@@ -3305,13 +3305,13 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
         Callback::new(&[], |_| async {
             let user = user();
             let notifications = Notification::get_facade_root().unwrap();
-            let mut transaction = DB::beginTransaction().await.unwrap();
+            let mut transaction = Db::begin_transaction().await.unwrap();
             notifications
                 .sendInTransaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
                 .await
                 .unwrap();
-            transaction.rollBack(None).await.unwrap();
-            let mut transaction = DB::beginTransaction().await.unwrap();
+            transaction.roll_back(None).await.unwrap();
+            let mut transaction = Db::begin_transaction().await.unwrap();
             notifications
                 .sendInTransaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
                 .await
@@ -3556,7 +3556,7 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
             Callback::new(&[], |_| async move {
                 Mail::to("real@example.test")
                     .unwrap()
-                    .sendNow(&Receipt)
+                    .send_now(&Receipt)
                     .await
                     .unwrap();
                 assert_eq!(Mail::mailer(None).unwrap().sent().unwrap().len(), 1);
@@ -4610,26 +4610,30 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                         subject: "Source attachments worker",
                     };
                     receipt
-                        .assertHasAttachment(&Attachment::fromPath(&path))
-                        .assertHasAttachment(
+                        .assert_has_attachment(&Attachment::fromPath(&path))
+                        .assert_has_attachment(
                             &RemoteReport(Config::string("fixture.attachment_url").unwrap())
-                                .toMailAttachment()
+                                .to_mail_attachment()
                                 .unwrap(),
                         )
-                        .assertHasAttachedData(b"file receipt", "receipt.txt", Some("text/plain"))
-                        .assertHasAttachedData(&[0, 255, 1], "generated.bin", None)
-                        .assertHasAttachmentFromStorage(
+                        .assert_has_attached_data(
+                            b"file receipt",
+                            "receipt.txt",
+                            Some("text/plain"),
+                        )
+                        .assert_has_attached_data(&[0, 255, 1], "generated.bin", None)
+                        .assert_has_attachment_from_storage(
                             "exports/default.csv",
                             Some("default.csv"),
                             None,
                         )
-                        .assertHasAttachmentFromStorageDisk(
+                        .assert_has_attachment_from_storage_disk(
                             "objects",
                             "nested/object.bin",
                             None,
                             None,
                         )
-                        .assertHasAttachmentFromStorageDisk(
+                        .assert_has_attachment_from_storage_disk(
                             "archive",
                             "data.bin",
                             Some("archive-record.bin"),
@@ -4637,15 +4641,15 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                         );
                     assert!(
                         !receipt
-                            .hasAttachment(&Attachment::fromStorage("nested/object.bin"))
+                            .has_attachment(&Attachment::fromStorage("nested/object.bin"))
                             .unwrap()
                     );
                     assert!(
                         !receipt
-                            .hasAttachment(&Attachment::fromStorageDisk("archive", "data.bin"))
+                            .has_attachment(&Attachment::fromStorageDisk("archive", "data.bin"))
                             .unwrap()
                     );
-                    AddressedReceipt.assertHasNoAttachments();
+                    AddressedReceipt.assert_has_no_attachments();
                     for connection in ["database", "redis"] {
                         Mail::to("to@example.test")
                             .unwrap()
@@ -4850,7 +4854,10 @@ async fn mail_customizers_are_application_local_and_preview_is_read_only() {
                     subject: "Custom mail",
                 };
                 assert!(receipt.render().await.unwrap().contains("Receipt for"));
-                let result = Mail::to("to@example.test").unwrap().sendNow(&receipt).await;
+                let result = Mail::to("to@example.test")
+                    .unwrap()
+                    .send_now(&receipt)
+                    .await;
                 assert!(
                     result
                         .err()
@@ -4891,7 +4898,7 @@ async fn artisan_worker_records_a_failed_smtp_delivery_after_retry() {
         Callback::new(&[], |_| async {
             let error = Mail::to("failure@example.test")
                 .unwrap()
-                .sendNow(&FailingReceipt)
+                .send_now(&FailingReceipt)
                 .await
                 .err()
                 .unwrap()
@@ -5007,7 +5014,7 @@ async fn smtp_security_keeps_quoted_recipients_and_ignores_blank_extensions() {
             Callback::new(&[], |_| async {
                 Mail::to("\"d \"@example.test")
                     .unwrap()
-                    .sendNow(&Receipt)
+                    .send_now(&Receipt)
                     .await
                     .unwrap();
                 Ok(())
@@ -5077,7 +5084,7 @@ async fn smtp_security_rejects_oversized_replies_and_starttls_injection() {
                 Callback::new(&[], |_| async {
                     let error = Mail::to("recipient@example.test")
                         .unwrap()
-                        .sendNow(&Receipt)
+                        .send_now(&Receipt)
                         .await
                         .err()
                         .expect("hostile SMTP reply must fail")
@@ -5158,7 +5165,7 @@ async fn smtp_security_rejects_control_characters_in_display_names() {
                     };
                     let error = Mail::to(address)
                         .unwrap()
-                        .sendNow(&Receipt)
+                        .send_now(&Receipt)
                         .await
                         .err()
                         .expect("invalid display name must return an error")
@@ -5194,7 +5201,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                                 .await
                                 .unwrap();
                         } else {
-                            pending.sendNow(&Receipt).await.unwrap();
+                            pending.send_now(&Receipt).await.unwrap();
                         }
                     }
                     assert_eq!(
@@ -5209,7 +5216,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                         Mail::to("locale@example.test")
                             .unwrap()
                             .locale("zh_TW")
-                            .sendNow(&Receipt)
+                            .send_now(&Receipt)
                             .await
                             .is_err()
                     );
@@ -5219,7 +5226,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                     let notice = Payment { queued: false };
                     openrust::notifications::NotificationSender::new(&manager)
                         .locale("ZH-hans")
-                        .sendNow(&[&recipient], &notice, Some(&["mail"]))
+                        .send_now(&[&recipient], &notice, Some(&["mail"]))
                         .await
                         .unwrap();
                     notices.assertSentToMatching(
@@ -5230,7 +5237,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                     assert!(
                         openrust::notifications::NotificationSender::new(&manager)
                             .locale("zh_CN")
-                            .sendNow(&[&recipient], &notice, Some(&["mail"]))
+                            .send_now(&[&recipient], &notice, Some(&["mail"]))
                             .await
                             .is_err()
                     );

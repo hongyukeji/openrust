@@ -80,7 +80,7 @@ pub(super) async fn rehash(
         return Ok(());
     };
     let options = HashOptions::default();
-    if !force && !hasher.needsRehash(old, &options)? {
+    if !force && !hasher.needs_rehash(old, &options)? {
         return Ok(());
     }
     let new = hasher

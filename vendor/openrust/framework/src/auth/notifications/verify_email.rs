@@ -13,7 +13,7 @@ use crate::{
     contracts::{auth::MustVerifyEmail, config::Repository, container::Container as _},
     notifications::messages::MailDelivery,
     routing::{RouteParameter, SignatureMode},
-    support::facades::{URL, current_container},
+    support::facades::{Url, current_container},
 };
 
 use super::{LinkMail, MailCallbacks, route_id, send_mail};
@@ -70,7 +70,7 @@ impl VerifyEmail {
             .checked_mul(60)
             .and_then(|seconds| SystemTime::now().checked_add(Duration::from_secs(seconds)))
             .ok_or(AuthError::Configuration("auth.verification.expire"))?;
-        URL::temporary_signed_route(
+        Url::temporary_signed_route(
             "verification.verify",
             expiry,
             &[

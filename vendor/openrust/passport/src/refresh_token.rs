@@ -24,7 +24,7 @@ impl Model for RefreshToken {
     fn from_state(state: ModelState) -> Self {
         Self(state)
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn state(&self) -> &ModelState {
@@ -33,8 +33,8 @@ impl Model for RefreshToken {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn resolveConnectionName(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
-        if let Some(name) = self.getConnectionName() {
+    fn resolve_connection_name(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
+        if let Some(name) = self.get_connection_name() {
             return Ok(Some(name.into()));
         }
         crate::client::configured_connection(
@@ -48,7 +48,7 @@ impl Model for RefreshToken {
 pub trait RefreshTokenModel: Model {
     fn revoke(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         async {
-            self.forceFillAsync(Attributes::from([("revoked".into(), true.into())]))
+            self.force_fill_async(Attributes::from([("revoked".into(), true.into())]))
                 .await?;
             self.save().await
         }
@@ -67,7 +67,7 @@ impl RefreshToken {
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, T> {
         openrust::database::eloquent::relations::BelongsTo::new(
             "access_token_id",
-            T::from_state(ModelState::default()).getKeyName(),
+            T::from_state(ModelState::default()).get_key_name(),
         )
     }
 }

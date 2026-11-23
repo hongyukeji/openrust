@@ -321,7 +321,7 @@ impl Request {
         let RequestValue::Array(fields) = self.only(keys).await? else {
             unreachable!("only builds a keyed array");
         };
-        Ok(Collection::fromEntries(fields))
+        Ok(Collection::from_entries(fields))
     }
 
     /// Wraps selected input and uploads in an independent typed Fluent bag.

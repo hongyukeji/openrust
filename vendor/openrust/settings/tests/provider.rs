@@ -71,8 +71,8 @@ async fn discovered_provider_boots_without_database_and_owns_default_migration()
             .unwrap();
         assert_eq!(results.len(), expected);
         let database = app.container().make::<DatabaseManager>().unwrap();
-        let mut schema = database.connection(None).unwrap().getSchemaBuilder();
-        assert_eq!(schema.hasTable("settings").await.unwrap(), expected == 1);
+        let mut schema = database.connection(None).unwrap().get_schema_builder();
+        assert_eq!(schema.has_table("settings").await.unwrap(), expected == 1);
         assert!(
             migrations
                 .run(None, &[], RunOptions::default())

@@ -185,7 +185,7 @@ fn passport() -> Result<std::sync::Arc<Passport>, OAuthError> {
 fn now() -> Result<i64, OAuthError> {
     Ok(Date::now(None)
         .map_err(internal)?
-        .asDateTime()
+        .as_date_time()
         .timestamp()
         .as_nanosecond()
         .div_euclid(1_000_000_000) as i64)

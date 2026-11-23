@@ -3,7 +3,7 @@ use std::{borrow::Cow, collections::BTreeMap, io};
 use cap_std::{ambient_authority, fs::Dir};
 use serde::{Deserialize, Serialize};
 
-use crate::{contracts::routing::UrlGenerator as _, support::facades::URL};
+use crate::{contracts::routing::UrlGenerator as _, support::facades::Url};
 
 use super::{
     Expression, Node, RenderContext, ViewData, ViewError, ViewResult, ViewValue, array_entries,
@@ -159,9 +159,9 @@ pub(super) fn render(
             build_path(preload.file.as_deref())?
         };
         let url = if let Some(uri) = &context.request.url_uri {
-            URL::service().and_then(|url| url.with_uri(Some(uri.clone())).asset(&path, None))
+            Url::service().and_then(|url| url.with_uri(Some(uri.clone())).asset(&path, None))
         } else {
-            URL::asset(&path, None)
+            Url::asset(&path, None)
         }
         .map_err(|error| ViewError::RenderFailed(Box::new(error)))?;
         if !preloaded.insert(url.clone()) {

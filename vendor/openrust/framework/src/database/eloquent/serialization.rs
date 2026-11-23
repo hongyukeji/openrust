@@ -86,7 +86,7 @@ pub(super) fn attributes<M: Model>(model: &M) -> DatabaseResult<Map<String, Json
     {
         output.insert(
             name.into(),
-            json_value(model.mutateAttributeForArray(name, None)?)?,
+            json_value(model.mutate_attribute_for_array(name, None)?)?,
         );
     }
     Ok(output)
@@ -102,7 +102,7 @@ pub(super) fn projected_attributes<M: Model>(
         .keys()
         .filter(|name| state.serialization().includes(M::metadata(), name))
         .filter_map(|name| {
-            model.getAttributeValue(name).transpose().map(|value| {
+            model.get_attribute_value(name).transpose().map(|value| {
                 (
                     name,
                     value.and_then(|value| casts::serialize_attribute(model, name, value)),
@@ -136,11 +136,11 @@ pub(super) fn model<M: Model>(model: &M) -> DatabaseResult<Map<String, Json>> {
     let state = model.state();
     let identity = std::ptr::from_ref(state).addr();
     if !PROJECTING.with(|models| models.borrow_mut().insert(identity)) {
-        return model.attributesToArray();
+        return model.attributes_to_array();
     }
     let _guard = ProjectionGuard(identity);
-    let mut output = model.attributesToArray()?;
-    output.extend(model.relationsToArray()?);
+    let mut output = model.attributes_to_array()?;
+    output.extend(model.relations_to_array()?);
     Ok(output)
 }
 

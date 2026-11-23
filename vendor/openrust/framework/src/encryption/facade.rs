@@ -29,11 +29,11 @@ impl Crypt {
             .decrypt(payload, unserialize)
     }
 
-    pub fn encryptString(value: impl AsRef<[u8]>) -> Result<String, EncryptException> {
+    pub fn encrypt_string(value: impl AsRef<[u8]>) -> Result<String, EncryptException> {
         Self::encrypt(value, false)
     }
 
-    pub fn decryptString(payload: &str) -> Result<Vec<u8>, DecryptException> {
+    pub fn decrypt_string(payload: &str) -> Result<Vec<u8>, DecryptException> {
         Self::decrypt(payload, false)
     }
 

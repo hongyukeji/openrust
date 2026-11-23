@@ -78,7 +78,7 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
         Box::new(self.0)
     }
     fn key(&self) -> FortifyResult<serde_json::Value> {
-        match self.0.getKey() {
+        match self.0.get_key() {
             Some(Value::Text(v)) => Ok(v.clone().into()),
             Some(Value::Integer(v)) => Ok((*v).into()),
             Some(Value::Unsigned(v)) => Ok((*v).into()),
@@ -86,7 +86,7 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
         }
     }
     fn attribute(&self, name: &str) -> FortifyResult<Option<Value>> {
-        Ok(self.0.getAttributeValue(name)?)
+        Ok(self.0.get_attribute_value(name)?)
     }
     fn recovery_codes(&self, fortify: &Fortify) -> FortifyResult<Vec<String>> {
         self.0.recoveryCodes(fortify)

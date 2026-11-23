@@ -186,7 +186,6 @@ impl Driver {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Hasher for Driver {
     fn info(&self, hashed: &str) -> HashResult<HashInfo> {
         Ok(inspect(hashed))
@@ -247,7 +246,7 @@ impl Hasher for Driver {
             if hashed.is_empty() {
                 return Ok(false);
             }
-            if self.settings.verify() && inspect(hashed).algoName != self.settings.algorithm() {
+            if self.settings.verify() && inspect(hashed).algo_name != self.settings.algorithm() {
                 return Err(HashError::AlgorithmMismatch);
             }
             let limits = self.pool.limits;
@@ -288,16 +287,16 @@ impl Hasher for Driver {
         })
     }
 
-    fn needsRehash(&self, hashed: &str, options: &HashOptions) -> HashResult<bool> {
-        if inspect(hashed).algoName != self.settings.algorithm() {
+    fn needs_rehash(&self, hashed: &str, options: &HashOptions) -> HashResult<bool> {
+        if inspect(hashed).algo_name != self.settings.algorithm() {
             return Ok(true);
         }
         Ok(self.stored(hashed) != Self::target(self.settings, options)?.map(i64::from))
     }
 
-    fn verifyConfiguration(&self, hashed: &str) -> HashResult<bool> {
+    fn verify_configuration(&self, hashed: &str) -> HashResult<bool> {
         let info = inspect(hashed);
-        if info.algoName != self.settings.algorithm() {
+        if info.algo_name != self.settings.algorithm() {
             return Ok(false);
         }
         let names: &[&str] = match self.settings {
@@ -350,7 +349,7 @@ fn inspect(hashed: &str) -> HashInfo {
     };
     HashInfo {
         algo: algo.map(str::to_owned),
-        algoName: name.into(),
+        algo_name: name.into(),
         options,
     }
 }
@@ -393,7 +392,6 @@ macro_rules! define_hasher {
             }
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl crate::contracts::hashing::Hasher for $name {
             fn info(&self, hashed: &str) -> super::HashResult<super::HashInfo> {
                 self.0.info(hashed)
@@ -416,16 +414,16 @@ macro_rules! define_hasher {
                 self.0.check(value, hashed, options)
             }
 
-            fn needsRehash(
+            fn needs_rehash(
                 &self,
                 hashed: &str,
                 options: &super::HashOptions,
             ) -> super::HashResult<bool> {
-                self.0.needsRehash(hashed, options)
+                self.0.needs_rehash(hashed, options)
             }
 
-            fn verifyConfiguration(&self, hashed: &str) -> super::HashResult<bool> {
-                self.0.verifyConfiguration(hashed)
+            fn verify_configuration(&self, hashed: &str) -> super::HashResult<bool> {
+                self.0.verify_configuration(hashed)
             }
         }
     };

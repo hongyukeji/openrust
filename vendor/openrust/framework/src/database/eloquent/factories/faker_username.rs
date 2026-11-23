@@ -2632,8 +2632,8 @@ pub(super) fn candidate(random: &FakerRandom, faker: &Faker) -> String {
             ),
             2 => format!("{}{:02}", random.sample(LT_MALE_FIRST), random.u8(0..100)),
             3 => format!("{}{:02}", random.sample(LT_FEMALE_FIRST), random.u8(0..100)),
-            4 => format!("{}{}", faker.randomLetter(), random.sample(LT_FEMALE_LAST)),
-            _ => format!("{}{}", faker.randomLetter(), random.sample(LT_MALE_LAST)),
+            4 => format!("{}{}", faker.random_letter(), random.sample(LT_FEMALE_LAST)),
+            _ => format!("{}{}", faker.random_letter(), random.sample(LT_MALE_LAST)),
         };
     }
 
@@ -2644,13 +2644,13 @@ pub(super) fn candidate(random: &FakerRandom, faker: &Faker) -> String {
     };
     let first = || {
         catalogs.map_or_else(
-            || faker.firstName(),
+            || faker.first_name(),
             |(names, _)| random.sample(names).into(),
         )
     };
     let last = || {
         catalogs.map_or_else(
-            || faker.lastName(),
+            || faker.last_name(),
             |(_, names)| random.sample(names).into(),
         )
     };
@@ -2660,7 +2660,7 @@ pub(super) fn candidate(random: &FakerRandom, faker: &Faker) -> String {
         1 if locale == "zh_CN" => format!("{}_{}", first(), last()),
         1 => format!("{}.{}", first(), last()),
         2 => format!("{}{:02}", first(), random.u8(0..100)),
-        _ => format!("{}{}", faker.randomLetter(), last()),
+        _ => format!("{}{}", faker.random_letter(), last()),
     }
 }
 

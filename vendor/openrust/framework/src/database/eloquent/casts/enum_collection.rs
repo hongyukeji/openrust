@@ -43,7 +43,7 @@ impl EnumCollectionCast {
         let Some(values) = decode_collection(value, codec)? else {
             return Ok(Value::Null);
         };
-        let canonical = values.tryMap(|value, _| {
+        let canonical = values.try_map(|value, _| {
             let case = self.cases.normalize(&backing(value)?)?;
             storage(case)
         })?;
@@ -57,7 +57,7 @@ impl EnumCollectionCast {
     ) -> DatabaseResult<Option<Collection<E>>> {
         self.cases.check_type::<E>()?;
         decode_collection(value, codec)?
-            .map(|values| values.tryMap(|value, _| E::fromValue(&backing(value)?)))
+            .map(|values| values.try_map(|value, _| E::from_value(&backing(value)?)))
             .transpose()
     }
 
@@ -68,9 +68,9 @@ impl EnumCollectionCast {
         self.cases.check_type::<E>()?;
         values
             .into_iter()
-            .map(|(key, value)| Ok((key, storage(value.intoValue())?)))
+            .map(|(key, value)| Ok((key, storage(value.into_value())?)))
             .collect::<DatabaseResult<Vec<_>>>()
-            .map(Collection::fromEntries)
+            .map(Collection::from_entries)
     }
 
     pub(super) fn write(self, value: Value, codec: &super::Json) -> DatabaseResult<Value> {
@@ -81,7 +81,7 @@ impl EnumCollectionCast {
         if self.reindex && !json.is_array() && !json.is_object() {
             return Err(invalid());
         }
-        self.encode(Collection::fromValue(json), codec)
+        self.encode(Collection::from_value(json), codec)
     }
 
     pub(super) fn encode(

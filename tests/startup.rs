@@ -313,7 +313,7 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             })
             .with_routing(routing)
             .with_exceptions(|exceptions| {
-                exceptions.shouldRenderJsonWhen(|request, _| {
+                exceptions.should_render_json_when(|request, _| {
                     request.is_api_path() || request.expects_json()
                 });
             })
@@ -1335,7 +1335,7 @@ fn artisan_generates_jobs_and_job_middleware() {
     let original = fs::read_to_string(&job).unwrap();
     assert!(original.contains("impl JobHandler for SendReportHandler"));
     assert!(original.contains("job.failed(context, error).await"));
-    assert!(original.contains("job.retryUntil(payload.options().retry_until)"));
+    assert!(original.contains("job.retry_until(payload.options().retry_until)"));
     assert!(original.contains("pub async fn dispatch"));
     let sync = run(
         &root.0,
@@ -1369,7 +1369,7 @@ fn artisan_generates_jobs_and_job_middleware() {
     assert!(batched_source.contains("SkipIfBatchCancelled"));
     assert!(batched_source.contains("payload.batchId()"));
     assert!(batched_source.contains("job.failed(context, error).await"));
-    assert!(batched_source.contains("job.retryUntil(payload.options().retry_until)"));
+    assert!(batched_source.contains("job.retry_until(payload.options().retry_until)"));
     assert!(
         root.0
             .join("tests/feature/jobs/batch_report_test.rs")
@@ -1869,9 +1869,9 @@ async fn public_mount_serves_files_after_application_routes() {
                 Ok(router)
             })
             .web(|| {
-                Route::staticDisk("public")?;
+                Route::static_disk("public")?;
                 Route::get("/", || view("welcome"))?;
-                Route::staticDisk("web")?;
+                Route::static_disk("web")?;
                 Route::get("/protected.txt", not_found)?;
                 Route::get("/storage/protected.txt", not_found)?;
                 Route::r#static("/assets", "./public/css")
@@ -2146,7 +2146,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         ),
     )
     .unwrap();
-    let mut kernel = Kernel::new(application(|| Route::staticDisk("web")));
+    let mut kernel = Kernel::new(application(|| Route::static_disk("web")));
     kernel.bootstrap().await.unwrap();
     check(&kernel, "/assets/probe.txt", Some("application assets")).await;
     check(&kernel, "/storage/tmp/probe.txt", None).await;
@@ -2369,14 +2369,14 @@ fn artisan_resolves_app_url_from_the_listener_configuration() {
 
 #[tokio::test]
 async fn request_urls_use_the_explicit_url_then_request_origin_then_localhost() {
-    use openrust::{contracts::routing::UrlGenerator as _, support::facades::URL};
+    use openrust::{contracts::routing::UrlGenerator as _, support::facades::Url};
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
     fn probe(
         request: &mut Request,
     ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
         Box::pin(async move {
-            let url = URL::for_request(request)
+            let url = Url::for_request(request)
                 .unwrap()
                 .to("/landing", &[], None)
                 .unwrap();

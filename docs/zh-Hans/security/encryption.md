@@ -23,7 +23,7 @@ APP_PREVIOUS_KEYS=base64:<previous-key>
 
 ## 使用加密器
 
-在请求或命令作用域中使用 `Crypt` 门面。`decryptString` 返回字节，载荷无效或认证失败时返回错误。可用 `encrypt(value, true)` 和 `decrypt(payload, true)` 与 PHP 的序列化字节字符串互操作。
+在请求或命令作用域中使用 `Crypt` 门面。`decrypt_string` 返回字节，载荷无效或认证失败时返回错误。可用 `encrypt(value, true)` 和 `decrypt(payload, true)` 与 PHP 的序列化字节字符串互操作。
 
 ```rust
 use openrust::{
@@ -32,10 +32,10 @@ use openrust::{
 };
 
 pub fn encrypt_token(token: &str) -> Result<String, EncryptException> {
-    Crypt::encryptString(token)
+    Crypt::encrypt_string(token)
 }
 
 pub fn decrypt_token(payload: &str) -> Result<Vec<u8>, DecryptException> {
-    Crypt::decryptString(payload)
+    Crypt::decrypt_string(payload)
 }
 ```

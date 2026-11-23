@@ -320,7 +320,7 @@ impl SqsQueue {
 }
 
 impl Contract for SqsQueue {
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
     fn default_queue(&self) -> &str {

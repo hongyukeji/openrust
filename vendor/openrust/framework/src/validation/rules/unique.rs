@@ -32,7 +32,7 @@ impl Unique {
         Self {
             target: DatabaseRule::model(model, column),
             exclusion: None,
-            key_column: model.getKeyName().into(),
+            key_column: model.get_key_name().into(),
         }
     }
 
@@ -53,9 +53,9 @@ impl Unique {
     }
 
     pub fn ignore_model(self, model: &impl Model, column: Option<&str>) -> Self {
-        let column = column.unwrap_or_else(|| model.getKeyName());
+        let column = column.unwrap_or_else(|| model.get_key_name());
         self.ignore(
-            model.getAttribute(column).cloned().unwrap_or(Value::Null),
+            model.get_attribute(column).cloned().unwrap_or(Value::Null),
             Some(column),
         )
     }

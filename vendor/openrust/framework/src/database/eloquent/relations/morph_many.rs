@@ -17,7 +17,6 @@ use super::{ExistenceRelation, HasMany, MorphOne, Relation};
 /// Links a parent model to many related records tagged with a morph alias.
 pub struct MorphMany<P: Model, R: Model>(pub(super) HasMany<P, R>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> MorphMany<P, R> {
     pub async fn paginate(
         &self,
@@ -27,40 +26,40 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.paginate(parent, per_page).await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.0.paginateWith(parent, options).await
+        self.0.paginate_with(parent, options).await
     }
 
-    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
-        self.0.simplePaginate(parent, per_page).await
+    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.0.simple_paginate(parent, per_page).await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<R>> {
-        self.0.simplePaginateWith(parent, options).await
+        self.0.simple_paginate_with(parent, options).await
     }
 
-    pub async fn cursorPaginate(
+    pub async fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<CursorPaginator<R>> {
-        self.0.cursorPaginate(parent, per_page).await
+        self.0.cursor_paginate(parent, per_page).await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<R>> {
-        self.0.cursorPaginateWith(parent, options).await
+        self.0.cursor_paginate_with(parent, options).await
     }
 }
 
@@ -76,7 +75,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
             local_key,
             id_column,
             type_column,
-            parent.getMorphClass()?,
+            parent.get_morph_class()?,
         ))
     }
 
@@ -113,15 +112,13 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutChaperone(self) -> Self {
-        Self(self.0.withoutChaperone())
+    pub fn without_chaperone(self) -> Self {
+        Self(self.0.without_chaperone())
     }
 
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutInverse(self) -> Self {
-        self.withoutChaperone()
+    pub fn without_inverse(self) -> Self {
+        self.without_chaperone()
     }
 
     #[must_use]
@@ -168,13 +165,12 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 
     /// Constructs unsaved children in input order.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn makeMany(
+    pub async fn make_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
-        self.0.makeMany(parent, records).await
+        self.0.make_many(parent, records).await
     }
 
     /// Reads this parent's related models in ordered batches.
@@ -197,75 +193,67 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.cursor(parent)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
-        self.0.findOrNew(parent, key).await
+    pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        self.0.find_or_new(parent, key).await
     }
 
     super::lookup::relation_lookup!(.0);
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn firstOrNew<'a>(
+    pub async fn first_or_new<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.firstOrNew(parent, attributes, values).await
+        self.0.first_or_new(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn firstOrCreate<'a>(
+    pub async fn first_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.firstOrCreate(parent, attributes, values).await
+        self.0.first_or_create(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createOrFirst<'a>(
+    pub async fn create_or_first<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.createOrFirst(parent, attributes, values).await
+        self.0.create_or_first(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn updateOrCreate<'a>(
+    pub async fn update_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.updateOrCreate(parent, attributes, values).await
+        self.0.update_or_create(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn restoreOrCreate<'a>(
+    pub async fn restore_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.restoreOrCreate(parent, attributes, values).await
+        self.0.restore_or_create(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createOrRestore<'a>(
+    pub async fn create_or_restore<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.createOrRestore(parent, attributes, values).await
+        self.0.create_or_restore(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn incrementOrCreate(
+    pub async fn increment_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -275,78 +263,68 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         extra: Attributes,
     ) -> DatabaseResult<R> {
         self.0
-            .incrementOrCreate(parent, attributes, column, default, step, extra)
+            .increment_or_create(parent, attributes, column, default, step, extra)
             .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
-        self.0.saveQuietly(parent, model).await
+    pub async fn save_quietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
+        self.0.save_quietly(parent, model).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
-        self.0.saveMany(parent, models).await
+    pub async fn save_many(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        self.0.save_many(parent, models).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
-        self.0.saveManyQuietly(parent, models).await
+    pub async fn save_many_quietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        self.0.save_many_quietly(parent, models).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        self.0.createQuietly(parent, attributes).await
+    pub async fn create_quietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.create_quietly(parent, attributes).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createMany(
+    pub async fn create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.createMany(parent, records).await
+        self.0.create_many(parent, records).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn createManyQuietly(
+    pub async fn create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.createManyQuietly(parent, records).await
+        self.0.create_many_quietly(parent, records).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        self.0.forceCreate(parent, attributes).await
+    pub async fn force_create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.force_create(parent, attributes).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreateQuietly(
+    pub async fn force_create_quietly(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.forceCreateQuietly(parent, attributes).await
+        self.0.force_create_quietly(parent, attributes).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreateMany(
+    pub async fn force_create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.forceCreateMany(parent, records).await
+        self.0.force_create_many(parent, records).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn forceCreateManyQuietly(
+    pub async fn force_create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.forceCreateManyQuietly(parent, records).await
+        self.0.force_create_many_quietly(parent, records).await
     }
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
@@ -354,20 +332,19 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for MorphMany<P, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
 
-    fn isEmptyCollection(output: &Self::Output) -> bool {
+    fn is_empty_collection(output: &Self::Output) -> bool {
         output.is_empty()
     }
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
@@ -377,7 +354,7 @@ impl<P: Model, R: Model> Relation for MorphMany<P, R> {
         })
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -385,18 +362,18 @@ impl<P: Model, R: Model> Relation for MorphMany<P, R> {
         super::super::serialization::many(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         super::super::queueable::common_relations(output.iter().map(Arc::as_ref))
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -412,20 +389,20 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
         match transaction {
-            Some(tx) => self.0.matchResultsInTransaction(parents, tx),
-            None => self.0.matchResults(parents),
+            Some(tx) => self.0.match_results_in_transaction(parents, tx),
+            None => self.0.match_results(parents),
         }
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for MorphMany<P, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>> {
-        self.0.getRelationExistenceQuery(connection, parent_table)
+        self.0
+            .get_relation_existence_query(connection, parent_table)
     }
 }
 

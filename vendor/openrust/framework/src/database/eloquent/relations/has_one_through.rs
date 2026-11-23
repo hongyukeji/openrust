@@ -22,7 +22,6 @@ pub struct HasOneThrough<P: Model, I: Model, R: Model>(
     Option<Box<ConfigureDefault<P, R>>>,
 );
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     pub const fn new(
         first_key: &'static str,
@@ -50,8 +49,8 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 
     #[must_use]
-    pub fn withTrashedParents(mut self) -> Self {
-        self.0 = self.0.withTrashedParents();
+    pub fn with_trashed_parents(mut self) -> Self {
+        self.0 = self.0.with_trashed_parents();
         self
     }
 
@@ -72,40 +71,40 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.paginate(parent, per_page).await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.0.paginateWith(parent, options).await
+        self.0.paginate_with(parent, options).await
     }
 
-    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
-        self.0.simplePaginate(parent, per_page).await
+    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.0.simple_paginate(parent, per_page).await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<R>> {
-        self.0.simplePaginateWith(parent, options).await
+        self.0.simple_paginate_with(parent, options).await
     }
 
-    pub async fn cursorPaginate(
+    pub async fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
     ) -> DatabaseResult<CursorPaginator<R>> {
-        self.0.cursorPaginate(parent, per_page).await
+        self.0.cursor_paginate(parent, per_page).await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<R>> {
-        self.0.cursorPaginateWith(parent, options).await
+        self.0.cursor_paginate_with(parent, options).await
     }
 
     pub async fn is(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
@@ -115,7 +114,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         }
     }
 
-    pub async fn isNot(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+    pub async fn is_not(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
         Ok(!self.is(parent, related).await?)
     }
 
@@ -150,67 +149,67 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.cursor(parent)
     }
 
-    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
-        self.0.findOrNew(parent, key).await
+    pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        self.0.find_or_new(parent, key).await
     }
 
     super::lookup::relation_lookup!(.0);
 
-    pub async fn firstOrNew(
+    pub async fn first_or_new(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.firstOrNew(parent, attributes, values).await
+        self.0.first_or_new(parent, attributes, values).await
     }
 
-    pub async fn firstOrCreate(
+    pub async fn first_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.firstOrCreate(parent, attributes, values).await
+        self.0.first_or_create(parent, attributes, values).await
     }
 
-    pub async fn createOrFirst(
+    pub async fn create_or_first(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.createOrFirst(parent, attributes, values).await
+        self.0.create_or_first(parent, attributes, values).await
     }
 
-    pub async fn updateOrCreate(
+    pub async fn update_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.updateOrCreate(parent, attributes, values).await
+        self.0.update_or_create(parent, attributes, values).await
     }
 
-    pub async fn restoreOrCreate(
+    pub async fn restore_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.restoreOrCreate(parent, attributes, values).await
+        self.0.restore_or_create(parent, attributes, values).await
     }
 
-    pub async fn createOrRestore(
+    pub async fn create_or_restore(
         &self,
         parent: &P,
         attributes: Attributes,
         values: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.createOrRestore(parent, attributes, values).await
+        self.0.create_or_restore(parent, attributes, values).await
     }
 
-    pub async fn incrementOrCreate(
+    pub async fn increment_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -220,12 +219,12 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         extra: Attributes,
     ) -> DatabaseResult<R> {
         self.0
-            .incrementOrCreate(parent, attributes, column, default, step, extra)
+            .increment_or_create(parent, attributes, column, default, step, extra)
             .await
     }
 
     #[must_use]
-    pub fn latestOfMany<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+    pub fn latest_of_many<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
         self.0.selection = Some(OneOfMany::shortcut::<R>(
             columns.into(),
             OneOfManyAggregate::Max,
@@ -234,7 +233,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 
     #[must_use]
-    pub fn oldestOfMany<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+    pub fn oldest_of_many<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
         self.0.selection = Some(OneOfMany::shortcut::<R>(
             columns.into(),
             OneOfManyAggregate::Min,
@@ -243,7 +242,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 
     #[must_use]
-    pub fn ofMany(mut self, columns: &[(&'static str, OneOfManyAggregate)]) -> Self {
+    pub fn of_many(mut self, columns: &[(&'static str, OneOfManyAggregate)]) -> Self {
         self.0.selection = Some(OneOfMany::new::<R>(
             columns.iter().copied(),
             OneOfManyAggregate::Max,
@@ -252,12 +251,12 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 
     #[must_use]
-    pub fn ofManyBy(mut self, column: &'static str, aggregate: OneOfManyAggregate) -> Self {
+    pub fn of_many_by(mut self, column: &'static str, aggregate: OneOfManyAggregate) -> Self {
         self.0.selection = Some(OneOfMany::new::<R>([(column, aggregate)], aggregate));
         self
     }
 
-    pub fn whereCandidates(
+    pub fn where_candidates(
         mut self,
         filter: impl Fn(query::Conditions) -> query::Conditions + Send + Sync + 'static,
     ) -> DatabaseResult<Self> {
@@ -272,23 +271,22 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> Relation for HasOneThrough<P, I, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
         Box::pin(context.push_one(output))
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -296,20 +294,20 @@ impl<P: Model, I: Model, R: Model> Relation for HasOneThrough<P, I, R> {
         super::super::serialization::one(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         output
             .as_deref()
-            .map_or_else(Vec::new, Model::getQueueableRelations)
+            .map_or_else(Vec::new, Model::get_queueable_relations)
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -326,8 +324,8 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
         Box::pin(async move {
             let matches = match transaction {
-                Some(tx) => self.0.matchResultsInTransaction(parents, tx),
-                None => self.0.matchResults(parents),
+                Some(tx) => self.0.match_results_in_transaction(parents, tx),
+                None => self.0.match_results(parents),
             }
             .await?;
             match_defaults(
@@ -341,14 +339,14 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> ExistenceRelation for HasOneThrough<P, I, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>> {
-        self.0.getRelationExistenceQuery(connection, parent_table)
+        self.0
+            .get_relation_existence_query(connection, parent_table)
     }
 }
 

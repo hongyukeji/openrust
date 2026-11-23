@@ -3,11 +3,10 @@ use std::any::TypeId;
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
 /// Maps an application enum to its database backing value or case name.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait CastableEnum: Sized + 'static {
-    fn fromValue(value: &Value) -> DatabaseResult<Self>;
+    fn from_value(value: &Value) -> DatabaseResult<Self>;
 
-    fn intoValue(self) -> Value;
+    fn into_value(self) -> Value;
 }
 
 /// Registers the enum type and its conversion functions with a model.
@@ -21,7 +20,7 @@ impl EnumCast {
     pub const fn of<E: CastableEnum>() -> Self {
         Self {
             type_id: TypeId::of::<E>,
-            normalize: |value| E::fromValue(value).map(E::intoValue),
+            normalize: |value| E::from_value(value).map(E::into_value),
         }
     }
 

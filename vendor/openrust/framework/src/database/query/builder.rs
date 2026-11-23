@@ -129,7 +129,6 @@ pub struct Builder<'connection> {
     binding_changes: Option<Box<bindings::Changes>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection> Builder<'connection> {
     pub(crate) fn connection(
         connection: Connection,
@@ -196,12 +195,12 @@ impl<'connection> Builder<'connection> {
 
     predicate_methods!();
 
-    pub fn getConnection(&self) -> &Connection {
+    pub fn get_connection(&self) -> &Connection {
         self.executor.source()
     }
 
     pub(in crate::database) fn group_predicates(mut self) -> Self {
-        self.predicates = Conditions::default().whereNested(|_| self.predicates);
+        self.predicates = Conditions::default().where_nested(|_| self.predicates);
         self
     }
 
@@ -218,16 +217,16 @@ impl<'connection> Builder<'connection> {
     pub fn select<C: Into<Column>>(mut self, columns: impl IntoIterator<Item = C>) -> Self {
         self.columns.clear();
         self.clear_binding_changes(0);
-        self.addSelect(columns)
+        self.add_select(columns)
     }
 
-    pub fn addSelect<C: Into<Column>>(mut self, columns: impl IntoIterator<Item = C>) -> Self {
+    pub fn add_select<C: Into<Column>>(mut self, columns: impl IntoIterator<Item = C>) -> Self {
         self.columns.extend(columns.into_iter().map(Into::into));
         self
     }
 
-    pub fn selectRaw(self, sql: &str, bindings: Vec<Value>) -> Self {
-        self.addSelect([Expression::new(sql).with_bindings(bindings)])
+    pub fn select_raw(self, sql: &str, bindings: Vec<Value>) -> Self {
+        self.add_select([Expression::new(sql).with_bindings(bindings)])
     }
 
     pub fn distinct(mut self) -> Self {
@@ -235,7 +234,7 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn groupBy(mut self, columns: &[&str]) -> Self {
+    pub fn group_by(mut self, columns: &[&str]) -> Self {
         self.groups.extend(
             columns
                 .iter()
@@ -244,7 +243,7 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn groupByRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
+    pub fn group_by_raw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
         self.groups
             .push(Column::Raw(Expression::new(sql).with_bindings(bindings)));
         self
@@ -255,60 +254,60 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn orHaving(mut self, column: &str, operator: &str, value: impl Into<Value>) -> Self {
+    pub fn or_having(mut self, column: &str, operator: &str, value: impl Into<Value>) -> Self {
         self.havings.compare(true, column, operator, value.into());
         self
     }
 
-    pub fn havingBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+    pub fn having_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
         self.havings.between(false, column, bounds, false);
         self
     }
 
-    pub fn havingNull(mut self, columns: &[&str]) -> Self {
+    pub fn having_null(mut self, columns: &[&str]) -> Self {
         for column in columns {
             self.havings.null(false, column, false);
         }
         self
     }
 
-    pub fn orHavingNull(mut self, columns: &[&str]) -> Self {
+    pub fn or_having_null(mut self, columns: &[&str]) -> Self {
         for column in columns {
             self.havings.null(true, column, false);
         }
         self
     }
 
-    pub fn havingNotNull(mut self, columns: &[&str]) -> Self {
+    pub fn having_not_null(mut self, columns: &[&str]) -> Self {
         for column in columns {
             self.havings.null(false, column, true);
         }
         self
     }
 
-    pub fn orHavingNotNull(mut self, columns: &[&str]) -> Self {
+    pub fn or_having_not_null(mut self, columns: &[&str]) -> Self {
         for column in columns {
             self.havings.null(true, column, true);
         }
         self
     }
 
-    pub fn havingNotBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+    pub fn having_not_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
         self.havings.between(false, column, bounds, true);
         self
     }
 
-    pub fn orHavingBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+    pub fn or_having_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
         self.havings.between(true, column, bounds, false);
         self
     }
 
-    pub fn orHavingNotBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+    pub fn or_having_not_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
         self.havings.between(true, column, bounds, true);
         self
     }
 
-    pub fn havingNested(
+    pub fn having_nested(
         mut self,
         configure: impl FnOnce(Builder<'static>) -> Builder<'static>,
     ) -> Self {
@@ -324,7 +323,7 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn orHavingNested(
+    pub fn or_having_nested(
         mut self,
         configure: impl FnOnce(Builder<'static>) -> Builder<'static>,
     ) -> Self {
@@ -340,26 +339,26 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn havingRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
+    pub fn having_raw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
         self.havings
             .raw(false, Expression::new(sql).with_bindings(bindings));
         self
     }
 
-    pub fn orHavingRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
+    pub fn or_having_raw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
         self.havings
             .raw(true, Expression::new(sql).with_bindings(bindings));
         self
     }
 
-    pub fn orderBy(mut self, column: &str, direction: &str) -> Self {
+    pub fn order_by(mut self, column: &str, direction: &str) -> Self {
         self.active_orders()
             .push(Order::Column(column.into(), direction.into()));
         self
     }
 
-    pub fn orderByDesc(self, column: &str) -> Self {
-        self.orderBy(column, "desc")
+    pub fn order_by_desc(self, column: &str) -> Self {
+        self.order_by(column, "desc")
     }
 
     pub(crate) fn order_by_full_text(
@@ -374,7 +373,7 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Orders listed values first, in the supplied order.
-    pub fn inOrderOf(mut self, column: impl Into<Column>, values: Vec<Value>) -> Self {
+    pub fn in_order_of(mut self, column: impl Into<Column>, values: Vec<Value>) -> Self {
         if !values.is_empty() {
             self.active_orders()
                 .push(Order::InOrderOf(column.into(), values));
@@ -382,7 +381,7 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn orderByRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
+    pub fn order_by_raw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
         self.active_orders()
             .push(Order::Raw(Expression::new(sql).with_bindings(bindings)));
         self
@@ -396,45 +395,55 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub fn reorderDesc(self, column: &str) -> Self {
-        self.reorder().orderByDesc(column)
+    pub fn reorder_desc(self, column: &str) -> Self {
+        self.reorder().order_by_desc(column)
     }
 
-    pub fn inRandomOrder(self, seed: Option<i64>) -> Self {
+    pub fn in_random_order(self, seed: Option<i64>) -> Self {
         let sql = self.grammar.random(seed);
-        self.orderByRaw(&sql, Vec::new())
+        self.order_by_raw(&sql, Vec::new())
     }
 
-    pub fn forPageBeforeId(mut self, perPage: u64, lastId: Option<Value>, column: &str) -> Self {
+    pub fn for_page_before_id(
+        mut self,
+        per_page: u64,
+        last_id: Option<Value>,
+        column: &str,
+    ) -> Self {
         self.orders
             .retain(|order| !matches!(order, Order::Column(name, _) if name == column));
-        let query = match lastId.filter(|value| !matches!(value, Value::Null)) {
+        let query = match last_id.filter(|value| !matches!(value, Value::Null)) {
             Some(id) => self.r#where(column, "<", id),
             None => self.where_not_null(column),
         };
-        query.orderByDesc(column).limit(perPage)
+        query.order_by_desc(column).limit(per_page)
     }
 
-    pub fn forPageAfterId(mut self, perPage: u64, lastId: Option<Value>, column: &str) -> Self {
+    pub fn for_page_after_id(
+        mut self,
+        per_page: u64,
+        last_id: Option<Value>,
+        column: &str,
+    ) -> Self {
         self.orders
             .retain(|order| !matches!(order, Order::Column(name, _) if name == column));
-        let query = match lastId.filter(|value| !matches!(value, Value::Null)) {
+        let query = match last_id.filter(|value| !matches!(value, Value::Null)) {
             Some(id) => self.r#where(column, ">", id),
             None => self.where_not_null(column),
         };
-        query.orderBy(column, "asc").limit(perPage)
+        query.order_by(column, "asc").limit(per_page)
     }
 
     pub fn latest(self, column: &str) -> Self {
-        self.orderByDesc(column)
+        self.order_by_desc(column)
     }
 
     pub fn oldest(self, column: &str) -> Self {
-        self.orderBy(column, "asc")
+        self.order_by(column, "asc")
     }
 
     /// Limits the rows returned for each value of the partition column.
-    pub fn groupLimit(mut self, limit: u64, column: &str) -> Self {
+    pub fn group_limit(mut self, limit: u64, column: &str) -> Self {
         self.group_limit = Some(Box::new(GroupLimit {
             partition: column.into(),
             limit: Some(limit),
@@ -442,7 +451,7 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    pub(in crate::database) fn group_limit(mut self, partition: &str) -> Self {
+    pub(in crate::database) fn configure_relation_group_limit(mut self, partition: &str) -> Self {
         if self.group_limit.is_none() && (self.limit.is_some() || self.offset.is_some()) {
             self.group_limit = Some(Box::new(GroupLimit {
                 partition: partition.into(),
@@ -478,25 +487,25 @@ impl<'connection> Builder<'connection> {
         self.offset(rows)
     }
 
-    pub fn forPage(self, page: u64, per_page: u64) -> Self {
+    pub fn for_page(self, page: u64, per_page: u64) -> Self {
         self.offset(page.saturating_sub(1).saturating_mul(per_page))
             .limit(per_page)
     }
 
-    pub fn useWritePdo(mut self) -> Self {
+    pub fn use_write_pdo(mut self) -> Self {
         self.use_write = true;
         self
     }
 
-    pub fn useIndex(self, index: &str) -> Self {
+    pub fn use_index(self, index: &str) -> Self {
         self.with_index_hint(IndexHintKind::Use, index)
     }
 
-    pub fn forceIndex(self, index: &str) -> Self {
+    pub fn force_index(self, index: &str) -> Self {
         self.with_index_hint(IndexHintKind::Force, index)
     }
 
-    pub fn ignoreIndex(self, index: &str) -> Self {
+    pub fn ignore_index(self, index: &str) -> Self {
         self.with_index_hint(IndexHintKind::Ignore, index)
     }
 
@@ -520,26 +529,26 @@ impl<'connection> Builder<'connection> {
     /// Routes a pessimistic locking read through the write connection.
     pub fn lock(mut self, lock: impl Into<QueryLock>) -> Self {
         self.lock = Some(lock.into());
-        self.useWritePdo()
+        self.use_write_pdo()
     }
 
-    pub fn lockForUpdate(self) -> Self {
+    pub fn lock_for_update(self) -> Self {
         self.lock(true)
     }
 
-    pub fn sharedLock(self) -> Self {
+    pub fn shared_lock(self) -> Self {
         self.lock(false)
     }
 
     /// 回调返回修改后的查询，沿用 Builder 的所有权链式接口。
-    pub fn beforeQuery(
+    pub fn before_query(
         mut self,
         callback: impl for<'a> Fn(Builder<'a>) -> DatabaseResult<Builder<'a>> + Send + Sync + 'static,
     ) -> Self {
         self.before_query.push(Arc::new(callback));
         self
     }
-    pub fn afterQuery(
+    pub fn after_query(
         mut self,
         callback: impl Fn(Vec<Row>) -> DatabaseResult<Vec<Row>> + Send + Sync + 'static,
     ) -> Self {
@@ -574,7 +583,7 @@ impl<'connection> Builder<'connection> {
             binding_changes: self.binding_changes.clone(),
         }
     }
-    pub fn applyBeforeQueryCallbacks(&mut self) -> DatabaseResult<()> {
+    pub fn apply_before_query_callbacks(&mut self) -> DatabaseResult<()> {
         let callbacks = self.before_query.clone();
         for callback in callbacks {
             let mut changed = callback(self.snapshot())?;
@@ -584,14 +593,14 @@ impl<'connection> Builder<'connection> {
         self.before_query.clear();
         Ok(())
     }
-    pub fn applyAfterQueryCallbacks(&self, mut rows: Vec<Row>) -> DatabaseResult<Vec<Row>> {
+    pub fn apply_after_query_callbacks(&self, mut rows: Vec<Row>) -> DatabaseResult<Vec<Row>> {
         for callback in &self.after_query {
             rows = callback(rows)?;
         }
         Ok(rows)
     }
-    pub fn toRawSql(&mut self) -> DatabaseResult<String> {
-        self.applyBeforeQueryCallbacks()?;
+    pub fn to_raw_sql(&mut self) -> DatabaseResult<String> {
+        self.apply_before_query_callbacks()?;
         let (sql, bindings) = self.compile(None)?;
         crate::database::bindings::render_query(
             &sql,
@@ -599,8 +608,8 @@ impl<'connection> Builder<'connection> {
             !self.executor.source().is_sqlite(),
         )
     }
-    pub fn toSql(&mut self) -> DatabaseResult<String> {
-        self.applyBeforeQueryCallbacks()?;
+    pub fn to_sql(&mut self) -> DatabaseResult<String> {
+        self.apply_before_query_callbacks()?;
         self.compile(None).map(|(sql, _)| sql)
     }
 
@@ -641,7 +650,7 @@ impl<'connection> Builder<'connection> {
             } else {
                 (self.union_offset.unwrap_or(0), self.union_limit.unwrap_or(u64::MAX))
             };
-            self.applyBeforeQueryCallbacks()?;
+            self.apply_before_query_callbacks()?;
             while remaining != 0 {
                 let size = count.min(remaining);
                 if self.unions.is_empty() {
@@ -654,7 +663,7 @@ impl<'connection> Builder<'connection> {
                 let (sql, bindings) = self.compile(None)?;
                 let mut rows = self.execute(&sql, &bindings).await?;
                 self.remove_group_rank(&mut rows);
-                let rows = self.applyAfterQueryCallbacks(rows)?;
+                let rows = self.apply_after_query_callbacks(rows)?;
                 let length = rows.len() as u64;
                 if length == 0 {
                     break;
@@ -672,17 +681,17 @@ impl<'connection> Builder<'connection> {
     }
 
     pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let (sql, bindings) = self.compile(None)?;
         let mut rows = self.execute(&sql, &bindings).await?;
         self.remove_group_rank(&mut rows);
-        self.applyAfterQueryCallbacks(rows)
+        self.apply_after_query_callbacks(rows)
     }
 
     /// Streams the query results without collecting them into a vector.
     pub fn cursor(mut self) -> DatabaseCursor<'connection> {
         Box::pin(async_stream::try_stream! {
-            self.applyBeforeQueryCallbacks()?;
+            self.apply_before_query_callbacks()?;
             let grouped = self.group_limit.is_some();
             let (sql, bindings) = self.compile(None)?;
             let callbacks = self.after_query.clone();
@@ -777,16 +786,16 @@ impl<'connection> Builder<'connection> {
             .map_or(Ok(Value::Null), Row::scalar)
     }
 
-    pub async fn rawValue(self, expression: &str, bindings: Vec<Value>) -> DatabaseResult<Value> {
+    pub async fn raw_value(self, expression: &str, bindings: Vec<Value>) -> DatabaseResult<Value> {
         Ok(self
-            .selectRaw(expression, bindings)
+            .select_raw(expression, bindings)
             .first()
             .await?
             .and_then(|row| row.get_at(0).cloned())
             .unwrap_or(Value::Null))
     }
 
-    pub async fn existsOr<T, Fut>(
+    pub async fn exists_or<T, Fut>(
         self,
         callback: impl FnOnce() -> Fut,
     ) -> DatabaseResult<super::ExistsOr<T>>
@@ -800,14 +809,14 @@ impl<'connection> Builder<'connection> {
         }
     }
 
-    pub async fn doesntExistOr<T, Fut>(
+    pub async fn doesnt_exist_or<T, Fut>(
         self,
         callback: impl FnOnce() -> Fut,
     ) -> DatabaseResult<super::ExistsOr<T>>
     where
         Fut: Future<Output = DatabaseResult<T>>,
     {
-        if self.doesntExist().await? {
+        if self.doesnt_exist().await? {
             Ok(super::ExistsOr::Satisfied)
         } else {
             callback().await.map(super::ExistsOr::Callback)
@@ -828,7 +837,7 @@ impl<'connection> Builder<'connection> {
     }
 
     async fn exists_query(&mut self) -> DatabaseResult<bool> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let (sql, bindings) = self.compile(None)?;
         let alias = self.grammar.column("exists")?;
         let sql = format!("select exists({sql}) as {alias}");
@@ -841,7 +850,7 @@ impl<'connection> Builder<'connection> {
         }
     }
 
-    pub async fn doesntExist(self) -> DatabaseResult<bool> {
+    pub async fn doesnt_exist(self) -> DatabaseResult<bool> {
         self.exists().await.map(|value| !value)
     }
 
@@ -880,16 +889,16 @@ impl<'connection> Builder<'connection> {
     }
 
     async fn aggregate(mut self, function: &'static str, column: &str) -> DatabaseResult<Value> {
-        self.applyBeforeQueryCallbacks()?;
+        self.apply_before_query_callbacks()?;
         let (sql, bindings) = self.compile(Some((function, column)))?;
         let rows = self.execute(&sql, &bindings).await?;
-        first_value(self.applyAfterQueryCallbacks(rows)?)
+        first_value(self.apply_after_query_callbacks(rows)?)
     }
 
     async fn execute(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {
         match &mut self.executor {
             Executor::Connection(connection) if self.use_write => {
-                connection.selectFromWriteConnection(sql, bindings).await
+                connection.select_from_write_connection(sql, bindings).await
             }
             Executor::Connection(connection) => connection.select(sql, bindings).await,
             Executor::Transaction(transaction) => transaction.select(sql, bindings).await,

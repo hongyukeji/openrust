@@ -7,8 +7,7 @@ pub trait Logger: Send + Sync {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()>;
 
     /// Receives the record fields and application metadata separately.
-    #[allow(non_snake_case, reason = "结构化日志适配接口")]
-    fn logWithContext(
+    fn log_with_context(
         &self,
         level: Level,
         message: &str,
@@ -19,8 +18,7 @@ pub trait Logger: Send + Sync {
     }
 
     /// Receives a normalized exception separately from the ordinary context.
-    #[allow(non_snake_case, reason = "结构化日志适配接口")]
-    fn logWithException(
+    fn log_with_exception(
         &self,
         level: Level,
         message: &str,
@@ -29,13 +27,12 @@ pub trait Logger: Send + Sync {
         _exception: &serde_json::Value,
     ) -> LogResult<()> {
         match extra {
-            Some(extra) => self.logWithContext(level, message, context, extra),
+            Some(extra) => self.log_with_context(level, message, context, extra),
             None => self.log(level, message, context),
         }
     }
     /// Request-aware adapter; custom synchronous loggers retain their existing contract.
-    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
-    fn logWithExceptionForRequest<'a>(
+    fn log_with_exception_for_request<'a>(
         &'a self,
         _request: &'a mut crate::http::Request,
         level: Level,
@@ -43,6 +40,6 @@ pub trait Logger: Send + Sync {
         context: &'a LogContext,
         exception: &'a serde_json::Value,
     ) -> crate::http::HttpFuture<'a, LogResult<()>> {
-        Box::pin(async move { self.logWithException(level, message, context, None, exception) })
+        Box::pin(async move { self.log_with_exception(level, message, context, None, exception) })
     }
 }

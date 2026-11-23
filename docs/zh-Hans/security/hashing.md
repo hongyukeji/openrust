@@ -10,7 +10,7 @@
 
 ### 自定义驱动 {#custom-hash-drivers}
 
-在服务提供者启动时用 `Hash::extend` 或 `HashManager::extend` 注册应用自己的驱动。通过 `HASH_DRIVER` 选为默认驱动，也可以把名称传给 `driver`。工厂收到管理器并返回 `Arc<dyn Hasher>`，可通过 `getContainer()` 读取应用绑定。
+在服务提供者启动时用 `Hash::extend` 或 `HashManager::extend` 注册应用自己的驱动。通过 `HASH_DRIVER` 选为默认驱动，也可以把名称传给 `driver`。工厂收到管理器并返回 `Arc<dyn Hasher>`，可通过 `get_container()` 读取应用绑定。
 
 ```rust
 use std::sync::Arc;
@@ -19,16 +19,16 @@ use openrust::hashing::HashManager;
 
 pub fn register(manager: &HashManager) {
     manager.extend("project", |manager| {
-        Ok(Arc::new(manager.createArgon2idDriver()?))
+        Ok(Arc::new(manager.create_argon2id_driver()?))
     });
 }
 ```
 
-管理器在首次使用时创建驱动并按名称缓存。重新注册后，现有实例继续使用，直到调用 `forgetDrivers()`。工厂失败后可在下次查找时重试。递归或并发创建正在构造的同名驱动会返回 `DriverBusy`。通过管理器创建的内置驱动共享应用哈希限制。
+管理器在首次使用时创建驱动并按名称缓存。重新注册后，现有实例继续使用，直到调用 `forget_drivers()`。工厂失败后可在下次查找时重试。递归或并发创建正在构造的同名驱动会返回 `DriverBusy`。通过管理器创建的内置驱动共享应用哈希限制。
 
 ## 基本用法
 
-调用 `Hash::make` 生成哈希，调用 `Hash::check` 校验密码。`HashOptions::new()` 使用配置中的成本。单次 bcrypt 操作可指定 `rounds`，Argon 可指定 `memory`、`time` 和 `threads`。密码校验成功后，用 `needsRehash` 判断是否保存替换哈希。
+调用 `Hash::make` 生成哈希，调用 `Hash::check` 校验密码。`HashOptions::new()` 使用配置中的成本。单次 bcrypt 操作可指定 `rounds`，Argon 可指定 `memory`、`time` 和 `threads`。密码校验成功后，用 `needs_rehash` 判断是否保存替换哈希。
 
 ```rust
 use openrust::{
@@ -38,7 +38,7 @@ use openrust::{
 
 pub async fn refresh_password(password: &[u8], stored: &str) -> HashResult<Option<String>> {
     let options = HashOptions::new();
-    if Hash::check(password, stored, &options).await? && Hash::needsRehash(stored, &options)? {
+    if Hash::check(password, stored, &options).await? && Hash::needs_rehash(stored, &options)? {
         return Hash::make(password, &options).await.map(Some);
     }
     Ok(None)
@@ -54,4 +54,4 @@ OpenRust 在阻塞线程上运行密码操作。每个应用默认允许两个�
 
 ## 修改实例默认参数
 
-在可变的具体哈希实例上调用 `BcryptHasher::setRounds(rounds)`，或 `ArgonHasher` / `Argon2IdHasher` 的 `setMemory(kib)`、`setTime(iterations)`、`setThreads(threads)`。这些方法支持链式调用，只修改当前实例的默认参数。单次操作传入的选项优先，资源上限仍在实际执行时检查。
+在可变的具体哈希实例上调用 `BcryptHasher::set_rounds(rounds)`，或 `ArgonHasher` / `Argon2IdHasher` 的 `set_memory(kib)`、`set_time(iterations)`、`set_threads(threads)`。这些方法支持链式调用，只修改当前实例的默认参数。单次操作传入的选项优先，资源上限仍在实际执行时检查。

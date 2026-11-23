@@ -84,7 +84,7 @@ impl AnonymousEvent {
         self.sendWithContext(&mut EventContext::new()).await
     }
 
-    pub async fn sendNow(mut self) -> EventResult<DispatchResult> {
+    pub async fn send_now(mut self) -> EventResult<DispatchResult> {
         self.immediate = true;
         self.send().await
     }
@@ -107,29 +107,29 @@ impl Event for AnonymousEvent {
 }
 
 impl ShouldBroadcast for AnonymousEvent {
-    fn broadcastOn(&self) -> Vec<BroadcastChannel> {
+    fn broadcast_on(&self) -> Vec<BroadcastChannel> {
         self.channels.clone()
     }
 
-    fn broadcastAs(&self) -> Option<&str> {
+    fn broadcast_as(&self) -> Option<&str> {
         self.name
             .as_deref()
             .filter(|name| !matches!(*name, "" | "0"))
     }
 
-    fn broadcastWith(&self) -> Option<BroadcastPayload> {
+    fn broadcast_with(&self) -> Option<BroadcastPayload> {
         Some(self.payload.clone())
     }
 
-    fn broadcastConnections(&self) -> Vec<String> {
+    fn broadcast_connections(&self) -> Vec<String> {
         self.connection.iter().cloned().collect()
     }
 
-    fn shouldBroadcastNow(&self) -> bool {
+    fn should_broadcast_now(&self) -> bool {
         self.immediate
     }
 
-    fn broadcastSocket(&self) -> Option<&str> {
+    fn broadcast_socket(&self) -> Option<&str> {
         self.socket.as_deref()
     }
 }

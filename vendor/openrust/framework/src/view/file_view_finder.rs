@@ -39,7 +39,7 @@ impl FileViewFinder {
         }
     }
 
-    fn findInPaths(&self, name: &Path, paths: &[PathBuf]) -> ViewResult<(ViewLocation, PathBuf)> {
+    fn find_in_paths(&self, name: &Path, paths: &[PathBuf]) -> ViewResult<(ViewLocation, PathBuf)> {
         for directory in paths {
             let Some(root) = existing_path(directory)? else {
                 continue;
@@ -189,7 +189,7 @@ impl FileViewFinder {
             return Ok((location, path));
         }
 
-        let (location, path) = self.findInPaths(&name, paths)?;
+        let (location, path) = self.find_in_paths(&name, paths)?;
         self.resolved
             .write()
             .unwrap()
@@ -203,17 +203,17 @@ impl ViewFinder for FileViewFinder {
         self.resolve(view).map(|(_, path)| path)
     }
 
-    fn addLocation(&mut self, location: &Path) -> ViewResult<()> {
+    fn add_location(&mut self, location: &Path) -> ViewResult<()> {
         self.paths.push(location.to_owned());
         self.flush();
         Ok(())
     }
 
-    fn addNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+    fn add_namespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         self.append_hints(namespace, hints)
     }
 
-    fn prependNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+    fn prepend_namespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         let mut hints = owned_hints(namespace, hints)?;
         let current = self
             .hints
@@ -227,7 +227,7 @@ impl ViewFinder for FileViewFinder {
         Ok(())
     }
 
-    fn replaceNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+    fn replace_namespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         self.replace_hints(namespace, hints)
     }
 

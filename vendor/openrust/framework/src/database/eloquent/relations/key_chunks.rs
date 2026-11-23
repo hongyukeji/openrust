@@ -1,8 +1,7 @@
 // Keep the public forwarding methods identical on relationships with the same chunk contract.
 macro_rules! key_chunks {
     ($collection:ty) => {
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn chunkById<Fut>(
+        pub async fn chunk_by_id<Fut>(
             &self,
             parent: &P,
             count: u64,
@@ -13,12 +12,11 @@ macro_rules! key_chunks {
         where
             Fut: Future<Output = crate::database::DatabaseResult<bool>>,
         {
-            self.orderedChunkById(parent, count, callback, column, alias, false)
+            self.ordered_chunk_by_id(parent, count, callback, column, alias, false)
                 .await
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn chunkByIdDesc<Fut>(
+        pub async fn chunk_by_id_desc<Fut>(
             &self,
             parent: &P,
             count: u64,
@@ -29,7 +27,7 @@ macro_rules! key_chunks {
         where
             Fut: Future<Output = crate::database::DatabaseResult<bool>>,
         {
-            self.orderedChunkById(parent, count, callback, column, alias, true)
+            self.ordered_chunk_by_id(parent, count, callback, column, alias, true)
                 .await
         }
     };
@@ -48,8 +46,7 @@ macro_rules! key_chunks {
             self.$field.each(parent, callback, count).await
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn eachById<Fut>(
+        pub async fn each_by_id<Fut>(
             &self,
             parent: &P,
             callback: impl FnMut(R, i64) -> Fut,
@@ -61,12 +58,11 @@ macro_rules! key_chunks {
             Fut: Future<Output = crate::database::DatabaseResult<bool>>,
         {
             self.$field
-                .eachById(parent, callback, count, column, alias)
+                .each_by_id(parent, callback, count, column, alias)
                 .await
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn orderedChunkById<Fut>(
+        pub async fn ordered_chunk_by_id<Fut>(
             &self,
             parent: &P,
             count: u64,
@@ -79,7 +75,7 @@ macro_rules! key_chunks {
             Fut: Future<Output = crate::database::DatabaseResult<bool>>,
         {
             self.$field
-                .orderedChunkById(parent, count, callback, column, alias, descending)
+                .ordered_chunk_by_id(parent, count, callback, column, alias, descending)
                 .await
         }
     };
@@ -96,8 +92,7 @@ macro_rules! lazy_chunks {
             self.lazy_relation(parent, chunk_size, None)
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub fn lazyById<'a>(
+        pub fn lazy_by_id<'a>(
             &'a self,
             parent: &'a P,
             chunk_size: u64,
@@ -107,8 +102,7 @@ macro_rules! lazy_chunks {
             self.lazy_relation(parent, chunk_size, Some((column, alias, false)))
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub fn lazyByIdDesc<'a>(
+        pub fn lazy_by_id_desc<'a>(
             &'a self,
             parent: &'a P,
             chunk_size: u64,
@@ -118,8 +112,7 @@ macro_rules! lazy_chunks {
             self.lazy_relation(parent, chunk_size, Some((column, alias, true)))
         }
 
-        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        pub async fn chunkMap<T, Fut>(
+        pub async fn chunk_map<T, Fut>(
             &self,
             parent: &P,
             callback: impl FnMut($target) -> Fut,

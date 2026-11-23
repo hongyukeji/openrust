@@ -30,9 +30,9 @@ impl DatabaseMigrationRepository {
     pub(super) async fn records(&self) -> DatabaseResult<Vec<MigrationRecord>> {
         self.connection()?
             .table(&self.table)
-            .useWritePdo()
-            .orderByDesc("batch")
-            .orderByDesc("migration")
+            .use_write_pdo()
+            .order_by_desc("batch")
+            .order_by_desc("migration")
             .get()
             .await?
             .iter()
@@ -50,9 +50,9 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
         Box::pin(async move {
             self.connection()?
                 .table(&self.table)
-                .useWritePdo()
-                .orderBy("batch", "asc")
-                .orderBy("migration", "asc")
+                .use_write_pdo()
+                .order_by("batch", "asc")
+                .order_by("migration", "asc")
                 .pluck("migration")
                 .await?
                 .iter()
@@ -68,10 +68,10 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
         Box::pin(async move {
             self.connection()?
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .r#where("batch", ">=", 1)
-                .orderByDesc("batch")
-                .orderByDesc("migration")
+                .order_by_desc("batch")
+                .order_by_desc("migration")
                 .limit(steps)
                 .get()
                 .await?
@@ -88,9 +88,9 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
         Box::pin(async move {
             self.connection()?
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .r#where("batch", "=", Value::Unsigned(batch))
-                .orderByDesc("migration")
+                .order_by_desc("migration")
                 .get()
                 .await?
                 .iter()
@@ -104,13 +104,13 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
             let connection = self.connection()?;
             let mut latest = connection
                 .table(&self.table)
-                .selectRaw("max(batch)", vec![]);
+                .select_raw("max(batch)", vec![]);
             connection
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .select(["id", "migration", "batch"])
-                .whereSub("batch", "=", &mut latest)?
-                .orderByDesc("migration")
+                .where_sub("batch", "=", &mut latest)?
+                .order_by_desc("migration")
                 .get()
                 .await?
                 .iter()
@@ -123,10 +123,10 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
         Box::pin(async move {
             self.connection()?
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .select(["migration", "batch"])
-                .orderBy("batch", "asc")
-                .orderBy("migration", "asc")
+                .order_by("batch", "asc")
+                .order_by("migration", "asc")
                 .get()
                 .await?
                 .iter()
@@ -145,7 +145,7 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
             let batch = self
                 .connection()?
                 .table(&self.table)
-                .useWritePdo()
+                .use_write_pdo()
                 .max("batch")
                 .await?;
             let batch = if batch == Value::Null {
@@ -164,7 +164,7 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
             let translator = self.manager.translator()?;
             let translate = |key| translator.string(key, &Default::default(), None);
             self.connection()?
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create(&self.table, |table| -> DatabaseResult<()> {
                     table.comment(translate("schema.tables.migrations")?);
                     table
@@ -185,8 +185,8 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
     fn repository_exists(&mut self) -> DatabaseFuture<'_, DatabaseResult<bool>> {
         Box::pin(async move {
             self.connection()?
-                .getSchemaBuilder()
-                .hasTable(&self.table)
+                .get_schema_builder()
+                .has_table(&self.table)
                 .await
         })
     }
@@ -194,7 +194,7 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
     fn delete_repository(&mut self) -> DatabaseFuture<'_, DatabaseResult<()>> {
         Box::pin(async move {
             self.connection()?
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .drop(&self.table)
                 .await
         })

@@ -1,7 +1,7 @@
 use openrust::{
     auth::{Auth, AuthIdentifier},
     contracts::{auth::StatefulGuard as _, session::Session as _},
-    database::DB,
+    database::Db,
     http::{HttpError, Request},
 };
 use openrust_oidc::VerifiedIdentity;
@@ -17,10 +17,10 @@ pub async fn login_bound_user(
     request: &mut Request,
     remote: &VerifiedIdentity,
 ) -> Result<bool, HttpError> {
-    let Some(binding) = DB::table("oidc_identities")
+    let Some(binding) = Db::table("oidc_identities")
         .map_err(internal)?
-        .whereExactText("issuer", remote.issuer())
-        .whereExactText("subject", remote.subject())
+        .where_exact_text("issuer", remote.issuer())
+        .where_exact_text("subject", remote.subject())
         .first()
         .await
         .map_err(internal)?

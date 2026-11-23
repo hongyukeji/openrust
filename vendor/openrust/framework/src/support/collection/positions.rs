@@ -1,10 +1,9 @@
 use super::{ArrayKey, Collection, CollectionError, CollectionResult};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
-    pub fn forPage(self, page: usize, per_page: usize) -> Self {
+    pub fn for_page(self, page: usize, per_page: usize) -> Self {
         let offset = page.saturating_sub(1).saturating_mul(per_page);
-        Self::fromEntries(self.into_iter().skip(offset).take(per_page))
+        Self::from_entries(self.into_iter().skip(offset).take(per_page))
     }
 
     pub fn nth(self, step: usize, offset: usize) -> CollectionResult<Self> {
@@ -28,7 +27,7 @@ impl<T> Collection<T> {
         })))
     }
 
-    pub fn splitIn(self, groups: usize) -> CollectionResult<Collection<Self>> {
+    pub fn split_in(self, groups: usize) -> CollectionResult<Collection<Self>> {
         if groups == 0 {
             return Err(CollectionError::InvalidArgument);
         }
@@ -36,7 +35,7 @@ impl<T> Collection<T> {
         Ok(self.chunk(size))
     }
 
-    pub fn chunkWhile(
+    pub fn chunk_while(
         self,
         mut predicate: impl FnMut(&T, &ArrayKey, &Self) -> bool,
     ) -> Collection<Self> {
@@ -54,11 +53,11 @@ impl<T> Collection<T> {
         Collection::make(chunks)
     }
 
-    pub fn chunkBy<K: PartialEq>(
+    pub fn chunk_by<K: PartialEq>(
         self,
         mut project: impl FnMut(&T, &ArrayKey) -> K,
     ) -> Collection<Self> {
-        self.chunkWhile(|item, key, chunk| {
+        self.chunk_while(|item, key, chunk| {
             let (last_key, last) = chunk.items.last().expect("current chunk is nonempty");
             project(item, key) == project(last, last_key)
         })
@@ -101,7 +100,7 @@ impl<T> Collection<T> {
         removed
     }
 
-    pub fn shiftMany(&mut self, count: usize) -> Self {
+    pub fn shift_many(&mut self, count: usize) -> Self {
         if count == 0 {
             return Self::new();
         }
@@ -149,7 +148,7 @@ impl<T> Collection<T> {
 
 fn reindex<T>(items: impl IntoIterator<Item = (ArrayKey, T)>) -> Collection<T> {
     let mut next = 0_i64;
-    Collection::fromEntries(items.into_iter().map(|(key, item)| {
+    Collection::from_entries(items.into_iter().map(|(key, item)| {
         let key = if matches!(key, ArrayKey::Integer(_)) {
             let current = next;
             next += 1;

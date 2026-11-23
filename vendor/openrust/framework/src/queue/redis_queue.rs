@@ -310,7 +310,7 @@ impl Contract for RedisQueue {
         Some(self)
     }
 
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
 

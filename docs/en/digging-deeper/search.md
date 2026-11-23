@@ -4,23 +4,23 @@ For model observers, queue synchronization and pluggable collection search, see 
 
 ## Full-text search {#full-text-search}
 
-Use a MySQL-compatible connection and create a full-text index with the same column list as the query. The query builder binds the search text as a parameter. `whereFullText` uses natural language mode. Choose `Boolean` or `QueryExpansion` with `whereFullTextWith`.
+Use a MySQL-compatible connection and create a full-text index with the same column list as the query. The query builder binds the search text as a parameter. `where_full_text` uses natural language mode. Choose `Boolean` or `QueryExpansion` with `where_full_text_with`.
 
 The example uses an existing database connection named `db`. It creates a table, applies its full-text index, and executes a paginated search.
 
 ```rust
 use openrust::database::query::FullTextOptions;
 
-db.getSchemaBuilder().create("articles", |table| {
+db.get_schema_builder().create("articles", |table| {
     table.id();
     table.string("title", 150);
     table.text("body");
-    table.fullText(&["title", "body"], None);
+    table.full_text(&["title", "body"], None);
 }).await?;
 
 let results = db.table("articles")
-    .whereFullTextWith(&["title", "body"], "+openrust -draft", FullTextOptions::Boolean)
-    .orderBy("id", "asc")
+    .where_full_text_with(&["title", "body"], "+openrust -draft", FullTextOptions::Boolean)
+    .order_by("id", "asc")
     .paginate(10)
     .await?;
 ```
@@ -32,22 +32,22 @@ The same predicate is available on Eloquent queries and nested condition groups.
 Set the connection driver to `pgsql`. Blueprint creates a GIN index with the same text-vector expression used by the query. English is the default configuration. This example uses `db` as the PostgreSQL connection.
 
 ```rust
-db.getSchemaBuilder().create("articles", |table| {
+db.get_schema_builder().create("articles", |table| {
     table.id();
     table.string("title", 150);
     table.text("body");
     table.string("slug", 80).default("");
-    table.fullText(&["title", "body"], None).language("english");
+    table.full_text(&["title", "body"], None).language("english");
 }).await?;
 
 let page = db.table("articles")
-    .whereFullText(&["title", "body"], "running")
-    .orderBy("id", "asc")
+    .where_full_text(&["title", "body"], "running")
+    .order_by("id", "asc")
     .paginate(10)
     .await?;
 ```
 
-Use `FullTextOptions::Postgres` with `whereFullTextWith` for `Plain`, `Phrase`, `WebSearch`, or `Raw` query parsing. Set `vector: true` to search existing `tsvector` columns. Use the same language configuration on the index and query. On PostgreSQL, `whereFullText` filters rows and leaves sorting to the query.
+Use `FullTextOptions::Postgres` with `where_full_text_with` for `Plain`, `Phrase`, `WebSearch`, or `Raw` query parsing. Set `vector: true` to search existing `tsvector` columns. Use the same language configuration on the index and query. On PostgreSQL, `where_full_text` filters rows and leaves sorting to the query.
 
 ## Database model search {#database-engine}
 
@@ -57,7 +57,7 @@ Implement `Searchable` on an Eloquent model to search its own table. Declare ind
 use openrust::database::eloquent::{SearchColumn, Searchable};
 
 impl Searchable for Article {
-    fn searchableColumns() -> &'static [SearchColumn] {
+    fn searchable_columns() -> &'static [SearchColumn] {
         &[
             SearchColumn::FullText("title"),
             SearchColumn::FullText("body"),
@@ -66,15 +66,15 @@ impl Searchable for Article {
     }
 }
 
-let page = Article::searchOn(&db, "openrust")
-    .orderBy("id", "asc")
+let page = Article::search_on(&db, "openrust")
+    .order_by("id", "asc")
     .paginate(10)
     .await?;
 ```
 
 Within the application, use `Article::search(term)?` to resolve the model’s connection. Use `with_trashed` or `only_trashed` to change soft-delete filtering. A blank term keeps the model’s regular filters. The database maintains the index as part of the write transaction.
 
-PostgreSQL model searches with full-text columns use `ts_rank` followed by descending primary key when no explicit sort is supplied. Both the rank and the tie-breaker apply before pagination. Override the default full-text settings on a model with `fullTextOptions()`.
+PostgreSQL model searches with full-text columns use `ts_rank` followed by descending primary key when no explicit sort is supplied. Both the rank and the tie-breaker apply before pagination. Override the default full-text settings on a model with `full_text_options()`.
 
 ### Index visibility after a transaction {#index-transactions}
 

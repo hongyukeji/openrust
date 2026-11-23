@@ -120,7 +120,7 @@ impl EnsureLoginIsNotThrottled {
         Self { fortify, limiter }
     }
     pub async fn handle(&self, request: &mut Request) -> Result<Option<Response>, HttpError> {
-        if !self.limiter.tooManyAttempts(request).await? {
+        if !self.limiter.too_many_attempts(request).await? {
             return Ok(None);
         }
         emit(
@@ -130,7 +130,7 @@ impl EnsureLoginIsNotThrottled {
                         .map_err(internal)?
                         .get_default_driver(),
                 ),
-                retry_after: self.limiter.availableIn(request).await?,
+                retry_after: self.limiter.available_in(request).await?,
             },
             &[request.parts()],
         )

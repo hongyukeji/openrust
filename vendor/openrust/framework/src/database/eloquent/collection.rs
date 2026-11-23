@@ -7,7 +7,7 @@ use std::{
 
 use indexmap::IndexMap;
 
-use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value};
+use crate::database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult, Db, Value};
 use crate::support::{ArrayKey, Collection as BaseCollection, CollectionError, CollectionResult};
 
 use super::{
@@ -26,7 +26,7 @@ pub(super) async fn without_relationship_autoloading<F: std::future::Future>(wor
 }
 
 fn relationship_autoloading<M: Model>() -> bool {
-    AUTOLOAD_SUPPRESSED.try_with(|()| ()).is_err() && M::automaticallyEagerLoadRelationships()
+    AUTOLOAD_SUPPRESSED.try_with(|()| ()).is_err() && M::automatically_eager_load_relationships()
 }
 
 /// A collection of hydrated models, in query order.
@@ -84,10 +84,9 @@ impl<M: Model> Deref for CollectionModel<'_, M> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> CollectionModel<'_, M> {
     /// Reads a relationship using the owning collection's autoload policy.
-    pub async fn getRelationOrLoad<R: Relation<Parent = M>>(
+    pub async fn get_relation_or_load<R: Relation<Parent = M>>(
         &mut self,
         name: &str,
         relation: &R,
@@ -96,7 +95,7 @@ impl<M: Model> CollectionModel<'_, M> {
     }
 
     /// Opens a single related model while retaining access to the root collection.
-    pub async fn relatedModelAt<'a, R>(
+    pub async fn related_model_at<'a, R>(
         &'a mut self,
         name: &str,
         relation: &'a R,
@@ -110,7 +109,7 @@ impl<M: Model> CollectionModel<'_, M> {
     }
 
     /// Borrows a polymorphic target while retaining access to the root collection.
-    pub async fn morphModel<'a, T: Model>(
+    pub async fn morph_model<'a, T: Model>(
         &'a mut self,
         name: &str,
         relation: &'a MorphTo<M>,
@@ -150,10 +149,9 @@ impl<T: Model, P> Deref for BorrowedRelatedModel<'_, T, P> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: Model, P> BorrowedRelatedModel<'_, T, P> {
     /// Accesses a descendant and writes its loaded relationship back to the root collection.
-    pub async fn getRelationOrLoad<R: Relation<Parent = T>>(
+    pub async fn get_relation_or_load<R: Relation<Parent = T>>(
         &mut self,
         name: &str,
         relation: &R,
@@ -162,7 +160,7 @@ impl<T: Model, P> BorrowedRelatedModel<'_, T, P> {
     }
 
     /// Continues through another ordinary relationship.
-    pub async fn relatedModelAt<'a, R>(
+    pub async fn related_model_at<'a, R>(
         &'a mut self,
         name: &str,
         relation: &'a R,
@@ -176,7 +174,7 @@ impl<T: Model, P> BorrowedRelatedModel<'_, T, P> {
     }
 
     /// Continues through a polymorphic relationship of the selected alias.
-    pub async fn morphModel<'a, U: Model>(
+    pub async fn morph_model<'a, U: Model>(
         &'a mut self,
         name: &str,
         relation: &'a MorphTo<T>,
@@ -207,7 +205,7 @@ async fn load_from_source<'a, M: Model, R: Relation<Parent = M>>(
     }
     source
         .selected()
-        .getRelation(name)
+        .get_relation(name)
         .ok_or(DatabaseError::InvalidQuery("relationship output type"))
 }
 
@@ -352,7 +350,7 @@ where
         let output = self
             .parent
             .selected()
-            .getRelation::<R::Output>(&self.name)
+            .get_relation::<R::Output>(&self.name)
             .expect("related output remains installed");
         self.edge
             .children(output)
@@ -417,7 +415,7 @@ where
                 .iter()
                 .map(|model| {
                     model
-                        .getRelation::<R::Output>(name)
+                        .get_relation::<R::Output>(name)
                         .ok_or(DatabaseError::InvalidQuery("relationship output type"))
                 })
                 .collect::<DatabaseResult<Vec<_>>>()?;
@@ -462,7 +460,6 @@ where
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Collection<M> {
     pub fn new(models: Vec<M>) -> Self {
         Self {
@@ -485,8 +482,8 @@ impl<M: Model> Collection<M> {
     }
 
     /// Builds an Eloquent collection with explicit collection keys.
-    pub fn fromEntries<K: Into<ArrayKey>>(entries: impl IntoIterator<Item = (K, M)>) -> Self {
-        let (keys, models) = BaseCollection::fromEntries(entries).into_iter().unzip();
+    pub fn from_entries<K: Into<ArrayKey>>(entries: impl IntoIterator<Item = (K, M)>) -> Self {
+        let (keys, models) = BaseCollection::from_entries(entries).into_iter().unzip();
         Self {
             models,
             keys: Some(keys),
@@ -495,7 +492,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Looks up a collection key independently of a model's primary key or position.
-    pub fn getByKey(&self, key: impl Into<ArrayKey>) -> Option<&M> {
+    pub fn get_by_key(&self, key: impl Into<ArrayKey>) -> Option<&M> {
         let key = key.into().normalized();
         if let Some(keys) = &self.keys {
             return keys
@@ -520,7 +517,7 @@ impl<M: Model> Collection<M> {
 
     /// Batch-loads missing relationships when accessed through this collection.
     #[must_use]
-    pub fn withRelationshipAutoloading(mut self) -> Self {
+    pub fn with_relationship_autoloading(mut self) -> Self {
         self.autoload = true;
         self
     }
@@ -531,7 +528,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Borrows a model with access to its collection for batch relationship loading.
-    pub fn modelAt(&mut self, index: usize) -> Option<CollectionModel<'_, M>> {
+    pub fn model_at(&mut self, index: usize) -> Option<CollectionModel<'_, M>> {
         (index < self.models.len()).then_some(CollectionModel {
             collection: self,
             index,
@@ -539,7 +536,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Reads one model's relationship, loading the missing values on first access.
-    pub async fn getRelationOrLoad<R: Relation<Parent = M>>(
+    pub async fn get_relation_or_load<R: Relation<Parent = M>>(
         &mut self,
         index: usize,
         name: &str,
@@ -551,13 +548,13 @@ impl<M: Model> Collection<M> {
             .ok_or(DatabaseError::InvalidQuery("model collection index"))?;
         if !model.relation_loaded(name) {
             if self.autoload {
-                self.loadMissing(name, relation).await?;
+                self.load_missing(name, relation).await?;
             } else {
                 has_relationships::load_on_access(&mut self.models[index], name, relation).await?;
             }
         }
         self.models[index]
-            .getRelation(name)
+            .get_relation(name)
             .ok_or(DatabaseError::InvalidQuery("relationship output type"))
     }
 
@@ -570,7 +567,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Converts the models into a base collection, in their current order.
-    pub fn toBase(mut self) -> BaseCollection<M> {
+    pub fn to_base(mut self) -> BaseCollection<M> {
         if self.autoload {
             super::detached_autoload::attach(&mut self.models);
         }
@@ -579,14 +576,14 @@ impl<M: Model> Collection<M> {
 
     fn into_base(self) -> BaseCollection<M> {
         match self.keys {
-            Some(keys) => BaseCollection::fromEntries(keys.into_iter().zip(self.models)),
+            Some(keys) => BaseCollection::from_entries(keys.into_iter().zip(self.models)),
             None => self.models.into_iter().collect(),
         }
     }
 
     /// Maps each model and its index into a base collection.
     pub fn map<T>(&self, mut callback: impl FnMut(&M, usize) -> T) -> BaseCollection<T> {
-        BaseCollection::fromEntries(
+        BaseCollection::from_entries(
             self.iter()
                 .enumerate()
                 .map(|(index, model)| (self.key_at(index), callback(model, index))),
@@ -594,7 +591,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Maps owned models into another Eloquent collection.
-    pub fn mapModels<N: Model>(self, mut callback: impl FnMut(M, usize) -> N) -> Collection<N> {
+    pub fn map_models<N: Model>(self, mut callback: impl FnMut(M, usize) -> N) -> Collection<N> {
         let models = self
             .models
             .into_iter()
@@ -609,7 +606,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Maps models into a keyed Eloquent collection.
-    pub fn mapModelsWithKeys<K, N, I>(
+    pub fn map_models_with_keys<K, N, I>(
         self,
         mut callback: impl FnMut(M, ArrayKey) -> I,
     ) -> Collection<N>
@@ -619,7 +616,7 @@ impl<M: Model> Collection<M> {
         I: IntoIterator<Item = (K, N)>,
     {
         let autoload = self.autoload;
-        let mut result = Collection::fromEntries(
+        let mut result = Collection::from_entries(
             self.into_base()
                 .into_iter()
                 .flat_map(|(key, model)| callback(model, key)),
@@ -628,7 +625,7 @@ impl<M: Model> Collection<M> {
         result
     }
 
-    pub fn mapWithKeys<K, T, I>(
+    pub fn map_with_keys<K, T, I>(
         &self,
         mut callback: impl FnMut(&M, usize) -> I,
     ) -> BaseCollection<T>
@@ -636,7 +633,7 @@ impl<M: Model> Collection<M> {
         K: Into<ArrayKey>,
         I: IntoIterator<Item = (K, T)>,
     {
-        BaseCollection::fromEntries(
+        BaseCollection::from_entries(
             self.iter()
                 .enumerate()
                 .flat_map(|(index, model)| callback(model, index)),
@@ -647,12 +644,12 @@ impl<M: Model> Collection<M> {
         self.iter().map(project).collect()
     }
 
-    pub fn pluckWithKeys<K: Into<ArrayKey>, T>(
+    pub fn pluck_with_keys<K: Into<ArrayKey>, T>(
         &self,
         mut key: impl FnMut(&M) -> K,
         mut project: impl FnMut(&M) -> T,
     ) -> BaseCollection<T> {
-        BaseCollection::fromEntries(self.iter().map(|model| (key(model), project(model))))
+        BaseCollection::from_entries(self.iter().map(|model| (key(model), project(model))))
     }
 
     /// Returns the collection indices as a base collection.
@@ -665,26 +662,26 @@ impl<M: Model> Collection<M> {
         self,
         items: impl IntoIterator<Item = T>,
     ) -> BaseCollection<(Option<M>, Option<T>)> {
-        self.toBase().zip(items)
+        self.to_base().zip(items)
     }
 
     /// Combines models with any number of additional columns by position.
-    pub fn zipMany<T, I>(
+    pub fn zip_many<T, I>(
         self,
         columns: impl IntoIterator<Item = I>,
     ) -> BaseCollection<(Option<M>, Vec<Option<T>>)>
     where
         I: IntoIterator<Item = T>,
     {
-        self.toBase().zipMany(columns)
+        self.to_base().zip_many(columns)
     }
 
     /// Exchanges projected scalar keys with the original collection keys.
-    pub fn flipBy<K: Into<ArrayKey>>(
+    pub fn flip_by<K: Into<ArrayKey>>(
         &self,
         mut project: impl FnMut(&M) -> Option<K>,
     ) -> BaseCollection<ArrayKey> {
-        BaseCollection::fromEntries(self.iter().enumerate().filter_map(|(index, model)| {
+        BaseCollection::from_entries(self.iter().enumerate().filter_map(|(index, model)| {
             project(model).map(|value| (self.key_at(index), value.into()))
         }))
         .flip()
@@ -692,7 +689,7 @@ impl<M: Model> Collection<M> {
 
     /// Pads the base collection with independent snapshots of the given model.
     pub fn pad(self, size: isize, model: &M) -> CollectionResult<BaseCollection<M>> {
-        self.toBase()
+        self.to_base()
             .pad_with(size, || M::from_state(model.state().clone()))
     }
 
@@ -730,16 +727,16 @@ impl<M: Model> Collection<M> {
         self.into_iter().collect()
     }
 
-    pub fn countBy<K: Into<ArrayKey>>(
+    pub fn count_by<K: Into<ArrayKey>>(
         &self,
         mut group: impl FnMut(&M, &ArrayKey) -> K,
     ) -> BaseCollection<usize> {
-        let models = BaseCollection::fromEntries(
+        let models = BaseCollection::from_entries(
             self.iter()
                 .enumerate()
                 .map(|(index, model)| (self.key_at(index), model)),
         );
-        models.countBy(|model, key| group(model, key))
+        models.count_by(|model, key| group(model, key))
     }
 
     /// Splits models into matching and nonmatching groups, preserving collection keys.
@@ -749,53 +746,53 @@ impl<M: Model> Collection<M> {
         (
             Self {
                 autoload,
-                ..Self::fromEntries(matches)
+                ..Self::from_entries(matches)
             },
             Self {
                 autoload,
-                ..Self::fromEntries(rest)
+                ..Self::from_entries(rest)
             },
         )
     }
 
-    pub fn makeHidden(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn make_hidden(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.makeHidden(attributes);
+            model.make_hidden(attributes);
         }
         self
     }
 
-    pub fn setHidden(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn set_hidden(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.setHidden(attributes);
+            model.set_hidden(attributes);
         }
         self
     }
 
-    pub fn mergeHidden(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn merge_hidden(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.mergeHidden(attributes);
+            model.merge_hidden(attributes);
         }
         self
     }
 
-    pub fn makeVisible(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn make_visible(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.makeVisible(attributes);
+            model.make_visible(attributes);
         }
         self
     }
 
-    pub fn setVisible(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn set_visible(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.setVisible(attributes);
+            model.set_visible(attributes);
         }
         self
     }
 
-    pub fn mergeVisible(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn merge_visible(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.mergeVisible(attributes);
+            model.merge_visible(attributes);
         }
         self
     }
@@ -807,15 +804,15 @@ impl<M: Model> Collection<M> {
         self
     }
 
-    pub fn setAppends(&mut self, attributes: &[&str]) -> &mut Self {
+    pub fn set_appends(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
-            model.setAppends(attributes);
+            model.set_appends(attributes);
         }
         self
     }
 
-    pub fn withoutAppends(&mut self) -> &mut Self {
-        self.setAppends(&[])
+    pub fn without_appends(&mut self) -> &mut Self {
+        self.set_appends(&[])
     }
 
     pub fn to_array(&self) -> DatabaseResult<Vec<serde_json::Map<String, serde_json::Value>>> {
@@ -825,7 +822,7 @@ impl<M: Model> Collection<M> {
     pub fn to_json(&self) -> DatabaseResult<String> {
         let rows = self.to_array()?;
         match &self.keys {
-            Some(keys) => BaseCollection::fromEntries(keys.iter().zip(rows))
+            Some(keys) => BaseCollection::from_entries(keys.iter().zip(rows))
                 .to_json()
                 .map_err(|_| DatabaseError::InvalidQuery("model collection JSON")),
             None => serde_json::to_string(&rows)
@@ -834,7 +831,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Opens a related batch, loading the first relationship if needed.
-    pub async fn relatedModels<R>(
+    pub async fn related_models<R>(
         &mut self,
         name: &str,
         relation: &R,
@@ -843,13 +840,13 @@ impl<M: Model> Collection<M> {
         R: Relation<Parent = M>,
         R::Output: RelatedModels,
     {
-        self.loadMissing(name, relation).await?;
+        self.load_missing(name, relation).await?;
         let results = self
             .models
             .iter()
             .map(|model| {
                 model
-                    .getRelation::<R::Output>(name)
+                    .get_relation::<R::Output>(name)
                     .ok_or(DatabaseError::InvalidQuery("relationship output type"))
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
@@ -859,20 +856,20 @@ impl<M: Model> Collection<M> {
     }
 
     /// Opens a batch containing only the selected polymorphic target type.
-    pub async fn morphModels<T: Model>(
+    pub async fn morph_models<T: Model>(
         &mut self,
         name: &str,
         relation: &MorphTo<M>,
         alias: &str,
     ) -> DatabaseResult<RelatedBatch<'_, T>> {
         relation.validate_target::<T>(alias)?;
-        self.loadMissing(name, relation).await?;
+        self.load_missing(name, relation).await?;
         let results = self
             .models
             .iter()
             .map(|model| {
                 model
-                    .getRelation::<Option<MorphTarget>>(name)
+                    .get_relation::<Option<MorphTarget>>(name)
                     .ok_or(DatabaseError::InvalidQuery("relationship output type"))
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
@@ -880,7 +877,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Loads a relationship on one polymorphic target group.
-    pub async fn loadMorph<T: Model>(
+    pub async fn load_morph<T: Model>(
         &mut self,
         name: &str,
         morph: &MorphTo<M>,
@@ -889,11 +886,11 @@ impl<M: Model> Collection<M> {
         relation: &impl Relation<Parent = T>,
     ) -> DatabaseResult<RelatedBatch<'_, T>> {
         load_morph_relation(&mut self.models, name, morph, alias, related_name, relation).await?;
-        self.morphModels::<T>(name, morph, alias).await
+        self.morph_models::<T>(name, morph, alias).await
     }
 
     /// Reloads the registered relationship paths for one polymorphic target group.
-    pub async fn loadMorphPaths<T: Model>(
+    pub async fn load_morph_paths<T: Model>(
         &mut self,
         name: &str,
         morph: &MorphTo<M>,
@@ -904,7 +901,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Loads a relationship count on one polymorphic target group.
-    pub async fn loadMorphCount<T: Model>(
+    pub async fn load_morph_count<T: Model>(
         &mut self,
         name: &str,
         morph: &MorphTo<M>,
@@ -912,18 +909,18 @@ impl<M: Model> Collection<M> {
         related_name: &str,
         relation: &impl ExistenceRelation<Parent = T>,
     ) -> DatabaseResult<RelatedBatch<'_, T>> {
-        self.loadMorphAggregate(
+        self.load_morph_aggregate(
             name,
             morph,
             alias,
             RelationAggregateQuery::new(related_name, relation, RelationAggregate::Count),
         )
         .await?;
-        self.morphModels::<T>(name, morph, alias).await
+        self.morph_models::<T>(name, morph, alias).await
     }
 
     /// Loads an aggregate onto the cached models of one polymorphic target group.
-    pub async fn loadMorphAggregate<T: Model>(
+    pub async fn load_morph_aggregate<T: Model>(
         &mut self,
         name: &str,
         morph: &MorphTo<M>,
@@ -934,7 +931,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Loads several aggregates in a shared query for each batch of target keys.
-    pub async fn loadMorphAggregates<T: Model>(
+    pub async fn load_morph_aggregates<T: Model>(
         &mut self,
         name: &str,
         morph: &MorphTo<M>,
@@ -944,40 +941,40 @@ impl<M: Model> Collection<M> {
         load_morph_aggregates(&mut self.models, name, morph, alias, aggregates).await
     }
 
-    pub fn modelKeys(&self) -> Vec<Value> {
+    pub fn model_keys(&self) -> Vec<Value> {
         self.models
             .iter()
-            .map(|model| model.getKey().cloned().unwrap_or(Value::Null))
+            .map(|model| model.get_key().cloned().unwrap_or(Value::Null))
             .collect()
     }
 
     /// Reports the compiled model type for a nonempty collection.
-    pub fn getQueueableClass(&self) -> Option<&'static str> {
+    pub fn get_queueable_class(&self) -> Option<&'static str> {
         self.first().map(|_| std::any::type_name::<M>())
     }
 
     /// Returns model identifiers in collection order, including duplicates.
-    pub fn getQueueableIds(&self) -> Vec<Value> {
+    pub fn get_queueable_ids(&self) -> Vec<Value> {
         self.iter()
-            .map(|model| model.getQueueableId().cloned().unwrap_or(Value::Null))
+            .map(|model| model.get_queueable_id().cloned().unwrap_or(Value::Null))
             .collect()
     }
 
     /// Returns the loaded relation paths shared by all models.
-    pub fn getQueueableRelations(&self) -> Vec<String> {
+    pub fn get_queueable_relations(&self) -> Vec<String> {
         super::queueable::common_relations(self.iter())
     }
 
     /// Rejects collections spanning multiple database connection names.
-    pub fn getQueueableConnection(&self) -> DatabaseResult<Option<&str>> {
+    pub fn get_queueable_connection(&self) -> DatabaseResult<Option<&str>> {
         let Some(first) = self.first() else {
             return Ok(None);
         };
-        let connection = first.getConnectionName();
+        let connection = first.get_connection_name();
         if self
             .iter()
             .skip(1)
-            .any(|model| model.getConnectionName() != connection)
+            .any(|model| model.get_connection_name() != connection)
         {
             return Err(DatabaseError::InvalidQuery(
                 "queueable collection has multiple connections",
@@ -991,7 +988,7 @@ impl<M: Model> Collection<M> {
             return Ok(None);
         };
         for model in &self.models {
-            if dictionary_key(model.getKey())?.as_ref() == Some(&key) {
+            if dictionary_key(model.get_key())?.as_ref() == Some(&key) {
                 return Ok(Some(model));
             }
         }
@@ -1002,59 +999,59 @@ impl<M: Model> Collection<M> {
         Ok(self.find(key)?.is_some())
     }
 
-    pub fn doesntContain(&self, key: &Value) -> DatabaseResult<bool> {
+    pub fn doesnt_contain(&self, key: &Value) -> DatabaseResult<bool> {
         Ok(!self.contains(key)?)
     }
 
     /// Checks model identity using the key, table, and connection name.
-    pub fn containsModel(&self, model: &impl Model) -> bool {
+    pub fn contains_model(&self, model: &impl Model) -> bool {
         self.iter().any(|candidate| candidate.is(model))
     }
 
-    pub fn doesntContainModel(&self, model: &impl Model) -> bool {
-        !self.containsModel(model)
+    pub fn doesnt_contain_model(&self, model: &impl Model) -> bool {
+        !self.contains_model(model)
     }
 
     /// Checks whether a model and its collection index satisfy the predicate.
-    pub fn containsWhere(&self, mut predicate: impl FnMut(&M, usize) -> bool) -> bool {
+    pub fn contains_where(&self, mut predicate: impl FnMut(&M, usize) -> bool) -> bool {
         self.iter()
             .enumerate()
             .any(|(index, model)| predicate(model, index))
     }
 
-    pub fn doesntContainWhere(&self, predicate: impl FnMut(&M, usize) -> bool) -> bool {
-        !self.containsWhere(predicate)
+    pub fn doesnt_contain_where(&self, predicate: impl FnMut(&M, usize) -> bool) -> bool {
+        !self.contains_where(predicate)
     }
 
     /// Finds a model by the supplied model's primary key.
-    pub fn findModel(&self, model: &impl Model) -> DatabaseResult<Option<&M>> {
-        match model.getKey() {
+    pub fn find_model(&self, model: &impl Model) -> DatabaseResult<Option<&M>> {
+        match model.get_key() {
             Some(key) => self.find(key),
             None => Ok(None),
         }
     }
 
-    pub fn findModelOrFail(&self, model: &impl Model) -> DatabaseResult<&M> {
-        self.findModel(model)?
+    pub fn find_model_or_fail(&self, model: &impl Model) -> DatabaseResult<&M> {
+        self.find_model(model)?
             .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
     }
 
-    pub fn findOrFail(&self, key: &Value) -> DatabaseResult<&M> {
+    pub fn find_or_fail(&self, key: &Value) -> DatabaseResult<&M> {
         self.find(key)?
             .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
     }
 
     /// Selects matching models from this collection in collection order.
-    pub fn findMany(&self, keys: &[Value]) -> DatabaseResult<Vec<&M>> {
-        self.find_many(&Self::lookup_keys(keys)?)
+    pub fn find_many(&self, keys: &[Value]) -> DatabaseResult<Vec<&M>> {
+        self.find_many_by_dictionary_keys(&Self::lookup_keys(keys)?)
     }
 
     /// Selects matching models, returning an error if a requested key is missing.
-    pub fn findManyOrFail(&self, keys: &[Value]) -> DatabaseResult<Vec<&M>> {
+    pub fn find_many_or_fail(&self, keys: &[Value]) -> DatabaseResult<Vec<&M>> {
         let mut remaining = Self::lookup_keys(keys)?;
-        let models = self.find_many(&remaining)?;
+        let models = self.find_many_by_dictionary_keys(&remaining)?;
         for model in &models {
-            if let Some(key) = dictionary_key(model.getKey())? {
+            if let Some(key) = dictionary_key(model.get_key())? {
                 remaining.remove(&key);
             }
         }
@@ -1064,11 +1061,11 @@ impl<M: Model> Collection<M> {
         Ok(models)
     }
 
-    fn find_many(&self, keys: &HashSet<Vec<u8>>) -> DatabaseResult<Vec<&M>> {
+    fn find_many_by_dictionary_keys(&self, keys: &HashSet<Vec<u8>>) -> DatabaseResult<Vec<&M>> {
         let mut models = Vec::new();
         if !keys.is_empty() {
             for model in &self.models {
-                if dictionary_key(model.getKey())?.is_some_and(|key| keys.contains(&key)) {
+                if dictionary_key(model.get_key())?.is_some_and(|key| keys.contains(&key)) {
                     models.push(model);
                 }
             }
@@ -1086,7 +1083,7 @@ impl<M: Model> Collection<M> {
 
     fn filter_keys(self, keys: &[Value], keep: bool) -> DatabaseResult<Self> {
         let requested = Self::lookup_keys(keys)?;
-        let mut models = model_dictionary(self.models, Model::getKey)?;
+        let mut models = model_dictionary(self.models, Model::get_key)?;
         models.retain(|key, _| requested.contains(key) == keep);
         Ok(Self {
             models: models.into_values().collect(),
@@ -1109,12 +1106,12 @@ impl<M: Model> Collection<M> {
     ///
     /// Missing keys are skipped. Later models replace earlier values at the same
     /// key without changing its position. Keys retain binary data.
-    pub fn getDictionary(&self) -> DatabaseResult<IndexMap<Vec<u8>, &M>> {
-        model_dictionary(self.iter(), |model| model.getKey())
+    pub fn get_dictionary(&self) -> DatabaseResult<IndexMap<Vec<u8>, &M>> {
+        model_dictionary(self.iter(), |model| model.get_key())
     }
 
     pub fn merge(self, models: impl IntoIterator<Item = M>) -> DatabaseResult<Self> {
-        let dictionary = model_dictionary(self.models.into_iter().chain(models), Model::getKey)?;
+        let dictionary = model_dictionary(self.models.into_iter().chain(models), Model::get_key)?;
         Ok(Self {
             models: dictionary.into_values().collect(),
             keys: None,
@@ -1127,14 +1124,14 @@ impl<M: Model> Collection<M> {
     }
 
     /// Retains the first model for each projected value, preserving collection keys.
-    pub fn uniqueBy<K: Eq + std::hash::Hash>(
+    pub fn unique_by<K: Eq + std::hash::Hash>(
         self,
         project: impl FnMut(&M, &ArrayKey) -> K,
     ) -> Self {
         let autoload = self.autoload;
         Self {
             autoload,
-            ..Self::fromEntries(self.into_base().uniqueBy(project))
+            ..Self::from_entries(self.into_base().unique_by(project))
         }
     }
 
@@ -1156,16 +1153,16 @@ impl<M: Model> Collection<M> {
             .filter(|(key, _)| duplicates.contains(key));
         Self {
             autoload,
-            ..Self::fromEntries(entries)
+            ..Self::from_entries(entries)
         }
     }
 
-    pub fn duplicatesStrict(self) -> Self {
+    pub fn duplicates_strict(self) -> Self {
         self.duplicates()
     }
 
     /// Returns repeated projected values with their original collection keys.
-    pub fn duplicatesBy<K: PartialEq>(
+    pub fn duplicates_by<K: PartialEq>(
         &self,
         mut project: impl FnMut(&M) -> K,
     ) -> BaseCollection<K> {
@@ -1193,13 +1190,13 @@ impl<M: Model> Collection<M> {
     fn compare_keys(self, other: &Self, keep: bool) -> DatabaseResult<Self> {
         let mut keys = HashSet::new();
         for model in other.iter() {
-            if let Some(key) = dictionary_key(model.getKey())? {
+            if let Some(key) = dictionary_key(model.get_key())? {
                 keys.insert(key);
             }
         }
         let mut models = Vec::new();
         for model in self.models {
-            let key = dictionary_key(model.getKey())?;
+            let key = dictionary_key(model.get_key())?;
             if key.as_ref().is_some_and(|key| keys.contains(key)) == keep {
                 models.push(model);
             }
@@ -1211,35 +1208,35 @@ impl<M: Model> Collection<M> {
         })
     }
 
-    pub fn toQuery(&self) -> DatabaseResult<Builder<'static, M>> {
+    pub fn to_query(&self) -> DatabaseResult<Builder<'static, M>> {
         let connection = collection_connection(self.iter())?
             .ok_or(DatabaseError::InvalidQuery("empty model collection"))?;
         let mut keys = Vec::with_capacity(self.models.len());
         for model in &self.models {
             let key = model
-                .getKey()
+                .get_key()
                 .filter(|key| !matches!(key, Value::Null))
                 .ok_or(DatabaseError::InvalidQuery("model collection key"))?;
             keys.push(key.clone());
         }
-        let mut query = Builder::<M>::new(connection).withoutGlobalScopes();
+        let mut query = Builder::<M>::new(connection).without_global_scopes();
         query.where_in(M::metadata().primary_key, keys);
         Ok(query)
     }
 
     /// Re-reads existing models without parent scopes, in the original collection order.
     pub async fn fresh(&self) -> DatabaseResult<Self> {
-        self.fresh_with_loads(M::withDefaultRelations).await
+        self.fresh_with_loads(M::with_default_relations).await
     }
 
     /// Re-reads the collection and eager loads the registered relationship paths.
-    pub async fn freshWithPaths(&self, paths: &[&str]) -> DatabaseResult<Self> {
+    pub async fn fresh_with_paths(&self, paths: &[&str]) -> DatabaseResult<Self> {
         if self.is_empty() {
             return self.fresh().await;
         }
         let requested = NamedRelations::<M>::prepare(paths)?;
         self.fresh_with_loads(|defaults| {
-            let mut loads = M::withDefaultRelations(defaults);
+            let mut loads = M::with_default_relations(defaults);
             loads.extend(requested);
             loads
         })
@@ -1265,7 +1262,7 @@ impl<M: Model> Collection<M> {
         let mut keys = Vec::new();
         let mut bindings = IndexMap::new();
         for (index, model) in existing {
-            if let Some(value) = model.getKey()
+            if let Some(value) = model.get_key()
                 && let Some(key) = dictionary_key(Some(value))?
             {
                 bindings.entry(key.clone()).or_insert_with(|| value.clone());
@@ -1276,15 +1273,15 @@ impl<M: Model> Collection<M> {
         let casts = self.models.first().map(|model| &model.state().casts);
         let mut refreshed = HashMap::new();
         for batch in bindings.chunks(500) {
-            let mut query = M::queryOn(&connection)
-                .withOnly(|relations| relations)
-                .withoutGlobalScopes();
+            let mut query = M::query_on(&connection)
+                .with_only(|relations| relations)
+                .without_global_scopes();
             if let Some(casts) = casts {
                 query.casts.clone_from(casts);
             }
             query.where_in(M::metadata().primary_key, batch.to_vec());
             for model in query.get().await? {
-                if let Some(key) = dictionary_key(model.getKey())? {
+                if let Some(key) = dictionary_key(model.get_key())? {
                     refreshed.insert(key, model);
                 }
             }
@@ -1324,97 +1321,97 @@ impl<M: Model> Collection<M> {
     }
 
     /// Re-reads the collection and batch-loads the requested relationship.
-    pub async fn freshWith<R: Relation<Parent = M>>(
+    pub async fn fresh_with<R: Relation<Parent = M>>(
         &self,
         name: &str,
         relation: &R,
     ) -> DatabaseResult<Self> {
         let mut refreshed = self
-            .fresh_with_loads(|defaults| M::withDefaultRelations(defaults).without(&[name]))
+            .fresh_with_loads(|defaults| M::with_default_relations(defaults).without(&[name]))
             .await?;
         refreshed.load(name, relation).await?;
         Ok(refreshed)
     }
 
     /// Fetches a relationship aggregate and installs it as an original attribute.
-    pub async fn loadAggregate(
+    pub async fn load_aggregate(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         aggregate: RelationAggregate<'_>,
     ) -> DatabaseResult<()> {
-        self.loadAggregates(&[RelationAggregateQuery::new(name, relation, aggregate)])
+        self.load_aggregates(&[RelationAggregateQuery::new(name, relation, aggregate)])
             .await
     }
 
     /// Loads multiple relationship aggregates together for each batch of models.
-    pub async fn loadAggregates(
+    pub async fn load_aggregates(
         &mut self,
         aggregates: &[RelationAggregateQuery<'_, M>],
     ) -> DatabaseResult<()> {
         load_aggregates(&mut self.models, aggregates).await
     }
 
-    pub async fn loadCount(
+    pub async fn load_count(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<()> {
-        self.loadAggregate(name, relation, RelationAggregate::Count)
+        self.load_aggregate(name, relation, RelationAggregate::Count)
             .await
     }
 
-    pub async fn loadExists(
+    pub async fn load_exists(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<()> {
-        self.loadAggregate(name, relation, RelationAggregate::Exists)
+        self.load_aggregate(name, relation, RelationAggregate::Exists)
             .await
     }
 
-    pub async fn loadSum(
+    pub async fn load_sum(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<()> {
-        self.loadAggregate(name, relation, RelationAggregate::Sum(column))
+        self.load_aggregate(name, relation, RelationAggregate::Sum(column))
             .await
     }
 
-    pub async fn loadAvg(
+    pub async fn load_avg(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<()> {
-        self.loadAggregate(name, relation, RelationAggregate::Avg(column))
+        self.load_aggregate(name, relation, RelationAggregate::Avg(column))
             .await
     }
 
-    pub async fn loadMin(
+    pub async fn load_min(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<()> {
-        self.loadAggregate(name, relation, RelationAggregate::Min(column))
+        self.load_aggregate(name, relation, RelationAggregate::Min(column))
             .await
     }
 
-    pub async fn loadMax(
+    pub async fn load_max(
         &mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<()> {
-        self.loadAggregate(name, relation, RelationAggregate::Max(column))
+        self.load_aggregate(name, relation, RelationAggregate::Max(column))
             .await
     }
 
     /// Eager loads the named paths across this collection.
-    pub async fn loadPaths(&mut self, paths: &[&str]) -> DatabaseResult<()> {
+    pub async fn load_paths(&mut self, paths: &[&str]) -> DatabaseResult<()> {
         let loads = super::NamedRelations::<M>::prepare(paths)?;
         has_relationships::load_eager(loads, &mut self.models).await
     }
@@ -1425,7 +1422,7 @@ impl<M: Model> Collection<M> {
     }
 
     /// Applies a grouped predicate when loading a missing terminal relationship.
-    pub async fn loadMissingPathWith(
+    pub async fn load_missing_path_with(
         &mut self,
         path: &str,
         constraint: impl Fn(
@@ -1436,12 +1433,12 @@ impl<M: Model> Collection<M> {
         + Sync
         + 'static,
     ) -> DatabaseResult<()> {
-        self.loadMissingPathsWith([super::MissingRelation::new(path).constrain(constraint)])
+        self.load_missing_paths_with([super::MissingRelation::new(path).constrain(constraint)])
             .await
     }
 
     /// Loads several registered paths, each with its optional terminal predicate.
-    pub async fn loadMissingPathsWith<'a>(
+    pub async fn load_missing_paths_with<'a>(
         &mut self,
         paths: impl IntoIterator<Item = super::MissingRelation<'a>> + Send,
     ) -> DatabaseResult<()> {
@@ -1456,7 +1453,7 @@ impl<M: Model> Collection<M> {
         has_relationships::load(&mut self.models, name, relation, false).await
     }
 
-    pub async fn loadMissing<R: Relation<Parent = M>>(
+    pub async fn load_missing<R: Relation<Parent = M>>(
         &mut self,
         name: &str,
         relation: &R,
@@ -1537,7 +1534,7 @@ impl<T: Model> MorphSnapshots<T> {
         let mut parents = Vec::new();
         for (index, parent) in models.iter().enumerate() {
             let output = parent
-                .getRelation::<Option<MorphTarget>>(name)
+                .get_relation::<Option<MorphTarget>>(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))?;
             if let Some(target) = output.as_ref().filter(|target| target.alias() == alias) {
                 let model = target
@@ -1562,7 +1559,7 @@ impl<T: Model> MorphSnapshots<T> {
         for (index, position, mut target) in self.parents {
             target.replace_model(replacements[position].clone());
             let model = &mut models[index];
-            model.unsetRelation(name);
+            model.unset_relation(name);
             model
                 .state_mut()
                 .relations
@@ -1609,7 +1606,7 @@ pub(super) async fn aggregate_attributes<M: Model>(
     let mut bindings = IndexMap::new();
     for model in models {
         let value = model
-            .getKey()
+            .get_key()
             .filter(|_| model.state().exists())
             .ok_or(DatabaseError::InvalidQuery("model collection key"))?;
         let key = dictionary_key(Some(value))?
@@ -1623,19 +1620,19 @@ pub(super) async fn aggregate_attributes<M: Model>(
     let mut values = HashMap::new();
     for batch in bindings.chunks(500) {
         let mut query = Builder::<M>::new(connection.clone())
-            .withoutGlobalScopes()
+            .without_global_scopes()
             .select([primary_key]);
         for aggregate in aggregates {
             query = aggregate.apply(query)?;
         }
         query.where_in(primary_key, batch.to_vec());
         for model in query.get().await? {
-            if let Some(key) = dictionary_key(model.getKey())? {
+            if let Some(key) = dictionary_key(model.get_key())? {
                 let attributes = aliases
                     .iter()
                     .map(|alias| {
                         let value = model
-                            .getAttribute(alias)
+                            .get_attribute(alias)
                             .ok_or(DatabaseError::InvalidQuery("missing aggregate projection"))?;
                         Ok((alias.clone(), value.clone()))
                     })
@@ -1662,7 +1659,7 @@ fn collection_connection<'a, M: Model>(
     };
     let connection = match &first.state().connection {
         Some(connection) => connection.clone(),
-        None => DB::connection(M::metadata().connection)?,
+        None => Db::connection(M::metadata().connection)?,
     };
     for model in models {
         if let Some(source) = &model.state().connection
@@ -1691,7 +1688,7 @@ fn model_dictionary<T>(
 
 impl<M: Model> From<Collection<M>> for BaseCollection<M> {
     fn from(models: Collection<M>) -> Self {
-        models.toBase()
+        models.to_base()
     }
 }
 

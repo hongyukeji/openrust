@@ -60,7 +60,7 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 输出按进程加上标签，保留各自的 stdout 和 stderr。`--timestamps` 给内联输出加 UTC 时间。`--json` 每行输出一条带版本号的事件，包括进程启动、输出、退出、重试和最后的 `done`。
 
-运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disableAutoRestart()` 关闭。用 `DevCommands::withTimestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
+运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disableAutoRestart()` 关闭。用 `DevCommands::with_timestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
 
 Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进入合并视图。重定向输出、尺寸不足的终端、Windows、`--inline` 和 `--json` 走内联输出路径。交互会话正常退出时返回 0，内联和 JSON 模式则报告第一个永久失败的退出码。
 
@@ -129,7 +129,7 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 }
 ```
 
-每个位置参数或选项单独传一个 `OsString`。含空格的值放在同一个参数中。布尔开关为真时传入开关选项，多值选项可重复传入。用 `Artisan::callSilently(name, arguments).await` 丢弃两个输出流并保留退出码。
+每个位置参数或选项单独传一个 `OsString`。含空格的值放在同一个参数中。布尔开关为真时传入开关选项，多值选项可重复传入。用 `Artisan::call_silently(name, arguments).await` 丢弃两个输出流并保留退出码。
 
 ### 将 Artisan 命令加入队列 {#queueing-artisan-commands}
 

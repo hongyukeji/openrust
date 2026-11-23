@@ -19,7 +19,6 @@ pub struct SchemaSession {
     mysql_case_insensitive: Option<bool>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SchemaSession {
     pub(super) async fn new(connection: Connection) -> DatabaseResult<Self> {
         let physical = connection.acquire(false).await?;
@@ -38,7 +37,7 @@ impl SchemaSession {
 
     pub(super) fn temporary_index(&self, table: &Table) -> Option<usize> {
         let sqlite = self.connection.is_sqlite();
-        let database = self.connection.getDatabaseName();
+        let database = self.connection.get_database_name();
         self.temporary_tables.iter().position(|(existing, _)| {
             if sqlite {
                 table
@@ -150,7 +149,7 @@ impl SchemaSession {
         }
     }
 
-    pub fn getSchemaBuilder(&mut self) -> Builder<'_> {
+    pub fn get_schema_builder(&mut self) -> Builder<'_> {
         Builder::session_builder(self)
     }
 
@@ -158,7 +157,8 @@ impl SchemaSession {
         &mut self,
         table: &TableInfo,
     ) -> DatabaseResult<()> {
-        if !self.connection.grammar.is_mysql() || table.schema != self.connection.getDatabaseName()
+        if !self.connection.grammar.is_mysql()
+            || table.schema != self.connection.get_database_name()
         {
             return Err(DatabaseError::InvalidSchema(
                 "expected a table in the current MySQL schema",
@@ -178,11 +178,11 @@ impl SchemaSession {
         Ok(())
     }
 
-    pub async fn enableForeignKeyConstraints(&mut self) -> DatabaseResult<bool> {
+    pub async fn enable_foreign_key_constraints(&mut self) -> DatabaseResult<bool> {
         self.set_foreign_keys(true).await
     }
 
-    pub async fn disableForeignKeyConstraints(&mut self) -> DatabaseResult<bool> {
+    pub async fn disable_foreign_key_constraints(&mut self) -> DatabaseResult<bool> {
         self.set_foreign_keys(false).await
     }
 
@@ -255,7 +255,7 @@ impl SchemaSession {
     ) -> DatabaseResult<Instant> {
         let start = Instant::now();
         self.physical()?.affecting_statement(sql, bindings).await?;
-        self.connection.setRecordModificationState(true);
+        self.connection.set_record_modification_state(true);
         Ok(start)
     }
 
@@ -264,7 +264,7 @@ impl SchemaSession {
         self.before_query(sql, bindings).await?;
         let start = Instant::now();
         self.physical()?.unprepared(sql).await?;
-        self.connection.setRecordModificationState(true);
+        self.connection.set_record_modification_state(true);
         self.after_query(sql, bindings, start).await
     }
 

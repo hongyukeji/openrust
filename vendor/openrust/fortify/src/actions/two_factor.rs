@@ -74,7 +74,7 @@ impl EnableTwoFactorAuthentication {
         let encrypted_codes = encrypter
             .encrypt(codes.as_bytes(), true)
             .map_err(internal)?;
-        user.forceFill(
+        user.force_fill(
             [
                 ("two_factor_secret".into(), encrypted_secret.into()),
                 ("two_factor_recovery_codes".into(), encrypted_codes.into()),
@@ -134,10 +134,10 @@ impl ConfirmTwoFactorAuthentication {
         }
         let date = now(None)
             .map_err(internal)?
-            .asDateTime()
-            .strftime(user.getDateFormat())
+            .as_date_time()
+            .strftime(user.get_date_format())
             .to_string();
-        user.forceFill([("two_factor_confirmed_at".into(), date.into())].into())
+        user.force_fill([("two_factor_confirmed_at".into(), date.into())].into())
             .map_err(internal)?
             .save()
             .await
@@ -157,7 +157,7 @@ impl DisableTwoFactorAuthentication {
     }
     pub async fn call<T: TwoFactorAuthenticatable>(&self, user: &mut T) -> Result<(), HttpError> {
         let confirmed = user
-            .getAttributeValue("two_factor_confirmed_at")
+            .get_attribute_value("two_factor_confirmed_at")
             .map_err(internal)?
             .is_some_and(|v| v != Value::Null);
         if text(user, "two_factor_secret").map_err(internal)?.is_none()
@@ -182,7 +182,7 @@ impl DisableTwoFactorAuthentication {
         {
             attributes.insert("two_factor_confirmed_at".into(), Value::Null);
         }
-        user.forceFill(attributes)
+        user.force_fill(attributes)
             .map_err(internal)?
             .save()
             .await
@@ -203,7 +203,7 @@ impl GenerateNewRecoveryCodes {
     pub async fn call<T: TwoFactorAuthenticatable>(&self, user: &mut T) -> Result<(), HttpError> {
         let encrypter = self.fortify.currentEncrypter().map_err(internal)?;
         let codes = Zeroizing::new(recovery_codes(&self.fortify));
-        user.forceFill(
+        user.force_fill(
             [(
                 "two_factor_recovery_codes".into(),
                 encrypter

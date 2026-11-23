@@ -20,7 +20,6 @@ pub struct ConcurrencyLimiterBuilder {
     interval: Duration,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ConcurrencyLimiterBuilder {
     pub(in crate::cache) fn new(store: Arc<dyn Store>, name: String) -> Self {
         Self {
@@ -40,7 +39,7 @@ impl ConcurrencyLimiterBuilder {
     }
 
     /// Sets the slot lease in seconds.
-    pub fn releaseAfter(mut self, seconds: u64) -> Self {
+    pub fn release_after(mut self, seconds: u64) -> Self {
         self.lease = Duration::from_secs(seconds);
         self
     }
@@ -67,7 +66,7 @@ impl ConcurrencyLimiterBuilder {
     }
 
     /// Runs the fallback when the wait for a slot expires.
-    pub async fn thenWith<T, F, G>(
+    pub async fn then_with<T, F, G>(
         self,
         callback: impl FnOnce() -> F,
         fallback: impl FnOnce(CacheError) -> G,

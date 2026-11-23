@@ -8,22 +8,22 @@
 
 ## 轉換與編碼 {#manipulating-images}
 
-轉換依新增順序執行。`resize` 接收選用的寬與高。`scale` 保留長寬比且不會放大。`cover` 裁切並填滿目標尺寸，`contain` 保留整張影像並填補空白。也支援裁切、EXIF 方向、旋轉、模糊、灰階、銳化和翻轉。以複製分出處理鏈，透過 `toBytes().await?`、`toBase64().await?` 或 `toDataUri().await?` 取得結果。
+轉換依新增順序執行。`resize` 接收選用的寬與高。`scale` 保留長寬比且不會放大。`cover` 裁切並填滿目標尺寸，`contain` 保留整張影像並填補空白。也支援裁切、EXIF 方向、旋轉、模糊、灰階、銳化和翻轉。以複製分出處理鏈，透過 `toBytes().await?`、`to_base64().await?` 或 `toDataUri().await?` 取得結果。
 
 `flip()` 垂直翻轉，`flop()` 水平翻轉。`resize(width, height)` 和 `scale(width, height)` 回傳 `Result<Image>`，兩個尺寸都缺失時立即報錯；傳入的零尺寸歸一為 1。模糊和銳化強度在交給驅動處理器之前限制為最大 100。
 
-成功載入的來源在分支之間共用。修改已渲染的圖像時以處理後的位元組為起點，不重複此前的變換。`hash_name("").await?` 回傳該圖像穩定的檔案名稱，`store` 重用此名稱；`hash_name("avatars").await?` 加入路徑前綴。`toString().await?` 回傳資料 URI。路由處理器可直接回傳 `Image` 或 `Result<Image, HttpError>`，回應包含圖像位元組及對應 MIME 類型。
+成功載入的來源在分支之間共用。修改已渲染的圖像時以處理後的位元組為起點，不重複此前的變換。`hash_name("").await?` 回傳該圖像穩定的檔案名稱，`store` 重用此名稱；`hash_name("avatars").await?` 加入路徑前綴。`to_string().await?` 回傳資料 URI。路由處理器可直接回傳 `Image` 或 `Result<Image, HttpError>`，回應包含圖像位元組及對應 MIME 類型。
 
 ```rust
 use openrust::image::{ImageManager, Limits};
 
 let manager = ImageManager::new(Limits::default());
-let source = manager.fromBase64(
+let source = manager.from_base64(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
 );
 let thumbnail = source.cover(4, 4).toWebp();
 assert_eq!(thumbnail.dimensions().await?, (4, 4));
-assert_eq!(thumbnail.mimeType().await?, "image/webp");
+assert_eq!(thumbnail.mime_type().await?, "image/webp");
 ```
 
 ## 動畫影像 {#animated-images}
@@ -48,7 +48,7 @@ AVIF 與 HEIC 序列的變換和相互轉換保留每個顯示畫格各自的 IC
 
 ## 檢查影像 {#inspecting-images}
 
-用 `mimeType`、`extension`、`dimensions`、`width` 和 `height` 檢查處理後的結果。`dominantColor` 回傳依透明度加權的 RGB 平均色，格式為十六進位。
+用 `mime_type`、`extension`、`dimensions`、`width` 和 `height` 檢查處理後的結果。`dominantColor` 回傳依透明度加權的 RGB 平均色，格式為十六進位。
 
 ## 影像驅動 {#image-drivers}
 
@@ -56,13 +56,13 @@ AVIF 與 HEIC 序列的變換和相互轉換保留每個顯示畫格各自的 IC
 
 內建驅動可讀寫 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 與 BMP。可使用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 轉換格式。`heif` 別名輸出副檔名為 `.heic`、MIME 類型為 `image/heic` 的檔案。JPEG、WebP、AVIF、HEIC 與 JPEG XL 套用指定品質。WebP 和 JPEG XL 在品質為 100 時採用無損編碼。編解碼皆在 Rust 中執行。
 
-用 `Image::extend("custom", creator)` 登記自訂驅動；回呼回傳 `Result<Arc<dyn Driver>>`。建立器在首次呼叫 `driver` 時執行，接收管理器，可透過 `getContainer()` 解析應用程式服務。替換建立器不會替換已快取驅動；`forgetDrivers()` 清除驅動實例，保留建立器與轉換處理器。`setContainer(container)` 改變後續建立器及尚未載入的儲存、URL 來源所用的容器，保留原設定儲存庫與已解析驅動。應用程式須繼續持有容器；獨立管理器的 `getContainer()` 回傳 `None`。
+用 `Image::extend("custom", creator)` 登記自訂驅動；回呼回傳 `Result<Arc<dyn Driver>>`。建立器在首次呼叫 `driver` 時執行，接收管理器，可透過 `get_container()` 解析應用程式服務。替換建立器不會替換已快取驅動；`forget_drivers()` 清除驅動實例，保留建立器與轉換處理器。`setContainer(container)` 改變後續建立器及尚未載入的儲存、URL 來源所用的容器，保留原設定儲存庫與已解析驅動。應用程式須繼續持有容器；獨立管理器的 `get_container()` 回傳 `None`。
 
 後端需要檢查依賴時，在 `Driver` trait 中實作 `ensureRequirementsAreMet`，預設實作直接成功。管理器在建立之後、登記轉換處理器與快取之前呼叫；失敗會傳回錯誤且不快取該驅動，後續解析可重試。
 
 ### 自訂轉換處理器 {#custom-transformation-handlers}
 
-用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法為指定驅動註冊處理器。也可先註冊處理器，再透過 `extend` 註冊應用驅動；管理器的 `extend` 回傳 `Result`。驅動契約提供 `transformUsing` 和 `dimensions`；不支援擴充處理器的驅動回傳 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`get_default_driver()` 和 `getDrivers()` 提供目前設定驅動與已註冊實例。
+用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法為指定驅動註冊處理器。也可先註冊處理器，再透過 `extend` 註冊應用驅動；管理器的 `extend` 回傳 `Result`。驅動契約提供 `transformUsing` 和 `dimensions`；不支援擴充處理器的驅動回傳 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`get_default_driver()` 和 `get_drivers()` 提供目前設定驅動與已註冊實例。
 
 ```rust
 use std::sync::Arc;

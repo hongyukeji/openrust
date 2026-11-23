@@ -19,7 +19,7 @@ Stripe API 固定為 `2026-11-18.endive`；Webhook 使用相同版本。正式�
 
 套件載入 `cashier.default`、Stripe 的 `cashier.key`／`cashier.secret`／`cashier.webhook.secret`，以及 Paddle 的 `cashier.paddle.api_key`／`cashier.paddle.webhook_secret`／`cashier.paddle.sandbox`。同一 Rust crate 使用 Paddle 設定命名空間區分兩個上游套件。`cashier.drivers` 儲存明確具名帳戶，同名帳戶優先於供應商原生設定。應用設定載入器可回傳 `cashier` 群組覆寫預設值；應用設定優先，`drivers` 整組替換。具名帳戶需明確填寫 `driver`、`secret`、`webhook_secret`、`live`。`webhook_secrets` 陣列支援金鑰輪替。每個名稱代表穩定的商戶帳戶與模式；不要把已使用的名稱重新分配給其他商戶或從測試切換到正式模式，改用獨立資料庫或新帳戶名稱。
 
-`Cashier::driver("stripe")`、`Cashier::defaultDriver()` 在應用作用域解析帳戶。`CashierManager::get_default_driver()` 回傳設定名稱；`forgetDrivers()` 後新解析實例載入新設定，已持有實例保留原憑證快照。啟用設定快取時保留快取快照；變更環境後需按[設定文件](../getting-started/configuration.md)重建快取。
+`Cashier::driver("stripe")`、`Cashier::defaultDriver()` 在應用作用域解析帳戶。`CashierManager::get_default_driver()` 回傳設定名稱；`forget_drivers()` 後新解析實例載入新設定，已持有實例保留原憑證快照。啟用設定快取時保留快取快照；變更環境後需按[設定文件](../getting-started/configuration.md)重建快取。
 
 ## 客戶與 Checkout {#customers-and-checkout}
 

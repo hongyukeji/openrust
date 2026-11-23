@@ -54,7 +54,7 @@ impl<T: DeserializeOwned + Send + Sync + 'static> Context<T> {
 
     fn read(&self, repository: &Repository) -> Result<AttributeValue> {
         let value = if self.hidden {
-            repository.getHidden(&self.key)
+            repository.get_hidden(&self.key)
         } else {
             repository.get(&self.key)
         };

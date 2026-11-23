@@ -10,10 +10,9 @@ define_hasher!(
     "Hashes passwords using Argon2i."
 );
 
-#[allow(non_snake_case)]
 impl ArgonHasher {
     /// 修改默认参数，执行时继续检查有效性及资源上限。
-    pub fn setMemory(&mut self, value: u32) -> &mut Self {
+    pub fn set_memory(&mut self, value: u32) -> &mut Self {
         let Settings::Argon(config, _) = &mut self.0.settings else {
             unreachable!("Argon 驱动配置类型不匹配")
         };
@@ -21,7 +20,7 @@ impl ArgonHasher {
         self
     }
     /// 修改默认参数，执行时继续检查有效性及资源上限。
-    pub fn setTime(&mut self, value: u32) -> &mut Self {
+    pub fn set_time(&mut self, value: u32) -> &mut Self {
         let Settings::Argon(config, _) = &mut self.0.settings else {
             unreachable!("Argon 驱动配置类型不匹配")
         };
@@ -29,7 +28,7 @@ impl ArgonHasher {
         self
     }
     /// 修改默认参数，执行时继续检查有效性及资源上限。
-    pub fn setThreads(&mut self, value: u32) -> &mut Self {
+    pub fn set_threads(&mut self, value: u32) -> &mut Self {
         let Settings::Argon(config, _) = &mut self.0.settings else {
             unreachable!("Argon 驱动配置类型不匹配")
         };

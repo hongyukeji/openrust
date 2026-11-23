@@ -112,7 +112,7 @@ fn model_from_request(request: &mut Request) -> HttpFuture<'_, DatabaseResult<Ro
         } else {
             999
         };
-        RouteRecord::findOrFail(id).await
+        RouteRecord::find_or_fail(id).await
     })
 }
 
@@ -121,16 +121,16 @@ async fn routes_return_models_and_collections_as_json_over_http() {
     let mut app = Application::configure(std::env::temp_dir())
         .with_config(model_config)
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
+            exceptions.should_render_json_when(|request, _| request.expects_json());
         })
         .with_routing(Routing::default().web(|| {
-            Route::get("/model", || RouteRecord::findOrFail(1))?;
+            Route::get("/model", || RouteRecord::find_or_fail(1))?;
             Route::get("/models", RouteRecord::all)?;
             Route::get("/borrowed", model_from_request)?;
-            Route::get("/missing-model", || RouteRecord::findOrFail(999))?;
+            Route::get("/missing-model", || RouteRecord::find_or_fail(999))?;
             Route::get("/invalid-model", || {
                 let mut record = RouteRecord::new_instance(Attributes::new()).unwrap();
-                record.setAttribute("bad", DbValue::Bytes(vec![0xff]));
+                record.set_attribute("bad", DbValue::Bytes(vec![0xff]));
                 record
             })?;
             Route::post("/model", || {
@@ -188,7 +188,7 @@ async fn routes_return_models_and_collections_as_json_over_http() {
 async fn opt_in_json_responses_use_semantic_status_and_default_exception_handling() {
     let application = Application::configure(std::env::temp_dir())
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|request, _| request.expects_json());
+            exceptions.should_render_json_when(|request, _| request.expects_json());
         })
         .with_routing(Routing::default().health("/up").web(|| {
             Route::get("/created", || {
@@ -211,10 +211,10 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
                 ApiResponse::empty().with_status(StatusCode::NO_CONTENT)
             })?;
             Route::get("/collection/keyed", || {
-                ApiResponse::success(Collection::fromEntries([(2, 10), (4, 20)]))
+                ApiResponse::success(Collection::from_entries([(2, 10), (4, 20)]))
             })?;
             Route::get("/collection/values", || {
-                ApiResponse::success(Collection::fromEntries([(2, 10), (4, 20)]).values())
+                ApiResponse::success(Collection::from_entries([(2, 10), (4, 20)]).values())
             })?;
             Route::get("/collection/nonfinite", || {
                 ApiResponse::success(Collection::make([f64::INFINITY]))

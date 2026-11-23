@@ -40,7 +40,7 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 }
 ```
 
-For a mail notification, return `MailDelivery::Message` from `to_mail` and supply addresses via `NotificationRoute::Mail`. `MailDelivery::Mailable` sends a complete mailable with its own recipients. `sendNow` accepts an optional channel list. Locale precedence is notification, sender, recipient, then the application locale.
+For a mail notification, return `MailDelivery::Message` from `to_mail` and supply addresses via `NotificationRoute::Mail`. `MailDelivery::Mailable` sends a complete mailable with its own recipients. `send_now` accepts an optional channel list. Locale precedence is notification, sender, recipient, then the application locale.
 
 Listeners can stop delivery through `NotificationSending`. The dispatcher also emits `NotificationSent`, `NotificationSkipped` and `NotificationFailed`.
 
@@ -132,7 +132,7 @@ let message = MailMessage::new()
     ));
 ```
 
-The example uses an application customizer registered as `invoice.trace`. For an `Attachable` object, pass the result of its `toMailAttachment()` method to `attach`.
+The example uses an application customizer registered as `invoice.trace`. For an `Attachable` object, pass the result of its `to_mail_attachment()` method to `attach`.
 
 ### Previewing mail notifications {#previewing-mail-notifications}
 

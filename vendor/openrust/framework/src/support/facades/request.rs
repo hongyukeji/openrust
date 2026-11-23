@@ -837,7 +837,7 @@ impl Request {
     ) -> Result<bool, HttpError> {
         Self::instance()?
             .with(|request| {
-                super::URL::has_valid_signature(
+                super::Url::has_valid_signature(
                     request,
                     if absolute {
                         crate::routing::SignatureMode::Absolute

@@ -126,7 +126,7 @@ mod acceptance {
     struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
         #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        fn uniqueJob(&self, payload: &Payload) -> Option<UniqueJob> {
+        fn unique_job(&self, payload: &Payload) -> Option<UniqueJob> {
             let kind = payload.data().as_str()?;
             kind.starts_with("unique-").then(|| UniqueJob {
                 id: kind.into(),
@@ -291,7 +291,7 @@ mod acceptance {
         }
 
         #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-        fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
+        fn retry_until(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
             match payload.data().as_str() {
                 Some("deadline-refresh") => Ok(Some(SystemTime::now() + Duration::from_secs(60))),
                 Some("deadline-clear") => Ok(None),
@@ -905,7 +905,7 @@ mod acceptance {
             .with_routing(Routing::new(routes))
             .with_commands(register_schedule)
             .with_exceptions(move |exceptions| {
-                exceptions.dontRetry::<HardPolicyError>();
+                exceptions.dont_retry::<HardPolicyError>();
                 exceptions.report(move |error: &std::io::Error| {
                     if error.to_string() == "failure callback error" {
                         std::fs::write(report_root.join("callback-error.reported"), []).unwrap();
@@ -990,10 +990,10 @@ mod acceptance {
             }
         };
         let busy = root.join("busy.json");
-        let target = format!("{}:clear-one,clear-two", queue.getConnectionName());
+        let target = format!("{}:clear-one,clear-two", queue.get_connection_name());
         let output = monitor(&[&target, "--max=4", "--json"]).await;
         let rows: Vec<Value> = serde_json::from_str(&output).unwrap();
-        assert_eq!(rows[0]["connection"], queue.getConnectionName());
+        assert_eq!(rows[0]["connection"], queue.get_connection_name());
         assert_eq!(rows[0]["queue"], "clear-one");
         assert_eq!(rows[0]["size"], 3);
         assert_eq!(rows[0]["pending"], 1);
@@ -1011,7 +1011,7 @@ mod acceptance {
         let event: Value = serde_json::from_slice(&std::fs::read(&busy).unwrap()).unwrap();
         assert_eq!(
             event,
-            json!({"connection_name": queue.getConnectionName(), "queue": "clear-one", "size": 3})
+            json!({"connection_name": queue.get_connection_name(), "queue": "clear-one", "size": 3})
         );
         std::fs::remove_file(&busy).unwrap();
 
@@ -1112,7 +1112,7 @@ mod acceptance {
         assert_eq!(queue.size(Some("clear-one")).await.unwrap(), 3);
         assert_eq!(queue.size(Some("clear-two")).await.unwrap(), 1);
 
-        let connection = queue.getConnectionName();
+        let connection = queue.get_connection_name();
         let args = [connection, selection[0], "--force"];
         let (code, _, error) = clear(&args, true, true).await;
         assert_eq!(code, Some(1), "{error}");
@@ -1657,9 +1657,10 @@ mod acceptance {
             assert_eq!(record.payload.data().as_str(), Some(kind));
             assert_eq!(record.exception, "queue job execution failed");
             let marker = std::fs::read_to_string(root.join(format!("{kind}.failed"))).unwrap();
-            assert!(
-                marker.starts_with(&format!("{}:callback-probe:1:", queue.getConnectionName()))
-            );
+            assert!(marker.starts_with(&format!(
+                "{}:callback-probe:1:",
+                queue.get_connection_name()
+            )));
             let event = std::fs::read_to_string(root.join(format!("{kind}.event"))).unwrap();
             assert!(event.contains("original probe error"), "{event}");
         }
@@ -1781,7 +1782,7 @@ mod acceptance {
             provider
                 .log(&FailedJob {
                     id: id.into(),
-                    connection: queue.getConnectionName().into(),
+                    connection: queue.get_connection_name().into(),
                     queue: name.into(),
                     payload,
                     exception: "original failure".into(),
@@ -1855,7 +1856,7 @@ mod acceptance {
         );
         assert!(provider.ids(None).await.unwrap().is_empty());
 
-        if queue.getConnectionName() == "database" {
+        if queue.get_connection_name() == "database" {
             let payload = Payload::new("hard-timeout-probe", "race").unwrap();
             provider
                 .log(&FailedJob {
@@ -1907,7 +1908,7 @@ mod acceptance {
             provider
                 .log(&FailedJob {
                     id: kind.into(),
-                    connection: queue.getConnectionName().into(),
+                    connection: queue.get_connection_name().into(),
                     queue: kind.into(),
                     payload,
                     exception: "original failure".into(),
@@ -2780,7 +2781,10 @@ mod acceptance {
         assert!(root.join("external-chain-head.pid").is_file());
         assert!(!root.join("external-chain-tail.pid").exists());
         let queue = manager.connection(Some(driver)).unwrap();
-        assert_eq!(queue.delayedSize(Some(destination)).await.unwrap(), Some(1));
+        assert_eq!(
+            queue.delayed_size(Some(destination)).await.unwrap(),
+            Some(1)
+        );
         assert!(queue.pop_now(Some(destination)).await.unwrap().is_none());
         let queue_arg = format!("--queue={destination}");
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -2857,12 +2861,12 @@ mod acceptance {
             .later(Delay::For(Duration::from_secs(1)), &payload, None)
             .await
             .unwrap();
-        assert_eq!(queue.delayedSize(None).await.unwrap(), Some(1));
+        assert_eq!(queue.delayed_size(None).await.unwrap(), Some(1));
         assert!(queue.pop_now(None).await.unwrap().is_none());
         tokio::time::sleep(Duration::from_millis(1100)).await;
         let mut first = queue.pop_now(None).await.unwrap().unwrap();
         assert_eq!(first.attempts(), 1);
-        assert_eq!(first.getQueue(), standard);
+        assert_eq!(first.get_queue(), standard);
         assert!(queue.pop_now(None).await.unwrap().is_none());
         first.release(Duration::ZERO).await.unwrap();
         let second = queue.pop_now(None).await.unwrap().unwrap();
@@ -3002,7 +3006,7 @@ mod acceptance {
             )
             .await
             .unwrap();
-        assert_eq!(queue.delayedSize(Some(&tube)).await.unwrap(), Some(1));
+        assert_eq!(queue.delayed_size(Some(&tube)).await.unwrap(), Some(1));
         assert!(queue.pop_now(Some(&tube)).await.unwrap().is_none());
         tokio::time::sleep(Duration::from_millis(1100)).await;
         let mut first = queue.pop_now(Some(&tube)).await.unwrap().unwrap();
@@ -3027,7 +3031,7 @@ mod acceptance {
         });
         let published = published.unwrap().unwrap();
         let mut reserved = reserved.unwrap().unwrap();
-        assert_eq!(reserved.getJobId(), published);
+        assert_eq!(reserved.get_job_id(), published);
         reserved.delete().await.unwrap();
 
         let pending = Payload::new("hard-timeout-probe", "beanstalk-probe").unwrap();
@@ -3057,7 +3061,7 @@ mod acceptance {
                 .0,
             Some(0)
         );
-        assert_eq!(queue.pendingSize(Some(&tube)).await.unwrap(), Some(1));
+        assert_eq!(queue.pending_size(Some(&tube)).await.unwrap(), Some(1));
         assert_eq!(
             artisan(root, &["beanstalkd", &argument, "--once"], false)
                 .await
@@ -3083,19 +3087,19 @@ mod acceptance {
             .unwrap()
             .connection(None)
             .unwrap();
-        let mut schema = db.getSchemaBuilder();
+        let mut schema = db.get_schema_builder();
         for table in ["jobs", "failed_jobs"] {
-            schema.dropIfExists(table).await.unwrap();
+            schema.drop_if_exists(table).await.unwrap();
         }
         schema
             .create("jobs", |table| {
                 table.id();
                 table.string("queue", 255).index();
                 table.longText("payload");
-                table.unsignedInteger("attempts");
-                table.unsignedBigInteger("reserved_at").nullable();
-                table.unsignedBigInteger("available_at");
-                table.unsignedBigInteger("created_at");
+                table.unsigned_integer("attempts");
+                table.unsigned_big_integer("reserved_at").nullable();
+                table.unsigned_big_integer("available_at");
+                table.unsigned_big_integer("created_at");
             })
             .await
             .unwrap();
@@ -3321,7 +3325,7 @@ mod acceptance {
         }
         verify_runtime(backend, &root.0, &db, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
-            schema.dropIfExists(table).await.unwrap();
+            schema.drop_if_exists(table).await.unwrap();
         }
         println!("queue hard timeout process acceptance passed on {backend}");
     }

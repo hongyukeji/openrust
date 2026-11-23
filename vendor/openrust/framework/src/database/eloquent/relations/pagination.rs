@@ -10,7 +10,7 @@ pub(super) fn empty_length<T>(
     mut options: PageOptions<'_>,
 ) -> DatabaseResult<LengthAwarePaginator<T>> {
     let total = options.resolve_total()?.unwrap_or(0);
-    options.perPage = options.resolve_per_page(total)?;
+    options.per_page = options.resolve_per_page(total)?;
     let (links, page, size) = empty_offset(&options)?;
     Ok(LengthAwarePaginator::from_query(
         Vec::new(),
@@ -27,8 +27,8 @@ pub(super) fn empty_simple<T>(options: PageOptions<'_>) -> DatabaseResult<Pagina
 }
 
 pub(super) fn empty_cursor<T>(options: CursorOptions<'_>) -> DatabaseResult<CursorPaginator<T>> {
-    let size = page_size(options.perPage)?;
-    let links = Links::current(options.cursorName);
+    let size = page_size(options.per_page)?;
+    let links = Links::current(options.cursor_name);
     let cursor = links.current_cursor(options.cursor);
     Ok(CursorPaginator::from_ordered(
         Vec::new(),
@@ -40,9 +40,9 @@ pub(super) fn empty_cursor<T>(options: CursorOptions<'_>) -> DatabaseResult<Curs
 }
 
 fn empty_offset(options: &PageOptions<'_>) -> DatabaseResult<(Links, u64, u64)> {
-    let links = Links::current(options.pageName);
+    let links = Links::current(options.page_name);
     let page = links.current_page(options.page);
-    let size = page_size(options.perPage)?;
+    let size = page_size(options.per_page)?;
     page_offset(page, size)?;
     Ok((links, page, size))
 }
@@ -54,83 +54,83 @@ macro_rules! relation_pages {
             parent: &P,
             per_page: u64,
         ) -> DatabaseResult<crate::pagination::LengthAwarePaginator<R>> {
-            self.paginateWith(
+            self.paginate_with(
                 parent,
                 crate::pagination::PageOptions {
-                    perPage: Some(per_page),
+                    per_page: Some(per_page),
                     ..Default::default()
                 },
             )
             .await
         }
 
-        pub async fn paginateWith(
+        pub async fn paginate_with(
             &self,
             parent: &P,
             options: crate::pagination::PageOptions<'_>,
         ) -> DatabaseResult<crate::pagination::LengthAwarePaginator<R>> {
             match self.pagination_target(parent)? {
-                Some(query) => query.paginateWith(options).await,
+                Some(query) => query.paginate_with(options).await,
                 None => super::pagination::empty_length(crate::pagination::PageOptions {
-                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    per_page: options.per_page.or(Some(R::metadata().per_page)),
                     ..options
                 }),
             }
         }
 
-        pub async fn simplePaginate(
+        pub async fn simple_paginate(
             &self,
             parent: &P,
             per_page: u64,
         ) -> DatabaseResult<crate::pagination::Paginator<R>> {
-            self.simplePaginateWith(
+            self.simple_paginate_with(
                 parent,
                 crate::pagination::PageOptions {
-                    perPage: Some(per_page),
+                    per_page: Some(per_page),
                     ..Default::default()
                 },
             )
             .await
         }
 
-        pub async fn simplePaginateWith(
+        pub async fn simple_paginate_with(
             &self,
             parent: &P,
             options: crate::pagination::PageOptions<'_>,
         ) -> DatabaseResult<crate::pagination::Paginator<R>> {
             match self.pagination_target(parent)? {
-                Some(query) => query.simplePaginateWith(options).await,
+                Some(query) => query.simple_paginate_with(options).await,
                 None => super::pagination::empty_simple(crate::pagination::PageOptions {
-                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    per_page: options.per_page.or(Some(R::metadata().per_page)),
                     ..options
                 }),
             }
         }
 
-        pub async fn cursorPaginate(
+        pub async fn cursor_paginate(
             &self,
             parent: &P,
             per_page: u64,
         ) -> DatabaseResult<crate::pagination::CursorPaginator<R>> {
-            self.cursorPaginateWith(
+            self.cursor_paginate_with(
                 parent,
                 crate::pagination::CursorOptions {
-                    perPage: Some(per_page),
+                    per_page: Some(per_page),
                     ..Default::default()
                 },
             )
             .await
         }
 
-        pub async fn cursorPaginateWith(
+        pub async fn cursor_paginate_with(
             &self,
             parent: &P,
             options: crate::pagination::CursorOptions<'_>,
         ) -> DatabaseResult<crate::pagination::CursorPaginator<R>> {
             match self.pagination_target(parent)? {
-                Some(query) => query.cursorPaginateWith(options).await,
+                Some(query) => query.cursor_paginate_with(options).await,
                 None => super::pagination::empty_cursor(crate::pagination::CursorOptions {
-                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    per_page: options.per_page.or(Some(R::metadata().per_page)),
                     ..options
                 }),
             }

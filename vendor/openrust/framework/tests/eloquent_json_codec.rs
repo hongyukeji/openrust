@@ -20,9 +20,8 @@ use serde_json::{Value as Document, json};
 struct Record(ModelState);
 struct Status;
 
-#[allow(non_snake_case, reason = "Implements the Eloquent enum contract")]
 impl CastableEnum for Status {
-    fn fromValue(value: &Value) -> DatabaseResult<Self> {
+    fn from_value(value: &Value) -> DatabaseResult<Self> {
         if value == &Value::Text("active".into()) {
             Ok(Self)
         } else {
@@ -30,7 +29,7 @@ impl CastableEnum for Status {
         }
     }
 
-    fn intoValue(self) -> Value {
+    fn into_value(self) -> Value {
         Value::Text("active".into())
     }
 }
@@ -94,13 +93,13 @@ async fn application(config: &Document, marker: Option<&'static str>) -> (Applic
         .unwrap();
     if let Some(marker) = marker {
         let codec = Json::default()
-            .encodeUsing(move |value| {
+            .encode_using(move |value| {
                 if value == "reject" {
                     return Err(DatabaseError::InvalidQuery("codec rejected value"));
                 }
                 Json::default().encode(&json!({"format":marker, "document":value}))
             })
-            .decodeUsing(move |text| {
+            .decode_using(move |text| {
                 let mut value = Json::default().decode(text)?;
                 if value["format"] != marker {
                     return Err(DatabaseError::InvalidQuery("codec format mismatch"));
@@ -148,22 +147,22 @@ async fn verify(config: Document, native_type: &str) {
         ])
     };
     let (one, two, three) = tokio::join!(
-        Record::queryOn(&first).create(contents(1)),
-        Record::queryOn(&second).create(contents(2)),
-        Record::queryOn(&default).create(contents(3)),
+        Record::query_on(&first).create(contents(1)),
+        Record::query_on(&second).create(contents(2)),
+        Record::query_on(&default).create(contents(3)),
     );
     assert!(one.is_ok() && two.is_ok() && three.is_ok());
     let (one, two, three) = tokio::join!(
-        Record::queryOn(&first).findOrFail(1),
-        Record::queryOn(&second).findOrFail(2),
-        Record::queryOn(&default).findOrFail(3),
+        Record::query_on(&first).find_or_fail(1),
+        Record::query_on(&second).find_or_fail(2),
+        Record::query_on(&default).find_or_fail(3),
     );
     let mut one = one.unwrap();
     let two = two.unwrap();
     let three = three.unwrap();
     let expected = json!({"name":"record","count":1});
     for (record, marker) in [(&one, "first"), (&two, "second")] {
-        let raw = record.getRawOriginal("payload").unwrap();
+        let raw = record.get_raw_original("payload").unwrap();
         let Value::Text(text) = raw else {
             panic!("expected stored text")
         };
@@ -174,39 +173,39 @@ async fn verify(config: Document, native_type: &str) {
         assert_eq!(data["secret"], json!(["redacted"]));
     }
     assert_eq!(three.to_array().unwrap()["payload"], expected);
-    let foreign = Record::queryOn(&second).findOrFail(1).await.unwrap();
+    let foreign = Record::query_on(&second).find_or_fail(1).await.unwrap();
     assert!(foreign.to_array().is_err());
-    assert!(foreign.getEncryptedCollection("secret").is_err());
+    assert!(foreign.get_encrypted_collection("secret").is_err());
     assert!(
-        one.getEnumCollection::<Status>("states")
+        one.get_enum_collection::<Status>("states")
             .unwrap()
             .unwrap()
             .has("ready")
     );
     assert_eq!(
-        one.getJsonCollection("items")
+        one.get_json_collection("items")
             .unwrap()
             .unwrap()
             .to_array()
             .unwrap(),
         json!({"team":"ops"})
     );
-    assert!(one.getValueObject::<Fluent>("options").unwrap().is_some());
+    assert!(one.get_value_object::<Fluent>("options").unwrap().is_some());
 
-    let before = one.state().getAttributes().clone();
-    assert!(one.setAttributeValue("payload", "reject").is_err());
-    assert!(one.setAttributeValue("secret", "reject").is_err());
-    assert_eq!(one.state().getAttributes(), &before);
-    one.fillJsonAttribute("payload->count", 2).unwrap();
-    one.fillJsonAttribute("secret->0", "updated").unwrap();
-    one.setJsonCollection("items", Collection::fromValue(json!(["next"])))
+    let before = one.state().get_attributes().clone();
+    assert!(one.set_attribute_value("payload", "reject").is_err());
+    assert!(one.set_attribute_value("secret", "reject").is_err());
+    assert_eq!(one.state().get_attributes(), &before);
+    one.fill_json_attribute("payload->count", 2).unwrap();
+    one.fill_json_attribute("secret->0", "updated").unwrap();
+    one.set_json_collection("items", Collection::from_value(json!(["next"])))
         .unwrap();
-    one.setEnumCollection("states", Collection::fromEntries([("next", Status)]))
+    one.set_enum_collection("states", Collection::from_entries([("next", Status)]))
         .unwrap();
-    one.setValueObject("options", Some(Fluent::make(json!({"mail":true})).unwrap()))
+    one.set_value_object("options", Some(Fluent::make(json!({"mail":true})).unwrap()))
         .unwrap();
     assert!(one.save().await.unwrap());
-    let one = Record::queryOn(&first).findOrFail(1).await.unwrap();
+    let one = Record::query_on(&first).find_or_fail(1).await.unwrap();
     let serialized: Document = serde_json::from_str(&one.to_json().unwrap()).unwrap();
     assert_eq!(serialized["payload"], json!({"name":"record","count":2}));
     assert_eq!(serialized["secret"], json!(["updated"]));

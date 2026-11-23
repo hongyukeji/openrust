@@ -129,7 +129,7 @@ Blade 預設會對跳脫輸出中的現有 HTML 實體再次編碼。若要保�
 use openrust::view::compilers::BladeCompiler;
 
 fn configure_encoding(compiler: &BladeCompiler) {
-    compiler.withoutDoubleEncoding();
+    compiler.without_double_encoding();
 }
 ```
 
@@ -218,7 +218,7 @@ struct Article {
 fn article_page(article: Article) -> View {
     view("articles.show")
         .with("title", article.title.clone())
-        .withGateArgument("policyArticle", article)
+        .with_gate_argument("policyArticle", article)
 }
 ```
 
@@ -324,7 +324,7 @@ fn article_page(article: Article) -> View {
 use openrust::view::{View, view};
 
 fn activity() -> View {
-    view("activity").withIterator("items", || {
+    view("activity").with_iterator("items", || {
         ["first", "second"].into_iter().enumerate()
             .map(|(key, value)| (key.into(), value.into()))
     })
@@ -457,8 +457,8 @@ use std::path::Path;
 use openrust::view::{Factory, ViewResult};
 
 fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
-    factory.anonymousComponentNamespace("widgets", Some("widget"))?;
-    factory.anonymousComponentPath(external, Some("external"))
+    factory.anonymous_component_namespace("widgets", Some("widget"))?;
+    factory.anonymous_component_path(external, Some("external"))
 }
 ```
 
@@ -580,7 +580,7 @@ struct ReportSummary {
 }
 
 fn expose_summary(factory: &Factory) -> ViewResult<()> {
-    factory.registerViewService("report.summary", |summary: &ReportSummary| {
+    factory.register_view_service("report.summary", |summary: &ReportSummary| {
         Ok(summary.total.into())
     })
 }
@@ -628,7 +628,7 @@ fn configure(compiler: &BladeCompiler) {
 }
 
 fn checkout() -> ViewResult<View> {
-    view("checkout").withStringable("price", &Price(42))
+    view("checkout").with_stringable("price", &Price(42))
 }
 ```
 

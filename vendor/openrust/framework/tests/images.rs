@@ -55,7 +55,7 @@ async fn decodes_real_images_and_encodes_each_supported_output() {
         assert_eq!(image.extension().await.unwrap(), format.extension());
         assert_eq!(image.dimensions().await.unwrap(), (5, 5));
         let decoded = manager.fromBytes(encoded);
-        assert_eq!(decoded.mimeType().await.unwrap(), format.mime_type());
+        assert_eq!(decoded.mime_type().await.unwrap(), format.mime_type());
         assert_eq!(decoded.dimensions().await.unwrap(), (5, 5));
         let pixels = decoded.toFormat("png").unwrap().toBytes().await.unwrap();
         let pixels = ::image::load_from_memory(&pixels).unwrap().into_rgba8();
@@ -111,11 +111,11 @@ async fn decodes_real_images_and_encodes_each_supported_output() {
         .blur(5)
         .sharpen(3)
         .toPng()
-        .toBase64()
+        .to_base64()
         .await
         .unwrap();
     assert_eq!(
-        manager.fromBase64(encoded).dimensions().await.unwrap(),
+        manager.from_base64(encoded).dimensions().await.unwrap(),
         (12, 6)
     );
     assert!(
@@ -228,7 +228,7 @@ async fn reads_exif_orientation_and_checks_inputs_and_limits() {
         Err(Error::UnsupportedFormat)
     ));
     assert!(matches!(
-        manager.fromBase64("not base64").toBytes().await,
+        manager.from_base64("not base64").toBytes().await,
         Err(Error::Base64(_))
     ));
 }
@@ -351,14 +351,14 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
                 );
             }
             assert_eq!(transformed.dimensions().await.unwrap(), (3, 3));
-            assert_eq!(encoded.mimeType().await.unwrap(), "image/png");
+            assert_eq!(encoded.mime_type().await.unwrap(), "image/png");
             assert_eq!(selected.dimensions().await.unwrap(), (5, 5));
             assert_eq!(image.dimensions().await.unwrap(), (5, 5));
             assert!(Image::fromBytes(sample()).unwrap().file().is_none());
             let restored = Storage::disk(Some("public"))?.image(&path).unwrap();
             assert_eq!(restored.dimensions().await.unwrap(), (5, 5));
             let restored = Image::fromStorage(&path, Some("public")).unwrap();
-            assert_eq!(restored.mimeType().await.unwrap(), "image/webp");
+            assert_eq!(restored.mime_type().await.unwrap(), "image/webp");
             Response::json(
                 StatusCode::CREATED,
                 json!({"path": path, "dimensions": [5, 5]}),
@@ -384,7 +384,7 @@ async fn transforms_a_real_http_upload_and_reads_it_from_storage_and_url() {
             }))]))
         })
         .with_routing(Routing::default().web(|| {
-            Route::staticDisk("public")?;
+            Route::static_disk("public")?;
             Route::post("/upload", upload)
         }))
         .create().unwrap();
@@ -741,7 +741,7 @@ async fn avif_heic_and_jpeg_xl_sequence_round_trips() {
                 .await
                 .unwrap_or_else(|error| panic!("{format:?} encode: {error}"));
             let restored = manager.fromBytes(bytes);
-            assert_eq!(restored.mimeType().await.unwrap(), format.mime_type());
+            assert_eq!(restored.mime_type().await.unwrap(), format.mime_type());
             let webp = restored
                 .flipHorizontally()
                 .toWebp()
@@ -1281,7 +1281,7 @@ async fn lazy_source_is_shared_and_processed_branches_do_not_repeat_prior_transf
         base_name
     );
     assert_eq!(
-        processed.toString().await.unwrap(),
+        processed.to_string().await.unwrap(),
         processed.toDataUri().await.unwrap()
     );
 }
@@ -1331,9 +1331,9 @@ async fn manager_retains_handlers_before_custom_driver_registration() {
             )))
         })
         .unwrap();
-    assert!(!manager.getDrivers().contains_key("custom"));
+    assert!(!manager.get_drivers().contains_key("custom"));
     manager.driver(Some("custom")).unwrap();
-    assert!(manager.getDrivers().contains_key("custom"));
+    assert!(manager.get_drivers().contains_key("custom"));
     let result = manager
         .fromBytes(sample())
         .using("custom")
@@ -1344,7 +1344,7 @@ async fn manager_retains_handlers_before_custom_driver_registration() {
         .toBytes()
         .await;
     assert!(matches!(result, Err(Error::InvalidTransformation)));
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert!(matches!(
         manager
             .fromBytes(sample())
@@ -1396,7 +1396,7 @@ fn image_response(
         )
         .unwrap();
         assert!(
-            openrust::support::facades::Image::getDrivers()
+            openrust::support::facades::Image::get_drivers()
                 .unwrap()
                 .is_empty()
         );
@@ -1407,16 +1407,16 @@ fn image_response(
                 .unwrap(),
             (12, 6)
         );
-        let owner = openrust::support::facades::Image::getContainer()
+        let owner = openrust::support::facades::Image::get_container()
             .unwrap()
             .unwrap();
         openrust::support::facades::Image::extend("facade-probe", |manager| {
-            assert!(manager.getContainer().is_some());
+            assert!(manager.get_container().is_some());
             manager.driver(Some("image"))
         })
         .unwrap();
         assert!(
-            !openrust::support::facades::Image::getDrivers()
+            !openrust::support::facades::Image::get_drivers()
                 .unwrap()
                 .contains_key("facade-probe")
         );
@@ -1425,13 +1425,13 @@ fn image_response(
         openrust::support::facades::Image::setContainer(other.clone()).unwrap();
         assert!(Arc::ptr_eq(
             &other,
-            &openrust::support::facades::Image::getContainer()
+            &openrust::support::facades::Image::get_container()
                 .unwrap()
                 .unwrap()
         ));
-        openrust::support::facades::Image::forgetDrivers().unwrap();
+        openrust::support::facades::Image::forget_drivers().unwrap();
         assert!(
-            openrust::support::facades::Image::getDrivers()
+            openrust::support::facades::Image::get_drivers()
                 .unwrap()
                 .is_empty()
         );
@@ -1582,7 +1582,7 @@ fn image_manager_creators_are_lazy_cached_and_recreated_after_forgetting() {
     let reference: serde_json::Value =
         serde_json::from_str(include_str!("reference/image-manager.json")).unwrap();
     let manager = ImageManager::new(Limits::default());
-    assert_eq!(manager.getDrivers().is_empty(), reference["initial_empty"]);
+    assert_eq!(manager.get_drivers().is_empty(), reference["initial_empty"]);
     let creates = Arc::new(AtomicUsize::new(0));
     let observed = creates.clone();
     manager
@@ -1622,8 +1622,8 @@ fn image_manager_creators_are_lazy_cached_and_recreated_after_forgetting() {
             .as_u64()
             .unwrap() as usize
     );
-    manager.forgetDrivers();
-    assert!(manager.getDrivers().is_empty());
+    manager.forget_drivers();
+    assert!(manager.get_drivers().is_empty());
     let second = manager.driver(Some("custom")).unwrap();
     assert!(!Arc::ptr_eq(&first, &second));
     assert_eq!(
@@ -1657,7 +1657,7 @@ fn image_manager_creator_errors_and_recursive_resolution_do_not_poison_cache() {
         manager.driver(Some("retry")),
         Err(Error::InvalidTransformation)
     ));
-    assert!(manager.getDrivers().is_empty());
+    assert!(manager.get_drivers().is_empty());
     assert!(manager.driver(Some("retry")).is_ok());
     assert_eq!(calls.load(Ordering::SeqCst), 2);
     manager
@@ -1676,27 +1676,27 @@ fn image_manager_creator_errors_and_recursive_resolution_do_not_poison_cache() {
 fn image_manager_rebinding_changes_creator_container_and_preserves_resolved_drivers() {
     use openrust::container::Container;
     let manager = ImageManager::new(Limits::default());
-    assert!(manager.getContainer().is_none());
+    assert!(manager.get_container().is_none());
     let left = Arc::new(Container::default());
     let right = Arc::new(Container::default());
     manager.setContainer(left.clone());
-    assert!(Arc::ptr_eq(&manager.getContainer().unwrap(), &left));
+    assert!(Arc::ptr_eq(&manager.get_container().unwrap(), &left));
     let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let seen = observed.clone();
     manager
         .extend("custom", move |manager| {
-            seen.lock().unwrap().push(manager.getContainer().unwrap());
+            seen.lock().unwrap().push(manager.get_container().unwrap());
             manager.driver(None)
         })
         .unwrap();
     let first = manager.driver(Some("custom")).unwrap();
     manager.setContainer(right.clone());
-    assert!(Arc::ptr_eq(&manager.getContainer().unwrap(), &right));
+    assert!(Arc::ptr_eq(&manager.get_container().unwrap(), &right));
     assert!(Arc::ptr_eq(
         &first,
         &manager.driver(Some("custom")).unwrap()
     ));
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert!(manager.driver(Some("custom")).is_ok());
     let observations = observed.lock().unwrap();
     assert_eq!(observations.len(), 2);
@@ -1812,7 +1812,7 @@ async fn image_driver_registration_in_provider_boot_uses_default_config_and_appl
                 let count = self.1.clone();
                 let expected = self.0;
                 Image::extend("thumbnail", move |manager| {
-                    let container = manager.getContainer().unwrap();
+                    let container = manager.get_container().unwrap();
                     assert_eq!(container.make::<ImageSettings>().unwrap().0, expected);
                     count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     manager.driver(Some("image"))
@@ -1823,7 +1823,7 @@ async fn image_driver_registration_in_provider_boot_uses_default_config_and_appl
     }
     fn thumbnail(_: &mut Request) -> HttpFuture<'_, Result<openrust::image::Image, HttpError>> {
         Box::pin(async {
-            let container = Image::getContainer().unwrap().unwrap();
+            let container = Image::get_container().unwrap().unwrap();
             let width = container.make::<ImageSettings>().unwrap().0;
             Ok(Image::fromBytes(sample()).unwrap().cover(width, width))
         })
@@ -1929,14 +1929,14 @@ fn driver_requirements_run_before_handlers_and_only_cache_successful_creations()
         manager.driver(Some("checked")),
         Err(Error::Missing)
     ));
-    assert!(!manager.getDrivers().contains_key("checked"));
+    assert!(!manager.get_drivers().contains_key("checked"));
     ready.store(true, Ordering::SeqCst);
     let first = manager.driver(Some("checked")).unwrap();
     assert!(Arc::ptr_eq(
         &first,
         &manager.driver(Some("checked")).unwrap()
     ));
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert!(!Arc::ptr_eq(
         &first,
         &manager.driver(Some("checked")).unwrap()

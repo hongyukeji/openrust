@@ -64,7 +64,7 @@ impl ListenerRegistry {
 
     /// Resolves the listener from the dispatcher's application container on delivery.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn listenClass<L: Listener + 'static>(
+    pub fn listen_class<L: Listener + 'static>(
         &mut self,
         event: &str,
         delivery: Delivery,

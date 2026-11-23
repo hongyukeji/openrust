@@ -2,16 +2,15 @@ use std::{cmp::Ordering, collections::HashSet, hash::Hash};
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn map<U>(self, mut callback: impl FnMut(&T, &ArrayKey) -> U) -> Collection<U> {
-        Collection::fromEntries(self.into_iter().map(|(key, value)| {
+        Collection::from_entries(self.into_iter().map(|(key, value)| {
             let mapped = callback(&value, &key);
             (key, mapped)
         }))
     }
 
-    pub fn tryMap<U, E>(
+    pub fn try_map<U, E>(
         self,
         mut callback: impl FnMut(&T, &ArrayKey) -> Result<U, E>,
     ) -> Result<Collection<U>, E> {
@@ -23,19 +22,22 @@ impl<T> Collection<T> {
         Ok(result)
     }
 
-    pub fn mapWithKeys<K, U, I>(self, mut callback: impl FnMut(&T, &ArrayKey) -> I) -> Collection<U>
+    pub fn map_with_keys<K, U, I>(
+        self,
+        mut callback: impl FnMut(&T, &ArrayKey) -> I,
+    ) -> Collection<U>
     where
         K: Into<ArrayKey>,
         I: IntoIterator<Item = (K, U)>,
     {
-        Collection::fromEntries(
+        Collection::from_entries(
             self.into_iter()
                 .flat_map(|(key, value)| callback(&value, &key)),
         )
     }
 
     pub fn filter(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
-        Self::fromEntries(
+        Self::from_entries(
             self.into_iter()
                 .filter(|(key, value)| predicate(value, key)),
         )
@@ -58,8 +60,8 @@ impl<T> Collection<T> {
         self.iter().all(|(key, value)| predicate(value, key))
     }
 
-    pub fn containsWhere(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> bool {
-        self.firstWhere(predicate).is_some()
+    pub fn contains_where(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> bool {
+        self.first_where(predicate).is_some()
     }
 
     pub fn contains(&self, value: &T) -> bool
@@ -78,26 +80,26 @@ impl<T> Collection<T> {
         self.items.values().map(&mut project).collect()
     }
 
-    pub fn pluckWithKeys<K: Into<ArrayKey>, U>(
+    pub fn pluck_with_keys<K: Into<ArrayKey>, U>(
         &self,
         mut key: impl FnMut(&T) -> K,
         mut project: impl FnMut(&T) -> U,
     ) -> Collection<U> {
-        Collection::fromEntries(
+        Collection::from_entries(
             self.items
                 .values()
                 .map(|value| (key(value), project(value))),
         )
     }
 
-    pub fn keyBy<K: Into<ArrayKey>>(self, mut callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
-        Self::fromEntries(
+    pub fn key_by<K: Into<ArrayKey>>(self, mut callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
+        Self::from_entries(
             self.into_iter()
                 .map(|(key, value)| (callback(&value, &key), value)),
         )
     }
 
-    pub fn groupBy<K: Into<ArrayKey>>(
+    pub fn group_by<K: Into<ArrayKey>>(
         self,
         mut callback: impl FnMut(&T, &ArrayKey) -> K,
         preserve_keys: bool,
@@ -110,7 +112,7 @@ impl<T> Collection<T> {
         groups
     }
 
-    pub fn groupByMany<K, I>(
+    pub fn group_by_many<K, I>(
         self,
         mut callback: impl FnMut(&T, &ArrayKey) -> I,
         preserve_keys: bool,
@@ -135,7 +137,7 @@ impl<T> Collection<T> {
         groups
     }
 
-    pub fn countBy<K: Into<ArrayKey>>(
+    pub fn count_by<K: Into<ArrayKey>>(
         &self,
         mut callback: impl FnMut(&T, &ArrayKey) -> K,
     ) -> Collection<usize> {
@@ -184,7 +186,7 @@ impl<T> Collection<T> {
     }
 
     /// Combines any number of additional columns, padding each row with `None`.
-    pub fn zipMany<U, I>(
+    pub fn zip_many<U, I>(
         self,
         columns: impl IntoIterator<Item = I>,
     ) -> Collection<(Option<T>, Vec<Option<U>>)>
@@ -280,7 +282,7 @@ impl<T> Collection<T> {
             Some(length) => length.unsigned_abs(),
             None => count - start,
         };
-        Self::fromEntries(self.into_iter().skip(start).take(length))
+        Self::from_entries(self.into_iter().skip(start).take(length))
     }
 
     pub fn take(self, limit: isize) -> Self {
@@ -292,33 +294,33 @@ impl<T> Collection<T> {
     }
 
     pub fn skip(self, count: usize) -> Self {
-        Self::fromEntries(self.into_iter().skip(count))
+        Self::from_entries(self.into_iter().skip(count))
     }
 
-    pub fn takeWhile(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
-        Self::fromEntries(
+    pub fn take_while(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
+        Self::from_entries(
             self.into_iter()
                 .take_while(|(key, value)| predicate(value, key)),
         )
     }
 
-    pub fn takeUntil(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
-        self.takeWhile(|value, key| !predicate(value, key))
+    pub fn take_until(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
+        self.take_while(|value, key| !predicate(value, key))
     }
 
-    pub fn skipWhile(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
-        Self::fromEntries(
+    pub fn skip_while(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
+        Self::from_entries(
             self.into_iter()
                 .skip_while(|(key, value)| predicate(value, key)),
         )
     }
 
-    pub fn skipUntil(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
-        self.skipWhile(|value, key| !predicate(value, key))
+    pub fn skip_until(self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Self {
+        self.skip_while(|value, key| !predicate(value, key))
     }
 
     pub fn reverse(self) -> Self {
-        Self::fromEntries(self.into_iter().rev())
+        Self::from_entries(self.into_iter().rev())
     }
 
     pub fn chunk(self, size: usize) -> Collection<Self> {
@@ -328,7 +330,7 @@ impl<T> Collection<T> {
         let mut entries = self.into_iter().peekable();
         std::iter::from_fn(|| {
             entries.peek()?;
-            Some(Self::fromEntries(entries.by_ref().take(size)))
+            Some(Self::from_entries(entries.by_ref().take(size)))
         })
         .collect()
     }
@@ -346,7 +348,7 @@ impl<T> Collection<T> {
         Ok((0..=end)
             .step_by(step)
             .map(|offset| {
-                Self::fromEntries(
+                Self::from_entries(
                     self.items
                         .get_range(offset..offset + size)
                         .expect("window within collection")
@@ -401,10 +403,10 @@ impl<T> Collection<T> {
     where
         T: Eq + Hash + Clone,
     {
-        self.uniqueBy(|value, _| value.clone())
+        self.unique_by(|value, _| value.clone())
     }
 
-    pub fn uniqueBy<K: Eq + Hash>(self, mut callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
+    pub fn unique_by<K: Eq + Hash>(self, mut callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
         let mut seen = HashSet::new();
         self.filter(|value, key| seen.insert(callback(value, key)))
     }
@@ -413,26 +415,26 @@ impl<T> Collection<T> {
     where
         T: Ord,
     {
-        self.sortUsing(T::cmp)
+        self.sort_using(T::cmp)
     }
 
-    pub fn sortDesc(self) -> Self
+    pub fn sort_desc(self) -> Self
     where
         T: Ord,
     {
-        self.sortUsing(|left, right| right.cmp(left))
+        self.sort_using(|left, right| right.cmp(left))
     }
 
-    pub fn sortUsing(mut self, mut compare: impl FnMut(&T, &T) -> Ordering) -> Self {
+    pub fn sort_using(mut self, mut compare: impl FnMut(&T, &T) -> Ordering) -> Self {
         self.items.sort_by(|_, left, _, right| compare(left, right));
         self
     }
 
-    pub fn sortBy<K: Ord>(self, callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
+    pub fn sort_by<K: Ord>(self, callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
         self.sort_by_key(callback, false)
     }
 
-    pub fn sortByDesc<K: Ord>(self, callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
+    pub fn sort_by_desc<K: Ord>(self, callback: impl FnMut(&T, &ArrayKey) -> K) -> Self {
         self.sort_by_key(callback, true)
     }
 
@@ -452,20 +454,20 @@ impl<T> Collection<T> {
                 left.0.cmp(&right.0)
             }
         });
-        Self::fromEntries(items.into_iter().map(|(_, key, value)| (key, value)))
+        Self::from_entries(items.into_iter().map(|(_, key, value)| (key, value)))
     }
 
-    pub fn sortKeys(mut self) -> Self {
+    pub fn sort_keys(mut self) -> Self {
         self.items.sort_keys();
         self
     }
 
-    pub fn sortKeysDesc(mut self) -> Self {
+    pub fn sort_keys_desc(mut self) -> Self {
         self.items.sort_by(|left, _, right, _| right.cmp(left));
         self
     }
 
-    pub fn sortKeysUsing(
+    pub fn sort_keys_using(
         mut self,
         mut compare: impl FnMut(&ArrayKey, &ArrayKey) -> Ordering,
     ) -> Self {
@@ -477,7 +479,7 @@ impl<T> Collection<T> {
 impl Collection<ArrayKey> {
     /// Exchanges keys and values. The last entry wins for duplicate values.
     pub fn flip(self) -> Self {
-        Self::fromEntries(self.into_iter().map(|(key, value)| (value, key)))
+        Self::from_entries(self.into_iter().map(|(key, value)| (value, key)))
     }
 }
 

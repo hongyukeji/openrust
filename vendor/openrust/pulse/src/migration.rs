@@ -10,10 +10,10 @@ fn hash(table: &mut Blueprint, driver: &str) {
             table
                 .char("key_hash", 16)
                 .charset("binary")
-                .virtualAs("unhex(md5(`key`))");
+                .virtual_as("unhex(md5(`key`))");
         }
         "pgsql" => {
-            table.uuid("key_hash").storedAs("md5(\"key\")::uuid");
+            table.uuid("key_hash").stored_as("md5(\"key\")::uuid");
         }
         _ => {
             table.string("key_hash", None);
@@ -27,7 +27,7 @@ impl Migration for CreatePulseTables {
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
         Box::pin(async move {
             if matches!(
-                context.getDriverName(),
+                context.get_driver_name(),
                 "mysql" | "mariadb" | "pgsql" | "sqlite"
             ) {
                 return Ok(true);
@@ -50,7 +50,7 @@ impl Migration for CreatePulseTables {
         })
     }
 
-    fn getConnection(
+    fn get_connection(
         &self,
         config: &dyn openrust::contracts::config::Repository,
     ) -> DatabaseResult<Option<String>> {
@@ -71,12 +71,12 @@ impl Migration for CreatePulseTables {
             if !self.should_run(context).await? {
                 return Ok(());
             }
-            let driver = context.getDriverName();
-            let mut schema = context.getSchemaBuilder();
+            let driver = context.get_driver_name();
+            let mut schema = context.get_schema_builder();
             schema
                 .create("pulse_values", |t| {
                     t.id();
-                    t.unsignedInteger("timestamp");
+                    t.unsigned_integer("timestamp");
                     t.string("type", None);
                     t.mediumText("key");
                     hash(t, driver);
@@ -89,7 +89,7 @@ impl Migration for CreatePulseTables {
             schema
                 .create("pulse_entries", |t| {
                     t.id();
-                    t.unsignedInteger("timestamp");
+                    t.unsigned_integer("timestamp");
                     t.string("type", None);
                     t.mediumText("key");
                     hash(t, driver);
@@ -103,14 +103,14 @@ impl Migration for CreatePulseTables {
             schema
                 .create("pulse_aggregates", |t| {
                     t.id();
-                    t.unsignedInteger("bucket");
-                    t.unsignedMediumInteger("period");
+                    t.unsigned_integer("bucket");
+                    t.unsigned_medium_integer("period");
                     t.string("type", None);
                     t.mediumText("key");
                     hash(t, driver);
                     t.string("aggregate", None);
                     t.decimal("value", 20, 2);
-                    t.unsignedInteger("count").nullable();
+                    t.unsigned_integer("count").nullable();
                     t.unique(&["bucket", "period", "type", "aggregate", "key_hash"], None);
                     t.index(&["period", "bucket"], None);
                     t.index(&["type"], None);
@@ -125,9 +125,9 @@ impl Migration for CreatePulseTables {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = context.getSchemaBuilder();
+            let mut schema = context.get_schema_builder();
             for table in ["pulse_values", "pulse_entries", "pulse_aggregates"] {
-                schema.dropIfExists(table).await?;
+                schema.drop_if_exists(table).await?;
             }
             Ok(())
         })

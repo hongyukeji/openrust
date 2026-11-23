@@ -22,7 +22,7 @@ pub struct MessageLogged {
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MessageLogged {
-    pub fn fromJson(json: &str) -> Result<Self, serde_json::Error> {
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
     pub fn message(&self) -> &str {

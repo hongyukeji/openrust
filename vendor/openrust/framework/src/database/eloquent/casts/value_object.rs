@@ -10,13 +10,12 @@ use super::{AttributeCast, CastWrite, Json};
 /// Maps a Rust value object to model columns and a serializable value.
 ///
 /// Cloning must give edits independent mutable state.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait CastableObject: Clone + Send + Sync + 'static {
     const WITHOUT_OBJECT_CACHING: bool = false;
     /// Resolves the application's codec for the JSON-specific read and write methods.
     const USES_JSON_CODEC: bool = false;
 
-    fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>>;
+    fn from_attributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>>;
     fn to_attributes(
         value: Option<&Self>,
         name: &str,
@@ -24,15 +23,15 @@ pub trait CastableObject: Clone + Send + Sync + 'static {
     ) -> DatabaseResult<CastWrite>;
     fn serialize(&self) -> DatabaseResult<Value>;
 
-    fn fromAttributesWithJson(
+    fn from_attributes_with_json(
         name: &str,
         raw: &Attributes,
         _codec: &Json,
     ) -> DatabaseResult<Option<Self>> {
-        Self::fromAttributes(name, raw)
+        Self::from_attributes(name, raw)
     }
 
-    fn toAttributesWithJson(
+    fn to_attributes_with_json(
         value: Option<&Self>,
         name: &str,
         raw: &Attributes,
@@ -112,9 +111,9 @@ pub(in crate::database::eloquent) fn read_object<T: CastableObject>(
     connection: Option<&Connection>,
 ) -> DatabaseResult<Option<T>> {
     if T::USES_JSON_CODEC {
-        T::fromAttributesWithJson(name, raw, &Json::for_model(connection)?)
+        T::from_attributes_with_json(name, raw, &Json::for_model(connection)?)
     } else {
-        T::fromAttributes(name, raw)
+        T::from_attributes(name, raw)
     }
 }
 
@@ -125,7 +124,7 @@ pub(in crate::database::eloquent) fn write_object<T: CastableObject>(
     connection: Option<&Connection>,
 ) -> DatabaseResult<CastWrite> {
     if T::USES_JSON_CODEC {
-        T::toAttributesWithJson(value, name, raw, &Json::for_model(connection)?)
+        T::to_attributes_with_json(value, name, raw, &Json::for_model(connection)?)
     } else {
         T::to_attributes(value, name, raw)
     }

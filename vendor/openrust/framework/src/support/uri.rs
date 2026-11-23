@@ -10,7 +10,7 @@ use std::{fmt, str::FromStr, time::SystemTime};
 use crate::{
     http::RedirectResponse,
     routing::{RedirectOptions, RouteParameter, SignatureMode, UrlError, UrlResult},
-    support::facades::URL,
+    support::facades::Url,
 };
 
 use parse::Components;
@@ -38,7 +38,6 @@ pub struct Uri {
     value: String,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Uri {
     /// 解析并规范化各 URI 组件。
     pub fn of(input: &str) -> Result<Self, InvalidUri> {
@@ -119,7 +118,7 @@ impl Uri {
     }
 
     /// 取得编码后的用户信息，包含显式密码。
-    pub fn userInfo(&self) -> Option<&str> {
+    pub fn user_info(&self) -> Option<&str> {
         self.authority()?
             .split_once('@')
             .map(|(user_info, _)| user_info)
@@ -147,7 +146,7 @@ impl Uri {
     }
 
     /// Returns the encoded query, including an explicitly empty query.
-    pub fn queryString(&self) -> Option<&str> {
+    pub fn query_string(&self) -> Option<&str> {
         self.parts.query.as_deref()
     }
 
@@ -156,7 +155,7 @@ impl Uri {
     }
 
     /// 设置协议，并按新协议重新校验路径、默认端口和其余组件。
-    pub fn withScheme(&self, scheme: &str) -> Result<Self, InvalidUri> {
+    pub fn with_scheme(&self, scheme: &str) -> Result<Self, InvalidUri> {
         let mut parts = self.parts.clone();
         parts.scheme = Some(parse::normalize_scheme(scheme)?);
         parts.port = parse::format_port(parts.port, parts.scheme.as_deref())?;
@@ -165,7 +164,7 @@ impl Uri {
     }
 
     /// 设置主机，按 URI 规则规范化主机名并为相对路径补齐 authority 分隔。
-    pub fn withHost(&self, host: &str) -> Result<Self, InvalidUri> {
+    pub fn with_host(&self, host: &str) -> Result<Self, InvalidUri> {
         parse::validate_component(host)?;
         let mut parts = self.parts.clone();
         parts.host = Some(parse::normalize_host(host)?);
@@ -174,7 +173,11 @@ impl Uri {
     }
 
     /// 设置或清除用户信息。密码会进入 URI，调用方应避免将它写入日志。
-    pub fn withUser(&self, user: Option<&str>, password: Option<&str>) -> Result<Self, InvalidUri> {
+    pub fn with_user(
+        &self,
+        user: Option<&str>,
+        password: Option<&str>,
+    ) -> Result<Self, InvalidUri> {
         if let Some(user) = user {
             parse::validate_component(user)?;
         }
@@ -188,14 +191,14 @@ impl Uri {
     }
 
     /// 设置或清除端口，省略与当前协议默认值相同的端口。
-    pub fn withPort(&self, port: Option<i64>) -> Result<Self, InvalidUri> {
+    pub fn with_port(&self, port: Option<i64>) -> Result<Self, InvalidUri> {
         let mut parts = self.parts.clone();
         parts.port = parse::format_port(port, parts.scheme.as_deref())?;
         Self::checked_parts(parts)
     }
 
     /// 设置绝对路径组件并折叠重复的前导斜线。
-    pub fn withPath(&self, path: &str) -> Result<Self, InvalidUri> {
+    pub fn with_path(&self, path: &str) -> Result<Self, InvalidUri> {
         parse::validate_component(path)?;
         let mut parts = self.parts.clone();
         let path = format!("/{}", path.trim_start_matches('/'));
@@ -219,11 +222,11 @@ impl Uri {
     }
 
     /// 转为 Support 的链式字符串。
-    pub fn toStringable(&self) -> super::Stringable {
+    pub fn to_stringable(&self) -> super::Stringable {
         super::Stringable::from(self.value())
     }
 
-    pub fn pathSegments(&self) -> Vec<&str> {
+    pub fn path_segments(&self) -> Vec<&str> {
         let path = self.path();
         if path == "/" {
             Vec::new()
@@ -234,15 +237,15 @@ impl Uri {
 
     /// Generates a URI using the current application's URL generator.
     pub fn to(path: &str, parameters: &[RouteParameter], secure: Option<bool>) -> UrlResult<Self> {
-        Self::generated(URL::to(path, parameters, secure)?)
+        Self::generated(Url::to(path, parameters, secure)?)
     }
 
     pub fn route(name: &str, parameters: &[RouteParameter], absolute: bool) -> UrlResult<Self> {
-        Self::generated(URL::route(name, parameters, absolute)?)
+        Self::generated(Url::route(name, parameters, absolute)?)
     }
 
     pub fn action(action: &str, parameters: &[RouteParameter], absolute: bool) -> UrlResult<Self> {
-        Self::generated(URL::action(action, parameters, absolute)?)
+        Self::generated(Url::action(action, parameters, absolute)?)
     }
 
     pub fn signed_route(
@@ -251,7 +254,7 @@ impl Uri {
         expiration: Option<SystemTime>,
         mode: SignatureMode,
     ) -> UrlResult<Self> {
-        Self::generated(URL::signed_route(name, parameters, expiration, mode)?)
+        Self::generated(Url::signed_route(name, parameters, expiration, mode)?)
     }
 
     pub fn temporary_signed_route(
@@ -260,7 +263,7 @@ impl Uri {
         parameters: &[RouteParameter],
         mode: SignatureMode,
     ) -> UrlResult<Self> {
-        Self::generated(URL::temporary_signed_route(
+        Self::generated(Url::temporary_signed_route(
             name, expiration, parameters, mode,
         )?)
     }

@@ -7,7 +7,7 @@ pub(crate) static MIGRATION: CreateCashierTables = CreateCashierTables;
 impl Migration for CreateCashierTables {
     fn up<'a>(&'a self, c: &'a mut MigrationContext) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = c.getSchemaBuilder();
+            let mut schema = c.get_schema_builder();
             schema
                 .create("cashier_customers", |t| {
                     t.string("id", 64).primary();
@@ -52,7 +52,7 @@ impl Migration for CreateCashierTables {
                 "cashier_subscriptions",
                 "cashier_customers",
             ] {
-                c.getSchemaBuilder().dropIfExists(name).await?;
+                c.get_schema_builder().drop_if_exists(name).await?;
             }
             Ok(())
         })

@@ -8,7 +8,7 @@ use openrust::{
         foundation::Application as _,
     },
     database::{
-        Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+        Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Db, Value,
         eloquent::{
             Model, ModelMetadata, ModelState, Observer, Touches,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
@@ -32,20 +32,19 @@ impl Model for Article {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("model_event_articles")
             .timestamps(None, None)
-            .softDeletes("deleted_at")
+            .soft_deletes("deleted_at")
             .fillable(&["title"]);
         &METADATA
     }
 
-    #[allow(non_snake_case, reason = "Implements the Eloquent event mapping hook")]
-    fn dispatchesEvents(&self, event: ModelEvent) -> Option<Arc<dyn Event>> {
+    fn dispatches_events(&self, event: ModelEvent) -> Option<Arc<dyn Event>> {
         let name = match event {
             Saving => "article.saving",
             Saved => "article.saved",
             Retrieved => "article.retrieved",
             _ => return None,
         };
-        let Value::Text(title) = self.getAttribute("title")? else {
+        let Value::Text(title) = self.get_attribute("title")? else {
             return None;
         };
         title.starts_with("mapped-").then(|| {
@@ -123,7 +122,7 @@ impl Listener for MappedListener {
                 });
             }
             assert!(context.transaction().is_none());
-            DB::connection(None).map_err(EventError::Transaction)?;
+            Db::connection(None).map_err(EventError::Transaction)?;
             Ok((event.title == "mapped-handled").then(|| ListenerResponse::Value(Box::new(1_u32))))
         })
     }
@@ -140,13 +139,13 @@ impl ModelEventListener<Article> for Record {
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
             self.0.lock().unwrap().push(event);
-            let title = model.getAttribute("title").cloned();
+            let title = model.get_attribute("title").cloned();
             match (event, title.as_ref()) {
                 (Creating, Some(Value::Text(title))) if title == "cancel" => {
                     return Ok(ModelEventResponse::Cancel);
                 }
                 (Creating, Some(Value::Text(title))) if title == "draft" => {
-                    model.setAttribute("title", "published");
+                    model.set_attribute("title", "published");
                 }
                 (Saved, Some(Value::Text(title))) if title == "post-error" => {
                     return Err(DatabaseError::InvalidQuery("saved listener failed"));
@@ -157,10 +156,10 @@ impl ModelEventListener<Article> for Record {
                         connection
                             .scalar(
                                 "SELECT title FROM model_event_articles WHERE id = ?",
-                                &[model.getKey().unwrap().clone()]
+                                &[model.get_key().unwrap().clone()]
                             )
                             .await?,
-                        model.getAttribute("title").unwrap().clone(),
+                        model.get_attribute("title").unwrap().clone(),
                     );
                 }
                 _ => {}
@@ -181,12 +180,12 @@ impl Observer<Article> for ArticleObserver {
         _: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
-            match model.getAttribute("title") {
+            match model.get_attribute("title") {
                 Some(Value::Text(title)) if title == "blocked" => {
                     return Ok(ModelEventResponse::Cancel);
                 }
                 Some(Value::Text(title)) if title == "observer" => {
-                    model.setAttribute("title", "registered");
+                    model.set_attribute("title", "registered");
                 }
                 _ => {}
             }
@@ -203,7 +202,7 @@ impl Observer<Article> for ArticleObserver {
             connection
                 .insert(
                     "INSERT INTO model_observer_log (article_id) VALUES (?)",
-                    &[model.getKey().unwrap().clone()],
+                    &[model.get_key().unwrap().clone()],
                 )
                 .await?;
             Ok(ModelEventResponse::Continue)
@@ -237,7 +236,7 @@ impl ModelEventListener<Article> for TransactionAudit {
         Box::pin(async { panic!("expected the active transaction") })
     }
 
-    fn handleInTransaction<'a>(
+    fn handle_in_transaction<'a>(
         &'a self,
         _: ModelEvent,
         model: &'a mut Article,
@@ -247,7 +246,7 @@ impl ModelEventListener<Article> for TransactionAudit {
             transaction
                 .insert(
                     "INSERT INTO model_observer_log (article_id) VALUES (?)",
-                    &[model.getKey().unwrap().clone()],
+                    &[model.get_key().unwrap().clone()],
                 )
                 .await?;
             Ok(ModelEventResponse::Continue)
@@ -268,7 +267,7 @@ impl Observer<Article> for CommittedAudit {
         _: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
-            if model.getAttribute("title") == Some(&"after-veto".into()) {
+            if model.get_attribute("title") == Some(&"after-veto".into()) {
                 return Ok(ModelEventResponse::Cancel);
             }
             Ok(ModelEventResponse::Continue)
@@ -281,13 +280,13 @@ impl Observer<Article> for CommittedAudit {
         connection: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
-            let title = model.getAttribute("title").unwrap();
+            let title = model.get_attribute("title").unwrap();
             if title == &"after-error".into() {
                 return Err(DatabaseError::InvalidQuery("observer after commit"));
             }
             if title == &"event-snapshot".into() {
                 assert_eq!(
-                    openrust::database::DB::connection(None)?.get_name(),
+                    openrust::database::Db::connection(None)?.get_name(),
                     connection.get_name()
                 );
             }
@@ -295,7 +294,7 @@ impl Observer<Article> for CommittedAudit {
                 connection
                     .scalar(
                         "SELECT COUNT(*) FROM model_event_articles WHERE id = ?",
-                        &[model.getKey().unwrap().clone()]
+                        &[model.get_key().unwrap().clone()]
                     )
                     .await?,
                 Value::Integer(1)
@@ -312,39 +311,42 @@ impl Observer<Article> for CommittedAudit {
 }
 
 async fn verify_after_commit(app: &Application, db: &Connection) {
-    Article::observeAfterCommit(app, CommittedAudit).unwrap();
+    Article::observe_after_commit(app, CommittedAudit).unwrap();
     let article = |title: &str| {
-        Article::queryOn(db)
+        Article::query_on(db)
             .make([("title".into(), title.into())].into())
             .unwrap()
     };
     let log_count = "SELECT COUNT(*) FROM committed_observer_log";
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     assert!(
         !article("after-veto")
-            .saveInTransaction(&mut transaction)
+            .save_in_transaction(&mut transaction)
             .await
             .unwrap()
     );
     article("outer-rollback")
-        .saveInTransaction(&mut transaction)
+        .save_in_transaction(&mut transaction)
         .await
         .unwrap();
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(db.scalar(log_count, &[]).await.unwrap(), Value::Integer(0));
 
-    let mut transaction = db.beginTransaction().await.unwrap();
-    transaction.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     article("savepoint-rollback")
-        .saveInTransaction(&mut transaction)
+        .save_in_transaction(&mut transaction)
         .await
         .unwrap();
-    transaction.rollBack(None).await.unwrap();
-    transaction.beginTransaction().await.unwrap();
+    transaction.roll_back(None).await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     let mut committed = article("event-snapshot");
-    committed.saveInTransaction(&mut transaction).await.unwrap();
-    committed.setAttribute("title", "later-change");
+    committed
+        .save_in_transaction(&mut transaction)
+        .await
+        .unwrap();
+    committed.set_attribute("title", "later-change");
     transaction.commit().await.unwrap();
     assert_eq!(
         transaction.scalar(log_count, &[]).await.unwrap(),
@@ -358,9 +360,9 @@ async fn verify_after_commit(app: &Application, db: &Connection) {
         "event-snapshot".into()
     );
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     article("after-error")
-        .saveInTransaction(&mut transaction)
+        .save_in_transaction(&mut transaction)
         .await
         .unwrap();
     assert!(matches!(
@@ -382,34 +384,34 @@ async fn verify_after_commit(app: &Application, db: &Connection) {
 }
 
 async fn verify_transaction(app: &Application, db: &Connection, other: &Connection) {
-    Article::registerModelEvent(app, Created, TransactionAudit).unwrap();
+    Article::register_model_event(app, Created, TransactionAudit).unwrap();
     let article = |title: &str| {
-        Article::queryOn(db)
+        Article::query_on(db)
             .make([("title".into(), title.into())].into())
             .unwrap()
     };
-    let mut wrong = other.beginTransaction().await.unwrap();
+    let mut wrong = other.begin_transaction().await.unwrap();
     assert!(matches!(
-        article("wrong").saveInTransaction(&mut wrong).await,
+        article("wrong").save_in_transaction(&mut wrong).await,
         Err(DatabaseError::InvalidQuery("model transaction connection"))
     ));
-    wrong.rollBack(None).await.unwrap();
+    wrong.roll_back(None).await.unwrap();
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     assert!(
         !article("cancel")
-            .saveInTransaction(&mut transaction)
+            .save_in_transaction(&mut transaction)
             .await
             .unwrap()
     );
     let mut rolled_back = article("rolled-back");
     assert!(
         rolled_back
-            .saveInTransaction(&mut transaction)
+            .save_in_transaction(&mut transaction)
             .await
             .unwrap()
     );
-    assert!(rolled_back.getKey().is_some());
+    assert!(rolled_back.get_key().is_some());
     assert_eq!(
         transaction
             .scalar("SELECT COUNT(*) FROM model_observer_log", &[])
@@ -417,7 +419,7 @@ async fn verify_transaction(app: &Application, db: &Connection, other: &Connecti
             .unwrap(),
         Value::Integer(1)
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         db.scalar("SELECT COUNT(*) FROM model_observer_log", &[])
             .await
@@ -434,16 +436,23 @@ async fn verify_transaction(app: &Application, db: &Connection, other: &Connecti
         Value::Integer(0)
     );
     assert!(matches!(
-        article("closed").saveInTransaction(&mut transaction).await,
+        article("closed")
+            .save_in_transaction(&mut transaction)
+            .await,
         Err(DatabaseError::TransactionClosed)
     ));
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let mut committed = article("commit");
-    assert!(committed.saveInTransaction(&mut transaction).await.unwrap());
     assert!(
         committed
-            .updateInTransaction(
+            .save_in_transaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    assert!(
+        committed
+            .update_in_transaction(
                 [("title".into(), "updated-tx".into())].into(),
                 &mut transaction
             )
@@ -452,34 +461,37 @@ async fn verify_transaction(app: &Application, db: &Connection, other: &Connecti
     );
     assert!(
         committed
-            .deleteInTransaction(&mut transaction)
+            .delete_in_transaction(&mut transaction)
             .await
             .unwrap()
     );
     assert!(committed.trashed());
     assert!(
         committed
-            .restoreInTransaction(&mut transaction)
+            .restore_in_transaction(&mut transaction)
             .await
             .unwrap()
     );
     assert!(!committed.trashed());
     transaction.commit().await.unwrap();
-    let key = committed.getKey().unwrap().clone();
-    let fresh = Article::queryOn(db).findOrFail(key.clone()).await.unwrap();
-    assert_eq!(fresh.getAttribute("title"), Some(&"updated-tx".into()));
+    let key = committed.get_key().unwrap().clone();
+    let fresh = Article::query_on(db)
+        .find_or_fail(key.clone())
+        .await
+        .unwrap();
+    assert_eq!(fresh.get_attribute("title"), Some(&"updated-tx".into()));
 
-    let mut transaction = db.beginTransaction().await.unwrap();
-    transaction.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
+    transaction.begin_transaction().await.unwrap();
     assert!(
         committed
-            .forceDeleteInTransaction(&mut transaction)
+            .force_delete_in_transaction(&mut transaction)
             .await
             .unwrap()
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     transaction.commit().await.unwrap();
-    assert!(Article::queryOn(db).find(key).await.unwrap().is_some());
+    assert!(Article::query_on(db).find(key).await.unwrap().is_some());
 }
 
 async fn app_with_database(
@@ -523,16 +535,16 @@ async fn verify(config: Json, id: &str) {
     )
     .await
     .unwrap();
-    let mut blocked = Article::queryOn(&db)
+    let mut blocked = Article::query_on(&db)
         .make([("title".into(), "blocked".into())].into())
         .unwrap();
     assert!(!blocked.save().await.unwrap());
     assert!(!blocked.state().exists());
-    let observed = Article::queryOn(&db)
+    let observed = Article::query_on(&db)
         .create([("title".into(), "observer".into())].into())
         .await
         .unwrap();
-    assert_eq!(observed.getAttribute("title"), Some(&"registered".into()));
+    assert_eq!(observed.get_attribute("title"), Some(&"registered".into()));
     assert_eq!(
         db.scalar("SELECT COUNT(*) FROM model_observer_log", &[])
             .await
@@ -557,11 +569,11 @@ async fn verify(config: Json, id: &str) {
         ForceDeleting,
         ForceDeleted,
     ] {
-        Article::registerModelEvent(&app, event, Record(log.clone())).unwrap();
+        Article::register_model_event(&app, event, Record(log.clone())).unwrap();
     }
     let take = || std::mem::take(&mut *log.lock().unwrap());
     let article = |title: &str| {
-        Article::queryOn(&db)
+        Article::query_on(&db)
             .make([("title".into(), title.into())].into())
             .unwrap()
     };
@@ -570,18 +582,21 @@ async fn verify(config: Json, id: &str) {
     assert!(!model.save().await.unwrap());
     assert!(!model.state().exists());
     assert_eq!(take(), [Saving, Creating]);
-    model.setAttribute("title", "draft");
+    model.set_attribute("title", "draft");
     assert!(model.save().await.unwrap());
-    assert_eq!(model.getAttribute("title"), Some(&"published".into()));
+    assert_eq!(model.get_attribute("title"), Some(&"published".into()));
     assert_eq!(take(), [Saving, Creating, Created, Saved]);
     assert!(model.save().await.unwrap());
     assert_eq!(take(), [Saving, Saved]);
-    model.setAttribute("title", "renamed");
+    model.set_attribute("title", "renamed");
     assert!(model.save().await.unwrap());
     assert_eq!(take(), [Saving, Updating, Updated, Saved]);
 
-    let key = model.getKey().unwrap().clone();
-    Article::queryOn(&db).findOrFail(key.clone()).await.unwrap();
+    let key = model.get_key().unwrap().clone();
+    Article::query_on(&db)
+        .find_or_fail(key.clone())
+        .await
+        .unwrap();
     assert_eq!(take(), [Retrieved]);
     assert!(model.delete().await.unwrap());
     assert!(model.trashed());
@@ -591,10 +606,10 @@ async fn verify(config: Json, id: &str) {
         take(),
         [Restoring, Saving, Updating, Updated, Saved, Restored]
     );
-    assert!(model.forceDelete().await.unwrap());
+    assert!(model.force_delete().await.unwrap());
     assert_eq!(take(), [ForceDeleting, Deleting, Deleted, ForceDeleted]);
     assert!(
-        Article::queryOn(&db)
+        Article::query_on(&db)
             .with_trashed()
             .find(key)
             .await
@@ -603,30 +618,30 @@ async fn verify(config: Json, id: &str) {
     );
 
     let mut quiet = article("quiet");
-    assert!(quiet.saveQuietly().await.unwrap());
+    assert!(quiet.save_quietly().await.unwrap());
     assert!(take().is_empty());
     let mut duplicate = article("quiet");
     assert!(duplicate.save().await.is_err());
     assert_eq!(take(), [Saving, Creating]);
-    duplicate.setAttribute("title", "post-error");
+    duplicate.set_attribute("title", "post-error");
     assert!(matches!(
         duplicate.save().await,
         Err(DatabaseError::InvalidQuery("saved listener failed"))
     ));
     assert!(duplicate.state().exists());
     assert_eq!(take(), [Saving, Creating, Created, Saved]);
-    duplicate.setAttribute("title", "retry");
+    duplicate.set_attribute("title", "retry");
     assert!(duplicate.save().await.unwrap());
     assert_eq!(take(), [Saving, Updating, Updated, Saved]);
 
     let (_other, other_db) =
         app_with_database(json!({"driver":"sqlite","database":":memory:"}), vec![]).await;
     other_db.statement("CREATE TABLE model_event_articles (id INTEGER PRIMARY KEY, title TEXT, deleted_at TEXT)", &[]).await.unwrap();
-    let other = Article::queryOn(&other_db)
+    let other = Article::query_on(&other_db)
         .create([("title".into(), "observer".into())].into())
         .await
         .unwrap();
-    assert_eq!(other.getAttribute("title"), Some(&"observer".into()));
+    assert_eq!(other.get_attribute("title"), Some(&"observer".into()));
     assert!(take().is_empty());
     db.statement("DROP TABLE model_observer_log", &[])
         .await
@@ -647,7 +662,7 @@ async fn verify_transaction_backend(config: Json, id: &str) {
     )
     .await
     .unwrap();
-    Article::registerModelEvent(&app, Creating, Record(Arc::default())).unwrap();
+    Article::register_model_event(&app, Creating, Record(Arc::default())).unwrap();
     verify_transaction(&app, &db, &other).await;
     db.statement("DROP TABLE model_observer_log", &[])
         .await
@@ -698,8 +713,8 @@ async fn verify_mapped_events(config: Json, id: &str) {
         )
         .unwrap();
     let fallback = Arc::new(Mutex::new(Vec::new()));
-    Article::registerModelEvent(&app, Saving, Record(fallback.clone())).unwrap();
-    Article::registerModelEvent(&app, Saved, Record(fallback.clone())).unwrap();
+    Article::register_model_event(&app, Saving, Record(fallback.clone())).unwrap();
+    Article::register_model_event(&app, Saved, Record(fallback.clone())).unwrap();
 
     for (title, saved) in [
         ("mapped-cancel", false),
@@ -707,14 +722,14 @@ async fn verify_mapped_events(config: Json, id: &str) {
         ("mapped-zero", true),
     ] {
         let mut article =
-            Article::newInstanceOn(&db, [("title".into(), title.into())].into()).unwrap();
+            Article::new_instance_on(&db, [("title".into(), title.into())].into()).unwrap();
         assert_eq!(article.save().await.unwrap(), saved);
         assert_eq!(article.state().exists(), saved);
     }
     assert_eq!(*fallback.lock().unwrap(), [Saving, Saved]);
 
     let mut error =
-        Article::newInstanceOn(&db, [("title".into(), "mapped-error".into())].into()).unwrap();
+        Article::new_instance_on(&db, [("title".into(), "mapped-error".into())].into()).unwrap();
     assert!(matches!(
         error.save().await,
         Err(DatabaseError::ModelEvent(_))
@@ -722,9 +737,9 @@ async fn verify_mapped_events(config: Json, id: &str) {
     assert!(!error.state().exists());
 
     for (suffix, commit) in [("", true), ("-rollback", false)] {
-        let mut transaction = db.beginTransaction().await.unwrap();
+        let mut transaction = db.begin_transaction().await.unwrap();
         let mut article =
-            Article::newInstanceOn(&db, [("title".into(), "mapped-transaction".into())].into())
+            Article::new_instance_on(&db, [("title".into(), "mapped-transaction".into())].into())
                 .unwrap();
         if !commit {
             transaction
@@ -735,8 +750,8 @@ async fn verify_mapped_events(config: Json, id: &str) {
                 .await
                 .unwrap();
         }
-        assert!(article.saveInTransaction(&mut transaction).await.unwrap());
-        article.setAttribute("title", format!("edited{suffix}"));
+        assert!(article.save_in_transaction(&mut transaction).await.unwrap());
+        article.set_attribute("title", format!("edited{suffix}"));
         if commit {
             assert!(
                 !calls
@@ -747,7 +762,7 @@ async fn verify_mapped_events(config: Json, id: &str) {
             );
             transaction.commit().await.unwrap();
         } else {
-            transaction.rollBack(None).await.unwrap();
+            transaction.roll_back(None).await.unwrap();
         }
     }
     assert_eq!(
@@ -760,7 +775,7 @@ async fn verify_mapped_events(config: Json, id: &str) {
         1
     );
 
-    let mut article = Article::queryOn(&db).firstOrFail().await.unwrap();
+    let mut article = Article::query_on(&db).first_or_fail().await.unwrap();
     dispatcher
         .listen(
             "article.retrieved",
@@ -768,15 +783,15 @@ async fn verify_mapped_events(config: Json, id: &str) {
             Delivery::Sync,
         )
         .unwrap();
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .table("model_event_articles")
-        .r#where("id", "=", article.getKey().unwrap().clone())
+        .r#where("id", "=", article.get_key().unwrap().clone())
         .update([("title".into(), "mapped-retrieved".into())].into())
         .await
         .unwrap();
-    article.refreshForUpdate(&mut transaction).await.unwrap();
-    transaction.rollBack(None).await.unwrap();
+    article.refresh_for_update(&mut transaction).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert!(
         calls
             .lock()
@@ -787,12 +802,12 @@ async fn verify_mapped_events(config: Json, id: &str) {
 
     let before = calls.lock().unwrap().len();
     let mut quiet =
-        Article::newInstanceOn(&db, [("title".into(), "mapped-quiet".into())].into()).unwrap();
-    assert!(quiet.saveQuietly().await.unwrap());
+        Article::new_instance_on(&db, [("title".into(), "mapped-quiet".into())].into()).unwrap();
+    assert!(quiet.save_quietly().await.unwrap());
     if sqlite {
         isolated_db.statement(&format!("CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"), &[]).await.unwrap();
     }
-    let mut other = Article::newInstanceOn(
+    let mut other = Article::new_instance_on(
         &isolated_db,
         [("title".into(), "mapped-isolated".into())].into(),
     )
@@ -838,10 +853,10 @@ impl ModelEventListener<ReplicaArticle> for ReplicatingListener {
         Box::pin(async move {
             assert_eq!(event, Replicating);
             assert!(!replica.state().exists());
-            assert!(replica.getKey().is_none());
+            assert!(replica.get_key().is_none());
             assert!(replica.relation_loaded("children"));
-            assert_eq!(replica.getConnectionName(), Some(connection.get_name()));
-            replica.setAttribute("title", "from-listener");
+            assert_eq!(replica.get_connection_name(), Some(connection.get_name()));
+            replica.set_attribute("title", "from-listener");
             Ok(ModelEventResponse::Cancel)
         })
     }
@@ -857,7 +872,7 @@ async fn verify_replication(config: Json, id: &str) {
     )
     .await
     .unwrap();
-    let mut source = ReplicaArticle::queryOn(&db)
+    let mut source = ReplicaArticle::query_on(&db)
         .find(1_i64)
         .await
         .unwrap()
@@ -869,13 +884,13 @@ async fn verify_replication(config: Json, id: &str) {
         )
         .await
         .unwrap();
-    source.setAttribute("laravel_through_key", 1_i64);
-    source.setAttribute("title", "unsaved-edit");
-    ReplicaArticle::registerModelEvent(&app, Replicating, ReplicatingListener).unwrap();
+    source.set_attribute("laravel_through_key", 1_i64);
+    source.set_attribute("title", "unsaved-edit");
+    ReplicaArticle::register_model_event(&app, Replicating, ReplicatingListener).unwrap();
 
     let mut copy = source.replicate(&["secret", "id"]).await.unwrap();
     assert_eq!(
-        copy.getAttribute("title"),
+        copy.get_attribute("title"),
         Some(&Value::from("from-listener"))
     );
     for column in [
@@ -885,26 +900,26 @@ async fn verify_replication(config: Json, id: &str) {
         "updated_at",
         "laravel_through_key",
     ] {
-        assert!(copy.getAttribute(column).is_none(), "{column}");
+        assert!(copy.get_attribute(column).is_none(), "{column}");
     }
-    assert!(!copy.state().wasRecentlyCreated());
-    assert!(copy.state().getOriginal().is_empty());
-    assert!(copy.state().getChanges().is_empty());
-    assert_eq!(copy.getConnectionName(), source.getConnectionName());
-    copy.unsetRelation("children");
+    assert!(!copy.state().was_recently_created());
+    assert!(copy.state().get_original().is_empty());
+    assert!(copy.state().get_changes().is_empty());
+    assert_eq!(copy.get_connection_name(), source.get_connection_name());
+    copy.unset_relation("children");
     assert!(source.relation_loaded("children"));
     assert!(copy.save().await.unwrap());
-    assert_ne!(copy.getKey(), source.getKey());
+    assert_ne!(copy.get_key(), source.get_key());
 
-    let mut quiet = source.replicateQuietly(&[]).await.unwrap();
+    let mut quiet = source.replicate_quietly(&[]).await.unwrap();
     assert_eq!(
-        quiet.getAttribute("title"),
+        quiet.get_attribute("title"),
         Some(&Value::from("unsaved-edit"))
     );
-    assert_eq!(quiet.getAttribute("secret"), Some(&Value::from("private")));
+    assert_eq!(quiet.get_attribute("secret"), Some(&Value::from("private")));
     assert!(quiet.relation_loaded("children"));
     assert!(quiet.save().await.unwrap());
-    assert_ne!(quiet.getKey(), copy.getKey());
+    assert_ne!(quiet.get_key(), copy.get_key());
     assert_eq!(
         db.scalar("SELECT title FROM replica_articles WHERE id = 1", &[])
             .await
@@ -951,12 +966,12 @@ impl ModelEventListener<GeneratedArticle> for GeneratedObserver {
         _: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
-            let Some(Value::Text(title)) = model.getAttribute("title") else {
+            let Some(Value::Text(title)) = model.get_attribute("title") else {
                 panic!("missing title");
             };
             let length = i64::try_from(title.len()).unwrap();
             assert_eq!(
-                model.getAttribute("title_length"),
+                model.get_attribute("title_length"),
                 Some(&Value::Integer(length))
             );
             self.0.lock().unwrap().push(event);
@@ -971,47 +986,47 @@ async fn verify_refreshes(config: Json, id: &str) {
 
     let events = Arc::new(Mutex::new(Vec::new()));
     for event in [Created, Updated, Saved] {
-        GeneratedArticle::registerModelEvent(&app, event, GeneratedObserver(events.clone()))
+        GeneratedArticle::register_model_event(&app, event, GeneratedObserver(events.clone()))
             .unwrap();
     }
     let mut article =
-        GeneratedArticle::newInstanceOn(&db, [("title".into(), "abc".into())].into()).unwrap();
+        GeneratedArticle::new_instance_on(&db, [("title".into(), "abc".into())].into()).unwrap();
     assert!(article.save().await.unwrap());
     assert_eq!(
-        article.state().getOriginal().get("title_length"),
+        article.state().get_original().get("title_length"),
         Some(&Value::Integer(3))
     );
 
-    let mut transaction = db.beginTransaction().await.unwrap();
-    article.setAttribute("title", "longer");
-    article.setAttribute("id", 100_i64);
-    assert!(article.saveInTransaction(&mut transaction).await.unwrap());
+    let mut transaction = db.begin_transaction().await.unwrap();
+    article.set_attribute("title", "longer");
+    article.set_attribute("id", 100_i64);
+    assert!(article.save_in_transaction(&mut transaction).await.unwrap());
     assert_eq!(
-        article.state().getChanges().get("title_length"),
+        article.state().get_changes().get("title_length"),
         Some(&Value::Integer(6))
     );
     assert_eq!(
-        article.state().getOriginal().get("title_length"),
+        article.state().get_original().get("title_length"),
         Some(&Value::Integer(6))
     );
-    assert!(!article.isDirty().unwrap());
+    assert!(!article.is_dirty().unwrap());
     transaction.commit().await.unwrap();
 
-    let mut copy = article.replicateQuietly(&[]).await.unwrap();
-    assert!(copy.getAttribute("title_length").is_none());
+    let mut copy = article.replicate_quietly(&[]).await.unwrap();
+    assert!(copy.get_attribute("title_length").is_none());
     assert!(copy.save().await.unwrap());
-    assert_ne!(copy.getKey(), article.getKey());
-    assert_eq!(copy.getAttribute("title_length"), Some(&Value::Integer(6)));
+    assert_ne!(copy.get_key(), article.get_key());
+    assert_eq!(copy.get_attribute("title_length"), Some(&Value::Integer(6)));
     assert_eq!(
         *events.lock().unwrap(),
         [Created, Saved, Updated, Saved, Created, Saved]
     );
 
-    let key = copy.getKey().unwrap().clone();
+    let key = copy.get_key().unwrap().clone();
     db.delete("DELETE FROM generated_articles WHERE id = ?", &[key])
         .await
         .unwrap();
-    copy.setAttribute("title", "gone");
+    copy.set_attribute("title", "gone");
     assert!(matches!(
         copy.save().await,
         Err(DatabaseError::ModelNotFound("generated_articles"))
@@ -1047,8 +1062,8 @@ impl Model for TouchNode {
 
     fn touches() -> Touches<Self> {
         Touches::default()
-            .belongsTo(BelongsTo::<Self, Self>::new("parent_id", "id"))
-            .morphTo(
+            .belongs_to(BelongsTo::<Self, Self>::new("parent_id", "id"))
+            .morph_to(
                 MorphTo::<Self>::new("owner_type", "owner_id")
                     .target::<Self>("node", "id")
                     .constrain::<Self>("external", "external_id", |mut query| {
@@ -1072,7 +1087,7 @@ impl ModelEventListener<TouchNode> for RecordTouches {
             self.0
                 .lock()
                 .unwrap()
-                .push((event, model.getKey().unwrap().clone()));
+                .push((event, model.get_key().unwrap().clone()));
             Ok(ModelEventResponse::Continue)
         })
     }
@@ -1082,7 +1097,7 @@ async fn verify_touch_owners(config: Json, id: &str) {
     let (app, db) = app_with_database(config, Vec::new()).await;
     let events = Arc::new(Mutex::new(Vec::new()));
     for event in [Saving, Saved, Updating, Updated] {
-        TouchNode::registerModelEvent(&app, event, RecordTouches(events.clone())).unwrap();
+        TouchNode::register_model_event(&app, event, RecordTouches(events.clone())).unwrap();
     }
     db.statement("DROP TABLE IF EXISTS touch_nodes", &[])
         .await
@@ -1101,7 +1116,7 @@ async fn verify_touch_owners(config: Json, id: &str) {
         .unwrap();
     }
     let read_timestamp = "SELECT updated_at FROM touch_nodes WHERE id = ?";
-    let mut child = TouchNode::queryOn(&db).findOrFail(1).await.unwrap();
+    let mut child = TouchNode::query_on(&db).find_or_fail(1).await.unwrap();
     child.save().await.unwrap();
     assert_eq!(
         events.lock().unwrap().drain(..).collect::<Vec<_>>(),
@@ -1112,9 +1127,9 @@ async fn verify_touch_owners(config: Json, id: &str) {
         seed.into()
     );
 
-    child.setAttribute("title", "rolled back");
-    let mut transaction = db.beginTransaction().await.unwrap();
-    child.saveInTransaction(&mut transaction).await.unwrap();
+    child.set_attribute("title", "rolled back");
+    let mut transaction = db.begin_transaction().await.unwrap();
+    child.save_in_transaction(&mut transaction).await.unwrap();
     for owner in [2, 3] {
         assert_ne!(
             transaction
@@ -1124,7 +1139,7 @@ async fn verify_touch_owners(config: Json, id: &str) {
             seed.into()
         );
     }
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         events.lock().unwrap().drain(..).collect::<Vec<_>>(),
         [
@@ -1142,8 +1157,8 @@ async fn verify_touch_owners(config: Json, id: &str) {
             seed.into()
         );
     }
-    let mut child = TouchNode::queryOn(&db).findOrFail(1).await.unwrap();
-    child.setAttribute("title", "committed");
+    let mut child = TouchNode::query_on(&db).find_or_fail(1).await.unwrap();
+    child.set_attribute("title", "committed");
     child.save().await.unwrap();
     for owner in [2, 3] {
         assert_ne!(
@@ -1151,21 +1166,21 @@ async fn verify_touch_owners(config: Json, id: &str) {
             seed.into()
         );
     }
-    let mut orphan = TouchNode::queryOn(&db).findOrFail(4).await.unwrap();
-    orphan.setAttribute("title", "missing owner");
+    let mut orphan = TouchNode::query_on(&db).find_or_fail(4).await.unwrap();
+    orphan.set_attribute("title", "missing owner");
     orphan.save().await.unwrap();
-    orphan.setAttribute("parent_id", Value::Null);
+    orphan.set_attribute("parent_id", Value::Null);
     orphan.save().await.unwrap();
 
     db.statement(
         "INSERT INTO touch_nodes (id, external_id, title, updated_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
         &[5.into(), 6.into(), "visible".into(), seed.into(), 6.into(), 5.into(), "hidden".into(), seed.into()],
     ).await.unwrap();
-    let mut tx = db.beginTransaction().await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
     orphan
-        .setAttribute("owner_type", "external")
-        .setAttribute("owner_id", 6);
-    orphan.saveInTransaction(&mut tx).await.unwrap();
+        .set_attribute("owner_type", "external")
+        .set_attribute("owner_id", 6);
+    orphan.save_in_transaction(&mut tx).await.unwrap();
     assert_ne!(
         tx.scalar(read_timestamp, &[5.into()]).await.unwrap(),
         seed.into()
@@ -1174,45 +1189,45 @@ async fn verify_touch_owners(config: Json, id: &str) {
         tx.scalar(read_timestamp, &[6.into()]).await.unwrap(),
         seed.into()
     );
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert_eq!(
         db.scalar(read_timestamp, &[5.into()]).await.unwrap(),
         seed.into()
     );
 
-    let mut orphan = TouchNode::queryOn(&db).findOrFail(4).await.unwrap();
+    let mut orphan = TouchNode::query_on(&db).find_or_fail(4).await.unwrap();
     orphan
-        .setAttribute("owner_type", "external")
-        .setAttribute("owner_id", 5);
+        .set_attribute("owner_type", "external")
+        .set_attribute("owner_id", 5);
     orphan.save().await.unwrap();
     assert_eq!(
         db.scalar(read_timestamp, &[6.into()]).await.unwrap(),
         seed.into()
     );
     orphan
-        .setAttribute("owner_type", "node")
-        .setAttribute("owner_id", 6);
+        .set_attribute("owner_type", "node")
+        .set_attribute("owner_id", 6);
     orphan.save().await.unwrap();
     assert_ne!(
         db.scalar(read_timestamp, &[6.into()]).await.unwrap(),
         seed.into()
     );
 
-    let mut tx = db.beginTransaction().await.unwrap();
-    orphan.setAttribute("owner_type", "unregistered");
+    let mut tx = db.begin_transaction().await.unwrap();
+    orphan.set_attribute("owner_type", "unregistered");
     assert!(matches!(
-        orphan.saveInTransaction(&mut tx).await,
+        orphan.save_in_transaction(&mut tx).await,
         Err(DatabaseError::InvalidQuery("unknown morph type"))
     ));
-    tx.rollBack(None).await.unwrap();
+    tx.roll_back(None).await.unwrap();
     assert_eq!(
         db.scalar("SELECT owner_type FROM touch_nodes WHERE id = 4", &[])
             .await
             .unwrap(),
         "node".into()
     );
-    let mut orphan = TouchNode::queryOn(&db).findOrFail(4).await.unwrap();
-    orphan.setAttribute("owner_type", Value::Null);
+    let mut orphan = TouchNode::query_on(&db).find_or_fail(4).await.unwrap();
+    orphan.set_attribute("owner_type", Value::Null);
     orphan.save().await.unwrap();
     db.statement("DROP TABLE touch_nodes", &[]).await.unwrap();
 }
@@ -1235,53 +1250,54 @@ async fn verify_push(config: Json, id: &str) {
     .await
     .unwrap();
 
-    let new =
-        |title: &str| Article::newInstanceOn(&db, [("title".into(), title.into())].into()).unwrap();
+    let new = |title: &str| {
+        Article::new_instance_on(&db, [("title".into(), title.into())].into()).unwrap()
+    };
     let mut root = new("root");
     let mut first = new("first");
-    first.setRelation::<BelongsTo<Article, Article>>("nested", Some(Arc::new(new("nested"))));
+    first.set_relation::<BelongsTo<Article, Article>>("nested", Some(Arc::new(new("nested"))));
     let first = Arc::new(first);
-    root.setRelation::<HasMany<Article, Article>>(
+    root.set_relation::<HasMany<Article, Article>>(
         "children",
-        RelatedCollection::fromShared(vec![
+        RelatedCollection::from_shared(vec![
             first.clone(),
             Arc::new(new("blocked")),
             Arc::new(new("after")),
         ]),
     );
-    root.setRelation::<BelongsTo<Article, Article>>("alias", Some(first.clone()));
-    root.setRelation::<BelongsTo<Article, Article>>("empty", None);
+    root.set_relation::<BelongsTo<Article, Article>>("alias", Some(first.clone()));
+    root.set_relation::<BelongsTo<Article, Article>>("empty", None);
 
     assert!(!root.push().await.unwrap());
     assert!(root.state().exists());
     let children = root
-        .getRelation::<RelatedCollection<Article>>("children")
+        .get_relation::<RelatedCollection<Article>>("children")
         .unwrap();
     assert!(children[0].state().exists());
     assert!(!children[1].state().exists());
     assert!(!children[2].state().exists());
     assert!(!first.state().exists());
-    assert_eq!(Article::queryOn(&db).get().await.unwrap().len(), 3);
+    assert_eq!(Article::query_on(&db).get().await.unwrap().len(), 3);
 
     // Retry with the successfully persisted snapshot and share it across two relation outputs.
     let saved_first = children[0].clone();
-    root.setRelation::<BelongsTo<Article, Article>>("alias", Some(saved_first));
+    root.set_relation::<BelongsTo<Article, Article>>("alias", Some(saved_first));
     let before = db.table("model_observer_log").get().await.unwrap().len();
-    assert!(root.pushQuietly().await.unwrap());
+    assert!(root.push_quietly().await.unwrap());
     assert_eq!(
         db.table("model_observer_log").get().await.unwrap().len(),
         before
     );
-    assert_eq!(Article::queryOn(&db).get().await.unwrap().len(), 5);
+    assert_eq!(Article::query_on(&db).get().await.unwrap().len(), 5);
     let children = root
-        .getRelation::<RelatedCollection<Article>>("children")
+        .get_relation::<RelatedCollection<Article>>("children")
         .unwrap();
-    let alias = root.getRelation::<Option<Arc<Article>>>("alias").unwrap();
+    let alias = root.get_relation::<Option<Arc<Article>>>("alias").unwrap();
     assert!(Arc::ptr_eq(&children[0], alias.as_ref().unwrap()));
     assert!(children.iter().all(|child| child.state().exists()));
     assert!(
         children[0]
-            .getRelation::<Option<Arc<Article>>>("nested")
+            .get_relation::<Option<Arc<Article>>>("nested")
             .unwrap()
             .as_ref()
             .unwrap()
@@ -1291,10 +1307,10 @@ async fn verify_push(config: Json, id: &str) {
 
     let morph = MorphTo::<Article>::new("title", "id").target::<Article>("root", "id");
     root.load("morph", &morph).await.unwrap();
-    root.setAttribute("title", "renamed");
-    assert!(root.pushQuietly().await.unwrap());
+    root.set_attribute("title", "renamed");
+    assert!(root.push_quietly().await.unwrap());
     let target = root
-        .getRelation::<Option<openrust::database::eloquent::relations::MorphTarget>>("morph")
+        .get_relation::<Option<openrust::database::eloquent::relations::MorphTarget>>("morph")
         .unwrap();
     assert_eq!(target.as_ref().unwrap().alias(), "root");
     assert!(
@@ -1308,16 +1324,16 @@ async fn verify_push(config: Json, id: &str) {
     );
 
     let mut duplicate = new("duplicate root");
-    duplicate.setRelation::<HasMany<Article, Article>>(
+    duplicate.set_relation::<HasMany<Article, Article>>(
         "children",
-        RelatedCollection::fromShared(vec![Arc::new(new("first")), Arc::new(new("skipped"))]),
+        RelatedCollection::from_shared(vec![Arc::new(new("first")), Arc::new(new("skipped"))]),
     );
     assert!(matches!(
         duplicate.push().await,
         Err(DatabaseError::Driver { .. })
     ));
     assert!(duplicate.state().exists());
-    let mut skipped = Article::queryOn(&db);
+    let mut skipped = Article::query_on(&db);
     skipped.r#where("title", "=", "skipped");
     assert!(skipped.first().await.unwrap().is_none());
 }

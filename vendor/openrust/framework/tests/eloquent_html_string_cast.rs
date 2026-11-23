@@ -60,62 +60,62 @@ async fn verify(config: Json, id: &str) {
     .unwrap();
 
     let original = "<em>甲 & 乙</em>";
-    let record = Record::queryOn(&db)
+    let record = Record::query_on(&db)
         .create(Attributes::from([("body".into(), original.into())]))
         .await
         .unwrap();
-    let key = record.getKey().unwrap().clone();
-    let reload = || Record::queryOn(&db).findOrFail(key.clone());
+    let key = record.get_key().unwrap().clone();
+    let reload = || Record::query_on(&db).find_or_fail(key.clone());
     let mut record = reload().await.unwrap();
     let html = record
-        .getValueObject::<HtmlString>("body")
+        .get_value_object::<HtmlString>("body")
         .unwrap()
         .unwrap();
-    assert_eq!(Htmlable::toHtml(html.as_ref()), original);
+    assert_eq!(Htmlable::to_html(html.as_ref()), original);
     assert_eq!(html.to_string(), original);
     assert!(html.is_not_empty());
     assert_eq!(serde_json::to_value(&html).unwrap(), json!(original));
     assert!(HtmlString::default().is_empty());
-    assert!(!record.isDirty().unwrap());
+    assert!(!record.is_dirty().unwrap());
 
     record
-        .setValueObject("body", Some(HtmlString::new(original)))
+        .set_value_object("body", Some(HtmlString::new(original)))
         .unwrap();
-    assert!(!record.isDirty().unwrap());
+    assert!(!record.is_dirty().unwrap());
     let updated = Stringable::from("<strong>丙</strong>");
     record
-        .setAttributeValue("body", updated.toString())
+        .set_attribute_value("body", updated.to_string())
         .unwrap();
-    assert!(record.isDirty().unwrap());
+    assert!(record.is_dirty().unwrap());
     assert!(record.save().await.unwrap());
     let mut record = reload().await.unwrap();
     assert_eq!(
-        record.getAttribute("body"),
-        Some(&updated.toString().into())
+        record.get_attribute("body"),
+        Some(&updated.to_string().into())
     );
     assert_eq!(
         record.to_array().unwrap()["body"],
-        json!(updated.toString())
+        json!(updated.to_string())
     );
     let serialized: Json = serde_json::from_str(&record.to_json().unwrap()).unwrap();
-    assert_eq!(serialized["body"], json!(updated.toString()));
+    assert_eq!(serialized["body"], json!(updated.to_string()));
     assert!(
         record
-            .setAttributeValue("body", Value::Json(json!([])))
+            .set_attribute_value("body", Value::Json(json!([])))
             .is_err()
     );
-    assert!(!record.isDirty().unwrap());
+    assert!(!record.is_dirty().unwrap());
 
     for (value, expected) in [(Value::Bool(false), ""), (Value::Integer(17), "17")] {
-        record.setAttributeValue("body", value).unwrap();
+        record.set_attribute_value("body", value).unwrap();
         assert_eq!(record.to_array().unwrap()["body"], json!(expected));
     }
-    record.setValueObject::<HtmlString>("body", None).unwrap();
+    record.set_value_object::<HtmlString>("body", None).unwrap();
     assert!(record.save().await.unwrap());
     let mut record = reload().await.unwrap();
     assert!(
         record
-            .getValueObject::<HtmlString>("body")
+            .get_value_object::<HtmlString>("body")
             .unwrap()
             .is_none()
     );

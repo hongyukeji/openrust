@@ -125,7 +125,7 @@ pub(super) fn project_collection(
         values = factory(values)?;
     }
     if let Some(mapper) = mapper {
-        values = values.tryMap(mapper)?;
+        values = values.try_map(mapper)?;
     }
     Ok(values)
 }
@@ -143,7 +143,7 @@ pub(super) fn decode_collection(
     codec: &super::Json,
 ) -> DatabaseResult<Option<Collection<Json>>> {
     Ok(codec.decode_value(value)?.and_then(|value| {
-        (value.is_array() || value.is_object()).then(|| Collection::fromValue(value))
+        (value.is_array() || value.is_object()).then(|| Collection::from_value(value))
     }))
 }
 

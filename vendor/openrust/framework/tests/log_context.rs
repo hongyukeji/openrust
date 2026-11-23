@@ -21,7 +21,7 @@ fn manages_null_values_stacks_counters_and_hidden_fields() {
     context.add("empty", json!(null));
     assert!(context.has("empty"));
     assert!(context.get("empty").is_none());
-    assert!(!context.addIf("empty", json!(9)));
+    assert!(!context.add_if("empty", json!(9)));
     assert!(
         context
             .remember("empty", || panic!("stored null is present"))
@@ -35,7 +35,7 @@ fn manages_null_values_stacks_counters_and_hidden_fields() {
         Some(json!("ready"))
     );
     context.addHidden("empty", json!("secret"));
-    assert_eq!(context.getHidden("empty"), Some(json!("secret")));
+    assert_eq!(context.get_hidden("empty"), Some(json!("secret")));
     assert_eq!(context.only(&["empty"]), fields("empty", json!(null)));
     assert_eq!(
         context.exceptHidden(&["empty"]),
@@ -78,7 +78,7 @@ async fn sibling_overlays_restore_outer_fields_after_error_cancellation_and_pani
             context.addHidden("token", json!("left-secret"));
             barrier.wait().await;
             assert_eq!(context.get("value"), Some(json!("left")));
-            assert_eq!(context.getHidden("token"), Some(json!("left-secret")));
+            assert_eq!(context.get_hidden("token"), Some(json!("left-secret")));
             Err::<(), _>("failed")
         },
         fields("value", json!("left")),
@@ -88,7 +88,7 @@ async fn sibling_overlays_restore_outer_fields_after_error_cancellation_and_pani
         async {
             barrier.wait().await;
             assert_eq!(context.get("value"), Some(json!("right")));
-            assert_eq!(context.getHidden("token"), Some(json!("base-secret")));
+            assert_eq!(context.get_hidden("token"), Some(json!("base-secret")));
         },
         fields("value", json!("right")),
         LogContext::new(),
@@ -111,7 +111,7 @@ async fn sibling_overlays_restore_outer_fields_after_error_cancellation_and_pani
     .await;
     drop(pending);
     let panic = std::panic::catch_unwind(|| {
-        context.scopeSync(
+        context.scope_sync(
             || {
                 context.flush();
                 panic!("scope test panic");
@@ -122,7 +122,7 @@ async fn sibling_overlays_restore_outer_fields_after_error_cancellation_and_pani
     });
     assert!(panic.is_err());
     assert_eq!(context.get("value"), Some(json!("base")));
-    assert_eq!(context.getHidden("token"), Some(json!("base-secret")));
+    assert_eq!(context.get_hidden("token"), Some(json!("base-secret")));
 }
 
 #[tokio::test]

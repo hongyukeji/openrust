@@ -44,31 +44,31 @@ impl Encrypter {
         Ok(self)
     }
 
-    pub fn getKey(&self) -> &[u8] {
+    pub fn get_key(&self) -> &[u8] {
         self.key.as_slice()
     }
 
-    pub fn getAllKeys(&self) -> Vec<&[u8]> {
+    pub fn get_all_keys(&self) -> Vec<&[u8]> {
         self.keys().collect()
     }
 
-    pub fn getPreviousKeys(&self) -> &[Vec<u8>] {
+    pub fn get_previous_keys(&self) -> &[Vec<u8>] {
         self.previous_keys.as_slice()
     }
 
     pub fn encrypt(&self, value: &[u8], serialize: bool) -> Result<String, EncryptException> {
         if !serialize {
-            return self.encryptString(value);
+            return self.encrypt_string(value);
         }
         let mut serialized = Zeroizing::new(Vec::with_capacity(value.len().saturating_add(27)));
         write!(serialized, "s:{}:\"", value.len()).map_err(|_| EncryptException::Serialization)?;
         serialized.extend_from_slice(value);
         serialized.extend_from_slice(b"\";");
-        self.encryptString(&serialized)
+        self.encrypt_string(&serialized)
     }
 
     pub fn decrypt(&self, encrypted: &str, unserialize: bool) -> Result<Vec<u8>, DecryptException> {
-        let decrypted = self.decryptString(encrypted)?;
+        let decrypted = self.decrypt_string(encrypted)?;
         if !unserialize {
             return Ok(decrypted);
         }
@@ -81,11 +81,11 @@ impl Encrypter {
         Ok(std::mem::take(&mut *decrypted))
     }
 
-    pub fn encryptString(&self, value: &[u8]) -> Result<String, EncryptException> {
+    pub fn encrypt_string(&self, value: &[u8]) -> Result<String, EncryptException> {
         payload::encrypt(self.cipher, &self.key, value)
     }
 
-    pub fn decryptString(&self, encrypted: &str) -> Result<Vec<u8>, DecryptException> {
+    pub fn decrypt_string(&self, encrypted: &str) -> Result<Vec<u8>, DecryptException> {
         payload::decrypt(self.cipher, self.keys(), encrypted)
     }
 
@@ -94,7 +94,7 @@ impl Encrypter {
     }
 
     fn keys(&self) -> impl Iterator<Item = &[u8]> {
-        std::iter::once(self.getKey()).chain(self.previous_keys.iter().map(Vec::as_slice))
+        std::iter::once(self.get_key()).chain(self.previous_keys.iter().map(Vec::as_slice))
     }
 }
 
@@ -108,24 +108,24 @@ impl crate::contracts::encryption::Encrypter for Encrypter {
         self.decrypt(payload, unserialize)
     }
 
-    fn encryptString(&self, value: &[u8]) -> Result<String, EncryptException> {
-        self.encryptString(value)
+    fn encrypt_string(&self, value: &[u8]) -> Result<String, EncryptException> {
+        self.encrypt_string(value)
     }
 
-    fn decryptString(&self, payload: &str) -> Result<Vec<u8>, DecryptException> {
-        self.decryptString(payload)
+    fn decrypt_string(&self, payload: &str) -> Result<Vec<u8>, DecryptException> {
+        self.decrypt_string(payload)
     }
 
-    fn getKey(&self) -> &[u8] {
-        self.getKey()
+    fn get_key(&self) -> &[u8] {
+        self.get_key()
     }
 
-    fn getAllKeys(&self) -> Vec<&[u8]> {
-        self.getAllKeys()
+    fn get_all_keys(&self) -> Vec<&[u8]> {
+        self.get_all_keys()
     }
 
-    fn getPreviousKeys(&self) -> &[Vec<u8>] {
-        self.getPreviousKeys()
+    fn get_previous_keys(&self) -> &[Vec<u8>] {
+        self.get_previous_keys()
     }
 }
 

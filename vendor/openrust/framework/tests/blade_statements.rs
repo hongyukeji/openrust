@@ -109,21 +109,21 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
         factory.render("cache", &ViewData::new()).unwrap(),
         "<b>cache</b>"
     );
-    let Engine::Blade(engine) = factory.getEngineResolver().resolve("blade").unwrap() else {
+    let Engine::Blade(engine) = factory.get_engine_resolver().resolve("blade").unwrap() else {
         panic!()
     };
-    let compiler = engine.getCompiler();
-    let artifact = compiler.getCompiledPath(&path).unwrap();
+    let compiler = engine.get_compiler();
+    let artifact = compiler.get_compiled_path(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
     assert_eq!(contents["compiler_version"], 45);
     contents["compiler_version"] = json!(44);
     fs::write(&artifact, contents.to_string()).unwrap();
-    assert!(compiler.isExpired(&path).unwrap());
+    assert!(compiler.is_expired(&path).unwrap());
     assert_eq!(
         factory.render("cache", &ViewData::new()).unwrap(),
         "<b>cache</b>"
     );
-    assert!(!compiler.isExpired(&path).unwrap());
+    assert!(!compiler.is_expired(&path).unwrap());
     let rebuilt: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
     assert_eq!(rebuilt["compiler_version"], 45);
 }
@@ -179,7 +179,7 @@ async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
         .with_config(config)
         .with_routing(openrust::foundation::configuration::Routing::new(routes))
         .with_exceptions(|e| {
-            e.shouldRenderJsonWhen(|r, _| r.expects_json());
+            e.should_render_json_when(|r, _| r.expects_json());
         })
         .create()
         .unwrap();
@@ -248,10 +248,10 @@ async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
 
 fn configure(factory: &Factory) {
     use openrust::view::{compilers::DirectiveOutput, engines::Engine};
-    let Engine::Blade(engine) = factory.getEngineResolver().resolve("blade").unwrap() else {
+    let Engine::Blade(engine) = factory.get_engine_resolver().resolve("blade").unwrap() else {
         panic!()
     };
-    let compiler = engine.getCompiler();
+    let compiler = engine.get_compiler();
     compiler
         .directive("tag", |_| Ok(DirectiveOutput::Html("<tag>".into())))
         .unwrap();
@@ -296,34 +296,34 @@ fn custom_compiler_precedence_and_conditions_remain_isolated() {
     let first = root.factory();
     let second = root.factory();
     let baseline = root.factory();
-    let Engine::Blade(engine) = first.getEngineResolver().resolve("blade").unwrap() else {
+    let Engine::Blade(engine) = first.get_engine_resolver().resolve("blade").unwrap() else {
         panic!()
     };
     engine
-        .getCompiler()
+        .get_compiler()
         .directive("if", |_| Ok(DirectiveOutput::Html("<override>".into())))
         .unwrap();
     let case = &CORPUS["overrides"]["directive"];
     assert_eq!(
         first
-            .renderInline(case["template"].as_str().unwrap(), &ViewData::new())
+            .render_inline(case["template"].as_str().unwrap(), &ViewData::new())
             .unwrap(),
         case["output"].as_str().unwrap()
     );
-    let Engine::Blade(engine) = second.getEngineResolver().resolve("blade").unwrap() else {
+    let Engine::Blade(engine) = second.get_engine_resolver().resolve("blade").unwrap() else {
         panic!()
     };
-    engine.getCompiler().r#if("if", |_| Ok(false)).unwrap();
+    engine.get_compiler().r#if("if", |_| Ok(false)).unwrap();
     let case = &CORPUS["overrides"]["condition"];
     assert_eq!(
         second
-            .renderInline(case["template"].as_str().unwrap(), &ViewData::new())
+            .render_inline(case["template"].as_str().unwrap(), &ViewData::new())
             .unwrap(),
         case["output"].as_str().unwrap()
     );
     assert_eq!(
         baseline
-            .renderInline(case["template"].as_str().unwrap(), &ViewData::new())
+            .render_inline(case["template"].as_str().unwrap(), &ViewData::new())
             .unwrap(),
         "<b>A</b>"
     );
@@ -357,14 +357,14 @@ fn fragment_buffers_and_full_view_fallback_match_pinned_php() {
         let view = factory.make("fragment_composed", ViewData::new()).unwrap();
         let view = match mode.as_str() {
             "named" => view.fragments(["right", "missing", "left", "left"]),
-            "all" => view.allFragments(),
+            "all" => view.all_fragments(),
             "empty" => view.fragments(Vec::<String>::new()),
             "missing" => view.fragment("missing"),
             "left" => view.fragment("left"),
             _ => panic!("unknown oracle mode"),
         };
         assert_eq!(
-            factory.renderView(view).unwrap(),
+            factory.render_view(view).unwrap(),
             expected["output"].as_str().unwrap(),
             "{mode}"
         );

@@ -13,7 +13,7 @@ fn pipelines_open_only_when_polled_and_replay_without_overreading() {
     let opens = Cell::new(0);
     let reads = Cell::new(0);
     let tapped = RefCell::new(Vec::new());
-    let values = LazyCollection::fromEntries(|| {
+    let values = LazyCollection::from_entries(|| {
         opens.set(opens.get() + 1);
         (1..).map(|value| {
             reads.set(reads.get() + 1);
@@ -22,10 +22,10 @@ fn pipelines_open_only_when_polled_and_replay_without_overreading() {
     })
     .filter(|value, _| value % 2 == 0)
     .map(|value, _| value * 10)
-    .tapEach(|value, key| tapped.borrow_mut().push((key.clone(), *value)));
+    .tap_each(|value, key| tapped.borrow_mut().push((key.clone(), *value)));
 
     let selected = values.clone().take(2);
-    let mut iterator = selected.getIterator();
+    let mut iterator = selected.get_iterator();
     assert_eq!(opens.get(), 0);
     assert_eq!(reads.get(), 0);
     assert!(tapped.borrow().is_empty());
@@ -57,7 +57,7 @@ fn pipelines_open_only_when_polled_and_replay_without_overreading() {
 fn remembered_runners_replay_positions_including_duplicate_keys() {
     let opens = Cell::new(0);
     let reads = Cell::new(0);
-    let values = LazyCollection::fromEntries(|| {
+    let values = LazyCollection::from_entries(|| {
         opens.set(opens.get() + 1);
         (1..=4).map(|value| {
             reads.set(reads.get() + 1);
@@ -68,7 +68,7 @@ fn remembered_runners_replay_positions_including_duplicate_keys() {
     assert_eq!(opens.get(), 1);
     assert_eq!(reads.get(), 0);
 
-    let mut first = values.getIterator();
+    let mut first = values.get_iterator();
     let mut second = (&values).into_iter();
     assert_eq!(first.next().unwrap().unwrap(), ("same".into(), 1));
     assert_eq!(second.next().unwrap().unwrap(), ("same".into(), 1));
@@ -95,7 +95,7 @@ fn errors_are_terminal_preserved_by_adapters_and_replayed_from_cache() {
     use std::error::Error as _;
 
     let reads = Cell::new(0);
-    let failing = LazyCollection::tryMake(|| {
+    let failing = LazyCollection::try_make(|| {
         [Ok(1), Err(source_error()), Ok(3)]
             .into_iter()
             .inspect(|_| {
@@ -103,7 +103,7 @@ fn errors_are_terminal_preserved_by_adapters_and_replayed_from_cache() {
             })
     });
     let skipped = failing.clone().skip(10).filter(|_, _| false).take(-2);
-    let mut iterator = skipped.getIterator();
+    let mut iterator = skipped.get_iterator();
     assert!(matches!(
         iterator.next(),
         Some(Err(CollectionError::Source(_)))
@@ -125,7 +125,7 @@ fn errors_are_terminal_preserved_by_adapters_and_replayed_from_cache() {
 
 #[test]
 fn keyed_tail_chunks_and_eager_conversion_follow_collection_rules() {
-    let values = LazyCollection::fromEntries(|| [("1", 1), ("05", 2), ("1", 3), ("last", 4)]);
+    let values = LazyCollection::from_entries(|| [("1", 1), ("05", 2), ("1", 3), ("last", 4)]);
     assert_eq!(
         values.clone().take(-2).all().unwrap(),
         vec![(1.into(), 3), ("last".into(), 4)]
@@ -144,11 +144,11 @@ fn keyed_tail_chunks_and_eager_conversion_follow_collection_rules() {
     let values = LazyCollection::make(|| (1..).inspect(|_| reads.set(reads.get() + 1)));
     let prefix = values
         .clone()
-        .skipUntil(|value, _| *value >= 2)
-        .takeUntil(|value, _| *value >= 4);
+        .skip_until(|value, _| *value >= 2)
+        .take_until(|value, _| *value >= 4);
     assert_eq!(prefix.all().unwrap(), vec![(1.into(), 2), (2.into(), 3)]);
     assert_eq!(reads.get(), 4);
-    assert_eq!(values.firstWhere(|value, _| *value == 2).unwrap(), Some(2));
+    assert_eq!(values.first_where(|value, _| *value == 2).unwrap(), Some(2));
 
     fn first_two<'source>(values: impl Enumerable<'source, Item = i32>) -> Vec<(ArrayKey, i32)> {
         values.take(2).map(|value, _| value * 2).all().unwrap()
@@ -196,11 +196,11 @@ fn deadlines_and_heartbeats_execute_only_during_traversal() {
     });
     let expired = values
         .clone()
-        .takeUntilTimeoutWith(Instant::now(), |previous| {
+        .take_until_timeout_with(Instant::now(), |previous| {
             assert!(previous.is_none());
             notifications.set(notifications.get() + 1);
         });
-    let mut iterator = expired.getIterator();
+    let mut iterator = expired.get_iterator();
     assert_eq!(notifications.get(), 0);
     assert!(iterator.next().is_none());
     assert!(iterator.next().is_none());
@@ -208,7 +208,7 @@ fn deadlines_and_heartbeats_execute_only_during_traversal() {
     assert_eq!(opens.get(), 0);
 
     let values = values
-        .withHeartbeat(Duration::ZERO, || beats.set(beats.get() + 1))
+        .with_heartbeat(Duration::ZERO, || beats.set(beats.get() + 1))
         .throttle(Duration::from_millis(2));
     let started = Instant::now();
     assert_eq!(values.take(2).count().unwrap(), 2);
@@ -219,14 +219,14 @@ fn deadlines_and_heartbeats_execute_only_during_traversal() {
 #[test]
 fn chunk_while_reuses_the_boundary_item_and_preserves_keys() {
     let reads = Cell::new(0);
-    let groups = LazyCollection::fromEntries(|| {
+    let groups = LazyCollection::from_entries(|| {
         [("first", 'A'), ("again", 'A'), ("next", 'B'), ("last", 'C')]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     })
-    .chunkWhile(|value, _, group| group.last() == Some(value));
+    .chunk_while(|value, _, group| group.last() == Some(value));
     assert_eq!(reads.get(), 0);
-    let mut iterator = groups.getIterator();
+    let mut iterator = groups.get_iterator();
     let (_, first) = iterator.next().unwrap().unwrap();
     assert_eq!(first.to_json().unwrap(), r#"{"first":"A","again":"A"}"#);
     assert_eq!(reads.get(), 3);
@@ -242,14 +242,14 @@ fn chunk_while_reuses_the_boundary_item_and_preserves_keys() {
 #[test]
 fn sliding_preserves_key_order_and_pulls_only_complete_windows() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("x", 1), ("x", 2), ("y", 3), ("z", 4), ("p", 5), ("q", 6)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
     let overlap = source.clone().sliding(2, 1).unwrap();
     assert_eq!(reads.get(), 0);
-    let mut iterator = overlap.getIterator();
+    let mut iterator = overlap.get_iterator();
     let (_, first) = iterator.next().unwrap().unwrap();
     assert_eq!(first.to_json().unwrap(), r#"{"x":2,"y":3}"#);
     assert_eq!(reads.get(), 3);
@@ -275,9 +275,9 @@ fn sliding_preserves_key_order_and_pulls_only_complete_windows() {
 
 #[test]
 fn lazy_grouping_propagates_errors_during_a_group_or_a_window_gap() {
-    let source = LazyCollection::tryMake(|| [Ok(1), Ok(2), Err(source_error()), Ok(4)]);
-    let chunk = source.clone().chunkWhile(|_, _, _| true);
-    let mut groups = chunk.getIterator();
+    let source = LazyCollection::try_make(|| [Ok(1), Ok(2), Err(source_error()), Ok(4)]);
+    let chunk = source.clone().chunk_while(|_, _, _| true);
+    let mut groups = chunk.get_iterator();
     assert!(matches!(
         groups.next(),
         Some(Err(CollectionError::Source(_)))
@@ -285,7 +285,7 @@ fn lazy_grouping_propagates_errors_during_a_group_or_a_window_gap() {
     assert!(groups.next().is_none());
 
     let sliding = source.sliding(2, 3).unwrap();
-    let mut windows = sliding.getIterator();
+    let mut windows = sliding.get_iterator();
     assert!(matches!(windows.next(), Some(Ok(_))));
     assert!(matches!(
         windows.next(),
@@ -297,7 +297,7 @@ fn lazy_grouping_propagates_errors_during_a_group_or_a_window_gap() {
 #[test]
 fn lazy_slice_and_nth_preserve_keys_or_reindex_positions() {
     let reads = Cell::new(0);
-    let readings = LazyCollection::fromEntries(|| {
+    let readings = LazyCollection::from_entries(|| {
         [("first", 4), ("same", 7), ("same", 8), ("last", 11)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -323,9 +323,9 @@ fn lazy_slice_and_nth_preserve_keys_or_reindex_positions() {
         Err(CollectionError::InvalidArgument)
     ));
 
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error()), Ok(3)]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error()), Ok(3)]);
     let sampled = failing.clone().nth(3, 0).unwrap();
-    let mut iterator = sampled.getIterator();
+    let mut iterator = sampled.get_iterator();
     assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 1));
     assert!(matches!(
         iterator.next(),
@@ -341,12 +341,12 @@ fn lazy_slice_and_nth_preserve_keys_or_reindex_positions() {
 #[test]
 fn lazy_keys_and_concat_preserve_occurrences_and_defer_the_second_source() {
     let opens = Cell::new(0);
-    let keys = LazyCollection::fromEntries(|| [("same", 1), ("same", 2)]).keys();
-    let suffix = LazyCollection::fromEntries(|| {
+    let keys = LazyCollection::from_entries(|| [("same", 1), ("same", 2)]).keys();
+    let suffix = LazyCollection::from_entries(|| {
         opens.set(opens.get() + 1);
         [("tail", 3)]
     });
-    let joined = LazyCollection::fromEntries(|| [("a", 1), ("a", 2)]).concat(suffix);
+    let joined = LazyCollection::from_entries(|| [("a", 1), ("a", 2)]).concat(suffix);
     assert_eq!(
         keys.all().unwrap(),
         vec![(0.into(), "same".into()), (1.into(), "same".into())]
@@ -361,7 +361,7 @@ fn lazy_keys_and_concat_preserve_occurrences_and_defer_the_second_source() {
         vec![(0.into(), 1), (1.into(), 2), (2.into(), 3)]
     );
     assert_eq!(opens.get(), 1);
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error())]);
     let result = failing
         .concat(LazyCollection::make(|| {
             opens.set(opens.get() + 1);
@@ -374,9 +374,9 @@ fn lazy_keys_and_concat_preserve_occurrences_and_defer_the_second_source() {
 
 #[test]
 fn chunk_by_projects_typed_values_and_keys() {
-    let readings = LazyCollection::fromEntries(|| [("a", 4), ("b", 7), ("c", 11)]);
+    let readings = LazyCollection::from_entries(|| [("a", 4), ("b", 7), ("c", 11)]);
     let groups = readings
-        .chunkBy(|value, key| {
+        .chunk_by(|value, key| {
             assert!(matches!(key, ArrayKey::String(_)));
             value / 10
         })
@@ -392,15 +392,15 @@ fn lazy_collapse_preserves_or_reindexes_keys_without_opening_later_groups() {
     let opened = Cell::new(0);
     let groups = LazyCollection::make(|| {
         [
-            LazyCollection::fromEntries(|| [("same", 1), ("first", 2)]),
-            LazyCollection::fromEntries(|| {
+            LazyCollection::from_entries(|| [("same", 1), ("first", 2)]),
+            LazyCollection::from_entries(|| {
                 opened.set(opened.get() + 1);
                 [("same", 3), ("last", 4)]
             }),
         ]
     });
-    let keyed = groups.clone().collapseWithKeys();
-    let mut iterator = keyed.getIterator();
+    let keyed = groups.clone().collapse_with_keys();
+    let mut iterator = keyed.get_iterator();
     assert_eq!(iterator.next().unwrap().unwrap(), ("same".into(), 1));
     assert_eq!(iterator.next().unwrap().unwrap(), ("first".into(), 2));
     assert_eq!(opened.get(), 0);
@@ -419,9 +419,9 @@ fn lazy_collapse_preserves_or_reindexes_keys_without_opening_later_groups() {
 #[test]
 fn lazy_flat_map_flattens_one_level_and_propagates_nested_failures() {
     let calls = Cell::new(0);
-    let mapped = LazyCollection::make(|| [1, 2]).flatMap(|value, _| {
+    let mapped = LazyCollection::make(|| [1, 2]).flat_map(|value, _| {
         calls.set(calls.get() + 1);
-        Collection::fromEntries([("single", *value), ("double", value * 2)])
+        Collection::from_entries([("single", *value), ("double", value * 2)])
     });
     assert_eq!(mapped.clone().take(1).all().unwrap(), vec![(0.into(), 1)]);
     assert_eq!(calls.get(), 1);
@@ -434,12 +434,12 @@ fn lazy_flat_map_flattens_one_level_and_propagates_nested_failures() {
         4
     );
     let nested = LazyCollection::make(|| {
-        [LazyCollection::tryMake(|| {
+        [LazyCollection::try_make(|| {
             [Ok(1), Err(source_error()), Ok(3)]
         })]
     });
     let flattened = nested.collapse();
-    let mut iterator = flattened.getIterator();
+    let mut iterator = flattened.get_iterator();
     assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 1));
     assert!(matches!(
         iterator.next(),
@@ -470,8 +470,8 @@ fn lazy_flatten_respects_depth_and_keeps_scalar_values() {
         "[1,2,3,null]"
     );
 
-    let failed = LazyCollection::tryMake(|| [Ok(json!([1])), Err(source_error())]).flatten(None);
-    let mut iterator = failed.getIterator();
+    let failed = LazyCollection::try_make(|| [Ok(json!([1])), Err(source_error())]).flatten(None);
+    let mut iterator = failed.get_iterator();
     assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), json!(1)));
     assert!(matches!(
         iterator.next(),
@@ -482,7 +482,7 @@ fn lazy_flatten_respects_depth_and_keeps_scalar_values() {
 #[test]
 fn lazy_zip_pads_to_the_longest_input_without_reading_ahead() {
     let reads = Cell::new(0);
-    let left = LazyCollection::fromEntries(|| [("id", 1)]);
+    let left = LazyCollection::from_entries(|| [("id", 1)]);
     let right = LazyCollection::make(|| {
         ["a", "b"]
             .into_iter()
@@ -490,7 +490,7 @@ fn lazy_zip_pads_to_the_longest_input_without_reading_ahead() {
     });
     let zipped = left.zip(right);
     assert_eq!(reads.get(), 0);
-    let mut iterator = zipped.getIterator();
+    let mut iterator = zipped.get_iterator();
     assert_eq!(
         iterator.next().unwrap().unwrap(),
         (0.into(), (Some(1), Some("a")))
@@ -503,7 +503,7 @@ fn lazy_zip_pads_to_the_longest_input_without_reading_ahead() {
     assert!(iterator.next().is_none());
 
     let multiple = LazyCollection::from([1, 2])
-        .zipMany([vec![3], vec![4, 5, 6]])
+        .zip_many([vec![3], vec![4, 5, 6]])
         .all()
         .unwrap();
     assert_eq!(
@@ -528,7 +528,7 @@ fn lazy_combine_reuses_values_as_keys_and_reports_mismatches_on_pull() {
         LazyCollection::from(["a", "b"]).combine([1]),
         LazyCollection::from(["a"]).combine([1, 2]),
     ] {
-        let mut iterator = invalid.getIterator();
+        let mut iterator = invalid.get_iterator();
         assert_eq!(iterator.next().unwrap().unwrap(), ("a".into(), 1));
         assert!(matches!(
             iterator.next(),
@@ -541,10 +541,10 @@ fn lazy_combine_reuses_values_as_keys_and_reports_mismatches_on_pull() {
 #[test]
 fn lazy_pairing_propagates_source_errors_without_pulling_later_columns() {
     let reads = Cell::new(0);
-    let left = LazyCollection::tryMake(|| [Ok("key"), Err(source_error())]);
+    let left = LazyCollection::try_make(|| [Ok("key"), Err(source_error())]);
     let right = LazyCollection::make(|| [1, 2].into_iter().inspect(|_| reads.set(reads.get() + 1)));
     let zip = left.clone().zip(right.clone());
-    let mut zipped = zip.getIterator();
+    let mut zipped = zip.get_iterator();
     assert!(matches!(zipped.next(), Some(Ok(_))));
     assert!(matches!(
         zipped.next(),
@@ -554,7 +554,7 @@ fn lazy_pairing_propagates_source_errors_without_pulling_later_columns() {
     assert_eq!(reads.get(), 1);
 
     let combined = left.combine(right);
-    let mut pairs = combined.getIterator();
+    let mut pairs = combined.get_iterator();
     assert!(matches!(pairs.next(), Some(Ok(_))));
     assert!(matches!(
         pairs.next(),
@@ -566,12 +566,12 @@ fn lazy_pairing_propagates_source_errors_without_pulling_later_columns() {
 #[test]
 fn lazy_unique_keeps_first_keys_and_restarts_each_traversal() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 10), ("b", 11), ("c", 21), ("d", 10)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let unique = source.clone().uniqueBy(|value, _| value / 10);
+    let unique = source.clone().unique_by(|value, _| value / 10);
     assert_eq!(reads.get(), 0);
     assert_eq!(
         unique.clone().take(1).all().unwrap(),
@@ -586,11 +586,11 @@ fn lazy_unique_keeps_first_keys_and_restarts_each_traversal() {
         LazyCollection::all(&unique).unwrap(),
         vec![("a".into(), 10), ("c".into(), 21)]
     );
-    assert_eq!(source.uniqueStrict().count().unwrap(), 3);
+    assert_eq!(source.unique_strict().count().unwrap(), 3);
 
-    let failing = LazyCollection::tryMake(|| [Ok(10), Ok(10), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(10), Ok(10), Err(source_error())]);
     let distinct = failing.unique();
-    let mut iterator = distinct.getIterator();
+    let mut iterator = distinct.get_iterator();
     assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 10));
     assert!(matches!(
         iterator.next(),
@@ -602,29 +602,29 @@ fn lazy_unique_keeps_first_keys_and_restarts_each_traversal() {
 #[test]
 fn lazy_cardinality_checks_short_circuit_and_follow_keyed_sole_semantics() {
     let reads = Cell::new(0);
-    let repeated = LazyCollection::fromEntries(|| {
+    let repeated = LazyCollection::from_entries(|| {
         [("a", 1), ("a", 2), ("b", 3)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
     assert_eq!(repeated.sole().unwrap(), 2);
     assert_eq!(reads.get(), 2);
-    assert!(!repeated.hasSole().unwrap());
-    assert!(repeated.hasMany().unwrap());
-    assert!(repeated.hasSoleWhere(|value, _| *value == 2).unwrap());
+    assert!(!repeated.has_sole().unwrap());
+    assert!(repeated.has_many().unwrap());
+    assert!(repeated.has_sole_where(|value, _| *value == 2).unwrap());
     assert_eq!(
         repeated
-            .soleWhere(|_, key| key == &ArrayKey::from("b"))
+            .sole_where(|_, key| key == &ArrayKey::from("b"))
             .unwrap(),
         3
     );
-    assert!(repeated.hasManyWhere(|value, _| *value < 3).unwrap());
+    assert!(repeated.has_many_where(|value, _| *value < 3).unwrap());
     assert!(matches!(
-        repeated.soleWhere(|value, _| *value > 1),
+        repeated.sole_where(|value, _| *value > 1),
         Err(CollectionError::MultipleItemsFound)
     ));
     assert!(matches!(
-        repeated.soleWhere(|value, _| *value > 4),
+        repeated.sole_where(|value, _| *value > 4),
         Err(CollectionError::ItemNotFound)
     ));
     assert!(LazyCollection::<i32>::empty().is_empty().unwrap());
@@ -632,23 +632,23 @@ fn lazy_cardinality_checks_short_circuit_and_follow_keyed_sole_semantics() {
 
 #[test]
 fn lazy_first_and_contains_stop_on_the_first_match_and_propagate_errors() {
-    let source = LazyCollection::tryMake(|| [Ok(10), Err(source_error()), Ok(30)]);
+    let source = LazyCollection::try_make(|| [Ok(10), Err(source_error()), Ok(30)]);
     assert!(source.is_not_empty().unwrap());
-    assert!(source.containsStrict(&10).unwrap());
-    assert!(source.containsWhere(|value, _| *value == 10).unwrap());
-    assert_eq!(source.firstOrFail().unwrap(), 10);
+    assert!(source.contains_strict(&10).unwrap());
+    assert!(source.contains_where(|value, _| *value == 10).unwrap());
+    assert_eq!(source.first_or_fail().unwrap(), 10);
     assert_eq!(
-        source.firstOrFailWhere(|value, _| *value == 10).unwrap(),
+        source.first_or_fail_where(|value, _| *value == 10).unwrap(),
         10
     );
     assert!(matches!(
-        source.firstOrFailWhere(|value, _| *value == 30),
+        source.first_or_fail_where(|value, _| *value == 30),
         Err(CollectionError::Source(_))
     ));
-    assert!(matches!(source.hasSole(), Err(CollectionError::Source(_))));
-    assert!(matches!(source.hasMany(), Err(CollectionError::Source(_))));
+    assert!(matches!(source.has_sole(), Err(CollectionError::Source(_))));
+    assert!(matches!(source.has_many(), Err(CollectionError::Source(_))));
     assert!(matches!(
-        LazyCollection::<i32>::empty().firstOrFail(),
+        LazyCollection::<i32>::empty().first_or_fail(),
         Err(CollectionError::ItemNotFound)
     ));
 }
@@ -656,29 +656,29 @@ fn lazy_first_and_contains_stop_on_the_first_match_and_propagate_errors() {
 #[test]
 fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
     let reads = Cell::new(0);
-    let entries = LazyCollection::fromEntries(|| {
+    let entries = LazyCollection::from_entries(|| {
         [("b", 3), ("a", 2), ("b", 1), ("c", 2)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
     let sorted = entries.clone().sort();
     assert_eq!(reads.get(), 0);
-    let mut iterator = sorted.getIterator();
+    let mut iterator = sorted.get_iterator();
     assert_eq!(reads.get(), 0);
     assert_eq!(iterator.next().unwrap().unwrap(), ("b".into(), 1));
     assert_eq!(reads.get(), 4);
     assert_eq!(iterator.next().unwrap().unwrap(), ("a".into(), 2));
     assert_eq!(iterator.next().unwrap().unwrap(), ("c".into(), 2));
     assert!(iterator.next().is_none());
-    assert_eq!(entries.clone().sortDesc().first().unwrap(), Some(2));
+    assert_eq!(entries.clone().sort_desc().first().unwrap(), Some(2));
     assert_eq!(
-        entries.clone().sortUsing(|a, b| b.cmp(a)).first().unwrap(),
+        entries.clone().sort_using(|a, b| b.cmp(a)).first().unwrap(),
         Some(2)
     );
     assert_eq!(
         entries
             .clone()
-            .sortBy(|value, _| value % 2)
+            .sort_by(|value, _| value % 2)
             .first()
             .unwrap(),
         Some(2)
@@ -686,7 +686,7 @@ fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
     assert_eq!(
         entries
             .clone()
-            .sortByDesc(|value, _| value % 2)
+            .sort_by_desc(|value, _| value % 2)
             .first()
             .unwrap(),
         Some(1)
@@ -694,8 +694,8 @@ fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
     assert_eq!(
         entries
             .clone()
-            .sortKeys()
-            .getIterator()
+            .sort_keys()
+            .get_iterator()
             .next()
             .unwrap()
             .unwrap(),
@@ -704,8 +704,8 @@ fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
     assert_eq!(
         entries
             .clone()
-            .sortKeysDesc()
-            .getIterator()
+            .sort_keys_desc()
+            .get_iterator()
             .next()
             .unwrap()
             .unwrap(),
@@ -714,7 +714,7 @@ fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
     assert_eq!(
         entries
             .clone()
-            .sortKeysUsing(|a, b| b.cmp(a))
+            .sort_keys_using(|a, b| b.cmp(a))
             .all()
             .unwrap(),
         vec![("c".into(), 2), ("b".into(), 1), ("a".into(), 2)]
@@ -727,17 +727,17 @@ fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
 
 #[test]
 fn lazy_duplicates_use_final_keys_and_projected_values() {
-    let entries = LazyCollection::fromEntries(|| [("x", 3), ("y", 4), ("x", 4), ("z", 9)]);
+    let entries = LazyCollection::from_entries(|| [("x", 3), ("y", 4), ("x", 4), ("z", 9)]);
     assert_eq!(
         entries.clone().duplicates().all().unwrap(),
         vec![("y".into(), 4)]
     );
     assert_eq!(
-        entries.clone().duplicatesStrict().all().unwrap(),
+        entries.clone().duplicates_strict().all().unwrap(),
         vec![("y".into(), 4)]
     );
     assert_eq!(
-        entries.duplicatesBy(|value, _| value % 2).all().unwrap(),
+        entries.duplicates_by(|value, _| value % 2).all().unwrap(),
         vec![("y".into(), 0)]
     );
 }
@@ -745,12 +745,12 @@ fn lazy_duplicates_use_final_keys_and_projected_values() {
 #[test]
 fn lazy_ordering_reports_source_errors_before_comparing_or_emitting() {
     let compares = Cell::new(0);
-    let source = LazyCollection::tryMake(|| [Ok(3), Ok(1), Err(source_error()), Ok(2)]);
-    let sorted = source.clone().sortUsing(|a, b| {
+    let source = LazyCollection::try_make(|| [Ok(3), Ok(1), Err(source_error()), Ok(2)]);
+    let sorted = source.clone().sort_using(|a, b| {
         compares.set(compares.get() + 1);
         a.cmp(b)
     });
-    let mut iterator = sorted.getIterator();
+    let mut iterator = sorted.get_iterator();
     assert_eq!(compares.get(), 0);
     assert!(matches!(
         iterator.next(),
@@ -767,28 +767,28 @@ fn lazy_ordering_reports_source_errors_before_comparing_or_emitting() {
 #[test]
 fn lazy_aggregates_count_every_occurrence_and_keep_typed_empty_defaults() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("x", 3), ("y", 5), ("x", 7)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
     assert_eq!(source.sum().unwrap(), 15);
     assert_eq!(reads.get(), 3);
-    assert_eq!(source.sumBy(|value, _| value * value).unwrap(), 83);
+    assert_eq!(source.sum_by(|value, _| value * value).unwrap(), 83);
     assert_eq!(source.average().unwrap(), Some(5.0));
     assert_eq!(
         source
-            .avgBy(|value, _| (*value > 3).then_some(f64::from(*value)))
+            .avg_by(|value, _| (*value > 3).then_some(f64::from(*value)))
             .unwrap(),
         Some(6.0)
     );
     assert_eq!(source.min().unwrap(), Some(3));
     assert_eq!(source.max().unwrap(), Some(7));
-    assert_eq!(source.minBy(|value, _| -*value).unwrap(), Some(-7));
-    assert_eq!(source.maxBy(|value, _| -*value).unwrap(), Some(-3));
+    assert_eq!(source.min_by(|value, _| -*value).unwrap(), Some(-7));
+    assert_eq!(source.max_by(|value, _| -*value).unwrap(), Some(-3));
     assert_eq!(
         source
-            .reduceSpread((0, 0), |sum, n, value, _| (sum + value, n + 1))
+            .reduce_spread((0, 0), |sum, n, value, _| (sum + value, n + 1))
             .unwrap(),
         (15, 3)
     );
@@ -805,15 +805,15 @@ fn lazy_aggregates_count_every_occurrence_and_keep_typed_empty_defaults() {
 
 #[test]
 fn lazy_count_by_counts_repeated_keys_and_median_and_mode_materialize() {
-    let source = LazyCollection::fromEntries(|| [("x", 90), ("y", 5), ("x", 7), ("z", 5)]);
+    let source = LazyCollection::from_entries(|| [("x", 90), ("y", 5), ("x", 7), ("z", 5)]);
     let counts = source
         .clone()
-        .countBy(|value, _| if *value == 5 { "05" } else { "5" });
+        .count_by(|value, _| if *value == 5 { "05" } else { "5" });
     assert_eq!(counts.all().unwrap(), vec![(5.into(), 2), ("05".into(), 2)]);
     assert_eq!(source.median().unwrap(), Some(5.0));
     assert_eq!(
         source
-            .medianBy(|value, _| (*value != 5).then_some(f64::from(*value)))
+            .median_by(|value, _| (*value != 5).then_some(f64::from(*value)))
             .unwrap(),
         Some(7.0)
     );
@@ -826,7 +826,7 @@ fn lazy_count_by_counts_repeated_keys_and_median_and_mode_materialize() {
 
 #[test]
 fn lazy_aggregate_failures_propagate_and_every_short_circuits() {
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error()), Ok(3)]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error()), Ok(3)]);
     assert!(!failing.every(|value, _| *value > 3).unwrap());
     assert!(matches!(
         failing.every(|_, _| true),
@@ -834,8 +834,8 @@ fn lazy_aggregate_failures_propagate_and_every_short_circuits() {
     ));
     assert!(matches!(failing.sum(), Err(CollectionError::Source(_))));
     assert!(matches!(failing.median(), Err(CollectionError::Source(_))));
-    let counts = failing.countBy(|value, _| *value);
-    let mut iterator = counts.getIterator();
+    let counts = failing.count_by(|value, _| *value);
+    let mut iterator = counts.get_iterator();
     assert!(matches!(
         iterator.next(),
         Some(Err(CollectionError::Source(_)))
@@ -845,8 +845,8 @@ fn lazy_aggregate_failures_propagate_and_every_short_circuits() {
 
 #[test]
 fn lazy_set_comparisons_materialize_both_inputs_and_preserve_keys() {
-    let left = LazyCollection::fromEntries(|| [("a", 99), ("a", 2), ("B", 3), ("c", 7)]);
-    let right = LazyCollection::fromEntries(|| [("a", 2), ("b", 3), ("d", 7)]);
+    let left = LazyCollection::from_entries(|| [("a", 99), ("a", 2), ("B", 3), ("c", 7)]);
+    let right = LazyCollection::from_entries(|| [("a", 2), ("b", 3), ("d", 7)]);
     let by_key = |a: &ArrayKey, b: &ArrayKey| {
         a.to_string()
             .to_lowercase()
@@ -854,50 +854,56 @@ fn lazy_set_comparisons_materialize_both_inputs_and_preserve_keys() {
     };
     assert!(left.clone().diff(right.clone()).all().unwrap().is_empty());
     assert_eq!(
-        left.clone().diffAssoc(right.clone()).all().unwrap(),
+        left.clone().diff_assoc(right.clone()).all().unwrap(),
         vec![("B".into(), 3), ("c".into(), 7)]
     );
     assert_eq!(
-        left.clone().intersectAssoc(right.clone()).all().unwrap(),
+        left.clone().intersect_assoc(right.clone()).all().unwrap(),
         vec![("a".into(), 2)]
     );
     assert_eq!(
         left.clone()
-            .intersectAssocUsing(right.clone(), by_key)
+            .intersect_assoc_using(right.clone(), by_key)
             .count()
             .unwrap(),
         2
     );
     assert_eq!(
         left.clone()
-            .diffAssocUsing(right.clone(), by_key)
+            .diff_assoc_using(right.clone(), by_key)
             .count()
             .unwrap(),
         1
     );
     assert_eq!(
         left.clone()
-            .diffKeysUsing(right.clone(), by_key)
+            .diff_keys_using(right.clone(), by_key)
             .count()
             .unwrap(),
         1
     );
-    assert_eq!(left.clone().diffKeys(right.clone()).count().unwrap(), 2);
+    assert_eq!(left.clone().diff_keys(right.clone()).count().unwrap(), 2);
     assert_eq!(
-        left.clone().intersectByKeys(right.clone()).count().unwrap(),
+        left.clone()
+            .intersect_by_keys(right.clone())
+            .count()
+            .unwrap(),
         1
     );
     assert_eq!(left.clone().intersect(right).count().unwrap(), 3);
     let parity = |a: &i32, b: &i32| (a % 2).cmp(&(b % 2));
-    assert_eq!(left.clone().intersectUsing([3], parity).count().unwrap(), 2);
-    assert_eq!(left.diffUsing([3], parity).count().unwrap(), 1);
+    assert_eq!(
+        left.clone().intersect_using([3], parity).count().unwrap(),
+        2
+    );
+    assert_eq!(left.diff_using([3], parity).count().unwrap(), 1);
 }
 
 #[test]
 fn lazy_merge_and_union_match_collection_key_rules() {
-    let left = LazyCollection::fromEntries(|| [(ArrayKey::from(0), 2), ("x".into(), 3)]);
+    let left = LazyCollection::from_entries(|| [(ArrayKey::from(0), 2), ("x".into(), 3)]);
     let right =
-        LazyCollection::fromEntries(|| [(ArrayKey::from(0), 4), ("x".into(), 5), ("y".into(), 6)]);
+        LazyCollection::from_entries(|| [(ArrayKey::from(0), 4), ("x".into(), 5), ("y".into(), 6)]);
     assert_eq!(
         left.clone().merge(right.clone()).all().unwrap(),
         vec![
@@ -916,14 +922,14 @@ fn lazy_merge_and_union_match_collection_key_rules() {
 #[test]
 fn lazy_replace_applies_each_key_once_and_defers_reading_primary_entries() {
     let reads = Cell::new(0);
-    let left = LazyCollection::fromEntries(|| {
+    let left = LazyCollection::from_entries(|| {
         [("a", 1), ("a", 2), ("b", 3)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let right = LazyCollection::fromEntries(|| [("a", 9), ("z", 10)]);
+    let right = LazyCollection::from_entries(|| [("a", 9), ("z", 10)]);
     let replaced = left.clone().replace(right);
-    let mut values = replaced.getIterator();
+    let mut values = replaced.get_iterator();
     assert_eq!(reads.get(), 0);
     assert_eq!(values.next().unwrap().unwrap(), ("a".into(), 9));
     assert_eq!(reads.get(), 1);
@@ -931,7 +937,7 @@ fn lazy_replace_applies_each_key_once_and_defers_reading_primary_entries() {
     assert_eq!(values.next().unwrap().unwrap(), ("b".into(), 3));
     assert_eq!(values.next().unwrap().unwrap(), ("z".into(), 10));
     assert!(values.next().is_none());
-    let failing = LazyCollection::tryMake(|| [Ok(4), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(4), Err(source_error())]);
     assert!(matches!(
         left.clone().replace(failing.clone()).first(),
         Err(CollectionError::Source(_))
@@ -947,7 +953,7 @@ fn lazy_replace_applies_each_key_once_and_defers_reading_primary_entries() {
 #[test]
 fn lazy_only_stops_after_first_match_for_every_key_but_except_materializes() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 1), ("a", 2), ("b", 3), ("c", 4)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -962,7 +968,7 @@ fn lazy_only_stops_after_first_match_for_every_key_but_except_materializes() {
         vec![("a".into(), 2), ("c".into(), 4)]
     );
     assert_eq!(reads.get(), 7);
-    let failing = LazyCollection::tryFromEntries(|| [Ok(("a", 1)), Err(source_error())]);
+    let failing = LazyCollection::try_from_entries(|| [Ok(("a", 1)), Err(source_error())]);
     assert_eq!(
         failing.clone().only(["a"]).all().unwrap(),
         vec![("a".into(), 1)]
@@ -980,7 +986,7 @@ fn lazy_keyed_projections_preserve_occurrences_and_defer_the_next_source_item() 
     assert_eq!(
         source
             .clone()
-            .keyBy(|pair, _| pair.0)
+            .key_by(|pair, _| pair.0)
             .collect()
             .unwrap()
             .count(),
@@ -993,13 +999,13 @@ fn lazy_keyed_projections_preserve_occurrences_and_defer_the_next_source_item() 
     assert_eq!(
         source
             .clone()
-            .pluckWithKeys(|pair| pair.0, |pair| pair.1)
+            .pluck_with_keys(|pair| pair.0, |pair| pair.1)
             .values()
             .count()
             .unwrap(),
         3
     );
-    let mapped = source.mapWithKeys(|pair, _| {
+    let mapped = source.map_with_keys(|pair, _| {
         projected.set(projected.get() + 1);
         [(pair.0, pair.1), ("extra", 2 * pair.1)]
     });
@@ -1016,17 +1022,17 @@ fn lazy_keyed_projections_preserve_occurrences_and_defer_the_next_source_item() 
 
 #[test]
 fn lazy_groups_materialize_with_key_coalescing_before_projection() {
-    let source = LazyCollection::fromEntries(|| [("a", 1), ("a", 4), ("b", 2), ("c", 3)]);
+    let source = LazyCollection::from_entries(|| [("a", 1), ("a", 4), ("b", 2), ("c", 3)]);
     let dictionary = source
         .clone()
-        .mapToDictionary(|value, _| (value % 2, *value));
+        .map_to_dictionary(|value, _| (value % 2, *value));
     assert_eq!(
         dictionary.all().unwrap(),
         vec![(0.into(), vec![4, 2]), (1.into(), vec![3])]
     );
-    let groups = source.clone().mapToGroups(|value, _| (value % 2, *value));
+    let groups = source.clone().map_to_groups(|value, _| (value % 2, *value));
     assert_eq!(groups.first().unwrap().unwrap().to_json().unwrap(), "[4,2]");
-    let keyed = source.groupBy(|value, _| value % 2, true);
+    let keyed = source.group_by(|value, _| value % 2, true);
     assert_eq!(
         keyed.first().unwrap().unwrap().to_json().unwrap(),
         r#"{"a":4,"b":2}"#
@@ -1036,7 +1042,7 @@ fn lazy_groups_materialize_with_key_coalescing_before_projection() {
 #[test]
 fn lazy_key_lookups_stop_at_first_match_and_distinguish_normalized_keys() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("08", 1), ("8", 2), ("8", 3), ("end", 4)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -1045,13 +1051,13 @@ fn lazy_key_lookups_stop_at_first_match_and_distinguish_normalized_keys() {
     assert_eq!(reads.get(), 2);
     assert_eq!(source.get("08").unwrap(), Some(1));
     assert!(source.has(8).unwrap());
-    assert!(source.hasAll(["08", "8", "8"]).unwrap());
+    assert!(source.has_all(["08", "8", "8"]).unwrap());
     assert!(source.has_any(["missing", "08"]).unwrap());
     assert!(!source.has("missing").unwrap());
-    assert!(source.hasAll(std::iter::empty::<ArrayKey>()).unwrap());
+    assert!(source.has_all(std::iter::empty::<ArrayKey>()).unwrap());
     assert!(
         !LazyCollection::<i32>::empty()
-            .hasAll(std::iter::empty::<ArrayKey>())
+            .has_all(std::iter::empty::<ArrayKey>())
             .unwrap()
     );
 }
@@ -1059,7 +1065,7 @@ fn lazy_key_lookups_stop_at_first_match_and_distinguish_normalized_keys() {
 #[test]
 fn lazy_neighbors_and_search_follow_occurrence_order() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("k", 1), ("k", 2), ("b", 3), ("c", 2)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -1068,7 +1074,7 @@ fn lazy_neighbors_and_search_follow_occurrence_order() {
     assert_eq!(reads.get(), 2);
     assert_eq!(
         source
-            .searchWhere(|_, key| key == &ArrayKey::from("c"))
+            .search_where(|_, key| key == &ArrayKey::from("c"))
             .unwrap(),
         Some("c".into())
     );
@@ -1077,23 +1083,23 @@ fn lazy_neighbors_and_search_follow_occurrence_order() {
     assert_eq!(source.before(&1).unwrap(), None);
     assert_eq!(
         source
-            .afterWhere(|_, key| key == &ArrayKey::from("c"))
+            .after_where(|_, key| key == &ArrayKey::from("c"))
             .unwrap(),
         None
     );
     assert_eq!(source.last().unwrap(), Some(2));
-    assert_eq!(source.lastWhere(|value, _| *value > 2).unwrap(), Some(3));
+    assert_eq!(source.last_where(|value, _| *value > 2).unwrap(), Some(3));
     assert!(source.some(|value, _| *value == 1).unwrap());
-    assert!(source.doesntContainStrict(&10).unwrap());
+    assert!(source.doesnt_contain_strict(&10).unwrap());
 }
 
 #[test]
 fn lazy_lookup_reports_errors_only_if_needed_for_the_result() {
-    let failing = LazyCollection::tryFromEntries(|| [Ok(("first", 1)), Err(source_error())]);
+    let failing = LazyCollection::try_from_entries(|| [Ok(("first", 1)), Err(source_error())]);
     assert_eq!(failing.get("first").unwrap(), Some(1));
     assert!(failing.has_any(["first", "missing"]).unwrap());
     assert!(matches!(
-        failing.hasAll(["first", "missing"]),
+        failing.has_all(["first", "missing"]),
         Err(CollectionError::Source(_))
     ));
     assert_eq!(failing.before(&1).unwrap(), None);
@@ -1104,12 +1110,12 @@ fn lazy_lookup_reports_errors_only_if_needed_for_the_result() {
 #[test]
 fn lazy_filters_preserve_occurrences_and_stop_at_the_requested_match() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("low", 0), ("repeat", 2), ("repeat", 2), ("high", 4)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let matches = source.clone().whereStrict(|value| *value, 2);
+    let matches = source.clone().where_strict(|value| *value, 2);
     assert_eq!(reads.get(), 0);
     assert_eq!(matches.clone().take(1).first().unwrap(), Some(2));
     assert_eq!(reads.get(), 2);
@@ -1117,7 +1123,7 @@ fn lazy_filters_preserve_occurrences_and_stop_at_the_requested_match() {
     assert_eq!(
         source
             .clone()
-            .whereInStrict(|value| *value, &[0, 4])
+            .where_in_strict(|value| *value, &[0, 4])
             .count()
             .unwrap(),
         2
@@ -1125,7 +1131,7 @@ fn lazy_filters_preserve_occurrences_and_stop_at_the_requested_match() {
     assert_eq!(
         source
             .clone()
-            .whereNotInStrict(|value| *value, &[2])
+            .where_not_in_strict(|value| *value, &[2])
             .count()
             .unwrap(),
         2
@@ -1133,14 +1139,14 @@ fn lazy_filters_preserve_occurrences_and_stop_at_the_requested_match() {
     assert_eq!(
         source
             .clone()
-            .whereBetween(|value| *value, 2..=4)
+            .where_between(|value| *value, 2..=4)
             .count()
             .unwrap(),
         3
     );
     assert_eq!(
         source
-            .whereNotBetween(|value| *value, 2..=4)
+            .where_not_between(|value| *value, 2..=4)
             .first()
             .unwrap(),
         Some(0)
@@ -1150,14 +1156,14 @@ fn lazy_filters_preserve_occurrences_and_stop_at_the_requested_match() {
     assert_eq!(
         floats
             .clone()
-            .whereBetween(|value| *value, 0.0..=1.0)
+            .where_between(|value| *value, 0.0..=1.0)
             .count()
             .unwrap(),
         2
     );
     assert_eq!(
         floats
-            .whereNotBetween(|value| *value, 0.0..=1.0)
+            .where_not_between(|value| *value, 0.0..=1.0)
             .count()
             .unwrap(),
         2
@@ -1173,12 +1179,12 @@ fn lazy_null_filters_distinguish_null_from_false_and_missing_paths() {
         json!({"profile":{"active":false}}),
         json!(null),
     ]);
-    let missing = source.clone().whereNullAt("profile.active");
+    let missing = source.clone().where_null_at("profile.active");
     assert_eq!(missing.count().unwrap(), 3);
     assert_eq!(
         source
             .clone()
-            .whereNotNullAt("profile.active")
+            .where_not_null_at("profile.active")
             .count()
             .unwrap(),
         1
@@ -1186,7 +1192,7 @@ fn lazy_null_filters_distinguish_null_from_false_and_missing_paths() {
     assert_eq!(source.clone().where_null().count().unwrap(), 1);
     assert_eq!(source.where_not_null().count().unwrap(), 3);
 
-    let typed = LazyCollection::fromEntries(|| [("empty", None), ("not_empty", Some(false))]);
+    let typed = LazyCollection::from_entries(|| [("empty", None), ("not_empty", Some(false))]);
     assert_eq!(
         typed.clone().where_null().all().unwrap(),
         vec![("empty".into(), None)]
@@ -1200,15 +1206,15 @@ fn lazy_null_filters_distinguish_null_from_false_and_missing_paths() {
 #[test]
 fn lazy_downcasting_and_predicates_propagate_source_errors() {
     use std::any::Any;
-    let source = LazyCollection::tryFromEntries(|| {
+    let source = LazyCollection::try_from_entries(|| {
         [
             Ok(("discard", Box::new(3_i32) as Box<dyn Any>)),
             Ok(("keep", Box::new(String::from("ready")) as Box<dyn Any>)),
             Err(source_error()),
         ]
     });
-    let filtered = source.whereInstanceOf::<String>();
-    let mut iterator = filtered.getIterator();
+    let filtered = source.where_instance_of::<String>();
+    let mut iterator = filtered.get_iterator();
     assert_eq!(
         iterator.next().unwrap().unwrap(),
         ("keep".into(), Box::new(String::from("ready")))
@@ -1218,7 +1224,7 @@ fn lazy_downcasting_and_predicates_propagate_source_errors() {
         Some(Err(CollectionError::Source(_)))
     ));
     assert!(iterator.next().is_none());
-    let source = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let source = LazyCollection::try_make(|| [Ok(1), Err(source_error())]);
     assert!(matches!(
         source.where_in(|value| *value, &[2]).first(),
         Err(CollectionError::Source(_))
@@ -1228,27 +1234,27 @@ fn lazy_downcasting_and_predicates_propagate_source_errors() {
 #[test]
 fn lazy_page_preserves_occurrences_and_reads_only_through_the_page() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 1), ("b", 2), ("b", 3), ("c", 4), ("d", 5)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let page = source.clone().forPage(2, 2);
+    let page = source.clone().for_page(2, 2);
     assert_eq!(reads.get(), 0);
     assert_eq!(
-        page.getIterator().collect::<Result<Vec<_>, _>>().unwrap(),
+        page.get_iterator().collect::<Result<Vec<_>, _>>().unwrap(),
         vec![("b".into(), 3), ("c".into(), 4)]
     );
     assert_eq!(reads.get(), 4);
-    assert_eq!(source.clone().forPage(0, 1).first().unwrap(), Some(1));
-    assert_eq!(source.forPage(usize::MAX, 0).count().unwrap(), 0);
+    assert_eq!(source.clone().for_page(0, 1).first().unwrap(), Some(1));
+    assert_eq!(source.for_page(usize::MAX, 0).count().unwrap(), 0);
     assert_eq!(reads.get(), 5);
 }
 
 #[test]
 fn lazy_split_and_partition_preserve_their_distinct_materialization_rules() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 1), ("a", 2), ("b", 3), ("c", 4), ("d", 5)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -1258,7 +1264,7 @@ fn lazy_split_and_partition_preserve_their_distinct_materialization_rules() {
         Err(CollectionError::InvalidArgument)
     ));
     assert!(matches!(
-        source.clone().splitIn(0),
+        source.clone().split_in(0),
         Err(CollectionError::InvalidArgument)
     ));
     let split = source.clone().split(3).unwrap();
@@ -1268,7 +1274,7 @@ fn lazy_split_and_partition_preserve_their_distinct_materialization_rules() {
         r#"{"a":2,"b":3}"#
     );
     assert_eq!(reads.get(), 5);
-    let chunks = source.clone().splitIn(2).unwrap();
+    let chunks = source.clone().split_in(2).unwrap();
     assert_eq!(reads.get(), 10);
     assert_eq!(
         chunks.first().unwrap().unwrap().to_json().unwrap(),
@@ -1282,7 +1288,7 @@ fn lazy_split_and_partition_preserve_their_distinct_materialization_rules() {
 
 #[test]
 fn lazy_pad_retains_right_keys_and_uses_materialized_left_padding() {
-    let source = LazyCollection::fromEntries(|| [(ArrayKey::from(8), "x"), ("tag".into(), "y")]);
+    let source = LazyCollection::from_entries(|| [(ArrayKey::from(8), "x"), ("tag".into(), "y")]);
     assert_eq!(
         source.clone().pad(4, "pad").all().unwrap(),
         vec![
@@ -1296,7 +1302,7 @@ fn lazy_pad_retains_right_keys_and_uses_materialized_left_padding() {
         source.pad(-3, "pad").all().unwrap(),
         vec![(0.into(), "pad"), (1.into(), "x"), ("tag".into(), "y")]
     );
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error())]);
     assert_eq!(failing.clone().pad(3, 0).first().unwrap(), Some(1));
     assert!(matches!(
         failing.clone().pad(-3, 0).first(),
@@ -1306,8 +1312,8 @@ fn lazy_pad_retains_right_keys_and_uses_materialized_left_padding() {
         failing.partition(|_, _| true),
         Err(CollectionError::Source(_))
     ));
-    let overflow = LazyCollection::fromEntries(|| [(i64::MAX, "value")]).pad(2, "pad");
-    let mut values = overflow.getIterator();
+    let overflow = LazyCollection::from_entries(|| [(i64::MAX, "value")]).pad(2, "pad");
+    let mut values = overflow.get_iterator();
     assert_eq!(values.next().unwrap().unwrap(), (i64::MAX.into(), "value"));
     assert!(matches!(
         values.next(),
@@ -1319,7 +1325,7 @@ fn lazy_pad_retains_right_keys_and_uses_materialized_left_padding() {
 fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
     use serde_json::json;
     let reads = Cell::new(0);
-    let keyed = LazyCollection::fromEntries(|| {
+    let keyed = LazyCollection::from_entries(|| {
         [
             (ArrayKey::from(2), "old"),
             ("08".into(), "keep"),
@@ -1331,7 +1337,7 @@ fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
     assert_eq!(keyed.to_json().unwrap(), r#"{"2":"new","08":"keep"}"#);
     assert_eq!(reads.get(), 3);
     assert_eq!(
-        keyed.jsonSerialize().unwrap(),
+        keyed.json_serialize().unwrap(),
         json!({"2":"new","08":"keep"})
     );
     assert_eq!(
@@ -1344,10 +1350,10 @@ fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
     );
     assert_eq!(keyed.values().to_json().unwrap(), r#"["old","keep","new"]"#);
 
-    let decoded = LazyCollection::<i32>::fromJson(r#"{"8":1,"08":2}"#).unwrap();
+    let decoded = LazyCollection::<i32>::from_json(r#"{"8":1,"08":2}"#).unwrap();
     assert_eq!(decoded.to_json().unwrap(), r#"{"8":1,"08":2}"#);
     assert_eq!(decoded.to_json().unwrap(), r#"{"8":1,"08":2}"#);
-    assert!(LazyCollection::<i32>::fromJson("7").is_err());
+    assert!(LazyCollection::<i32>::from_json("7").is_err());
     let nested =
         serde_json::from_str::<LazyCollection<'_, LazyCollection<'_, i32>>>("[[1,2],[]]").unwrap();
     assert_eq!(serde_json::to_string(&nested).unwrap(), "[[1,2],[]]");
@@ -1355,7 +1361,7 @@ fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
 
 #[test]
 fn lazy_serialization_keeps_read_errors_separate_from_encoding_errors() {
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error())]);
     assert!(matches!(failing.to_json(), Err(CollectionError::Source(_))));
     assert!(serde_json::to_string(&failing).is_err());
     let nonfinite = LazyCollection::from([1.0, f64::NAN]);
@@ -1391,7 +1397,7 @@ fn lazy_json_paths_and_join_follow_materialization_boundaries() {
         dotted.undot().get(2).unwrap(),
         Some(json!({"profile":{"active":true}}))
     );
-    let names = LazyCollection::fromEntries(|| {
+    let names = LazyCollection::from_entries(|| {
         [("a", "old"), ("a", "new"), ("b", "second"), ("c", "third")]
     });
     assert_eq!(names.join(", ", " and ").unwrap(), "new, second and third");
@@ -1406,7 +1412,7 @@ fn lazy_times_invokes_callbacks_only_for_requested_one_based_positions() {
         index * 3
     });
     let first = source.clone().take(2);
-    let mut iterator = first.getIterator();
+    let mut iterator = first.get_iterator();
     assert!(calls.borrow().is_empty());
     assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 3));
     assert_eq!(iterator.next().unwrap().unwrap(), (1.into(), 6));
@@ -1476,19 +1482,19 @@ fn lazy_wrapping_replays_values_and_unwrap_propagates_errors() {
             .unwrap()
             .is_empty()
     );
-    let json = LazyCollection::fromValue(json!({"08":2,"8":3}));
+    let json = LazyCollection::from_value(json!({"08":2,"8":3}));
     assert_eq!(json.to_json().unwrap(), r#"{"08":2,"8":3}"#);
     assert_eq!(
         json.clone().unwrap().unwrap(),
         vec![("08".into(), json!(2)), (8.into(), json!(3))]
     );
     assert_eq!(
-        LazyCollection::fromValue(json!(42)).to_json().unwrap(),
+        LazyCollection::from_value(json!(42)).to_json().unwrap(),
         "[42]"
     );
-    assert_eq!(LazyCollection::fromValue(json!(null)).count().unwrap(), 0);
+    assert_eq!(LazyCollection::from_value(json!(null)).count().unwrap(), 0);
     assert!(matches!(
-        LazyCollection::tryMake(|| [Ok(1), Err(source_error())]).unwrap(),
+        LazyCollection::try_make(|| [Ok(1), Err(source_error())]).unwrap(),
         Err(CollectionError::Source(_))
     ));
 }
@@ -1504,11 +1510,11 @@ fn lazy_conditional_pipes_and_tap_preserve_the_source_until_pulled() {
     ];
     let stage = source
         .when(false, |_| panic!("unchosen branch"))
-        .whenElse(true, |items| items.skip(1), |_| panic!("unchosen fallback"))
+        .when_else(true, |items| items.skip(1), |_| panic!("unchosen fallback"))
         .unless(true, |_| panic!("unchosen unless"))
-        .unlessElse(true, |_| panic!("unchosen unless branch"), |items| items)
+        .unless_else(true, |_| panic!("unchosen unless branch"), |items| items)
         .tap(|_| tapped.set(tapped.get() + 1))
-        .pipeThrough(stages);
+        .pipe_through(stages);
     assert_eq!(reads.get(), 0);
     assert_eq!(tapped.get(), 1);
     assert_eq!(
@@ -1523,7 +1529,7 @@ fn lazy_conditional_pipes_and_tap_preserve_the_source_until_pulled() {
             Self(items)
         }
     }
-    let wrapped: Wrapped<'_> = LazyCollection::from([7, 8]).pipeInto();
+    let wrapped: Wrapped<'_> = LazyCollection::from([7, 8]).pipe_into();
     assert_eq!(wrapped.0.first().unwrap(), Some(7));
 }
 
@@ -1533,26 +1539,26 @@ fn lazy_emptiness_branches_probe_once_and_propagate_the_probe_error() {
     let source =
         LazyCollection::make(|| [2, 3].into_iter().inspect(|_| reads.set(reads.get() + 1)));
     let sorted = source
-        .whenEmptyElse(|_| panic!("not empty"), |items| items.take(1))
+        .when_empty_else(|_| panic!("not empty"), |items| items.take(1))
         .unwrap();
     assert_eq!(reads.get(), 1);
     assert_eq!(sorted.first().unwrap(), Some(2));
     assert_eq!(reads.get(), 2);
     let fallback = LazyCollection::<i32>::empty()
-        .whenNotEmptyElse(|_| panic!("empty"), |_| LazyCollection::from([5]))
+        .when_not_empty_else(|_| panic!("empty"), |_| LazyCollection::from([5]))
         .unwrap();
     assert_eq!(fallback.first().unwrap(), Some(5));
     assert_eq!(
         LazyCollection::<i32>::empty()
-            .unlessNotEmpty(|_| LazyCollection::from([7]))
+            .unless_not_empty(|_| LazyCollection::from([7]))
             .unwrap()
             .first()
             .unwrap(),
         Some(7)
     );
-    let failing = LazyCollection::tryMake(|| [Err::<i32, _>(source_error())]);
+    let failing = LazyCollection::try_make(|| [Err::<i32, _>(source_error())]);
     assert!(matches!(
-        failing.unlessEmpty(|_| panic!("source failed")),
+        failing.unless_empty(|_| panic!("source failed")),
         Err(CollectionError::Source(_))
     ));
 }
@@ -1560,7 +1566,7 @@ fn lazy_emptiness_branches_probe_once_and_propagate_the_probe_error() {
 #[test]
 fn lazy_validation_and_owned_reductions_preserve_repeated_occurrences() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 1), ("a", 2), ("b", 3)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -1573,18 +1579,18 @@ fn lazy_validation_and_owned_reductions_preserve_repeated_occurrences() {
     let valid = source.ensure(|value, _| *value < 4).unwrap();
     assert_eq!(
         valid
-            .reduceWithKeys(0, |sum, value, _| sum + value)
+            .reduce_with_keys(0, |sum, value, _| sum + value)
             .unwrap(),
         6
     );
     assert_eq!(
         valid
-            .reduceInto(Vec::new(), |values, value, key| values
+            .reduce_into(Vec::new(), |values, value, key| values
                 .push((key.clone(), *value)))
             .unwrap(),
         vec![("a".into(), 1), ("a".into(), 2), ("b".into(), 3)]
     );
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error())]);
     assert!(matches!(
         failing.ensure(|_, _| true),
         Err(CollectionError::Source(_))
@@ -1593,7 +1599,7 @@ fn lazy_validation_and_owned_reductions_preserve_repeated_occurrences() {
 
 #[test]
 fn lazy_flip_and_spread_transform_items_without_materializing() {
-    let keys = LazyCollection::fromEntries(|| {
+    let keys = LazyCollection::from_entries(|| {
         [
             ("a", ArrayKey::from("8")),
             ("b", "8".into()),
@@ -1608,18 +1614,18 @@ fn lazy_flip_and_spread_transform_items_without_materializing() {
     );
 
     let calls = Cell::new(0);
-    let rows = LazyCollection::fromEntries(|| [("x", vec![2_u8, 3]), ("y", vec![4, 5])]);
+    let rows = LazyCollection::from_entries(|| [("x", vec![2_u8, 3]), ("y", vec![4, 5])]);
     let sums = rows
         .clone()
-        .mapSpread(|items, _| {
+        .map_spread(|items, _| {
             calls.set(calls.get() + 1);
             items.iter().sum::<u8>()
         })
-        .mapInto::<u16>();
+        .map_into::<u16>();
     assert_eq!(calls.get(), 0);
     assert_eq!(sums.first().unwrap(), Some(5));
     assert_eq!(calls.get(), 1);
-    rows.eachSpread(|items, key| {
+    rows.each_spread(|items, key| {
         assert_eq!(items, [2, 3]);
         assert_eq!(key, &ArrayKey::from("x"));
         false
@@ -1631,7 +1637,7 @@ fn lazy_flip_and_spread_transform_items_without_materializing() {
 fn lazy_json_select_is_row_based_and_recursive_updates_reuse_key_rules() {
     use serde_json::json;
     let reads = Cell::new(0);
-    let rows = LazyCollection::fromEntries(|| {
+    let rows = LazyCollection::from_entries(|| {
         [
             ("same", json!({"a":1,"b":2})),
             ("same", json!({"a":null})),
@@ -1646,36 +1652,37 @@ fn lazy_json_select_is_row_based_and_recursive_updates_reuse_key_rules() {
     assert_eq!(reads.get(), 1);
     assert_eq!(selected.to_array().unwrap(), json!([{"a":1},{"a":null},[]]));
 
-    let base = LazyCollection::fromValue(json!({"profile":{"name":"A","roles":["edit"]}}));
-    let other = LazyCollection::fromValue(json!({"profile":{"name":"B","roles":["view"]}}));
+    let base = LazyCollection::from_value(json!({"profile":{"name":"A","roles":["edit"]}}));
+    let other = LazyCollection::from_value(json!({"profile":{"name":"B","roles":["view"]}}));
     assert_eq!(
         base.clone()
-            .mergeRecursive(other.clone())
+            .merge_recursive(other.clone())
             .to_array()
             .unwrap(),
         json!({"profile":{"name":["A","B"],"roles":["edit","view"]}})
     );
     assert_eq!(
-        base.replaceRecursive(other).to_array().unwrap(),
+        base.replace_recursive(other).to_array().unwrap(),
         json!({"profile":{"name":"B","roles":["view"]}})
     );
 }
 
 #[test]
 fn lazy_multiply_coalesces_input_before_repetition_and_transforms_propagate_errors() {
-    let source = LazyCollection::fromEntries(|| [("same", 1), ("same", 2), ("other", 3)]);
+    let source = LazyCollection::from_entries(|| [("same", 1), ("same", 2), ("other", 3)]);
     assert_eq!(source.multiply(2).to_json().unwrap(), "[2,3,2,3]");
-    let failing = LazyCollection::tryMake(|| [Ok(serde_json::json!({"a":1})), Err(source_error())]);
+    let failing =
+        LazyCollection::try_make(|| [Ok(serde_json::json!({"a":1})), Err(source_error())]);
     let projected = failing.clone().select(&["a"]);
-    let mut values = projected.getIterator();
+    let mut values = projected.get_iterator();
     assert!(matches!(values.next(), Some(Ok(_))));
     assert!(matches!(
         values.next(),
         Some(Err(CollectionError::Source(_)))
     ));
     assert!(matches!(
-        LazyCollection::fromValue(serde_json::json!({"a":0}))
-            .replaceRecursive(failing)
+        LazyCollection::from_value(serde_json::json!({"a":0}))
+            .replace_recursive(failing)
             .first(),
         Err(CollectionError::Source(_))
     ));
@@ -1684,13 +1691,13 @@ fn lazy_multiply_coalesces_input_before_repetition_and_transforms_propagate_erro
 #[test]
 fn lazy_cross_join_defers_source_reads_and_matches_product_order() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("repeat", 99), ("repeat", 1), ("other", 2)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
     let columns: &[&[_]] = &[&[3, 4], &[5]];
-    let product = source.crossJoin(columns);
+    let product = source.cross_join(columns);
     assert_eq!(reads.get(), 0);
     assert_eq!(product.first().unwrap(), Some(vec![1, 3, 5]));
     assert_eq!(reads.get(), 3);
@@ -1700,7 +1707,7 @@ fn lazy_cross_join_defers_source_reads_and_matches_product_order() {
     );
     assert_eq!(
         LazyCollection::from([1, 2])
-            .crossJoin(&[&[]])
+            .cross_join(&[&[]])
             .count()
             .unwrap(),
         0
@@ -1710,7 +1717,7 @@ fn lazy_cross_join_defers_source_reads_and_matches_product_order() {
 #[test]
 fn lazy_random_is_immediate_and_replays_the_selected_values() {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("x", 10), ("y", 20), ("z", 30)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -1734,10 +1741,10 @@ fn lazy_random_is_immediate_and_replays_the_selected_values() {
         Err(CollectionError::InvalidArgument)
     ));
     assert!(matches!(
-        LazyCollection::<i32>::empty().randItem(),
+        LazyCollection::<i32>::empty().rand_item(),
         Err(CollectionError::ItemNotFound)
     ));
-    assert_eq!(LazyCollection::from([7]).randItem().unwrap(), 7);
+    assert_eq!(LazyCollection::from([7]).rand_item().unwrap(), 7);
 }
 
 #[test]
@@ -1749,7 +1756,7 @@ fn lazy_shuffle_preserves_membership_and_propagates_source_errors() {
             .inspect(|_| reads.set(reads.get() + 1))
     })
     .shuffle();
-    let mut iterator = shuffled.getIterator();
+    let mut iterator = shuffled.get_iterator();
     assert_eq!(reads.get(), 0);
     let first = iterator.next().unwrap().unwrap();
     assert_eq!(reads.get(), 3);
@@ -1758,13 +1765,13 @@ fn lazy_shuffle_preserves_membership_and_propagates_source_errors() {
     values.sort_unstable();
     assert_eq!(values, [3, 4, 5]);
 
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error())]);
     assert!(matches!(
         failing.clone().shuffle().first(),
         Err(CollectionError::Source(_))
     ));
     assert!(matches!(
-        failing.clone().crossJoin(&[&[2]]).first(),
+        failing.clone().cross_join(&[&[2]]).first(),
         Err(CollectionError::Source(_))
     ));
     assert!(matches!(
@@ -1777,7 +1784,7 @@ fn lazy_shuffle_preserves_membership_and_propagates_source_errors() {
 fn lazy_percentage_counts_once_in_key_order_and_rounds() -> CollectionResult<()> {
     let opens = Cell::new(0);
     let calls = Cell::new(0);
-    let entries = LazyCollection::fromEntries(|| {
+    let entries = LazyCollection::from_entries(|| {
         opens.set(opens.get() + 1);
         [("one", 1), ("two", 2), ("three", 3)]
     });
@@ -1808,7 +1815,7 @@ fn lazy_percentage_counts_once_in_key_order_and_rounds() -> CollectionResult<()>
 #[test]
 fn lazy_percentage_propagates_an_error_without_reading_remaining_entries() {
     let reads = Cell::new(0);
-    let entries = LazyCollection::tryMake(|| {
+    let entries = LazyCollection::try_make(|| {
         [Ok(1), Err(CollectionError::InvalidArgument), Ok(3)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -1829,15 +1836,15 @@ fn lazy_percentage_propagates_an_error_without_reading_remaining_entries() {
 #[test]
 fn lazy_caching_iterator_looks_ahead_and_caches_only_yielded_keys() -> CollectionResult<()> {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 1), ("a", 2), ("b", 3)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let mut traversal = source.getCachingIteratorWithFullCache();
+    let mut traversal = source.get_caching_iterator_with_full_cache();
     assert_eq!(reads.get(), 0);
     assert_eq!(traversal.next().transpose()?, Some(("a".into(), 1)));
-    assert!(traversal.hasNext());
+    assert!(traversal.has_next());
     assert_eq!(reads.get(), 2);
     assert_eq!(traversal.get_cache().unwrap().get("a"), Some(&1));
     assert_eq!(traversal.next().transpose()?, Some(("a".into(), 2)));
@@ -1845,40 +1852,40 @@ fn lazy_caching_iterator_looks_ahead_and_caches_only_yielded_keys() -> Collectio
     assert_eq!(traversal.get_cache().unwrap().get("a"), Some(&2));
     assert!(!traversal.get_cache().unwrap().has("b"));
     assert_eq!(traversal.next().transpose()?, Some(("b".into(), 3)));
-    assert!(!traversal.hasNext());
+    assert!(!traversal.has_next());
     assert_eq!(traversal.get_cache().unwrap().get("b"), Some(&3));
     assert!(traversal.next().is_none());
 
     struct NoClone;
     let single = LazyCollection::make(|| [NoClone]);
-    let mut lookahead = single.getCachingIterator();
-    assert!(lookahead.hasNext());
+    let mut lookahead = single.get_caching_iterator();
+    assert!(lookahead.has_next());
     assert!(lookahead.next().transpose()?.is_some());
     assert!(lookahead.get_cache().is_none());
-    assert!(!lookahead.hasNext());
-    assert!(single.containsOneItem()?);
-    assert!(!single.containsManyItems()?);
-    assert!(source.containsManyItems()?);
+    assert!(!lookahead.has_next());
+    assert!(single.contains_one_item()?);
+    assert!(!single.contains_many_items()?);
+    assert!(source.contains_many_items()?);
     Ok(())
 }
 
 #[test]
 fn lazy_caching_iterator_preserves_the_entry_before_a_source_error() -> CollectionResult<()> {
     let reads = Cell::new(0);
-    let source = LazyCollection::tryMake(|| {
+    let source = LazyCollection::try_make(|| {
         [Ok(1), Err(CollectionError::InvalidArgument), Ok(2)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let mut traversal = source.getCachingIteratorWithFullCache();
+    let mut traversal = source.get_caching_iterator_with_full_cache();
     assert_eq!(traversal.next().transpose()?, Some((0.into(), 1)));
     assert_eq!(reads.get(), 2);
-    assert!(traversal.hasNext());
+    assert!(traversal.has_next());
     assert!(matches!(
         traversal.next(),
         Some(Err(CollectionError::InvalidArgument))
     ));
-    assert!(!traversal.hasNext());
+    assert!(!traversal.has_next());
     assert_eq!(reads.get(), 2);
     assert_eq!(traversal.get_cache().unwrap().count(), 1);
     Ok(())
@@ -1887,13 +1894,13 @@ fn lazy_caching_iterator_preserves_the_entry_before_a_source_error() -> Collecti
 #[test]
 fn lazy_dump_materializes_the_snapshot_and_returns_the_original_source() -> CollectionResult<()> {
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("same", "first"), ("same", "last"), ("other", "second")]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
     let mut bytes = Vec::new();
-    let source = source.dumpTo(&mut bytes, &[&"context marker", &17])?;
+    let source = source.dump_to(&mut bytes, &[&"context marker", &17])?;
     assert_eq!(reads.get(), 3);
     let output = String::from_utf8(bytes).unwrap();
     assert!(output.contains("same") && output.contains("other"));
@@ -1907,10 +1914,10 @@ fn lazy_dump_materializes_the_snapshot_and_returns_the_original_source() -> Coll
 
 #[test]
 fn lazy_dump_propagates_source_and_write_failures() {
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(CollectionError::InvalidArgument)]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(CollectionError::InvalidArgument)]);
     let mut output = Vec::new();
     assert!(matches!(
-        failing.dumpTo(&mut output, &[&"context"]),
+        failing.dump_to(&mut output, &[&"context"]),
         Err(CollectionError::InvalidArgument)
     ));
     assert!(output.is_empty());
@@ -1926,7 +1933,7 @@ fn lazy_dump_propagates_source_and_write_failures() {
         }
     }
 
-    let result = LazyCollection::from([1]).dumpTo(BrokenWriter, &[]);
+    let result = LazyCollection::from([1]).dump_to(BrokenWriter, &[]);
     assert!(matches!(
         result,
         Err(CollectionError::Source(error))
@@ -1937,50 +1944,50 @@ fn lazy_dump_propagates_source_and_write_failures() {
 #[test]
 fn lazy_string_escape_only_applies_during_string_conversion() -> CollectionResult<()> {
     let reads = Cell::new(0);
-    let values = LazyCollection::fromEntries(|| {
+    let values = LazyCollection::from_entries(|| {
         [("a&b", "<>\"' &lt;")]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     });
-    let escaped = values.clone().escapeWhenCastingToString(true);
+    let escaped = values.clone().escape_when_casting_to_string(true);
     assert_eq!(reads.get(), 0);
     assert_eq!(
-        escaped.toString()?,
+        escaped.to_string()?,
         r#"{&quot;a&amp;b&quot;:&quot;&lt;&gt;\&quot;&#039; &amp;lt;&quot;}"#
     );
     assert_eq!(reads.get(), 1);
     let raw = r#"{"a&b":"<>\"' &lt;"}"#;
     assert_eq!(escaped.to_json()?, raw);
-    assert_eq!(values.toString()?, raw);
+    assert_eq!(values.to_string()?, raw);
     assert_eq!(
         escaped
             .clone()
-            .escapeWhenCastingToString(false)
-            .toString()?,
+            .escape_when_casting_to_string(false)
+            .to_string()?,
         raw
     );
-    assert_eq!(escaped.map(|value, _| *value).toString()?, raw);
+    assert_eq!(escaped.map(|value, _| *value).to_string()?, raw);
     Ok(())
 }
 
 #[test]
 fn lazy_string_escape_preserves_source_errors() {
-    let values = LazyCollection::<i32>::tryMake(|| [Err(CollectionError::InvalidArgument)]);
+    let values = LazyCollection::<i32>::try_make(|| [Err(CollectionError::InvalidArgument)]);
     assert!(matches!(
-        values.escapeWhenCastingToString(true).toString(),
+        values.escape_when_casting_to_string(true).to_string(),
         Err(CollectionError::InvalidArgument)
     ));
 }
 
 #[test]
 fn lazy_dd_carries_the_snapshot_and_preserves_source_errors() {
-    let result = LazyCollection::from(["diagnostic"]).ddWith(&[&"context marker"]);
+    let result = LazyCollection::from(["diagnostic"]).dd_with(&[&"context marker"]);
     assert!(matches!(
         result,
         Err(CollectionError::DumpAndDie(output))
             if output.contains("diagnostic") && output.ends_with("\"context marker\"\n")
     ));
-    let failure = LazyCollection::<i32>::tryMake(|| [Err(CollectionError::InvalidArgument)]);
+    let failure = LazyCollection::<i32>::try_make(|| [Err(CollectionError::InvalidArgument)]);
     assert!(matches!(
         failure.dd(),
         Err(CollectionError::InvalidArgument)
@@ -2001,7 +2008,7 @@ fn higher_order_proxy_preserves_the_operations_traversal_and_keys() {
     }
 
     let reads = Cell::new(0);
-    let tasks = LazyCollection::fromEntries(|| {
+    let tasks = LazyCollection::from_entries(|| {
         [("first", "ingest", 1), ("second", "notify", 3)]
             .into_iter()
             .map(|(key, name, attempts)| {
@@ -2022,21 +2029,21 @@ fn higher_order_proxy_preserves_the_operations_traversal_and_keys() {
 
     assert_eq!(reads.get(), 0);
     assert_eq!(
-        names.take(1).getIterator().next().unwrap().unwrap(),
+        names.take(1).get_iterator().next().unwrap().unwrap(),
         ("first".into(), "ingest")
     );
     assert_eq!(reads.get(), 1);
     assert_eq!(
         exhausted
             .map(|task, _| task.name)
-            .getIterator()
+            .get_iterator()
             .collect::<CollectionResult<Vec<_>>>()
             .unwrap(),
         vec![("second".into(), "notify")]
     );
     assert_eq!(
         tasks
-            .proxy(|items: LazyCollection<'_, Task>, project| items.sumBy(project))
+            .proxy(|items: LazyCollection<'_, Task>, project| items.sum_by(project))
             .call(|task: &Task, _: &ArrayKey| task.attempts)
             .unwrap(),
         4
@@ -2046,7 +2053,7 @@ fn higher_order_proxy_preserves_the_operations_traversal_and_keys() {
 #[test]
 fn higher_order_proxy_propagates_source_errors_without_projecting_them() {
     let projected = Cell::new(0);
-    let values = LazyCollection::tryMake(|| [Ok(1), Err(CollectionError::InvalidArgument)]);
+    let values = LazyCollection::try_make(|| [Ok(1), Err(CollectionError::InvalidArgument)]);
     let mapped = values.proxy(LazyCollection::map).call(|value, _| {
         projected.set(projected.get() + 1);
         *value
@@ -2067,13 +2074,13 @@ fn lazy_implode_projects_only_the_materialized_entries() {
     }
 
     let projected = RefCell::new(Vec::new());
-    let tasks = LazyCollection::fromEntries(|| {
+    let tasks = LazyCollection::from_entries(|| {
         [("first", "draft"), ("next", "ship"), ("first", "review")]
             .map(|(key, name)| (key, Task { name }))
     });
     assert_eq!(
         tasks
-            .implodeBy(
+            .implode_by(
                 |task, key| {
                     projected.borrow_mut().push((key.clone(), task.name));
                     task.name
@@ -2089,7 +2096,7 @@ fn lazy_implode_projects_only_the_materialized_entries() {
     );
     assert_eq!(
         LazyCollection::<Task>::empty()
-            .implodeBy(
+            .implode_by(
                 |_, _| -> &str { panic!("empty collection has no projection") },
                 "-"
             )
@@ -2097,9 +2104,9 @@ fn lazy_implode_projects_only_the_materialized_entries() {
         ""
     );
 
-    let tasks = LazyCollection::tryMake(|| [Ok(Task { name: "draft" }), Err(source_error())]);
+    let tasks = LazyCollection::try_make(|| [Ok(Task { name: "draft" }), Err(source_error())]);
     assert!(matches!(
-        tasks.implodeBy(
+        tasks.implode_by(
             |_, _| -> &str { panic!("source failed before projection") },
             "-"
         ),
@@ -2111,7 +2118,7 @@ fn lazy_implode_projects_only_the_materialized_entries() {
 fn lazy_lookup_fallbacks_run_only_on_miss_and_preserve_lookup_order() {
     let calls = Cell::new(0);
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [("a", 10), ("b", 11), ("a", 20)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
@@ -2121,37 +2128,45 @@ fn lazy_lookup_fallbacks_run_only_on_miss_and_preserve_lookup_order() {
         99
     };
 
-    assert_eq!(source.getOrElse("a", fallback).unwrap(), 10);
+    assert_eq!(source.get_or_else("a", fallback).unwrap(), 10);
     assert_eq!(reads.get(), 1);
-    assert_eq!(source.firstOrElse(fallback).unwrap(), 10);
+    assert_eq!(source.first_or_else(fallback).unwrap(), 10);
     assert_eq!(reads.get(), 2);
     assert_eq!(
         source
-            .firstWhereOrElse(|_, key| key == &"b".into(), fallback)
+            .first_where_or_else(|_, key| key == &"b".into(), fallback)
             .unwrap(),
         11
     );
     assert_eq!(reads.get(), 4);
     assert_eq!(
         source
-            .lastWhereOrElse(|value, _| value % 10 == 0, fallback)
+            .last_where_or_else(|value, _| value % 10 == 0, fallback)
             .unwrap(),
         20
     );
     assert_eq!(reads.get(), 7);
-    assert_eq!(source.lastOrElse(fallback).unwrap(), 20);
+    assert_eq!(source.last_or_else(fallback).unwrap(), 20);
     assert_eq!(reads.get(), 10);
     assert_eq!(calls.get(), 0);
 
-    assert_eq!(source.getOrElse("missing", fallback).unwrap(), 99);
-    assert_eq!(source.firstWhereOrElse(|_, _| false, fallback).unwrap(), 99);
-    assert_eq!(source.lastWhereOrElse(|_, _| false, fallback).unwrap(), 99);
-    assert_eq!(LazyCollection::empty().firstOrElse(fallback).unwrap(), 99);
-    assert_eq!(LazyCollection::empty().lastOrElse(fallback).unwrap(), 99);
+    assert_eq!(source.get_or_else("missing", fallback).unwrap(), 99);
+    assert_eq!(
+        source.first_where_or_else(|_, _| false, fallback).unwrap(),
+        99
+    );
+    assert_eq!(
+        source.last_where_or_else(|_, _| false, fallback).unwrap(),
+        99
+    );
+    assert_eq!(LazyCollection::empty().first_or_else(fallback).unwrap(), 99);
+    assert_eq!(LazyCollection::empty().last_or_else(fallback).unwrap(), 99);
     assert_eq!(calls.get(), 5);
     let owned = String::from("computed once");
     assert_eq!(
-        LazyCollection::empty().firstOrElse(move || owned).unwrap(),
+        LazyCollection::empty()
+            .first_or_else(move || owned)
+            .unwrap(),
         "computed once"
     );
 }
@@ -2160,7 +2175,7 @@ fn lazy_lookup_fallbacks_run_only_on_miss_and_preserve_lookup_order() {
 fn lazy_lookup_fallbacks_preserve_null_and_source_errors() {
     use serde_json::{Value, json};
 
-    let values = LazyCollection::fromEntries(|| {
+    let values = LazyCollection::from_entries(|| {
         [
             ("first", json!({})),
             ("second", json!({"profile":{"name":null}})),
@@ -2169,47 +2184,47 @@ fn lazy_lookup_fallbacks_preserve_null_and_source_errors() {
     });
     let never = || -> Value { panic!("a source error or present value precedes fallback") };
     assert_eq!(
-        values.valueOrElse("profile.name", never).unwrap(),
+        values.value_or_else("profile.name", never).unwrap(),
         Value::Null
     );
     assert_eq!(
         values
-            .valueOrElse("profile.email", || json!("unknown"))
+            .value_or_else("profile.email", || json!("unknown"))
             .unwrap(),
         json!("unknown")
     );
     assert_eq!(
         LazyCollection::from([Value::Null])
-            .getOrElse(0, never)
+            .get_or_else(0, never)
             .unwrap(),
         Value::Null
     );
 
-    let broken = LazyCollection::tryFromEntries(|| {
+    let broken = LazyCollection::try_from_entries(|| {
         [
             Ok(("hit", json!({"profile":{"name":null}}))),
             Err(source_error()),
         ]
     });
     assert_eq!(
-        broken.getOrElse("hit", never).unwrap(),
+        broken.get_or_else("hit", never).unwrap(),
         json!({"profile":{"name":null}})
     );
     assert_eq!(
-        broken.valueOrElse("profile.name", never).unwrap(),
+        broken.value_or_else("profile.name", never).unwrap(),
         Value::Null
     );
     for error in [
-        broken.getOrElse("missing", never),
-        broken.firstWhereOrElse(|_, _| false, never),
-        broken.lastWhereOrElse(|_, _| true, never),
-        broken.lastOrElse(never),
-        broken.valueOrElse("profile.email", never),
+        broken.get_or_else("missing", never),
+        broken.first_where_or_else(|_, _| false, never),
+        broken.last_where_or_else(|_, _| true, never),
+        broken.last_or_else(never),
+        broken.value_or_else("profile.email", never),
     ] {
         assert!(matches!(error, Err(CollectionError::Source(_))));
     }
     assert!(matches!(
-        LazyCollection::<Value>::tryMake(|| [Err(source_error())]).firstOrElse(never),
+        LazyCollection::<Value>::try_make(|| [Err(source_error())]).first_or_else(never),
         Err(CollectionError::Source(_))
     ));
 }
@@ -2218,7 +2233,7 @@ fn lazy_lookup_fallbacks_preserve_null_and_source_errors() {
 fn lazy_value_boundaries_are_strict_and_keep_keys() {
     use serde_json::json;
     let reads = Cell::new(0);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         [
             ("string", json!("2")),
             ("float", json!(2.0)),
@@ -2229,8 +2244,8 @@ fn lazy_value_boundaries_are_strict_and_keep_keys() {
         .inspect(|_| reads.set(reads.get() + 1))
     });
 
-    let before = source.clone().takeUntilValue(json!(2));
-    let from = source.clone().skipUntilValue(json!(2));
+    let before = source.clone().take_until_value(json!(2));
+    let from = source.clone().skip_until_value(json!(2));
     assert_eq!(reads.get(), 0);
     assert_eq!(
         before.all().unwrap(),
@@ -2242,24 +2257,24 @@ fn lazy_value_boundaries_are_strict_and_keep_keys() {
         vec![("integer".into(), json!(2)), ("tail".into(), json!(3))]
     );
     assert_eq!(reads.get(), 7);
-    assert!(source.skipUntilValue(json!(99)).all().unwrap().is_empty());
+    assert!(source.skip_until_value(json!(99)).all().unwrap().is_empty());
 
-    let source = LazyCollection::fromEntries(|| [("a", 1), ("b", 1), ("c", 2), ("d", 1)]);
+    let source = LazyCollection::from_entries(|| [("a", 1), ("b", 1), ("c", 2), ("d", 1)]);
     assert_eq!(
-        source.clone().takeWhileValue(1).all().unwrap(),
+        source.clone().take_while_value(1).all().unwrap(),
         vec![("a".into(), 1), ("b".into(), 1)]
     );
     assert_eq!(
-        source.skipWhileValue(1).all().unwrap(),
+        source.skip_while_value(1).all().unwrap(),
         vec![("c".into(), 2), ("d".into(), 1)]
     );
-    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error()), Ok(2)]);
+    let failing = LazyCollection::try_make(|| [Ok(1), Err(source_error()), Ok(2)]);
     assert!(matches!(
-        failing.clone().skipUntilValue(2).all(),
+        failing.clone().skip_until_value(2).all(),
         Err(CollectionError::Source(_))
     ));
     assert!(matches!(
-        failing.takeWhileValue(1).all(),
+        failing.take_while_value(1).all(),
         Err(CollectionError::Source(_))
     ));
 }
@@ -2269,7 +2284,7 @@ fn lazy_truthy_filter_reuses_php_json_truthiness_and_stops_at_errors() {
     use serde_json::json;
 
     let reads = Cell::new(0);
-    let source = LazyCollection::tryFromEntries(|| {
+    let source = LazyCollection::try_from_entries(|| {
         [
             Ok(("null", json!(null))),
             Ok(("false", json!(false))),
@@ -2288,9 +2303,9 @@ fn lazy_truthy_filter_reuses_php_json_truthiness_and_stops_at_errors() {
         .into_iter()
         .inspect(|_| reads.set(reads.get() + 1))
     })
-    .filterTruthy();
+    .filter_truthy();
     assert_eq!(reads.get(), 0);
-    let mut iterator = source.getIterator();
+    let mut iterator = source.get_iterator();
     assert_eq!(
         iterator.next().unwrap().unwrap(),
         ("text".into(), json!("00"))
@@ -2320,8 +2335,8 @@ fn deadline_allows_the_first_item_when_opening_the_source_crosses_it() {
         std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
         [1, 2].into_iter().inspect(|_| reads.set(reads.get() + 1))
     })
-    .takeUntilTimeout(deadline);
-    let mut iterator = source.getIterator();
+    .take_until_timeout(deadline);
+    let mut iterator = source.get_iterator();
     assert_eq!(reads.get(), 0);
     assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 1));
     assert!(iterator.next().is_none());
@@ -2333,18 +2348,18 @@ fn deadline_notifies_on_resume_with_the_last_item_and_does_not_overread() {
     let reads = Cell::new(0);
     let notifications = RefCell::new(Vec::new());
     let deadline = Instant::now() + Duration::from_millis(250);
-    let source = LazyCollection::fromEntries(|| {
+    let source = LazyCollection::from_entries(|| {
         std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
         [("first", 1), ("later", 2)]
             .into_iter()
             .inspect(|_| reads.set(reads.get() + 1))
     })
-    .takeUntilTimeoutWith(deadline, |item| {
+    .take_until_timeout_with(deadline, |item| {
         notifications
             .borrow_mut()
             .push(item.map(|(value, key)| (*value, key.clone())));
     });
-    let mut iterator = source.getIterator();
+    let mut iterator = source.get_iterator();
     assert_eq!(iterator.next().unwrap().unwrap(), ("first".into(), 1));
     assert!(notifications.borrow().is_empty());
     assert!(iterator.next().is_none());
@@ -2363,16 +2378,16 @@ fn deadline_does_not_call_back_for_empty_or_failing_initial_reads() {
         std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
         []
     })
-    .takeUntilTimeoutWith(deadline, |_| panic!("empty source did not yield an item"));
+    .take_until_timeout_with(deadline, |_| panic!("empty source did not yield an item"));
     assert!(empty.all().unwrap().is_empty());
 
     let deadline = Instant::now() + Duration::from_millis(250);
-    let failing = LazyCollection::<i32>::tryMake(|| {
+    let failing = LazyCollection::<i32>::try_make(|| {
         std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
         [Err(source_error())]
     })
-    .takeUntilTimeoutWith(deadline, |_| panic!("failed source did not yield an item"));
-    let mut iterator = failing.getIterator();
+    .take_until_timeout_with(deadline, |_| panic!("failed source did not yield an item"));
+    let mut iterator = failing.get_iterator();
     assert!(matches!(
         iterator.next(),
         Some(Err(CollectionError::Source(_)))

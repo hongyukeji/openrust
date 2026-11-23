@@ -89,7 +89,7 @@ Pass `image_src` to Blade as `<img src="{{ $image_src }}">` or use it as the des
 
 ### Attachable objects {#attachable-objects}
 
-Implement `Attachable` when a domain object is responsible for choosing its attachment. Convert the object with `toMailAttachment()` when returning the mailable’s attachment sources.
+Implement `Attachable` when a domain object is responsible for choosing its attachment. Convert the object with `to_mail_attachment()` when returning the mailable’s attachment sources.
 
 ```rust
 use openrust::{
@@ -101,7 +101,7 @@ struct Report(String);
 
 impl Attachable for Report {
     #[allow(non_snake_case)]
-    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+    fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
         Ok(Attachment::fromUrl(&self.0)?.r#as("report.pdf"))
     }
 }
@@ -122,7 +122,7 @@ fn envelope(&self) -> MailResult<Envelope> {
 }
 ```
 
-Match these declarations in tests with `assertHasTag` and `assertHasMetadata`. SMTP and raw MIME carry `X-Tag` and `X-Metadata-*` headers. Mailgun’s structured API maps tags to `o:tag` and metadata to `v:*`. Postmark accepts one tag and a metadata map. SES and SES v2 append envelope metadata to the configured provider tags. Resend sends tags as name-value pairs and carries metadata in headers. Cloudflare carries metadata and the last tag in its header map.
+Match these declarations in tests with `assert_has_tag` and `assert_has_metadata`. SMTP and raw MIME carry `X-Tag` and `X-Metadata-*` headers. Mailgun’s structured API maps tags to `o:tag` and metadata to `v:*`. Postmark accepts one tag and a metadata map. SES and SES v2 append envelope metadata to the configured provider tags. Resend sends tags as name-value pairs and carries metadata in headers. Cloudflare carries metadata and the last tag in its header map.
 
 ### Customizing the message {#customizing-the-message}
 
@@ -272,7 +272,7 @@ Set `mail.markdown.secured_encoding` to `true` to render strings passed through 
 
 ## Queueing mail
 
-Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.
+Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `send_now` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.
 
 ## Rendering mailables {#rendering-mailables}
 
@@ -298,7 +298,7 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## Mail transport extensions and events
 
-Register a Rust transport factory with `MailManager::extend` in an application provider. Select it with the mailer’s `transport` config key. The dispatcher emits `MessageSending` before the transport runs and `MessageSent` after the transport accepts the message. A `MessageSending` listener can return `false` to cancel delivery. `send` and `sendNow` both return `Ok(None)` for a cancelled send.
+Register a Rust transport factory with `MailManager::extend` in an application provider. Select it with the mailer’s `transport` config key. The dispatcher emits `MessageSending` before the transport runs and `MessageSent` after the transport accepts the message. A `MessageSending` listener can return `false` to cancel delivery. `send` and `send_now` both return `Ok(None)` for a cancelled send.
 
 ## Testing mail
 
@@ -308,20 +308,20 @@ Inspect the declared subject and addresses on the mailable. An optional display 
 
 ```rust
 receipt
-    .assertHasSubject("Receipt for Sam")
+    .assert_has_subject("Receipt for Sam")
     .assertTo("sam@example.test", None)
-    .assertSeeInHtml("A & <Sam>", true)
+    .assert_see_in_html("A & <Sam>", true)
     .await
-    .assertSeeInOrderInText(&["Plain", "receipt"])
+    .assert_see_in_order_in_text(&["Plain", "receipt"])
     .await;
 ```
 
-Call attachment assertions on a mailable to check its declared sources without reading files or contacting storage. Use `assertHasAttachmentFromStorageDisk` to check a specific disk and `assertHasNoAttachments` to check that no regular attachments were declared.
+Call attachment assertions on a mailable to check its declared sources without reading files or contacting storage. Use `assert_has_attachment_from_storage_disk` to check a specific disk and `assert_has_no_attachments` to check that no regular attachments were declared.
 
 ```rust
 receipt
-    .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
-    .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
+    .assert_has_attachment_from_storage("reports/monthly.csv", None, None)
+    .assert_has_attached_data(b"total,42", "summary.csv", Some("text/csv"));
 ```
 
 ### Testing mailable sending {#testing-mailable-sending}
@@ -330,7 +330,7 @@ Install `Mail::fake()` within the test application to inspect mail without conta
 
 ```rust
 let mail = Mail::fake()?;
-Mail::to("ops@example.test")?.sendNow(&receipt).await?;
+Mail::to("ops@example.test")?.send_now(&receipt).await?;
 mail.assertSentMatching(receipt.kind(), |entry| {
     entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
 });
@@ -339,7 +339,7 @@ mail.assertNothingQueued();
 
 ## Default addresses and cancellation
 
-`Mailer::alwaysTo`, `alwaysFrom`, `alwaysReplyTo`, and `alwaysReturnPath` configure that mailer. Boot-time values become application defaults; overrides inside a request or queue scope affect that execution only. `alwaysTo` replaces recipients and clears CC/BCC after customization. Configuration supports `mail.to`, `mail.from`, `mail.reply_to`, and `mail.return_path`. Cancellation returns `Ok(None)` from `send`, `sendNow`, and `PendingMail`, without invoking transport or emitting `MessageSent`. Existing consumers must handle `Option<SentMessage>` explicitly.
+`Mailer::alwaysTo`, `alwaysFrom`, `alwaysReplyTo`, and `alwaysReturnPath` configure that mailer. Boot-time values become application defaults; overrides inside a request or queue scope affect that execution only. `alwaysTo` replaces recipients and clears CC/BCC after customization. Configuration supports `mail.to`, `mail.from`, `mail.reply_to`, and `mail.return_path`. Cancellation returns `Ok(None)` from `send`, `send_now`, and `PendingMail`, without invoking transport or emitting `MessageSent`. Existing consumers must handle `Option<SentMessage>` explicitly.
 
 
 ## Clearing resolved mailers

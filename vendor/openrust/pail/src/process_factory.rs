@@ -93,7 +93,7 @@ impl ProcessFactory {
                 let line = &remaining[consumed..end];
                 if !line.is_empty() {
                     let line = std::str::from_utf8(line).map_err(error)?;
-                    let message = MessageLogged::fromJson(line).map_err(error)?;
+                    let message = MessageLogged::from_json(line).map_err(error)?;
                     if options.accepts(&message) {
                         printer.print(&message)?;
                     }

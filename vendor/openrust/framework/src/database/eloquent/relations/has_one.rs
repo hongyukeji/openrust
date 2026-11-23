@@ -20,7 +20,6 @@ pub struct HasOne<P: Model, R: Model>(
     Option<Box<ConfigureDefault<P, R>>>,
 );
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> HasOne<P, R> {
     pub const fn new(local_key: &'static str, foreign_key: &'static str) -> Self {
         HasMany::new(local_key, foreign_key).one()
@@ -49,13 +48,13 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 
     #[must_use]
-    pub fn withoutChaperone(self) -> Self {
-        Self(self.0.withoutChaperone(), self.1)
+    pub fn without_chaperone(self) -> Self {
+        Self(self.0.without_chaperone(), self.1)
     }
 
     #[must_use]
-    pub fn withoutInverse(self) -> Self {
-        self.withoutChaperone()
+    pub fn without_inverse(self) -> Self {
+        self.without_chaperone()
     }
 
     /// Applies constraints and nested eager loads to the related query.
@@ -75,12 +74,12 @@ impl<P: Model, R: Model> HasOne<P, R> {
         }
     }
 
-    pub async fn isNot(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+    pub async fn is_not(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
         Ok(!self.is(parent, related).await?)
     }
 
     #[must_use]
-    pub fn latestOfMany<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+    pub fn latest_of_many<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
         self.0.0.selection = Some(OneOfMany::shortcut::<R>(
             columns.into(),
             OneOfManyAggregate::Max,
@@ -89,7 +88,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 
     #[must_use]
-    pub fn oldestOfMany<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+    pub fn oldest_of_many<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
         self.0.0.selection = Some(OneOfMany::shortcut::<R>(
             columns.into(),
             OneOfManyAggregate::Min,
@@ -98,7 +97,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 
     #[must_use]
-    pub fn ofMany(mut self, columns: &[(&'static str, OneOfManyAggregate)]) -> Self {
+    pub fn of_many(mut self, columns: &[(&'static str, OneOfManyAggregate)]) -> Self {
         self.0.0.selection = Some(OneOfMany::new::<R>(
             columns.iter().copied(),
             OneOfManyAggregate::Max,
@@ -107,12 +106,12 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 
     #[must_use]
-    pub fn ofManyBy(mut self, column: &'static str, aggregate: OneOfManyAggregate) -> Self {
+    pub fn of_many_by(mut self, column: &'static str, aggregate: OneOfManyAggregate) -> Self {
         self.0.0.selection = Some(OneOfMany::new::<R>([(column, aggregate)], aggregate));
         self
     }
 
-    pub fn whereCandidates(
+    pub fn where_candidates(
         mut self,
         filter: impl Fn(query::Conditions) -> query::Conditions + Send + Sync + 'static,
     ) -> DatabaseResult<Self> {
@@ -163,12 +162,12 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 
     /// Constructs unsaved children in input order.
-    pub async fn makeMany(
+    pub async fn make_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
-        self.0.makeMany(parent, records).await
+        self.0.make_many(parent, records).await
     }
 
     /// Reads this parent's related models in ordered batches.
@@ -200,67 +199,67 @@ impl<P: Model, R: Model> HasOne<P, R> {
         self.0.cursor(parent)
     }
 
-    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
-        self.0.findOrNew(parent, key).await
+    pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        self.0.find_or_new(parent, key).await
     }
 
     super::lookup::relation_lookup!(.0);
 
-    pub async fn firstOrNew<'a>(
+    pub async fn first_or_new<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.firstOrNew(parent, attributes, values).await
+        self.0.first_or_new(parent, attributes, values).await
     }
 
-    pub async fn firstOrCreate<'a>(
+    pub async fn first_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.firstOrCreate(parent, attributes, values).await
+        self.0.first_or_create(parent, attributes, values).await
     }
 
-    pub async fn createOrFirst<'a>(
+    pub async fn create_or_first<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.createOrFirst(parent, attributes, values).await
+        self.0.create_or_first(parent, attributes, values).await
     }
 
-    pub async fn updateOrCreate<'a>(
+    pub async fn update_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.updateOrCreate(parent, attributes, values).await
+        self.0.update_or_create(parent, attributes, values).await
     }
 
-    pub async fn restoreOrCreate<'a>(
+    pub async fn restore_or_create<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.restoreOrCreate(parent, attributes, values).await
+        self.0.restore_or_create(parent, attributes, values).await
     }
 
-    pub async fn createOrRestore<'a>(
+    pub async fn create_or_restore<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
         values: impl Into<RelatedValues<'a>> + Send,
     ) -> DatabaseResult<R> {
-        self.0.createOrRestore(parent, attributes, values).await
+        self.0.create_or_restore(parent, attributes, values).await
     }
 
-    pub async fn incrementOrCreate(
+    pub async fn increment_or_create(
         &self,
         parent: &P,
         attributes: Attributes,
@@ -270,68 +269,68 @@ impl<P: Model, R: Model> HasOne<P, R> {
         extra: Attributes,
     ) -> DatabaseResult<R> {
         self.0
-            .incrementOrCreate(parent, attributes, column, default, step, extra)
+            .increment_or_create(parent, attributes, column, default, step, extra)
             .await
     }
 
-    pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
-        self.0.saveQuietly(parent, model).await
+    pub async fn save_quietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
+        self.0.save_quietly(parent, model).await
     }
 
-    pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
-        self.0.saveMany(parent, models).await
+    pub async fn save_many(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        self.0.save_many(parent, models).await
     }
 
-    pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
-        self.0.saveManyQuietly(parent, models).await
+    pub async fn save_many_quietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        self.0.save_many_quietly(parent, models).await
     }
 
-    pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        self.0.createQuietly(parent, attributes).await
+    pub async fn create_quietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.create_quietly(parent, attributes).await
     }
 
-    pub async fn createMany(
+    pub async fn create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.createMany(parent, records).await
+        self.0.create_many(parent, records).await
     }
 
-    pub async fn createManyQuietly(
+    pub async fn create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.createManyQuietly(parent, records).await
+        self.0.create_many_quietly(parent, records).await
     }
 
-    pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        self.0.forceCreate(parent, attributes).await
+    pub async fn force_create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.force_create(parent, attributes).await
     }
 
-    pub async fn forceCreateQuietly(
+    pub async fn force_create_quietly(
         &self,
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<R> {
-        self.0.forceCreateQuietly(parent, attributes).await
+        self.0.force_create_quietly(parent, attributes).await
     }
 
-    pub async fn forceCreateMany(
+    pub async fn force_create_many(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.forceCreateMany(parent, records).await
+        self.0.force_create_many(parent, records).await
     }
 
-    pub async fn forceCreateManyQuietly(
+    pub async fn force_create_many_quietly(
         &self,
         parent: &P,
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<Vec<R>> {
-        self.0.forceCreateManyQuietly(parent, records).await
+        self.0.force_create_many_quietly(parent, records).await
     }
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
@@ -339,23 +338,22 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for HasOne<P, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
         Box::pin(context.push_one(output))
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -363,20 +361,20 @@ impl<P: Model, R: Model> Relation for HasOne<P, R> {
         super::super::serialization::one(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         output
             .as_deref()
-            .map_or_else(Vec::new, Model::getQueueableRelations)
+            .map_or_else(Vec::new, Model::get_queueable_relations)
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -393,8 +391,8 @@ impl<P: Model, R: Model> HasOne<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
         Box::pin(async move {
             let matches = match transaction {
-                Some(tx) => self.0.matchResultsInTransaction(parents, tx),
-                None => self.0.matchResults(parents),
+                Some(tx) => self.0.match_results_in_transaction(parents, tx),
+                None => self.0.match_results(parents),
             }
             .await?;
             let keys = &self.0.0;
@@ -405,7 +403,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
                 keys,
                 |parent| {
                     let key = parent
-                        .getAttribute(keys.parent)
+                        .get_attribute(keys.parent)
                         .cloned()
                         .unwrap_or(Value::Null);
                     let mut attributes = Attributes::from([(keys.related.into(), key)]);
@@ -429,9 +427,8 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for HasOne<P, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,

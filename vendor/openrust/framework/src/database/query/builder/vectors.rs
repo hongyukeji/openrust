@@ -3,10 +3,9 @@ use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult};
 use super::{Builder, Column, Expression};
 use crate::database::query::{embeddings, vector};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     /// Adds the cosine distance to the selected columns.
-    pub fn selectVectorDistance(
+    pub fn select_vector_distance(
         self,
         column: impl Into<Column>,
         vector: &[f64],
@@ -26,11 +25,11 @@ impl Builder<'_> {
             }
         };
         let Expression { sql, bindings } = self.vector_distance(&column, vector)?;
-        Ok(self.selectRaw(&format!("{sql} as {alias}"), bindings))
+        Ok(self.select_raw(&format!("{sql} as {alias}"), bindings))
     }
 
     /// Filters by an inclusive cosine similarity threshold and optionally orders closest first.
-    pub fn whereVectorSimilarTo(
+    pub fn where_vector_similar_to(
         self,
         column: impl Into<Column>,
         vector: &[f64],
@@ -40,55 +39,55 @@ impl Builder<'_> {
         let max_distance = vector::similarity_max_distance(min_similarity)?;
         let distance = self.vector_distance(&column.into(), vector)?;
         let filter = distance_filter(distance.clone(), max_distance)?;
-        let query = self.whereRaw(&filter.sql, filter.bindings);
+        let query = self.where_raw(&filter.sql, filter.bindings);
         if order {
-            Ok(query.orderByRaw(&format!("{} asc", distance.sql), distance.bindings))
+            Ok(query.order_by_raw(&format!("{} asc", distance.sql), distance.bindings))
         } else {
             Ok(query)
         }
     }
 
     /// Keeps rows whose cosine distance is at most the given value.
-    pub fn whereVectorDistanceLessThan(
+    pub fn where_vector_distance_less_than(
         self,
         column: impl Into<Column>,
         vector: &[f64],
         max_distance: f64,
     ) -> DatabaseResult<Self> {
         let filter = distance_filter(self.vector_distance(&column.into(), vector)?, max_distance)?;
-        Ok(self.whereRaw(&filter.sql, filter.bindings))
+        Ok(self.where_raw(&filter.sql, filter.bindings))
     }
 
-    pub fn orWhereVectorDistanceLessThan(
+    pub fn or_where_vector_distance_less_than(
         self,
         column: impl Into<Column>,
         vector: &[f64],
         max_distance: f64,
     ) -> DatabaseResult<Self> {
         let filter = distance_filter(self.vector_distance(&column.into(), vector)?, max_distance)?;
-        Ok(self.orWhereRaw(&filter.sql, filter.bindings))
+        Ok(self.or_where_raw(&filter.sql, filter.bindings))
     }
 
-    pub fn orderByVectorDistance(
+    pub fn order_by_vector_distance(
         self,
         column: impl Into<Column>,
         vector: &[f64],
     ) -> DatabaseResult<Self> {
         let Expression { sql, bindings } = self.vector_distance(&column.into(), vector)?;
-        Ok(self.orderByRaw(&format!("{sql} asc"), bindings))
+        Ok(self.order_by_raw(&format!("{sql} asc"), bindings))
     }
 
-    pub async fn selectVectorDistanceText(
+    pub async fn select_vector_distance_text(
         self,
         column: impl Into<Column> + Send,
         text: &str,
         alias: Option<&str>,
     ) -> DatabaseResult<Self> {
         let vector = self.text_vector(text).await?;
-        self.selectVectorDistance(column, &vector, alias)
+        self.select_vector_distance(column, &vector, alias)
     }
 
-    pub async fn whereVectorSimilarToText(
+    pub async fn where_vector_similar_to_text(
         self,
         column: impl Into<Column> + Send,
         text: &str,
@@ -97,10 +96,10 @@ impl Builder<'_> {
     ) -> DatabaseResult<Self> {
         vector::similarity_max_distance(min_similarity)?;
         let vector = self.text_vector(text).await?;
-        self.whereVectorSimilarTo(column, &vector, min_similarity, order)
+        self.where_vector_similar_to(column, &vector, min_similarity, order)
     }
 
-    pub async fn whereVectorDistanceLessThanText(
+    pub async fn where_vector_distance_less_than_text(
         self,
         column: impl Into<Column> + Send,
         text: &str,
@@ -108,10 +107,10 @@ impl Builder<'_> {
     ) -> DatabaseResult<Self> {
         vector::validate_max_distance(max_distance)?;
         let vector = self.text_vector(text).await?;
-        self.whereVectorDistanceLessThan(column, &vector, max_distance)
+        self.where_vector_distance_less_than(column, &vector, max_distance)
     }
 
-    pub async fn orWhereVectorDistanceLessThanText(
+    pub async fn or_where_vector_distance_less_than_text(
         self,
         column: impl Into<Column> + Send,
         text: &str,
@@ -119,16 +118,16 @@ impl Builder<'_> {
     ) -> DatabaseResult<Self> {
         vector::validate_max_distance(max_distance)?;
         let vector = self.text_vector(text).await?;
-        self.orWhereVectorDistanceLessThan(column, &vector, max_distance)
+        self.or_where_vector_distance_less_than(column, &vector, max_distance)
     }
 
-    pub async fn orderByVectorDistanceText(
+    pub async fn order_by_vector_distance_text(
         self,
         column: impl Into<Column> + Send,
         text: &str,
     ) -> DatabaseResult<Self> {
         let vector = self.text_vector(text).await?;
-        self.orderByVectorDistance(column, &vector)
+        self.order_by_vector_distance(column, &vector)
     }
 
     pub(in crate::database) fn text_vector<'a>(

@@ -125,7 +125,7 @@ impl WithoutOverlapping {
         }
     }
 
-    pub fn releaseAfter(mut self, delay: impl Into<Delay>) -> Self {
+    pub fn release_after(mut self, delay: impl Into<Delay>) -> Self {
         self.release_after = Some(delay.into());
         self
     }

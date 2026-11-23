@@ -48,7 +48,7 @@ struct AccountUser(ModelState);
 impl Model for AccountUser {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("fortify_account_users")
-            .primaryKey("identity")
+            .primary_key("identity")
             .incrementing(false)
             .timestamps(None, None);
         &META
@@ -64,7 +64,7 @@ impl Model for AccountUser {
     }
 }
 fn field<'a>(user: &'a AccountUser, name: &str) -> Option<&'a str> {
-    match user.getAttribute(name) {
+    match user.get_attribute(name) {
         Some(Value::Text(value)) => Some(value),
         _ => None,
     }
@@ -86,13 +86,13 @@ impl Authenticatable for AccountUser {
         field(self, "remember_token")
     }
     fn set_remember_token(&mut self, token: Option<String>) {
-        self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
+        self.set_attribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
     fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name)
+        self.get_attribute_value(name)
             .map_err(|e| AuthError::Backend(Box::new(e)))
     }
     fn as_password_reset(&self) -> Option<&dyn CanResetPassword> {
@@ -124,7 +124,7 @@ impl CanResetPassword for AccountUser {
 }
 impl MustVerifyEmail for AccountUser {
     fn has_verified_email(&self) -> bool {
-        self.getAttribute("email_verified_at")
+        self.get_attribute("email_verified_at")
             .is_some_and(|v| *v != Value::Null)
     }
     fn mark_email_as_verified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
@@ -135,7 +135,7 @@ impl MustVerifyEmail for AccountUser {
             if self.has_verified_email() {
                 return Ok(false);
             }
-            self.setAttribute("email_verified_at", "2026-11-20 00:00:00");
+            self.set_attribute("email_verified_at", "2026-11-20 00:00:00");
             self.save()
                 .await
                 .map_err(|error| AuthError::Backend(Box::new(error)))
@@ -221,7 +221,7 @@ impl contracts::CreatesNewUsers for Actions {
                 )
                 .await?;
             let mut user = AccountUser::from_state(ModelState::default());
-            user.forceFill(
+            user.force_fill(
                 [
                     ("identity".into(), "001".into()),
                     (
@@ -269,7 +269,7 @@ impl contracts::UpdatesUserProfileInformation for Actions {
             let email = input(values, "email");
             let email = email.as_str().unwrap();
             let changed = field(&user, "email") != Some(email);
-            user.forceFill(
+            user.force_fill(
                 [
                     (
                         "name".into(),
@@ -337,7 +337,7 @@ impl contracts::UpdatesUserPasswords for Actions {
                     &HashOptions::new(),
                 )
                 .await?;
-            user.forceFill([("password".into(), hash.into())].into())?
+            user.force_fill([("password".into(), hash.into())].into())?
                 .save()
                 .await?;
             Ok(Box::new(user) as Box<dyn contracts::User>)
@@ -480,7 +480,7 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
     app.make::<openrust::translation::Translator>()
         .await
         .unwrap()
-        .addLines(
+        .add_lines(
             passwords
                 .into_iter()
                 .map(|(key, value)| (format!("passwords.{key}"), value)),
@@ -495,7 +495,7 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         .connection(None)
         .unwrap();
     let version = database
-        .selectOne("SELECT VERSION() AS version", &[])
+        .select_one("SELECT VERSION() AS version", &[])
         .await
         .unwrap()
         .unwrap();
@@ -623,7 +623,7 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         use openrust::{
             contracts::routing::UrlGenerator as _,
             routing::{RouteParameter, SignatureMode},
-            support::facades::URL,
+            support::facades::Url,
         };
         let id = request
             .query(Some("id"))?
@@ -650,7 +650,7 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
         } else {
             std::time::SystemTime::now() + Duration::from_secs(600)
         };
-        let url = URL::for_request(request)?.temporary_signed_route(
+        let url = Url::for_request(request)?.temporary_signed_route(
             "verification.verify",
             expires,
             &[
@@ -687,7 +687,7 @@ impl contracts::ResetsUserPasswords for Actions {
             let user = (user as &mut dyn std::any::Any)
                 .downcast_mut::<AccountUser>()
                 .unwrap();
-            user.setAttribute("password", hash);
+            user.set_attribute("password", hash);
             user.save().await?;
             Ok(())
         })

@@ -14,20 +14,22 @@ use super::{
     engine::{Change, Engine, Record, expires},
 };
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl dyn LockContract {
     /// Compares the backend owner with the given token. `None` tests for no owner.
-    pub async fn isOwnedBy<'a>(&mut self, owner: impl Into<Option<&'a str>>) -> CacheResult<bool> {
+    pub async fn is_owned_by<'a>(
+        &mut self,
+        owner: impl Into<Option<&'a str>>,
+    ) -> CacheResult<bool> {
         Ok(self.current_owner().await?.as_deref() == owner.into())
     }
 
     /// Compares the backend owner with this handle's token.
-    pub async fn isOwnedByCurrentProcess(&mut self) -> CacheResult<bool> {
+    pub async fn is_owned_by_current_process(&mut self) -> CacheResult<bool> {
         Ok(self.current_owner().await?.as_deref() == Some(self.owner()))
     }
 
-    /// Sets the interval used by `block` and `blockWith` on this handle.
-    pub fn betweenBlockedAttemptsSleepFor(
+    /// Sets the interval used by `block` and `block_with` on this handle.
+    pub fn between_blocked_attempts_sleep_for(
         mut self: Box<Self>,
         milliseconds: u64,
     ) -> CacheResult<Box<Self>> {
@@ -38,7 +40,7 @@ impl dyn LockContract {
     }
 
     /// Attempts once, returning `None` if another owner is holding the lock.
-    pub async fn getWith<T, F>(
+    pub async fn get_with<T, F>(
         self: Box<Self>,
         callback: impl FnOnce() -> F,
     ) -> CacheResult<Option<T>>
@@ -52,7 +54,7 @@ impl dyn LockContract {
     }
 
     /// Waits for a lock, then runs the callback and releases its ownership.
-    pub async fn blockWith<T, F>(
+    pub async fn block_with<T, F>(
         self: Box<Self>,
         wait: Duration,
         callback: impl FnOnce() -> F,

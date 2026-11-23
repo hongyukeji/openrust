@@ -111,7 +111,7 @@ impl contracts::Response for LockoutResponse {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let seconds = Resolver::<LoginRateLimiter>::get_facade_root()
                 .map_err(internal)?
-                .availableIn(request)
+                .available_in(request)
                 .await?;
             let args = BTreeMap::from([
                 ("seconds".into(), seconds.to_string()),

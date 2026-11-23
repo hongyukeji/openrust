@@ -78,12 +78,12 @@ impl TestResponse {
     ) -> &Self {
         self.assert_session_has("errors", None);
         let bags = self.error_bags();
-        let bag = bags.getBag(error_bag);
+        let bag = bags.get_bag(error_bag);
         for (key, value) in selection(keys) {
             if let Some(key) = key {
                 let expected = crate::support::input_scalars::string(value);
                 assert!(
-                    bag.get(&key, format).intoMessages().contains(&expected),
+                    bag.get(&key, format).into_messages().contains(&expected),
                     "Session 缺少错误 {key}: {expected}"
                 );
             } else {
@@ -115,12 +115,12 @@ impl TestResponse {
             return self.assert_session_has_no_errors();
         }
         let bags = self.error_bags();
-        let bag = bags.getBag(error_bag);
+        let bag = bags.get_bag(error_bag);
         for (key, value) in selection(keys) {
             if let Some(key) = key {
                 assert!(
                     !bag.get(&key, format)
-                        .intoMessages()
+                        .into_messages()
                         .iter()
                         .any(|message| value.as_str() == Some(message.as_str())),
                     "Session 包含不应出现的错误 {key}: {value}"
@@ -228,7 +228,7 @@ impl TestResponse {
             return self.assert_json_missing_validation_errors(keys, response_key);
         }
         let bags = self.error_bags();
-        let messages = bags.getBag(error_bag).getMessages();
+        let messages = bags.get_bag(error_bag).get_messages();
         if let Some(keys) = keys {
             for key in keys {
                 assert!(
@@ -259,7 +259,7 @@ impl TestResponse {
         }
         self.assert_session_has("errors", None);
         let bags = self.error_bags();
-        let messages = bags.getBag(error_bag).getMessages();
+        let messages = bags.get_bag(error_bag).get_messages();
         for (key, value) in selection(errors.unwrap_or(&Value::Null)) {
             let field = key
                 .as_deref()
@@ -299,7 +299,7 @@ impl TestResponse {
         self.assert_session_has("errors", None);
         let bags = self.error_bags();
         let messages =
-            serde_json::to_value(bags.getBag(error_bag).getMessages()).expect("错误消息可序列化");
+            serde_json::to_value(bags.get_bag(error_bag).get_messages()).expect("错误消息可序列化");
         assert_only(&messages, errors.unwrap_or(&Value::Null));
         self
     }

@@ -98,33 +98,29 @@ impl<M: Model> Default for Touches<M> {
 impl<M: Model> Touches<M> {
     /// Adds a belongs-to relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn belongsTo<R: Model>(mut self, relation: BelongsTo<M, R>) -> Self {
+    pub fn belongs_to<R: Model>(mut self, relation: BelongsTo<M, R>) -> Self {
         self.0.push(Box::new(relation));
         self
     }
 
     /// Adds a polymorphic belongs-to relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn morphTo(mut self, relation: MorphTo<M>) -> Self {
+    pub fn morph_to(mut self, relation: MorphTo<M>) -> Self {
         self.0.push(Box::new(relation));
         self
     }
 
     /// Adds a many-to-many relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn belongsToMany<R: Model>(mut self, relation: BelongsToMany<M, R>) -> Self {
+    pub fn belongs_to_many<R: Model>(mut self, relation: BelongsToMany<M, R>) -> Self {
         self.0.push(Box::new(relation));
         self
     }
 
     /// Adds a polymorphic many-to-many relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn morphToMany<R: Model>(self, relation: MorphToMany<M, R>) -> Self {
-        self.belongsToMany(relation.into_inner())
+    pub fn morph_to_many<R: Model>(self, relation: MorphToMany<M, R>) -> Self {
+        self.belongs_to_many(relation.into_inner())
     }
 
     pub(super) fn contains_pivot(

@@ -71,7 +71,7 @@ fn handle(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 unreachable!()
             }
             "/nested" => {
-                openrust::support::facades::Artisan::callSilently("probe:nested", &[])
+                openrust::support::facades::Artisan::call_silently("probe:nested", &[])
                     .await
                     .unwrap();
                 assert!(

@@ -51,26 +51,26 @@ fn age_confirmation(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
 async fn password_confirmation_redirects_and_expires_over_http() {
     let (address, server) = start(
         || {
-            Route::getWith("/login", current, |route| {
+            Route::get_with("/login", current, |route| {
                 route.middleware_name("auth.basic");
                 Ok(())
             })?;
-            Route::getWith("/confirmation", current, |route| {
+            Route::get_with("/confirmation", current, |route| {
                 route.name("password.confirm").middleware_name("auth");
                 Ok(())
             })?;
-            Route::getWith("/confirmation/alternate", current, |route| {
+            Route::get_with("/confirmation/alternate", current, |route| {
                 route.name("password.alternate").middleware_name("auth");
                 Ok(())
             })?;
             Route::post("/confirmation", confirm)?;
-            Route::getWith("/settings", current, |route| {
+            Route::get_with("/settings", current, |route| {
                 route
                     .middleware_name("auth")
                     .middleware_name("password.confirm");
                 Ok(())
             })?;
-            Route::getWith("/settings/strict", current, |route| {
+            Route::get_with("/settings/strict", current, |route| {
                 route
                     .middleware_name("auth")
                     .middleware_name("password.confirm:password.alternate,10");

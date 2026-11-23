@@ -22,7 +22,6 @@ pub struct BelongsTo<P: Model, R: Model>(
     Option<&'static str>,
 );
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> BelongsTo<P, R> {
     pub(in crate::database::eloquent) fn identity_columns(&self) -> (&str, &str) {
         (self.0.parent, self.0.related)
@@ -99,7 +98,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         query.each(callback, count).await
     }
 
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, i64) -> Fut,
@@ -116,12 +115,12 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         let Some(query) = self.0.owner_query(parent)? else {
             return Ok(true);
         };
-        query.eachById(callback, count, column, alias).await
+        query.each_by_id(callback, count, column, alias).await
     }
 
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -140,7 +139,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
             return Ok(true);
         };
         query
-            .orderedChunkById(count, callback, column, alias, descending)
+            .ordered_chunk_by_id(count, callback, column, alias, descending)
             .await
     }
 
@@ -185,7 +184,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         related.is_some_and(|related| self.0.matches_identity(parent, related))
     }
 
-    pub fn isNot(&self, parent: &P, related: Option<&R>) -> bool {
+    pub fn is_not(&self, parent: &P, related: Option<&R>) -> bool {
         !self.is(parent, related)
     }
 
@@ -202,14 +201,14 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         }
         let connection = self.0.connection(parent)?;
         self.0
-            .configure(R::queryOn(&connection))?
+            .configure(R::query_on(&connection))?
             .upsert(rows, unique_by, update)
             .await
     }
 
     pub fn associate(&self, model: &mut P, related: &R) -> DatabaseResult<()> {
         let value = related
-            .getAttribute(self.0.related)
+            .get_attribute(self.0.related)
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship owner key"))?;
         if let (Some(parent), Some(owner)) =
@@ -224,19 +223,19 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         update_association_cache::<Self>(model, self.2, || {
             Some(Some(Arc::new(R::from_state(related.state().clone()))))
         });
-        model.setAttribute(self.0.parent, value.clone());
+        model.set_attribute(self.0.parent, value.clone());
         Ok(())
     }
 
     /// Sets the foreign key and invalidates the cached owner.
-    pub fn associateKey(&self, model: &mut P, key: impl Into<Value>) {
+    pub fn associate_key(&self, model: &mut P, key: impl Into<Value>) {
         update_association_cache::<Self>(model, self.2, || None);
-        model.setAttribute(self.0.parent, key);
+        model.set_attribute(self.0.parent, key);
     }
 
     pub fn dissociate(&self, model: &mut P) {
         update_association_cache::<Self>(model, self.2, || Some(None));
-        model.setAttribute(self.0.parent, Value::Null);
+        model.set_attribute(self.0.parent, Value::Null);
     }
 
     /// Alias for `dissociate`.
@@ -257,23 +256,22 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
 
-    fn attachAutoload(outputs: &mut [Self::Output]) {
+    fn attach_autoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
-    fn pushLoaded<'a>(
+    fn push_loaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
         Box::pin(context.push_one(output))
     }
 
-    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+    fn autoload_output(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }
 
@@ -281,13 +279,16 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
         super::super::serialization::one(output)
     }
 
-    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+    fn queueable_relations(output: &Self::Output) -> Vec<String> {
         output
             .as_deref()
-            .map_or_else(Vec::new, Model::getQueueableRelations)
+            .map_or_else(Vec::new, Model::get_queueable_relations)
     }
 
-    fn getResults<'a>(&'a self, parent: &'a P) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
+    fn get_results<'a>(
+        &'a self,
+        parent: &'a P,
+    ) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
         Box::pin(async move {
             if let Some(query) = self.0.owner_query(parent)?
                 && let Some(owner) = query.first().await?
@@ -301,14 +302,14 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
         })
     }
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         self.match_results(parents, None)
     }
 
-    fn matchResultsInTransaction<'a>(
+    fn match_results_in_transaction<'a>(
         &'a self,
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
@@ -336,9 +337,8 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for BelongsTo<P, R> {
-    fn getRelationExistenceQuery(
+    fn get_relation_existence_query(
         &self,
         connection: &Connection,
         parent_table: &str,

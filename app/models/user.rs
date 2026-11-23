@@ -5,7 +5,7 @@ use openrust::{
     },
     contracts::auth::{Authenticatable, CanResetPassword, MustVerifyEmail},
     database::{
-        DB, Value,
+        Db, Value,
         eloquent::{Model, ModelMetadata, ModelState, casts::AttributeCast},
     },
 };
@@ -64,10 +64,10 @@ impl Model for User {
 
 impl Authenticatable for User {
     fn get_auth_identifier_name(&self) -> &str {
-        self.getKeyName()
+        self.get_key_name()
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.getKey()
+        self.get_key()
             .and_then(|value| value.try_into().ok())
             .unwrap_or_else(|| AuthIdentifier::String(String::new()))
     }
@@ -75,19 +75,19 @@ impl Authenticatable for User {
         User::PASSWORD
     }
     fn get_auth_password(&self) -> Option<&str> {
-        text(self.getAttribute(User::PASSWORD))
+        text(self.get_attribute(User::PASSWORD))
     }
     fn get_remember_token(&self) -> Option<&str> {
-        text(self.getAttribute(User::REMEMBER_TOKEN))
+        text(self.get_attribute(User::REMEMBER_TOKEN))
     }
     fn set_remember_token(&mut self, token: Option<String>) {
-        self.setAttribute(User::REMEMBER_TOKEN, token.map_or(Value::Null, Value::Text));
+        self.set_attribute(User::REMEMBER_TOKEN, token.map_or(Value::Null, Value::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         User::REMEMBER_TOKEN
     }
     fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name).map_err(Into::into)
+        self.get_attribute_value(name).map_err(Into::into)
     }
     fn as_password_reset(&self) -> Option<&dyn CanResetPassword> {
         Some(self)
@@ -102,7 +102,7 @@ impl Authenticatable for User {
 
 impl CanResetPassword for User {
     fn get_email_for_password_reset(&self) -> &str {
-        text(self.getAttribute(Self::EMAIL)).unwrap_or_default()
+        text(self.get_attribute(Self::EMAIL)).unwrap_or_default()
     }
 
     fn send_password_reset_notification<'a>(
@@ -115,7 +115,7 @@ impl CanResetPassword for User {
 
 impl MustVerifyEmail for User {
     fn has_verified_email(&self) -> bool {
-        self.getAttribute(Self::EMAIL_VERIFIED_AT)
+        self.get_attribute(Self::EMAIL_VERIFIED_AT)
             .is_some_and(|value| *value != Value::Null)
     }
 
@@ -146,14 +146,14 @@ impl User {
         } else {
             Value::Null
         };
-        let query = DB::connection(self.getConnectionName())?
-            .table(self.getTable())
+        let query = Db::connection(self.get_connection_name())?
+            .table(self.get_table())
             .r#where(
-                self.getKeyName(),
+                self.get_key_name(),
                 "=",
                 Value::from(self.get_auth_identifier()),
             )
-            .whereExactText(Self::EMAIL, self.get_email_for_verification());
+            .where_exact_text(Self::EMAIL, self.get_email_for_verification());
         let query = if verified {
             query.where_null(Self::EMAIL_VERIFIED_AT)
         } else {
@@ -170,8 +170,8 @@ impl User {
             .await?
             != 0;
         if changed {
-            self.setAttribute(Self::EMAIL_VERIFIED_AT, value);
-            self.setAttribute(Self::UPDATED_AT, now);
+            self.set_attribute(Self::EMAIL_VERIFIED_AT, value);
+            self.set_attribute(Self::UPDATED_AT, now);
         }
         Ok(changed)
     }

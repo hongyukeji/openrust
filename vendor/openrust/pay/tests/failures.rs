@@ -86,7 +86,7 @@ async fn signed_rejections_are_distinct_from_unsigned_or_invalid_responses_and_k
     config
         .set("pay.drivers.main.public_keys", json!({}))
         .unwrap();
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert!(
         manager
             .driver("main")
@@ -103,7 +103,7 @@ async fn signed_rejections_are_distinct_from_unsigned_or_invalid_responses_and_k
         config
             .set("pay.drivers.main.endpoint", json!(endpoint))
             .unwrap();
-        manager.forgetDrivers();
+        manager.forget_drivers();
         assert!(manager.driver("main").is_err());
     }
 }

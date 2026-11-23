@@ -67,7 +67,7 @@ impl<M: PasskeyModel> PasskeyStore for Store<M> {
     ) -> DatabaseFuture<'_, DatabaseResult<PasskeyRecord>> {
         Box::pin(async move {
             let mut model = M::new_instance(attributes)?;
-            model.forceFill([("user_id".into(), user)].into())?;
+            model.force_fill([("user_id".into(), user)].into())?;
             model.save().await?;
             Ok(PasskeyRecord::new(model))
         })

@@ -171,7 +171,7 @@ use openrust::{database::query::Record, testing::TestApp};
 async fn keeps_records_in_the_test_database() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut test = TestApp::sqlite(|builder| builder)?;
     let db = test.database().await?;
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("items", |table| {
             table.id();
             table.string("name", 40);

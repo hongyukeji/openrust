@@ -8,9 +8,9 @@ use crate::encryption::{DecryptException, EncryptException};
 pub trait Encrypter: Send + Sync {
     fn encrypt(&self, value: &[u8], serialize: bool) -> Result<String, EncryptException>;
     fn decrypt(&self, payload: &str, unserialize: bool) -> Result<Vec<u8>, DecryptException>;
-    fn encryptString(&self, value: &[u8]) -> Result<String, EncryptException>;
-    fn decryptString(&self, payload: &str) -> Result<Vec<u8>, DecryptException>;
-    fn getKey(&self) -> &[u8];
-    fn getAllKeys(&self) -> Vec<&[u8]>;
-    fn getPreviousKeys(&self) -> &[Vec<u8>];
+    fn encrypt_string(&self, value: &[u8]) -> Result<String, EncryptException>;
+    fn decrypt_string(&self, payload: &str) -> Result<Vec<u8>, DecryptException>;
+    fn get_key(&self) -> &[u8];
+    fn get_all_keys(&self) -> Vec<&[u8]>;
+    fn get_previous_keys(&self) -> &[Vec<u8>];
 }

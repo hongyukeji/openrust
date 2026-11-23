@@ -26,7 +26,7 @@ impl Model for Token {
     fn from_state(state: ModelState) -> Self {
         Self(state)
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn state(&self) -> &ModelState {
@@ -35,8 +35,8 @@ impl Model for Token {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn resolveConnectionName(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
-        if let Some(name) = self.getConnectionName() {
+    fn resolve_connection_name(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
+        if let Some(name) = self.get_connection_name() {
             return Ok(Some(name.into()));
         }
         crate::client::configured_connection(
@@ -50,7 +50,7 @@ impl Model for Token {
 pub trait TokenModel: Model {
     fn revoke(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         async {
-            self.forceFillAsync(Attributes::from([("revoked".into(), true.into())]))
+            self.force_fill_async(Attributes::from([("revoked".into(), true.into())]))
                 .await?;
             self.save().await
         }
@@ -69,7 +69,7 @@ impl Token {
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, C> {
         openrust::database::eloquent::relations::BelongsTo::new(
             "client_id",
-            C::from_state(ModelState::default()).getKeyName(),
+            C::from_state(ModelState::default()).get_key_name(),
         )
     }
     pub fn refreshToken(
@@ -80,7 +80,7 @@ impl Token {
     pub fn refreshTokenFor<R: crate::RefreshTokenModel>(
         &self,
     ) -> openrust::database::eloquent::relations::HasOne<Self, R> {
-        openrust::database::eloquent::relations::HasOne::new(self.getKeyName(), "access_token_id")
+        openrust::database::eloquent::relations::HasOne::new(self.get_key_name(), "access_token_id")
     }
     /// The compiled provider model and its authentication key replace PHP's class lookup.
     pub fn user<U: Model + openrust::contracts::auth::Authenticatable>(
@@ -99,7 +99,7 @@ impl Token {
         ))
     }
     pub fn can(&self, scope: &str) -> DatabaseResult<bool> {
-        let Some(value) = self.getAttributeValue("scopes")? else {
+        let Some(value) = self.get_attribute_value("scopes")? else {
             return Ok(false);
         };
         if !crate::client::truthy(Some(&value)) {

@@ -28,7 +28,7 @@ impl DiscoverEvents {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withListener<L: ShouldBeDiscovered>(mut self, register: Register) -> Self {
         self.conditional
-            .push((type_name::<L>(), L::shouldBeDiscovered, register));
+            .push((type_name::<L>(), L::should_be_discovered, register));
         self
     }
 

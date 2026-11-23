@@ -75,8 +75,9 @@ async fn exceptions_negotiate_json_without_changing_status_or_allow() {
             Ok(router)
         }))
         .with_exceptions(|exceptions| {
-            exceptions
-                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expects_json());
+            exceptions.should_render_json_when(|request, _| {
+                request.is("api/*") || request.expects_json()
+            });
         })
         .create()
         .unwrap();
@@ -179,7 +180,9 @@ async fn exception_callbacks_match_sources_and_finalize_custom_and_default_respo
                         .insert("x-exception", "finalized".parse().unwrap());
                     response
                 })
-                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expects_json());
+                .should_render_json_when(|request, _| {
+                    request.is("api/*") || request.expects_json()
+                });
         })
         .create()
         .unwrap();

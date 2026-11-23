@@ -98,7 +98,7 @@ async fn dump_mysql(
 
     remove_auto_increment(&mut raw, output)?;
     if let Some(table) = migration_table {
-        let table = format!("{}{table}", connection.getTablePrefix());
+        let table = format!("{}{table}", connection.get_table_prefix());
         let mut command = state.dump_command(program);
         command.args([
             "--no-create-info",

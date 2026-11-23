@@ -183,7 +183,7 @@ impl<'a> RenderContext<'a> {
         nested.sections = std::mem::take(&mut self.sections);
         let names: Vec<_> = names.iter().map(String::as_str).collect();
         let view = factory.first(&names, data)?;
-        factory.render_view(view, &mut nested)
+        factory.render_view_in_context(view, &mut nested)
     }
 
     pub(super) fn include(&self, name: &str, data: &ViewData) -> ViewResult<String> {
@@ -194,7 +194,7 @@ impl<'a> RenderContext<'a> {
     pub(super) fn include_first(&self, names: &[&str], data: &ViewData) -> ViewResult<String> {
         let (factory, mut nested) = self.nested()?;
         let view = factory.first(names, data.clone())?;
-        factory.render_view(view, &mut nested)
+        factory.render_view_in_context(view, &mut nested)
     }
 
     pub(super) fn include_isolated(&self, name: &str, data: &ViewData) -> ViewResult<String> {

@@ -39,10 +39,9 @@ impl Default for ImageOptions<'_> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
-    pub fn imageUrl(&self, options: &ImageOptions<'_>) -> DatabaseResult<String> {
-        if !Self::getFormats()
+    pub fn image_url(&self, options: &ImageOptions<'_>) -> DatabaseResult<String> {
+        if !Self::get_formats()
             .iter()
             .any(|format| format.eq_ignore_ascii_case(options.format))
         {
@@ -82,12 +81,12 @@ impl Faker {
         Ok(url)
     }
 
-    pub fn getFormats() -> [&'static str; 3] {
-        Self::getFormatConstants().map(|(format, _)| format)
+    pub fn get_formats() -> [&'static str; 3] {
+        Self::get_format_constants().map(|(format, _)| format)
     }
 
     /// Returns the image formats and their PHP image type identifiers.
-    pub const fn getFormatConstants() -> [(&'static str, u8); 3] {
+    pub const fn get_format_constants() -> [(&'static str, u8); 3] {
         [("jpg", 2), ("jpeg", 2), ("png", 3)]
     }
 
@@ -95,11 +94,11 @@ impl Faker {
     pub async fn image(
         &self,
         directory: Option<&Path>,
-        fullPath: bool,
+        full_path: bool,
         options: &ImageOptions<'_>,
     ) -> io::Result<Option<PathBuf>> {
         let url = self
-            .imageUrl(options)
+            .image_url(options)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         let default_directory;
         let directory = match directory {
@@ -109,7 +108,7 @@ impl Faker {
                 &default_directory
             }
         };
-        download_image(&url, directory, options.format, fullPath).await
+        download_image(&url, directory, options.format, full_path).await
     }
 }
 
@@ -168,7 +167,7 @@ mod tests {
     fn faker_image_urls_match_php_format_and_encoding() {
         let faker = Faker::new("en").unwrap();
         assert_eq!(
-            Faker::getFormatConstants(),
+            Faker::get_format_constants(),
             [("jpg", 2), ("jpeg", 2), ("png", 3)]
         );
         let mut options = ImageOptions {
@@ -181,16 +180,16 @@ mod tests {
         };
         let expected =
             "https://via.placeholder.com/640x480.JPEG/CCCCCC?text=a+b+%E4%BD%A0%E5%A5%BD%7E%2A";
-        assert_eq!(faker.imageUrl(&options).unwrap(), expected);
-        assert_eq!(faker.unique(false).imageUrl(&options).unwrap(), expected);
-        assert!(faker.unique(false).imageUrl(&options).is_err());
+        assert_eq!(faker.image_url(&options).unwrap(), expected);
+        assert_eq!(faker.unique(false).image_url(&options).unwrap(), expected);
+        assert!(faker.unique(false).image_url(&options).is_err());
         options.format = "gif";
-        assert!(faker.imageUrl(&options).is_err());
+        assert!(faker.image_url(&options).is_err());
         options.format = "png";
         options.category = None;
         options.word = None;
         options.gray = false;
-        let url = faker.imageUrl(&options).unwrap();
+        let url = faker.image_url(&options).unwrap();
         let color = url.rsplit('/').next().unwrap().as_bytes();
         assert_eq!(&color[..2], b"00");
         assert_eq!(color[2], color[3]);

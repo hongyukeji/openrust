@@ -25,7 +25,7 @@ pub async fn verify(
 
 <span id="verification-after-email-change"></span>
 
-驗證連結只適用於目前信箱的精確拼法，包括大小寫。應用程式更換信箱時，應在同一次資料庫更新中清除 `email_verified_at`，並傳送新連結。儲存驗證狀態時，應以目前信箱和未設定的驗證時間作為更新條件。用 `whereExactText` 比對信箱可避免定序影響。並行請求中只有寫入時間戳記的一次會派送 `Verified`。
+驗證連結只適用於目前信箱的精確拼法，包括大小寫。應用程式更換信箱時，應在同一次資料庫更新中清除 `email_verified_at`，並傳送新連結。儲存驗證狀態時，應以目前信箱和未設定的驗證時間作為更新條件。用 `where_exact_text` 比對信箱可避免定序影響。並行請求中只有寫入時間戳記的一次會派送 `Verified`。
 
 <span id="default-email-verification-mail"></span>
 

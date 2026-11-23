@@ -108,7 +108,7 @@ impl SetLocale {
                 .container()
                 .get::<crate::translation::FileLoader>("translation.loader")
                 .map_err(crate::translation::TranslationError::Unavailable)?;
-            self.supported = tokio::task::spawn_blocking(move || loader.availableLocales())
+            self.supported = tokio::task::spawn_blocking(move || loader.available_locales())
                 .await
                 .map_err(|source| {
                     crate::translation::TranslationError::Source(Box::new(source))
@@ -180,7 +180,7 @@ impl SetLocale {
     /// 生成应用指定的本地返回 URL，移除实际语言查询参数并保留其他查询值。
     /// 目标必须是以单个 / 开头的应用内路径；不接受外部返回地址，也不创建响应或保存偏好。
     pub fn url_without_locale(request: &Request, path: &str) -> Result<String, HttpError> {
-        use crate::{contracts::routing::UrlGenerator as _, support::facades::URL};
+        use crate::{contracts::routing::UrlGenerator as _, support::facades::Url};
 
         if !path.starts_with('/')
             || path.starts_with("//")
@@ -202,7 +202,7 @@ impl SetLocale {
         };
         let (path, fragment) = path.split_once('#').unwrap_or((path, ""));
         let (path, query) = path.split_once('?').unwrap_or((path, ""));
-        let urls = URL::for_request(request)?;
+        let urls = Url::for_request(request)?;
         let target = urls.query(
             path,
             &filtered(crate::http::parse_query(query)?)?,

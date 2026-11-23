@@ -1557,7 +1557,7 @@ async fn protected_cookie_selection_emits_one_synchronized_event_per_request() {
     let encrypter = Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap();
     let mut clear = CookieValuePrefix::create("locale", &[b'a'; 32]).to_vec();
     clear.extend_from_slice(b"zh-Hans");
-    let cipher = encrypter.encryptString(&clear).unwrap();
+    let cipher = encrypter.encrypt_string(&clear).unwrap();
     for (path, locale) in [
         ("/", "zh-Hans"),
         ("/?locale=zh-Hant", "zh-Hant"),

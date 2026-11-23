@@ -195,7 +195,7 @@ impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
             ))
         })?;
         let key = user
-            .getKey()
+            .get_key()
             .filter(|key| scalar(key).is_some())
             .cloned()
             .ok_or_else(|| crate::internal(PasskeyError::Format))?;

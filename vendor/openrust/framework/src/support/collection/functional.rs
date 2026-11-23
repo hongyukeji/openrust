@@ -3,7 +3,6 @@ use std::{fmt::Display, num::NonZeroUsize, ops::RangeInclusive};
 use super::{ArrayKey, Collection, CollectionError, CollectionResult};
 use crate::support::Arr;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn collect(self) -> Self {
         self
@@ -28,15 +27,18 @@ impl<T> Collection<T> {
         self
     }
 
-    pub fn mapInto<U: From<T>>(self) -> Collection<U> {
-        Collection::fromEntries(self.into_iter().map(|(key, item)| (key, item.into())))
+    pub fn map_into<U: From<T>>(self) -> Collection<U> {
+        Collection::from_entries(self.into_iter().map(|(key, item)| (key, item.into())))
     }
 
-    pub fn flatMap<U>(self, callback: impl FnMut(&T, &ArrayKey) -> Collection<U>) -> Collection<U> {
+    pub fn flat_map<U>(
+        self,
+        callback: impl FnMut(&T, &ArrayKey) -> Collection<U>,
+    ) -> Collection<U> {
         self.map(callback).collapse()
     }
 
-    pub fn crossJoin(self, others: &[&[T]]) -> Collection<Vec<T>>
+    pub fn cross_join(self, others: &[&[T]]) -> Collection<Vec<T>>
     where
         T: Clone,
     {
@@ -44,29 +46,29 @@ impl<T> Collection<T> {
         let sets: Vec<_> = std::iter::once(owned.as_slice())
             .chain(others.iter().copied())
             .collect();
-        Collection::make(Arr::crossJoin(&sets))
+        Collection::make(Arr::cross_join(&sets))
     }
 
-    pub fn mapToGroups<K: Into<ArrayKey>, U>(
+    pub fn map_to_groups<K: Into<ArrayKey>, U>(
         self,
         callback: impl FnMut(&T, &ArrayKey) -> (K, U),
     ) -> Collection<Collection<U>> {
-        self.mapToDictionary(callback).mapInto()
+        self.map_to_dictionary(callback).map_into()
     }
 
-    pub fn mapToDictionary<K: Into<ArrayKey>, U>(
+    pub fn map_to_dictionary<K: Into<ArrayKey>, U>(
         self,
         mut callback: impl FnMut(&T, &ArrayKey) -> (K, U),
     ) -> Collection<Vec<U>> {
         let mut groups = Collection::<Vec<U>>::new();
         for (key, item) in self {
             let (group, value) = callback(&item, &key);
-            groups.getOrPut(group, Vec::new).push(value);
+            groups.get_or_put(group, Vec::new).push(value);
         }
         groups
     }
 
-    pub fn getOrPut(&mut self, key: impl Into<ArrayKey>, default: impl FnOnce() -> T) -> &mut T {
+    pub fn get_or_put(&mut self, key: impl Into<ArrayKey>, default: impl FnOnce() -> T) -> &mut T {
         let key = key.into().normalized();
         if !self.items.contains_key(&key) {
             self.put(&key, default());
@@ -78,23 +80,27 @@ impl<T> Collection<T> {
         self.push(item)
     }
 
-    pub fn containsOneItem(&self) -> bool {
+    pub fn contains_one_item(&self) -> bool {
         self.count() == 1
     }
 
-    pub fn containsManyItems(&self) -> bool {
+    pub fn contains_many_items(&self) -> bool {
         self.count() > 1
     }
 
-    pub fn toBase(self) -> Self {
+    pub fn to_base(self) -> Self {
         self
     }
 
-    pub fn reduceWithKeys<U>(&self, initial: U, callback: impl FnMut(U, &T, &ArrayKey) -> U) -> U {
+    pub fn reduce_with_keys<U>(
+        &self,
+        initial: U,
+        callback: impl FnMut(U, &T, &ArrayKey) -> U,
+    ) -> U {
         self.reduce(initial, callback)
     }
 
-    pub fn reduceInto<U>(
+    pub fn reduce_into<U>(
         &self,
         mut initial: U,
         mut callback: impl FnMut(&mut U, &T, &ArrayKey),
@@ -105,7 +111,7 @@ impl<T> Collection<T> {
         initial
     }
 
-    pub fn reduceSpread<A, B>(
+    pub fn reduce_spread<A, B>(
         &self,
         initial: (A, B),
         mut callback: impl FnMut(A, B, &T, &ArrayKey) -> (A, B),
@@ -117,11 +123,14 @@ impl<T> Collection<T> {
         callback(self)
     }
 
-    pub fn pipeInto<U: From<Self>>(self) -> U {
+    pub fn pipe_into<U: From<Self>>(self) -> U {
         self.into()
     }
 
-    pub fn pipeThrough<F: FnOnce(Self) -> Self>(self, stages: impl IntoIterator<Item = F>) -> Self {
+    pub fn pipe_through<F: FnOnce(Self) -> Self>(
+        self,
+        stages: impl IntoIterator<Item = F>,
+    ) -> Self {
         stages.into_iter().fold(self, |items, stage| stage(items))
     }
 
@@ -130,7 +139,7 @@ impl<T> Collection<T> {
         self
     }
 
-    pub fn tapEach(self, mut callback: impl FnMut(&T, &ArrayKey)) -> Self {
+    pub fn tap_each(self, mut callback: impl FnMut(&T, &ArrayKey)) -> Self {
         for (key, value) in self.iter() {
             callback(value, key);
         }
@@ -141,7 +150,7 @@ impl<T> Collection<T> {
         if condition { callback(self) } else { self }
     }
 
-    pub fn whenElse(
+    pub fn when_else(
         self,
         condition: bool,
         callback: impl FnOnce(Self) -> Self,
@@ -163,16 +172,16 @@ impl<T> Collection<T> {
         self.when(condition, callback)
     }
 
-    pub fn whenNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
+    pub fn when_not_empty(self, callback: impl FnOnce(Self) -> Self) -> Self {
         let condition = self.is_not_empty();
         self.when(condition, callback)
     }
 
-    pub fn unlessEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
-        self.whenNotEmpty(callback)
+    pub fn unless_empty(self, callback: impl FnOnce(Self) -> Self) -> Self {
+        self.when_not_empty(callback)
     }
 
-    pub fn unlessNotEmpty(self, callback: impl FnOnce(Self) -> Self) -> Self {
+    pub fn unless_not_empty(self, callback: impl FnOnce(Self) -> Self) -> Self {
         self.when_empty(callback)
     }
 
@@ -186,7 +195,7 @@ impl<T> Collection<T> {
         self.filter(|item, _| project(item) == *expected)
     }
 
-    pub fn whereStrict<U: PartialEq>(self, project: impl FnMut(&T) -> U, expected: &U) -> Self {
+    pub fn where_strict<U: PartialEq>(self, project: impl FnMut(&T) -> U, expected: &U) -> Self {
         self.r#where(project, expected)
     }
 
@@ -202,11 +211,15 @@ impl<T> Collection<T> {
         self.reject(|item, _| expected.contains(&project(item)))
     }
 
-    pub fn whereInStrict<U: PartialEq>(self, project: impl FnMut(&T) -> U, expected: &[U]) -> Self {
+    pub fn where_in_strict<U: PartialEq>(
+        self,
+        project: impl FnMut(&T) -> U,
+        expected: &[U],
+    ) -> Self {
         self.where_in(project, expected)
     }
 
-    pub fn whereNotInStrict<U: PartialEq>(
+    pub fn where_not_in_strict<U: PartialEq>(
         self,
         project: impl FnMut(&T) -> U,
         expected: &[U],
@@ -214,7 +227,7 @@ impl<T> Collection<T> {
         self.where_not_in(project, expected)
     }
 
-    pub fn whereBetween<U: PartialOrd>(
+    pub fn where_between<U: PartialOrd>(
         self,
         mut project: impl FnMut(&T) -> U,
         bounds: RangeInclusive<U>,
@@ -222,7 +235,7 @@ impl<T> Collection<T> {
         self.filter(|item, _| bounds.contains(&project(item)))
     }
 
-    pub fn whereNotBetween<U: PartialOrd>(
+    pub fn where_not_between<U: PartialOrd>(
         self,
         mut project: impl FnMut(&T) -> U,
         bounds: RangeInclusive<U>,
@@ -230,7 +243,7 @@ impl<T> Collection<T> {
         self.reject(|item, _| bounds.contains(&project(item)))
     }
 
-    pub fn randItem(&self) -> CollectionResult<&T> {
+    pub fn rand_item(&self) -> CollectionResult<&T> {
         if self.is_empty() {
             return Err(CollectionError::ItemNotFound);
         }
@@ -259,7 +272,7 @@ impl<T> Collection<T> {
             .enumerate()
             .filter_map(|(index, entry)| selected.next_if_eq(&index).map(|_| entry));
         Ok(if preserve_keys {
-            Self::fromEntries(items)
+            Self::from_entries(items)
         } else {
             Self::make(items.map(|(_, value)| value))
         })
@@ -282,7 +295,7 @@ impl<T> Collection<T> {
     }
 
     /// Projects each item and joins the displayed values in collection order.
-    pub fn implodeBy<U: Display>(
+    pub fn implode_by<U: Display>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
         glue: &str,
@@ -312,18 +325,16 @@ impl Collection<i64> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<Vec<T>> {
-    pub fn mapSpread<U>(self, mut callback: impl FnMut(&[T], &ArrayKey) -> U) -> Collection<U> {
+    pub fn map_spread<U>(self, mut callback: impl FnMut(&[T], &ArrayKey) -> U) -> Collection<U> {
         self.map(|chunk, key| callback(chunk, key))
     }
 
-    pub fn eachSpread(&self, mut callback: impl FnMut(&[T], &ArrayKey) -> bool) -> &Self {
+    pub fn each_spread(&self, mut callback: impl FnMut(&[T], &ArrayKey) -> bool) -> &Self {
         self.each(|chunk, key| callback(chunk, key))
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<Option<T>> {
     pub fn where_null(self) -> Self {
         self.filter(|value, _| value.is_none())
@@ -338,10 +349,9 @@ fn sample_index(len: usize) -> CollectionResult<usize> {
     crate::support::arr::random_index(len).map_err(Into::into)
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Collection<Box<dyn std::any::Any>> {
-    pub fn whereInstanceOf<T: 'static>(self) -> Collection<Box<T>> {
-        Collection::fromEntries(
+    pub fn where_instance_of<T: 'static>(self) -> Collection<Box<T>> {
+        Collection::from_entries(
             self.into_iter()
                 .filter_map(|(key, item)| item.downcast::<T>().ok().map(|item| (key, item))),
         )

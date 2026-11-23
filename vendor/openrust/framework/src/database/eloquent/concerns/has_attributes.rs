@@ -29,7 +29,6 @@ pub struct ModelState {
     pub(in crate::database::eloquent) prevent_lazy_loading: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ModelState {
     pub(crate) fn loaded_pivot_table(&self, name: &str) -> Option<&'static str> {
         self.relations.pivot_table(name)
@@ -45,11 +44,11 @@ impl ModelState {
         self.serialization.get_or_insert_with(Box::default)
     }
 
-    pub fn getAttribute(&self, name: &str) -> Option<&Value> {
+    pub fn get_attribute(&self, name: &str) -> Option<&Value> {
         self.attributes.get(name)
     }
 
-    pub fn setAttribute(&mut self, name: impl Into<String>, value: impl Into<Value>) {
+    pub fn set_attribute(&mut self, name: impl Into<String>, value: impl Into<Value>) {
         self.attributes.insert(name.into(), value.into());
         self.invalidate_value_objects();
     }
@@ -84,15 +83,15 @@ impl ModelState {
         }
     }
 
-    pub fn getAttributes(&self) -> &Attributes {
+    pub fn get_attributes(&self) -> &Attributes {
         &self.attributes
     }
 
-    pub fn getOriginal(&self) -> &Attributes {
+    pub fn get_original(&self) -> &Attributes {
         &self.original
     }
 
-    pub fn getDirty(&self) -> Attributes {
+    pub fn get_dirty(&self) -> Attributes {
         self.attributes
             .iter()
             .filter(|(key, value)| self.original.get(*key) != Some(*value))
@@ -100,11 +99,11 @@ impl ModelState {
             .collect()
     }
 
-    pub fn isDirty(&self) -> bool {
+    pub fn is_dirty(&self) -> bool {
         self.attributes != self.original
     }
 
-    pub fn getChanges(&self) -> &Attributes {
+    pub fn get_changes(&self) -> &Attributes {
         &self.changes
     }
 
@@ -112,7 +111,7 @@ impl ModelState {
         self.exists
     }
 
-    pub fn wasRecentlyCreated(&self) -> bool {
+    pub fn was_recently_created(&self) -> bool {
         self.was_recently_created
     }
 

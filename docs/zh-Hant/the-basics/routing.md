@@ -4,7 +4,7 @@
 
 執行 `./artisan install:api` 按需產生並註冊 `routes/api.rs` 和 `config/api.rs`。在 `routes/api.rs` 中定義 API 路由。應用程式從 `config/api.rs` 載入 `api.prefix`，並套用 `api` 中介軟體群組。預設前綴為 `/api`。在 `.env` 中設定 `API_PREFIX=api/admin` 可掛載至 `/api/admin`，設定 `API_PREFIX=` 可省略前綴。在 `with_routing` 中明確呼叫 `Routing::api_prefix(...)` 時，以該呼叫為準。 重複安裝時保留既有的 `config/api.rs`，包括使用 `--force` 時。
 
-在 `routes/api.rs` 的無參數 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 宣告 API 端點。路由路徑相對於 API 前綴。GET 路由需要命名、模型繫結或路由層級中介軟體時，可使用 `Route::getWith`。
+在 `routes/api.rs` 的無參數 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 宣告 API 端點。路由路徑相對於 API 前綴。GET 路由需要命名、模型繫結或路由層級中介軟體時，可使用 `Route::get_with`。
 
 `{id}` 表示必填參數。在末尾參數加上 `?` 即可省略，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 讀取符合的值。省略參數時傳回 `None`，也可以用路由的 `defaults` 提供字串預設值。參數後面還有必填參數或固定文字時，仍須提供該參數。
 
@@ -52,7 +52,7 @@ Route::view("/hello/{name}", "welcome", ViewRouteOptions {
 
 範本放在 `resources/views`，例如 `welcome.blade.html`。路徑與網域擷取參數覆蓋 `data` 的同名值，隨後執行檢視建立器與組合器。用 `ViewRouteOptions` 的 `status` 和 `headers` 設定自訂回應。PHP 中在狀態參數位置傳標頭陣列的寫法，改用明確的 `headers` 欄位。參數名稱不要使用 `view`、`data`、`status` 或 `headers`。目前路由預設值只承載字串，不支援透過 `Route::defaults` 任意修改這四項型別化檢視設定；繫結模型物件也不會自動轉換為檢視資料。
 
-`Router::view` 傳回可變路由。Facade 宣告使用 `Route::viewWith(uri, view, options, |route| { route.name("welcome"); Ok(()) })`，在註冊借用範圍內設定路由。繪製使用目前應用程式的檢視工廠與中介軟體。範本不存在或建立器／組合器失敗時，沿用一般 HTTP 例外管線。
+`Router::view` 傳回可變路由。Facade 宣告使用 `Route::view_with(uri, view, options, |route| { route.name("welcome"); Ok(()) })`，在註冊借用範圍內設定路由。繪製使用目前應用程式的檢視工廠與中介軟體。範本不存在或建立器／組合器失敗時，沿用一般 HTTP 例外管線。
 
 ## 後備路由
 
@@ -66,7 +66,7 @@ Route::fallback(NotFoundController::show)?;
 
 一般路由始終優先，即使後備路由先宣告。多個後備路由可符合時按註冊順序選擇；同一方法、網域與註冊路徑的後宣告覆蓋先宣告。未符合的 POST 在後備路由符合其路徑時傳回 405 和 `Allow: GET, HEAD`；自動 OPTIONS 傳回 200。後備路由也是已註冊路由，優先於下文的靜態檔案掛載。
 
-Facade 需要設定時使用 `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })`。`Router::fallback` 傳回可變路由；`route.fallback()` 可標記既有路由，`route.set_fallback(false)` 取消標記。路由快取保持該優先順序。
+Facade 需要設定時使用 `Route::fallback_with(handler, |route| { route.name("missing"); Ok(()) })`。`Router::fallback` 傳回可變路由；`route.fallback()` 可標記既有路由，`route.set_fallback(false)` 取消標記。路由快取保持該優先順序。
 
 
 處理器可以明確傳回另一條命名路由的回應。`respond_with_route` 使用同一個請求 URI 重新綁定目標路由、執行其路由中介軟體，並取代請求的目前路由參數與名稱；不會產生重新導向，也不會將請求 URI 改成目標路徑。
@@ -82,15 +82,15 @@ fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 }
 ```
 
-先按上文用 `fallbackWith` 登記 `missing`，再將 `show_missing` 登記為處理器。Rust 明確借用可變請求；HTTP 核心透過應用容器提供共用的執行期路由器，每個請求保留獨立路由狀態。名稱不存在時傳回錯誤，渲染為 HTTP 500。直接使用 `Router` 時也提供同名方法。執行期路由器在 HTTP 啟動後可解析；路由註冊仍使用註冊作用域。
+先按上文用 `fallback_with` 登記 `missing`，再將 `show_missing` 登記為處理器。Rust 明確借用可變請求；HTTP 核心透過應用容器提供共用的執行期路由器，每個請求保留獨立路由狀態。名稱不存在時傳回錯誤，渲染為 HTTP 500。直接使用 `Router` 時也提供同名方法。執行期路由器在 HTTP 啟動後可解析；路由註冊仍使用註冊作用域。
 
 ## 掛載靜態目錄
 
 應用程式骨架先掛載網站公開目錄，再掛載公開儲存磁碟。目錄及 URL 前綴請見[公開檔案設定](../getting-started/configuration.md#public-files)。
 
 ```rust
-Route::staticDisk("web")?;
-Route::staticDisk("public")?;
+Route::static_disk("web")?;
+Route::static_disk("public")?;
 ```
 
 `web` 和 `public` 磁碟設定在 `config/filesystems.rs`，預設根目錄分別是 `public` 和 `storage/app/public`，預設 URL 分別是 `app.url` 和 `app.url` 加 `/storage`。掛載路徑從 URL 取得，包含應用程式 URL 自帶的路徑前綴。應用程式路由優先。磁碟掛載依宣告順序查找，第一個存在的公開檔案生效。兩個掛載都拒絕符號連結，因此會跳過 `public/storage` 連結，由 `public` 磁碟直接提供檔案。只有未符合應用程式路由的 GET 和 HEAD 請求會讀取檔案，缺失檔案和目錄請求回傳 404。
@@ -201,7 +201,7 @@ use openrust::{
 };
 
 fn register_limits() -> CacheResult<()> {
-    RateLimiter::r#for("uploads", |_| Limit::perMinute(5))
+    RateLimiter::r#for("uploads", |_| Limit::per_minute(5))
 }
 
 fn routes() -> Result<(), RoutingError> {
@@ -218,7 +218,7 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `middleware_name("throttle:30,0.5,uploads:")` 將額度設為每 30 秒 30 次。只寫 `throttle` 時預設每分鐘 60 次。`throttle:5|20,1,uploads:` 分別給訪客和已驗證使用者每分鐘 5 次和 20 次。訪客依路由宣告的網域和連線對端 IP 共用額度，已驗證請求依驗證識別碼共用額度。為不同規則設定不同的前綴即可分別計數。
 
-使用 `throttle:5|upload_limit,1,uploads:` 可以從已驗證的使用者讀取 `upload_limit`，訪客仍使用固定配額。資料庫使用者提供器可讀取欄位。應用程式模型可透過 `Authenticatable::get_auth_attribute` 提供屬性，並委由 `Model::getAttributeValue` 套用存取器與型別轉換。配額接受有號 64 位元範圍內的非負數和數值字串。屬性缺失或非數字屬於設定錯誤。
+使用 `throttle:5|upload_limit,1,uploads:` 可以從已驗證的使用者讀取 `upload_limit`，訪客仍使用固定配額。資料庫使用者提供器可讀取欄位。應用程式模型可透過 `Authenticatable::get_auth_attribute` 提供屬性，並委由 `Model::get_attribute_value` 套用存取器與型別轉換。配額接受有號 64 位元範圍內的非負數和數值字串。屬性缺失或非數字屬於設定錯誤。
 
 ### 使用 Redis 節流
 
@@ -230,7 +230,7 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 使用 `Route::model::<Post>("post")?` 在應用程式 Router 註冊顯式繫結。也可以透過 Router 回傳的路由呼叫 `.model::<Post>("post")?`，為該路由宣告模型參數。使用 `request.route_model::<Post>("post")` 讀取已解析的模型。模型缺失回傳 404，可透過 `missing` 自訂回應。
 
-模型預設按主鍵查詢。可覆寫 `getRouteKeyName` 使用 slug，也可為單條路由指定 `{post:slug}`。巢狀的自訂鍵透過前一個已繫結的模型限定查詢範圍。使用 `scope_bindings` 為預設鍵啟用作用域，或透過 `without_scoped_bindings` 關閉。子模型透過 `resolveChildRouteBinding` 選擇型別化關聯。`with_trashed` 可包含軟刪除記錄。預設 `web` 和 `api` 群組在處理器前執行繫結。
+模型預設按主鍵查詢。可覆寫 `get_route_key_name` 使用 slug，也可為單條路由指定 `{post:slug}`。巢狀的自訂鍵透過前一個已繫結的模型限定查詢範圍。使用 `scope_bindings` 為預設鍵啟用作用域，或透過 `without_scoped_bindings` 關閉。子模型透過 `resolve_child_route_binding` 選擇型別化關聯。`with_trashed` 可包含軟刪除記錄。預設 `web` 和 `api` 群組在處理器前執行繫結。
 
 ## 重新導向路由
 

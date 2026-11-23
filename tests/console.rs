@@ -66,7 +66,7 @@ impl Command for NestedArtisan {
                     .await
                     .is_err()
             );
-            assert_eq!(ArtisanFacade::callSilently("say-hi", &arguments).await?, 7);
+            assert_eq!(ArtisanFacade::call_silently("say-hi", &arguments).await?, 7);
             let mut help = Output::default();
             assert_eq!(
                 ArtisanFacade::call("say-hi", &["--help".into()], &mut help).await?,
@@ -141,7 +141,7 @@ impl Command for QueuedArtisan {
 #[tokio::test]
 async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
     assert!(
-        ArtisanFacade::callSilently("list", &[])
+        ArtisanFacade::call_silently("list", &[])
             .await
             .unwrap_err()
             .to_string()

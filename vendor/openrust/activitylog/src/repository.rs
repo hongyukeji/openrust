@@ -135,7 +135,7 @@ impl ActivityRepository {
     }
     pub(crate) fn usesConnection(&self, connection: &Connection) -> bool {
         self.connection.get_name() == connection.get_name()
-            && self.connection.getDatabaseName() == connection.getDatabaseName()
+            && self.connection.get_database_name() == connection.get_database_name()
     }
     pub(crate) fn isEnabled(&self) -> bool {
         self.enabled
@@ -247,7 +247,7 @@ impl ActivityRepository {
                 .table(self.table)
                 .r#where("created_at", "<", sqlTimestamp(before)?);
         if let Some(name) = logName {
-            query = query.whereExactText("log_name", name);
+            query = query.where_exact_text("log_name", name);
         }
         query.delete().await.map_err(Into::into)
     }
@@ -270,7 +270,7 @@ impl ActivityRepository {
                         let ids: Vec<Value> = tx
                             .table(table)
                             .r#where("created_at", "<", before.clone())
-                            .orderBy("created_at", "asc")
+                            .order_by("created_at", "asc")
                             .limit(limit)
                             .get()
                             .await?
@@ -397,7 +397,7 @@ impl ActivityQuery {
         }
         let mut query = self.connection.table(self.table);
         for (column, value) in self.filters {
-            query = query.whereExactText(column, &value);
+            query = query.where_exact_text(column, &value);
         }
         for names in self.logGroups {
             query = query.where_in("log_name", names.into_iter().map(Value::from).collect());
@@ -409,7 +409,7 @@ impl ActivityQuery {
             query = query.r#where("id", "<", id);
         }
         query
-            .orderByDesc("id")
+            .order_by_desc("id")
             .limit(self.limit)
             .get()
             .await?

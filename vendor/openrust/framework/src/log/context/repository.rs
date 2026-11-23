@@ -218,7 +218,7 @@ impl Repository {
         public,
         add,
         addMany,
-        addIf,
+        add_if,
         remember,
         get,
         has,
@@ -238,7 +238,7 @@ impl Repository {
         addManyHidden,
         addHiddenIf,
         rememberHidden,
-        getHidden,
+        get_hidden,
         hasHidden,
         missingHidden,
         allHidden,
@@ -246,8 +246,8 @@ impl Repository {
         pullHidden,
         onlyHidden,
         exceptHidden,
-        pushHidden,
-        popHidden,
+        push_hidden,
+        pop_hidden,
         hiddenStackContains
     );
 
@@ -306,7 +306,7 @@ impl Repository {
     }
 
     /// Runs a synchronous callback with temporary fields.
-    pub fn scopeSync<T>(
+    pub fn scope_sync<T>(
         &self,
         callback: impl FnOnce() -> T,
         data: LogContext,

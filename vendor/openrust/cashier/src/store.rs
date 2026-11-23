@@ -61,12 +61,12 @@ impl BillingStore {
                             ("status", "active".into()),
                         ]);
                         tx.table("cashier_customers")
-                            .insertOrIgnore(&[candidate])
+                            .insert_or_ignore(&[candidate])
                             .await?;
                         let row = tx
                             .table("cashier_customers")
                             .r#where("id", "=", key.clone())
-                            .lockForUpdate()
+                            .lock_for_update()
                             .first()
                             .await?
                             .ok_or_else(|| db(Error::Ownership))?;
@@ -112,7 +112,7 @@ impl BillingStore {
         let n = self
             .connection
             .table("cashier_operations")
-            .insertOrIgnore(&[record([
+            .insert_or_ignore(&[record([
                 ("id", id.clone().into()),
                 ("fingerprint", fingerprint.clone().into()),
                 ("status", "pending".into()),
@@ -307,7 +307,7 @@ impl BillingStore {
                         let row = tx
                             .table("cashier_events")
                             .r#where("id", "=", key.clone())
-                            .lockForUpdate()
+                            .lock_for_update()
                             .first()
                             .await?
                             .ok_or_else(|| db(Error::Database))?;
@@ -451,7 +451,7 @@ async fn lock_customer(tx: &mut Transaction, key: &str) -> DatabaseResult<String
     match tx
         .table("cashier_customers")
         .r#where("id", "=", key)
-        .lockForUpdate()
+        .lock_for_update()
         .value("remote_id")
         .await?
     {
@@ -463,7 +463,7 @@ async fn ensure_active(tx: &mut Transaction, key: &str) -> DatabaseResult<()> {
     let status = tx
         .table("cashier_customers")
         .r#where("id", "=", key)
-        .lockForUpdate()
+        .lock_for_update()
         .value("status")
         .await?;
     if status != SqlValue::from("active") {

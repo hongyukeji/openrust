@@ -23,7 +23,7 @@ APP_PREVIOUS_KEYS=base64:<previous-key>
 
 ## Using the Encrypter
 
-Use the `Crypt` facade within a request or command. `decryptString` returns bytes and reports invalid or unauthenticated payloads as errors. Use `encrypt(value, true)` and `decrypt(payload, true)` for interoperability with PHP’s serialized byte strings.
+Use the `Crypt` facade within a request or command. `decrypt_string` returns bytes and reports invalid or unauthenticated payloads as errors. Use `encrypt(value, true)` and `decrypt(payload, true)` for interoperability with PHP’s serialized byte strings.
 
 ```rust
 use openrust::{
@@ -32,10 +32,10 @@ use openrust::{
 };
 
 pub fn encrypt_token(token: &str) -> Result<String, EncryptException> {
-    Crypt::encryptString(token)
+    Crypt::encrypt_string(token)
 }
 
 pub fn decrypt_token(payload: &str) -> Result<Vec<u8>, DecryptException> {
-    Crypt::decryptString(payload)
+    Crypt::decrypt_string(payload)
 }
 ```

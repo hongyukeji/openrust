@@ -213,7 +213,7 @@ impl Command for WorkCommand {
                 let (signal_state, state) = watch::channel(WorkerSignalState::Running);
                 cadence.signal_state = Some(state);
                 let mut signals = WorkerSignals::new(
-                    connection.getConnectionName(),
+                    connection.get_connection_name(),
                     if queues.is_empty() {
                         connection.default_queue().to_owned()
                     } else {

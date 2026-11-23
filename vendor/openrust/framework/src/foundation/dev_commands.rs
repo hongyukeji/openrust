@@ -385,7 +385,7 @@ impl DevCommands {
         Self::filter(|filters| filters.without_default = true)
     }
 
-    pub fn withTimestamps() -> Result<(), ConsoleError> {
+    pub fn with_timestamps() -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.timestamps = true)
     }
 

@@ -59,7 +59,7 @@ impl JsonSchema {
     ) -> Result<types::UnionType, SchemaError> {
         types::UnionType::new(types)
     }
-    pub fn anyOf(schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
+    pub fn any_of(schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
         types::AnyOfType::new(schemas)
     }
 }
@@ -95,8 +95,8 @@ impl JsonSchemaTypeFactory {
     ) -> Result<types::UnionType, SchemaError> {
         JsonSchema::union(types)
     }
-    pub fn anyOf(&self, schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
-        JsonSchema::anyOf(schemas)
+    pub fn any_of(&self, schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
+        JsonSchema::any_of(schemas)
     }
 }
 
@@ -129,7 +129,7 @@ impl crate::contracts::json_schema::JsonSchema for JsonSchemaTypeFactory {
         JsonSchema::union(types)
     }
     #[allow(non_snake_case)]
-    fn anyOf(&self, schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
-        JsonSchema::anyOf(schemas)
+    fn any_of(&self, schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
+        JsonSchema::any_of(schemas)
     }
 }

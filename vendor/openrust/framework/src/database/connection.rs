@@ -165,7 +165,7 @@ impl<D: Database> Lease<D> {
             !matches!(error, sqlx::Error::Database(_))
                 || (D::NAME == "MySQL"
                     && (super::transaction::mysql_deadlock(error)
-                        || LostConnectionDetector.causedByLostConnection(error)))
+                        || LostConnectionDetector.caused_by_lost_connection(error)))
         });
         result
     }
@@ -823,7 +823,6 @@ macro_rules! observed_query {
     }};
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Connection {
     pub(super) fn model_container(
         connection: Option<&Self>,
@@ -835,7 +834,7 @@ impl Connection {
     }
 
     /// Registers a hook before each logical SQL execution, including the first poll of a cursor.
-    pub fn beforeExecuting(
+    pub fn before_executing(
         &self,
         callback: impl for<'a> Fn(
             &'a str,
@@ -1031,7 +1030,7 @@ impl Connection {
             return false;
         }
         if !matches!(error, DatabaseError::Driver { source, .. }
-            if LostConnectionDetector.causedByLostConnection(source))
+            if LostConnectionDetector.caused_by_lost_connection(source))
         {
             return false;
         }
@@ -1052,20 +1051,20 @@ impl Connection {
             .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))
     }
 
-    pub fn totalQueryDuration(&self) -> Duration {
+    pub fn total_query_duration(&self) -> Duration {
         self.query_duration.total()
     }
 
-    pub fn resetTotalQueryDuration(&self) {
+    pub fn reset_total_query_duration(&self) {
         self.query_duration.reset();
     }
 
-    pub fn allowQueryDurationHandlersToRunAgain(&self) {
+    pub fn allow_query_duration_handlers_to_run_again(&self) {
         self.query_duration.rearm();
     }
 
     /// Runs the listener once when this connection's cumulative query time exceeds the threshold.
-    pub fn whenQueryingForLongerThan(
+    pub fn when_querying_for_longer_than(
         &self,
         threshold: Duration,
         listener: Arc<dyn Listener>,
@@ -1077,11 +1076,11 @@ impl Connection {
         )))
     }
 
-    pub fn enableQueryLog(&self) {
+    pub fn enable_query_log(&self) {
         self.query_log.set_enabled(true);
     }
 
-    pub fn disableQueryLog(&self) {
+    pub fn disable_query_log(&self) {
         self.query_log.set_enabled(false);
     }
 
@@ -1089,16 +1088,16 @@ impl Connection {
         self.query_log.enabled()
     }
 
-    pub fn flushQueryLog(&self) {
+    pub fn flush_query_log(&self) {
         self.query_log.clear();
     }
 
-    pub fn getQueryLog(&self) -> Vec<QueryLogEntry> {
+    pub fn get_query_log(&self) -> Vec<QueryLogEntry> {
         self.query_log.snapshot()
     }
 
-    pub fn getRawQueryLog(&self) -> DatabaseResult<Vec<RawQueryLogEntry>> {
-        self.getQueryLog()
+    pub fn get_raw_query_log(&self) -> DatabaseResult<Vec<RawQueryLogEntry>> {
+        self.get_query_log()
             .iter()
             .map(|entry| {
                 let raw_query = render_query(&entry.query, &entry.bindings, !self.is_sqlite())?;
@@ -1128,7 +1127,7 @@ impl Connection {
     }
 
     /// Allows real queries in the given future while retaining the preview log.
-    pub async fn withoutPretending<T>(&self, callback: impl Future<Output = T>) -> T {
+    pub async fn without_pretending<T>(&self, callback: impl Future<Output = T>) -> T {
         match PreviewScope::current(self.preview_identity()) {
             Some(scope) if scope.dry => {
                 PreviewScope {
@@ -1241,7 +1240,7 @@ impl Connection {
         Ok(())
     }
 
-    pub fn getSchemaBuilder(&self) -> super::schema::Builder<'static> {
+    pub fn get_schema_builder(&self) -> super::schema::Builder<'static> {
         super::schema::Builder::connection(self.clone())
     }
 
@@ -1286,7 +1285,7 @@ impl Connection {
                 false,
                 |physical, values| physical.select_one(sql, values),
                 Value::Null,
-                || self.setRecordModificationState(true),
+                || self.set_record_modification_state(true),
                 |_| ()
             )
             .and_then(|row| row.map_or(Ok(Value::Null), Row::scalar));
@@ -1298,7 +1297,7 @@ impl Connection {
             false,
             |physical, values| physical.execute_statement(sql, values),
             Value::Null,
-            || self.setRecordModificationState(true),
+            || self.set_record_modification_state(true),
             |_| ()
         )
         .map(|result| result.insert_id)
@@ -1361,7 +1360,7 @@ impl Connection {
             result
         }).await.map_err(|_| DatabaseError::InvalidSchema("MySQL schema task interrupted"))?;
         if result.is_ok() {
-            self.setRecordModificationState(true);
+            self.set_record_modification_state(true);
         }
         result
     }
@@ -1376,7 +1375,7 @@ impl Connection {
     }
 
     /// Returns a value from the configuration used to construct this connection.
-    pub fn getConfig(&self, key: &str) -> Option<serde_json::Value> {
+    pub fn get_config(&self, key: &str) -> Option<serde_json::Value> {
         let mut value = self.config.as_ref();
         for segment in key.split('.') {
             value = value.get(segment)?;
@@ -1385,7 +1384,7 @@ impl Connection {
     }
 
     /// Returns the configured database driver's the framework name.
-    pub fn getDriverName(&self) -> &'static str {
+    pub fn get_driver_name(&self) -> &'static str {
         if self.grammar.is_mariadb() {
             "mariadb"
         } else if self.grammar.is_mysql() {
@@ -1399,17 +1398,17 @@ impl Connection {
         }
     }
 
-    pub fn getDatabaseName(&self) -> &str {
+    pub fn get_database_name(&self) -> &str {
         &self.database
     }
 
     /// Reports whether PostgreSQL has a separate direct endpoint configured.
-    pub fn hasDirectConnection(&self) -> bool {
+    pub fn has_direct_connection(&self) -> bool {
         self.has_direct_connection
     }
 
     /// Returns the prefix applied to logical table names on this connection.
-    pub fn getTablePrefix(&self) -> &str {
+    pub fn get_table_prefix(&self) -> &str {
         self.grammar.table_prefix()
     }
 
@@ -1426,21 +1425,21 @@ impl Connection {
         connection
     }
 
-    pub fn hasModifiedRecords(&self) -> bool {
+    pub fn has_modified_records(&self) -> bool {
         self.routing().records_modified.load(Ordering::Relaxed)
     }
 
-    pub fn setRecordModificationState(&self, value: bool) {
+    pub fn set_record_modification_state(&self, value: bool) {
         self.routing()
             .records_modified
             .store(value, Ordering::Relaxed);
     }
 
-    pub fn forgetRecordModificationState(&self) {
-        self.setRecordModificationState(false);
+    pub fn forget_record_modification_state(&self) {
+        self.set_record_modification_state(false);
     }
 
-    pub fn useWriteConnectionWhenReading(&self, value: bool) {
+    pub fn use_write_connection_when_reading(&self, value: bool) {
         self.routing().read_on_write.store(value, Ordering::Relaxed);
     }
 
@@ -1526,7 +1525,7 @@ impl Connection {
         )
     }
 
-    pub async fn selectFromWriteConnection<'a>(
+    pub async fn select_from_write_connection<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -1558,14 +1557,14 @@ impl Connection {
             || (),
             |rows: &Vec<Row>| {
                 if !rows.is_empty() {
-                    self.setRecordModificationState(true);
+                    self.set_record_modification_state(true);
                 }
             }
         )
     }
 
     /// Returns the ordered rowsets of a prepared MySQL-family or SQL Server statement.
-    pub async fn selectResultSets<'a>(
+    pub async fn select_result_sets<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -1583,7 +1582,7 @@ impl Connection {
         )
     }
 
-    pub async fn selectOne<'a>(
+    pub async fn select_one<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -1614,7 +1613,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Value> {
-        self.selectOne(sql, bindings)
+        self.select_one(sql, bindings)
             .await?
             .map_or(Ok(Value::Null), Row::scalar)
     }
@@ -1631,7 +1630,7 @@ impl Connection {
             false,
             |physical, values| physical.affecting_statement(sql, values),
             true,
-            || self.setRecordModificationState(true),
+            || self.set_record_modification_state(true),
             |_| ()
         )
         .map(|_| true)
@@ -1650,7 +1649,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        self.affectingStatement(sql, bindings).await
+        self.affecting_statement(sql, bindings).await
     }
 
     pub async fn delete<'a>(
@@ -1658,10 +1657,10 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        self.affectingStatement(sql, bindings).await
+        self.affecting_statement(sql, bindings).await
     }
 
-    pub async fn affectingStatement<'a>(
+    pub async fn affecting_statement<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
@@ -1676,7 +1675,7 @@ impl Connection {
             || (),
             |count: &u64| {
                 if *count > 0 {
-                    self.setRecordModificationState(true);
+                    self.set_record_modification_state(true);
                 }
             }
         )
@@ -1697,7 +1696,7 @@ impl Connection {
             |physical, _bindings| physical.unprepared(sql),
             true,
             || (),
-            |_| self.setRecordModificationState(true)
+            |_| self.set_record_modification_state(true)
         )
     }
 }

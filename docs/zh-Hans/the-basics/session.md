@@ -38,7 +38,7 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 用 `push` 向数组或关联数组追加值。`increment` 和 `decrement` 接收显式整数步长，返回更新后的 JSON 值。输入无效时返回错误并保留原值。
 
-用 `putMany` 同时写入多个键，支持点号路径。`replace` 更新指定键并保留其他属性。`has_old_input(Some(key))` 检查指定闪存字段是否非空，`has_old_input(None)` 检查旧输入是否包含任何条目。
+用 `put_many` 同时写入多个键，支持点号路径。`replace` 更新指定键并保留其他属性。`has_old_input(Some(key))` 检查指定闪存字段是否非空，`has_old_input(None)` 检查旧输入是否包含任何条目。
 
 ## 闪存数据
 
@@ -77,7 +77,7 @@ fn cache_banner(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 ```rust
 use openrust::support::facades::Route;
 
-Route::getWith("/profile", remember, |route| {
+Route::get_with("/profile", remember, |route| {
     route.block(10, 10);
     Ok(())
 })?;

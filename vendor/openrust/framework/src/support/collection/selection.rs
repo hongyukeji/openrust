@@ -2,49 +2,48 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, percentage_from_counts};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
-    pub fn containsStrict(&self, value: &T) -> bool
+    pub fn contains_strict(&self, value: &T) -> bool
     where
         T: PartialEq,
     {
         self.contains(value)
     }
 
-    pub fn doesntContain(&self, value: &T) -> bool
+    pub fn doesnt_contain(&self, value: &T) -> bool
     where
         T: PartialEq,
     {
         !self.contains(value)
     }
 
-    pub fn doesntContainStrict(&self, value: &T) -> bool
+    pub fn doesnt_contain_strict(&self, value: &T) -> bool
     where
         T: PartialEq,
     {
-        self.doesntContain(value)
+        self.doesnt_contain(value)
     }
 
     pub fn some(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> bool {
-        self.containsWhere(predicate)
+        self.contains_where(predicate)
     }
 
-    pub fn hasMany<K: Into<ArrayKey>>(&self, keys: impl IntoIterator<Item = K>) -> bool {
+    pub fn has_many<K: Into<ArrayKey>>(&self, keys: impl IntoIterator<Item = K>) -> bool {
         keys.into_iter().all(|key| self.has(key))
     }
 
-    pub fn hasSole(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> bool {
-        self.soleWhere(predicate).is_ok()
+    pub fn has_sole(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> bool {
+        self.sole_where(predicate).is_ok()
     }
 
     pub fn search(&self, value: &T) -> Option<&ArrayKey>
     where
         T: PartialEq,
     {
-        self.searchWhere(|item, _| item == value)
+        self.search_where(|item, _| item == value)
     }
 
-    pub fn searchWhere(
+    pub fn search_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> Option<&ArrayKey> {
@@ -78,7 +77,7 @@ impl<T> Collection<T> {
         self.reject(|item, _| other.contains(item))
     }
 
-    pub fn diffUsing(self, other: &Self, mut compare: impl FnMut(&T, &T) -> Ordering) -> Self {
+    pub fn diff_using(self, other: &Self, mut compare: impl FnMut(&T, &T) -> Ordering) -> Self {
         self.reject(|item, _| {
             other
                 .items
@@ -94,7 +93,11 @@ impl<T> Collection<T> {
         self.filter(|item, _| other.contains(item))
     }
 
-    pub fn intersectUsing(self, other: &Self, mut compare: impl FnMut(&T, &T) -> Ordering) -> Self {
+    pub fn intersect_using(
+        self,
+        other: &Self,
+        mut compare: impl FnMut(&T, &T) -> Ordering,
+    ) -> Self {
         self.filter(|item, _| {
             other
                 .items
@@ -103,21 +106,21 @@ impl<T> Collection<T> {
         })
     }
 
-    pub fn diffAssoc(self, other: &Self) -> Self
+    pub fn diff_assoc(self, other: &Self) -> Self
     where
         T: PartialEq,
     {
         self.filter(|item, key| other.get(key) != Some(item))
     }
 
-    pub fn intersectAssoc(self, other: &Self) -> Self
+    pub fn intersect_assoc(self, other: &Self) -> Self
     where
         T: PartialEq,
     {
         self.filter(|item, key| other.get(key) == Some(item))
     }
 
-    pub fn diffAssocUsing(
+    pub fn diff_assoc_using(
         self,
         other: &Self,
         mut keys: impl FnMut(&ArrayKey, &ArrayKey) -> Ordering,
@@ -132,7 +135,7 @@ impl<T> Collection<T> {
         })
     }
 
-    pub fn intersectAssocUsing(
+    pub fn intersect_assoc_using(
         self,
         other: &Self,
         mut keys: impl FnMut(&ArrayKey, &ArrayKey) -> Ordering,
@@ -147,11 +150,11 @@ impl<T> Collection<T> {
         })
     }
 
-    pub fn diffKeys<U>(self, other: &Collection<U>) -> Self {
+    pub fn diff_keys<U>(self, other: &Collection<U>) -> Self {
         self.filter(|_, key| !other.has(key))
     }
 
-    pub fn diffKeysUsing<U>(
+    pub fn diff_keys_using<U>(
         self,
         other: &Collection<U>,
         mut keys: impl FnMut(&ArrayKey, &ArrayKey) -> Ordering,
@@ -164,7 +167,7 @@ impl<T> Collection<T> {
         })
     }
 
-    pub fn intersectByKeys<U>(self, other: &Collection<U>) -> Self {
+    pub fn intersect_by_keys<U>(self, other: &Collection<U>) -> Self {
         self.filter(|_, key| other.has(key))
     }
 
@@ -184,14 +187,14 @@ impl<T> Collection<T> {
         repeated
     }
 
-    pub fn duplicatesStrict(self) -> Self
+    pub fn duplicates_strict(self) -> Self
     where
         T: PartialEq,
     {
         self.duplicates()
     }
 
-    pub fn uniqueStrict(self) -> Self
+    pub fn unique_strict(self) -> Self
     where
         T: Eq + std::hash::Hash + Clone,
     {
@@ -240,10 +243,10 @@ impl<T> Collection<T> {
         Ok(result)
     }
 
-    pub fn collapseWithKeys<U>(self) -> Collection<U>
+    pub fn collapse_with_keys<U>(self) -> Collection<U>
     where
         T: IntoIterator<Item = (ArrayKey, U)>,
     {
-        Collection::fromEntries(self.items.into_values().flatten())
+        Collection::from_entries(self.items.into_values().flatten())
     }
 }

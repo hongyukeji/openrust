@@ -24,7 +24,7 @@ async fn scoped_defaults_are_concurrent_and_restored_after_cancellation() {
         let barrier = &barrier;
         async move {
             manager
-                .usingConnection(name, async {
+                .using_connection(name, async {
                     barrier.wait().await;
                     let connection = manager.connection(None).unwrap();
                     assert_eq!(connection.get_name(), name);
@@ -50,27 +50,27 @@ async fn scoped_defaults_are_concurrent_and_restored_after_cancellation() {
                     assert!(
                         tokio::time::timeout(
                             Duration::from_millis(5),
-                            manager.usingConnection("first", async {
-                                assert_eq!(manager.getDefaultConnection().unwrap(), "first");
+                            manager.using_connection("first", async {
+                                assert_eq!(manager.get_default_connection().unwrap(), "first");
                                 std::future::pending::<()>().await;
                             })
                         )
                         .await
                         .is_err()
                     );
-                    assert_eq!(manager.getDefaultConnection().unwrap(), name);
+                    assert_eq!(manager.get_default_connection().unwrap(), name);
                 })
                 .await;
         }
     };
     tokio::join!(scoped("second", 2), scoped("third", 3));
-    assert_eq!(manager.getDefaultConnection().unwrap(), "first");
+    assert_eq!(manager.get_default_connection().unwrap(), "first");
     assert!(
         !manager
             .connection(None)
             .unwrap()
-            .getSchemaBuilder()
-            .hasTable("marker")
+            .get_schema_builder()
+            .has_table("marker")
             .await
             .unwrap()
     );

@@ -9,27 +9,27 @@ use super::{Builder, Model};
 
 impl<M: Model> UrlRoutable for M {
     fn get_route_key_name() -> &'static str {
-        M::getRouteKeyName()
+        M::get_route_key_name()
     }
 
     fn get_route_key(&self) -> UrlResult<Option<UrlValue<'static>>> {
-        url_value(M::getRouteKey(self))
+        url_value(M::get_route_key(self))
     }
 
     fn route_url_attribute(&self, field: &str) -> UrlResult<Option<UrlValue<'static>>> {
-        url_value(self.getAttributeValue(field))
+        url_value(self.get_attribute_value(field))
     }
 
     fn resolve_route_binding(
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
-        M::resolveRouteBinding(binding)
+        M::resolve_route_binding(binding)
     }
 
     fn resolve_child_route_binding(
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
-        M::resolveChildRouteBinding(binding)
+        M::resolve_child_route_binding(binding)
     }
 }
 
@@ -51,8 +51,8 @@ pub(super) async fn lookup<M: Model>(
     mut query: Builder<'static, M>,
     binding: BindingContext<'_>,
 ) -> DatabaseResult<Option<M>> {
-    let field = binding.field().unwrap_or_else(|| M::getRouteKeyName());
-    let Some(value) = M::routeBindingValue(field, binding.value()) else {
+    let field = binding.field().unwrap_or_else(|| M::get_route_key_name());
+    let Some(value) = M::route_binding_value(field, binding.value()) else {
         return Ok(None);
     };
     if matches!(value, Value::Unsigned(value) if i64::try_from(value).is_err())
@@ -63,6 +63,6 @@ pub(super) async fn lookup<M: Model>(
     if binding.allows_trashed_bindings() && M::metadata().deleted_at.is_some() {
         query = query.with_trashed();
     }
-    query.r#where(&query.qualifyColumn(field), "=", value);
+    query.r#where(&query.qualify_column(field), "=", value);
     query.first().await
 }

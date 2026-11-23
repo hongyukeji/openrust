@@ -12,9 +12,9 @@ Artisan 執行 Seeder 及其子 Seeder 時會暫時停用 Eloquent 的批次賦�
 
 ### 呼叫其他 Seeder
 
-`DatabaseSeeder` 是預設入口。用 `call` 依序執行子 Seeder。`callSilent` 隱藏子項的進度輸出。`callOnce` 跳過本次執行中已成功的 Seeder。`callWith` 可傳入參數，子項用 `parameters()` 讀取。
+`DatabaseSeeder` 是預設入口。用 `call` 依序執行子 Seeder。`call_silent` 隱藏子項的進度輸出。`call_once` 跳過本次執行中已成功的 Seeder。`call_with` 可傳入參數，子項用 `parameters()` 讀取。
 
-用 `callWithMany(names, parameters)` 依序傳入相同的值給多個 Seeder。用 `callSilentWith(names, parameters)` 隱藏這些 Seeder 的進度行，或用 `callOnceWith(names, silent, parameters)` 跳過已成功的 Seeder 並選擇是否顯示進度。各 Seeder 透過 `parameters()` 讀取參數。發生錯誤時停止執行清單，失敗的 Seeder 可以重試。
+用 `call_with_many(names, parameters)` 依序傳入相同的值給多個 Seeder。用 `call_silent_with(names, parameters)` 隱藏這些 Seeder 的進度行，或用 `call_once_with(names, silent, parameters)` 跳過已成功的 Seeder 並選擇是否顯示進度。各 Seeder 透過 `parameters()` 讀取參數。發生錯誤時停止執行清單，失敗的 Seeder 可以重試。
 
 下列範例需要 `plans` 資料表具有唯一的 `code` 欄位和一個 `label` 欄位。重複執行時，upsert 更新同一筆資料列。
 
@@ -68,7 +68,7 @@ impl Seeder for DatabaseSeeder {
         &'a self,
         context: &'a mut SeederContext<'_>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(context.callOnceWith(
+        Box::pin(context.call_once_with(
             &["CatalogSeeder"],
             true,
             Record::from([("label".into(), "Standard plan".into())]),
@@ -79,7 +79,7 @@ impl Seeder for DatabaseSeeder {
 
 ## 執行 Seeder
 
-用 `db:seed` 執行預設的 `DatabaseSeeder`，由它明確呼叫其他 Seeder。用 `--class` 或位置參數指定類別。以 `Admin/CatalogSeeder` 產生的 Seeder 可用 `--class='Admin\CatalogSeeder'` 執行。用 `--database` 選擇連線。Seeder 內透過 `DB` 門面存取時預設使用所選連線，其他工作各自保留自己的連線選擇。
+用 `db:seed` 執行預設的 `DatabaseSeeder`，由它明確呼叫其他 Seeder。用 `--class` 或位置參數指定類別。以 `Admin/CatalogSeeder` 產生的 Seeder 可用 `--class='Admin\CatalogSeeder'` 執行。用 `--database` 選擇連線。Seeder 內透過 `Db` 門面存取時預設使用所選連線，其他工作各自保留自己的連線選擇。
 
 ```sh
 ./artisan db:seed
@@ -103,7 +103,7 @@ impl Seeder for DatabaseSeeder {
 
 應用程式在 `database/factories` 提供預設 `UserFactory`。遷移空資料庫後，`./artisan db:seed` 使用它建立已驗證的範例帳號 `test@example.com`，密碼為 `password`。模型依應用程式設定雜湊密碼。預設 Seeder 使用選定的資料庫，執行期間靜默模型事件。對同一帳號重複執行預設 Seeder 會收到電子郵件重複錯誤。
 
-將 Seeder 選定的連線傳給 `createOn`，即可沿用 `db:seed --database=…` 的連線選擇。可在 Seeder 的 `run` 中呼叫下方函式。
+將 Seeder 選定的連線傳給 `create_on`，即可沿用 `db:seed --database=…` 的連線選擇。可在 Seeder 的 `run` 中呼叫下方函式。
 
 ```rust
 use openrust::database::{
@@ -116,7 +116,7 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Factory::<M>::new(|| Attributes::from([("name".into(), "Flight".into())]))
         .sequence(|index| Attributes::from([("name".into(), format!("Flight {index}").into())]))
         .count(3)
-        .createOn(context.connection())
+        .create_on(context.connection())
         .await?;
     Ok(())
 }
@@ -124,11 +124,11 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## 靜默模型事件 {#muting-model-events}
 
-註冊 Seeder 時呼叫 `withoutModelEvents()`，可在執行期間靜默 Eloquent 模型事件。它呼叫的子 Seeder 會繼承此範圍。成功傳回或發生錯誤後皆會恢復模型事件。Seeder 進度輸出與工廠回呼照常執行。
+註冊 Seeder 時呼叫 `without_model_events()`，可在執行期間靜默 Eloquent 模型事件。它呼叫的子 Seeder 會繼承此範圍。成功傳回或發生錯誤後皆會恢復模型事件。Seeder 進度輸出與工廠回呼照常執行。
 
 ```rust
 use openrust::database::seeder::SeederEntry;
 
 pub(super) const ENTRY: SeederEntry =
-    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).without_model_events();
 ```

@@ -67,7 +67,7 @@ fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<S
 }
 ```
 
-使用 `file` 時，檔案須位於已設定的檢視目錄內。相對路徑依應用程式的檢視目錄順序查找。`addNamespace` 和 `replaceNamespace` 管理命名空間目錄。工廠的 creator 和 composer 支援一組檢視名稱或萬用字元模式。明確指定的檔案支援 `.blade.html`、`.html` 或 `.css`。
+使用 `file` 時，檔案須位於已設定的檢視目錄內。相對路徑依應用程式的檢視目錄順序查找。`add_namespace` 和 `replace_namespace` 管理命名空間目錄。工廠的 creator 和 composer 支援一組檢視名稱或萬用字元模式。明確指定的檔案支援 `.blade.html`、`.html` 或 `.css`。
 
 Engine 契約要求明確提供檢視根目錄，用以限定檔案讀取範圍。契約呈現是同步的。在非同步處理器中，可將直接呈現交給阻塞執行緒，或傳回檢視並由框架呈現。
 
@@ -81,4 +81,4 @@ Blade 範本在首次使用時編譯。來源檔案變更後，OpenRust 會在 `
 ```
 ## 條件與集合渲染
 
-`View::renderWhen` 條件為真才渲染，`renderUnless` 相反。`renderEach(view, data, iterator, empty)` 接收鍵值對，把鍵公開為 `key`、值公開為指定迭代變數，再串接各項結果。空集合渲染空視圖，或直接傳回 `raw|` 後的文字。子視圖繼承共用資料，不自動繼承父視圖區域變數。`getShared` 傳回擁有所有權的快照。啟動階段的 `share` 值作為預設值；請求或佇列作用域內的修改只影響該作用域，顯式視圖資料覆蓋共用同名鍵。
+`View::render_when` 條件為真才渲染，`render_unless` 相反。`render_each(view, data, iterator, empty)` 接收鍵值對，把鍵公開為 `key`、值公開為指定迭代變數，再串接各項結果。空集合渲染空視圖，或直接傳回 `raw|` 後的文字。子視圖繼承共用資料，不自動繼承父視圖區域變數。`get_shared` 傳回擁有所有權的快照。啟動階段的 `share` 值作為預設值；請求或佇列作用域內的修改只影響該作用域，顯式視圖資料覆蓋共用同名鍵。

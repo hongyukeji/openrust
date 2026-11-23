@@ -11,7 +11,7 @@ impl Migration for CreateFeaturesTable {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             context
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("features", |table| {
                     table.id();
                     table.string("name", None);
@@ -27,6 +27,11 @@ impl Migration for CreateFeaturesTable {
         &'a self,
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async move { context.getSchemaBuilder().dropIfExists("features").await })
+        Box::pin(async move {
+            context
+                .get_schema_builder()
+                .drop_if_exists("features")
+                .await
+        })
     }
 }

@@ -291,7 +291,7 @@ fn artisan_authenticates_ciphertext_and_never_prunes_after_a_failed_write() {
         artisan(root.path(), &["env:encrypt", "--key", KEY], None),
         "Encrypted environment file already exists",
     );
-    let tampered = gcm.encryptString(b"invalid serialized payload").unwrap();
+    let tampered = gcm.encrypt_string(b"invalid serialized payload").unwrap();
     fs::write(&encrypted, tampered).unwrap();
     let failed = artisan(
         root.path(),

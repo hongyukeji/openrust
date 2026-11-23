@@ -6,7 +6,7 @@
 
 `app.url` 優先使用明確設定的 `APP_URL`。未設定時，使用具體的 `APP_HOST` 和 `APP_PORT` 產生 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未設定主機，或使用 `127.0.0.1`、`::1` 等回送位址或 `0.0.0.0`、`::` 等萬用監聽位址時，使用 `http://localhost:{port}`。環境範本設定了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用範本預設值時會展開為 `http://127.0.0.1:8000`。
 
-HTTP 請求內產生 URL 時，包括使用 `URL::for_request(request)`，優先使用明確設定的 `APP_URL`，其次是目前請求的來源。請求沒有來源時，使用從監聽設定推導出的 `app.url`。Artisan 直接使用 `app.url`。
+HTTP 請求內產生 URL 時，包括使用 `Url::for_request(request)`，優先使用明確設定的 `APP_URL`，其次是目前請求的來源。請求沒有來源時，使用從監聽設定推導出的 `app.url`。Artisan 直接使用 `app.url`。
 
 設定 `APP_VERSION` 可覆寫 `app.version` 中的應用程式版本。未設定時，預設採用編譯時由 `env!("CARGO_PKG_VERSION")` 讀取的 Cargo 套件版本。歡迎頁顯示 `app.version`。
 
@@ -148,7 +148,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `FILESYSTEM_WEB_ROOT` 優先指定網站磁碟根目錄；未設定時使用 `APP_PUBLIC_PATH`（預設 `public`）。相對路徑基於應用根目錄，絕對路徑直接使用。空字串或全空白值會導致設定載入失敗。
 
-未設定 `APP_PUBLIC_PATH` 時，`config/app.rs` 明確將 `app.public_path` 設為 `public`，`web` 磁碟沿用該值作為預設根目錄。網站檔案設定在 `filesystems.disks.web`，公開上傳檔案設定在 `filesystems.disks.public`。預設路由依序呼叫 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引導前呼叫 `use_public_path()` 會覆寫網站目錄並同步 `web.root`。相對目錄以應用程式根目錄為基準。掛載前綴取磁碟 URL 的完整路徑，例如 `/storage/tmp/` 掛載到 `/storage/tmp`。絕對 URL 必須與 `app.url` 同源。修改掛載設定後重新啟動應用程式。 明確設定為空字串或全空白的 `APP_PUBLIC_PATH` 會導致設定載入失敗。
+未設定 `APP_PUBLIC_PATH` 時，`config/app.rs` 明確將 `app.public_path` 設為 `public`，`web` 磁碟沿用該值作為預設根目錄。網站檔案設定在 `filesystems.disks.web`，公開上傳檔案設定在 `filesystems.disks.public`。預設路由依序呼叫 `Route::static_disk("web")` 和 `Route::static_disk("public")`。引導前呼叫 `use_public_path()` 會覆寫網站目錄並同步 `web.root`。相對目錄以應用程式根目錄為基準。掛載前綴取磁碟 URL 的完整路徑，例如 `/storage/tmp/` 掛載到 `/storage/tmp`。絕對 URL 必須與 `app.url` 同源。修改掛載設定後重新啟動應用程式。 明確設定為空字串或全空白的 `APP_PUBLIC_PATH` 會導致設定載入失敗。
 
 ## 維護模式 {#maintenance-mode}
 

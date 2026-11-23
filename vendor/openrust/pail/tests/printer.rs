@@ -41,7 +41,7 @@ impl Command for Print {
                 .parse()
                 .unwrap();
             let vector = &data["vectors"][index];
-            let message = MessageLogged::fromJson(
+            let message = MessageLogged::from_json(
                 &data["records"][vector["record"].as_u64().unwrap() as usize].to_string(),
             )
             .unwrap();
@@ -147,7 +147,7 @@ async fn main() -> ExitCode {
             json!({"__pail":{"origin":{"type":"http"}}}),
         ),
     ] {
-        let message = MessageLogged::fromJson(&json!({"message":"invalid record","datetime":datetime,"level_name":"INFO","context":context}).to_string()).unwrap();
+        let message = MessageLogged::from_json(&json!({"message":"invalid record","datetime":datetime,"level_name":"INFO","context":context}).to_string()).unwrap();
         let mut output = Output::default();
         assert!(
             CliPrinter::new(&mut output, "/app/project")
@@ -156,7 +156,7 @@ async fn main() -> ExitCode {
         );
         assert!(output.stdout.is_empty());
     }
-    let native = MessageLogged::fromJson(&json!({
+    let native = MessageLogged::from_json(&json!({
         "message":"native JSON precision", "datetime":"2024-01-01T03:04:05.000000+00:00", "level_name":"INFO",
         "context":{"large_id":u64::MAX,"empty":{},"exception":{"class":"app::domain::import::jobs::Error"},"__pail":{"origin":{"type":"console","command":"probe"}}}
     }).to_string()).unwrap();

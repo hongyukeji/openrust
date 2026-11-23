@@ -3,13 +3,13 @@ pub(crate) fn identity<M: openrust::database::eloquent::Model>(
     model: &M,
 ) -> crate::Result<crate::Subject> {
     use openrust::database::Value as Sql;
-    let id = match model.getKey() {
+    let id = match model.get_key() {
         Some(Sql::Text(value)) => value.clone(),
         Some(Sql::Integer(value)) => value.to_string(),
         Some(Sql::Unsigned(value)) => value.to_string(),
         _ => return Err(crate::Error::InvalidActivity),
     };
-    crate::Subject::new(model.getMorphClass()?, id)
+    crate::Subject::new(model.get_morph_class()?, id)
 }
 
 /// Per-model logging switch. Clone copies the value, so two model instances remain independent.
@@ -84,7 +84,7 @@ pub mod concerns {
         ) -> DatabaseResult<()> {
             for event in Self::eventsToBeRecorded() {
                 if !Self::doNotRecordEvents().contains(event) {
-                    Self::registerModelEvent(
+                    Self::register_model_event(
                         app,
                         *event,
                         LogsActivityListener {
@@ -102,22 +102,24 @@ pub mod concerns {
             let options = self.getActivitylogOptions();
             let mut attributes = BTreeSet::new();
             if options.logFillable {
-                attributes.extend(self.getFillable().iter().map(|name| (*name).to_owned()));
+                attributes.extend(self.get_fillable().iter().map(|name| (*name).to_owned()));
             }
             if options.logUnguarded {
-                let guarded = self.getGuarded();
-                if Self::isUnguarded() || !guarded.contains(&"*") {
+                let guarded = self.get_guarded();
+                if Self::is_unguarded() || !guarded.contains(&"*") {
                     attributes.extend(
                         self.state()
-                            .getAttributes()
+                            .get_attributes()
                             .keys()
-                            .filter(|name| Self::isUnguarded() || !guarded.contains(&name.as_str()))
+                            .filter(|name| {
+                                Self::is_unguarded() || !guarded.contains(&name.as_str())
+                            })
                             .cloned(),
                     );
                 }
             }
             if options.logAttributes.iter().any(|name| name == "*") {
-                attributes.extend(self.state().getAttributes().keys().cloned());
+                attributes.extend(self.state().get_attributes().keys().cloned());
             }
             attributes.extend(
                 options
@@ -159,23 +161,23 @@ pub mod concerns {
                 } else if attribute.contains("->") {
                     let base = attribute.split("->").next().unwrap();
                     let value = self
-                        .getAttributeValue(base)?
+                        .get_attribute_value(base)?
                         .as_ref()
                         .map(ChangeDetector::json)
                         .transpose()?
                         .unwrap_or(Value::Null);
                     let root = Map::from_iter([(base.into(), value)]);
                     let value = ChangeDetector::resolveJsonAttribute(&root, &attribute);
-                    setPath(
+                    set_path(
                         &mut values,
                         &attribute.split("->").collect::<Vec<_>>(),
                         value,
                     );
                 } else {
                     let raw = if options.attributeRawValues.contains(&attribute) {
-                        self.getAttribute(&attribute).cloned()
+                        self.get_attribute(&attribute).cloned()
                     } else {
-                        self.getAttributeValue(&attribute)?
+                        self.get_attribute_value(&attribute)?
                     };
                     values.insert(
                         attribute,
@@ -189,7 +191,7 @@ pub mod concerns {
             Ok(values)
         }
     }
-    fn setPath(values: &mut Map<String, Value>, path: &[&str], value: Value) {
+    fn set_path(values: &mut Map<String, Value>, path: &[&str], value: Value) {
         if path.len() == 1 {
             values.insert(path[0].into(), value);
             return;
@@ -200,7 +202,7 @@ pub mod concerns {
         if !child.is_object() {
             *child = Value::Object(Map::new());
         }
-        setPath(child.as_object_mut().unwrap(), &path[1..], value);
+        set_path(child.as_object_mut().unwrap(), &path[1..], value);
     }
     fn eventName(event: ModelEvent) -> Option<&'static str> {
         match event {
@@ -235,7 +237,7 @@ pub mod concerns {
         }
         let options = model.getActivitylogOptions();
         if matches!(event, ModelEvent::Created | ModelEvent::Updated) {
-            let dirty = model.getDirty()?;
+            let dirty = model.get_dirty()?;
             if !dirty
                 .keys()
                 .any(|name| !options.dontLogIfAttributesChangedOnly.contains(name))
@@ -243,14 +245,14 @@ pub mod concerns {
                 return Ok(None);
             }
             // Restoration triggers an update as well; record only its restored event.
-            if model.getDeletedAtColumn().is_some_and(|column| {
+            if model.get_deleted_at_column().is_some_and(|column| {
                 model
                     .state()
-                    .getOriginal()
+                    .get_original()
                     .get(column)
                     .is_some_and(|value| !matches!(value, openrust::database::Value::Null))
                     && matches!(
-                        model.getAttribute(column),
+                        model.get_attribute(column),
                         Some(openrust::database::Value::Null)
                     )
             }) {
@@ -267,9 +269,9 @@ pub mod concerns {
         } else if event == ModelEvent::Deleted {
             serde_json::json!({"old": attributes})
         } else if event == ModelEvent::Updated {
-            let mut old = M::newInstanceOn(&model.getConnection()?, Default::default())?;
-            for (name, value) in model.state().getOriginal() {
-                old.state_mut().setAttribute(name, value.clone());
+            let mut old = M::new_instance_on(&model.get_connection()?, Default::default())?;
+            for (name, value) in model.state().get_original() {
+                old.state_mut().set_attribute(name, value.clone());
             }
             loadRelated(&mut old, defaults, transaction).await?;
             let mut old = old.extractChangesWithDefaults(defaults)?;
@@ -301,7 +303,7 @@ pub mod concerns {
         activity.changes = changes;
         activity.subjectAttributes = model
             .state()
-            .getAttributes()
+            .get_attributes()
             .iter()
             .map(|(key, value)| Ok((key.clone(), ChangeDetector::json(value)?)))
             .collect::<Result<Map<_, _>>>()?
@@ -320,27 +322,27 @@ pub mod concerns {
         let mut snapshot = model.clone();
         if event != ModelEvent::Retrieved
             && model.state().exists()
-            && let Some(key) = model.getKey()
+            && let Some(key) = model.get_key()
         {
             let row = match transaction.as_deref_mut() {
                 Some(tx) => {
-                    tx.table(model.getTable())
-                        .r#where(model.getKeyName(), "=", key.clone())
+                    tx.table(model.get_table())
+                        .r#where(model.get_key_name(), "=", key.clone())
                         .first()
                         .await?
                 }
                 None => {
                     model
-                        .getConnection()?
-                        .table(model.getTable())
-                        .r#where(model.getKeyName(), "=", key.clone())
+                        .get_connection()?
+                        .table(model.get_table())
+                        .r#where(model.get_key_name(), "=", key.clone())
                         .first()
                         .await?
                 }
             };
             if let Some(row) = row {
                 for (name, value) in row.columns() {
-                    snapshot.state_mut().setAttribute(name, value.clone());
+                    snapshot.state_mut().set_attribute(name, value.clone());
                 }
             }
         }
@@ -360,7 +362,7 @@ pub mod concerns {
         if !paths.is_empty() {
             let paths: Vec<&str> = paths.iter().map(String::as_str).collect();
             match transaction {
-                Some(tx) => model.loadPathsInTransaction(&paths, tx).await?,
+                Some(tx) => model.load_paths_in_transaction(&paths, tx).await?,
                 None => model.load_missing_paths(&paths).await?,
             }
         }
@@ -376,13 +378,13 @@ pub mod concerns {
         use std::sync::atomic::{AtomicBool, Ordering};
         let committed = Arc::new(AtomicBool::new(false));
         let marker = committed.clone();
-        transaction.afterCommit(move || {
+        transaction.after_commit(move || {
             Box::pin(async move {
                 marker.store(true, Ordering::SeqCst);
                 Ok(())
             })
         })?;
-        transaction.afterCommitAtLevel(1, move || {
+        transaction.after_commit_at_level(1, move || {
             Box::pin(async move {
                 if committed.load(Ordering::SeqCst) {
                     if let Some(buffer) = buffer {
@@ -440,7 +442,7 @@ pub mod concerns {
                 Ok(ModelEventResponse::Continue)
             })
         }
-        fn handleInTransaction<'a>(
+        fn handle_in_transaction<'a>(
             &'a self,
             event: ModelEvent,
             model: &'a mut M,
@@ -474,7 +476,7 @@ pub mod concerns {
                             )?;
                             return Ok(ModelEventResponse::Continue);
                         }
-                        if self.repository.usesConnection(&model.getConnection()?) {
+                        if self.repository.usesConnection(&model.get_connection()?) {
                             prepared.logIn(transaction).await?;
                         } else {
                             saveAfterCommit(transaction, prepared, self.repository.clone(), None)?;
@@ -524,9 +526,9 @@ impl Activity {
         use openrust::database::eloquent::Model;
         let relation =
             openrust::database::eloquent::relations::MorphTo::new("subject_type", "subject_id")
-                .targetMapped::<R>(
-                    &self.getConnection()?,
-                    R::from_state(Default::default()).getKeyName(),
+                .target_mapped::<R>(
+                    &self.get_connection()?,
+                    R::from_state(Default::default()).get_key_name(),
                 )?;
         let include =
             openrust::support::facades::Config::get("activitylog.include_soft_deleted_subjects")?
@@ -544,9 +546,9 @@ impl Activity {
     {
         use openrust::database::eloquent::Model;
         openrust::database::eloquent::relations::MorphTo::new("causer_type", "causer_id")
-            .targetMapped::<R>(
-                &self.getConnection()?,
-                R::from_state(Default::default()).getKeyName(),
+            .target_mapped::<R>(
+                &self.get_connection()?,
+                R::from_state(Default::default()).get_key_name(),
             )
     }
     pub fn getProperty(
@@ -556,7 +558,7 @@ impl Activity {
     ) -> crate::Result<serde_json::Value> {
         use openrust::database::eloquent::Model;
         let value = self
-            .getAttributeValue("properties")?
+            .get_attribute_value("properties")?
             .as_ref()
             .map(crate::ChangeDetector::json)
             .transpose()?
@@ -587,9 +589,9 @@ pub struct ActivityModel {
 impl ActivityModel {
     pub fn of<M: openrust::database::eloquent::Model>() -> Self {
         Self {
-            table: M::from_state(Default::default()).getTable(),
+            table: M::from_state(Default::default()).get_table(),
             connection: M::from_state(Default::default())
-                .getConnectionName()
+                .get_connection_name()
                 .map(str::to_owned),
             save: saveModel::<M>,
             saveIn: saveModelIn::<M>,
@@ -616,9 +618,9 @@ fn preparedModel<M: openrust::database::eloquent::Model>(
     connection: &openrust::database::Connection,
     activity: &crate::PreparedActivity,
 ) -> openrust::database::DatabaseResult<M> {
-    let mut model = M::newInstanceOn(connection, Default::default())?;
+    let mut model = M::new_instance_on(connection, Default::default())?;
     for (key, value) in activity.row() {
-        model.setAttribute(&key, value);
+        model.set_attribute(&key, value);
     }
     Ok(model)
 }
@@ -630,7 +632,7 @@ fn saveModel<'a, M: openrust::database::eloquent::Model>(
     Box::pin(async move {
         let mut model = preparedModel::<M>(connection, activity)?;
         model.save().await?;
-        crate::repository::decodeAttributes(model.state().getAttributes()).map_err(|_| {
+        crate::repository::decodeAttributes(model.state().get_attributes()).map_err(|_| {
             openrust::database::DatabaseError::InvalidQuery("Invalid activity model attributes")
         })
     })
@@ -641,9 +643,9 @@ fn saveModelIn<'a, M: openrust::database::eloquent::Model>(
 ) -> openrust::database::DatabaseFuture<'a, openrust::database::DatabaseResult<crate::ActivityRecord>>
 {
     Box::pin(async move {
-        let mut model = preparedModel::<M>(tx.getConnection(), activity)?;
-        model.saveInTransaction(tx).await?;
-        crate::repository::decodeAttributes(model.state().getAttributes()).map_err(|_| {
+        let mut model = preparedModel::<M>(tx.get_connection(), activity)?;
+        model.save_in_transaction(tx).await?;
+        crate::repository::decodeAttributes(model.state().get_attributes()).map_err(|_| {
             openrust::database::DatabaseError::InvalidQuery("Invalid activity model attributes")
         })
     })

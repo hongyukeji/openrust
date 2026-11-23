@@ -276,7 +276,7 @@ impl ChannelRegistry {
                 })?;
                 models.0.insert(name.into(), model);
             }
-            let decision = rule.handler.joinBound(user, &parameters, &models).await?;
+            let decision = rule.handler.join_bound(user, &parameters, &models).await?;
             if !matches!(decision, ChannelAuthorization::Abstain) {
                 return Ok(decision);
             }

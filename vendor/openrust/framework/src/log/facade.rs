@@ -15,24 +15,23 @@ impl Facade for Log {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Log {
-    pub fn withContext(context: LogContext) -> LogResult<Arc<Logger>> {
-        Self::get_facade_root()?.withContext(context)
+    pub fn with_context(context: LogContext) -> LogResult<Arc<Logger>> {
+        Self::get_facade_root()?.with_context(context)
     }
-    pub fn withoutContext(keys: Option<&[&str]>) -> LogResult<()> {
-        Self::get_facade_root()?.withoutContext(keys);
+    pub fn without_context(keys: Option<&[&str]>) -> LogResult<()> {
+        Self::get_facade_root()?.without_context(keys);
         Ok(())
     }
-    pub fn shareContext(context: LogContext) -> LogResult<()> {
-        Self::get_facade_root()?.shareContext(context);
+    pub fn share_context(context: LogContext) -> LogResult<()> {
+        Self::get_facade_root()?.share_context(context);
         Ok(())
     }
-    pub fn sharedContext() -> LogResult<LogContext> {
-        Ok(Self::get_facade_root()?.sharedContext())
+    pub fn shared_context() -> LogResult<LogContext> {
+        Ok(Self::get_facade_root()?.shared_context())
     }
-    pub fn flushSharedContext() -> LogResult<()> {
-        Self::get_facade_root()?.flushSharedContext();
+    pub fn flush_shared_context() -> LogResult<()> {
+        Self::get_facade_root()?.flush_shared_context();
         Ok(())
     }
 
@@ -46,12 +45,12 @@ impl Log {
         Self::get_facade_root()?.build(config)
     }
 
-    pub fn getLogger() -> LogResult<Arc<super::NativeLogger>> {
-        Self::get_facade_root()?.getLogger()
+    pub fn get_logger() -> LogResult<Arc<super::NativeLogger>> {
+        Self::get_facade_root()?.get_logger()
     }
 
-    pub fn getChannels() -> LogResult<std::collections::HashMap<String, Arc<Logger>>> {
-        Ok(Self::get_facade_root()?.getChannels())
+    pub fn get_channels() -> LogResult<std::collections::HashMap<String, Arc<Logger>>> {
+        Ok(Self::get_facade_root()?.get_channels())
     }
 
     pub fn channel(name: Option<&str>) -> LogResult<Arc<Logger>> {
@@ -62,12 +61,11 @@ impl Log {
         Self::get_facade_root()?.stack(names, name)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn stackChannels(
+    pub fn stack_channels(
         channels: &[StackChannel<'_>],
         name: Option<&str>,
     ) -> LogResult<Arc<Logger>> {
-        Self::get_facade_root()?.stackChannels(channels, name)
+        Self::get_facade_root()?.stack_channels(channels, name)
     }
 
     pub fn log(level: Level, message: &str, context: &LogContext) -> LogResult<()> {
@@ -75,26 +73,24 @@ impl Log {
     }
 
     /// Writes a log at the current request boundary and awaits asynchronous observers.
-    #[allow(non_snake_case, reason = "异步请求日志适配接口")]
-    pub async fn logWithRequest(
+    pub async fn log_with_request(
         request: &mut crate::http::Request,
         level: Level,
         message: &str,
         context: &LogContext,
     ) -> LogResult<()> {
         Self::get_facade_root()?
-            .logWithRequest(request, level, message, context)
+            .log_with_request(request, level, message, context)
             .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn logException<E: std::error::Error + Send + Sync + 'static>(
+    pub fn log_exception<E: std::error::Error + Send + Sync + 'static>(
         level: Level,
         message: &str,
         error: &E,
         context: &LogContext,
     ) -> LogResult<()> {
-        Self::get_facade_root()?.logException(level, message, error, context)
+        Self::get_facade_root()?.log_exception(level, message, error, context)
     }
 
     log_methods!();

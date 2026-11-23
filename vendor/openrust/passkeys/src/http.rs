@@ -39,7 +39,7 @@ struct Envelope<T> {
 fn timestamp() -> Result<i64, HttpError> {
     Ok(now(None)
         .map_err(internal)?
-        .asDateTime()
+        .as_date_time()
         .timestamp()
         .as_nanosecond()
         .div_euclid(1_000_000) as i64)
@@ -220,7 +220,7 @@ impl PasskeyRegistrationController {
                 .map_err(internal)?
                 .ok_or(HttpError::NotFound)?;
             if passkey
-                .getAttributeValue("user_id")
+                .get_attribute_value("user_id")
                 .await
                 .map_err(internal)?
                 .as_ref()
@@ -273,7 +273,7 @@ impl PasskeyLoginController {
                 .model()?
                 .find(
                     passkey
-                        .getAttributeValue("user_id")
+                        .get_attribute_value("user_id")
                         .await
                         .map_err(internal)?
                         .ok_or(HttpError::NotFound)?,
@@ -362,7 +362,7 @@ redirect_response!(
 macro_rules! status_response {
     ($name:ident,$status:expr)=>{impl contracts::Response for $name {
         fn to_response<'a>(&'a self,request:&'a mut Request,passkey:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
-            if request.wants_json() {let mut data=json!({"status":$status});if let Some(passkey)=passkey {data["id"]=passkey.getKey().await.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();data["name"]=passkey.getAttributeValue("name").await.map_err(internal)?.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();}return Response::json(StatusCode::OK,data);}
+            if request.wants_json() {let mut data=json!({"status":$status});if let Some(passkey)=passkey {data["id"]=passkey.get_key().await.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();data["name"]=passkey.get_attribute_value("name").await.map_err(internal)?.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();}return Response::json(StatusCode::OK,data);}
             Ok(Redirect::back(request,None,Default::default())?.with(request,"status",$status.into())?.into())
         })}
     }};

@@ -64,12 +64,12 @@ impl ServiceProvider for Register {
         Box::pin(async move {
             let auth = app.make::<AuthManager>().await?;
             auth.register_model::<Account>("accounts");
-            MorphMap::enforceMorphMap(app, [MorphMapEntry::model::<Account>("staff")], false)?;
+            MorphMap::enforce_morph_map(app, [MorphMapEntry::model::<Account>("staff")], false)?;
             let db = app.make::<DatabaseManager>().await?.connection(None)?;
             auth.via_request("pennant-header", move |request| {
                 let guest = request.uri().path().contains("guest");
                 let user = (!guest).then(|| {
-                    Box::new(Account::queryOn(&db).make(Attributes::new()).unwrap())
+                    Box::new(Account::query_on(&db).make(Attributes::new()).unwrap())
                         as Box<dyn Authenticatable>
                 });
                 Box::pin(async move { Ok(user) })

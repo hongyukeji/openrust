@@ -91,7 +91,7 @@ impl SendQueuedNotifications {
         let job = Job { delivery, payload };
         let payload = if encrypt {
             let json = serde_json::to_string(&job).map_err(super::delivery)?;
-            let encrypted_delivery = Crypt::encryptString(&json)
+            let encrypted_delivery = Crypt::encrypt_string(&json)
                 .map_err(|_| super::delivery("Could not encrypt the queued notification."))?;
             Payload::new(
                 name.as_deref().unwrap_or(Self::NAME),
@@ -120,7 +120,7 @@ impl JobHandler for SendQueuedNotifications {
             let job = match serde_json::from_value(payload.data().clone()) {
                 Ok(QueuedDelivery::Plain(job)) => Ok(*job),
                 Ok(QueuedDelivery::Encrypted { encrypted_delivery }) => {
-                    Crypt::decryptString(&encrypted_delivery)
+                    Crypt::decrypt_string(&encrypted_delivery)
                         .map_err(|_| QueueError::InvalidPayload)
                         .and_then(|json| {
                             serde_json::from_slice(&json).map_err(|_| QueueError::InvalidPayload)

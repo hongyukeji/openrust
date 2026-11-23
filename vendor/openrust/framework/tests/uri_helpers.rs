@@ -5,13 +5,13 @@ use serde_json::json;
 fn uri_components_form_validated_immutable_references() {
     let original = Uri::of("https://example.test/original#old").unwrap();
     let uri = original
-        .withScheme("http")
+        .with_scheme("http")
         .unwrap()
-        .withHost("TEST.com")
+        .with_host("TEST.com")
         .unwrap()
-        .withPort(Some(8000))
+        .with_port(Some(8000))
         .unwrap()
-        .withPath("//users/你好")
+        .with_path("//users/你好")
         .unwrap()
         .with_fragment("mark 1")
         .unwrap();
@@ -19,12 +19,12 @@ fn uri_components_form_validated_immutable_references() {
         uri.value(),
         "http://test.com:8000/users/%E4%BD%A0%E5%A5%BD#mark%201"
     );
-    assert_eq!(uri.pathSegments(), ["users", "%E4%BD%A0%E5%A5%BD"]);
+    assert_eq!(uri.path_segments(), ["users", "%E4%BD%A0%E5%A5%BD"]);
     assert_eq!(original.value(), "https://example.test/original#old");
-    assert!(uri.withHost("host@invalid").is_err());
-    assert!(uri.withPort(Some(-1)).is_err());
-    assert!(Uri::of("/relative").unwrap().withScheme("https").is_err());
-    assert_eq!(uri.withPort(Some(80)).unwrap().port(), None);
+    assert!(uri.with_host("host@invalid").is_err());
+    assert!(uri.with_port(Some(-1)).is_err());
+    assert!(Uri::of("/relative").unwrap().with_scheme("https").is_err());
+    assert_eq!(uri.with_port(Some(80)).unwrap().port(), None);
     let response: Response = uri.redirect(RedirectOptions::default()).unwrap().into();
     assert_eq!(response.headers()["location"], uri.value());
     assert!(
@@ -45,11 +45,11 @@ fn uri_queries_preserve_literals_and_apply_ordered_edits() {
     assert_eq!(uri.query().get("label").unwrap(), Some(json!("a+b")));
     assert!(uri.query().decode().unwrap().contains("label=a+b"));
     let next = uri
-        .withQueryIfMissing(&json!({"label":"ignored","page":2}))
+        .with_query_if_missing(&json!({"label":"ignored","page":2}))
         .unwrap()
-        .pushOntoQuery("filter", json!(["pending", "open"]))
+        .push_onto_query("filter", json!(["pending", "open"]))
         .unwrap()
-        .withoutQuery(&["exact.key"])
+        .without_query(&["exact.key"])
         .unwrap();
     assert_eq!(
         next.query().get("filter").unwrap(),
@@ -60,13 +60,13 @@ fn uri_queries_preserve_literals_and_apply_ordered_edits() {
     assert!(next.query().all().unwrap().get("exact.key").is_none());
     assert!(next.value().contains("label=a%2Bb"));
     assert_eq!(
-        next.replaceQuery(&json!({"a":[true,false],"s":"空"}))
+        next.replace_query(&json!({"a":[true,false],"s":"空"}))
             .unwrap()
             .value(),
         "/items?a%5B0%5D=1&a%5B1%5D=0&s=%E7%A9%BA#part"
     );
     assert_eq!(
-        next.replaceQuery(&json!({})).unwrap().value(),
+        next.replace_query(&json!({})).unwrap().value(),
         "/items#part"
     );
     assert!(Uri::of("/?x=%FF").unwrap().query().all().is_err());

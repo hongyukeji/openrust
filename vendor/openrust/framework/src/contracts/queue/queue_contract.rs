@@ -17,9 +17,8 @@ pub struct QueueMetrics {
 }
 
 /// Dispatches and reserves jobs on a queue connection.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Queue: Send + Sync {
-    fn getConnectionName(&self) -> &str;
+    fn get_connection_name(&self) -> &str;
 
     fn clearable(&self) -> Option<&dyn ClearableQueue> {
         None
@@ -40,28 +39,28 @@ pub trait Queue: Send + Sync {
         })
     }
 
-    fn pendingSize<'a>(
+    fn pending_size<'a>(
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<u64>>> {
         Box::pin(async move { Ok(self.metrics(queue).await?.pending) })
     }
 
-    fn delayedSize<'a>(
+    fn delayed_size<'a>(
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<u64>>> {
         Box::pin(async move { Ok(self.metrics(queue).await?.delayed) })
     }
 
-    fn reservedSize<'a>(
+    fn reserved_size<'a>(
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<u64>>> {
         Box::pin(async move { Ok(self.metrics(queue).await?.reserved) })
     }
 
-    fn creationTimeOfOldestPendingJob<'a>(
+    fn creation_time_of_oldest_pending_job<'a>(
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<u64>>> {

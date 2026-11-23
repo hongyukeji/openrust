@@ -4,21 +4,20 @@ use serde_json::Value;
 
 use super::{ArrayKey, Collection, LazyCollection, index_values};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn collapse<U: 'source>(self) -> LazyCollection<'source, U>
     where
         T: Into<LazyCollection<'source, U>>,
     {
-        self.collapseWithKeys().values()
+        self.collapse_with_keys().values()
     }
 
-    pub fn collapseWithKeys<U: 'source>(self) -> LazyCollection<'source, U>
+    pub fn collapse_with_keys<U: 'source>(self) -> LazyCollection<'source, U>
     where
         T: Into<LazyCollection<'source, U>>,
     {
         LazyCollection::from_iterators(move || {
-            let mut outer = self.getIterator();
+            let mut outer = self.get_iterator();
             let mut inner = None;
             iter::from_fn(move || {
                 loop {
@@ -26,7 +25,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                         return Some(entry);
                     }
                     match outer.next()? {
-                        Ok((_, group)) => inner = Some(group.into().getIterator()),
+                        Ok((_, group)) => inner = Some(group.into().get_iterator()),
                         Err(error) => return Some(Err(error)),
                     }
                 }
@@ -34,7 +33,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn flatMap<U: 'source, G: Into<LazyCollection<'source, U>> + 'source>(
+    pub fn flat_map<U: 'source, G: Into<LazyCollection<'source, U>> + 'source>(
         self,
         callback: impl Fn(&T, &ArrayKey) -> G + 'source,
     ) -> LazyCollection<'source, U> {
@@ -46,7 +45,7 @@ impl LazyCollection<'_, Value> {
     pub fn flatten(self, depth: Option<usize>) -> Self {
         let depth = depth.filter(|depth| *depth != 0).unwrap_or(usize::MAX);
         Self::from_iterators(move || {
-            let mut source = self.getIterator();
+            let mut source = self.get_iterator();
             let mut stack: Vec<(usize, JsonValues)> = Vec::new();
             index_values(iter::from_fn(move || {
                 loop {

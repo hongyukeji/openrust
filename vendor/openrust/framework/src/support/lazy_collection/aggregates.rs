@@ -5,20 +5,19 @@ use indexmap::IndexMap;
 use super::{ArrayKey, CollectionResult, LazyCollection};
 use crate::support::collection::{CollectionNumber, percentage_from_counts};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn reduce<U>(
         &self,
         initial: U,
         mut callback: impl FnMut(U, &T, &ArrayKey) -> U,
     ) -> CollectionResult<U> {
-        self.getIterator().try_fold(initial, |carry, entry| {
+        self.get_iterator().try_fold(initial, |carry, entry| {
             let (key, value) = entry?;
             Ok(callback(carry, &value, &key))
         })
     }
 
-    pub fn reduceWithKeys<U>(
+    pub fn reduce_with_keys<U>(
         &self,
         initial: U,
         callback: impl FnMut(U, &T, &ArrayKey) -> U,
@@ -26,7 +25,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.reduce(initial, callback)
     }
 
-    pub fn reduceInto<U>(
+    pub fn reduce_into<U>(
         &self,
         initial: U,
         mut callback: impl FnMut(&mut U, &T, &ArrayKey),
@@ -37,7 +36,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn reduceSpread<A, B>(
+    pub fn reduce_spread<A, B>(
         &self,
         initial: (A, B),
         mut callback: impl FnMut(A, B, &T, &ArrayKey) -> (A, B),
@@ -74,16 +73,16 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: Sum<T>,
     {
-        self.getIterator()
+        self.get_iterator()
             .map(|entry| entry.map(|(_, value)| value))
             .sum()
     }
 
-    pub fn sumBy<U: Sum<U>>(
+    pub fn sum_by<U: Sum<U>>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> CollectionResult<U> {
-        self.getIterator()
+        self.get_iterator()
             .map(|entry| entry.map(|(key, value)| project(&value, &key)))
             .sum()
     }
@@ -92,7 +91,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: CollectionNumber,
     {
-        self.avgBy(|value, _| value.as_f64())
+        self.avg_by(|value, _| value.as_f64())
     }
 
     pub fn average(&self) -> CollectionResult<Option<f64>>
@@ -102,7 +101,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.avg()
     }
 
-    pub fn avgBy<U: Into<Option<f64>>>(
+    pub fn avg_by<U: Into<Option<f64>>>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> CollectionResult<Option<f64>> {
@@ -118,7 +117,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: Ord,
     {
-        self.getIterator().try_fold(None, |minimum, entry| {
+        self.get_iterator().try_fold(None, |minimum, entry| {
             let (_, value) = entry?;
             Ok(Some(match minimum {
                 Some(old) => std::cmp::min(old, value),
@@ -131,7 +130,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     where
         T: Ord,
     {
-        self.getIterator().try_fold(None, |maximum, entry| {
+        self.get_iterator().try_fold(None, |maximum, entry| {
             let (_, value) = entry?;
             Ok(Some(match maximum {
                 Some(old) => std::cmp::max(value, old),
@@ -140,7 +139,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn minBy<U: Ord>(
+    pub fn min_by<U: Ord>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> CollectionResult<Option<U>> {
@@ -153,7 +152,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
-    pub fn maxBy<U: Ord>(
+    pub fn max_by<U: Ord>(
         &self,
         mut project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> CollectionResult<Option<U>> {
@@ -173,11 +172,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(Self::collect(self)?.median())
     }
 
-    pub fn medianBy<U: Into<Option<f64>>>(
+    pub fn median_by<U: Into<Option<f64>>>(
         &self,
         project: impl FnMut(&T, &ArrayKey) -> U,
     ) -> CollectionResult<Option<f64>> {
-        Ok(Self::collect(self)?.medianBy(project))
+        Ok(Self::collect(self)?.median_by(project))
     }
 
     pub fn mode(&self) -> CollectionResult<Option<Vec<T>>>
@@ -196,13 +195,13 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         }))
     }
 
-    pub fn countBy<K: Into<ArrayKey>>(
+    pub fn count_by<K: Into<ArrayKey>>(
         self,
         project: impl Fn(&T, &ArrayKey) -> K + 'source,
     ) -> LazyCollection<'source, usize> {
         LazyCollection::from_iterators(move || -> super::SourceIterator<'source, usize> {
             let mut counts = IndexMap::new();
-            for entry in self.getIterator() {
+            for entry in self.get_iterator() {
                 match entry {
                     Ok((key, value)) => {
                         *counts

@@ -86,7 +86,7 @@ async fn self_test() -> Result<(), Box<dyn Error + Send + Sync>> {
     let mut app = application()?;
     app.boot().await?;
     let factory = app.make::<Factory>().await?;
-    factory.addNamespace("extra", &[&app.base_path().join("templates")])?;
+    factory.add_namespace("extra", &[&app.base_path().join("templates")])?;
     assert_eq!(
         factory.render("extra::extra", &ViewData::new())?,
         "custom-directory"
@@ -167,7 +167,7 @@ async fn self_test() -> Result<(), Box<dyn Error + Send + Sync>> {
     );
     assert!(
         factory
-            .renderInline("@rust context.set(\"new\",123); @endrust", &ViewData::new())
+            .render_inline("@rust context.set(\"new\",123); @endrust", &ViewData::new())
             .is_err()
     );
     let threads: Vec<_> = (1..=12)

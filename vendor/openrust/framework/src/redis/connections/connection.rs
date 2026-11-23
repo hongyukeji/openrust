@@ -151,7 +151,7 @@ impl Connection {
                             command,
                             parameters: arguments.collect(),
                             time: started.elapsed(),
-                            connectionName: name.clone(),
+                            connection_name: name.clone(),
                         }),
                         &mut crate::events::EventContext::new(),
                     )

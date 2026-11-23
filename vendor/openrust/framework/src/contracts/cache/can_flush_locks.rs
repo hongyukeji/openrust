@@ -1,9 +1,8 @@
 use crate::cache::{CacheFuture, CacheResult};
 
 /// Removes locks from stores with a dedicated lock backend.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait CanFlushLocks: Send + Sync {
-    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>>;
+    fn flush_locks(&self) -> CacheFuture<'_, CacheResult<bool>>;
 
-    fn hasSeparateLockStore(&self) -> bool;
+    fn has_separate_lock_store(&self) -> bool;
 }

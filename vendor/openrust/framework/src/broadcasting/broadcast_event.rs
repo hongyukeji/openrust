@@ -34,33 +34,33 @@ impl UniqueBroadcast {
     pub(crate) fn for_event<E: ShouldBeUnique>(event: &E) -> Self {
         let name = std::any::type_name::<E>();
         Self {
-            id: format!("{}:{name}:{}", name.len(), event.uniqueId()),
-            for_seconds: event.uniqueFor(),
-            via: event.uniqueVia().map(str::to_owned),
+            id: format!("{}:{name}:{}", name.len(), event.unique_id()),
+            for_seconds: event.unique_for(),
+            via: event.unique_via().map(str::to_owned),
         }
     }
 }
 
 impl BroadcastEvent {
     pub(crate) fn from_event(event: &dyn ShouldBroadcast, socket: Option<&str>) -> Option<Self> {
-        if !event.broadcastWhen() {
+        if !event.broadcast_when() {
             return None;
         }
-        let channels = event.broadcastOn();
+        let channels = event.broadcast_on();
         if channels.is_empty() {
             return None;
         }
         Some(Self {
             event: event
-                .broadcastAs()
+                .broadcast_as()
                 .unwrap_or_else(|| event.name())
                 .to_owned(),
             channels,
             payload: event
-                .broadcastWith()
-                .unwrap_or_else(|| event.broadcastData()),
-            connections: event.broadcastConnections(),
-            socket: event.broadcastSocket().or(socket).map(str::to_owned),
+                .broadcast_with()
+                .unwrap_or_else(|| event.broadcast_data()),
+            connections: event.broadcast_connections(),
+            socket: event.broadcast_socket().or(socket).map(str::to_owned),
             unique: None,
         })
     }
@@ -86,8 +86,7 @@ impl BroadcastEvent {
 pub(super) struct DeliverBroadcast(pub(super) Arc<dyn Factory>);
 
 impl crate::contracts::queue::JobHandler for DeliverBroadcast {
-    #[allow(non_snake_case, reason = "Matches the queue handler contract")]
-    fn uniqueJob(&self, payload: &Payload) -> Option<UniqueJob> {
+    fn unique_job(&self, payload: &Payload) -> Option<UniqueJob> {
         let unique: UniqueBroadcast =
             serde_json::from_value(payload.data().get("unique")?.clone()).ok()?;
         Some(UniqueJob {

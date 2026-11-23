@@ -17,9 +17,8 @@ impl AsHtmlString {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CastableObject for HtmlString {
-    fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
+    fn from_attributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
         match raw.get(name) {
             None | Some(Value::Null) => Ok(None),
             Some(value) => scalar_string(value).map(Self::new).map(Some),
@@ -28,11 +27,11 @@ impl CastableObject for HtmlString {
 
     fn to_attributes(value: Option<&Self>, _: &str, _: &Attributes) -> DatabaseResult<CastWrite> {
         Ok(CastWrite::Value(value.map_or(Value::Null, |html| {
-            Value::Text(html.toHtml().to_owned())
+            Value::Text(html.to_html().to_owned())
         })))
     }
 
     fn serialize(&self) -> DatabaseResult<Value> {
-        Ok(Value::Text(self.toHtml().to_owned()))
+        Ok(Value::Text(self.to_html().to_owned()))
     }
 }

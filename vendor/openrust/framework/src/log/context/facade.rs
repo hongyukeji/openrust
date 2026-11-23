@@ -66,12 +66,12 @@ impl Context {
         addHidden(key: impl Into<String>, value: Value) -> ();
         addMany(values: LogContext) -> ();
         addManyHidden(values: LogContext) -> ();
-        addIf(key: impl Into<String>, value: Value) -> bool;
+        add_if(key: impl Into<String>, value: Value) -> bool;
         addHiddenIf(key: impl Into<String>, value: Value) -> bool;
         remember(key: impl Into<String>, factory: impl FnOnce() -> Value) -> Option<Value>;
         rememberHidden(key: impl Into<String>, factory: impl FnOnce() -> Value) -> Option<Value>;
         get(key: &str) -> Option<Value>;
-        getHidden(key: &str) -> Option<Value>;
+        get_hidden(key: &str) -> Option<Value>;
         has(key: &str) -> bool;
         hasHidden(key: &str) -> bool;
         missing(key: &str) -> bool;
@@ -99,18 +99,18 @@ impl Context {
         Self::repository()?.push(key, values)
     }
 
-    pub fn pushHidden(
+    pub fn push_hidden(
         key: impl Into<String>,
         values: impl IntoIterator<Item = Value>,
     ) -> Result<(), ContextError> {
-        Self::repository()?.pushHidden(key, values)
+        Self::repository()?.push_hidden(key, values)
     }
 
     pub fn pop(key: &str) -> Result<Value, ContextError> {
         Self::repository()?.pop(key)
     }
-    pub fn popHidden(key: &str) -> Result<Value, ContextError> {
-        Self::repository()?.popHidden(key)
+    pub fn pop_hidden(key: &str) -> Result<Value, ContextError> {
+        Self::repository()?.pop_hidden(key)
     }
     pub fn increment(key: &str, amount: i64) -> Result<i64, ContextError> {
         Self::repository()?.increment(key, amount)
@@ -127,11 +127,11 @@ impl Context {
         Ok(Self::repository()?.scope(future, data, hidden).await)
     }
 
-    pub fn scopeSync<T>(
+    pub fn scope_sync<T>(
         callback: impl FnOnce() -> T,
         data: LogContext,
         hidden: LogContext,
     ) -> Result<T, ContextError> {
-        Ok(Self::repository()?.scopeSync(callback, data, hidden))
+        Ok(Self::repository()?.scope_sync(callback, data, hidden))
     }
 }

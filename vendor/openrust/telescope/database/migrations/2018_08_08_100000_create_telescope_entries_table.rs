@@ -6,7 +6,7 @@ use openrust::database::{
 pub struct CreateTelescopeEntriesTable;
 pub(crate) static MIGRATION: CreateTelescopeEntriesTable = CreateTelescopeEntriesTable;
 impl Migration for CreateTelescopeEntriesTable {
-    fn getConnection(
+    fn get_connection(
         &self,
         config: &dyn openrust::contracts::config::Repository,
     ) -> DatabaseResult<Option<String>> {
@@ -23,17 +23,17 @@ impl Migration for CreateTelescopeEntriesTable {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = context.getSchemaBuilder();
+            let mut schema = context.get_schema_builder();
             schema
                 .create("telescope_entries", |table| {
-                    table.bigIncrements("sequence");
+                    table.big_increments("sequence");
                     table.uuid("uuid").unique();
                     table.uuid("batch_id").index();
                     table.string("family_hash", 255).nullable().index();
                     table.boolean("should_display_on_index").default(true);
                     table.string("type", 20);
                     table.longText("content");
-                    table.dateTime("created_at", None).nullable().index();
+                    table.date_time("created_at", None).nullable().index();
                     table.index(&["type", "should_display_on_index"], None);
                 })
                 .await?;
@@ -47,7 +47,7 @@ impl Migration for CreateTelescopeEntriesTable {
                         .foreign(&["entry_uuid"], None)
                         .references("uuid")
                         .on("telescope_entries")
-                        .cascadeOnDelete();
+                        .cascade_on_delete();
                 })
                 .await?;
             schema
@@ -62,10 +62,10 @@ impl Migration for CreateTelescopeEntriesTable {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = context.getSchemaBuilder();
-            schema.dropIfExists("telescope_entries_tags").await?;
-            schema.dropIfExists("telescope_entries").await?;
-            schema.dropIfExists("telescope_monitoring").await
+            let mut schema = context.get_schema_builder();
+            schema.drop_if_exists("telescope_entries_tags").await?;
+            schema.drop_if_exists("telescope_entries").await?;
+            schema.drop_if_exists("telescope_monitoring").await
         })
     }
 }

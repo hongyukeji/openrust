@@ -83,8 +83,8 @@ impl Request {
         let (url, query) = if empty_query(&current) {
             (self.full_url()?, additional.clone())
         } else {
-            let query = Collection::fromValue(current)
-                .merge(Collection::fromValue(additional.clone()))
+            let query = Collection::from_value(current)
+                .merge(Collection::from_value(additional.clone()))
                 .to_array()?;
             (self.url()?, query)
         };

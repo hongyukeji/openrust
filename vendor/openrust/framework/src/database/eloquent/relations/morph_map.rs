@@ -39,9 +39,8 @@ struct Mapping {
 #[derive(Default)]
 pub struct MorphMap(RwLock<Mapping>);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MorphMap {
-    pub fn morphMap(
+    pub fn morph_map(
         app: &Application,
         entries: impl IntoIterator<Item = MorphMapEntry>,
         merge: bool,
@@ -49,7 +48,7 @@ impl MorphMap {
         Self::register(app, entries, merge, false)
     }
 
-    pub fn enforceMorphMap(
+    pub fn enforce_morph_map(
         app: &Application,
         entries: impl IntoIterator<Item = MorphMapEntry>,
         merge: bool,
@@ -83,7 +82,7 @@ impl MorphMap {
         Ok(())
     }
 
-    pub fn getMorphedModel(&self, alias: &str) -> Option<&'static str> {
+    pub fn get_morphed_model(&self, alias: &str) -> Option<&'static str> {
         self.0
             .read()
             .unwrap()
@@ -92,7 +91,7 @@ impl MorphMap {
             .map(|entry| entry.model)
     }
 
-    pub fn getMorphAlias<M: Model>(&self) -> &'static str {
+    pub fn get_morph_alias<M: Model>(&self) -> &'static str {
         self.0
             .read()
             .unwrap()

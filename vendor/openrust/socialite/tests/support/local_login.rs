@@ -1,7 +1,7 @@
 use openrust::{
     auth::{Auth, AuthIdentifier},
     contracts::{auth::StatefulGuard as _, session::Session as _},
-    database::DB,
+    database::Db,
     http::{HttpError, Request},
 };
 use openrust_socialite::two::User;
@@ -26,10 +26,10 @@ pub async fn login_bound_user(
     if subject.len() > 255 {
         return Ok(false);
     }
-    let Some(binding) = DB::table("social_identities")
+    let Some(binding) = Db::table("social_identities")
         .map_err(internal)?
-        .whereExactText("provider", namespace)
-        .whereExactText("provider_user_id", &subject)
+        .where_exact_text("provider", namespace)
+        .where_exact_text("provider_user_id", &subject)
         .first()
         .await
         .map_err(internal)?

@@ -133,7 +133,7 @@ pub(super) fn serialize_attribute<M: Model>(
             let date = text
                 .parse::<jiff::Timestamp>()
                 .map_err(|_| DatabaseError::InvalidQuery("serialized model date"))?;
-            model.serializeDate(date).map(Value::Text)
+            model.serialize_date(date).map(Value::Text)
         }
         (
             Some(AttributeCast::DateWithFormat(format) | AttributeCast::DateTimeWithFormat(format)),
@@ -166,7 +166,7 @@ pub(super) fn read_enum<M: Model, E: CastableEnum>(
     check_enum::<M, E>(name, overrides)?;
     let parse = |value: &Value| match value {
         Value::Null => Ok(None),
-        value => E::fromValue(value).map(Some),
+        value => E::from_value(value).map(Some),
     };
     let raw = attributes.get(name);
     if let Some(accessor) = M::attribute(name).and_then(|attribute| attribute.get) {
@@ -215,10 +215,10 @@ pub(super) fn write_enum_collection<M: Model, E: CastableEnum>(
         let values = values
             .to_array()
             .map_err(|_| DatabaseError::InvalidQuery("enum collection attribute"))?;
-        model.setAttributeValue(name, Value::Json(values))?;
+        model.set_attribute_value(name, Value::Json(values))?;
     } else {
         let codec = Json::for_model(model.state().connection.as_ref())?;
-        model.setAttribute(name, cast.encode(values, &codec)?);
+        model.set_attribute(name, cast.encode(values, &codec)?);
     }
     Ok(())
 }
@@ -259,7 +259,7 @@ pub(super) fn write_json_collection<M: Model, T: serde::Serialize>(
 ) -> DatabaseResult<()> {
     json_collection_for::<M>(name, &model.state().casts)?;
     let value = values.to_array().map_err(|_| collection_cast::invalid())?;
-    model.setAttributeValue(name, Value::Json(value))?;
+    model.set_attribute_value(name, Value::Json(value))?;
     Ok(())
 }
 

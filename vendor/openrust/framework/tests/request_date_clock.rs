@@ -46,7 +46,7 @@ fn fixture() -> TestResult<TestApp> {
 }
 
 fn date(text: &str) -> Date {
-    Date::fromUtc(text.parse::<Timestamp>().unwrap(), DateTimezone::UTC)
+    Date::from_utc(text.parse::<Timestamp>().unwrap(), DateTimezone::UTC)
 }
 
 fn uri(input: &str, format: Option<&str>, timezone: Option<&str>) -> String {

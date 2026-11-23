@@ -23,7 +23,7 @@ impl AuthorizationServer {
         self.passport
             .deviceCodeGrantEnabled
             .load(std::sync::atomic::Ordering::Relaxed)
-            && openrust::support::facades::URL::route("passport.device", &[], false).is_ok()
+            && openrust::support::facades::Url::route("passport.device", &[], false).is_ok()
     }
     pub async fn respondToDeviceAuthorizationRequest(
         &self,
@@ -86,7 +86,7 @@ impl AuthorizationServer {
                     (
                         "client_id".into(),
                         client
-                            .getKey()
+                            .get_key()
                             .await
                             .ok_or_else(|| OAuthError::invalid_client(authorization))?,
                     ),
@@ -147,7 +147,7 @@ impl AuthorizationServer {
         approved: bool,
     ) -> Result<(), OAuthError> {
         let connection = self.passport.token_models.parent().map_err(internal)?;
-        let mut transaction = connection.beginTransaction().await.map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         let mut model = self
             .passport
             .grant_models
@@ -216,7 +216,7 @@ impl AuthorizationServer {
         if timestamp(model.as_ref(), "expires_at")?.is_none_or(|expiry| now > expiry) {
             return Err(OAuthError::expired_token());
         }
-        if model.value("client_id").map_err(internal)? != client.getKey().await {
+        if model.value("client_id").map_err(internal)? != client.get_key().await {
             return Err(OAuthError::invalid_request(
                 "device_code",
                 Some("Device code was not issued to this client"),
@@ -259,7 +259,7 @@ impl AuthorizationServer {
         let scopes = self.finalize_scopes(&client, scopes, GRANT).await?;
         let id = AuthIdentifier::try_from(
             &client
-                .getKey()
+                .get_key()
                 .await
                 .ok_or_else(|| OAuthError::invalid_client(None))?,
         )

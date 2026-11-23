@@ -52,7 +52,6 @@ pub enum MonthOverflow {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Date(Zoned);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Date {
     /// Resolve an IANA name using the framework's bundled IANA 2025b database.
     pub fn timezone(name: &str) -> Result<DateTimezone, DateError> {
@@ -60,11 +59,11 @@ impl Date {
         DateTimezone::tzif(name, data).map_err(|_| DateError::InvalidTimezone)
     }
 
-    pub fn fromUtc(value: Timestamp, timezone: DateTimezone) -> Self {
+    pub fn from_utc(value: Timestamp, timezone: DateTimezone) -> Self {
         Self(value.to_zoned(timezone))
     }
 
-    pub fn fromLocal(value: DateTime, timezone: DateTimezone) -> Result<Self, DateError> {
+    pub fn from_local(value: DateTime, timezone: DateTimezone) -> Result<Self, DateError> {
         resolve(value, &timezone, None).map(Self)
     }
 
@@ -76,12 +75,12 @@ impl Date {
         today(timezone)
     }
 
-    pub fn asDateTime(&self) -> &Zoned {
+    pub fn as_date_time(&self) -> &Zoned {
         &self.0
     }
 
-    pub fn startOfDay(&self) -> Result<Self, DateError> {
-        Self::fromLocal(self.0.datetime().start_of_day(), self.0.time_zone().clone())
+    pub fn start_of_day(&self) -> Result<Self, DateError> {
+        Self::from_local(self.0.datetime().start_of_day(), self.0.time_zone().clone())
     }
 
     pub fn plus(&self, interval: DateInterval, overflow: MonthOverflow) -> Result<Self, DateError> {
@@ -140,11 +139,11 @@ pub fn now(timezone: Option<DateTimezone>) -> Result<Date, DateError> {
             None => DateTimezone::UTC,
         },
     };
-    Ok(Date::fromUtc(clock::utc_now(), timezone))
+    Ok(Date::from_utc(clock::utc_now(), timezone))
 }
 
 pub fn today(timezone: Option<DateTimezone>) -> Result<Date, DateError> {
-    now(timezone)?.startOfDay()
+    now(timezone)?.start_of_day()
 }
 
 fn resolve(

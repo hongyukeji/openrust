@@ -54,7 +54,7 @@ impl AuthorizationServer {
         lifetime: crate::GrantLifetime,
     ) -> Result<(TokenResponse, String), OAuthError> {
         let client_id = client
-            .getKey()
+            .get_key()
             .await
             .ok_or_else(|| OAuthError::invalid_client(None))?;
         let client_id = AuthIdentifier::try_from(&client_id)
@@ -82,7 +82,7 @@ impl AuthorizationServer {
                     (
                         "client_id".into(),
                         client
-                            .getKey()
+                            .get_key()
                             .await
                             .ok_or_else(|| OAuthError::invalid_client(None))?,
                     ),
@@ -124,7 +124,7 @@ impl AuthorizationServer {
             .await
             .map_err(internal)?;
         let connection = client.connection().await.map_err(internal)?;
-        let mut transaction = connection.beginTransaction().await.map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         client
             .refresh_for_update(&mut transaction)
             .await

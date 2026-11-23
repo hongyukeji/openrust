@@ -4,7 +4,6 @@ use indexmap::IndexMap;
 
 use super::{ArrayKey, Collection, CollectionResult, LazyCollection, SourceIterator};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn diff(self, other: impl Into<Self>) -> Self
     where
@@ -13,22 +12,22 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.set_operation(other, |left, right| left.diff(&right))
     }
 
-    pub fn diffUsing(
+    pub fn diff_using(
         self,
         other: impl Into<Self>,
         compare: impl Fn(&T, &T) -> Ordering + 'source,
     ) -> Self {
-        self.set_operation(other, move |left, right| left.diffUsing(&right, &compare))
+        self.set_operation(other, move |left, right| left.diff_using(&right, &compare))
     }
 
-    pub fn diffAssoc(self, other: impl Into<Self>) -> Self
+    pub fn diff_assoc(self, other: impl Into<Self>) -> Self
     where
         T: PartialEq,
     {
-        self.set_operation(other, |left, right| left.diffAssoc(&right))
+        self.set_operation(other, |left, right| left.diff_assoc(&right))
     }
 
-    pub fn diffAssocUsing(
+    pub fn diff_assoc_using(
         self,
         other: impl Into<Self>,
         compare: impl Fn(&ArrayKey, &ArrayKey) -> Ordering + 'source,
@@ -37,21 +36,21 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         T: PartialEq,
     {
         self.set_operation(other, move |left, right| {
-            left.diffAssocUsing(&right, &compare)
+            left.diff_assoc_using(&right, &compare)
         })
     }
 
-    pub fn diffKeys<U: 'source>(self, other: impl Into<LazyCollection<'source, U>>) -> Self {
-        self.set_operation(other, |left, right| left.diffKeys(&right))
+    pub fn diff_keys<U: 'source>(self, other: impl Into<LazyCollection<'source, U>>) -> Self {
+        self.set_operation(other, |left, right| left.diff_keys(&right))
     }
 
-    pub fn diffKeysUsing<U: 'source>(
+    pub fn diff_keys_using<U: 'source>(
         self,
         other: impl Into<LazyCollection<'source, U>>,
         compare: impl Fn(&ArrayKey, &ArrayKey) -> Ordering + 'source,
     ) -> Self {
         self.set_operation(other, move |left, right| {
-            left.diffKeysUsing(&right, &compare)
+            left.diff_keys_using(&right, &compare)
         })
     }
 
@@ -62,24 +61,24 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.set_operation(other, |left, right| left.intersect(&right))
     }
 
-    pub fn intersectUsing(
+    pub fn intersect_using(
         self,
         other: impl Into<Self>,
         compare: impl Fn(&T, &T) -> Ordering + 'source,
     ) -> Self {
         self.set_operation(other, move |left, right| {
-            left.intersectUsing(&right, &compare)
+            left.intersect_using(&right, &compare)
         })
     }
 
-    pub fn intersectAssoc(self, other: impl Into<Self>) -> Self
+    pub fn intersect_assoc(self, other: impl Into<Self>) -> Self
     where
         T: PartialEq,
     {
-        self.set_operation(other, |left, right| left.intersectAssoc(&right))
+        self.set_operation(other, |left, right| left.intersect_assoc(&right))
     }
 
-    pub fn intersectAssocUsing(
+    pub fn intersect_assoc_using(
         self,
         other: impl Into<Self>,
         compare: impl Fn(&ArrayKey, &ArrayKey) -> Ordering + 'source,
@@ -88,12 +87,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         T: PartialEq,
     {
         self.set_operation(other, move |left, right| {
-            left.intersectAssocUsing(&right, &compare)
+            left.intersect_assoc_using(&right, &compare)
         })
     }
 
-    pub fn intersectByKeys<U: 'source>(self, other: impl Into<LazyCollection<'source, U>>) -> Self {
-        self.set_operation(other, |left, right| left.intersectByKeys(&right))
+    pub fn intersect_by_keys<U: 'source>(
+        self,
+        other: impl Into<LazyCollection<'source, U>>,
+    ) -> Self {
+        self.set_operation(other, |left, right| left.intersect_by_keys(&right))
     }
 
     pub fn merge(self, other: impl Into<Self>) -> Self {
@@ -108,14 +110,14 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         let other = other.into();
         Self::from_iterators(move || -> SourceIterator<'source, T> {
             let replacements: CollectionResult<IndexMap<_, _>> = other
-                .getIterator()
+                .get_iterator()
                 .map(|entry| entry.map(|(key, value)| (key, Some(value))))
                 .collect();
             let mut replacements = match replacements {
                 Ok(items) => items,
                 Err(error) => return Box::new(iter::once(Err(error))),
             };
-            let mut source = self.getIterator();
+            let mut source = self.get_iterator();
             let mut tail = None;
             Box::new(iter::from_fn(move || {
                 if let Some(entry) = source.next() {

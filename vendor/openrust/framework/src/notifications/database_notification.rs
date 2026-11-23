@@ -2,7 +2,7 @@ use jiff::{Timestamp, civil::DateTime as CivilDateTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
-use crate::database::{DB, Value, query::Builder, schema::Blueprint};
+use crate::database::{Db, Value, query::Builder, schema::Blueprint};
 
 use super::{NotificationError, NotificationResult, delivery};
 
@@ -39,7 +39,7 @@ impl DatabaseRoute {
         model_type: impl Into<String>,
         connection: Option<String>,
     ) -> NotificationResult<Self> {
-        let key = match model.getKey() {
+        let key = match model.get_key() {
             Some(Value::Unsigned(key)) => DatabaseKey::Unsigned(*key),
             Some(Value::Integer(key)) => DatabaseKey::Integer(*key),
             Some(Value::Text(key)) => DatabaseKey::String(key.clone()),
@@ -64,7 +64,7 @@ impl DatabaseRoute {
     }
 
     fn table(&self) -> NotificationResult<Builder<'static>> {
-        Ok(DB::connection(self.connection.as_deref())
+        Ok(Db::connection(self.connection.as_deref())
             .map_err(NotificationError::Database)?
             .table("notifications"))
     }

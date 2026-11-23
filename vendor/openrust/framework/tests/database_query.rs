@@ -8,7 +8,7 @@ use openrust::{
         Connection, DatabaseError, DatabaseManager, Value,
         query::{Column, Expression},
     },
-    support::facades::DB,
+    support::facades::Db,
 };
 use serde_json::{Value as Json, json};
 
@@ -40,8 +40,8 @@ async fn exact_text_compiles_with_bound_values_for_each_database_family() {
         let mut query = connection(json!({"driver":driver,"database":database}))
             .table("users")
             .r#where("id", "=", 7)
-            .whereExactText("email", text);
-        let sql = query.toSql().unwrap();
+            .where_exact_text("email", text);
+        let sql = query.to_sql().unwrap();
         assert!(sql.contains(expression), "{driver}: {sql}");
         assert!(!sql.contains(text));
         let expected = std::iter::once(Value::Integer(7))
@@ -93,7 +93,7 @@ async fn postgres_transaction_pool_binds_without_named_statements() {
     );
     let label = "single ' quote, backslash \\, 中文, $1";
     assert_eq!(
-        pool.affectingStatement(
+        pool.affecting_statement(
             "insert into pooled_bindings values (?, ?)",
             &[1.into(), label.into()]
         )
@@ -109,7 +109,7 @@ async fn postgres_transaction_pool_binds_without_named_statements() {
         Value::Real(-1.25),
     ];
     let row = pool
-        .selectOne(
+        .select_one(
             "select ?::bytea, ?::jsonb, ?::text, ?::boolean, ?::float8",
             &values,
         )
@@ -207,19 +207,19 @@ async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
         let db = connection(json!({"driver": driver, "database": ":memory:", "prefix":"app_"}));
         let mut builder = db
             .table("items AS i")
-            .orderByRaw("case when score = ? then 0 else 1 end", vec![80.into()])
-            .havingRaw("count(*) > ?", vec![70.into()])
-            .groupByRaw("case when score > ? then score else 0 end", vec![60.into()])
+            .order_by_raw("case when score = ? then 0 else 1 end", vec![80.into()])
+            .having_raw("count(*) > ?", vec![70.into()])
+            .group_by_raw("case when score > ? then score else 0 end", vec![60.into()])
             .r#where("i.score", ">=", 20)
-            .whereNested(|query| {
+            .where_nested(|query| {
                 query
                     .r#where("i.note", "=", Value::Null)
-                    .orWhereIn("i.id", vec![30.into(), 40.into()])
-                    .orWhereRaw("score = ?", vec![50.into()])
+                    .or_where_in("i.id", vec![30.into(), 40.into()])
+                    .or_where_raw("score = ?", vec![50.into()])
             })
             .select(["i.id AS record"])
-            .selectRaw("? as provided", vec![10.into()])
-            .forPage(3, 2);
+            .select_raw("? as provided", vec![10.into()])
+            .for_page(3, 2);
 
         let q = |name: &str| format!("{delimiter}{name}{delimiter}");
         let (id, i, record, items, score, note) = (
@@ -231,7 +231,7 @@ async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
             q("note"),
         );
         assert_eq!(
-            builder.toSql().unwrap(),
+            builder.to_sql().unwrap(),
             format!(
                 "select {i}.{id} as {record}, ? as provided from {items} as {i} where \
                  {i}.{score} >= ? and ({i}.{note} is null or {i}.{id} in (?, ?) or score = ?) \
@@ -244,14 +244,14 @@ async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
             [10, 20, 30, 40, 50, 60, 70, 80].map(Value::from),
         );
         assert_eq!(
-            db.table("items").forPage(0, 0).toSql().unwrap(),
+            db.table("items").for_page(0, 0).to_sql().unwrap(),
             format!("select * from {items} limit 0 offset 0"),
         );
         assert_eq!(
-            db.table("items").offset(5).toSql().unwrap(),
+            db.table("items").offset(5).to_sql().unwrap(),
             format!("select * from {items} offset 5"),
         );
-        let quoted = db.table(&format!("a{delimiter}b")).toSql().unwrap();
+        let quoted = db.table(&format!("a{delimiter}b")).to_sql().unwrap();
         assert_eq!(
             quoted,
             format!("select * from {delimiter}app_a{delimiter}{delimiter}b{delimiter}")
@@ -263,7 +263,7 @@ async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
 async fn rejects_invalid_operators_and_directions_before_executing_sql() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
     assert!(matches!(
-        db.table("items").r#where("id", "= ? OR 1=1", 1).toSql(),
+        db.table("items").r#where("id", "= ? OR 1=1", 1).to_sql(),
         Err(DatabaseError::InvalidQuery("comparison operator"))
     ));
     assert!(matches!(
@@ -275,12 +275,12 @@ async fn rejects_invalid_operators_and_directions_before_executing_sql() {
     ));
     assert!(matches!(
         db.table("items")
-            .orderBy("id", "asc; drop table items")
-            .toSql(),
+            .order_by("id", "asc; drop table items")
+            .to_sql(),
         Err(DatabaseError::InvalidQuery("order direction"))
     ));
     assert!(matches!(
-        db.table("catalog..items").toSql(),
+        db.table("catalog..items").to_sql(),
         Err(DatabaseError::InvalidQuery("identifier"))
     ));
 }
@@ -309,8 +309,8 @@ async fn verify_queries(db: Connection) {
     let table = || db.table("query_items");
     let ids = table()
         .r#where("score", ">", 5)
-        .whereNested(|query| query.where_null("note").orWhere("category", "=", "west"))
-        .orderByDesc("id")
+        .where_nested(|query| query.where_null("note").or_where("category", "=", "west"))
+        .order_by_desc("id")
         .pluck("id")
         .await
         .unwrap();
@@ -344,12 +344,16 @@ async fn verify_queries(db: Connection) {
         4
     );
     assert_eq!(
-        table().whereNested(|query| query).count("*").await.unwrap(),
+        table()
+            .where_nested(|query| query)
+            .count("*")
+            .await
+            .unwrap(),
         4
     );
     assert_eq!(
         table()
-            .where_not(|query| query.whereBetween("score", [5.into(), 20.into()]))
+            .where_not(|query| query.where_between("score", [5.into(), 20.into()]))
             .count("*")
             .await
             .unwrap(),
@@ -357,7 +361,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereColumn("id", "<", "score")
+            .where_column("id", "<", "score")
             .count("*")
             .await
             .unwrap(),
@@ -365,7 +369,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereBetween("score", [5.into(), 20.into()])
+            .where_between("score", [5.into(), 20.into()])
             .max("score")
             .await
             .unwrap(),
@@ -380,7 +384,7 @@ async fn verify_queries(db: Connection) {
     assert!(
         table()
             .where_in("id", vec![50.into()])
-            .doesntExist()
+            .doesnt_exist()
             .await
             .unwrap()
     );
@@ -398,7 +402,7 @@ async fn verify_queries(db: Connection) {
         0
     );
     assert!(matches!(
-        table().whereRaw("score > ?", Vec::new()).get().await,
+        table().where_raw("score > ?", Vec::new()).get().await,
         Err(DatabaseError::InvalidBindings {
             expected: 1,
             actual: 0
@@ -407,7 +411,7 @@ async fn verify_queries(db: Connection) {
 
     assert_eq!(
         table()
-            .whereAny(&["category", "note"], "=", "west")
+            .where_any(&["category", "note"], "=", "west")
             .count("*")
             .await
             .unwrap(),
@@ -415,7 +419,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereAll(&["category", "note"], "!=", Value::Null)
+            .where_all(&["category", "note"], "!=", Value::Null)
             .count("*")
             .await
             .unwrap(),
@@ -423,7 +427,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereNone(&["category", "note"], "=", "west")
+            .where_none(&["category", "note"], "=", "west")
             .count("*")
             .await
             .unwrap(),
@@ -431,7 +435,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereLike("category", "W%", false)
+            .where_like("category", "W%", false)
             .count("*")
             .await
             .unwrap(),
@@ -439,7 +443,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereLike("category", "W%", true)
+            .where_like("category", "W%", true)
             .count("*")
             .await
             .unwrap(),
@@ -447,7 +451,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereNotLike("category", "_ast", true)
+            .where_not_like("category", "_ast", true)
             .count("*")
             .await
             .unwrap(),
@@ -455,7 +459,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .select([DB::raw("? as input").with_bindings(vec![19.into()])])
+            .select([Db::raw("? as input").with_bindings(vec![19.into()])])
             .first()
             .await
             .unwrap()
@@ -468,8 +472,8 @@ async fn verify_queries(db: Connection) {
     let time = jiff::civil::Time::new(12, 34, 56, 0).unwrap();
     assert_eq!(
         table()
-            .whereDate("created_at", "=", date)
-            .whereTime("created_at", "=", time)
+            .where_date("created_at", "=", date)
+            .where_time("created_at", "=", time)
             .count("*")
             .await
             .unwrap(),
@@ -477,9 +481,9 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereYear("created_at", "=", 2026)
-            .whereMonth("created_at", "=", 3)
-            .whereDay("created_at", "=", 9)
+            .where_year("created_at", "=", 2026)
+            .where_month("created_at", "=", 3)
+            .where_day("created_at", "=", 9)
             .count("*")
             .await
             .unwrap(),
@@ -487,7 +491,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .whereBetweenColumns("id", ["id", "score"])
+            .where_between_columns("id", ["id", "score"])
             .count("*")
             .await
             .unwrap(),
@@ -496,10 +500,10 @@ async fn verify_queries(db: Connection) {
 
     let group = table()
         .select(["category"])
-        .selectRaw("sum(score) as total", Vec::new())
-        .groupBy(&["category"])
-        .havingRaw("sum(score) > ?", vec![20.into()])
-        .orderBy("category", "asc")
+        .select_raw("sum(score) as total", Vec::new())
+        .group_by(&["category"])
+        .having_raw("sum(score) > ?", vec![20.into()])
+        .order_by("category", "asc")
         .get()
         .await
         .unwrap();
@@ -510,8 +514,8 @@ async fn verify_queries(db: Connection) {
 
     assert_eq!(
         table()
-            .orderBy("id", "asc")
-            .forPage(2, 2)
+            .order_by("id", "asc")
+            .for_page(2, 2)
             .pluck("id")
             .await
             .unwrap(),
@@ -519,7 +523,7 @@ async fn verify_queries(db: Connection) {
     );
     assert_eq!(
         table()
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .offset(3)
             .limit(10)
             .pluck("id")
@@ -530,8 +534,8 @@ async fn verify_queries(db: Connection) {
     assert!(table().limit(0).get().await.unwrap().is_empty());
     assert!(
         table()
-            .orderBy("id", "asc")
-            .forPage(3, 2)
+            .order_by("id", "asc")
+            .for_page(3, 2)
             .get()
             .await
             .unwrap()
@@ -545,7 +549,7 @@ async fn verify_queries(db: Connection) {
             ..
         })
     ));
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .update(
             "UPDATE app_query_items SET score = 99 WHERE id = ?",
@@ -562,7 +566,7 @@ async fn verify_queries(db: Connection) {
             .unwrap(),
         99.into()
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         table().r#where("id", "=", 1).value("score").await.unwrap(),
         5.into()
@@ -611,11 +615,11 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     .unwrap();
     let table = || db.table("order_ranges");
     let mut visible = table()
-        .whereValueBetween(5, ["lower_bound", "upper_bound"])
-        .inOrderOf("status", vec!["active".into(), "pending".into()])
-        .orderBy("id", "asc");
+        .where_value_between(5, ["lower_bound", "upper_bound"])
+        .in_order_of("status", vec!["active".into(), "pending".into()])
+        .order_by("id", "asc");
     assert_eq!(
-        visible.toSql().unwrap(),
+        visible.to_sql().unwrap(),
         "select * from `app_order_ranges` where ? between `lower_bound` and `upper_bound` order by case when `status` = ? then 0 when `status` = ? then 1 else 2 end, `id` asc"
     );
     assert_eq!(
@@ -628,8 +632,8 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     );
     assert_eq!(
         table()
-            .whereValueNotBetween(5, ["lower_bound", "upper_bound"])
-            .orderBy("id", "asc")
+            .where_value_not_between(5, ["lower_bound", "upper_bound"])
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -638,8 +642,8 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     assert_eq!(
         table()
             .r#where("id", "=", 1)
-            .orWhereValueNotBetween(5, ["lower_bound", "upper_bound"])
-            .orderBy("id", "asc")
+            .or_where_value_not_between(5, ["lower_bound", "upper_bound"])
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -648,8 +652,8 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     assert_eq!(
         table()
             .r#where("id", "=", 6)
-            .orWhereValueBetween(5, ["lower_bound", "upper_bound"])
-            .orderBy("id", "asc")
+            .or_where_value_between(5, ["lower_bound", "upper_bound"])
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -657,18 +661,18 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     );
 
     let expressed = table()
-        .whereValueBetween(
+        .where_value_between(
             Expression::new("(? + 1)").with_bindings(vec![4.into()]),
             [
                 Column::from("lower_bound"),
                 Column::from(Expression::new("upper_bound + ?").with_bindings(vec![0.into()])),
             ],
         )
-        .inOrderOf(
+        .in_order_of(
             Expression::new("coalesce(status, ?)").with_bindings(vec!["active".into()]),
             vec!["active".into(), "pending".into()],
         )
-        .orderBy("id", "asc");
+        .order_by("id", "asc");
     assert_eq!(
         expressed.get_bindings().unwrap(),
         [
@@ -685,15 +689,15 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
         [2.into(), 3.into(), 5.into(), 1.into(), 4.into()]
     );
     assert_eq!(
-        table().inOrderOf("status", Vec::new()).toSql().unwrap(),
+        table().in_order_of("status", Vec::new()).to_sql().unwrap(),
         "select * from `app_order_ranges`"
     );
     let union = table()
         .select(["id", "status"])
         .r#where("id", "=", 1)
-        .unionAll(&mut table().select(["id", "status"]).r#where("id", "=", 2))
+        .union_all(&mut table().select(["id", "status"]).r#where("id", "=", 2))
         .unwrap()
-        .inOrderOf("status", vec!["active".into()]);
+        .in_order_of("status", vec!["active".into()]);
     assert_eq!(
         union.get_bindings().unwrap(),
         [1.into(), 2.into(), "active".into()]
@@ -707,8 +711,8 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     );
     assert!(
         table()
-            .inOrderOf("status.", vec!["active".into()])
-            .toSql()
+            .in_order_of("status.", vec!["active".into()])
+            .to_sql()
             .is_err()
     );
 }
@@ -737,13 +741,13 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
         db.table("group_items")
             .select(["id", "category", "score"])
             .r#where("active", "=", true)
-            .orderByRaw("case when score >= ? then 0 else 1 end", vec![70.into()])
-            .orderByDesc("score")
-            .groupLimit(1, "category")
+            .order_by_raw("case when score >= ? then 0 else 1 end", vec![70.into()])
+            .order_by_desc("score")
+            .group_limit(1, "category")
             .offset(1)
     };
     assert_eq!(
-        ranked().toSql().unwrap(),
+        ranked().to_sql().unwrap(),
         "select * from (select `id`, `category`, `score`, row_number() over (partition by `category` order by case when score >= ? then 0 else 1 end, `score` desc) as `laravel_row` from `app_group_items` where `active` = ?) as `laravel_table` where `laravel_row` <= ? and `laravel_row` > ? order by `laravel_row`"
     );
     assert_eq!(
@@ -765,16 +769,16 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
     assert_eq!(ranked().count("*").await.unwrap(), 2);
     assert!(
         !db.table("group_items")
-            .groupLimit(0, "category")
+            .group_limit(0, "category")
             .exists()
             .await
             .unwrap()
     );
     let ids = db
         .table("group_items")
-        .fromSub(&mut ranked(), "ranked_items")
+        .from_sub(&mut ranked(), "ranked_items")
         .unwrap()
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .pluck("id")
         .await
         .unwrap();
@@ -784,7 +788,7 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
         .table("group_items")
         .select(["id", "category", "score"])
         .where_in("id", vec![1.into(), 2.into()])
-        .unionAll(
+        .union_all(
             &mut db
                 .table("group_items")
                 .select(["id", "category", "score"])
@@ -793,18 +797,18 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
         .unwrap();
     assert!(
         db.table("group_items")
-            .unionAll(&mut db.table("group_items"))
+            .union_all(&mut db.table("group_items"))
             .unwrap()
-            .groupLimit(1, "category")
-            .toSql()
+            .group_limit(1, "category")
+            .to_sql()
             .is_err()
     );
     let mut combined = db
         .table("group_items")
-        .fromSub(&mut union, "candidates")
+        .from_sub(&mut union, "candidates")
         .unwrap()
-        .orderByDesc("score")
-        .groupLimit(1, "category")
+        .order_by_desc("score")
+        .group_limit(1, "category")
         .pluck("id")
         .await
         .unwrap();
@@ -814,7 +818,7 @@ async fn group_limits_rank_each_partition_on_mysql_8_4() {
     });
     assert_eq!(combined, [1.into(), 4.into()]);
 
-    let grouped = db.table("group_items").groupLimit(1, "category");
+    let grouped = db.table("group_items").group_limit(1, "category");
     assert!(grouped.delete().await.is_err());
     assert_eq!(db.table("group_items").count("*").await.unwrap(), 7);
 }
@@ -855,10 +859,10 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     let marker = "j.document->settings->marker";
     let ids = |ids: &[i64]| ids.iter().copied().map(Value::from).collect::<Vec<_>>();
 
-    let mut query = table().r#where("j.id", ">", 0).whereNested(|group| {
+    let mut query = table().r#where("j.id", ">", 0).where_nested(|group| {
         group
-            .whereJsonContains(tags, json!("de"))
-            .orWhereJsonLength(tags, "=", 0)
+            .where_json_contains(tags, json!("de"))
+            .or_where_json_length(tags, "=", 0)
     });
     let expected_path = Value::from(r#"$."settings"."tags""#);
     let mut bindings = ids(&[0]);
@@ -866,7 +870,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         bindings.extend([Value::Json(json!("de")), expected_path.clone()]);
         assert!(
             query
-                .toSql()
+                .to_sql()
                 .unwrap()
                 .contains("json_contains(`app_j`.`document`, ?, ?)")
         );
@@ -874,7 +878,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         bindings.extend([expected_path.clone(), "de".into()]);
         assert!(
             query
-                .toSql()
+                .to_sql()
                 .unwrap()
                 .contains(r#"json_each("app_j"."document", ?)"#)
         );
@@ -882,15 +886,15 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     bindings.extend([expected_path, 0.into()]);
     assert_eq!(query.get_bindings().unwrap(), bindings);
     assert_eq!(
-        query.orderBy("id", "asc").pluck("id").await.unwrap(),
+        query.order_by("id", "asc").pluck("id").await.unwrap(),
         ids(&[1, 3])
     );
 
     assert_eq!(
         table()
-            .whereJsonContainsKey(marker)
-            .orWhereJsonContains("j.document->dotted.key->O'Reilly", json!("quoted"))
-            .whereJsonContainsKey("j.document->groups[0][0]->name")
+            .where_json_contains_key(marker)
+            .or_where_json_contains("j.document->dotted.key->O'Reilly", json!("quoted"))
+            .where_json_contains_key("j.document->groups[0][0]->name")
             .pluck("id")
             .await
             .unwrap(),
@@ -898,8 +902,8 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     );
     assert_eq!(
         table()
-            .whereJsonDoesntContainKey(marker)
-            .orderBy("id", "asc")
+            .where_json_doesnt_contain_key(marker)
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -907,9 +911,9 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     );
     assert_eq!(
         table()
-            .whereJsonDoesntContain(tags, json!("de"))
-            .orWhereJsonContainsKey(marker)
-            .orderBy("id", "asc")
+            .where_json_doesnt_contain(tags, json!("de"))
+            .or_where_json_contains_key(marker)
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -921,9 +925,9 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey(marker)
-            .orWhereJsonDoesntContainKey(marker)
-            .orderBy("id", "asc")
+            .where_json_contains_key(marker)
+            .or_where_json_doesnt_contain_key(marker)
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -931,9 +935,9 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey(marker)
-            .orWhereJsonDoesntContain(tags, json!("en"))
-            .orderBy("id", "asc")
+            .where_json_contains_key(marker)
+            .or_where_json_doesnt_contain(tags, json!("en"))
+            .order_by("id", "asc")
             .pluck("id")
             .await
             .unwrap(),
@@ -941,36 +945,41 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     );
     assert!(
         table()
-            .whereJsonLength(tags, ">= 0 or 1 = 1", 0)
-            .toSql()
+            .where_json_length(tags, ">= 0 or 1 = 1", 0)
+            .to_sql()
             .is_err()
     );
     assert!(
         table()
-            .whereJsonContainsKey("j.document->invalid\0key")
-            .toSql()
+            .where_json_contains_key("j.document->invalid\0key")
+            .to_sql()
             .is_err()
     );
 
     if mysql {
         assert_eq!(
             table()
-                .whereJsonContains(tags, json!(["en", "de"]))
+                .where_json_contains(tags, json!(["en", "de"]))
                 .pluck("id")
                 .await
                 .unwrap(),
             ids(&[1])
         );
-        assert!(table().whereJsonContainsKey("j.document").toSql().is_err());
-        let mut overlap = table().r#where("j.id", ">", 0).whereNested(|group| {
+        assert!(
+            table()
+                .where_json_contains_key("j.document")
+                .to_sql()
+                .is_err()
+        );
+        let mut overlap = table().r#where("j.id", ">", 0).where_nested(|group| {
             group
-                .whereJsonOverlaps(tags, json!(["de", "fr"]))
-                .orWhereJsonDoesntOverlap(
+                .where_json_overlaps(tags, json!(["de", "fr"]))
+                .or_where_json_doesnt_overlap(
                     tags,
                     Expression::new("json_array(?)").with_bindings(vec!["en".into()]),
                 )
         });
-        assert!(overlap.toSql().unwrap().contains(
+        assert!(overlap.to_sql().unwrap().contains(
             "json_overlaps(json_extract(`app_j`.`document`, ?), ?) or not json_overlaps(json_extract(`app_j`.`document`, ?), json_array(?))"
         ));
         let path = Value::from(r#"$."settings"."tags""#);
@@ -985,12 +994,12 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
             ]
         );
         assert_eq!(
-            overlap.orderBy("j.id", "asc").pluck("id").await.unwrap(),
+            overlap.order_by("j.id", "asc").pluck("id").await.unwrap(),
             ids(&[1, 3])
         );
         assert_eq!(
             table()
-                .whereJsonOverlaps("j.document", json!({"settings":{"tags":["en"]}}))
+                .where_json_overlaps("j.document", json!({"settings":{"tags":["en"]}}))
                 .pluck("id")
                 .await
                 .unwrap(),
@@ -998,7 +1007,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         );
         assert_eq!(
             table()
-                .whereJsonOverlaps(marker, json!(null))
+                .where_json_overlaps(marker, json!(null))
                 .pluck("id")
                 .await
                 .unwrap(),
@@ -1006,7 +1015,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         );
         assert!(
             table()
-                .whereJsonDoesntOverlap(marker, json!(null))
+                .where_json_doesnt_overlap(marker, json!(null))
                 .pluck("id")
                 .await
                 .unwrap()
@@ -1015,8 +1024,8 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         assert_eq!(
             table()
                 .r#where("j.id", "=", 3)
-                .orWhereJsonOverlaps(tags, json!("de"))
-                .orderBy("j.id", "asc")
+                .or_where_json_overlaps(tags, json!("de"))
+                .order_by("j.id", "asc")
                 .pluck("id")
                 .await
                 .unwrap(),
@@ -1024,28 +1033,28 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         );
         assert!(
             table()
-                .whereJsonOverlaps("j.document->invalid\0key", json!([]))
-                .toSql()
+                .where_json_overlaps("j.document->invalid\0key", json!([]))
+                .to_sql()
                 .is_err()
         );
     } else {
         assert!(
             table()
-                .whereJsonContains(tags, json!(["en", "de"]))
-                .toSql()
+                .where_json_contains(tags, json!(["en", "de"]))
+                .to_sql()
                 .is_err()
         );
         assert!(matches!(
-            table().whereJsonOverlaps(tags, json!(["de"])).get().await,
+            table().where_json_overlaps(tags, json!(["de"])).get().await,
             Err(DatabaseError::UnsupportedOperation("JSON overlaps"))
         ));
     }
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     assert_eq!(
         transaction
             .table("json_predicates")
-            .whereJsonLength("document->settings->tags", ">", 1)
+            .where_json_length("document->settings->tags", ">", 1)
             .update(BTreeMap::from([("seen".into(), 1.into())]))
             .await
             .unwrap(),
@@ -1054,7 +1063,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
     assert_eq!(
         transaction
             .table("json_predicates")
-            .whereJsonContainsKey("document->settings->marker")
+            .where_json_contains_key("document->settings->marker")
             .value("seen")
             .await
             .unwrap(),
@@ -1064,7 +1073,7 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         assert_eq!(
             transaction
                 .table("json_predicates")
-                .whereJsonOverlaps("document->settings->tags", json!(["de", "fr"]))
+                .where_json_overlaps("document->settings->tags", json!(["de", "fr"]))
                 .update(BTreeMap::from([("seen".into(), 2.into())]))
                 .await
                 .unwrap(),
@@ -1073,17 +1082,17 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
         assert_eq!(
             transaction
                 .table("json_predicates")
-                .whereJsonOverlaps("document->settings->marker", json!(null))
+                .where_json_overlaps("document->settings->marker", json!(null))
                 .value("seen")
                 .await
                 .unwrap(),
             2.into()
         );
     }
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         table()
-            .whereJsonContainsKey(marker)
+            .where_json_contains_key(marker)
             .value("seen")
             .await
             .unwrap(),
@@ -1150,10 +1159,10 @@ async fn json_predicates_run_on_sql_server() {
     let tags = "j.document->settings->tags";
     let marker = "j.document->settings->marker";
     let query = table()
-        .whereNested(|group| {
+        .where_nested(|group| {
             group
-                .whereJsonContains(tags, json!("de"))
-                .orWhereJsonLength(tags, "=", 0)
+                .where_json_contains(tags, json!("de"))
+                .or_where_json_length(tags, "=", 0)
         })
         .r#where("j.id", ">", 0);
     let path = Value::from(r#"$."settings"."tags""#);
@@ -1162,13 +1171,13 @@ async fn json_predicates_run_on_sql_server() {
         ["de".into(), path.clone(), path, 0.into(), 0.into()]
     );
     assert_eq!(
-        query.orderBy("j.id", "asc").pluck("j.id").await.unwrap(),
+        query.order_by("j.id", "asc").pluck("j.id").await.unwrap(),
         [1.into(), 3.into()]
     );
     assert_eq!(
         table()
-            .whereJsonDoesntContain(tags, json!("de"))
-            .orderBy("j.id", "asc")
+            .where_json_doesnt_contain(tags, json!("de"))
+            .order_by("j.id", "asc")
             .pluck("j.id")
             .await
             .unwrap(),
@@ -1176,7 +1185,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey(marker)
+            .where_json_contains_key(marker)
             .value("j.id")
             .await
             .unwrap(),
@@ -1184,8 +1193,8 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonDoesntContainKey(marker)
-            .orderBy("j.id", "asc")
+            .where_json_doesnt_contain_key(marker)
+            .order_by("j.id", "asc")
             .pluck("j.id")
             .await
             .unwrap(),
@@ -1193,7 +1202,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey("j.document->settings->Marker")
+            .where_json_contains_key("j.document->settings->Marker")
             .count("*")
             .await
             .unwrap(),
@@ -1201,7 +1210,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey("j.document->groups[0][00]")
+            .where_json_contains_key("j.document->groups[0][00]")
             .count("*")
             .await
             .unwrap(),
@@ -1209,7 +1218,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey("j.document->groups[0][1]")
+            .where_json_contains_key("j.document->groups[0][1]")
             .count("*")
             .await
             .unwrap(),
@@ -1217,7 +1226,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContainsKey("j.document->dotted.key->O'Reilly")
+            .where_json_contains_key("j.document->dotted.key->O'Reilly")
             .count("*")
             .await
             .unwrap(),
@@ -1225,7 +1234,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContains("j.document->flags", json!(true))
+            .where_json_contains("j.document->flags", json!(true))
             .value("j.id")
             .await
             .unwrap(),
@@ -1233,7 +1242,7 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonContains("j.document->nums", json!(23))
+            .where_json_contains("j.document->nums", json!(23))
             .value("j.id")
             .await
             .unwrap(),
@@ -1241,28 +1250,28 @@ async fn json_predicates_run_on_sql_server() {
     );
     assert_eq!(
         table()
-            .whereJsonLength("j.document->settings", "=", 2)
+            .where_json_length("j.document->settings", "=", 2)
             .value("j.id")
             .await
             .unwrap(),
         1.into()
     );
     assert!(matches!(
-        table().whereJsonContains(tags, json!(["de"])).toSql(),
+        table().where_json_contains(tags, json!(["de"])).to_sql(),
         Err(DatabaseError::InvalidQuery(
             "SQL Server JSON containment requires a scalar"
         ))
     ));
     assert!(matches!(
-        table().whereJsonOverlaps(tags, json!("de")).toSql(),
+        table().where_json_overlaps(tags, json!("de")).to_sql(),
         Err(DatabaseError::UnsupportedOperation("JSON overlaps"))
     ));
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     let changed = transaction
         .table("dbo.json_probe")
-        .whereJsonContains("document->settings->tags", json!("de"))
-        .whereJsonContainsKey("document->settings->marker")
+        .where_json_contains("document->settings->tags", json!("de"))
+        .where_json_contains_key("document->settings->marker")
         .update(BTreeMap::from([("seen".into(), 1.into())]))
         .await
         .unwrap();
@@ -1270,16 +1279,16 @@ async fn json_predicates_run_on_sql_server() {
     assert_eq!(
         transaction
             .table("dbo.json_probe")
-            .whereJsonContainsKey("document->settings->marker")
+            .where_json_contains_key("document->settings->marker")
             .value("seen")
             .await
             .unwrap(),
         1.into()
     );
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(
         table()
-            .whereJsonContainsKey(marker)
+            .where_json_contains_key(marker)
             .value("j.seen")
             .await
             .unwrap(),
@@ -1335,10 +1344,10 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         let tags = "j.document->settings->tags";
         let marker = "j.document->settings->marker";
         let query = table()
-            .whereNested(|group| {
+            .where_nested(|group| {
                 group
-                    .whereJsonContains(tags, json!(["en", "de"]))
-                    .orWhereJsonLength(tags, "=", 0)
+                    .where_json_contains(tags, json!(["en", "de"]))
+                    .or_where_json_length(tags, "=", 0)
             })
             .r#where("j.id", ">", 0);
         assert_eq!(
@@ -1346,12 +1355,12 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
             [Value::Json(json!(["en", "de"])), 0.into(), 0.into(),]
         );
         assert_eq!(
-            query.orderBy("j.id", "asc").pluck("j.id").await.unwrap(),
+            query.order_by("j.id", "asc").pluck("j.id").await.unwrap(),
             [1.into(), 2.into()]
         );
         assert_eq!(
             table()
-                .whereJsonContains("j.document", json!({"settings":{"marker":null}}))
+                .where_json_contains("j.document", json!({"settings":{"marker":null}}))
                 .value("j.id")
                 .await
                 .unwrap(),
@@ -1359,8 +1368,8 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             table()
-                .whereJsonDoesntContainKey(marker)
-                .orderBy("id", "asc")
+                .where_json_doesnt_contain_key(marker)
+                .order_by("id", "asc")
                 .pluck("id")
                 .await
                 .unwrap(),
@@ -1368,7 +1377,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             table()
-                .whereJsonDoesntContain(tags, json!("de"))
+                .where_json_doesnt_contain(tags, json!("de"))
                 .pluck("id")
                 .await
                 .unwrap(),
@@ -1377,7 +1386,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         let quoted = "j.document->nested'\\?->dotted.key?'";
         assert_eq!(
             table()
-                .whereJsonContainsKey(quoted)
+                .where_json_contains_key(quoted)
                 .value("j.id")
                 .await
                 .unwrap(),
@@ -1385,7 +1394,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             table()
-                .whereJsonContainsKey("j.document->groups[0][-1]")
+                .where_json_contains_key("j.document->groups[0][-1]")
                 .value("j.id")
                 .await
                 .unwrap(),
@@ -1393,7 +1402,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             table()
-                .whereJsonContainsKey("j.document->groups[0]")
+                .where_json_contains_key("j.document->groups[0]")
                 .value("j.id")
                 .await
                 .unwrap(),
@@ -1401,7 +1410,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             table()
-                .whereJsonContainsKey("j.document->groups[9]")
+                .where_json_contains_key("j.document->groups[9]")
                 .count("*")
                 .await
                 .unwrap(),
@@ -1409,7 +1418,7 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             table()
-                .whereJsonContainsKey("j.document->groups[999999999999999999999]")
+                .where_json_contains_key("j.document->groups[999999999999999999999]")
                 .count("*")
                 .await
                 .unwrap(),
@@ -1417,16 +1426,16 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         );
         assert!(
             table()
-                .whereJsonContainsKey("j.document->invalid\0key")
-                .toSql()
+                .where_json_contains_key("j.document->invalid\0key")
+                .to_sql()
                 .is_err()
         );
 
-        let mut transaction = db.beginTransaction().await.unwrap();
+        let mut transaction = db.begin_transaction().await.unwrap();
         let changed = transaction
             .table("json_paths")
-            .whereJsonContains("document->settings->tags", json!("de"))
-            .whereJsonContainsKey("document->settings->marker")
+            .where_json_contains("document->settings->tags", json!("de"))
+            .where_json_contains_key("document->settings->marker")
             .update(BTreeMap::from([("seen".into(), 1.into())]))
             .await
             .unwrap();
@@ -1434,16 +1443,16 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
         assert_eq!(
             transaction
                 .table("json_paths")
-                .whereJsonContainsKey("document->settings->marker")
+                .where_json_contains_key("document->settings->marker")
                 .value("seen")
                 .await
                 .unwrap(),
             1.into()
         );
-        transaction.rollBack(None).await.unwrap();
+        transaction.roll_back(None).await.unwrap();
         assert_eq!(
             table()
-                .whereJsonContainsKey(marker)
+                .where_json_contains_key(marker)
                 .value("j.seen")
                 .await
                 .unwrap(),
@@ -1484,13 +1493,13 @@ async fn json_updates_run_on_postgres_in_both_prepare_modes() {
         )
         .await
         .unwrap();
-        let mut transaction = db.beginTransaction().await.unwrap();
+        let mut transaction = db.begin_transaction().await.unwrap();
         let count = transaction
             .table("json_updates as j")
             .join("json_updates as peer", "j.id", "=", "peer.id")
             .r#where("j.id", "=", 1)
-            .whereJsonContainsKey("j.options->profile")
-            .orderBy("j.id", "asc")
+            .where_json_contains_key("j.options->profile")
+            .order_by("j.id", "asc")
             .limit(1)
             .update(BTreeMap::from([
                 ("j.options->items[-1]->enabled".into(), true.into()),
@@ -1531,7 +1540,7 @@ async fn json_updates_run_on_postgres_in_both_prepare_modes() {
                 "added": {"kind":"native"},
             })))
         );
-        transaction.rollBack(None).await.unwrap();
+        transaction.roll_back(None).await.unwrap();
         let row = db
             .table("json_updates")
             .r#where("id", "=", 1)
@@ -1568,7 +1577,7 @@ async fn json_updates_run_on_postgres_in_both_prepare_modes() {
         ));
         assert!(
             db.table("json_updates")
-                .updateOrInsert(
+                .update_or_insert(
                     BTreeMap::from([("id".into(), 1.into())]),
                     BTreeMap::from([("options->profile->committed".into(), true.into())]),
                 )
@@ -1577,7 +1586,7 @@ async fn json_updates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             db.table("json_updates")
-                .whereJsonContains("options->profile", json!({"committed": true}))
+                .where_json_contains("options->profile", json!({"committed": true}))
                 .value("id")
                 .await
                 .unwrap(),
@@ -1585,7 +1594,7 @@ async fn json_updates_run_on_postgres_in_both_prepare_modes() {
         );
         assert_eq!(
             db.table("json_updates")
-                .orderBy("id", "desc")
+                .order_by("id", "desc")
                 .limit(1)
                 .delete()
                 .await
@@ -1637,7 +1646,7 @@ async fn verify_cursor(db: Connection) {
         }))
     ));
     assert!(invalid.next().await.is_none());
-    let mut rows = db.table("cursor_records").orderBy("id", "asc").cursor();
+    let mut rows = db.table("cursor_records").order_by("id", "asc").cursor();
     assert_eq!(
         rows.try_next().await.unwrap().unwrap().get("id"),
         Some(&Value::Integer(1))
@@ -1652,7 +1661,7 @@ async fn verify_cursor(db: Connection) {
     .unwrap();
     assert_eq!(count, 3);
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .statement("INSERT INTO cursor_records VALUES (4, 'draft')", &[])
         .await
@@ -1661,7 +1670,7 @@ async fn verify_cursor(db: Connection) {
         .table("cursor_records")
         .select(["id", "payload"])
         .r#where("id", ">", 1_i64)
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .cursor()
         .try_collect()
         .await
@@ -1673,10 +1682,10 @@ async fn verify_cursor(db: Connection) {
         [2, 3, 4].map(Value::Integer)
     );
     assert_eq!(rows[2].get("payload"), Some(&"draft".into()));
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert_eq!(db.table("cursor_records").count("*").await.unwrap(), 3);
 
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .statement("INSERT INTO cursor_records VALUES (4, 'cancelled')", &[])
         .await
@@ -1762,19 +1771,19 @@ async fn prepared_mysql_rowsets_preserve_boundaries_and_connection_selection() {
         .unwrap();
 
     let sets = db
-        .selectResultSets("CALL openrust_query_rowsets(?)", &[5.into()], true)
+        .select_result_sets("CALL openrust_query_rowsets(?)", &[5.into()], true)
         .await
         .unwrap();
     assert_eq!(sets.iter().map(Vec::len).collect::<Vec<_>>(), [1, 0, 1, 0]);
     assert_eq!(sets[0][0].get("result"), Some(&5.into()));
     assert_eq!(sets[2][0].get("result"), Some(&6.into()));
     for sql in ["CALL openrust_query_no_rows()", "SELECT 5 WHERE FALSE"] {
-        let sets = db.selectResultSets(sql, &[], true).await.unwrap();
+        let sets = db.select_result_sets(sql, &[], true).await.unwrap();
         assert_eq!(sets.len(), 1);
         assert!(sets[0].is_empty());
     }
     assert!(matches!(
-        db.selectResultSets("CALL openrust_query_rowsets(?)", &[], true)
+        db.select_result_sets("CALL openrust_query_rowsets(?)", &[], true)
             .await,
         Err(DatabaseError::InvalidBindings {
             expected: 1,
@@ -1782,15 +1791,18 @@ async fn prepared_mysql_rowsets_preserve_boundaries_and_connection_selection() {
         })
     ));
     assert!(
-        db.selectResultSets("CALL openrust_nonexistent_rowsets()", &[], true)
+        db.select_result_sets("CALL openrust_nonexistent_rowsets()", &[], true)
             .await
             .is_err()
     );
 
     const CONNECTION_ID: &str = "SELECT CONNECTION_ID() AS id";
-    let read = db.selectResultSets(CONNECTION_ID, &[], true).await.unwrap();
+    let read = db
+        .select_result_sets(CONNECTION_ID, &[], true)
+        .await
+        .unwrap();
     let write = db
-        .selectResultSets(CONNECTION_ID, &[], false)
+        .select_result_sets(CONNECTION_ID, &[], false)
         .await
         .unwrap();
     assert_eq!(
@@ -1799,11 +1811,11 @@ async fn prepared_mysql_rowsets_preserve_boundaries_and_connection_selection() {
     );
     assert_ne!(read[0][0].get("id"), write[0][0].get("id"));
 
-    let mut tx = db.beginTransaction().await.unwrap();
-    let pinned = tx.selectResultSets(CONNECTION_ID, &[]).await.unwrap();
+    let mut tx = db.begin_transaction().await.unwrap();
+    let pinned = tx.select_result_sets(CONNECTION_ID, &[]).await.unwrap();
     assert_eq!(pinned[0][0].get("id"), write[0][0].get("id"));
     let sets = tx
-        .selectResultSets("CALL openrust_query_rowsets(?)", &[3.into()])
+        .select_result_sets("CALL openrust_query_rowsets(?)", &[3.into()])
         .await
         .unwrap();
     assert_eq!(sets[0][0].get("result"), Some(&3.into()));
@@ -1822,7 +1834,7 @@ async fn prepared_mysql_rowsets_preserve_boundaries_and_connection_selection() {
 async fn sqlite_reports_unsupported_rowset_traversal() {
     let db = connection(json!({"driver":"sqlite","database":":memory:"}));
     assert!(matches!(
-        db.selectResultSets("SELECT 1", &[], true).await,
+        db.select_result_sets("SELECT 1", &[], true).await,
         Err(DatabaseError::UnsupportedOperation("selectResultSets"))
     ));
 }
@@ -2014,9 +2026,9 @@ async fn timestamp_bindings_run_on_postgres_in_both_prepare_modes() {
     };
     for emulate in [false, true] {
         let db = connection(json!({"url":url,"emulate_prepares":emulate}));
-        let mut schema = db.getSchemaBuilder();
+        let mut schema = db.get_schema_builder();
         schema
-            .dropIfExists("queue_timestamp_bindings")
+            .drop_if_exists("queue_timestamp_bindings")
             .await
             .unwrap();
         schema
@@ -2063,7 +2075,7 @@ async fn postgres_abandoned_transaction_does_not_poison_the_pool() {
     )
     .await
     .unwrap();
-    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut transaction = db.begin_transaction().await.unwrap();
     transaction
         .statement("insert into queue_transaction_probe values (1)", &[])
         .await
@@ -2092,7 +2104,7 @@ async fn postgres_abandoned_transaction_does_not_poison_the_pool() {
             .unwrap(),
         1
     );
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .drop("queue_transaction_probe")
         .await
         .unwrap();

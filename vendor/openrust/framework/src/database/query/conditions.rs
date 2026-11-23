@@ -224,104 +224,104 @@ macro_rules! date_methods {
 macro_rules! predicate_methods {
     () => {
         date_methods! {
-            (whereDate, orWhereDate, Date, jiff::civil::Date, |value| format!("{value}")),
-            (whereTime, orWhereTime, Time, jiff::civil::Time, |value: jiff::civil::Time| value.strftime("%H:%M:%S").to_string()),
-            (whereDay, orWhereDay, Day, u32, |value| format!("{value:02}")),
-            (whereMonth, orWhereMonth, Month, u32, |value| format!("{value:02}")),
-            (whereYear, orWhereYear, Year, i32, |value| format!("{value:04}")),
+            (where_date, or_where_date, Date, jiff::civil::Date, |value| format!("{value}")),
+            (where_time, or_where_time, Time, jiff::civil::Time, |value: jiff::civil::Time| value.strftime("%H:%M:%S").to_string()),
+            (where_day, or_where_day, Day, u32, |value| format!("{value:02}")),
+            (where_month, or_where_month, Month, u32, |value| format!("{value:02}")),
+            (where_year, or_where_year, Year, i32, |value| format!("{value:04}")),
         }
 
-        pub fn whereJsonContains(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+        pub fn where_json_contains(mut self, selector: &str, value: ::serde_json::Value) -> Self {
             self.conditions().json_contains(false, selector, value, false);
             self
         }
 
-        pub fn orWhereJsonContains(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+        pub fn or_where_json_contains(mut self, selector: &str, value: ::serde_json::Value) -> Self {
             self.conditions().json_contains(true, selector, value, false);
             self
         }
 
-        pub fn whereJsonDoesntContain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+        pub fn where_json_doesnt_contain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
             self.conditions().json_contains(false, selector, value, true);
             self
         }
 
-        pub fn orWhereJsonDoesntContain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+        pub fn or_where_json_doesnt_contain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
             self.conditions().json_contains(true, selector, value, true);
             self
         }
 
-        pub fn whereJsonOverlaps(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+        pub fn where_json_overlaps(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
             self.conditions().json_overlaps(false, selector, value.into(), false);
             self
         }
 
-        pub fn orWhereJsonOverlaps(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+        pub fn or_where_json_overlaps(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
             self.conditions().json_overlaps(true, selector, value.into(), false);
             self
         }
 
-        pub fn whereJsonDoesntOverlap(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+        pub fn where_json_doesnt_overlap(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
             self.conditions().json_overlaps(false, selector, value.into(), true);
             self
         }
 
-        pub fn orWhereJsonDoesntOverlap(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+        pub fn or_where_json_doesnt_overlap(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
             self.conditions().json_overlaps(true, selector, value.into(), true);
             self
         }
 
-        pub fn whereJsonContainsKey(mut self, selector: &str) -> Self {
+        pub fn where_json_contains_key(mut self, selector: &str) -> Self {
             self.conditions().json_contains_key(false, selector, false);
             self
         }
 
-        pub fn orWhereJsonContainsKey(mut self, selector: &str) -> Self {
+        pub fn or_where_json_contains_key(mut self, selector: &str) -> Self {
             self.conditions().json_contains_key(true, selector, false);
             self
         }
 
-        pub fn whereJsonDoesntContainKey(mut self, selector: &str) -> Self {
+        pub fn where_json_doesnt_contain_key(mut self, selector: &str) -> Self {
             self.conditions().json_contains_key(false, selector, true);
             self
         }
 
-        pub fn orWhereJsonDoesntContainKey(mut self, selector: &str) -> Self {
+        pub fn or_where_json_doesnt_contain_key(mut self, selector: &str) -> Self {
             self.conditions().json_contains_key(true, selector, true);
             self
         }
 
-        pub fn whereJsonLength(mut self, selector: &str, operator: &str, value: i64) -> Self {
+        pub fn where_json_length(mut self, selector: &str, operator: &str, value: i64) -> Self {
             self.conditions().json_length(false, selector, operator, value);
             self
         }
 
-        pub fn orWhereJsonLength(mut self, selector: &str, operator: &str, value: i64) -> Self {
+        pub fn or_where_json_length(mut self, selector: &str, operator: &str, value: i64) -> Self {
             self.conditions().json_length(true, selector, operator, value);
             self
         }
 
-        pub fn whereBetweenColumns(mut self, column: &str, bounds: [&str; 2]) -> Self {
+        pub fn where_between_columns(mut self, column: &str, bounds: [&str; 2]) -> Self {
             self.conditions().between_columns(false, column, bounds, false);
             self
         }
 
-        pub fn orWhereBetweenColumns(mut self, column: &str, bounds: [&str; 2]) -> Self {
+        pub fn or_where_between_columns(mut self, column: &str, bounds: [&str; 2]) -> Self {
             self.conditions().between_columns(true, column, bounds, false);
             self
         }
 
-        pub fn whereNotBetweenColumns(mut self, column: &str, bounds: [&str; 2]) -> Self {
+        pub fn where_not_between_columns(mut self, column: &str, bounds: [&str; 2]) -> Self {
             self.conditions().between_columns(false, column, bounds, true);
             self
         }
 
-        pub fn orWhereNotBetweenColumns(mut self, column: &str, bounds: [&str; 2]) -> Self {
+        pub fn or_where_not_between_columns(mut self, column: &str, bounds: [&str; 2]) -> Self {
             self.conditions().between_columns(true, column, bounds, true);
             self
         }
 
-        pub fn whereValueBetween(
+        pub fn where_value_between(
             mut self,
             value: impl Into<$crate::database::query::ValueOperand>,
             bounds: [impl Into<$crate::database::query::Column>; 2],
@@ -330,7 +330,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereValueBetween(
+        pub fn or_where_value_between(
             mut self,
             value: impl Into<$crate::database::query::ValueOperand>,
             bounds: [impl Into<$crate::database::query::Column>; 2],
@@ -339,7 +339,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn whereValueNotBetween(
+        pub fn where_value_not_between(
             mut self,
             value: impl Into<$crate::database::query::ValueOperand>,
             bounds: [impl Into<$crate::database::query::Column>; 2],
@@ -348,7 +348,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereValueNotBetween(
+        pub fn or_where_value_not_between(
             mut self,
             value: impl Into<$crate::database::query::ValueOperand>,
             bounds: [impl Into<$crate::database::query::Column>; 2],
@@ -363,171 +363,171 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhere(mut self, column: &str, operator: &str, value: impl Into<Value>) -> Self {
+        pub fn or_where(mut self, column: &str, operator: &str, value: impl Into<Value>) -> Self {
             self.conditions()
                 .compare(true, column, operator, value.into());
             self
         }
 
-        pub fn whereNullSafeEquals(self, column: &str, value: impl Into<Value>) -> Self {
+        pub fn where_null_safe_equals(self, column: &str, value: impl Into<Value>) -> Self {
             self.r#where(column, "<=>", value)
         }
 
-        pub fn orWhereNullSafeEquals(self, column: &str, value: impl Into<Value>) -> Self {
-            self.orWhere(column, "<=>", value)
+        pub fn or_where_null_safe_equals(self, column: &str, value: impl Into<Value>) -> Self {
+            self.or_where(column, "<=>", value)
         }
 
         /// Compare text literally, including case, regardless of the column collation.
-        pub fn whereExactText(mut self, column: &str, text: &str) -> Self {
+        pub fn where_exact_text(mut self, column: &str, text: &str) -> Self {
             self.conditions().exact_text(column, text);
             self
         }
 
-        pub fn whereLike(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
+        pub fn where_like(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
             self.conditions()
                 .like(false, column, pattern, case_sensitive, false);
             self
         }
 
-        pub fn orWhereLike(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
+        pub fn or_where_like(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
             self.conditions()
                 .like(true, column, pattern, case_sensitive, false);
             self
         }
 
-        pub fn whereNotLike(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
+        pub fn where_not_like(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
             self.conditions()
                 .like(false, column, pattern, case_sensitive, true);
             self
         }
 
-        pub fn orWhereNotLike(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
+        pub fn or_where_not_like(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
             self.conditions()
                 .like(true, column, pattern, case_sensitive, true);
             self
         }
 
-        pub fn whereFullText(self, columns: &[&str], value: &str) -> Self {
-            self.whereFullTextWith(columns, value, $crate::database::query::FullTextOptions::default())
+        pub fn where_full_text(self, columns: &[&str], value: &str) -> Self {
+            self.where_full_text_with(columns, value, $crate::database::query::FullTextOptions::default())
         }
 
-        pub fn orWhereFullText(self, columns: &[&str], value: &str) -> Self {
-            self.orWhereFullTextWith(columns, value, $crate::database::query::FullTextOptions::default())
+        pub fn or_where_full_text(self, columns: &[&str], value: &str) -> Self {
+            self.or_where_full_text_with(columns, value, $crate::database::query::FullTextOptions::default())
         }
 
-        pub fn whereFullTextWith(mut self, columns: &[&str], value: &str, options: $crate::database::query::FullTextOptions) -> Self {
+        pub fn where_full_text_with(mut self, columns: &[&str], value: &str, options: $crate::database::query::FullTextOptions) -> Self {
             self.conditions().full_text(false, columns, value, options);
             self
         }
 
-        pub fn orWhereFullTextWith(mut self, columns: &[&str], value: &str, options: $crate::database::query::FullTextOptions) -> Self {
+        pub fn or_where_full_text_with(mut self, columns: &[&str], value: &str, options: $crate::database::query::FullTextOptions) -> Self {
             self.conditions().full_text(true, columns, value, options);
             self
         }
 
-        pub fn whereBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+        pub fn where_binary(mut self, column: &str, value: impl Into<Value>) -> Self {
             self.conditions().binary(false, column, value.into(), false);
             self
         }
 
-        pub fn orWhereBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+        pub fn or_where_binary(mut self, column: &str, value: impl Into<Value>) -> Self {
             self.conditions().binary(true, column, value.into(), false);
             self
         }
 
-        pub fn whereNotBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+        pub fn where_not_binary(mut self, column: &str, value: impl Into<Value>) -> Self {
             self.conditions().binary(false, column, value.into(), true);
             self
         }
 
-        pub fn orWhereNotBinary(mut self, column: &str, value: impl Into<Value>) -> Self {
+        pub fn or_where_not_binary(mut self, column: &str, value: impl Into<Value>) -> Self {
             self.conditions().binary(true, column, value.into(), true);
             self
         }
 
-        pub fn whereIntegerInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+        pub fn where_integer_in_raw(mut self, column: &str, values: Vec<i64>) -> Self {
             self.conditions().integer_in_raw(false, column, values, false);
             self
         }
 
-        pub fn orWhereIntegerInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+        pub fn or_where_integer_in_raw(mut self, column: &str, values: Vec<i64>) -> Self {
             self.conditions().integer_in_raw(true, column, values, false);
             self
         }
 
-        pub fn whereIntegerNotInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+        pub fn where_integer_not_in_raw(mut self, column: &str, values: Vec<i64>) -> Self {
             self.conditions().integer_in_raw(false, column, values, true);
             self
         }
 
-        pub fn orWhereIntegerNotInRaw(mut self, column: &str, values: Vec<i64>) -> Self {
+        pub fn or_where_integer_not_in_raw(mut self, column: &str, values: Vec<i64>) -> Self {
             self.conditions().integer_in_raw(true, column, values, true);
             self
         }
 
-        pub fn whereRowValues(mut self, columns: &[&str], operator: &str, values: Vec<Value>) -> $crate::database::DatabaseResult<Self> {
+        pub fn where_row_values(mut self, columns: &[&str], operator: &str, values: Vec<Value>) -> $crate::database::DatabaseResult<Self> {
             if columns.len() != values.len() { return Err($crate::database::DatabaseError::InvalidQuery("row value count")); }
             if !super::conditions::valid_operator(operator) { return Err($crate::database::DatabaseError::InvalidQuery("comparison operator")); }
             self.conditions().row_values(false, columns, operator, values);
             Ok(self)
         }
 
-        pub fn orWhereRowValues(mut self, columns: &[&str], operator: &str, values: Vec<Value>) -> $crate::database::DatabaseResult<Self> {
+        pub fn or_where_row_values(mut self, columns: &[&str], operator: &str, values: Vec<Value>) -> $crate::database::DatabaseResult<Self> {
             if columns.len() != values.len() { return Err($crate::database::DatabaseError::InvalidQuery("row value count")); }
             if !super::conditions::valid_operator(operator) { return Err($crate::database::DatabaseError::InvalidQuery("comparison operator")); }
             self.conditions().row_values(true, columns, operator, values);
             Ok(self)
         }
 
-        pub fn orWhereAny(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+        pub fn or_where_any(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
-            self.orWhereNested(|group| columns.iter().fold(group, |group, column| group.orWhere(column, operator, value.clone())))
+            self.or_where_nested(|group| columns.iter().fold(group, |group, column| group.or_where(column, operator, value.clone())))
         }
 
-        pub fn orWhereAll(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+        pub fn or_where_all(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
-            self.orWhereNested(|group| columns.iter().fold(group, |group, column| group.r#where(column, operator, value.clone())))
+            self.or_where_nested(|group| columns.iter().fold(group, |group, column| group.r#where(column, operator, value.clone())))
         }
 
-        pub fn orWhereNone(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+        pub fn or_where_none(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
-            self.orWhereNot(|group| columns.iter().fold(group, |group, column| group.orWhere(column, operator, value.clone())))
+            self.or_where_not(|group| columns.iter().fold(group, |group, column| group.or_where(column, operator, value.clone())))
         }
 
-        pub fn whereAny(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+        pub fn where_any(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
-            self.whereNested(|group| {
+            self.where_nested(|group| {
                 columns.iter().fold(group, |group, column| {
-                    group.orWhere(column, operator, value.clone())
+                    group.or_where(column, operator, value.clone())
                 })
             })
         }
 
-        pub fn whereAll(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+        pub fn where_all(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
-            self.whereNested(|group| {
+            self.where_nested(|group| {
                 columns.iter().fold(group, |group, column| {
                     group.r#where(column, operator, value.clone())
                 })
             })
         }
 
-        pub fn whereNone(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
+        pub fn where_none(self, columns: &[&str], operator: &str, value: impl Into<Value>) -> Self {
             let value = value.into();
             self.where_not(|group| {
                 columns.iter().fold(group, |group, column| {
-                    group.orWhere(column, operator, value.clone())
+                    group.or_where(column, operator, value.clone())
                 })
             })
         }
 
-        pub fn whereColumn(mut self, column: &str, operator: &str, other: &str) -> Self {
+        pub fn where_column(mut self, column: &str, operator: &str, other: &str) -> Self {
             self.conditions()
                 .compare_column(false, column, operator, other);
             self
         }
 
-        pub fn orWhereColumn(mut self, column: &str, operator: &str, other: &str) -> Self {
+        pub fn or_where_column(mut self, column: &str, operator: &str, other: &str) -> Self {
             self.conditions()
                 .compare_column(true, column, operator, other);
             self
@@ -538,7 +538,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereNull(mut self, column: &str) -> Self {
+        pub fn or_where_null(mut self, column: &str) -> Self {
             self.conditions().null(true, column, false);
             self
         }
@@ -548,7 +548,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereNotNull(mut self, column: &str) -> Self {
+        pub fn or_where_not_null(mut self, column: &str) -> Self {
             self.conditions().null(true, column, true);
             self
         }
@@ -558,7 +558,7 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereIn(mut self, column: &str, values: Vec<Value>) -> Self {
+        pub fn or_where_in(mut self, column: &str, values: Vec<Value>) -> Self {
             self.conditions().in_values(true, column, values, false);
             self
         }
@@ -568,37 +568,37 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereNotIn(mut self, column: &str, values: Vec<Value>) -> Self {
+        pub fn or_where_not_in(mut self, column: &str, values: Vec<Value>) -> Self {
             self.conditions().in_values(true, column, values, true);
             self
         }
 
-        pub fn whereBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        pub fn where_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
             self.conditions().between(false, column, bounds, false);
             self
         }
 
-        pub fn orWhereBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        pub fn or_where_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
             self.conditions().between(true, column, bounds, false);
             self
         }
 
-        pub fn whereNotBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        pub fn where_not_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
             self.conditions().between(false, column, bounds, true);
             self
         }
 
-        pub fn orWhereNotBetween(mut self, column: &str, bounds: [Value; 2]) -> Self {
+        pub fn or_where_not_between(mut self, column: &str, bounds: [Value; 2]) -> Self {
             self.conditions().between(true, column, bounds, true);
             self
         }
 
-        pub fn whereNested(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
+        pub fn where_nested(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
             self.conditions().nested(false, configure, false);
             self
         }
 
-        pub fn orWhereNested(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
+        pub fn or_where_nested(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
             self.conditions().nested(true, configure, false);
             self
         }
@@ -608,18 +608,18 @@ macro_rules! predicate_methods {
             self
         }
 
-        pub fn orWhereNot(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
+        pub fn or_where_not(mut self, configure: impl FnOnce(Conditions) -> Conditions) -> Self {
             self.conditions().nested(true, configure, true);
             self
         }
 
-        pub fn whereRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
+        pub fn where_raw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
             self.conditions()
                 .raw(false, Expression::new(sql).with_bindings(bindings));
             self
         }
 
-        pub fn orWhereRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
+        pub fn or_where_raw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
             self.conditions()
                 .raw(true, Expression::new(sql).with_bindings(bindings));
             self
@@ -628,7 +628,6 @@ macro_rules! predicate_methods {
 }
 pub(super) use {date_methods, predicate_methods};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Conditions {
     fn conditions(&mut self) -> &mut Self {
         self
@@ -637,7 +636,7 @@ impl Conditions {
     predicate_methods!();
 
     /// Keeps rows within the given cosine distance in this group.
-    pub fn whereVectorDistanceLessThan(
+    pub fn where_vector_distance_less_than(
         mut self,
         column: impl Into<Column>,
         vector: &[f64],
@@ -647,7 +646,7 @@ impl Conditions {
         self
     }
 
-    pub fn orWhereVectorDistanceLessThan(
+    pub fn or_where_vector_distance_less_than(
         mut self,
         column: impl Into<Column>,
         vector: &[f64],

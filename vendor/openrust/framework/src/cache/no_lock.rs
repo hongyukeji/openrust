@@ -22,7 +22,6 @@ impl NoLock {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Lock for NoLock {
     fn get(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async { Ok(true) })
@@ -48,7 +47,7 @@ impl Lock for NoLock {
         Box::pin(async move { Ok(Some(self.owner.clone())) })
     }
 
-    fn isLocked(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
+    fn is_locked(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async { Ok(false) })
     }
 

@@ -51,7 +51,7 @@ impl MissingDatabase {
         connection: &Connection,
     ) -> DatabaseResult<Option<DatabaseCreation>> {
         let generation = connection.pools.generation()?;
-        if generation.creation_database.as_deref() != Some(connection.getDatabaseName()) {
+        if generation.creation_database.as_deref() != Some(connection.get_database_name()) {
             return Ok(None);
         }
         let verb = match (self, &generation.writer) {
@@ -65,12 +65,14 @@ impl MissingDatabase {
                 });
             }
             (Self::Mysql, Pool::Mysql(_)) => "create database if not exists",
-            (Self::Postgres, Pool::Postgres(..)) if connection.getDatabaseName() != "postgres" => {
+            (Self::Postgres, Pool::Postgres(..))
+                if connection.get_database_name() != "postgres" =>
+            {
                 "create database"
             }
             _ => return Ok(None),
         };
-        let target = connection.grammar.quote(connection.getDatabaseName())?;
+        let target = connection.grammar.quote(connection.get_database_name())?;
         Ok(Some(DatabaseCreation::Server {
             generation,
             sql: format!("{verb} {target}"),

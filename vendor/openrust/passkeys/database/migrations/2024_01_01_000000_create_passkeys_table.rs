@@ -12,17 +12,17 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("passkeys", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.passkeys", &Default::default())?);
                     table
                         .id()
                         .comment(__("schema.columns.id", &Default::default())?);
                     table
-                        .foreignIdFor::<crate::app::models::User>(Some("user_id"))
+                        .foreign_id_for::<crate::app::models::User>(Some("user_id"))
                         .comment(__("schema.columns.user_id", &Default::default())?)
                         .constrained()
-                        .cascadeOnDelete();
+                        .cascade_on_delete();
                     table
                         .string("name", None)
                         .comment(__("schema.columns.name", &Default::default())?);
@@ -55,6 +55,11 @@ impl Migration for Definition {
         &'a self,
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async move { connection.getSchemaBuilder().dropIfExists("passkeys").await })
+        Box::pin(async move {
+            connection
+                .get_schema_builder()
+                .drop_if_exists("passkeys")
+                .await
+        })
     }
 }

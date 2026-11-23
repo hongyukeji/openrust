@@ -3,7 +3,7 @@ use openrust::{
     foundation::configuration::Routing,
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode, StreamedJson},
     routing::{RouteGroup, RouteParameter, SignatureMode},
-    support::facades::{Route, URL},
+    support::facades::{Route, Url},
     testing::{TestApp, TestResponse},
     view::ViewValue,
 };
@@ -21,14 +21,14 @@ fn redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let mode = request.route("mode").unwrap();
         let params = [RouteParameter::named("id", "a b")];
         let location = match mode {
-            "back" => URL::previous(request, None)?,
-            "route" => URL::route("target", &params, true)?,
-            "action" => URL::action("TargetController@show", &params, true)?,
-            "signed" => URL::signed_route("target", &params, None, SignatureMode::Absolute)?,
-            "relative" => URL::signed_route("target", &params, None, SignatureMode::Relative)?,
+            "back" => Url::previous(request, None)?,
+            "route" => Url::route("target", &params, true)?,
+            "action" => Url::action("TargetController@show", &params, true)?,
+            "signed" => Url::signed_route("target", &params, None, SignatureMode::Absolute)?,
+            "relative" => Url::signed_route("target", &params, None, SignatureMode::Relative)?,
             "tampered" => format!(
                 "{}&changed=1",
-                URL::signed_route("target", &params, None, SignatureMode::Absolute)?
+                Url::signed_route("target", &params, None, SignatureMode::Absolute)?
             ),
             _ => "/api/target/other".into(),
         };
@@ -332,7 +332,7 @@ async fn json_response_encoding_matches_actual_fixed_json_and_streamed_json_resp
 async fn cookie_max_age_is_anchored_to_response_time_and_assertions_follow_the_live_test_clock() {
     let mut app = app();
     let instant = |text: &str| {
-        openrust::support::Date::fromUtc(
+        openrust::support::Date::from_utc(
             text.parse::<jiff::Timestamp>().unwrap(),
             jiff::tz::TimeZone::UTC,
         )

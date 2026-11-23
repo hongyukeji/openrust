@@ -48,7 +48,7 @@ impl Scope {
     }
 
     pub fn from_model<M: openrust::database::eloquent::Model>(model: &M) -> Result<Self> {
-        let key = model.getKey().ok_or(Error::InvalidScope)?;
+        let key = model.get_key().ok_or(Error::InvalidScope)?;
         Ok(Self::Model {
             class: std::any::type_name::<M>().into(),
             key: match key {
@@ -57,7 +57,7 @@ impl Scope {
                 openrust::database::Value::Unsigned(value) => value.to_string(),
                 _ => return Err(Error::InvalidScope),
             },
-            morph: Some(model.getMorphClass()?.into()),
+            morph: Some(model.get_morph_class()?.into()),
         })
     }
 }

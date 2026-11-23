@@ -42,7 +42,7 @@ fn file_loader_discovers_exact_resource_names_and_nested_groups_without_loading_
     fs::write(root.path().join("fr.json"), "invalid JSON").unwrap();
     let loader = FileLoader::new(root.path().to_owned());
     assert_eq!(
-        loader.availableLocales().unwrap(),
+        loader.available_locales().unwrap(),
         ["en", "fr", "ja", "zh-Hant"]
     );
 }
@@ -56,21 +56,21 @@ fn additional_application_and_json_paths_respect_their_existing_loader_semantics
     write(root.path(), "json/it/messages.json");
     write(root.path(), "package/ja/messages.json");
     let mut loader = FileLoader::new(root.path().join("app"));
-    loader.addPath(root.path().join("extra"));
-    loader.addPath(root.path().join("app"));
-    loader.addJsonPath(root.path().join("json"));
-    loader.addNamespace("shop", root.path().join("package"));
-    assert_eq!(loader.availableLocales().unwrap(), ["de", "en", "fr"]);
+    loader.add_path(root.path().join("extra"));
+    loader.add_path(root.path().join("app"));
+    loader.add_json_path(root.path().join("json"));
+    loader.add_namespace("shop", root.path().join("package"));
+    assert_eq!(loader.available_locales().unwrap(), ["de", "en", "fr"]);
 }
 
 #[test]
 fn missing_sources_are_empty_but_unreadable_sources_are_errors() {
     let root = tempfile::tempdir().unwrap();
     let loader = FileLoader::new(root.path().join("absent"));
-    assert!(loader.availableLocales().unwrap().is_empty());
+    assert!(loader.available_locales().unwrap().is_empty());
     fs::write(root.path().join("file"), "not a directory").unwrap();
-    loader.addPath(root.path().join("file"));
-    assert!(loader.availableLocales().is_err());
+    loader.add_path(root.path().join("file"));
+    assert!(loader.available_locales().is_err());
 }
 
 #[cfg(unix)]
@@ -94,7 +94,7 @@ fn discovery_does_not_follow_resource_or_group_symlinks() {
     .unwrap();
     assert_eq!(
         FileLoader::new(root.path().join("lang"))
-            .availableLocales()
+            .available_locales()
             .unwrap(),
         ["en"]
     );
@@ -213,7 +213,7 @@ impl ServiceProvider for ExtraSource {
         let loader = app.container().get::<FileLoader>("translation.loader");
         let path = self.0.clone();
         Box::pin(async move {
-            loader?.addPath(path);
+            loader?.add_path(path);
             Ok(())
         })
     }

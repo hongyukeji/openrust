@@ -2,7 +2,7 @@ use openrust::{
     contracts::events::Event,
     foundation::configuration::Routing,
     http::{HttpError, HttpFuture, Request, Response},
-    support::facades::{DB, Event as Events, Route},
+    support::facades::{Db, Event as Events, Route},
     testing::TestApp,
 };
 use openrust_telescope::{
@@ -31,7 +31,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        DB::connection(None)
+        Db::connection(None)
             .unwrap()
             .select("SELECT 42 AS answer", &[])
             .await

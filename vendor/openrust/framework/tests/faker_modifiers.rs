@@ -9,46 +9,52 @@ fn biased_numbers_respect_the_bounds_and_curve() {
     let mut high_sum = 0;
     for _ in 0..512 {
         let low = faker
-            .biasedNumberBetween(Some(-50), Some(50), Some(&|x| 1.0 - x))
+            .biased_number_between(Some(-50), Some(50), Some(&|x| 1.0 - x))
             .unwrap();
         let high = faker
-            .biasedNumberBetween(Some(-50), Some(50), Some(&|x| x))
+            .biased_number_between(Some(-50), Some(50), Some(&|x| x))
             .unwrap();
         assert!((-50..=50).contains(&low) && (-50..=50).contains(&high));
         low_sum += low;
         high_sum += high;
-        assert!((0..=100).contains(&faker.biasedNumberBetween(None, None, None).unwrap()));
+        assert!((0..=100).contains(&faker.biased_number_between(None, None, None).unwrap()));
     }
     assert!(low_sum < 0 && high_sum > 0);
     for endpoint in [i64::MIN, i64::MAX] {
         assert_eq!(
             faker
-                .biasedNumberBetween(Some(endpoint), Some(endpoint), None)
+                .biased_number_between(Some(endpoint), Some(endpoint), None)
                 .unwrap(),
             endpoint
         );
     }
-    assert!(faker.biasedNumberBetween(Some(1), Some(0), None).is_err());
+    assert!(faker.biased_number_between(Some(1), Some(0), None).is_err());
     assert!(
         faker
-            .biasedNumberBetween(None, None, Some(&|_| f64::NAN))
+            .biased_number_between(None, None, Some(&|_| f64::NAN))
             .is_err()
     );
     assert!(
         faker
-            .biasedNumberBetween(None, None, Some(&|_| 0.0))
+            .biased_number_between(None, None, Some(&|_| 0.0))
             .is_err()
     );
-    let unique = faker.uniqueWithRetries(true, 1);
+    let unique = faker.unique_with_retries(true, 1);
     assert_eq!(
-        unique.biasedNumberBetween(Some(7), Some(7), None).unwrap(),
+        unique
+            .biased_number_between(Some(7), Some(7), None)
+            .unwrap(),
         7
     );
-    assert!(unique.biasedNumberBetween(Some(7), Some(7), None).is_err());
+    assert!(
+        unique
+            .biased_number_between(Some(7), Some(7), None)
+            .is_err()
+    );
     assert_eq!(
         faker
-            .uniqueWithRetries(true, 1)
-            .biasedNumberBetween(Some(7), Some(7), None)
+            .unique_with_retries(true, 1)
+            .biased_number_between(Some(7), Some(7), None)
             .unwrap(),
         7
     );
@@ -73,7 +79,7 @@ fn optional_and_valid_preserve_lazy_defaults_errors_and_retry_boundary() {
     );
     assert_eq!(
         faker
-            .optional(Some(100.0), None, |faker| Ok(faker.numberBetween(8, 8)))
+            .optional(Some(100.0), None, |faker| Ok(faker.number_between(8, 8)))
             .unwrap(),
         Some(8)
     );

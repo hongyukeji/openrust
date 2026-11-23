@@ -8,22 +8,22 @@
 
 ## 变换和编码 {#manipulating-images}
 
-变换按追加顺序执行。`resize` 接收可选的宽和高。`scale` 保持宽高比且不会放大。`cover` 裁剪并填满目标尺寸，`contain` 保留整张图像并填充空白。还支持裁剪、EXIF 方向、旋转、模糊、灰度、锐化和翻转。用克隆分出处理链，通过 `toBytes().await?`、`toBase64().await?` 或 `toDataUri().await?` 获取结果。
+变换按追加顺序执行。`resize` 接收可选的宽和高。`scale` 保持宽高比且不会放大。`cover` 裁剪并填满目标尺寸，`contain` 保留整张图像并填充空白。还支持裁剪、EXIF 方向、旋转、模糊、灰度、锐化和翻转。用克隆分出处理链，通过 `toBytes().await?`、`to_base64().await?` 或 `toDataUri().await?` 获取结果。
 
 `flip()` 垂直翻转，`flop()` 水平翻转。`resize(width, height)` 和 `scale(width, height)` 返回 `Result<Image>`，两个尺寸都缺失时立即报错；传入的零尺寸归一为 1。模糊和锐化强度在交给驱动处理器之前限制为最大 100。
 
-成功加载的来源在分支之间共享。修改已渲染的图像时以处理后的字节为起点，不重复此前的变换。`hash_name("").await?` 返回该图像稳定的文件名，`store` 复用此名称；`hash_name("avatars").await?` 添加路径前缀。`toString().await?` 返回数据 URI。路由处理器可直接返回 `Image` 或 `Result<Image, HttpError>`，响应包含图像字节及对应 MIME 类型。
+成功加载的来源在分支之间共享。修改已渲染的图像时以处理后的字节为起点，不重复此前的变换。`hash_name("").await?` 返回该图像稳定的文件名，`store` 复用此名称；`hash_name("avatars").await?` 添加路径前缀。`to_string().await?` 返回数据 URI。路由处理器可直接返回 `Image` 或 `Result<Image, HttpError>`，响应包含图像字节及对应 MIME 类型。
 
 ```rust
 use openrust::image::{ImageManager, Limits};
 
 let manager = ImageManager::new(Limits::default());
-let source = manager.fromBase64(
+let source = manager.from_base64(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
 );
 let thumbnail = source.cover(4, 4).toWebp();
 assert_eq!(thumbnail.dimensions().await?, (4, 4));
-assert_eq!(thumbnail.mimeType().await?, "image/webp");
+assert_eq!(thumbnail.mime_type().await?, "image/webp");
 ```
 
 ## 动画图像 {#animated-images}
@@ -48,7 +48,7 @@ AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC�
 
 ## 检查图像 {#inspecting-images}
 
-用 `mimeType`、`extension`、`dimensions`、`width` 和 `height` 检查处理后的结果。`dominantColor` 返回按透明度加权的 RGB 平均色，格式为十六进制。
+用 `mime_type`、`extension`、`dimensions`、`width` 和 `height` 检查处理后的结果。`dominantColor` 返回按透明度加权的 RGB 平均色，格式为十六进制。
 
 ## 图像驱动 {#image-drivers}
 
@@ -56,13 +56,13 @@ AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC�
 
 内置驱动读写 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 和 BMP。可用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 转换格式。`heif` 别名输出扩展名为 `.heic`、MIME 类型为 `image/heic` 的文件。JPEG、WebP、AVIF、HEIC 和 JPEG XL 应用指定质量。WebP 和 JPEG XL 在质量为 100 时采用无损编码。编解码均在 Rust 中运行。
 
-用 `Image::extend("custom", creator)` 登记自定义驱动；回调返回 `Result<Arc<dyn Driver>>`。创建器在首次调用 `driver` 时执行，接收管理器，可通过 `getContainer()` 解析应用服务。替换创建器不会替换已缓存驱动；`forgetDrivers()` 清除驱动实例，保留创建器和转换处理器。`setContainer(container)` 改变后续创建器及尚未加载的存储、URL 来源所用的容器，保留原配置仓库和已解析驱动。应用须继续持有容器；独立管理器的 `getContainer()` 返回 `None`。
+用 `Image::extend("custom", creator)` 登记自定义驱动；回调返回 `Result<Arc<dyn Driver>>`。创建器在首次调用 `driver` 时执行，接收管理器，可通过 `get_container()` 解析应用服务。替换创建器不会替换已缓存驱动；`forget_drivers()` 清除驱动实例，保留创建器和转换处理器。`setContainer(container)` 改变后续创建器及尚未加载的存储、URL 来源所用的容器，保留原配置仓库和已解析驱动。应用须继续持有容器；独立管理器的 `get_container()` 返回 `None`。
 
 后端需要检查依赖时，在 `Driver` trait 中实现 `ensureRequirementsAreMet`，默认实现直接成功。管理器在创建之后、登记转换处理器与缓存之前调用；失败会返回错误且不缓存该驱动，后续解析可重试。
 
 ### 自定义转换处理器 {#custom-transformation-handlers}
 
-用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法为指定驱动注册处理器。也可先注册处理器，再通过 `extend` 注册应用驱动；管理器的 `extend` 返回 `Result`。驱动契约提供 `transformUsing` 和 `dimensions`；不支持扩展处理器的驱动返回 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`get_default_driver()` 和 `getDrivers()` 提供当前配置驱动与已注册实例。
+用 `Image::transformUsing(driver, name, callback)?` 或 `ImageManager` 的同名方法为指定驱动注册处理器。也可先注册处理器，再通过 `extend` 注册应用驱动；管理器的 `extend` 返回 `Result`。驱动契约提供 `transformUsing` 和 `dimensions`；不支持扩展处理器的驱动返回 `UnsupportedTransformationHandler`。`Image::driver(None)?`、`get_default_driver()` 和 `get_drivers()` 提供当前配置驱动与已注册实例。
 
 ```rust
 use std::sync::Arc;

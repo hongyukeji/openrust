@@ -77,10 +77,10 @@ pub(super) async fn load(
 }
 
 fn check_output_path(connection: &Connection, path: &Path) -> DatabaseResult<()> {
-    if connection.getDatabaseName() == ":memory:" {
+    if connection.get_database_name() == ":memory:" {
         return Ok(());
     }
-    let database = comparison_path(Path::new(connection.getDatabaseName()))?;
+    let database = comparison_path(Path::new(connection.get_database_name()))?;
     let output = comparison_path(path)?;
     for suffix in ["", "-wal", "-shm", "-journal"] {
         let mut reserved = database.as_os_str().to_os_string();

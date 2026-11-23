@@ -5,7 +5,6 @@ use openrust::database::{
 };
 #[derive(Default)]
 pub struct DeviceCode(ModelState);
-#[allow(non_snake_case)]
 impl Model for DeviceCode {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("oauth_device_codes")
@@ -23,7 +22,7 @@ impl Model for DeviceCode {
             ("expires_at", AttributeCast::DateTime),
         ]
     }
-    fn getKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
+    fn get_key_type(&self) -> openrust::database::eloquent::ModelKeyType {
         openrust::database::eloquent::ModelKeyType::String
     }
     fn from_state(state: ModelState) -> Self {
@@ -35,8 +34,8 @@ impl Model for DeviceCode {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
-    fn resolveConnectionName(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
-        if let Some(name) = self.getConnectionName() {
+    fn resolve_connection_name(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
+        if let Some(name) = self.get_connection_name() {
             return Ok(Some(name.into()));
         }
         crate::client::configured_connection(

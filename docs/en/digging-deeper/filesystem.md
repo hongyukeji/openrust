@@ -24,11 +24,11 @@ Create or remove the links configured in `filesystems.links` with Artisan. The d
 The default `routes/web.rs` contains these mounts, in this order:
 
 ```rust
-Route::staticDisk("web")?;
-Route::staticDisk("public")?;
+Route::static_disk("web")?;
+Route::static_disk("public")?;
 ```
 
-The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `app.url`. Set `FILESYSTEM_WEB_ROOT` and `FILESYSTEM_WEB_URL` to override those defaults in `config/filesystems.rs`. `FILESYSTEM_WEB_ROOT` overrides the website disk root; when unset, it uses `APP_PUBLIC_PATH` (default `public`). Relative paths are resolved from the application root; absolute paths are used directly. Empty or whitespace-only values fail configuration loading. The application uses `web.root` for `public_path()`; calling `use_public_path()` before boot overrides the directory and updates `web.root`. Both mounts use `staticDisk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `FILESYSTEM_PUBLIC_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
+The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `app.url`. Set `FILESYSTEM_WEB_ROOT` and `FILESYSTEM_WEB_URL` to override those defaults in `config/filesystems.rs`. `FILESYSTEM_WEB_ROOT` overrides the website disk root; when unset, it uses `APP_PUBLIC_PATH` (default `public`). Relative paths are resolved from the application root; absolute paths are used directly. Empty or whitespace-only values fail configuration loading. The application uses `web.root` for `public_path()`; calling `use_public_path()` before boot overrides the directory and updates `web.root`. Both mounts use `static_disk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `FILESYSTEM_PUBLIC_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
 
 Both disk mounts require public files and traversable directories on Unix, and reject symbolic links, temporary files and files with multiple hard links. If `public/storage` is a symbolic link, the `web` disk skips it and the `public` disk serves files directly from its configured root.
 
@@ -108,11 +108,11 @@ use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Option<String>)> {
     let path = "reports/today.txt";
-    Ok((disk.size(path).await?, disk.mimeType(path).await?))
+    Ok((disk.size(path).await?, disk.mime_type(path).await?))
 }
 ```
 
-Use `mimeType` to check content signatures, with a filename extension or `application/octet-stream` as fallback. Use `checksum` for a streamed MD5 digest, or `checksumWith::<D>` to select a Rust digest. For these two operations, disk failures return `None` when `throw` is disabled. Invalid paths always return an error.
+Use `mime_type` to check content signatures, with a filename extension or `application/octet-stream` as fallback. Use `checksum` for a streamed MD5 digest, or `checksumWith::<D>` to select a Rust digest. For these two operations, disk failures return `None` when `throw` is disabled. Invalid paths always return an error.
 
 ## Storing Files
 

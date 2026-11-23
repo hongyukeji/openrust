@@ -4,7 +4,7 @@ use crate::{
     },
     http::{HttpError, HttpFuture, Method, Next, Request, Response},
     session::{SessionError, SessionManager, session_manager::RequestSession},
-    support::facades::{Auth, URL, current_container},
+    support::facades::{Auth, Url, current_container},
 };
 
 /// Loads the request session and persists it on the response path.
@@ -77,7 +77,7 @@ async fn handle_session(
         && path.as_str().starts_with('/')
         && !path.as_str().starts_with("//")
     {
-        session.set_previous_url(&URL::for_request(request)?.full()?)?;
+        session.set_previous_url(&Url::for_request(request)?.full()?)?;
         session.set_previous_route(request.route_name.as_deref())?;
     }
     #[cfg(feature = "sanctum")]

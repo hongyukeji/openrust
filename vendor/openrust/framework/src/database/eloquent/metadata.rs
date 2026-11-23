@@ -22,7 +22,6 @@ pub struct ModelMetadata {
     pub(super) appends: &'static [&'static str],
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ModelMetadata {
     pub const fn new(table: &'static str) -> Self {
         Self {
@@ -51,13 +50,13 @@ impl ModelMetadata {
         self
     }
 
-    pub const fn primaryKey(mut self, name: &'static str) -> Self {
+    pub const fn primary_key(mut self, name: &'static str) -> Self {
         self.primary_key = name;
         self
     }
 
     /// Sets the default size for pages returned by this model's queries.
-    pub const fn perPage(mut self, size: u64) -> Self {
+    pub const fn per_page(mut self, size: u64) -> Self {
         self.per_page = size;
         self
     }
@@ -68,13 +67,13 @@ impl ModelMetadata {
     }
 
     /// Generates unique identifiers for the primary key unless other columns are declared.
-    pub const fn uniqueId(mut self, strategy: UniqueId) -> Self {
+    pub const fn unique_id(mut self, strategy: UniqueId) -> Self {
         self.unique_id = Some(strategy);
         self
     }
 
     /// Replaces the default primary-key column list for unique identifiers.
-    pub const fn uniqueIds(mut self, columns: &'static [&'static str]) -> Self {
+    pub const fn unique_ids(mut self, columns: &'static [&'static str]) -> Self {
         self.unique_ids = Some(columns);
         self
     }
@@ -103,12 +102,12 @@ impl ModelMetadata {
         self.deleted_at
     }
 
-    pub const fn softDeletes(mut self, deleted_at: &'static str) -> Self {
+    pub const fn soft_deletes(mut self, deleted_at: &'static str) -> Self {
         self.deleted_at = Some(deleted_at);
         self
     }
 
-    pub const fn dateFormat(mut self, format: &'static str) -> Self {
+    pub const fn date_format(mut self, format: &'static str) -> Self {
         self.date_format = format;
         self
     }

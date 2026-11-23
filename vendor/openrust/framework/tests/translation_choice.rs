@@ -73,14 +73,14 @@ async fn translator_uses_replaced_selector_and_exposes_its_real_loader() {
     )
     .unwrap();
     translator
-        .addLines(
+        .add_lines(
             BTreeMap::from([("messages.items".into(), Line::Text("one|many".into()))]),
             "en",
             None,
         )
         .unwrap();
-    let loader = translator.getLoader();
-    assert!(Arc::ptr_eq(&loader, &translator.getLoader()));
+    let loader = translator.get_loader();
+    assert!(Arc::ptr_eq(&loader, &translator.get_loader()));
     assert_eq!(
         loader.load("en", "file", None).await.unwrap().get("name"),
         Some(&Line::Text("loaded".into()))
@@ -91,14 +91,14 @@ async fn translator_uses_replaced_selector_and_exposes_its_real_loader() {
             .unwrap(),
         "loaded"
     );
-    let original = translator.getSelector();
+    let original = translator.get_selector();
     assert_eq!(
         translator
             .choose("messages.items", 2_i64, &BTreeMap::new(), None)
             .unwrap(),
         "many"
     );
-    translator.setSelector(Custom);
+    translator.set_selector(Custom);
     assert_eq!(
         translator
             .choose("messages.items", 2_i64, &BTreeMap::new(), None)
@@ -109,7 +109,7 @@ async fn translator_uses_replaced_selector_and_exposes_its_real_loader() {
         original.choose("one|many", 2_i64.into(), "en").unwrap(),
         "many"
     );
-    translator.setSelector(MessageSelector);
+    translator.set_selector(MessageSelector);
     assert_eq!(
         translator
             .choose("messages.items", 2_i64, &BTreeMap::new(), None)

@@ -34,13 +34,13 @@ impl Job for ReservedJob {
     fn uuid(&self) -> &str {
         self.payload.uuid()
     }
-    fn getJobId(&self) -> &str {
+    fn get_job_id(&self) -> &str {
         &self.id
     }
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         self.context.connection()
     }
-    fn getQueue(&self) -> &str {
+    fn get_queue(&self) -> &str {
         self.context.queue()
     }
     fn payload(&self) -> &Payload {
@@ -52,16 +52,16 @@ impl Job for ReservedJob {
     fn attempts(&self) -> u32 {
         self.context.attempts()
     }
-    fn isDeleted(&self) -> bool {
+    fn is_deleted(&self) -> bool {
         self.deleted
     }
-    fn isReleased(&self) -> bool {
+    fn is_released(&self) -> bool {
         self.released
     }
-    fn hasFailed(&self) -> bool {
+    fn has_failed(&self) -> bool {
         self.failed
     }
-    fn markAsFailed(&mut self) {
+    fn mark_as_failed(&mut self) {
         self.failed = true;
     }
 

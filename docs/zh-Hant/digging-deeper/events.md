@@ -35,7 +35,7 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 在應用程式中宣告註冊函式，透過 `with_events(DiscoverEvents::new(&[register_orders]))` 接入。應用程式啟動時載入已編譯的清單。實作 `Subscriber` 後，可使用 `Event::subscribe` 成組註冊監聽器。執行 `./artisan event:list --event=orders --json` 查看註冊結果。
 
-在清單中呼叫 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 註冊監聽器型別，也可以在應用程式作用域內呼叫 `Event::listenClass`。在應用程式容器中為該型別繫結工廠，非同步依賴可用 `bind_async`。派送到該監聽器時，框架從所屬應用程式的容器解析實例。缺少繫結會使派送失敗。使用 `Delivery::AfterCommit` 時，實例在派送時解析，交易成功提交後呼叫。
+在清單中呼叫 `registry.listen_class::<OrderListener>("orders.created", Delivery::Sync)?` 註冊監聽器型別，也可以在應用程式作用域內呼叫 `Event::listen_class`。在應用程式容器中為該型別繫結工廠，非同步依賴可用 `bind_async`。派送到該監聽器時，框架從所屬應用程式的容器解析實例。缺少繫結會使派送失敗。使用 `Delivery::AfterCommit` 時，實例在派送時解析，交易成功提交後呼叫。
 
 需要動態探索時，實作 `ShouldBeDiscovered`，用 `withListener` 接入監聽器註冊。用 `with_events(discover_events())` 接入產生的清單。啟動時，探索條件讀取目前應用並決定是否註冊監聽器。條件回傳錯誤時，本次清單註冊失敗。透過 `Event::listen` 手動註冊的監聽器獨立於探索條件。
 
@@ -54,7 +54,7 @@ use openrust::{
 struct OrderListener;
 
 impl ShouldBeDiscovered for OrderListener {
-    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+    fn should_be_discovered(app: &Application) -> EventResult<bool> {
         app.environment(Some("production".into()))
             .map(bool::from)
             .map_err(EventError::Unavailable)
@@ -100,7 +100,7 @@ fn discover_events() -> DiscoverEvents {
 
 ## 資料庫交易提交後派送
 
-透過 `Event::dispatchInTransaction` 明確傳入目前交易。使用 `Delivery::AfterCommit` 延後單一監聽器，或實作 `ShouldDispatchAfterCommit` 並呼叫 `Event::dispatchAfterCommit` 延後整個事件。儲存點成功提交後，回呼保留至最外層提交時執行。復原會清除受影響範圍內的回呼。沒有使用中的交易時立即執行。提交後的回呼失敗會以 `DatabaseError::AfterCommit` 回報。
+透過 `Event::dispatch_in_transaction` 明確傳入目前交易。使用 `Delivery::AfterCommit` 延後單一監聽器，或實作 `ShouldDispatchAfterCommit` 並呼叫 `Event::dispatch_after_commit` 延後整個事件。儲存點成功提交後，回呼保留至最外層提交時執行。復原會清除受影響範圍內的回呼。沒有使用中的交易時立即執行。提交後的回呼失敗會以 `DatabaseError::AfterCommit` 回報。
 
 模型專屬回呼見[觀察者與資料庫交易](../eloquent/getting-started.md#observers-and-database-transactions)。
 
@@ -142,12 +142,12 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
 
 ### 作用域內的事件替身 {#scoped-event-fakes}
 
-在應用程式作用域內，`Event::fakeFor` 使用暫時替身執行非同步回呼，並傳回回呼的結果。空清單會選取所有事件。`Event::fakeExceptFor` 允許列出的事件交給監聽器，其餘事件由替身記錄。若要在整個應用程式使用相同的排除規則，可呼叫 `Event::fakeExcept`，直到安裝另一個替身。
+在應用程式作用域內，`Event::fake_for` 使用暫時替身執行非同步回呼，並傳回回呼的結果。空清單會選取所有事件。`Event::fake_except_for` 允許列出的事件交給監聽器，其餘事件由替身記錄。若要在整個應用程式使用相同的排除規則，可呼叫 `Event::fake_except`，直到安裝另一個替身。
 
 ```rust
 use openrust::{events::NamedEvent, support::facades::Event};
 
-let order_id = Event::fakeFor(
+let order_id = Event::fake_for(
     async {
         Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
         Ok(42_u64)
@@ -161,7 +161,7 @@ assert_eq!(order_id, 42);
 
 ### 依事件酬載篩選 {#matching-event-payloads}
 
-在應用程式作用域內，`Event::fakeWhen` 依事件全名或接收事件的回呼選取事件。`Event::fakeForWhen` 在非同步回呼內套用相同規則。名稱清單為空時，由篩選回呼決定。`except` 和 `exceptWhen` 讓符合排除規則的事件繼續交給一般監聽器，即使替身已選取該事件。
+在應用程式作用域內，`Event::fake_when` 依事件全名或接收事件的回呼選取事件。`Event::fake_for_when` 在非同步回呼內套用相同規則。名稱清單為空時，由篩選回呼決定。`except` 和 `exceptWhen` 讓符合排除規則的事件繼續交給一般監聽器，即使替身已選取該事件。
 
 ```rust
 use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
@@ -171,7 +171,7 @@ let is_priority = |event: &dyn Payload| {
         && event.downcast_ref::<NamedEvent<u64>>()
             .is_some_and(|order| *order.payload() >= 42)
 };
-let fake = Event::fakeWhen(&[], is_priority)?;
+let fake = Event::fake_when(&[], is_priority)?;
 Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
 Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
 
@@ -184,4 +184,4 @@ fake.assertDispatchedOnce("orders.created")
 
 ## 暫存事件
 
-`Dispatcher::push(Arc<dyn Event>)` 暫存事件，`flush(name, context)` 派發對應的 `_pushed` 監聽器。重複 flush 會再次派發，需用 `forgetPushed` 明確清除；這與 `defer`、交易提交後派發不同。應用程式中的暫存資料依請求／佇列作用域隔離；作用域內清除不會刪除其他請求的共享監聽器。
+`Dispatcher::push(Arc<dyn Event>)` 暫存事件，`flush(name, context)` 派發對應的 `_pushed` 監聽器。重複 flush 會再次派發，需用 `forget_pushed` 明確清除；這與 `defer`、交易提交後派發不同。應用程式中的暫存資料依請求／佇列作用域隔離；作用域內清除不會刪除其他請求的共享監聽器。

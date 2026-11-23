@@ -10,9 +10,8 @@ use openrust::{
 
 pub struct Definition;
 
-#[allow(non_snake_case)]
 impl Migration for Definition {
-    fn getConnection(&self, config: &dyn Repository) -> DatabaseResult<Option<String>> {
+    fn get_connection(&self, config: &dyn Repository) -> DatabaseResult<Option<String>> {
         match config.get("passport.connection") {
             None | Some(serde_json::Value::Null) => Ok(None),
             Some(serde_json::Value::String(name)) => Ok(Some(name)),
@@ -27,7 +26,7 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("oauth_refresh_tokens", |table| -> DatabaseResult<()> {
                     table.comment(__(
                         "schema.tables.oauth_refresh_tokens",
@@ -45,7 +44,7 @@ impl Migration for Definition {
                         .boolean("revoked")
                         .comment(__("schema.columns.revoked", &Default::default())?);
                     table
-                        .dateTime("expires_at", None)
+                        .date_time("expires_at", None)
                         .nullable()
                         .comment(__("schema.columns.expires_at", &Default::default())?);
                     Ok(())
@@ -59,8 +58,8 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
-                .dropIfExists("oauth_refresh_tokens")
+                .get_schema_builder()
+                .drop_if_exists("oauth_refresh_tokens")
                 .await
         })
     }

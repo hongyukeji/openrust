@@ -35,7 +35,7 @@ store.define("theme", std::sync::Arc::new(|scope| Box::pin(async move {
 let user = store.r#for("user-42");
 let enabled = user.active("new-api").await?;
 let theme = user.value("theme").await?;
-user.loadMissing(&["new-api", "theme"]).await?;
+user.load_missing(&["new-api", "theme"]).await?;
 let both = user.allAreActive(&["new-api", "theme"]).await?;
 ```
 

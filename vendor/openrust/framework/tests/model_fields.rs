@@ -65,7 +65,7 @@ fn connection() -> Connection {
 #[tokio::test]
 async fn field_references_use_existing_sql_model_and_relationship_paths() {
     let db = connection();
-    let quote = if db.getDriverName() == "mysql" {
+    let quote = if db.get_driver_name() == "mysql" {
         '`'
     } else {
         '"'
@@ -92,20 +92,20 @@ async fn field_references_use_existing_sql_model_and_relationship_paths() {
     let mut string = db
         .table("field_reference_people")
         .r#where("display_name", "=", "张三");
-    assert_eq!(named.toSql().unwrap(), string.toSql().unwrap());
+    assert_eq!(named.to_sql().unwrap(), string.to_sql().unwrap());
     assert_eq!(
         named.get_bindings().unwrap(),
         string.get_bindings().unwrap()
     );
     let named = named
         .select([Person::ID, Person::NAME])
-        .orderBy(Person::ORDER, "desc")
+        .order_by(Person::ORDER, "desc")
         .get()
         .await
         .unwrap();
     let string = string
         .select(["id", "display_name"])
-        .orderBy("order", "desc")
+        .order_by("order", "desc")
         .get()
         .await
         .unwrap();
@@ -147,21 +147,21 @@ async fn field_references_use_existing_sql_model_and_relationship_paths() {
             &qualified_parent,
         )
         .select([format!("c.{}", Person::NAME).as_str()])
-        .orderBy(&qualified_id, "asc")
+        .order_by(&qualified_id, "asc")
         .get()
         .await
         .unwrap();
     assert_eq!(children.len(), 1);
-    let mut query = Person::queryOn(&db);
+    let mut query = Person::query_on(&db);
     query.r#where(Person::ID, "=", 1);
     let parent = query.first().await.unwrap().unwrap();
     assert_eq!(
-        parent.getAttribute(Person::NAME),
+        parent.get_attribute(Person::NAME),
         Some(&Value::from("张三"))
     );
     let relation = HasMany::<Person, Person>::new(Person::ID, Person::PARENT_ID);
-    assert_eq!(relation.getResults(&parent).await.unwrap().len(), 1);
-    let mut query = Person::queryOn(&db);
+    assert_eq!(relation.get_results(&parent).await.unwrap().len(), 1);
+    let mut query = Person::query_on(&db);
     query.r#where(Person::ID, "=", 1);
     assert_eq!(
         query
@@ -193,22 +193,22 @@ async fn field_references_use_existing_sql_model_and_relationship_paths() {
     );
     // 动态属性和原有原始表达式入口保持可用。
     let mut parent = parent;
-    parent.setAttribute("runtime_only", "dynamic");
+    parent.set_attribute("runtime_only", "dynamic");
     assert_eq!(
-        parent.getAttribute("runtime_only"),
+        parent.get_attribute("runtime_only"),
         Some(&Value::from("dynamic"))
     );
     assert_eq!(
         db.table("field_reference_people")
-            .selectRaw("count(*) as total", vec![])
+            .select_raw("count(*) as total", vec![])
             .get()
             .await
             .unwrap()
             .len(),
         1
     );
-    db.getSchemaBuilder()
-        .dropIfExists("field_reference_people")
+    db.get_schema_builder()
+        .drop_if_exists("field_reference_people")
         .await
         .unwrap();
 }

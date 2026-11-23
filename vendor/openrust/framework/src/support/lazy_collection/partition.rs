@@ -2,12 +2,11 @@ use std::{iter, rc::Rc};
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, LazyCollection};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
-    pub fn forPage(self, page: usize, per_page: usize) -> Self {
+    pub fn for_page(self, page: usize, per_page: usize) -> Self {
         let offset = page.saturating_sub(1).saturating_mul(per_page);
         let source = self.skip(offset);
-        Self::from_iterators(move || source.getIterator().take(per_page))
+        Self::from_iterators(move || source.get_iterator().take(per_page))
     }
 
     pub fn split(self, groups: usize) -> CollectionResult<LazyCollection<'source, Collection<T>>> {
@@ -17,7 +16,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(self.try_passthru(move |items| items.split(groups)))
     }
 
-    pub fn splitIn(
+    pub fn split_in(
         self,
         groups: usize,
     ) -> CollectionResult<LazyCollection<'source, Collection<T>>> {
@@ -56,7 +55,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         let value = Rc::new(value);
         Self::from_iterators(move || {
             let value = Rc::clone(&value);
-            let mut source = self.getIterator();
+            let mut source = self.get_iterator();
             let mut remaining = size.unsigned_abs();
             let mut next_key = Some(0i64);
             iter::from_fn(move || {

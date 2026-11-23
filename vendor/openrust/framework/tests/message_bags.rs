@@ -8,8 +8,8 @@ fn construction_add_and_merge_have_distinct_duplicate_semantics() {
     assert_eq!(messages.count(), 1);
     messages
         .add("z", "first")
-        .addIf(false, "a", "ignored")
-        .addIf(true, "a", "second");
+        .add_if(false, "a", "ignored")
+        .add_if(true, "a", "second");
     assert_eq!(messages.all(None), ["first", "second"]);
     messages.merge(&MessageBag::new([("z", ["first", "third"])]));
     assert_eq!(messages.count(), 4);
@@ -53,9 +53,9 @@ fn predicates_empty_fields_and_format_follow_message_content() {
     assert!(!messages.has_any([]));
     assert!(messages.has_any(["absent", "name"]));
     assert!(messages.missing(["empty", "absent"]));
-    messages.setFormat("<:key>:message</:key>");
+    messages.set_format("<:key>:message</:key>");
     assert!(messages.has("blank"));
-    assert_eq!(messages.getFormat(), "<:key>:message</:key>");
+    assert_eq!(messages.get_format(), "<:key>:message</:key>");
     assert_eq!(
         messages.first(Some("name"), Some("")),
         "<name>invalid</name>"
@@ -71,16 +71,19 @@ fn predicates_empty_fields_and_format_follow_message_content() {
 fn raw_json_preserves_message_order_and_merged_duplicates() {
     let mut messages = MessageBag::new([("z", ["one"]), ("a", ["two"])]);
     messages.merge(&MessageBag::new([("z", ["one"])]));
-    messages.setFormat("<li>:message</li>");
+    messages.set_format("<li>:message</li>");
     assert_eq!(
         messages.to_json().unwrap(),
         r#"{"z":["one","one"],"a":["two"]}"#
     );
     let restored: MessageBag = serde_json::from_str(&messages.to_json().unwrap()).unwrap();
     assert_eq!(restored.all(None), ["one", "one", "two"]);
-    assert_eq!(restored.getFormat(), ":message");
-    assert_eq!(messages.to_array(), messages.jsonSerialize());
-    assert_eq!(messages.getMessages(), messages.getMessageBag().messages());
+    assert_eq!(restored.get_format(), ":message");
+    assert_eq!(messages.to_array(), messages.json_serialize());
+    assert_eq!(
+        messages.get_messages(),
+        messages.get_message_bag().messages()
+    );
     assert!(messages.to_pretty_json().unwrap().contains('\n'));
     assert!(serde_json::from_value::<MessageBag>(json!({"name":42})).is_err());
 }
@@ -88,9 +91,9 @@ fn raw_json_preserves_message_order_and_merged_duplicates() {
 #[test]
 fn named_bags_count_and_forward_only_the_default_bag() {
     let mut errors = ViewErrorBag::new();
-    assert!(!errors.hasBag("default"));
-    assert!(errors.getBag("missing").is_empty());
-    assert!(errors.getBags().is_empty());
+    assert!(!errors.has_bag("default"));
+    assert!(errors.get_bag("missing").is_empty());
+    assert!(errors.get_bags().is_empty());
     errors.put("profile", MessageBag::new([("email", ["invalid"])]));
     assert_eq!(errors.count(), 0);
     assert!(!errors.any());
@@ -103,10 +106,13 @@ fn named_bags_count_and_forward_only_the_default_bag() {
     assert!(errors.has("name"));
     assert_eq!(errors.first(None, None), "required");
     errors.put("profile", MessageBag::new([("email", ["changed"])]));
-    errors.getBagMut("profile").unwrap().add("email", "second");
-    assert!(errors.getBagMut("absent").is_none());
-    assert_eq!(errors.getBag("profile").count(), 2);
-    assert_eq!(errors.getBags().len(), 2);
+    errors
+        .get_bag_mut("profile")
+        .unwrap()
+        .add("email", "second");
+    assert!(errors.get_bag_mut("absent").is_none());
+    assert_eq!(errors.get_bag("profile").count(), 2);
+    assert_eq!(errors.get_bags().len(), 2);
     assert_eq!(errors.to_string(), r#"{"name":["required","short"]}"#);
     let restored: ViewErrorBag = serde_json::from_value(json!(errors)).unwrap();
     assert_eq!(restored, errors);

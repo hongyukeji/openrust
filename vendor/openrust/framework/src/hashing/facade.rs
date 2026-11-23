@@ -15,7 +15,6 @@ impl Facade for Hash {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Hash {
     pub fn extend(
         name: impl Into<String>,
@@ -25,8 +24,8 @@ impl Hash {
         Ok(())
     }
 
-    pub fn forgetDrivers() -> HashResult<()> {
-        Self::get_facade_root()?.forgetDrivers();
+    pub fn forget_drivers() -> HashResult<()> {
+        Self::get_facade_root()?.forget_drivers();
         Ok(())
     }
 
@@ -52,15 +51,15 @@ impl Hash {
         Self::driver(None)?.info(hashed)
     }
 
-    pub fn needsRehash(hashed: &str, options: &HashOptions) -> HashResult<bool> {
-        Self::driver(None)?.needsRehash(hashed, options)
+    pub fn needs_rehash(hashed: &str, options: &HashOptions) -> HashResult<bool> {
+        Self::driver(None)?.needs_rehash(hashed, options)
     }
 
-    pub fn isHashed(value: &str) -> HashResult<bool> {
-        Self::get_facade_root()?.isHashed(value)
+    pub fn is_hashed(value: &str) -> HashResult<bool> {
+        Self::get_facade_root()?.is_hashed(value)
     }
 
-    pub fn verifyConfiguration(hashed: &str) -> HashResult<bool> {
-        Self::driver(None)?.verifyConfiguration(hashed)
+    pub fn verify_configuration(hashed: &str) -> HashResult<bool> {
+        Self::driver(None)?.verify_configuration(hashed)
     }
 }

@@ -136,7 +136,7 @@ async fn send_webhook(
 }
 
 fn decrypt(value: &str, message: &str) -> NotificationResult<String> {
-    Crypt::decryptString(value)
+    Crypt::decrypt_string(value)
         .ok()
         .and_then(|value| String::from_utf8(value).ok())
         .ok_or_else(|| delivery(message))
@@ -217,14 +217,14 @@ impl Channel for SlackChannel {
             };
             let (encrypted_token, encrypted_webhook) = match destination {
                 Destination::Bot(token) => (
-                    token.map(Crypt::encryptString).transpose().map_err(|_| {
+                    token.map(Crypt::encrypt_string).transpose().map_err(|_| {
                         delivery("An application key is required to queue a Slack workspace token.")
                     })?,
                     None,
                 ),
                 Destination::Webhook(url) => (
                     None,
-                    Some(Crypt::encryptString(url).map_err(|_| {
+                    Some(Crypt::encrypt_string(url).map_err(|_| {
                         delivery("An application key is required to queue a Slack webhook URL.")
                     })?),
                 ),

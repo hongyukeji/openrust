@@ -23,19 +23,19 @@ fn integer_odds_probabilities_and_callback_values_follow_the_selected_branch() {
         .winner(|| "winner")
         .loser(|| "loser");
     assert_eq!(wins.choose(), "winner");
-    assert_eq!(losses.chooseTimes(3), ["loser"; 3]);
-    assert!(wins.chooseTimes(0).is_empty());
+    assert_eq!(losses.choose_times(3), ["loser"; 3]);
+    assert!(wins.choose_times(0).is_empty());
 }
 
 #[test]
 fn sequences_restore_normal_sampling_and_support_a_custom_missing_handler() {
-    Lottery::scopeSync(|| {
+    Lottery::scope_sync(|| {
         let lottery = Lottery::odds(0, 1).unwrap();
         Lottery::fix([true, false, true]);
-        assert_eq!(lottery.chooseTimes(5), [true, false, true, false, false]);
+        assert_eq!(lottery.choose_times(5), [true, false, true, false, false]);
         let missing = Arc::new(AtomicUsize::new(0));
         let counter = missing.clone();
-        Lottery::forceResultWithSequence(
+        Lottery::force_result_with_sequence(
             [false],
             Some(Arc::new(move |chances, out_of| {
                 assert!(matches!(chances, LotteryChance::Integer(0)));
@@ -44,31 +44,31 @@ fn sequences_restore_normal_sampling_and_support_a_custom_missing_handler() {
                 true
             })),
         );
-        assert_eq!(lottery.chooseTimes(3), [false, true, true]);
+        assert_eq!(lottery.choose_times(3), [false, true, true]);
         assert_eq!(missing.load(Ordering::Relaxed), 2);
-        Lottery::determineResultsNormally();
+        Lottery::determine_results_normally();
         assert!(!lottery.choose());
-        Lottery::setResultFactory(|_, _| true);
+        Lottery::set_result_factory(|_, _| true);
         assert!(lottery.choose());
-        Lottery::determineResultNormally();
+        Lottery::determine_result_normally();
         assert!(!lottery.choose());
     });
 }
 
 #[test]
 fn nested_scopes_restore_controls_even_after_a_callback_panics() {
-    Lottery::scopeSync(|| {
-        Lottery::alwaysWin();
+    Lottery::scope_sync(|| {
+        Lottery::always_win();
         let result = std::panic::catch_unwind(|| {
-            Lottery::scopeSync(|| {
-                Lottery::alwaysLose();
+            Lottery::scope_sync(|| {
+                Lottery::always_lose();
                 assert!(!Lottery::odds(1, 1).unwrap().choose());
                 panic!("模拟回调失败");
             })
         });
         assert!(result.is_err());
         assert!(Lottery::odds(0, 1).unwrap().choose());
-        Lottery::determineResultNormally();
+        Lottery::determine_result_normally();
         assert!(!Lottery::odds(0, 1).unwrap().choose());
     });
     assert!(!Lottery::odds(0, 1).unwrap().choose());
@@ -76,11 +76,11 @@ fn nested_scopes_restore_controls_even_after_a_callback_panics() {
 
 #[tokio::test]
 async fn async_controls_remain_task_local_across_yields_and_cancellation() {
-    assert!(std::panic::catch_unwind(Lottery::alwaysWin).is_err());
+    assert!(std::panic::catch_unwind(Lottery::always_win).is_err());
     let barrier = Arc::new(tokio::sync::Barrier::new(2));
     let left_barrier = barrier.clone();
     let left = tokio::spawn(Lottery::scope(async move {
-        Lottery::alwaysWin();
+        Lottery::always_win();
         left_barrier.wait().await;
         for _ in 0..20 {
             tokio::task::yield_now().await;
@@ -88,7 +88,7 @@ async fn async_controls_remain_task_local_across_yields_and_cancellation() {
         }
     }));
     let right = tokio::spawn(Lottery::scope(async move {
-        Lottery::alwaysLose();
+        Lottery::always_lose();
         barrier.wait().await;
         for _ in 0..20 {
             tokio::task::yield_now().await;
@@ -99,7 +99,7 @@ async fn async_controls_remain_task_local_across_yields_and_cancellation() {
     right.await.unwrap();
     let (ready, started) = tokio::sync::oneshot::channel();
     let cancelled = tokio::spawn(Lottery::scope(async move {
-        Lottery::alwaysWin();
+        Lottery::always_win();
         ready.send(()).unwrap();
         std::future::pending::<()>().await;
     }));
@@ -121,9 +121,9 @@ fn concurrent_runtime_threads_keep_independent_result_factories() {
                     .unwrap()
                     .block_on(Lottery::scope(async move {
                         if win {
-                            Lottery::alwaysWin();
+                            Lottery::always_win();
                         } else {
-                            Lottery::alwaysLose();
+                            Lottery::always_lose();
                         }
                         barrier.wait();
                         tokio::task::yield_now().await;

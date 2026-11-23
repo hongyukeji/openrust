@@ -58,14 +58,14 @@ docker build --platform linux/amd64 -t openrust/mysql57-ecdhe docker/mysql57-ecd
 }
 ```
 
-查询默认走读库。写入和事务走写库。开启 `sticky: true` 后，同一次 HTTP 请求或 Artisan 执行中，修改数据后的查询走写库。直接使用 `DatabaseManager` 时，连接克隆共享路由状态，可用 `forgetRecordModificationState` 清除。用 `selectFromWriteConnection` 将单次查询发往写库。
+查询默认走读库。写入和事务走写库。开启 `sticky: true` 后，同一次 HTTP 请求或 Artisan 执行中，修改数据后的查询走写库。直接使用 `DatabaseManager` 时，连接克隆共享路由状态，可用 `forget_record_modification_state` 清除。用 `select_from_write_connection` 将单次查询发往写库。
 
 
 ## 执行 SQL
 
-在应用生命周期内使用 `DB::select`、`DB::selectOne`、`DB::scalar`、`DB::insert`、`DB::update`、`DB::delete` 和 `DB::statement`。SQL 使用 `?` 占位符，参数单独传入。`selectOne` 返回可选行，`scalar` 在无匹配行时返回 SQL null，有结果时必须只有一列。`update` 和 `delete` 返回受影响的行数。`unprepared` 执行原始 SQL，应传入由应用控制的文本。
+在应用生命周期内使用 `Db::select`、`Db::select_one`、`Db::scalar`、`Db::insert`、`Db::update`、`Db::delete` 和 `Db::statement`。SQL 使用 `?` 占位符，参数单独传入。`select_one` 返回可选行，`scalar` 在无匹配行时返回 SQL null，有结果时必须只有一列。`update` 和 `delete` 返回受影响的行数。`unprepared` 执行原始 SQL，应传入由应用控制的文本。
 
-`DB::connection(Some("name"))` 解析具名连接并共享应用内的连接池。查询异步执行，参数使用带类型的值。MySQL 的无符号整数和定点小数保留完整精度，定点小数结果以文本表示。
+`Db::connection(Some("name"))` 解析具名连接并共享应用内的连接池。查询异步执行，参数使用带类型的值。MySQL 的无符号整数和定点小数保留完整精度，定点小数结果以文本表示。
 
 ```rust
 use openrust::{config::Repository, database::{DatabaseManager, Value}};
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 查询多个结果集 {#selecting-multiple-result-sets}
 
-使用 `DB::selectResultSets` 执行可返回多个结果集的 MySQL 预处理语句，例如存储过程调用。结果按返回顺序排列，并保留空结果集。MySQL 的 `CALL` 还会在最后返回一个空的状态结果集。
+使用 `Db::select_result_sets` 执行可返回多个结果集的 MySQL 预处理语句，例如存储过程调用。结果按返回顺序排列，并保留空结果集。MySQL 的 `CALL` 还会在最后返回一个空的状态结果集。
 
 传入 `true` 时遵循正常的读连接路由，传入 `false` 时使用写连接。在事务中通过事务对象调用该方法，查询会在事务所在连接上执行。SQLite 对该接口返回 `DatabaseError::UnsupportedOperation`。
 
@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
-    db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+    db.select_result_sets("CALL find_active_users(?)", &[active.into()], true).await
 }
 ```
 
@@ -107,10 +107,10 @@ async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<
 为每个命名参数绑定值，每条语句使用一种占位符。SQLite 允许重复使用同一个名称。使用 MySQL 原生预处理时，每处占位符使用不同名称。
 
 ```rust
-use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::DB};
+use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::Db};
 
 async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
-    DB::selectOne(
+    Db::select_one(
         "SELECT * FROM users WHERE id = :id",
         Bindings::Named(&[("id", id.into())]),
     ).await
@@ -119,30 +119,30 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 ### 使用多个数据库连接
 
-用 `DB::connection(Some("reporting"))` 按名称选择连接。用 `::read` 和 `::write` 后缀直接选择对应角色，例如 `DB::connection(Some("reporting::read"))`。
+用 `Db::connection(Some("reporting"))` 按名称选择连接。用 `::read` 和 `::write` 后缀直接选择对应角色，例如 `Db::connection(Some("reporting::read"))`。
 
 #### 直连别名 {#direct-connection-alias}
 
-对 MySQL 和 SQLite，`DB::connection(Some("mysql::direct"))` 会让读写操作都使用该连接的写端点。将 `mysql` 替换为实际连接名。查询日志和事件记录为 `QueryRole::Direct`。框架 未配置独立直连端点时也回退到写端点。
+对 MySQL 和 SQLite，`Db::connection(Some("mysql::direct"))` 会让读写操作都使用该连接的写端点。将 `mysql` 替换为实际连接名。查询日志和事件记录为 `QueryRole::Direct`。框架 未配置独立直连端点时也回退到写端点。
 
-PostgreSQL 的 `direct` 配置非空时，`DB::connection(Some("pgsql::direct"))` 选择独立端点。按需设置 `DB_DIRECT_HOST`、`DB_DIRECT_PORT`、`DB_DIRECT_USERNAME`、`DB_DIRECT_PASSWORD` 和 `DB_DIRECT_SSLMODE`。具名连接的 `direct` 选项继承其基础配置。迁移和账本操作默认走该端点。显式的 `::read`、`::write`、`::direct` 后缀按调用方指定的角色执行。
+PostgreSQL 的 `direct` 配置非空时，`Db::connection(Some("pgsql::direct"))` 选择独立端点。按需设置 `DB_DIRECT_HOST`、`DB_DIRECT_PORT`、`DB_DIRECT_USERNAME`、`DB_DIRECT_PASSWORD` 和 `DB_DIRECT_SSLMODE`。具名连接的 `direct` 选项继承其基础配置。迁移和账本操作默认走该端点。显式的 `::read`、`::write`、`::direct` 后缀按调用方指定的角色执行。
 
 使用 PgBouncer 事务池时，设置 `DB_POOLED=true` 或配置 PostgreSQL 的 `direct` 端点。池化的读写连接默认模拟预备语句，用 PostgreSQL 简单查询协议执行已编码的绑定值，支持 `max_prepared_statements=0`。此模式下，扩展类型和用户自定义类型按服务器返回的文本读取。直连默认使用原生预备语句。可在连接或其 `read`、`write`、`direct` 配置中设置 `emulate_prepares` 覆盖默认值。如果池化端点使用原生预备语句，启用 PgBouncer 的具名语句跟踪。保持应用和服务器的 `search_path` 一致，迁移使用直连端点。
 
 #### 断开、重连及清除连接 {#reconnecting-database-connections}
 
-`DB::disconnect` 退役当前读写连接池，下一次异步操作按当前配置建立新池。`DB::reconnect` 立即刷新连接池，保留逻辑连接和查询日志。`DB::purge` 同时清除缓存的连接，下次解析会创建新的逻辑连接。
+`Db::disconnect` 退役当前读写连接池，下一次异步操作按当前配置建立新池。`Db::reconnect` 立即刷新连接池，保留逻辑连接和查询日志。`Db::purge` 同时清除缓存的连接，下次解析会创建新的逻辑连接。
 
 进行中的事务继续使用原会话直到结束。已取得会话的操作可以完成，新操作使用替换后的连接池。
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 async fn refresh_database() -> DatabaseResult<()> {
-    DB::disconnect(None)?;
-    let connection = DB::reconnect(None).await?;
+    Db::disconnect(None)?;
+    let connection = Db::reconnect(None).await?;
     assert_eq!(connection.scalar("SELECT 1", &[]).await?, 1.into());
-    DB::purge(None)?;
+    Db::purge(None)?;
     Ok(())
 }
 ```
@@ -155,16 +155,16 @@ async fn refresh_database() -> DatabaseResult<()> {
 
 ### 预演查询 {#previewing-queries}
 
-用 `DB::pretend` 或指定连接的 `pretend` 收集 SQL。预演只记录 SQL，读操作返回空结果，写操作按方法返回成功或零影响行。查询前回调和查询事件照常运行。返回的条目包含渲染后的 SQL 和原始绑定值，预演日志独立于实时查询日志。
+用 `Db::pretend` 或指定连接的 `pretend` 收集 SQL。预演只记录 SQL，读操作返回空结果，写操作按方法返回成功或零影响行。查询前回调和查询事件照常运行。返回的条目包含渲染后的 SQL 和原始绑定值，预演日志独立于实时查询日志。
 
 ```rust
 use openrust::{
     database::{DatabaseResult, QueryLogEntry},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
-    DB::pretend(|connection| {
+    Db::pretend(|connection| {
         Box::pin(async move {
             connection
                 .update("UPDATE settings SET enabled = ? WHERE id = ?", &[1.into(), 42.into()])
@@ -176,17 +176,17 @@ async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
 }
 ```
 
-预演作用于当前异步作用域中的指定连接。独立启动的任务进入自己的作用域。用 `pretending()` 检查当前是否在预演，用 `withoutPretending` 在预演中显式执行真实操作。事务的开始、提交和回滚需要真实执行作用域。
+预演作用于当前异步作用域中的指定连接。独立启动的任务进入自己的作用域。用 `pretending()` 检查当前是否在预演，用 `without_pretending` 在预演中显式执行真实操作。事务的开始、提交和回滚需要真实执行作用域。
 
 ### 查询执行前回调 {#before-executing}
 
-用 `DB::beforeExecuting` 向默认连接注册，也可以在指定连接上调用 `beforeExecuting`。回调按注册顺序、在数据库操作之前收到原始 SQL 和绑定值。回调返回错误会中止本次操作及后续回调。游标首次轮询时运行回调。驱动层重放同一次查询时跳过回调。
+用 `Db::before_executing` 向默认连接注册，也可以在指定连接上调用 `before_executing`。回调按注册顺序、在数据库操作之前收到原始 SQL 和绑定值。回调返回错误会中止本次操作及后续回调。游标首次轮询时运行回调。驱动层重放同一次查询时跳过回调。
 
 ```rust
-use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::DB};
+use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::Db};
 
 async fn read_value() -> DatabaseResult<Value> {
-    DB::beforeExecuting(|sql, bindings, _, _| {
+    Db::before_executing(|sql, bindings, _, _| {
         Box::pin(async move {
             if sql == "SELECT ? AS n" {
                 assert!(matches!(bindings, Bindings::Positional([Value::Integer(42)])));
@@ -195,7 +195,7 @@ async fn read_value() -> DatabaseResult<Value> {
         })
     })?;
 
-    DB::scalar("SELECT ? AS n", &[42.into()]).await
+    Db::scalar("SELECT ? AS n", &[42.into()]).await
 }
 ```
 
@@ -211,7 +211,7 @@ use openrust::{
     contracts::events::Event as EventPayload,
     database::events::ConnectionEstablished,
     events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    support::facades::{DB, Event},
+    support::facades::{Db, Event},
 };
 
 fn connected<'a>(
@@ -228,18 +228,18 @@ fn connected<'a>(
 
 async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
     Event::listen(ConnectionEstablished::NAME, Arc::new(connected), Delivery::Sync)?;
-    DB::connection(None)?.establish().await?;
+    Db::connection(None)?.establish().await?;
     Ok(())
 }
 ```
 
 ### 监听查询事件 {#listening-for-query-events}
 
-使用 `DB::listen` 监听应用连接的成功查询。`QueryExecuted` 包含原始 SQL、绑定参数、读写角色、连接和 `Duration` 耗时。游标在成功耗尽后派发，计时排除调用方在两行之间处理数据的时间。
+使用 `Db::listen` 监听应用连接的成功查询。`QueryExecuted` 包含原始 SQL、绑定参数、读写角色、连接和 `Duration` 耗时。游标在成功耗尽后派发，计时排除调用方在两行之间处理数据的时间。
 
 ### 监控累计查询耗时 {#monitoring-cumulative-query-time}
 
-使用 `DB::whenQueryingForLongerThan` 监控默认连接，也可在具名连接上注册。累计耗时超过阈值后，每个处理器执行一次。`resetTotalQueryDuration` 清零耗时。`allowQueryDurationHandlersToRunAgain` 允许处理器再次执行。
+使用 `Db::when_querying_for_longer_than` 监控默认连接，也可在具名连接上注册。累计耗时超过阈值后，每个处理器执行一次。`reset_total_query_duration` 清零耗时。`allow_query_duration_handlers_to_run_again` 允许处理器再次执行。
 
 ```rust
 use std::{sync::Arc, time::Duration};
@@ -247,7 +247,7 @@ use openrust::{
     contracts::events::Event as EventPayload,
     database::{DatabaseResult, events::QueryExecuted},
     events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 fn report_query<'a>(
@@ -263,37 +263,37 @@ fn report_query<'a>(
 }
 
 fn subscribe() -> DatabaseResult<()> {
-    DB::listen(Arc::new(report_query))
+    Db::listen(Arc::new(report_query))
 }
 
 fn monitor_cumulative_time() -> DatabaseResult<()> {
-    DB::whenQueryingForLongerThan(Duration::from_millis(500), Arc::new(report_query))
+    Db::when_querying_for_longer_than(Duration::from_millis(500), Arc::new(report_query))
 }
 ```
 
 ### 查看查询日志 {#inspecting-query-logs}
 
-`QueryExecuted::toRawSql()` 将原始语句及绑定值渲染为诊断 SQL。渲染保留引号文本、标识符及注释里的占位符。数据库仍用预处理语句和独立绑定执行查询。
+`QueryExecuted::to_raw_sql()` 将原始语句及绑定值渲染为诊断 SQL。渲染保留引号文本、标识符及注释里的占位符。数据库仍用预处理语句和独立绑定执行查询。
 
-查询日志默认关闭。可在连接上开启，也可通过 `DB` 为默认连接开启。`getQueryLog` 返回 SQL 和绑定值，`getRawQueryLog` 返回嵌入值的 SQL。`disableQueryLog` 停止记录，`flushQueryLog` 清除已记录的条目。
+查询日志默认关闭。可在连接上开启，也可通过 `Db` 为默认连接开启。`get_query_log` 返回 SQL 和绑定值，`get_raw_query_log` 返回嵌入值的 SQL。`disable_query_log` 停止记录，`flush_query_log` 清除已记录的条目。
 
 ```rust
-use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::DB};
+use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::Db};
 
 async fn inspect_value() -> DatabaseResult<Vec<RawQueryLogEntry>> {
-    DB::enableQueryLog()?;
-    let result = DB::select("SELECT ? AS inspected", &[42.into()]).await;
-    DB::disableQueryLog()?;
+    Db::enable_query_log()?;
+    let result = Db::select("SELECT ? AS inspected", &[42.into()]).await;
+    Db::disable_query_log()?;
     result?;
-    let log = DB::getRawQueryLog()?;
-    DB::flushQueryLog()?;
+    let log = Db::get_raw_query_log()?;
+    Db::flush_query_log()?;
     Ok(log)
 }
 ```
 
 ## 数据库事务
 
-默认连接使用 `DB::transaction`，具名连接直接调用 `transaction`。在回调中通过传入的事务句柄执行 SQL。该句柄独占一条写库物理连接，直到提交或回滚。Rust 用装箱的 Future 在异步查询期间借用事务句柄。第二个参数是总尝试次数，传 `1` 表示执行一次。并发错误可能重跑整个回调，把外部副作用放在事务之外，或保证可以安全重复执行。
+默认连接使用 `Db::transaction`，具名连接直接调用 `transaction`。在回调中通过传入的事务句柄执行 SQL。该句柄独占一条写库物理连接，直到提交或回滚。Rust 用装箱的 Future 在异步查询期间借用事务句柄。第二个参数是总尝试次数，传 `1` 表示执行一次。并发错误可能重跑整个回调，把外部副作用放在事务之外，或保证可以安全重复执行。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
@@ -317,11 +317,11 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 }
 ```
 
-手动控制时调用 `beginTransaction().await?`，然后在返回的句柄上调用 `commit` 或 `rollBack(None)`。在句柄上再次调用 `beginTransaction` 会创建保存点。`rollBack(Some(level))` 回滚至指定层级，层级零回滚整个事务。丢弃活动句柄会回滚尚未提交的操作。MySQL 的 DDL 等语句可能隐式提交，请放在要求原子性的事务之外。
+手动控制时调用 `begin_transaction().await?`，然后在返回的句柄上调用 `commit` 或 `roll_back(None)`。在句柄上再次调用 `begin_transaction` 会创建保存点。`roll_back(Some(level))` 回滚至指定层级，层级零回滚整个事务。丢弃活动句柄会回滚尚未提交的操作。MySQL 的 DDL 等语句可能隐式提交，请放在要求原子性的事务之外。
 
 ### 共用连接接口 {#connection-interface}
 
-同一段 SQL 或构建器代码需要同时支持池化 `Connection` 和绑定物理会话的 `Transaction` 时，可使用 `&mut dyn ConnectionInterface`。显式传入命名或位置 `Bindings`。`select`、`selectOne`、`scalar` 和 `cursor` 的读角色参数传入 `false` 时，池化连接走写库。事务中的查询始终使用事务自己的会话。事务的开始、提交和回滚由具体的连接与事务句柄管理。
+同一段 SQL 或构建器代码需要同时支持池化 `Connection` 和绑定物理会话的 `Transaction` 时，可使用 `&mut dyn ConnectionInterface`。显式传入命名或位置 `Bindings`。`select`、`select_one`、`scalar` 和 `cursor` 的读角色参数传入 `false` 时，池化连接走写库。事务中的查询始终使用事务自己的会话。事务的开始、提交和回滚由具体的连接与事务句柄管理。
 
 ```rust
 use openrust::database::{Bindings, ConnectionInterface, DatabaseResult, Value};
@@ -335,7 +335,7 @@ pub async fn answer(connection: &mut dyn ConnectionInterface) -> DatabaseResult<
 
 ### SQL Server 自动回滚 {#sql-server-automatic-rollback}
 
-SQL Server 在语句失败时可能自动撤销整条事务。事务回调返回该错误时，OpenRust 会先检查服务端事务状态。服务端已回滚时，回调返回原始语句错误，事务句柄关闭。剩余事务无法回滚到保存点时，OpenRust 会回滚整条事务。确认回滚后，执行相应的 `afterRollBack()` 回调。
+SQL Server 在语句失败时可能自动撤销整条事务。事务回调返回该错误时，OpenRust 会先检查服务端事务状态。服务端已回滚时，回调返回原始语句错误，事务句柄关闭。剩余事务无法回滚到保存点时，OpenRust 会回滚整条事务。确认回滚后，执行相应的 `after_roll_back()` 回调。
 
 ### 事务事件 {#transaction-events}
 
@@ -378,15 +378,15 @@ fn register() -> EventResult<()> {
 
 ### 事务回调 {#transaction-callbacks}
 
-`DB::beforeStartingTransaction` 在默认连接注册钩子，在最外层事务或保存点开始前运行。钩子收到连接，嵌套开始时还可借用活动事务。钩子返回错误会中止本次开始操作。
+`Db::before_starting_transaction` 在默认连接注册钩子，在最外层事务或保存点开始前运行。钩子收到连接，嵌套开始时还可借用活动事务。钩子返回错误会中止本次开始操作。
 
-`Transaction::afterRollBack` 为当前层级注册回调。保存点提交后，回滚回调保留在父事务，直到最外层事务结束。确认回滚后执行被撤销层级的回调。最外层回滚回调在会话归还后运行。
+`Transaction::after_roll_back` 为当前层级注册回调。保存点提交后，回滚回调保留在父事务，直到最外层事务结束。确认回滚后执行被撤销层级的回调。最外层回滚回调在会话归还后运行。
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 async fn run_with_callbacks() -> DatabaseResult<()> {
-    DB::beforeStartingTransaction(|connection, active| {
+    Db::before_starting_transaction(|connection, active| {
         Box::pin(async move {
             match active {
                 Some(transaction) => transaction.scalar("SELECT 1", &[]).await?,
@@ -396,11 +396,11 @@ async fn run_with_callbacks() -> DatabaseResult<()> {
         })
     })?;
 
-    let mut transaction = DB::beginTransaction().await?;
-    transaction.afterRollBack(|| Box::pin(async {
+    let mut transaction = Db::begin_transaction().await?;
+    transaction.after_roll_back(|| Box::pin(async {
         println!("Transaction rolled back");
         Ok(())
     }))?;
-    transaction.rollBack(None).await
+    transaction.roll_back(None).await
 }
 ```

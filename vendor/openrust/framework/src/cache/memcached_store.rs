@@ -15,21 +15,20 @@ pub struct MemcachedStore {
     prefix: String,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MemcachedStore {
     pub fn new(client: Arc<Client>, prefix: String) -> Self {
         Self { client, prefix }
     }
 
-    pub fn getMemcached(&self) -> &Client {
+    pub fn get_memcached(&self) -> &Client {
         &self.client
     }
 
-    pub fn getPrefix(&self) -> &str {
+    pub fn get_prefix(&self) -> &str {
         &self.prefix
     }
 
-    pub fn setPrefix(&mut self, prefix: String) {
+    pub fn set_prefix(&mut self, prefix: String) {
         self.prefix = prefix;
     }
 

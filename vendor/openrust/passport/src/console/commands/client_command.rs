@@ -134,7 +134,7 @@ impl Command for ClientCommand {
             output.info("New client created successfully.");
             if let Some(client) = client {
                 let id = client
-                    .getKey()
+                    .get_key()
                     .await
                     .map(|v| match v {
                         openrust::database::Value::Text(s) => s,
@@ -150,7 +150,7 @@ impl Command for ClientCommand {
                     .map_err(error)?;
                 if client.confidential().await {
                     let plain = client
-                        .getAttributeValue("plain_secret")
+                        .get_attribute_value("plain_secret")
                         .await
                         .map_err(error)?;
                     let plain = match plain {
@@ -218,7 +218,7 @@ fn redirects(input: &Input, prompt: &Prompt) -> Result<Vec<String>, ConsoleError
         Some(value) => value,
         None => {
             let default =
-                openrust::support::facades::URL::to("/auth/callback", &[], None).map_err(error)?;
+                openrust::support::facades::Url::to("/auth/callback", &[], None).map_err(error)?;
             prompt.ask(
                 "Where should we redirect the request after authorization?",
                 &default,

@@ -218,8 +218,10 @@ impl<M: Model> NamedRelations<M> {
                 }),
                 existence: Some(Box::new(
                     move |connection, parent, child, operator, count, discovered, constraint| {
-                        let mut related = factory()
-                            .getRelationExistenceQuery(connection, parent.relation_qualifier())?;
+                        let mut related = factory().get_relation_existence_query(
+                            connection,
+                            parent.relation_qualifier(),
+                        )?;
                         if !child.is_empty() {
                             let terminal = (operator, count) == ("<", 1);
                             let (op, n) = if terminal {
@@ -241,7 +243,7 @@ impl<M: Model> NamedRelations<M> {
                         if let Some(constraint) = constraint {
                             let qualifier = related.relation_qualifier().to_owned();
                             related = related
-                                .whereNested(|conditions| constraint(conditions, &qualifier));
+                                .where_nested(|conditions| constraint(conditions, &qualifier));
                         }
                         match (operator, count) {
                             (">=", 1) => parent.exists_expression(&mut related, false),
@@ -318,8 +320,7 @@ impl<M: Model> NamedRelations<M> {
 
     /// Registers an inverse polymorphic relation and its typed target paths.
     #[must_use]
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn morphTo(
+    pub fn morph_to(
         mut self,
         name: &'static str,
         factory: impl Fn() -> super::relations::MorphTo<M> + Send + Sync + 'static,
@@ -386,7 +387,7 @@ impl<M: Model> NamedRelations<M> {
         constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<query::Expression> {
         let (name, child) = path.split_once('.').unwrap_or((path, ""));
-        let registered = M::namedRelations();
+        let registered = M::named_relations();
         let relation = registered
             .0
             .get(name)
@@ -412,7 +413,7 @@ impl<M: Model> NamedRelations<M> {
                 return Ok(());
             }
             let (name, child) = path.split_once('.').unwrap_or((path, ""));
-            let registered = M::namedRelations();
+            let registered = M::named_relations();
             let relation = registered
                 .0
                 .get(name)
@@ -445,7 +446,7 @@ impl<M: Model> NamedRelations<M> {
         paths: &'a MissingPaths<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let registered = M::namedRelations();
+            let registered = M::named_relations();
             for (name, path) in paths {
                 let relation = registered
                     .0
@@ -467,7 +468,7 @@ impl<M: Model> NamedRelations<M> {
         discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<EagerLoads<M>> {
         let grouped = group_paths(paths)?;
-        let registered = M::namedRelations();
+        let registered = M::named_relations();
         let mut loads = EagerLoads::default();
         for (name, path) in grouped {
             let prepare = registered
@@ -588,7 +589,7 @@ where
         .iter()
         .map(|model| {
             model
-                .getRelation::<R::Output>(name)
+                .get_relation::<R::Output>(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
         })
         .collect::<DatabaseResult<Vec<_>>>()?;

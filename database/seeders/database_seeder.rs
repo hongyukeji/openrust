@@ -7,7 +7,7 @@ use openrust::database::{
 use crate::app::models::User;
 
 pub(super) const ENTRY: SeederEntry =
-    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).without_model_events();
 
 pub struct DatabaseSeeder;
 
@@ -18,7 +18,7 @@ impl Seeder for DatabaseSeeder {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async {
             User::factory()
-                .createOneOn(
+                .create_one_on(
                     context.connection(),
                     Attributes::from([
                         ("name".into(), "Test User".into()),

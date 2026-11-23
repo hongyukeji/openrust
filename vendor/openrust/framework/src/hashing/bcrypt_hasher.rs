@@ -10,10 +10,9 @@ define_hasher!(
     "Hashes passwords using bcrypt."
 );
 
-#[allow(non_snake_case)]
 impl BcryptHasher {
     /// 修改后续生成和重哈希检查使用的默认成本；单次选项仍可覆盖。
-    pub fn setRounds(&mut self, rounds: u32) -> &mut Self {
+    pub fn set_rounds(&mut self, rounds: u32) -> &mut Self {
         let Settings::Bcrypt(config) = &mut self.0.settings else {
             unreachable!("bcrypt 驱动配置类型不匹配")
         };

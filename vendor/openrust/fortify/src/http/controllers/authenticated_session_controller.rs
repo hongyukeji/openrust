@@ -37,7 +37,7 @@ impl AuthenticatedSessionController {
             let pipes = self.loginPipeline(&fortify, request)?;
             Pipeline::send(())
                 .through(pipes)
-                .thenWith(request, |(), request| {
+                .then_with(request, |(), request| {
                     Box::pin(super::respond::<dyn contracts::LoginResponse>(request))
                 })
                 .await

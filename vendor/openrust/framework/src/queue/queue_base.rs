@@ -97,7 +97,7 @@ impl Queue {
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
         payload.options.retry_until =
-            application_scope(owner, async { handler.retryUntil(payload) }).await?;
+            application_scope(owner, async { handler.retry_until(payload) }).await?;
         Ok(())
     }
 

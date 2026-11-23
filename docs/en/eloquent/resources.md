@@ -97,9 +97,9 @@ pub fn configure_resources(container: &Container) -> Result<(), BindingResolutio
 
 ### Default Model Resources {#default-model-resources}
 
-Implement `UseResource` for a model and set `type Resource = AccountResource`. The resource implements `JsonResource` and `From<Account>`. This type declaration supplies the default used by `toResource()` and `to_resource_collection()`. Rust checks the association at compile time.
+Implement `UseResource` for a model and set `type Resource = AccountResource`. The resource implements `JsonResource` and `From<Account>`. This type declaration supplies the default used by `to_resource()` and `to_resource_collection()`. Rust checks the association at compile time.
 
-Override `UseResource::resource_collection` to build a custom collection response from the original source. Inferred empty collections use the standard `data: []` response and retain any pagination metadata. Select an item resource explicitly with `toResourceWith` or `to_resource_collection_with`. Use `to_resource_collection_using` to pass an explicit collection factory.
+Override `UseResource::resource_collection` to build a custom collection response from the original source. Inferred empty collections use the standard `data: []` response and retain any pagination metadata. Select an item resource explicitly with `to_resource_with` or `to_resource_collection_with`. Use `to_resource_collection_using` to pass an explicit collection factory.
 
 ```rust
 use openrust::{
@@ -109,7 +109,7 @@ use openrust::{
 };
 
 pub fn account_resource<M: UseResource>(account: M) -> M::Resource {
-    account.toResource()
+    account.to_resource()
 }
 
 pub fn account_resources<M: UseResource>(accounts: Collection<M>) -> impl JsonResource + Send {
@@ -183,8 +183,8 @@ use serde_json::{Map, Value};
 
 pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
     let level = Conditional::when_pivot_loaded(model, "memberships", || {
-        let value = model.getRelation::<Pivot>("pivot")
-            .and_then(|row| row.getAttribute("level"));
+        let value = model.get_relation::<Pivot>("pivot")
+            .and_then(|row| row.get_attribute("level"));
         match value {
             Some(AttributeValue::Text(level)) => Value::String(level.clone()),
             _ => Value::Null,
@@ -284,7 +284,7 @@ pub fn relationships<R: JsonApiResource + 'static>(visible: Vec<R>) -> JsonApiRe
 
 ### Automatic Relationship Loading {#jsonapi-automatic-loading}
 
-Map each allowed JSON:API path to a path registered in `Model::namedRelations` by implementing `include_path`. Return the model from `model_mut`. When a route returns a resource or a collection, including a page, the framework batches missing relationships before serialization. The resolvers registered in `to_relationships` read the loaded results. For manual response construction, call `to_response_async(request).await`.
+Map each allowed JSON:API path to a path registered in `Model::named_relations` by implementing `include_path`. Return the model from `model_mut`. When a route returns a resource or a collection, including a page, the framework batches missing relationships before serialization. The resolvers registered in `to_relationships` read the loaded results. For manual response construction, call `to_response_async(request).await`.
 
 An alias such as `reports.reports` can map to `directReports.directReports`. Every supported include path should be explicitly mapped.
 

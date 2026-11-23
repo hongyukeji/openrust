@@ -57,53 +57,53 @@ async fn verify(config: Json, id: &str) {
     )
     .await
     .unwrap();
-    let query = || Record::queryOn(&db);
+    let query = || Record::query_on(&db);
     let raw = "HTTPS://Example.com:443/orders?";
     let mut record = query()
         .create(Attributes::from([("link".into(), raw.into())]))
         .await
         .unwrap();
-    let key = record.getKey().unwrap().clone();
-    assert_eq!(record.getAttribute("link"), Some(&raw.into()));
-    let uri = record.getValueObject::<Uri>("link").unwrap().unwrap();
+    let key = record.get_key().unwrap().clone();
+    assert_eq!(record.get_attribute("link"), Some(&raw.into()));
+    let uri = record.get_value_object::<Uri>("link").unwrap().unwrap();
     assert_eq!(uri.host(), Some("example.com"));
     assert_eq!(uri.port(), None);
-    assert_eq!(uri.queryString(), Some(""));
+    assert_eq!(uri.query_string(), Some(""));
     assert_eq!(
         record.to_array().unwrap()["link"],
         json!("https://example.com/orders?")
     );
 
     record
-        .setValueObject("link", Some(Uri::of("../new?#").unwrap()))
+        .set_value_object("link", Some(Uri::of("../new?#").unwrap()))
         .unwrap();
     assert!(record.save().await.unwrap());
-    record = query().findOrFail(key.clone()).await.unwrap();
+    record = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(record.to_array().unwrap()["link"], json!("../new?#"));
     assert_eq!(
         record
-            .getValueObject::<Uri>("link")
+            .get_value_object::<Uri>("link")
             .unwrap()
             .unwrap()
             .fragment(),
         Some("")
     );
 
-    record.setAttributeValue("link", "http://").unwrap();
-    assert_eq!(record.getAttribute("link"), Some(&"http://".into()));
-    assert!(record.getValueObject::<Uri>("link").is_err());
+    record.set_attribute_value("link", "http://").unwrap();
+    assert_eq!(record.get_attribute("link"), Some(&"http://".into()));
+    assert!(record.get_value_object::<Uri>("link").is_err());
     assert!(record.to_array().is_err());
     assert!(
         record
-            .setAttributeValue("link", Value::Json(json!([])))
+            .set_attribute_value("link", Value::Json(json!([])))
             .is_err()
     );
-    assert_eq!(record.getAttribute("link"), Some(&"http://".into()));
+    assert_eq!(record.get_attribute("link"), Some(&"http://".into()));
 
-    record.setAttributeValue("link", Value::Null).unwrap();
+    record.set_attribute_value("link", Value::Null).unwrap();
     assert!(record.save().await.unwrap());
-    record = query().findOrFail(key).await.unwrap();
-    assert!(record.getValueObject::<Uri>("link").unwrap().is_none());
+    record = query().find_or_fail(key).await.unwrap();
+    assert!(record.get_value_object::<Uri>("link").unwrap().is_none());
     assert_eq!(record.to_array().unwrap()["link"], Json::Null);
     db.statement("DROP TABLE uri_records", &[]).await.unwrap();
 }

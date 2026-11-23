@@ -41,9 +41,9 @@ fn old_or_unsafe_tags_fail_instead_of_being_rewritten() {
         assert!(canonical_locale(input).is_err(), "{input:?}");
     }
     let mut number = Number::default();
-    assert!(number.useLocale("zh_CN").is_err());
-    number.useLocale("EN-us-u-nu-latn").unwrap();
-    assert_eq!(number.defaultLocale().to_string(), "en-US-u-nu-latn");
+    assert!(number.use_locale("zh_CN").is_err());
+    number.use_locale("EN-us-u-nu-latn").unwrap();
+    assert_eq!(number.default_locale().to_string(), "en-US-u-nu-latn");
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn faker_public_labels_and_private_providers_are_separate() {
         assert_eq!(faker.locale(), locale);
         assert!(!faker.city().is_empty(), "{locale}");
         for _ in 0..20 {
-            assert!(canonical_locale(faker.randomLocale()).is_ok());
+            assert!(canonical_locale(faker.random_locale()).is_ok());
         }
     }
     assert!(Faker::new("en_US").is_err());
@@ -178,10 +178,10 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
     )
     .unwrap();
     translator
-        .withLocale("ZH-hans", async {
+        .with_locale("ZH-hans", async {
             assert_eq!(translator.get_locale(), "zh-Hans");
             let result: Result<(), &str> = translator
-                .withLocale("zh-Hant", async {
+                .with_locale("zh-Hant", async {
                     assert_eq!(translator.get_locale(), "zh-Hant");
                     Err("模拟任务失败")
                 })
@@ -189,7 +189,7 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
                 .unwrap();
             assert!(result.is_err());
             assert_eq!(translator.get_locale(), "zh-Hans");
-            let pending = translator.withLocale("zh-Hant-HK", async {
+            let pending = translator.with_locale("zh-Hant-HK", async {
                 assert_eq!(translator.get_locale(), "zh-Hant-HK");
                 std::future::pending::<()>().await;
             });
@@ -199,7 +199,7 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
                     .is_err()
             );
             assert_eq!(translator.get_locale(), "zh-Hans");
-            let unwound = AssertUnwindSafe(translator.withLocale("zh-CN", async {
+            let unwound = AssertUnwindSafe(translator.with_locale("zh-CN", async {
                 assert_eq!(translator.get_locale(), "zh-CN");
                 panic!("模拟任务展开");
             }))
@@ -211,5 +211,5 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
         .await
         .unwrap();
     assert_eq!(translator.get_locale(), "en");
-    assert_eq!(translator.getFallback(), "en");
+    assert_eq!(translator.get_fallback(), "en");
 }

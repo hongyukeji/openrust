@@ -39,7 +39,6 @@ fn data() -> &'static TransliterationData {
     })
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Str {
     pub fn of(value: impl Into<String>) -> Stringable {
         Stringable::from(value.into())
@@ -52,7 +51,7 @@ impl Str {
         subject.split_once(search).map_or(subject, |(_, tail)| tail)
     }
 
-    pub fn afterLast<'a>(subject: &'a str, search: &str) -> &'a str {
+    pub fn after_last<'a>(subject: &'a str, search: &str) -> &'a str {
         if search.is_empty() {
             return subject;
         }
@@ -68,7 +67,7 @@ impl Str {
         subject.split_once(search).map_or(subject, |(head, _)| head)
     }
 
-    pub fn beforeLast<'a>(subject: &'a str, search: &str) -> &'a str {
+    pub fn before_last<'a>(subject: &'a str, search: &str) -> &'a str {
         if search.is_empty() {
             return subject;
         }
@@ -81,10 +80,10 @@ impl Str {
         if from.is_empty() || to.is_empty() {
             return subject;
         }
-        Self::beforeLast(Self::after(subject, from), to)
+        Self::before_last(Self::after(subject, from), to)
     }
 
-    pub fn betweenFirst<'a>(subject: &'a str, from: &str, to: &str) -> &'a str {
+    pub fn between_first<'a>(subject: &'a str, from: &str, to: &str) -> &'a str {
         if from.is_empty() || to.is_empty() {
             return subject;
         }
@@ -108,7 +107,7 @@ impl Str {
         value.chars().count()
     }
 
-    pub fn charAt(value: &str, index: isize) -> Option<char> {
+    pub fn char_at(value: &str, index: isize) -> Option<char> {
         if let Ok(index) = usize::try_from(index) {
             value.chars().nth(index)
         } else {
@@ -124,19 +123,19 @@ impl Str {
         value.to_uppercase()
     }
 
-    pub fn startsWith(subject: &str, needles: &[&str]) -> bool {
+    pub fn starts_with(subject: &str, needles: &[&str]) -> bool {
         needles
             .iter()
             .any(|needle| !needle.is_empty() && subject.starts_with(needle))
     }
 
-    pub fn endsWith(subject: &str, needles: &[&str]) -> bool {
+    pub fn ends_with(subject: &str, needles: &[&str]) -> bool {
         needles
             .iter()
             .any(|needle| !needle.is_empty() && subject.ends_with(needle))
     }
 
-    pub fn containsAll(subject: &str, needles: &[&str], ignore_case: bool) -> bool {
+    pub fn contains_all(subject: &str, needles: &[&str], ignore_case: bool) -> bool {
         needles
             .iter()
             .all(|needle| Self::contains(subject, &[*needle], ignore_case))
@@ -190,7 +189,7 @@ impl Str {
         &value[start_byte..end_byte]
     }
 
-    pub fn substrCount(value: &str, needle: &str) -> usize {
+    pub fn substr_count(value: &str, needle: &str) -> usize {
         if needle.is_empty() {
             0
         } else {
@@ -221,7 +220,7 @@ impl Str {
         value.strip_suffix(after.unwrap_or(before)).unwrap_or(value)
     }
 
-    pub fn replaceFirst(search: &str, replace: &str, value: &str) -> String {
+    pub fn replace_first(search: &str, replace: &str, value: &str) -> String {
         if search.is_empty() {
             value.into()
         } else {
@@ -229,7 +228,7 @@ impl Str {
         }
     }
 
-    pub fn replaceLast(search: &str, replace: &str, value: &str) -> String {
+    pub fn replace_last(search: &str, replace: &str, value: &str) -> String {
         if search.is_empty() {
             return value.into();
         }
@@ -247,7 +246,7 @@ impl Str {
         value.chars().rev().collect()
     }
 
-    pub fn isAscii(value: &str) -> bool {
+    pub fn is_ascii(value: &str) -> bool {
         value.is_ascii()
     }
 
@@ -255,12 +254,12 @@ impl Str {
         serde_json::from_str::<serde_json::Value>(value).is_ok()
     }
 
-    pub fn toBase64(value: impl AsRef<[u8]>) -> String {
+    pub fn to_base64(value: impl AsRef<[u8]>) -> String {
         use base64::{Engine as _, engine::general_purpose::STANDARD};
         STANDARD.encode(value)
     }
 
-    pub fn fromBase64(value: &str) -> Result<Vec<u8>, base64::DecodeError> {
+    pub fn from_base64(value: &str) -> Result<Vec<u8>, base64::DecodeError> {
         use base64::{Engine as _, engine::general_purpose::STANDARD};
         STANDARD.decode(value)
     }
@@ -339,7 +338,7 @@ impl Str {
     }
 
     /// Transliterates text using the default portable-ascii mapping.
-    pub fn chopStart<'a>(value: &'a str, prefixes: &[&str]) -> &'a str {
+    pub fn chop_start<'a>(value: &'a str, prefixes: &[&str]) -> &'a str {
         prefixes
             .iter()
             .filter(|prefix| !prefix.is_empty())
@@ -347,7 +346,7 @@ impl Str {
             .unwrap_or(value)
     }
 
-    pub fn chopEnd<'a>(value: &'a str, suffixes: &[&str]) -> &'a str {
+    pub fn chop_end<'a>(value: &'a str, suffixes: &[&str]) -> &'a str {
         suffixes
             .iter()
             .filter(|suffix| !suffix.is_empty())
@@ -355,7 +354,7 @@ impl Str {
             .unwrap_or(value)
     }
 
-    pub fn replaceStart(search: &str, replacement: &str, value: &str) -> String {
+    pub fn replace_start(search: &str, replacement: &str, value: &str) -> String {
         if !search.is_empty()
             && let Some(tail) = value.strip_prefix(search)
         {
@@ -364,7 +363,7 @@ impl Str {
         value.to_owned()
     }
 
-    pub fn replaceEnd(search: &str, replacement: &str, value: &str) -> String {
+    pub fn replace_end(search: &str, replacement: &str, value: &str) -> String {
         if !search.is_empty()
             && let Some(head) = value.strip_suffix(search)
         {
@@ -450,15 +449,15 @@ impl Str {
         pattern::first(pattern, subject)
     }
 
-    pub fn matchAll<'a>(pattern: &str, subject: &'a str) -> Result<Vec<&'a str>, regex::Error> {
+    pub fn match_all<'a>(pattern: &str, subject: &'a str) -> Result<Vec<&'a str>, regex::Error> {
         pattern::all(pattern, subject)
     }
 
-    pub fn isMatch(patterns: &[&str], subject: &str) -> Result<bool, regex::Error> {
+    pub fn is_match(patterns: &[&str], subject: &str) -> Result<bool, regex::Error> {
         pattern::any(patterns, subject)
     }
 
-    pub fn replaceMatches(
+    pub fn replace_matches(
         pattern: &str,
         replacement: &str,
         subject: &str,
@@ -467,7 +466,7 @@ impl Str {
         pattern::replace(pattern, replacement, subject, count)
     }
 
-    pub fn replaceMatchesWith(
+    pub fn replace_matches_with(
         pattern: &str,
         replacement: impl FnMut(&regex::Captures<'_>) -> String,
         subject: &str,
@@ -484,7 +483,7 @@ impl Str {
         text_layout::limit(value, columns, end, preserve_words)
     }
 
-    pub fn wordWrap(
+    pub fn word_wrap(
         value: &str,
         columns: usize,
         line_break: &str,
@@ -513,12 +512,12 @@ impl Str {
     }
 
     /// Generates a UUID v4 with a 10-microsecond Unix timestamp in its first six bytes.
-    pub fn orderedUuid() -> Result<uuid::Uuid, OrderedUuidError> {
-        Self::orderedUuidAt(std::time::SystemTime::now())
+    pub fn ordered_uuid() -> Result<uuid::Uuid, OrderedUuidError> {
+        Self::ordered_uuid_at(std::time::SystemTime::now())
     }
 
     /// Generates a timestamp-first COMB UUID for a caller-supplied time.
-    pub fn orderedUuidAt(time: std::time::SystemTime) -> Result<uuid::Uuid, OrderedUuidError> {
+    pub fn ordered_uuid_at(time: std::time::SystemTime) -> Result<uuid::Uuid, OrderedUuidError> {
         comb::generate(time)
     }
 
@@ -530,7 +529,7 @@ impl Str {
         ulid::Ulid::new()
     }
 
-    pub fn isUuid(value: &str, version: Option<u8>) -> bool {
+    pub fn is_uuid(value: &str, version: Option<u8>) -> bool {
         if value.len() != 36 {
             return false;
         }
@@ -547,7 +546,7 @@ impl Str {
         }
     }
 
-    pub fn isUlid(value: &str) -> bool {
+    pub fn is_ulid(value: &str) -> bool {
         value
             .as_bytes()
             .first()
@@ -557,66 +556,66 @@ impl Str {
 
     /// Renders GFM with HTML escaping and safe link schemes by default.
     pub fn markdown(value: &str) -> String {
-        Self::markdownWith(value, MarkdownOptions::default())
+        Self::markdown_with(value, MarkdownOptions::default())
     }
 
-    pub fn markdownWith(value: &str, options: MarkdownOptions) -> String {
+    pub fn markdown_with(value: &str, options: MarkdownOptions) -> String {
         markdown::render(value, options, false)
     }
 
-    pub fn inlineMarkdown(value: &str) -> String {
-        Self::inlineMarkdownWith(value, MarkdownOptions::default())
+    pub fn inline_markdown(value: &str) -> String {
+        Self::inline_markdown_with(value, MarkdownOptions::default())
     }
 
-    pub fn inlineMarkdownWith(value: &str, options: MarkdownOptions) -> String {
+    pub fn inline_markdown_with(value: &str, options: MarkdownOptions) -> String {
         markdown::render(value, options, true)
     }
 
     /// Inflects an English noun unless the count is 1 or -1.
     pub fn plural(value: &str, count: i64) -> String {
-        Self::pluralIn(value, count, InflectionLanguage::English)
+        Self::plural_in(value, count, InflectionLanguage::English)
     }
 
-    pub fn pluralIn(value: &str, count: i64, language: InflectionLanguage) -> String {
+    pub fn plural_in(value: &str, count: i64, language: InflectionLanguage) -> String {
         language.plural(value, count)
     }
 
     pub fn singular(value: &str) -> String {
-        Self::singularIn(value, InflectionLanguage::English)
+        Self::singular_in(value, InflectionLanguage::English)
     }
 
-    pub fn singularIn(value: &str, language: InflectionLanguage) -> String {
+    pub fn singular_in(value: &str, language: InflectionLanguage) -> String {
         language.singular(value)
     }
 
-    pub fn pluralStudly(value: &str, count: i64) -> String {
-        Self::pluralStudlyIn(value, count, InflectionLanguage::English)
+    pub fn plural_studly(value: &str, count: i64) -> String {
+        Self::plural_studly_in(value, count, InflectionLanguage::English)
     }
 
-    pub fn pluralStudlyIn(value: &str, count: i64, language: InflectionLanguage) -> String {
+    pub fn plural_studly_in(value: &str, count: i64, language: InflectionLanguage) -> String {
         let start = value
             .char_indices()
             .rev()
             .find(|(_, char)| char.is_ascii_uppercase())
             .map_or(0, |(start, _)| start);
         let (prefix, last) = value.split_at(start);
-        format!("{prefix}{}", Self::pluralIn(last, count, language))
+        format!("{prefix}{}", Self::plural_in(last, count, language))
     }
 
-    pub fn pluralPascal(value: &str, count: i64) -> String {
-        Self::pluralStudly(value, count)
+    pub fn plural_pascal(value: &str, count: i64) -> String {
+        Self::plural_studly(value, count)
     }
 
-    pub fn pluralPascalIn(value: &str, count: i64, language: InflectionLanguage) -> String {
-        Self::pluralStudlyIn(value, count, language)
+    pub fn plural_pascal_in(value: &str, count: i64, language: InflectionLanguage) -> String {
+        Self::plural_studly_in(value, count, language)
     }
 
     /// Formats a counted English noun with English digit grouping.
     pub fn counted(value: &str, count: i64) -> String {
-        Self::countedIn(value, count, InflectionLanguage::English)
+        Self::counted_in(value, count, InflectionLanguage::English)
     }
 
-    pub fn countedIn(value: &str, count: i64, language: InflectionLanguage) -> String {
+    pub fn counted_in(value: &str, count: i64, language: InflectionLanguage) -> String {
         let digits = count.unsigned_abs().to_string();
         let mut output = String::new();
         if count.is_negative() {
@@ -629,7 +628,7 @@ impl Str {
             output.push(char::from(digit));
         }
         output.push(' ');
-        output.push_str(&Self::pluralIn(value, count, language));
+        output.push_str(&Self::plural_in(value, count, language));
         output
     }
 
@@ -638,11 +637,11 @@ impl Str {
     }
 
     pub fn slug(value: &str) -> String {
-        Self::slugWith(value, "-", Some("en"), &[("@", "at")])
+        Self::slug_with(value, "-", Some("en"), &[("@", "at")])
     }
 
     /// Converts a title with an ordered dictionary. `None` keeps Unicode letters and numbers.
-    pub fn slugWith(
+    pub fn slug_with(
         value: &str,
         separator: &str,
         language: Option<&str>,
@@ -652,15 +651,15 @@ impl Str {
     }
 
     pub fn transliterate(value: &str) -> String {
-        Self::transliterateWithUnknown(value, Some("?"))
+        Self::transliterate_with_unknown(value, Some("?"))
     }
 
     /// Selects a replacement for unknown characters or preserves them with `None`.
-    pub fn transliterateWithUnknown(value: &str, unknown: Option<&str>) -> String {
-        Self::transliterateWithOptions(value, unknown, false)
+    pub fn transliterate_with_unknown(value: &str, unknown: Option<&str>) -> String {
+        Self::transliterate_with_options(value, unknown, false)
     }
 
-    pub fn transliterateWithOptions(value: &str, unknown: Option<&str>, strict: bool) -> String {
+    pub fn transliterate_with_options(value: &str, unknown: Option<&str>, strict: bool) -> String {
         if ascii_fast_path(value) {
             return value.into();
         }
@@ -724,29 +723,28 @@ fn clean(value: &str, data: &TransliterationData) -> String {
     cleaned
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Str {
-    pub fn doesntContain(value: &str, needles: &[&str], ignore_case: bool) -> bool {
+    pub fn doesnt_contain(value: &str, needles: &[&str], ignore_case: bool) -> bool {
         !Self::contains(value, needles, ignore_case)
     }
-    pub fn doesntStartWith(value: &str, needles: &[&str]) -> bool {
-        !Self::startsWith(value, needles)
+    pub fn doesnt_start_with(value: &str, needles: &[&str]) -> bool {
+        !Self::starts_with(value, needles)
     }
-    pub fn doesntEndWith(value: &str, needles: &[&str]) -> bool {
-        !Self::endsWith(value, needles)
+    pub fn doesnt_end_with(value: &str, needles: &[&str]) -> bool {
+        !Self::ends_with(value, needles)
     }
 
     pub fn excerpt(value: &str, phrase: &str, radius: usize, omission: &str) -> Option<String> {
         editing::excerpt(value, phrase, radius, omission)
     }
 
-    pub fn padLeft(value: &str, length: usize, pad: &str) -> String {
+    pub fn pad_left(value: &str, length: usize, pad: &str) -> String {
         editing::pad(value, length, pad, editing::Padding::Left)
     }
-    pub fn padRight(value: &str, length: usize, pad: &str) -> String {
+    pub fn pad_right(value: &str, length: usize, pad: &str) -> String {
         editing::pad(value, length, pad, editing::Padding::Right)
     }
-    pub fn padBoth(value: &str, length: usize, pad: &str) -> String {
+    pub fn pad_both(value: &str, length: usize, pad: &str) -> String {
         editing::pad(value, length, pad, editing::Padding::Both)
     }
 
@@ -759,7 +757,7 @@ impl Str {
         Self::replace(value, &replacements, case_sensitive)
     }
 
-    pub fn replaceArray(search: &str, replacements: &[&str], value: &str) -> String {
+    pub fn replace_array(search: &str, replacements: &[&str], value: &str) -> String {
         if search.is_empty() {
             return value.to_owned();
         }
@@ -773,7 +771,7 @@ impl Str {
         output
     }
 
-    pub fn substrReplace(
+    pub fn substr_replace(
         value: &str,
         replacement: &str,
         offset: isize,
@@ -878,11 +876,11 @@ impl Str {
         result
     }
 
-    pub fn wordCount(value: &str, additional: Option<&str>) -> usize {
+    pub fn word_count(value: &str, additional: Option<&str>) -> usize {
         editing::word_count(value, additional.unwrap_or(""))
     }
 
-    pub fn isUrl(value: &str, protocols: &[&str]) -> bool {
+    pub fn is_url(value: &str, protocols: &[&str]) -> bool {
         editing::is_url(value, protocols)
     }
 }

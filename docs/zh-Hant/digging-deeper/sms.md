@@ -11,11 +11,11 @@
 更新設定或註冊替換工廠後，清除已解析驅動程式，再重新取得：
 
 ```rust
-Sms::forgetDrivers()?;
+Sms::forget_drivers()?;
 let sender = Sms::driver("aliyun")?;
 ```
 
-`Sms::get_default_driver()` 回傳目前預設設定名稱，不建立驅動程式。`forgetDrivers` 影響之後的解析，已持有的 `SmsSender` 保留原驅動程式和設定。驅動程式建立失敗後可以重試。常駐 Worker 修改設定後，視需要重新產生設定快取並重新啟動 Worker。
+`Sms::get_default_driver()` 回傳目前預設設定名稱，不建立驅動程式。`forget_drivers` 影響之後的解析，已持有的 `SmsSender` 保留原驅動程式和設定。驅動程式建立失敗後可以重試。常駐 Worker 修改設定後，視需要重新產生設定快取並重新啟動 Worker。
 
 ## 內建供應商
 

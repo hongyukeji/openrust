@@ -73,7 +73,7 @@ impl Fixture {
         );
         let connection = connection(&url, &table, &driver);
         connection
-            .getSchemaBuilder()
+            .get_schema_builder()
             .create(&table, |table| {
                 for name in ["group", "key", "text"] {
                     table.text(name);
@@ -118,8 +118,8 @@ impl Fixture {
     }
     async fn close(self) {
         self.connection
-            .getSchemaBuilder()
-            .dropIfExists(&self.table)
+            .get_schema_builder()
+            .drop_if_exists(&self.table)
             .await
             .unwrap();
         self.connection.disconnect();
@@ -227,7 +227,7 @@ async fn database_file_overlay_preserves_nested_lists_empty_strings_and_locale_f
     )
     .unwrap();
     translator
-        .loadFrom(
+        .load_from(
             &loader,
             &[
                 resource("fr", "messages", None),
@@ -250,7 +250,7 @@ async fn database_file_overlay_preserves_nested_lists_empty_strings_and_locale_f
         .await
         .unwrap();
     translator
-        .loadFrom(&loader, &[resource("fr", "messages", None)])
+        .load_from(&loader, &[resource("fr", "messages", None)])
         .await
         .unwrap();
     assert_eq!(get(&translator, "messages.welcome", None), "Fichier");
@@ -273,7 +273,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     f.put("en", "messages", "", "title", json!("previous"))
         .await;
     translator
-        .loadFrom(&loader, &[resource("en", "messages", None)])
+        .load_from(&loader, &[resource("en", "messages", None)])
         .await
         .unwrap();
     f.clear().await;
@@ -281,7 +281,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     f.raw("en", "broken", "", "title", "invalid JSON").await;
     assert!(matches!(
         translator
-            .loadFrom(
+            .load_from(
                 &loader,
                 &[
                     resource("en", "messages", None),
@@ -384,10 +384,10 @@ async fn database_connections_tables_and_published_applications_do_not_share_cat
     };
     let a = app();
     let b = app();
-    a.loadFrom(&first.loader(), &[resource("en", "messages", None)])
+    a.load_from(&first.loader(), &[resource("en", "messages", None)])
         .await
         .unwrap();
-    b.loadFrom(&second.loader(), &[resource("en", "messages", None)])
+    b.load_from(&second.loader(), &[resource("en", "messages", None)])
         .await
         .unwrap();
     assert_eq!(get(&a, "messages.title", None), "first");
@@ -398,7 +398,7 @@ async fn database_connections_tables_and_published_applications_do_not_share_cat
         .unwrap()
         .withFallback(Arc::new(FileLoader::new(directory.path().into())));
     let error = a
-        .loadFrom(&failed, &[resource("en", "messages", None)])
+        .load_from(&failed, &[resource("en", "messages", None)])
         .await
         .unwrap_err();
     assert!(
@@ -476,7 +476,7 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
             Box::pin(async move {
                 app.make::<Translator>()
                     .await?
-                    .loadFrom(&self.0, &[resource("en", "messages", None)])
+                    .load_from(&self.0, &[resource("en", "messages", None)])
                     .await?;
                 Ok(())
             })
@@ -560,7 +560,7 @@ async fn database_spatie_schema_native_json_and_default_table_work() {
         return;
     };
     f.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create("language_lines", |table| {
             table.id();
             table.string("group", None).index();
@@ -618,7 +618,7 @@ async fn database_spatie_schema_native_json_and_default_table_work() {
     )
     .unwrap();
     let mut files = FileLoader::new(directory.path().join("application"));
-    files.addNamespace("shop", directory.path().to_path_buf());
+    files.add_namespace("shop", directory.path().to_path_buf());
     let namespaced = missing.withFallback(Arc::new(files));
     assert_eq!(
         namespaced
@@ -628,8 +628,8 @@ async fn database_spatie_schema_native_json_and_default_table_work() {
         Line::Text("Package file".into())
     );
     f.connection
-        .getSchemaBuilder()
-        .dropIfExists("language_lines")
+        .get_schema_builder()
+        .drop_if_exists("language_lines")
         .await
         .unwrap();
     f.close().await;
@@ -650,8 +650,8 @@ async fn bcp47_upgrade_sql_is_atomic_idempotent_and_conflict_safe() {
             .await
             .expect("迁移验收必须提供隔离实例，不得跳过");
         if native_json {
-            let mut schema = f.connection.getSchemaBuilder();
-            schema.dropIfExists(&f.table).await.unwrap();
+            let mut schema = f.connection.get_schema_builder();
+            schema.drop_if_exists(&f.table).await.unwrap();
             schema
                 .create(&f.table, |table| {
                     table.string("group", None);
@@ -676,12 +676,12 @@ async fn bcp47_upgrade_sql_is_atomic_idempotent_and_conflict_safe() {
             .collect::<Vec<_>>()
             .join("\n")
             .replace("language_lines", &f.table);
-        let mut transaction = f.connection.beginTransaction().await.unwrap();
+        let mut transaction = f.connection.begin_transaction().await.unwrap();
         transaction.unprepared(&body).await.unwrap();
-        transaction.rollBack(None).await.unwrap();
+        transaction.roll_back(None).await.unwrap();
         assert_eq!(locale_map(&f).await, old);
         for _ in 0..2 {
-            let mut transaction = f.connection.beginTransaction().await.unwrap();
+            let mut transaction = f.connection.begin_transaction().await.unwrap();
             transaction.unprepared(&body).await.unwrap();
             transaction.commit().await.unwrap();
             assert_eq!(locale_map(&f).await, expected);
@@ -701,7 +701,7 @@ async fn bcp47_upgrade_sql_is_atomic_idempotent_and_conflict_safe() {
         ] {
             put_locale_map(&f, "conflict", &conflict, native_json).await;
             put_locale_map(&f, "pending", &json!({"zh_CN":"待迁移"}), native_json).await;
-            let mut transaction = f.connection.beginTransaction().await.unwrap();
+            let mut transaction = f.connection.begin_transaction().await.unwrap();
             assert!(transaction.unprepared(&body).await.is_err());
             // MySQL 临时表 DDL 不随回滚恢复，在同一专属连接清理失败守卫。
             if driver == "mysql" {
@@ -710,7 +710,7 @@ async fn bcp47_upgrade_sql_is_atomic_idempotent_and_conflict_safe() {
                     .await
                     .unwrap();
             }
-            transaction.rollBack(None).await.unwrap();
+            transaction.roll_back(None).await.unwrap();
             assert_eq!(locale_map(&f).await, expected);
             let value = f
                 .connection

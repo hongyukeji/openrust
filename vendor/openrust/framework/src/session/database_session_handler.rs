@@ -79,7 +79,7 @@ impl DatabaseSessionHandler {
     }
 
     fn query(&self) -> Builder<'static> {
-        self.connection.table(&self.table).useWritePdo()
+        self.connection.table(&self.table).use_write_pdo()
     }
 
     fn record(&self, id: &str, payload: &[u8]) -> SessionResult<Record> {

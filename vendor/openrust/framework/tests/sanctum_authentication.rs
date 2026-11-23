@@ -51,14 +51,14 @@ impl<const KEY: u8> Model for CustomToken<KEY> {
             .connection("token_fixture")
             .hidden(&["updated_at"])
             .appends(&["display_name"])
-            .primaryKey("token_id")
-            .uniqueId(UniqueId::Uuid);
+            .primary_key("token_id")
+            .unique_id(UniqueId::Uuid);
         static ULID_META: ModelMetadata = ModelMetadata::new("custom_sanctum_tokens")
             .connection("token_fixture")
             .hidden(&["updated_at"])
             .appends(&["display_name"])
-            .primaryKey("token_id")
-            .uniqueId(UniqueId::Ulid);
+            .primary_key("token_id")
+            .unique_id(UniqueId::Ulid);
         match KEY {
             1 => &UUID_META,
             2 => &ULID_META,
@@ -110,7 +110,7 @@ impl<const KEY: u8> Model for CustomToken<KEY> {
     }
 
     #[allow(non_snake_case, reason = "Implements the Eloquent scope hook")]
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("visible", &VisibleToken)]
     }
     fn from_state(state: ModelState) -> Self {
@@ -158,7 +158,7 @@ impl TokenEvents {
         for event in [
             Saving, Creating, Created, Saved, Retrieved, Updating, Updated, Deleting, Deleted,
         ] {
-            CustomToken::<KEY>::registerModelEvent(app, event, self.clone()).unwrap();
+            CustomToken::<KEY>::register_model_event(app, event, self.clone()).unwrap();
         }
     }
 
@@ -176,7 +176,7 @@ impl<const KEY: u8> ModelEventListener<CustomToken<KEY>> for TokenEvents {
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
             self.0.lock().unwrap().push(event);
-            let name = token.getAttribute("name");
+            let name = token.get_attribute("name");
             if (event == ModelEvent::Creating && name == Some(&SqlValue::from("stored:cancel")))
                 || (event == ModelEvent::Deleting && name == Some(&SqlValue::from("stored:read")))
             {
@@ -244,13 +244,13 @@ impl<const SERVICE: bool, const TEXT: u8> Authenticatable for User<SERVICE, TEXT
         "id"
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.getKey().unwrap().try_into().unwrap()
+        self.get_key().unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
     }
     fn get_auth_password(&self) -> Option<&str> {
-        match self.getAttribute("password") {
+        match self.get_attribute("password") {
             Some(openrust::database::Value::Text(password)) => Some(password),
             _ => None,
         }
@@ -410,7 +410,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     auth.register_sanctum_model::<User<false, KEY>>("SanctumUser");
     auth.register_sanctum_model::<User<true>>("ServiceAccount");
     auth.register_model::<User<false, 9>>("WithoutTokens");
-    MorphMap::morphMap(
+    MorphMap::morph_map(
         &app,
         [
             MorphMapEntry::model::<User<false, KEY>>("users_alias"),
@@ -466,7 +466,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         for event in [
             Saving, Creating, Created, Saved, Retrieved, Updating, Updated, Deleting, Deleted,
         ] {
-            DefaultPersonalAccessToken::registerModelEvent(&app, event, model_events.clone())
+            DefaultPersonalAccessToken::register_model_event(&app, event, model_events.clone())
                 .unwrap();
         }
         "personal_access_tokens"
@@ -507,8 +507,8 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     )
     .await
     .unwrap();
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists(token_table).await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema.drop_if_exists(token_table).await.unwrap();
     schema
         .create(token_table, |table| {
             if KEY != 0 {
@@ -525,7 +525,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             if KEY != 0 {
                 table.string("tokenable_id", 36);
             } else {
-                table.unsignedBigInteger("tokenable_id");
+                table.unsigned_big_integer("tokenable_id");
             }
             table.text("name");
             table.string("token", 64).unique();
@@ -656,14 +656,14 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .await
         .unwrap();
 
-    let mut fresh_user = User::<false, KEY>::newInstanceOn(&db, Attributes::new()).unwrap();
-    fresh_user.setAttribute("id", SqlValue::from(owner(4)));
-    fresh_user.setAttribute("password", "new-user-password");
+    let mut fresh_user = User::<false, KEY>::new_instance_on(&db, Attributes::new()).unwrap();
+    fresh_user.set_attribute("id", SqlValue::from(owner(4)));
+    fresh_user.set_attribute("password", "new-user-password");
     assert!(fresh_user.save().await.unwrap());
-    assert!(fresh_user.state().wasRecentlyCreated());
+    assert!(fresh_user.state().was_recently_created());
     let mut test_app = TestApp::create(|builder| builder).unwrap();
     let fresh_user = Sanctum::actingAs(&mut test_app, fresh_user, &[], None);
-    assert!(!fresh_user.state().wasRecentlyCreated());
+    assert!(!fresh_user.state().was_recently_created());
     assert!(fresh_user.state().exists());
 
     let relation = fresh_user.tokens(&sanctum, &database).unwrap();
@@ -710,7 +710,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         sanctum: &Sanctum,
     ) {
         let mut chain = user.tokensQuery::<T>(sanctum, database).unwrap();
-        chain.r#where("name", "=", "nonexistent").orWhere(
+        chain.r#where("name", "=", "nonexistent").or_where(
             "tokenable_id",
             "=",
             SqlValue::Unsigned(1),
@@ -720,11 +720,11 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         chain.r#where("name", "like", "%related");
         assert_eq!(chain.get().await.unwrap().len(), 1);
         let relation = user.tokensRelation::<T>(sanctum).unwrap();
-        let mut owners = User::<false, KEY>::queryOn(db).with("tokens", relation);
-        owners.whereKey(SqlValue::from(user.get_auth_identifier()));
+        let mut owners = User::<false, KEY>::query_on(db).with("tokens", relation);
+        owners.where_key(SqlValue::from(user.get_auth_identifier()));
         let owner = owners.first().await.unwrap().unwrap();
         let tokens = owner
-            .getRelation::<openrust::database::eloquent::RelatedCollection<T>>("tokens")
+            .get_relation::<openrust::database::eloquent::RelatedCollection<T>>("tokens")
             .unwrap();
         assert_eq!(tokens.len(), 1);
     }
@@ -1398,10 +1398,10 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
                 return Ok(None);
             }
             let mut user = User::<true>(ModelState::default());
-            user.setAttribute("id", SqlValue::Unsigned(42));
-            user.setAttribute("name", "Custom account");
-            user.setAttribute("password", "hidden-secret");
-            user.setAttribute("remember_token", "hidden-remember-token");
+            user.set_attribute("id", SqlValue::Unsigned(42));
+            user.set_attribute("name", "Custom account");
+            user.set_attribute("password", "hidden-secret");
+            user.set_attribute("remember_token", "hidden-remember-token");
             Ok(Some(Box::new(user) as Box<dyn Authenticatable>))
         })
     });
@@ -1435,7 +1435,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
                 .downcast_ref::<User>()
                 .ok_or(HttpError::Unauthenticated)?;
             let mut other = User::<false, 0>(ModelState::default());
-            other.setAttribute("id", SqlValue::Unsigned(43));
+            other.set_attribute("id", SqlValue::Unsigned(43));
             let abilities = json!({
                 "read": user.tokenCan(request, "read"),
                 "write_denied": user.tokenCant(request, "write"),
@@ -1465,7 +1465,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
                 api()?;
                 Route::get("/default", whoami)?;
                 Route::get("/token-ability", token_ability)?;
-                Route::getWith("/alternate", whoami, |route| {
+                Route::get_with("/alternate", whoami, |route| {
                     route.middleware_name("auth:alternate");
                     Ok(())
                 })
@@ -1475,7 +1475,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
     let mut other = TestApp::create(configure).unwrap();
     let user = || {
         let mut user = User::<false, 0>(ModelState::default());
-        user.setAttribute("id", SqlValue::Unsigned(42));
+        user.set_attribute("id", SqlValue::Unsigned(42));
         user
     };
     let selected = Sanctum::actingAs(&mut app, user(), &["read"], None);

@@ -114,8 +114,8 @@ impl ServiceProvider for Provider {
 }
 fn web() -> Result<(), RoutingError> {
     Route::get("/", || view("welcome"))?;
-    Route::staticDisk("web")?;
-    Route::staticDisk("public")
+    Route::static_disk("web")?;
+    Route::static_disk("public")
 }
 struct ConfigCommand(CommandDefinition);
 impl Command for ConfigCommand {
@@ -197,7 +197,7 @@ fn application(root: &Root, name: &str, seen: Arc<Mutex<Vec<String>>>) -> Applic
         })])
         .with_commands(commands)
         .with_exceptions(|exceptions| {
-            exceptions.shouldRenderJsonWhen(|_, _| true);
+            exceptions.should_render_json_when(|_, _| true);
         })
         .with_routing(Routing::default().web(web).health("/up"))
         .create()

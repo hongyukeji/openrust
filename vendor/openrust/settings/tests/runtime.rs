@@ -174,15 +174,15 @@ async fn real_worker_jobs_get_new_settings_on_the_next_attempt_scope() {
     let f = Fixture::new().await;
     let jobs = format!("{}_jobs", f.table);
     f.connection
-        .getSchemaBuilder()
+        .get_schema_builder()
         .create(&jobs, |t| {
             t.id();
             t.string("queue", None);
             t.text("payload");
-            t.unsignedTinyInteger("attempts");
-            t.unsignedInteger("reserved_at").nullable();
-            t.unsignedInteger("available_at");
-            t.unsignedInteger("created_at");
+            t.unsigned_tiny_integer("attempts");
+            t.unsigned_integer("reserved_at").nullable();
+            t.unsigned_integer("available_at");
+            t.unsigned_integer("created_at");
         })
         .await
         .unwrap();
@@ -222,8 +222,8 @@ async fn real_worker_jobs_get_new_settings_on_the_next_attempt_scope() {
     assert_eq!(app.handle_command(&args).await.unwrap(), 0);
     assert_eq!(*observed.lock().unwrap(), vec!["First", "Next"]);
     f.connection
-        .getSchemaBuilder()
-        .dropIfExists(&jobs)
+        .get_schema_builder()
+        .drop_if_exists(&jobs)
         .await
         .unwrap();
     f.close().await;
@@ -233,8 +233,8 @@ async fn real_worker_jobs_get_new_settings_on_the_next_attempt_scope() {
 async fn provider_registration_and_artisan_help_do_not_query_missing_tables() {
     let f = Fixture::new().await;
     f.connection
-        .getSchemaBuilder()
-        .dropIfExists(&f.table)
+        .get_schema_builder()
+        .drop_if_exists(&f.table)
         .await
         .unwrap();
     let app = application(&f);

@@ -106,7 +106,7 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
         .unwrap()
         .connection(None)
         .unwrap();
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create("cache", |t| {
             t.string("key", None).primary();

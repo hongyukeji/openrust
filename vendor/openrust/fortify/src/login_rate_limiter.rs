@@ -33,10 +33,10 @@ impl LoginRateLimiter {
             .attempts(&self.throttleKey(request).await?)
             .await?)
     }
-    pub async fn tooManyAttempts(&self, request: &mut Request) -> Result<bool, HttpError> {
+    pub async fn too_many_attempts(&self, request: &mut Request) -> Result<bool, HttpError> {
         Ok(self
             .limiter
-            .tooManyAttempts(&self.throttleKey(request).await?, 5)
+            .too_many_attempts(&self.throttleKey(request).await?, 5)
             .await?)
     }
     pub async fn increment(&self, request: &mut Request) -> Result<(), HttpError> {
@@ -46,10 +46,10 @@ impl LoginRateLimiter {
             .map_err(internal)?;
         Ok(())
     }
-    pub async fn availableIn(&self, request: &mut Request) -> Result<u64, HttpError> {
+    pub async fn available_in(&self, request: &mut Request) -> Result<u64, HttpError> {
         Ok(self
             .limiter
-            .availableIn(&self.throttleKey(request).await?)
+            .available_in(&self.throttleKey(request).await?)
             .await?)
     }
     pub async fn clear(&self, request: &mut Request) -> Result<(), HttpError> {

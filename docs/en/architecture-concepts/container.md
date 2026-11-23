@@ -1039,7 +1039,7 @@ Custom attributes can implement `resolve_async` when they need to await a depend
 
 ### Service Manager Attributes {#service-manager-attributes}
 
-Use `Cache`, `Database` or `DB`, `Log`, and `Storage` on constructor or method parameters. Each attribute resolves the manager in the current container and selects its default service or the name passed to `new`.
+Use `Cache`, `Database` or `Db`, `Log`, and `Storage` on constructor or method parameters. Each attribute resolves the manager in the current container and selects its default service or the name passed to `new`.
 
 The injected types are `Arc<cache::Repository>`, `Arc<database::Connection>`, `Arc<log::Logger>`, and `Arc<filesystem::FilesystemAdapter>`. `Cache::memoized()` shares memoized reads within the current scope. `Log::named()` changes the injected logger name while reusing the channel handlers.
 

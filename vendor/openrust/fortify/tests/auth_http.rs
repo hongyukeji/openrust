@@ -204,7 +204,7 @@ fn age(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .map_err(|error| HttpError::Internal {
                 source: Box::new(error),
             })?
-            .asDateTime()
+            .as_date_time()
             .timestamp()
             .as_nanosecond()
             .div_euclid(1_000_000_000) as i64;
@@ -290,7 +290,7 @@ async fn start_with_store(
             .connection(None)
             .unwrap();
         let version = connection
-            .selectOne("SELECT VERSION() AS version", &[])
+            .select_one("SELECT VERSION() AS version", &[])
             .await
             .unwrap()
             .unwrap();
@@ -627,7 +627,7 @@ struct SqlUser(ModelState);
 impl Model for SqlUser {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("fortify_auth_mysql_users")
-            .primaryKey("identity")
+            .primary_key("identity")
             .incrementing(false)
             .timestamps(None, None);
         &META
@@ -648,7 +648,7 @@ impl Authenticatable for SqlUser {
         "identity"
     }
     fn get_auth_identifier(&self) -> AuthIdentifier {
-        self.getKey().unwrap().try_into().unwrap()
+        self.get_key().unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
@@ -660,19 +660,19 @@ impl Authenticatable for SqlUser {
         field(self, "remember_token")
     }
     fn set_remember_token(&mut self, token: Option<String>) {
-        self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
+        self.set_attribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
     fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name)
+        self.get_attribute_value(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
 }
 
 fn field<'a>(user: &'a SqlUser, name: &str) -> Option<&'a str> {
-    match user.getAttribute(name) {
+    match user.get_attribute(name) {
         Some(Value::Text(value)) => Some(value),
         _ => None,
     }
@@ -783,7 +783,7 @@ async fn named_limiter_replaces_builtin_login_attempt_limit() {
                 .make::<openrust::cache::RateLimiter>()
                 .unwrap()
                 .r#for("fortify-login", |_| {
-                    openrust::cache::rate_limiting::Limit::perMinute(2)
+                    openrust::cache::rate_limiting::Limit::per_minute(2)
                 });
         },
     )

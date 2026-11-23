@@ -27,7 +27,7 @@ pub(super) struct LifecycleQueue {
 }
 
 impl Contract for LifecycleQueue {
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
 

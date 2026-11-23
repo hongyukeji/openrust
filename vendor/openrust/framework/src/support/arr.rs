@@ -50,7 +50,6 @@ impl From<DataPathError> for ArrValueError {
 /// Array and object helpers for ordered JSON values.
 pub struct Arr;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Arr {
     pub fn accessible(value: &Value) -> bool {
         value.is_array() || value.is_object()
@@ -113,7 +112,7 @@ impl Arr {
         Self::get(value, key).is_some()
     }
 
-    pub fn hasAll(value: &Value, keys: &[&str]) -> bool {
+    pub fn has_all(value: &Value, keys: &[&str]) -> bool {
         !keys.is_empty() && keys.iter().all(|key| Self::has(value, key))
     }
 
@@ -121,7 +120,7 @@ impl Arr {
         keys.iter().any(|key| Self::has(value, key))
     }
 
-    pub fn isList(value: &Value) -> bool {
+    pub fn is_list(value: &Value) -> bool {
         match value {
             Value::Array(_) => true,
             Value::Object(values) => values
@@ -132,8 +131,8 @@ impl Arr {
         }
     }
 
-    pub fn isAssoc(value: &Value) -> bool {
-        Self::accessible(value) && !Self::isList(value)
+    pub fn is_assoc(value: &Value) -> bool {
+        Self::accessible(value) && !Self::is_list(value)
     }
 
     /// Sets a dot path with literal path segments.
@@ -196,10 +195,10 @@ impl Arr {
 
     /// Flattens nested values. Empty arrays and objects remain leaves.
     pub fn dot(value: &Value) -> Result<Map<String, Value>, DataPathError> {
-        Self::dotWithDepth(value, "", None)
+        Self::dot_with_depth(value, "", None)
     }
 
-    pub fn dotWithDepth(
+    pub fn dot_with_depth(
         value: &Value,
         prefix: &str,
         depth: Option<usize>,

@@ -122,7 +122,7 @@ impl AuthManager {
                 (user as &dyn std::any::Any)
                     .downcast_ref::<M>()
                     .expect("morph resolver registered for this model")
-                    .getMorphClass()
+                    .get_morph_class()
                     .map_err(AuthError::backend)
             });
         extensions
@@ -138,7 +138,7 @@ impl AuthManager {
                     let name = config
                         .get("connection")
                         .and_then(Value::as_str)
-                        .or_else(|| prototype.getConnectionName());
+                        .or_else(|| prototype.get_connection_name());
                     let connection = manager.connection(name)?;
                     let hasher = container.make::<dyn Hasher>()?;
                     Ok(Arc::new(EloquentUserProvider::<M>::new(connection, hasher)))

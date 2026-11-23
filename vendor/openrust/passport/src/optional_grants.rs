@@ -39,7 +39,7 @@ impl AuthorizationServer {
         let scopes = self.finalize_scopes(&client, requested, "password").await?;
         let id = AuthIdentifier::try_from(
             &client
-                .getKey()
+                .get_key()
                 .await
                 .ok_or_else(|| OAuthError::invalid_client(None))?,
         )
@@ -88,7 +88,7 @@ impl AuthorizationServer {
             .map_err(internal)?
             .ok_or_else(|| OAuthError::invalid_client(None))?;
         let connection = client.connection().await.map_err(internal)?;
-        let mut transaction = connection.beginTransaction().await.map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         client
             .refresh_for_update(&mut transaction)
             .await

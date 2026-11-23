@@ -101,7 +101,7 @@ pub(super) async fn alter(
     if foreign_keys {
         let schema = grammar.identifier(grammar.catalog_schema(&table))?;
         if transaction
-            .selectOne(&format!("pragma {schema}.foreign_key_check"), &[])
+            .select_one(&format!("pragma {schema}.foreign_key_check"), &[])
             .await?
             .is_some()
         {
@@ -119,7 +119,7 @@ async fn rename_index(
     to: &str,
 ) -> DatabaseResult<()> {
     let schema = grammar.identifier(grammar.catalog_schema(table))?;
-    let row = transaction.selectOne(
+    let row = transaction.select_one(
         &format!("select sql from {schema}.sqlite_schema where type = 'index' and tbl_name = ? collate nocase and name = ? collate nocase"),
         &[table.name.as_str().into(), from.into()],
     ).await?.ok_or(DatabaseError::InvalidSchema("unknown SQLite index"))?;
@@ -147,7 +147,7 @@ async fn rebuild_table(
     let schema = grammar.identifier(schema_name)?;
     let name = grammar.identifier(&table.name)?;
     let original = format!("{schema}.{name}");
-    let table_sql = transaction.selectOne(
+    let table_sql = transaction.select_one(
         &format!("select sql from {schema}.sqlite_schema where type = 'table' and name = ? collate nocase"),
         &[table.name.as_str().into()],
     ).await?.ok_or(DatabaseError::InvalidSchema("unknown SQLite table"))?;
@@ -316,7 +316,7 @@ async fn read_sequence(
     schema: &str,
     table: &str,
 ) -> DatabaseResult<Option<Value>> {
-    let exists = transaction.selectOne(&format!("select 1 from {schema}.sqlite_schema where type = 'table' and name = 'sqlite_sequence'"), &[]).await?.is_some();
+    let exists = transaction.select_one(&format!("select 1 from {schema}.sqlite_schema where type = 'table' and name = 'sqlite_sequence'"), &[]).await?.is_some();
     if !exists {
         return Ok(None);
     }

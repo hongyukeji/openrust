@@ -17,20 +17,19 @@ pub use scan::{ScanError, ScanValue};
 ///
 /// let value = Stringable::from("  Example  ").trim();
 /// assert_eq!(value.value(), "Example");
-/// assert_eq!(value.toString(), "Example");
+/// assert_eq!(value.to_string(), "Example");
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 #[must_use]
 pub struct Stringable(String);
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Stringable {
     pub fn value(&self) -> &str {
         &self.0
     }
 
-    pub fn toString(&self) -> &str {
+    pub fn to_string(&self) -> &str {
         self.value()
     }
 
@@ -78,20 +77,20 @@ impl Stringable {
         Self(super::Str::words(&self.0, limit, end))
     }
 
-    pub fn chopStart(self, prefixes: &[&str]) -> Self {
-        Self::from(super::Str::chopStart(&self.0, prefixes))
+    pub fn chop_start(self, prefixes: &[&str]) -> Self {
+        Self::from(super::Str::chop_start(&self.0, prefixes))
     }
 
-    pub fn chopEnd(self, suffixes: &[&str]) -> Self {
-        Self::from(super::Str::chopEnd(&self.0, suffixes))
+    pub fn chop_end(self, suffixes: &[&str]) -> Self {
+        Self::from(super::Str::chop_end(&self.0, suffixes))
     }
 
-    pub fn replaceStart(self, search: &str, replacement: &str) -> Self {
-        Self(super::Str::replaceStart(search, replacement, &self.0))
+    pub fn replace_start(self, search: &str, replacement: &str) -> Self {
+        Self(super::Str::replace_start(search, replacement, &self.0))
     }
 
-    pub fn replaceEnd(self, search: &str, replacement: &str) -> Self {
-        Self(super::Str::replaceEnd(search, replacement, &self.0))
+    pub fn replace_end(self, search: &str, replacement: &str) -> Self {
+        Self(super::Str::replace_end(search, replacement, &self.0))
     }
 
     pub fn deduplicate(self, characters: &[char]) -> Self {
@@ -129,30 +128,30 @@ impl Stringable {
         super::Str::r#match(pattern, &self.0).map(Self::from)
     }
 
-    pub fn matchAll(&self, pattern: &str) -> Result<Vec<&str>, regex::Error> {
-        super::Str::matchAll(pattern, &self.0)
+    pub fn match_all(&self, pattern: &str) -> Result<Vec<&str>, regex::Error> {
+        super::Str::match_all(pattern, &self.0)
     }
 
-    pub fn isMatch(&self, patterns: &[&str]) -> Result<bool, regex::Error> {
-        super::Str::isMatch(patterns, &self.0)
+    pub fn is_match(&self, patterns: &[&str]) -> Result<bool, regex::Error> {
+        super::Str::is_match(patterns, &self.0)
     }
 
-    pub fn replaceMatches(
+    pub fn replace_matches(
         self,
         pattern: &str,
         replacement: &str,
         count: Option<usize>,
     ) -> Result<Self, regex::Error> {
-        super::Str::replaceMatches(pattern, replacement, &self.0, count).map(Self)
+        super::Str::replace_matches(pattern, replacement, &self.0, count).map(Self)
     }
 
-    pub fn replaceMatchesWith(
+    pub fn replace_matches_with(
         self,
         pattern: &str,
         replacement: impl FnMut(&regex::Captures<'_>) -> String,
         count: Option<usize>,
     ) -> Result<Self, regex::Error> {
-        super::Str::replaceMatchesWith(pattern, replacement, &self.0, count).map(Self)
+        super::Str::replace_matches_with(pattern, replacement, &self.0, count).map(Self)
     }
 
     pub fn width(&self) -> usize {
@@ -163,13 +162,13 @@ impl Stringable {
         Self(super::Str::limit(&self.0, columns, end, preserve_words))
     }
 
-    pub fn wordWrap(
+    pub fn word_wrap(
         self,
         columns: usize,
         line_break: &str,
         cut_long_words: bool,
     ) -> Result<Self, super::WordWrapError> {
-        super::Str::wordWrap(&self.0, columns, line_break, cut_long_words).map(Self)
+        super::Str::word_wrap(&self.0, columns, line_break, cut_long_words).map(Self)
     }
 
     pub fn ascii(self, language: &str) -> Self {
@@ -180,13 +179,13 @@ impl Stringable {
         Self(super::Str::slug(&self.0))
     }
 
-    pub fn slugWith(
+    pub fn slug_with(
         self,
         separator: &str,
         language: Option<&str>,
         dictionary: &[(&str, &str)],
     ) -> Self {
-        Self(super::Str::slugWith(
+        Self(super::Str::slug_with(
             &self.0, separator, language, dictionary,
         ))
     }
@@ -195,26 +194,26 @@ impl Stringable {
         Self(super::Str::transliterate(&self.0))
     }
 
-    pub fn transliterateWithOptions(self, unknown: Option<&str>, strict: bool) -> Self {
-        Self(super::Str::transliterateWithOptions(
+    pub fn transliterate_with_options(self, unknown: Option<&str>, strict: bool) -> Self {
+        Self(super::Str::transliterate_with_options(
             &self.0, unknown, strict,
         ))
     }
 
-    pub fn isUuid(&self, version: Option<u8>) -> bool {
-        super::Str::isUuid(&self.0, version)
+    pub fn is_uuid(&self, version: Option<u8>) -> bool {
+        super::Str::is_uuid(&self.0, version)
     }
 
-    pub fn isUlid(&self) -> bool {
-        super::Str::isUlid(&self.0)
+    pub fn is_ulid(&self) -> bool {
+        super::Str::is_ulid(&self.0)
     }
 
     pub fn markdown(self) -> Self {
         Self(super::Str::markdown(&self.0))
     }
 
-    pub fn inlineMarkdown(self) -> Self {
-        Self(super::Str::inlineMarkdown(&self.0))
+    pub fn inline_markdown(self) -> Self {
+        Self(super::Str::inline_markdown(&self.0))
     }
 
     pub fn plural(self, count: i64) -> Self {
@@ -225,32 +224,32 @@ impl Stringable {
         Self(super::Str::singular(&self.0))
     }
 
-    pub fn pluralStudly(self, count: i64) -> Self {
-        Self(super::Str::pluralStudly(&self.0, count))
+    pub fn plural_studly(self, count: i64) -> Self {
+        Self(super::Str::plural_studly(&self.0, count))
     }
 
-    pub fn pluralPascal(self, count: i64) -> Self {
-        Self(super::Str::pluralPascal(&self.0, count))
+    pub fn plural_pascal(self, count: i64) -> Self {
+        Self(super::Str::plural_pascal(&self.0, count))
     }
 
-    pub fn pluralIn(self, count: i64, language: super::InflectionLanguage) -> Self {
-        Self(super::Str::pluralIn(&self.0, count, language))
+    pub fn plural_in(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::plural_in(&self.0, count, language))
     }
 
-    pub fn singularIn(self, language: super::InflectionLanguage) -> Self {
-        Self(super::Str::singularIn(&self.0, language))
+    pub fn singular_in(self, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::singular_in(&self.0, language))
     }
 
-    pub fn pluralStudlyIn(self, count: i64, language: super::InflectionLanguage) -> Self {
-        Self(super::Str::pluralStudlyIn(&self.0, count, language))
+    pub fn plural_studly_in(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::plural_studly_in(&self.0, count, language))
     }
 
-    pub fn pluralPascalIn(self, count: i64, language: super::InflectionLanguage) -> Self {
-        Self(super::Str::pluralPascalIn(&self.0, count, language))
+    pub fn plural_pascal_in(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::plural_pascal_in(&self.0, count, language))
     }
 
-    pub fn countedIn(self, count: i64, language: super::InflectionLanguage) -> Self {
-        Self(super::Str::countedIn(&self.0, count, language))
+    pub fn counted_in(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::counted_in(&self.0, count, language))
     }
 
     pub fn counted(self, count: i64) -> Self {

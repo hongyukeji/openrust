@@ -12,7 +12,7 @@ use openrust::{
     routing::{RouteParameter, UrlValue},
     support::{
         MessageBag,
-        facades::{Auth, Facade, URL},
+        facades::{Auth, Facade, Url},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ impl DeviceCodeController {
                 .and_then(|v| v.as_object().cloned())
                 .unwrap_or_default();
             let server = AuthorizationServer::get_facade_root().map_err(internal)?;
-            let uri = URL::for_request(request)
+            let uri = Url::for_request(request)
                 .map_err(internal)?
                 .route("passport.device", &[], true)
                 .map_err(internal)?;
@@ -228,7 +228,7 @@ fn redirect(request: &Request, route: &str, code: Option<&str>) -> Result<Respon
             )]
         })
         .unwrap_or_default();
-    let target = URL::for_request(request)
+    let target = Url::for_request(request)
         .map_err(internal)?
         .route(route, &parameters, true)
         .map_err(internal)?;

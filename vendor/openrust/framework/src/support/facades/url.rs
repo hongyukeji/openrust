@@ -10,9 +10,9 @@ use crate::{
 use super::Facade;
 
 /// Generates URLs using the current application's routes and request.
-pub struct URL;
+pub struct Url;
 
-impl Facade for URL {
+impl Facade for Url {
     type Service = UrlGenerator;
 
     fn get_facade_accessor() -> ServiceKey {
@@ -20,7 +20,7 @@ impl Facade for URL {
     }
 }
 
-impl URL {
+impl Url {
     pub(crate) fn service() -> UrlResult<Arc<UrlGenerator>> {
         Self::get_facade_root().map_err(|_| UrlError::Unavailable)
     }

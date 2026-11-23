@@ -73,7 +73,7 @@ async fn registration_profile_and_password_updates_use_native_eloquent_sessions_
     client.send("PUT","/user/password",r#"{"current_password":"wrong","password":"updated:secret","password_confirmation":"updated:secret"}"#,422).await;
     let count = server
         .database
-        .selectOne("SELECT COUNT(*) AS count FROM fortify_named_resets", &[])
+        .select_one("SELECT COUNT(*) AS count FROM fortify_named_resets", &[])
         .await
         .unwrap()
         .unwrap();
@@ -89,7 +89,7 @@ async fn registration_profile_and_password_updates_use_native_eloquent_sessions_
     );
     let count = server
         .database
-        .selectOne("SELECT COUNT(*) AS count FROM fortify_named_resets", &[])
+        .select_one("SELECT COUNT(*) AS count FROM fortify_named_resets", &[])
         .await
         .unwrap()
         .unwrap();
@@ -99,7 +99,7 @@ async fn registration_profile_and_password_updates_use_native_eloquent_sessions_
     ));
     let count = server
         .database
-        .selectOne("SELECT COUNT(*) AS count FROM fortify_default_resets", &[])
+        .select_one("SELECT COUNT(*) AS count FROM fortify_default_resets", &[])
         .await
         .unwrap()
         .unwrap();

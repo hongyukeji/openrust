@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let user = store.r#for("user-42");
     assert!(user.active("new-api").await?);
     assert_eq!(user.value("theme").await?, json!("blue"));
-    user.loadMissing(&["new-api", "theme"]).await?;
+    user.load_missing(&["new-api", "theme"]).await?;
     assert!(user.allAreActive(&["new-api", "theme"]).await?);
     store.defineClass(|| Box::pin(async { Ok(Arc::new(NewApi)) }))?;
     user.activateWithValue(&["theme"], json!("green")).await?;

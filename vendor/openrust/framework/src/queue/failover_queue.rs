@@ -118,7 +118,7 @@ impl FailoverQueue {
 }
 
 impl Contract for FailoverQueue {
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
 

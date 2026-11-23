@@ -7,7 +7,6 @@ use serde_json::Value;
 
 use super::{ArrayKey, Collection, CollectionResult, finite::Finite};
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: Serialize> Collection<T> {
     pub fn to_array(&self) -> CollectionResult<Value> {
         serde_json::to_value(self).map_err(Into::into)
@@ -22,20 +21,18 @@ impl<T: Serialize> Collection<T> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: DeserializeOwned> Collection<T> {
-    pub fn fromJson(json: &str) -> CollectionResult<Self> {
+    pub fn from_json(json: &str) -> CollectionResult<Self> {
         serde_json::from_str(json).map_err(Into::into)
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Collection<Value> {
-    pub fn fromValue(value: Value) -> Self {
+    pub fn from_value(value: Value) -> Self {
         match value {
             Value::Null => Self::new(),
             Value::Array(items) => Self::make(items),
-            Value::Object(items) => Self::fromEntries(items),
+            Value::Object(items) => Self::from_entries(items),
             value => Self::make([value]),
         }
     }

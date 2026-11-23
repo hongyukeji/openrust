@@ -266,7 +266,7 @@ def run():
             migration = next(generated.glob("database/migrations/*create_passkeys_table.rs"))
             migration_source = migration.read_text()
             assert migration_source.count(".id()") == 1, "Expected one passkey primary key declaration"
-            migration.write_text(migration_source.replace('.create("passkeys",', '.create("custom_passkeys",').replace('.id()', '.idWith("pk")').replace('dropIfExists("passkeys")', 'dropIfExists("custom_passkeys")'))
+            migration.write_text(migration_source.replace('.create("passkeys",', '.create("custom_passkeys",').replace('.id()', '.id_with("pk")').replace('drop_if_exists("passkeys")', 'drop_if_exists("custom_passkeys")'))
             routes.write_text(routes.read_text().replace('        let mode=request.route("mode").unwrap_or_default();', '        let mode=request.route("mode").unwrap_or_default();\n        #[cfg(feature="fortify")]\n        if mode=="events" { return openrust::http::Response::json(openrust::http::StatusCode::OK,crate::app::models::custom_passkey::report()); }'))
         if init_auth:
             api = generated / "routes/api.rs"
@@ -274,7 +274,7 @@ def run():
     #[cfg(all(feature = "passport", feature = "sanctum"))]
     openrust::support::facades::Route::get("/init-auth-tokens", init_auth_tokens)?;
     #[cfg(feature = "passport")]
-    openrust::support::facades::Route::getWith("/init-passport-user", init_passport_user, |route| { route.middleware_name("auth:api"); Ok(()) })?;
+    openrust::support::facades::Route::get_with("/init-passport-user", init_passport_user, |route| { route.middleware_name("auth:api"); Ok(()) })?;
     Ok(())
 }""", 1) + (source / "tests/support/init_auth.rs").read_text())
             cli("passport:client", "--personal", "--name=Init acceptance", "--provider=users", "--no-interaction")
@@ -394,12 +394,12 @@ fn passkeys_acceptance_list(request: &mut openrust::http::Request) -> openrust::
         let user=openrust::auth::Auth::user(request).await?.ok_or(openrust::http::HttpError::Unauthenticated)?;
         use openrust_fortify::passkeys::PasskeyAuthenticatable as _;
         let user=(user.as_ref() as &dyn std::any::Any).downcast_ref::<crate::app::models::User>().unwrap();
-        let records=user.passkeys().getResults(user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        let records=user.passkeys().get_results(user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
         assert_eq!(user.hasPasskeysEnabled().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?,!records.is_empty());
         let mut values=Vec::new();
         for record in records {
             let mut value=record.to_array().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
-            value.insert("id".into(),match record.getKey().await.unwrap() { openrust::database::Value::Integer(value)=>serde_json::json!(value), openrust::database::Value::Unsigned(value)=>serde_json::json!(value), openrust::database::Value::Text(value)=>serde_json::json!(value), _=>panic!("unexpected primary key") });
+            value.insert("id".into(),match record.get_key().await.unwrap() { openrust::database::Value::Integer(value)=>serde_json::json!(value), openrust::database::Value::Unsigned(value)=>serde_json::json!(value), openrust::database::Value::Text(value)=>serde_json::json!(value), _=>panic!("unexpected primary key") });
             values.push(value);
         }
         openrust::http::Response::json(openrust::http::StatusCode::OK,values)
@@ -414,7 +414,7 @@ fn passkeys_acceptance_cascade(request: &mut openrust::http::Request) -> openrus
         let mut user=crate::app::models::User::find(key.clone()).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.unwrap();
         user.delete().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
         use openrust_fortify::passkeys::PasskeyAuthenticatable as _;
-        let remaining=user.passkeys().getResults(&user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.len();
+        let remaining=user.passkeys().get_results(&user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.len();
         openrust::http::Response::json(openrust::http::StatusCode::OK,serde_json::json!({"remaining":remaining}))
     })
 }

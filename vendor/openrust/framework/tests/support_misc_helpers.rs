@@ -18,7 +18,7 @@ fn blank_matches_json_scalar_and_container_boundaries() {
         assert!(filled(&item));
     }
     assert_eq!(
-        Str::of("abc").hash::<md5::Md5>().toString(),
+        Str::of("abc").hash::<md5::Md5>().to_string(),
         "900150983cd24fb0d6963f7d28e17f72"
     );
 }
@@ -39,18 +39,18 @@ async fn retry_uses_one_based_attempts_stops_on_success_and_returns_terminal_err
         .await
         .unwrap();
     assert_eq!(value, 3);
-    fake.assertSequence(&delays.map(Some));
+    fake.assert_sequence(&delays.map(Some));
 
     let fake = Sleep::fake();
     let result = Retry::times(NonZeroUsize::new(3).unwrap(), delays[0])
         .using(&fake)
-        .runWhen(
+        .run_when(
             |attempt| async move { Err::<(), _>(attempt) },
             |attempt| *attempt < 2,
         )
         .await;
     assert_eq!(result, Err(2));
-    fake.assertSequence(&[Some(delays[0])]);
+    fake.assert_sequence(&[Some(delays[0])]);
 
     let result = Retry::backoff([])
         .run(|attempt| async move { Err::<(), _>(attempt) })

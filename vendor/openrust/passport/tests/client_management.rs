@@ -151,13 +151,13 @@ async fn cleanup(manager: &DatabaseManager) {
         "oauth_auth_codes",
         "oauth_clients",
     ] {
-        db.getSchemaBuilder().dropIfExists(table).await.unwrap();
+        db.get_schema_builder().drop_if_exists(table).await.unwrap();
     }
     manager
         .connection(Some("main"))
         .unwrap()
-        .getSchemaBuilder()
-        .dropIfExists("history")
+        .get_schema_builder()
+        .drop_if_exists("history")
         .await
         .unwrap();
 }
@@ -188,12 +188,12 @@ async fn exercise_models() -> DatabaseResult<()> {
         .unwrap();
     let first = repo.createClientCredentialsGrantClient("first").await?;
     let second = repo.createClientCredentialsGrantClient("second").await?;
-    let db = Token::default().getConnection()?;
-    let mut token = Token::newInstanceOn(
+    let db = Token::default().get_connection()?;
+    let mut token = Token::new_instance_on(
         &db,
         Attributes::from([
             ("id".into(), "token-a".into()),
-            ("client_id".into(), first.getKey().await.unwrap()),
+            ("client_id".into(), first.get_key().await.unwrap()),
             ("scopes".into(), Value::Json(json!(["orders"]))),
             ("revoked".into(), false.into()),
         ]),
@@ -207,7 +207,7 @@ async fn exercise_models() -> DatabaseResult<()> {
     passport.withInheritedScopes.store(true, Ordering::Relaxed);
     assert!(token.can("orders:read")?);
     assert!(!token.can("other")?);
-    let mut refresh = RefreshToken::newInstanceOn(
+    let mut refresh = RefreshToken::new_instance_on(
         &db,
         Attributes::from([
             ("id".into(), "refresh-a".into()),
@@ -216,50 +216,50 @@ async fn exercise_models() -> DatabaseResult<()> {
         ]),
     )?;
     refresh.save().await?;
-    let loaded_client = token.client().getResults(&token).await?.unwrap();
-    assert_eq!(loaded_client.getKey(), first.getKey().await.as_ref());
+    let loaded_client = token.client().get_results(&token).await?.unwrap();
+    assert_eq!(loaded_client.get_key(), first.get_key().await.as_ref());
     assert_eq!(
         token
             .refreshToken()
-            .getResults(&token)
+            .get_results(&token)
             .await?
             .unwrap()
-            .getKey(),
-        refresh.getKey()
+            .get_key(),
+        refresh.get_key()
     );
     assert_eq!(
         refresh
             .accessToken()
-            .getResults(&refresh)
+            .get_results(&refresh)
             .await?
             .unwrap()
-            .getKey(),
-        token.getKey()
+            .get_key(),
+        token.get_key()
     );
-    assert!(refresh.state().getAttribute("created_at").is_none());
-    let mut orphan = Token::newInstanceOn(
+    assert!(refresh.state().get_attribute("created_at").is_none());
+    let mut orphan = Token::new_instance_on(
         &db,
         Attributes::from([
             ("id".into(), "token-z".into()),
-            ("client_id".into(), second.getKey().await.unwrap()),
+            ("client_id".into(), second.get_key().await.unwrap()),
             ("revoked".into(), false.into()),
         ]),
     )?;
     orphan.save().await?;
-    let mut no_refresh = Token::newInstanceOn(
+    let mut no_refresh = Token::new_instance_on(
         &db,
         Attributes::from([
             ("id".into(), "token-b".into()),
-            ("client_id".into(), first.getKey().await.unwrap()),
+            ("client_id".into(), first.get_key().await.unwrap()),
             ("revoked".into(), false.into()),
         ]),
     )?;
     no_refresh.save().await?;
-    let mut code = AuthCode::newInstanceOn(
+    let mut code = AuthCode::new_instance_on(
         &db,
         Attributes::from([
             ("id".into(), "code-a".into()),
-            ("client_id".into(), first.getKey().await.unwrap()),
+            ("client_id".into(), first.get_key().await.unwrap()),
             ("user_id".into(), 1_i64.into()),
             ("revoked".into(), false.into()),
             ("expires_at".into(), "2027-01-01 00:00:00".into()),
@@ -267,13 +267,13 @@ async fn exercise_models() -> DatabaseResult<()> {
     )?;
     code.save().await?;
     assert_eq!(
-        code.client().getResults(&code).await?.unwrap().getKey(),
-        loaded_client.getKey()
+        code.client().get_results(&code).await?.unwrap().get_key(),
+        loaded_client.get_key()
     );
     assert_eq!(
         loaded_client
             .tokens()
-            .getResults(&loaded_client)
+            .get_results(&loaded_client)
             .await?
             .len(),
         2
@@ -281,7 +281,7 @@ async fn exercise_models() -> DatabaseResult<()> {
     assert_eq!(
         loaded_client
             .authCodes()
-            .getResults(&loaded_client)
+            .get_results(&loaded_client)
             .await?
             .len(),
         1
@@ -293,72 +293,72 @@ async fn exercise_models() -> DatabaseResult<()> {
     if failure {
         assert!(outcome.is_err());
         assert_eq!(
-            Token::queryOn(&db)
+            Token::query_on(&db)
                 .find("token-a")
                 .await?
                 .unwrap()
-                .getAttributeValue("revoked")?,
+                .get_attribute_value("revoked")?,
             Some(false.into())
         );
         assert_eq!(
-            Client::queryOn(&db)
-                .find(first.getKey().await.unwrap())
+            Client::query_on(&db)
+                .find(first.get_key().await.unwrap())
                 .await?
                 .unwrap()
-                .getAttributeValue("revoked")?,
+                .get_attribute_value("revoked")?,
             Some(false.into())
         );
         return Ok(());
     }
     outcome?;
     assert_eq!(
-        Token::queryOn(&db)
+        Token::query_on(&db)
             .find("token-a")
             .await?
             .unwrap()
-            .getAttributeValue("revoked")?,
+            .get_attribute_value("revoked")?,
         Some(true.into())
     );
     assert_eq!(
-        Token::queryOn(&db)
+        Token::query_on(&db)
             .find("token-b")
             .await?
             .unwrap()
-            .getAttributeValue("revoked")?,
+            .get_attribute_value("revoked")?,
         Some(true.into())
     );
     assert_eq!(
-        RefreshToken::queryOn(&db)
+        RefreshToken::query_on(&db)
             .find("refresh-a")
             .await?
             .unwrap()
-            .getAttributeValue("revoked")?,
+            .get_attribute_value("revoked")?,
         Some(true.into())
     );
     assert_eq!(
-        Token::queryOn(&db)
+        Token::query_on(&db)
             .find("token-z")
             .await?
             .unwrap()
-            .getAttributeValue("revoked")?,
+            .get_attribute_value("revoked")?,
         Some(false.into())
     );
     assert!(
-        repo.findActive(first.getKey().await.unwrap())
+        repo.findActive(first.get_key().await.unwrap())
             .await?
             .is_none()
     );
     assert!(
-        repo.findActive(second.getKey().await.unwrap())
+        repo.findActive(second.get_key().await.unwrap())
             .await?
             .is_some()
     );
     assert_eq!(
-        AuthCode::queryOn(&db)
+        AuthCode::query_on(&db)
             .find("code-a")
             .await?
             .unwrap()
-            .getAttributeValue("revoked")?,
+            .get_attribute_value("revoked")?,
         Some(false.into())
     );
     Ok(())
@@ -376,7 +376,7 @@ impl<M: Model> ModelEventListener<M> for Audit {
         _: &'a Connection,
     ) -> openrust::database::DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
-            if model.getAttributeValue("revoked")? == Some(true.into()) {
+            if model.get_attribute_value("revoked")? == Some(true.into()) {
                 self.events.lock().unwrap().push(self.label.into());
                 if self.fail {
                     return Err(openrust::database::DatabaseError::InvalidQuery(
@@ -411,7 +411,7 @@ async fn revocation(fail: bool) {
         .set("probe.fail", json!(fail))
         .unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
-    RefreshToken::registerModelEvent(
+    RefreshToken::register_model_event(
         &app,
         ModelEvent::Saving,
         Audit {
@@ -421,7 +421,7 @@ async fn revocation(fail: bool) {
         },
     )
     .unwrap();
-    Token::registerModelEvent(
+    Token::register_model_event(
         &app,
         ModelEvent::Saving,
         Audit {
@@ -431,7 +431,7 @@ async fn revocation(fail: bool) {
         },
     )
     .unwrap();
-    Client::registerModelEvent(
+    Client::register_model_event(
         &app,
         ModelEvent::Saving,
         Audit {
@@ -520,7 +520,7 @@ async fn mysql_artisan_client_creates_each_grant_and_preserves_output_rules() {
         assert!(output.stdout.contains("New client created successfully."));
         assert_eq!(output.stdout.contains("Client ID"), details);
         assert_eq!(output.stdout.contains("Client Secret"), details && !public);
-        let models = Client::queryOn(&db).get().await.unwrap();
+        let models = Client::query_on(&db).get().await.unwrap();
         let model = models.all().last().unwrap();
         // UUID ordering is unrelated to creation order: select by the unique grant.
         let model = models
@@ -531,7 +531,7 @@ async fn mysql_artisan_client_creates_each_grant_and_preserves_output_rules() {
         assert_eq!(model.confidential(), !public);
         assert!(model.hasGrantType(grant).unwrap());
         assert_eq!(
-            model.getAttributeValue("name").unwrap(),
+            model.get_attribute_value("name").unwrap(),
             Some("Default client".into())
         );
         if matches!(grant, "authorization_code" | "implicit") {
@@ -551,7 +551,7 @@ async fn mysql_artisan_client_creates_each_grant_and_preserves_output_rules() {
         "--redirect_uri=https://a.test/cb,https://b.test/cb",
     ];
     assert_eq!(kernel.handle(&args.map(Into::into), &mut output).await, 0);
-    let model = Client::queryOn(&db).first().await.unwrap().unwrap();
+    let model = Client::query_on(&db).first().await.unwrap().unwrap();
     assert_eq!(
         model.redirectUris().unwrap().as_value(),
         &json!(["https://a.test/cb", "https://b.test/cb"])
@@ -566,16 +566,16 @@ fn token_scope_empty_wildcard_and_metadata_defaults() {
     assert!(!token.can("anything").unwrap());
     assert!(token.cant("anything").unwrap());
     let mut state = ModelState::default();
-    state.setAttribute("scopes", Value::Json(json!(["*"])));
+    state.set_attribute("scopes", Value::Json(json!(["*"])));
     assert!(Token::from_state(state).can("anything").unwrap());
     for empty in ["null", "false", "0", "\"0\"", "\"\""] {
         let mut state = ModelState::default();
-        state.setAttribute("scopes", empty);
+        state.set_attribute("scopes", empty);
         assert!(!Token::from_state(state).can("anything").unwrap());
     }
-    assert!(!Token::getIncrementing());
-    assert!(!RefreshToken::getIncrementing());
-    assert!(!AuthCode::getIncrementing());
+    assert!(!Token::get_incrementing());
+    assert!(!RefreshToken::get_incrementing());
+    assert!(!AuthCode::get_incrementing());
 }
 
 #[tokio::test]
@@ -586,10 +586,10 @@ async fn mysql_client_uuid_switch_preserves_constructed_instances_and_numeric_lo
     let root = Root::new();
     let app = root.app().await;
     let db = database(&app).await;
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("oauth_clients", |table| {
             table.id();
-            table.nullableMorphs("owner", None, None);
+            table.nullable_morphs("owner", None, None);
             table.string("name", None);
             table.string("secret", Some(100)).nullable();
             table.string("provider", None).nullable();
@@ -604,7 +604,7 @@ async fn mysql_client_uuid_switch_preserves_constructed_instances_and_numeric_lo
         let passport = app.make::<Passport>().await.unwrap();
         let mut uuid = Client::default();
         passport.clientUuids.store(false, Ordering::Relaxed);
-        let mut numeric = Client::newInstanceOn(
+        let mut numeric = Client::new_instance_on(
             &db,
             Attributes::from([
                 ("name".into(), "numeric".into()),
@@ -618,34 +618,34 @@ async fn mysql_client_uuid_switch_preserves_constructed_instances_and_numeric_lo
         )
         .unwrap();
         assert_eq!(
-            numeric.getKeyType(),
+            numeric.get_key_type(),
             openrust::database::eloquent::ModelKeyType::Integer
         );
         passport.clientUuids.store(true, Ordering::Relaxed);
         // The saved instance keeps its initialization strategy despite later app changes.
         numeric.save().await.unwrap();
-        assert!(matches!(numeric.getKey(), Some(Value::Integer(1))));
-        uuid.setUniqueIds().await.unwrap();
-        assert!(matches!(uuid.getKey(), Some(Value::Text(id)) if Client::isValidUniqueId(id)));
+        assert!(matches!(numeric.get_key(), Some(Value::Integer(1))));
+        uuid.set_unique_ids().await.unwrap();
+        assert!(matches!(uuid.get_key(), Some(Value::Text(id)) if Client::is_valid_unique_id(id)));
         passport.clientUuids.store(false, Ordering::Relaxed);
-        uuid.setUniqueIds().await.unwrap();
-        assert!(!uuid.getIncrementingForInstance());
-        assert!(numeric.getIncrementingForInstance());
+        uuid.set_unique_ids().await.unwrap();
+        assert!(!uuid.get_incrementing_for_instance());
+        assert!(numeric.get_incrementing_for_instance());
         let repo = app.make::<ClientRepository>().await.unwrap();
         let client = repo
             .createClientCredentialsGrantClient("created")
             .await
             .unwrap();
-        assert_eq!(client.getKey().await, Some(2_i64.into()));
+        assert_eq!(client.get_key().await, Some(2_i64.into()));
         assert!(repo.find(1_i64).await.unwrap().is_some());
-        assert_eq!(Client::routeBindingValue("id", "2"), Some(2_i64.into()));
+        assert_eq!(Client::route_binding_value("id", "2"), Some(2_i64.into()));
         let made = Client::factory()
             .unwrap()
             .asPublic()
-            .createOne(Attributes::new())
+            .create_one(Attributes::new())
             .await
             .unwrap();
-        assert_eq!(made.getKey(), Some(&3_i64.into()));
+        assert_eq!(made.get_key(), Some(&3_i64.into()));
     })
     .await;
     cleanup(&app.make::<DatabaseManager>().await.unwrap()).await;
@@ -703,7 +703,7 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
         ("custom_tokens", "client_id"),
         ("custom_refreshes", "access_token_id"),
     ] {
-        main.getSchemaBuilder()
+        main.get_schema_builder()
             .create(table, |table| {
                 table.string("id", Some(100)).primary();
                 table.string(foreign, Some(100));
@@ -713,7 +713,7 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
             .unwrap();
     }
     let events = Arc::new(Mutex::new(Vec::new()));
-    CustomToken::registerModelEvent(
+    CustomToken::register_model_event(
         &app,
         ModelEvent::Saving,
         Audit {
@@ -723,7 +723,7 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
         },
     )
     .unwrap();
-    CustomRefresh::registerModelEvent(
+    CustomRefresh::register_model_event(
         &app,
         ModelEvent::Saving,
         Audit {
@@ -750,17 +750,17 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
                 .createClientCredentialsGrantClient("custom")
                 .await
                 .unwrap();
-            let mut token = CustomToken::newInstanceOn(
+            let mut token = CustomToken::new_instance_on(
                 &main,
                 Attributes::from([
                     ("id".into(), "custom-t".into()),
-                    ("client_id".into(), client.getKey().await.unwrap()),
+                    ("client_id".into(), client.get_key().await.unwrap()),
                     ("revoked".into(), false.into()),
                 ]),
             )
             .unwrap();
             token.save().await.unwrap();
-            let mut refresh = CustomRefresh::newInstanceOn(
+            let mut refresh = CustomRefresh::new_instance_on(
                 &main,
                 Attributes::from([
                     ("id".into(), "custom-r".into()),
@@ -775,7 +775,7 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
             assert_eq!(
                 guard
                     .tokensFor::<CustomToken>()
-                    .getResults(&guard)
+                    .get_results(&guard)
                     .await
                     .unwrap()
                     .len(),
@@ -788,17 +788,17 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
                 vec!["custom refresh", "custom token"]
             );
             assert_eq!(
-                CustomToken::queryOn(&main)
+                CustomToken::query_on(&main)
                     .find("custom-t")
                     .await
                     .unwrap()
                     .unwrap()
-                    .getAttributeValue("revoked")
+                    .get_attribute_value("revoked")
                     .unwrap(),
                 Some(true.into())
             );
             assert_eq!(
-                Token::queryOn(&database(&app).await)
+                Token::query_on(&database(&app).await)
                     .get()
                     .await
                     .unwrap()
@@ -806,9 +806,9 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
                 0
             );
             // A default token relation must use passport.connection, even when its parent is on main.
-            let bound_token = Token::newInstanceOn(
+            let bound_token = Token::new_instance_on(
                 &main,
-                Attributes::from([("client_id".into(), client.getKey().await.unwrap())]),
+                Attributes::from([("client_id".into(), client.get_key().await.unwrap())]),
             )
             .unwrap();
             (client, bound_token)
@@ -827,15 +827,18 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
             // Bound models continue resolving through their owning app, not the current app.
             let related = bound_token
                 .client()
-                .getResults(&bound_token)
+                .get_results(&bound_token)
                 .await
                 .unwrap()
                 .unwrap();
-            assert_eq!(related.getKey(), client.getKey().await.as_ref());
+            assert_eq!(related.get_key(), client.get_key().await.as_ref());
         })
         .await;
     for table in ["custom_refreshes", "custom_tokens"] {
-        main.getSchemaBuilder().dropIfExists(table).await.unwrap();
+        main.get_schema_builder()
+            .drop_if_exists(table)
+            .await
+            .unwrap();
     }
     cleanup(&manager).await;
 }
@@ -865,13 +868,13 @@ impl openrust::contracts::auth::Authenticatable for ManagementUser {
         "subject"
     }
     fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
-        self.getAttribute("subject").unwrap().try_into().unwrap()
+        self.get_attribute("subject").unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
     }
     fn get_auth_password(&self) -> Option<&str> {
-        match self.getAttribute("password") {
+        match self.get_attribute("password") {
             Some(Value::Text(password)) => Some(password),
             _ => None,
         }
@@ -895,56 +898,56 @@ async fn mysql_owner_and_user_relations_keep_primary_and_authentication_keys_dis
     migrate(&app).await;
     let manager = app.make::<DatabaseManager>().await.unwrap();
     let main = manager.connection(Some("main")).unwrap();
-    main.getSchemaBuilder()
+    main.get_schema_builder()
         .create("management_users", |table| {
             table.id();
             table.bigInteger("subject");
         })
         .await
         .unwrap();
-    let mut user = ManagementUser::newInstanceOn(
+    let mut user = ManagementUser::new_instance_on(
         &main,
         Attributes::from([("subject".into(), 991_i64.into())]),
     )
     .unwrap();
     user.save().await.unwrap();
-    let user = ManagementUser::queryOn(&main)
-        .find(user.getKey().unwrap().clone())
+    let user = ManagementUser::query_on(&main)
+        .find(user.get_key().unwrap().clone())
         .await
         .unwrap()
         .unwrap();
     in_app(&app, async {
-        let mut client = Client::newInstanceOn(
+        let mut client = Client::new_instance_on(
             &database(&app).await,
             Attributes::from([
-                ("owner_id".into(), user.getKey().unwrap().clone()),
+                ("owner_id".into(), user.get_key().unwrap().clone()),
                 ("owner_type".into(), "user".into()),
-                ("user_id".into(), user.getKey().unwrap().clone()),
+                ("user_id".into(), user.get_key().unwrap().clone()),
             ]),
         )
         .unwrap();
         let owner = client
             .owner()
             .target::<ManagementUser>("user", "id")
-            .getResults(&client)
+            .get_results(&client)
             .await
             .unwrap()
             .unwrap();
         assert_eq!(
-            owner.downcast_ref::<ManagementUser>().unwrap().getKey(),
-            user.getKey()
+            owner.downcast_ref::<ManagementUser>().unwrap().get_key(),
+            user.get_key()
         );
         assert_eq!(
             client
                 .user::<ManagementUser>()
-                .getResults(&client)
+                .get_results(&client)
                 .await
                 .unwrap()
                 .unwrap()
-                .getKey(),
-            user.getKey()
+                .get_key(),
+            user.get_key()
         );
-        let token = Token::newInstanceOn(
+        let token = Token::new_instance_on(
             &database(&app).await,
             Attributes::from([("user_id".into(), 991_i64.into())]),
         )
@@ -953,25 +956,25 @@ async fn mysql_owner_and_user_relations_keep_primary_and_authentication_keys_dis
         let resolved = token
             .user::<ManagementUser>("subject")
             .unwrap()
-            .getResults(&token)
+            .get_results(&token)
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(resolved.getKey(), user.getKey());
+        assert_eq!(resolved.get_key(), user.get_key());
         // Relationship keys are primary keys even if URL binding uses another column.
-        client.state_mut().setAttribute("user_id", Value::Null);
+        client.state_mut().set_attribute("user_id", Value::Null);
         assert!(
             client
                 .user::<ManagementUser>()
-                .getResults(&client)
+                .get_results(&client)
                 .await
                 .unwrap()
                 .is_none()
         );
     })
     .await;
-    main.getSchemaBuilder()
-        .dropIfExists("management_users")
+    main.get_schema_builder()
+        .drop_if_exists("management_users")
         .await
         .unwrap();
     cleanup(&manager).await;
@@ -987,7 +990,7 @@ impl ModelEventListener<RefreshToken> for CancelRefresh {
     ) -> openrust::database::DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
             Ok(
-                if model.getAttributeValue("revoked")? == Some(true.into()) {
+                if model.get_attribute_value("revoked")? == Some(true.into()) {
                     ModelEventResponse::Cancel
                 } else {
                     ModelEventResponse::Continue
@@ -1007,8 +1010,8 @@ async fn mysql_revocation_ignores_cancelled_save_but_propagates_token_errors() {
         migrate(&app).await;
         let manager = app.make::<DatabaseManager>().await.unwrap();
         let db = database(&app).await;
-        RefreshToken::registerModelEvent(&app, ModelEvent::Saving, CancelRefresh).unwrap();
-        Token::registerModelEvent(
+        RefreshToken::register_model_event(&app, ModelEvent::Saving, CancelRefresh).unwrap();
+        Token::register_model_event(
             &app,
             ModelEvent::Saving,
             Audit {
@@ -1024,17 +1027,17 @@ async fn mysql_revocation_ignores_cancelled_save_but_propagates_token_errors() {
                 .createClientCredentialsGrantClient("cancel")
                 .await
                 .unwrap();
-            let mut token = Token::newInstanceOn(
+            let mut token = Token::new_instance_on(
                 &db,
                 Attributes::from([
                     ("id".into(), "cancel-t".into()),
-                    ("client_id".into(), client.getKey().await.unwrap()),
+                    ("client_id".into(), client.get_key().await.unwrap()),
                     ("revoked".into(), false.into()),
                 ]),
             )
             .unwrap();
             token.save().await.unwrap();
-            let mut refresh = RefreshToken::newInstanceOn(
+            let mut refresh = RefreshToken::new_instance_on(
                 &db,
                 Attributes::from([
                     ("id".into(), "cancel-r".into()),
@@ -1046,32 +1049,32 @@ async fn mysql_revocation_ignores_cancelled_save_but_propagates_token_errors() {
             refresh.save().await.unwrap();
             assert_eq!(repo.delete(&client).await.is_err(), token_error);
             assert_eq!(
-                RefreshToken::queryOn(&db)
+                RefreshToken::query_on(&db)
                     .find("cancel-r")
                     .await
                     .unwrap()
                     .unwrap()
-                    .getAttributeValue("revoked")
+                    .get_attribute_value("revoked")
                     .unwrap(),
                 Some(false.into())
             );
             assert_eq!(
-                Token::queryOn(&db)
+                Token::query_on(&db)
                     .find("cancel-t")
                     .await
                     .unwrap()
                     .unwrap()
-                    .getAttributeValue("revoked")
+                    .get_attribute_value("revoked")
                     .unwrap(),
                 Some((!token_error).into())
             );
             assert_eq!(
-                Client::queryOn(&db)
-                    .find(client.getKey().await.unwrap())
+                Client::query_on(&db)
+                    .find(client.get_key().await.unwrap())
                     .await
                     .unwrap()
                     .unwrap()
-                    .getAttributeValue("revoked")
+                    .get_attribute_value("revoked")
                     .unwrap(),
                 Some((!token_error).into())
             );
@@ -1093,24 +1096,24 @@ async fn mysql_artisan_provider_without_api_default_stays_null_and_string_foreig
     app.config().unwrap().set("auth.guards", json!({})).unwrap();
     let manager = app.make::<DatabaseManager>().await.unwrap();
     let db = database(&app).await;
-    db.getSchemaBuilder()
+    db.get_schema_builder()
         .create("key_metadata", |table| {
-            table.foreignIdFor::<Token>(Some("token_id"));
-            table.foreignIdFor::<RefreshToken>(Some("refresh_id"));
-            table.foreignIdFor::<AuthCode>(Some("code_id"));
+            table.foreign_id_for::<Token>(Some("token_id"));
+            table.foreign_id_for::<RefreshToken>(Some("refresh_id"));
+            table.foreign_id_for::<AuthCode>(Some("code_id"));
         })
         .await
         .unwrap();
     for column in db
-        .getSchemaBuilder()
-        .getColumns("key_metadata")
+        .get_schema_builder()
+        .get_columns("key_metadata")
         .await
         .unwrap()
     {
         assert_eq!(column.full_type, "char(36)");
     }
-    db.getSchemaBuilder()
-        .dropIfExists("key_metadata")
+    db.get_schema_builder()
+        .drop_if_exists("key_metadata")
         .await
         .unwrap();
     let mut kernel =
@@ -1127,9 +1130,9 @@ async fn mysql_artisan_provider_without_api_default_stays_null_and_string_foreig
         "{}",
         output.stderr
     );
-    let model = Client::queryOn(&db).first().await.unwrap().unwrap();
+    let model = Client::query_on(&db).first().await.unwrap().unwrap();
     assert_eq!(
-        model.getAttributeValue("provider").unwrap(),
+        model.get_attribute_value("provider").unwrap(),
         Some(Value::Null)
     );
     cleanup(&manager).await;
@@ -1146,7 +1149,7 @@ async fn mysql_revocation_crosses_chunk_boundary_without_skipping_tokens() {
     let manager = app.make::<DatabaseManager>().await.unwrap();
     let db = database(&app).await;
     let count = Arc::new(Mutex::new(Vec::new()));
-    Token::registerModelEvent(
+    Token::register_model_event(
         &app,
         ModelEvent::Saving,
         Audit {
@@ -1162,7 +1165,7 @@ async fn mysql_revocation_crosses_chunk_boundary_without_skipping_tokens() {
             .createClientCredentialsGrantClient("chunked")
             .await
             .unwrap();
-        let client_id = client.getKey().await.unwrap();
+        let client_id = client.get_key().await.unwrap();
         let rows = (0..1001)
             .map(|n| {
                 Attributes::from([
@@ -1213,7 +1216,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 .map_err(internal)?;
             return Response::json(
                 StatusCode::CREATED,
-                json!({"client":client.to_array().await.map_err(internal)?,"secret":client.getAttributeValue("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
+                json!({"client":client.to_array().await.map_err(internal)?,"secret":client.get_attribute_value("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
             );
         };
         let Some(client) = repo.findForUser(id, &owner).await.map_err(internal)? else {
@@ -1234,7 +1237,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 assert!(repo.regenerateSecret(&client).await.map_err(internal)?);
                 return Response::json(
                     StatusCode::OK,
-                    json!({"secret":client.getAttributeValue("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
+                    json!({"secret":client.get_attribute_value("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
                 );
             }
             _ => {}
@@ -1274,7 +1277,7 @@ async fn managed_app() -> (Root, Application, Arc<DatabaseManager>) {
         .unwrap();
     let manager = app.make::<DatabaseManager>().await.unwrap();
     let main = manager.connection(Some("main")).unwrap();
-    main.getSchemaBuilder()
+    main.get_schema_builder()
         .create("management_users", |table| {
             table.id();
             table.bigInteger("subject");
@@ -1289,7 +1292,7 @@ async fn managed_app() -> (Root, Application, Arc<DatabaseManager>) {
         .await
         .unwrap();
     for (email, subject) in [("one@test", 991_i64), ("two@test", 992_i64)] {
-        let mut user = ManagementUser::newInstanceOn(
+        let mut user = ManagementUser::new_instance_on(
             &main,
             Attributes::from([
                 ("subject".into(), subject.into()),
@@ -1331,8 +1334,8 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
     let id = body["client"]["id"].as_str().unwrap();
     let secret = body["secret"].as_str().unwrap();
     let db = manager.connection(Some("oauth")).unwrap();
-    let model = Client::queryOn(&db).find(id).await.unwrap().unwrap();
-    let Some(Value::Text(hash)) = model.getAttribute("secret") else {
+    let model = Client::query_on(&db).find(id).await.unwrap().unwrap();
+    let Some(Value::Text(hash)) = model.get_attribute("secret") else {
         panic!("missing hash")
     };
     assert!(
@@ -1423,9 +1426,9 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
         .await
         .unwrap();
     assert_eq!(updated.status(), 200, "{}", updated.text().await.unwrap());
-    let updated = Client::queryOn(&db).find(id).await.unwrap().unwrap();
+    let updated = Client::query_on(&db).find(id).await.unwrap().unwrap();
     assert_eq!(
-        updated.getAttribute("name"),
+        updated.get_attribute("name"),
         Some(&Value::Text("HTTP renamed".into()))
     );
     assert_eq!(
@@ -1440,8 +1443,8 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
         .unwrap();
     assert_eq!(rotated.status(), 200, "{}", rotated.text().await.unwrap());
     let rotated: Json = serde_json::from_str(&rotated.text().await.unwrap()).unwrap();
-    let model = Client::queryOn(&db).find(id).await.unwrap().unwrap();
-    let Some(Value::Text(hash)) = model.getAttribute("secret") else {
+    let model = Client::query_on(&db).find(id).await.unwrap().unwrap();
+    let Some(Value::Text(hash)) = model.get_attribute("secret") else {
         panic!("missing hash")
     };
     assert!(
@@ -1464,7 +1467,7 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
             .await
             .unwrap()
     );
-    let mut token = Token::newInstanceOn(
+    let mut token = Token::new_instance_on(
         &db,
         Attributes::from([
             ("id".into(), "http-t".into()),
@@ -1482,12 +1485,12 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
         .unwrap();
     assert_eq!(deleted.status(), 200, "{}", deleted.text().await.unwrap());
     assert_eq!(
-        Token::queryOn(&db)
+        Token::query_on(&db)
             .find("http-t")
             .await
             .unwrap()
             .unwrap()
-            .getAttributeValue("revoked")
+            .get_attribute_value("revoked")
             .unwrap(),
         Some(true.into())
     );
@@ -1504,8 +1507,8 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
         manager
             .connection(Some("main"))
             .unwrap()
-            .getSchemaBuilder()
-            .dropIfExists("management_users")
+            .get_schema_builder()
+            .drop_if_exists("management_users")
             .await
             .unwrap();
         cleanup(&manager).await;

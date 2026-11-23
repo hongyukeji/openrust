@@ -24,10 +24,10 @@ impl PasskeyRecord {
     pub fn sameInstance(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
-    pub async fn getKey(&self) -> Option<Value> {
+    pub async fn get_key(&self) -> Option<Value> {
         self.0.key().await
     }
-    pub async fn getAttributeValue(&self, key: &str) -> DatabaseResult<Option<Value>> {
+    pub async fn get_attribute_value(&self, key: &str) -> DatabaseResult<Option<Value>> {
         self.0.attribute(key).await
     }
     pub async fn to_array(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
@@ -84,10 +84,10 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
         self
     }
     fn key(&self) -> DatabaseFuture<'_, Option<Value>> {
-        Box::pin(async move { self.0.lock().await.getKey().cloned() })
+        Box::pin(async move { self.0.lock().await.get_key().cloned() })
     }
     fn attribute<'a>(&'a self, key: &'a str) -> DatabaseFuture<'a, DatabaseResult<Option<Value>>> {
-        Box::pin(async move { self.0.lock().await.getAttributeValue(key) })
+        Box::pin(async move { self.0.lock().await.get_attribute_value(key) })
     }
     fn to_array(
         &self,
@@ -98,7 +98,7 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
         Box::pin(async move { self.0.lock().await.credential() })
     }
     fn connection(&self) -> DatabaseFuture<'_, DatabaseResult<Connection>> {
-        Box::pin(async move { self.0.lock().await.getConnection() })
+        Box::pin(async move { self.0.lock().await.get_connection() })
     }
     fn delete(&self) -> DatabaseFuture<'_, DatabaseResult<()>> {
         Box::pin(async move { self.0.lock().await.delete().await.map(|_| ()) })
@@ -117,10 +117,10 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
         Box::pin(async move {
             let mut model = self.0.lock().await;
             model
-                .refreshForUpdate(transaction)
+                .refresh_for_update(transaction)
                 .await
                 .map_err(internal)?;
-            let key = model.getAttribute("user_id").cloned().ok_or_else(|| {
+            let key = model.get_attribute("user_id").cloned().ok_or_else(|| {
                 invalid("Passkey not recognized. It may have been removed from your account.")
             })?;
             if expected.is_some_and(|expected| {
@@ -135,11 +135,11 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
                 .map_err(|_| invalid("Unable to verify passkey. Please try again."))?;
             let now = now(None)
                 .map_err(internal)?
-                .asDateTime()
+                .as_date_time()
                 .strftime("%Y-%m-%d %H:%M:%S")
                 .to_string();
             model
-                .forceFill(
+                .force_fill(
                     [
                         (
                             "credential".into(),
@@ -151,7 +151,7 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
                 )
                 .map_err(internal)?;
             model
-                .saveInTransaction(transaction)
+                .save_in_transaction(transaction)
                 .await
                 .map_err(internal)?;
             Ok(key)

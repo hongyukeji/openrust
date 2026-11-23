@@ -58,14 +58,14 @@ Set `read` and `write` inside a named connection in `config/database.rs`. Each r
 }
 ```
 
-Selects normally use the reader. Writes and transactions use the writer. With `sticky: true`, subsequent selects in the same HTTP request or Artisan execution use the writer after a modifying statement. With a standalone `DatabaseManager`, routing state is shared by clones of the logical connection until you clear it with `forgetRecordModificationState`. Use `selectFromWriteConnection` to run a single select on the writer.
+Selects normally use the reader. Writes and transactions use the writer. With `sticky: true`, subsequent selects in the same HTTP request or Artisan execution use the writer after a modifying statement. With a standalone `DatabaseManager`, routing state is shared by clones of the logical connection until you clear it with `forget_record_modification_state`. Use `select_from_write_connection` to run a single select on the writer.
 
 
 ## Running SQL Queries
 
-Inside an application lifecycle, use `DB::select`, `DB::selectOne`, `DB::scalar`, `DB::insert`, `DB::update`, `DB::delete` and `DB::statement`. Use `?` placeholders and pass values separately. `selectOne` returns an optional row, and `scalar` returns SQL null when no row matches. A scalar query must return one column. `update` and `delete` return the affected row count. `unprepared` executes raw SQL and should only receive application-controlled text.
+Inside an application lifecycle, use `Db::select`, `Db::select_one`, `Db::scalar`, `Db::insert`, `Db::update`, `Db::delete` and `Db::statement`. Use `?` placeholders and pass values separately. `select_one` returns an optional row, and `scalar` returns SQL null when no row matches. A scalar query must return one column. `update` and `delete` return the affected row count. `unprepared` executes raw SQL and should only receive application-controlled text.
 
-A named connection from `DB::connection(Some("name"))` shares an application-local pool. Queries are asynchronous and take typed values. MySQL unsigned integers and decimals preserve their full precision. Decimal results use text.
+A named connection from `Db::connection(Some("name"))` shares an application-local pool. Queries are asynchronous and take typed values. MySQL unsigned integers and decimals preserve their full precision. Decimal results use text.
 
 ```rust
 use openrust::{config::Repository, database::{DatabaseManager, Value}};
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Selecting Multiple Result Sets {#selecting-multiple-result-sets}
 
-Use `DB::selectResultSets` for a prepared MySQL statement that returns several result sets, such as a stored procedure call. The results preserve their order and include empty sets. MySQL also returns an empty final status set for `CALL`.
+Use `Db::select_result_sets` for a prepared MySQL statement that returns several result sets, such as a stored procedure call. The results preserve their order and include empty sets. MySQL also returns an empty final status set for `CALL`.
 
 Pass `true` to use normal read routing or `false` to use the write connection. Inside a transaction, call the method on the transaction to keep the query on its connection. SQLite returns `DatabaseError::UnsupportedOperation` for this API.
 
@@ -96,7 +96,7 @@ Pass `true` to use normal read routing or `false` to use the write connection. I
 use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
-    db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+    db.select_result_sets("CALL find_active_users(?)", &[active.into()], true).await
 }
 ```
 
@@ -107,10 +107,10 @@ Use `:name` placeholders and pass the matching values with `Bindings::Named`. Ke
 Bind every named parameter, and use one placeholder style per statement. SQLite allows a name to appear more than once. With native MySQL prepares, use a different name for each occurrence.
 
 ```rust
-use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::DB};
+use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::Db};
 
 async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
-    DB::selectOne(
+    Db::select_one(
         "SELECT * FROM users WHERE id = :id",
         Bindings::Named(&[("id", id.into())]),
     ).await
@@ -119,30 +119,30 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 ### Using Multiple Database Connections
 
-Use `DB::connection(Some("reporting"))` to select a configured connection by name. The `::read` and `::write` suffixes select the corresponding physical role, such as `DB::connection(Some("reporting::read"))`.
+Use `Db::connection(Some("reporting"))` to select a configured connection by name. The `::read` and `::write` suffixes select the corresponding physical role, such as `Db::connection(Some("reporting::read"))`.
 
 #### Direct Connection Alias {#direct-connection-alias}
 
-On MySQL and SQLite, `DB::connection(Some("mysql::direct"))` (using your configured connection name) selects the write endpoint for both reads and writes. Query logs and events identify the role as `QueryRole::Direct`. Without a separate direct endpoint, the framework also uses the write endpoint.
+On MySQL and SQLite, `Db::connection(Some("mysql::direct"))` (using your configured connection name) selects the write endpoint for both reads and writes. Query logs and events identify the role as `QueryRole::Direct`. Without a separate direct endpoint, the framework also uses the write endpoint.
 
-For PostgreSQL, a nonempty `direct` configuration selects a separate endpoint for `DB::connection(Some("pgsql::direct"))`. Set `DB_DIRECT_HOST`, `DB_DIRECT_PORT`, `DB_DIRECT_USERNAME`, `DB_DIRECT_PASSWORD`, and `DB_DIRECT_SSLMODE` as needed. A named connection’s `direct` options inherit its base configuration. Migrations select that endpoint by default, including ledger access. Explicit `::read`, `::write`, and `::direct` suffixes preserve the caller’s choice.
+For PostgreSQL, a nonempty `direct` configuration selects a separate endpoint for `Db::connection(Some("pgsql::direct"))`. Set `DB_DIRECT_HOST`, `DB_DIRECT_PORT`, `DB_DIRECT_USERNAME`, `DB_DIRECT_PASSWORD`, and `DB_DIRECT_SSLMODE` as needed. A named connection’s `direct` options inherit its base configuration. Migrations select that endpoint by default, including ledger access. Explicit `::read`, `::write`, and `::direct` suffixes preserve the caller’s choice.
 
 For PgBouncer in transaction mode, set `DB_POOLED=true` or configure a PostgreSQL `direct` endpoint. Pooled reads and writes emulate prepares by default, using PostgreSQL’s simple query protocol with encoded bindings. This works with `max_prepared_statements=0`. Extension and user-defined types use the server’s text result format in this mode. Direct connections use native prepares by default. Set `emulate_prepares` on a connection or its `read`, `write`, or `direct` options to override the default. If a pooled endpoint uses native prepares, enable PgBouncer’s named statement tracking. Keep the application and server `search_path` settings aligned and use the direct endpoint for migrations.
 
 #### Reconnecting and Purging Connections {#reconnecting-database-connections}
 
-`DB::disconnect` retires the current read and write pools. The next asynchronous operation opens fresh pools. `DB::reconnect` refreshes them immediately from the current configuration, preserving the logical connection and its query log. `DB::purge` also removes the cached connection. The next lookup creates a new logical connection.
+`Db::disconnect` retires the current read and write pools. The next asynchronous operation opens fresh pools. `Db::reconnect` refreshes them immediately from the current configuration, preserving the logical connection and its query log. `Db::purge` also removes the cached connection. The next lookup creates a new logical connection.
 
 An in-flight transaction remains on its original session until it ends. Connections that already hold a session can finish their work while new operations use the replacement pools.
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 async fn refresh_database() -> DatabaseResult<()> {
-    DB::disconnect(None)?;
-    let connection = DB::reconnect(None).await?;
+    Db::disconnect(None)?;
+    let connection = Db::reconnect(None).await?;
     assert_eq!(connection.scalar("SELECT 1", &[]).await?, 1.into());
-    DB::purge(None)?;
+    Db::purge(None)?;
     Ok(())
 }
 ```
@@ -155,16 +155,16 @@ An active transaction reports a disconnect to its caller. A streaming cursor can
 
 ### Previewing Queries {#previewing-queries}
 
-Use `DB::pretend` or a named connection’s `pretend` to collect SQL without sending it to the server. Reads return an empty result, writes report success or zero affected rows according to the method, and query hooks and events still run. The returned entries contain rendered SQL and the original bindings. The preview keeps its own log and leaves the ordinary query log available for live operations.
+Use `Db::pretend` or a named connection’s `pretend` to collect SQL without sending it to the server. Reads return an empty result, writes report success or zero affected rows according to the method, and query hooks and events still run. The returned entries contain rendered SQL and the original bindings. The preview keeps its own log and leaves the ordinary query log available for live operations.
 
 ```rust
 use openrust::{
     database::{DatabaseResult, QueryLogEntry},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
-    DB::pretend(|connection| {
+    Db::pretend(|connection| {
         Box::pin(async move {
             connection
                 .update("UPDATE settings SET enabled = ? WHERE id = ?", &[1.into(), 42.into()])
@@ -176,17 +176,17 @@ async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
 }
 ```
 
-The preview applies to the connection in the current async scope. Independently spawned tasks start outside that scope. Use `pretending()` to inspect the active mode, and `withoutPretending` to explicitly run live operations within a preview. Transaction lifecycle operations require a live scope.
+The preview applies to the connection in the current async scope. Independently spawned tasks start outside that scope. Use `pretending()` to inspect the active mode, and `without_pretending` to explicitly run live operations within a preview. Transaction lifecycle operations require a live scope.
 
 ### Callbacks Before Query Execution {#before-executing}
 
-Register `DB::beforeExecuting` on the default connection or call `beforeExecuting` on a named connection. The hooks receive the original SQL and bindings. They run in registration order before the database operation. An error stops the operation and the remaining hooks. A cursor calls the hooks on its first poll. Driver-level replay of the same query skips them.
+Register `Db::before_executing` on the default connection or call `before_executing` on a named connection. The hooks receive the original SQL and bindings. They run in registration order before the database operation. An error stops the operation and the remaining hooks. A cursor calls the hooks on its first poll. Driver-level replay of the same query skips them.
 
 ```rust
-use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::DB};
+use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::Db};
 
 async fn read_value() -> DatabaseResult<Value> {
-    DB::beforeExecuting(|sql, bindings, _, _| {
+    Db::before_executing(|sql, bindings, _, _| {
         Box::pin(async move {
             if sql == "SELECT ? AS n" {
                 assert!(matches!(bindings, Bindings::Positional([Value::Integer(42)])));
@@ -195,7 +195,7 @@ async fn read_value() -> DatabaseResult<Value> {
         })
     })?;
 
-    DB::scalar("SELECT ? AS n", &[42.into()]).await
+    Db::scalar("SELECT ? AS n", &[42.into()]).await
 }
 ```
 
@@ -211,7 +211,7 @@ use openrust::{
     contracts::events::Event as EventPayload,
     database::events::ConnectionEstablished,
     events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    support::facades::{DB, Event},
+    support::facades::{Db, Event},
 };
 
 fn connected<'a>(
@@ -228,18 +228,18 @@ fn connected<'a>(
 
 async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
     Event::listen(ConnectionEstablished::NAME, Arc::new(connected), Delivery::Sync)?;
-    DB::connection(None)?.establish().await?;
+    Db::connection(None)?.establish().await?;
     Ok(())
 }
 ```
 
 ### Listening for Query Events {#listening-for-query-events}
 
-Use `DB::listen` to observe successful queries on the application's connections. `QueryExecuted` carries the original SQL and bindings, the read or write role, the connection and the elapsed `Duration`. A cursor emits after successful exhaustion and excludes time spent by the caller between rows.
+Use `Db::listen` to observe successful queries on the application's connections. `QueryExecuted` carries the original SQL and bindings, the read or write role, the connection and the elapsed `Duration`. A cursor emits after successful exhaustion and excludes time spent by the caller between rows.
 
 ### Monitoring Cumulative Query Time {#monitoring-cumulative-query-time}
 
-Use `DB::whenQueryingForLongerThan` to monitor the default connection, or register on a named connection. Each handler runs once after the connection's cumulative query time exceeds the threshold. `resetTotalQueryDuration` clears the elapsed time. `allowQueryDurationHandlersToRunAgain` rearms the handlers.
+Use `Db::when_querying_for_longer_than` to monitor the default connection, or register on a named connection. Each handler runs once after the connection's cumulative query time exceeds the threshold. `reset_total_query_duration` clears the elapsed time. `allow_query_duration_handlers_to_run_again` rearms the handlers.
 
 ```rust
 use std::{sync::Arc, time::Duration};
@@ -247,7 +247,7 @@ use openrust::{
     contracts::events::Event as EventPayload,
     database::{DatabaseResult, events::QueryExecuted},
     events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 fn report_query<'a>(
@@ -263,37 +263,37 @@ fn report_query<'a>(
 }
 
 fn subscribe() -> DatabaseResult<()> {
-    DB::listen(Arc::new(report_query))
+    Db::listen(Arc::new(report_query))
 }
 
 fn monitor_cumulative_time() -> DatabaseResult<()> {
-    DB::whenQueryingForLongerThan(Duration::from_millis(500), Arc::new(report_query))
+    Db::when_querying_for_longer_than(Duration::from_millis(500), Arc::new(report_query))
 }
 ```
 
 ### Inspecting Query Logs {#inspecting-query-logs}
 
-`QueryExecuted::toRawSql()` renders the original statement with its bindings for diagnostics. The renderer preserves placeholders inside quoted text, identifiers and comments. The database still executes prepared statements with separate bindings.
+`QueryExecuted::to_raw_sql()` renders the original statement with its bindings for diagnostics. The renderer preserves placeholders inside quoted text, identifiers and comments. The database still executes prepared statements with separate bindings.
 
-Query logging is disabled by default. Enable it for a connection or through `DB` for the default connection. Use `getQueryLog` for SQL and bindings, and `getRawQueryLog` for SQL with values embedded. Use `disableQueryLog` to stop recording and `flushQueryLog` to clear stored entries.
+Query logging is disabled by default. Enable it for a connection or through `Db` for the default connection. Use `get_query_log` for SQL and bindings, and `get_raw_query_log` for SQL with values embedded. Use `disable_query_log` to stop recording and `flush_query_log` to clear stored entries.
 
 ```rust
-use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::DB};
+use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::Db};
 
 async fn inspect_value() -> DatabaseResult<Vec<RawQueryLogEntry>> {
-    DB::enableQueryLog()?;
-    let result = DB::select("SELECT ? AS inspected", &[42.into()]).await;
-    DB::disableQueryLog()?;
+    Db::enable_query_log()?;
+    let result = Db::select("SELECT ? AS inspected", &[42.into()]).await;
+    Db::disable_query_log()?;
     result?;
-    let log = DB::getRawQueryLog()?;
-    DB::flushQueryLog()?;
+    let log = Db::get_raw_query_log()?;
+    Db::flush_query_log()?;
     Ok(log)
 }
 ```
 
 ## Database Transactions
 
-Use `DB::transaction` for the default connection or call `transaction` on a named connection. Execute SQL through the transaction handle passed to the callback. The handle holds one write connection through the final commit or rollback. The boxed future lets Rust borrow that handle across asynchronous queries. The second argument specifies total attempts. Use `1` for a single attempt. Concurrency failures can rerun the whole callback, so keep side effects outside it or make them safe to repeat.
+Use `Db::transaction` for the default connection or call `transaction` on a named connection. Execute SQL through the transaction handle passed to the callback. The handle holds one write connection through the final commit or rollback. The boxed future lets Rust borrow that handle across asynchronous queries. The second argument specifies total attempts. Use `1` for a single attempt. Concurrency failures can rerun the whole callback, so keep side effects outside it or make them safe to repeat.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
@@ -317,11 +317,11 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 }
 ```
 
-For manual control, call `beginTransaction().await?`, then call `commit` or `rollBack(None)` on the returned handle. Calling `beginTransaction` on the handle creates a savepoint. `rollBack(Some(level))` rolls back to the given nesting level. Level zero aborts the whole transaction. Dropping an active handle rolls back its pending work. MySQL statements such as DDL can implicitly commit, so keep them outside transactions that require atomicity.
+For manual control, call `begin_transaction().await?`, then call `commit` or `roll_back(None)` on the returned handle. Calling `begin_transaction` on the handle creates a savepoint. `roll_back(Some(level))` rolls back to the given nesting level. Level zero aborts the whole transaction. Dropping an active handle rolls back its pending work. MySQL statements such as DDL can implicitly commit, so keep them outside transactions that require atomicity.
 
 ### Shared connection interface {#connection-interface}
 
-Use `&mut dyn ConnectionInterface` when the same SQL or builder code runs on a pooled `Connection` or a pinned `Transaction`. Pass named or positional `Bindings` explicitly. For `select`, `selectOne`, `scalar`, and `cursor`, passing `false` requests the writer on a pooled connection. A transaction always runs the query on its own session. Create, commit, and roll back transactions through the concrete connection and transaction handles.
+Use `&mut dyn ConnectionInterface` when the same SQL or builder code runs on a pooled `Connection` or a pinned `Transaction`. Pass named or positional `Bindings` explicitly. For `select`, `select_one`, `scalar`, and `cursor`, passing `false` requests the writer on a pooled connection. A transaction always runs the query on its own session. Create, commit, and roll back transactions through the concrete connection and transaction handles.
 
 ```rust
 use openrust::database::{Bindings, ConnectionInterface, DatabaseResult, Value};
@@ -335,7 +335,7 @@ pub async fn answer(connection: &mut dyn ConnectionInterface) -> DatabaseResult<
 
 ### SQL Server Automatic Transaction Rollback {#sql-server-automatic-rollback}
 
-SQL Server can roll back an entire transaction when a statement fails. When a transaction callback returns that error, OpenRust checks the server’s transaction state before it issues a rollback. If the server already rolled back, the callback returns the original statement error and the transaction handle closes. If the remaining transaction cannot roll back to a savepoint, OpenRust rolls back the whole transaction. On a confirmed rollback, applicable `afterRollBack()` callbacks run.
+SQL Server can roll back an entire transaction when a statement fails. When a transaction callback returns that error, OpenRust checks the server’s transaction state before it issues a rollback. If the server already rolled back, the callback returns the original statement error and the transaction handle closes. If the remaining transaction cannot roll back to a savepoint, OpenRust rolls back the whole transaction. On a confirmed rollback, applicable `after_roll_back()` callbacks run.
 
 ### Transaction Events {#transaction-events}
 
@@ -378,15 +378,15 @@ fn register() -> EventResult<()> {
 
 ### Transaction Callbacks {#transaction-callbacks}
 
-`DB::beforeStartingTransaction` registers a hook on the default connection. It runs before an outer transaction or savepoint starts. The hook receives the connection and, for a nested start, the active transaction. Returning an error stops that start.
+`Db::before_starting_transaction` registers a hook on the default connection. It runs before an outer transaction or savepoint starts. The hook receives the connection and, for a nested start, the active transaction. Returning an error stops that start.
 
-`Transaction::afterRollBack` registers a callback for the current level. Callbacks from a committed savepoint remain attached to its parent until the outer transaction finishes. A confirmed rollback runs callbacks for the discarded levels. Outer rollback callbacks run after the session has been released.
+`Transaction::after_roll_back` registers a callback for the current level. Callbacks from a committed savepoint remain attached to its parent until the outer transaction finishes. A confirmed rollback runs callbacks for the discarded levels. Outer rollback callbacks run after the session has been released.
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 async fn run_with_callbacks() -> DatabaseResult<()> {
-    DB::beforeStartingTransaction(|connection, active| {
+    Db::before_starting_transaction(|connection, active| {
         Box::pin(async move {
             match active {
                 Some(transaction) => transaction.scalar("SELECT 1", &[]).await?,
@@ -396,11 +396,11 @@ async fn run_with_callbacks() -> DatabaseResult<()> {
         })
     })?;
 
-    let mut transaction = DB::beginTransaction().await?;
-    transaction.afterRollBack(|| Box::pin(async {
+    let mut transaction = Db::begin_transaction().await?;
+    transaction.after_roll_back(|| Box::pin(async {
         println!("Transaction rolled back");
         Ok(())
     }))?;
-    transaction.rollBack(None).await
+    transaction.roll_back(None).await
 }
 ```

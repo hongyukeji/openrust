@@ -97,6 +97,6 @@ let response = notification.success();
 
 ## 网关生命周期 {#gateway-lifecycle}
 
-`PayManager::driver(name)` 懒解析并复用商户配置和密钥快照。`get_default_driver` 读取当前默认名，`Pay::defaultDriver()` 解析它。`forgetDrivers` 让后续解析使用新配置，已持有的 `Gateway` 克隆保留原快照。管理器按应用隔离。轮换密钥时刷新相关实例，不从未验证回调获取验签公钥。
+`PayManager::driver(name)` 懒解析并复用商户配置和密钥快照。`get_default_driver` 读取当前默认名，`Pay::defaultDriver()` 解析它。`forget_drivers` 让后续解析使用新配置，已持有的 `Gateway` 克隆保留原快照。管理器按应用隔离。轮换密钥时刷新相关实例，不从未验证回调获取验签公钥。
 
 真实商户入驻、产品权限开通、公开 HTTPS 回调及厂商端到端验证由部署方完成。协议测试通过不代表商户账号已经可以实际收付款。

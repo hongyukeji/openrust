@@ -1069,14 +1069,14 @@ impl Validator {
             (Kind::Url, Some(value))
                 if !value
                     .as_str()
-                    .is_some_and(|value| crate::support::Str::isUrl(value, &[])) =>
+                    .is_some_and(|value| crate::support::Str::is_url(value, &[])) =>
             {
                 Some("url")
             }
             (Kind::Uuid, Some(value))
                 if !value
                     .as_str()
-                    .is_some_and(|value| crate::support::Str::isUuid(value, None)) =>
+                    .is_some_and(|value| crate::support::Str::is_uuid(value, None)) =>
             {
                 Some("uuid")
             }

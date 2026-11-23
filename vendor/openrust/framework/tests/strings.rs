@@ -37,7 +37,7 @@ fn transliteration_matches_the_fixed_php_oracle_for_valid_utf8() {
             (Some("[unknown]"), case.unknown_custom),
         ] {
             assert_eq!(
-                Str::transliterateWithUnknown(value, unknown),
+                Str::transliterate_with_unknown(value, unknown),
                 expected,
                 "{}",
                 case.name
@@ -51,13 +51,13 @@ fn transliteration_matches_the_fixed_php_oracle_for_valid_utf8() {
 fn string_boundaries_use_utf8_scalars_and_preserve_original_slices() {
     let subject = "begin [中] [é🙂] end";
     assert_eq!(Str::between(subject, "[", "]"), "中] [é🙂");
-    assert_eq!(Str::betweenFirst(subject, "[", "]"), "中");
-    assert_eq!(Str::afterLast(subject, "]"), " end");
+    assert_eq!(Str::between_first(subject, "[", "]"), "中");
+    assert_eq!(Str::after_last(subject, "]"), " end");
     assert_eq!(Str::before(subject, ""), subject);
     assert_eq!(Str::after(subject, "missing"), subject);
-    assert_eq!(Str::charAt("é中🙂", 1), Some('中'));
-    assert_eq!(Str::charAt("é中🙂", -1), Some('🙂'));
-    assert_eq!(Str::charAt("é中🙂", isize::MIN), None);
+    assert_eq!(Str::char_at("é中🙂", 1), Some('中'));
+    assert_eq!(Str::char_at("é中🙂", -1), Some('🙂'));
+    assert_eq!(Str::char_at("é中🙂", isize::MIN), None);
     assert_eq!(Str::length("e\u{301}🙂"), 3);
     assert!(!Str::contains(subject, &[""], true));
     assert!(Str::contains(subject, &["É🙂"], true));
@@ -71,21 +71,21 @@ fn string_transformations_cover_empty_unicode_and_negative_boundaries() {
     assert_eq!(Str::substr("é中🙂z", 1, Some(isize::MIN)), "");
     assert!(Str::is(&["library/*"], "library/中\n🙂", false));
     assert!(!Str::is(&["library"], "library/中", false));
-    assert!(Str::containsAll("É中🙂", &["é", "🙂"], true));
-    assert!(!Str::startsWith("é", &[""]));
+    assert!(Str::contains_all("É中🙂", &["é", "🙂"], true));
+    assert!(!Str::starts_with("é", &[""]));
     assert_eq!(Str::start("////example", "/"), "/example");
     assert_eq!(Str::finish("example::::", "::"), "example::");
-    assert_eq!(Str::replaceLast("中", "🙂", "中-é-中"), "中-é-🙂");
+    assert_eq!(Str::replace_last("中", "🙂", "中-é-中"), "中-é-🙂");
     assert_eq!(Str::words("  这是   中文 🙂 ", 2, "…"), "  这是   中文…");
     assert_eq!(Str::words("短文本 ", 2, "…"), "短文本 ");
     assert_eq!(Str::studly("CBOR-payload", true), "CborPayload");
     assert_eq!(Str::camel("open_rust framework"), "openRustFramework");
     assert_eq!(Str::snake("OpenRust HTTP", "_"), "open_rust_h_t_t_p");
     assert_eq!(
-        Str::fromBase64(&Str::toBase64([0, 0xff, 0x80])).unwrap(),
+        Str::from_base64(&Str::to_base64([0, 0xff, 0x80])).unwrap(),
         [0, 0xff, 0x80]
     );
-    assert!(Str::fromBase64("%%%%").is_err());
+    assert!(Str::from_base64("%%%%").is_err());
     assert!(Str::is_json("null"));
     assert!(!Str::is_json("{]"));
 }
@@ -99,7 +99,7 @@ fn markdown_and_english_inflection_cover_runtime_values() {
         "<h1>海</h1>\n<p><strong>strong</strong></p>\n"
     );
     assert_eq!(
-        Str::of("**好** ~~旧~~").inlineMarkdown().value(),
+        Str::of("**好** ~~旧~~").inline_markdown().value(),
         "<strong>好</strong> <del>旧</del>"
     );
     assert!(Str::markdown("| head |\n|---|\n| cell |").contains("<table>"));
@@ -109,7 +109,7 @@ fn markdown_and_english_inflection_cover_runtime_values() {
     assert!(html.contains("&lt;i&gt;字&lt;/i&gt;"));
     assert!(html.contains("href=\"https://example.test/\""));
     assert_eq!(
-        Str::inlineMarkdownWith(
+        Str::inline_markdown_with(
             "<i>字</i>",
             MarkdownOptions {
                 html: MarkdownHtml::Strip,
@@ -119,7 +119,7 @@ fn markdown_and_english_inflection_cover_runtime_values() {
         "字"
     );
     assert_eq!(
-        Str::inlineMarkdownWith(
+        Str::inline_markdown_with(
             "<i>字</i>",
             MarkdownOptions {
                 html: MarkdownHtml::Allow,
@@ -133,7 +133,10 @@ fn markdown_and_english_inflection_cover_runtime_values() {
     assert_eq!(Str::plural("RELATED", 2), "RELATED");
     assert_eq!(Str::plural("An alert!", 2), "An alert!");
     assert_eq!(Str::singular("children"), "child");
-    assert_eq!(Str::of("UserChild").pluralStudly(2).value(), "UserChildren");
+    assert_eq!(
+        Str::of("UserChild").plural_studly(2).value(),
+        "UserChildren"
+    );
     assert_eq!(Str::counted("person", 1_234), "1,234 people");
     assert_eq!(
         Str::counted("person", i64::MIN),
@@ -143,11 +146,11 @@ fn markdown_and_english_inflection_cover_runtime_values() {
 
 #[test]
 fn literal_and_unicode_editing_respects_scalar_offsets() {
-    assert_eq!(Str::chopStart("你好世界", &["", "你好", "你"]), "世界");
-    assert_eq!(Str::chopEnd("你好世界", &["", "界", "世界"]), "你好世");
-    assert_eq!(Str::replaceStart("你", "🙂", "你好你"), "🙂好你");
-    assert_eq!(Str::replaceEnd("你", "🙂", "你好你"), "你好🙂");
-    assert_eq!(Str::replaceEnd("", "oops", "unchanged"), "unchanged");
+    assert_eq!(Str::chop_start("你好世界", &["", "你好", "你"]), "世界");
+    assert_eq!(Str::chop_end("你好世界", &["", "界", "世界"]), "你好世");
+    assert_eq!(Str::replace_start("你", "🙂", "你好你"), "🙂好你");
+    assert_eq!(Str::replace_end("你", "🙂", "你好你"), "你好🙂");
+    assert_eq!(Str::replace_end("", "oops", "unchanged"), "unchanged");
     assert_eq!(Str::deduplicate("好好  ___好", &['好', ' ', '_']), "好 _好");
     assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
     assert_eq!(Str::position("你🙂", "", 2), Some(2));
@@ -195,36 +198,39 @@ fn generated_strings_and_ids_respect_their_requested_formats() {
         ),
         Err(EmptyPasswordAlphabet)
     );
-    assert!(Str::isUuid(&Str::uuid().unwrap().to_string(), Some(4)));
+    assert!(Str::is_uuid(&Str::uuid().unwrap().to_string(), Some(4)));
     let ordered = Str::uuid7().to_string();
-    assert!(Str::of(ordered.as_str()).isUuid(Some(7)));
-    assert!(!Str::isUuid(&ordered, Some(4)));
-    assert!(Str::isUuid("00000000-0000-0000-0000-000000000000", Some(0)));
-    assert!(!Str::isUuid("00000000000000000000000000000000", None));
-    assert!(Str::of(Str::ulid().to_string()).isUlid());
-    assert!(!Str::isUlid("80000000000000000000000000"));
+    assert!(Str::of(ordered.as_str()).is_uuid(Some(7)));
+    assert!(!Str::is_uuid(&ordered, Some(4)));
+    assert!(Str::is_uuid(
+        "00000000-0000-0000-0000-000000000000",
+        Some(0)
+    ));
+    assert!(!Str::is_uuid("00000000000000000000000000000000", None));
+    assert!(Str::of(Str::ulid().to_string()).is_ulid());
+    assert!(!Str::is_ulid("80000000000000000000000000"));
 }
 
 #[test]
 fn regex_projection_replacement_counts_and_callbacks() {
     assert_eq!(Str::r#match(r"(x)?中", "中").unwrap(), "中");
     assert_eq!(Str::r#match(r"(\d+)", "no match").unwrap(), "");
-    assert_eq!(Str::matchAll(r"(x)?中", "中 x中").unwrap(), ["", "x"]);
-    assert_eq!(Str::matchAll(r"\p{Han}", "甲 a 乙").unwrap(), ["甲", "乙"]);
-    assert!(Str::isMatch(&["^a", r"\p{Han}"], "乙").unwrap());
-    assert!(!Str::isMatch(&[], "abc").unwrap());
-    assert!(Str::isMatch(&["("], "abc").is_err());
+    assert_eq!(Str::match_all(r"(x)?中", "中 x中").unwrap(), ["", "x"]);
+    assert_eq!(Str::match_all(r"\p{Han}", "甲 a 乙").unwrap(), ["甲", "乙"]);
+    assert!(Str::is_match(&["^a", r"\p{Han}"], "乙").unwrap());
+    assert!(!Str::is_match(&[], "abc").unwrap());
+    assert!(Str::is_match(&["("], "abc").is_err());
     assert_eq!(
-        Str::replaceMatches(r"(\d+)", "[$1]", "中12 a34", Some(1)).unwrap(),
+        Str::replace_matches(r"(\d+)", "[$1]", "中12 a34", Some(1)).unwrap(),
         "中[12] a34"
     );
     assert_eq!(
-        Str::replaceMatches(r"(\d+)", "-", "中12", Some(0)).unwrap(),
+        Str::replace_matches(r"(\d+)", "-", "中12", Some(0)).unwrap(),
         "中12"
     );
     assert_eq!(
         Str::of("甲1 乙2")
-            .replaceMatchesWith(
+            .replace_matches_with(
                 r"(?P<name>\p{Han})(\d+)",
                 |captures| format!("{}[{}]", &captures["name"], &captures[2]),
                 None
@@ -257,10 +263,10 @@ fn display_width_and_wrap_match_the_php_fixture() {
         ("abcdef", 3, "🙂", true, "abc🙂def"),
     ] {
         assert_eq!(
-            Str::wordWrap(input, columns, line_break, cut).unwrap(),
+            Str::word_wrap(input, columns, line_break, cut).unwrap(),
             expected
         );
     }
-    assert!(Str::wordWrap("text", 3, "", false).is_err());
-    assert!(Str::wordWrap("text", 0, "\n", true).is_err());
+    assert!(Str::word_wrap("text", 3, "", false).is_err());
+    assert!(Str::word_wrap("text", 0, "\n", true).is_err());
 }

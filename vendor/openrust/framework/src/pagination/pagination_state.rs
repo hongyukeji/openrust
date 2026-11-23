@@ -30,7 +30,6 @@ struct StateFacade;
 impl Facade for StateFacade {
     type Service = PaginationState;
 
-    #[allow(non_snake_case)]
     fn get_facade_accessor() -> ServiceKey {
         ServiceKey::typed::<PaginationState>()
     }
@@ -59,16 +58,15 @@ fn input(name: &str) -> Option<String> {
 // 静态入口只保留在无项目类型参数的实例上，避免调用时要求推断分页项类型。
 macro_rules! offset_resolvers {
     ($type:ident) => {
-        #[allow(non_snake_case)]
         impl $type<()> {
-            pub fn currentPathResolver(
+            pub fn current_path_resolver(
                 resolver: impl Fn() -> String + Send + Sync + 'static,
             ) -> ViewResult<()> {
                 *state()?.path.write().expect("分页路径解析器锁") = Some(Arc::new(resolver));
                 Ok(())
             }
 
-            pub fn resolveCurrentPath(default: &str) -> String {
+            pub fn resolve_current_path(default: &str) -> String {
                 let callback = state()
                     .ok()
                     .and_then(|state| state.path.read().expect("分页路径解析器锁").clone());
@@ -79,22 +77,22 @@ macro_rules! offset_resolvers {
                     .unwrap_or_else(|| default.to_owned())
             }
 
-            pub fn currentPageResolver(
+            pub fn current_page_resolver(
                 resolver: impl Fn(&str) -> u64 + Send + Sync + 'static,
             ) -> ViewResult<()> {
                 *state()?.page.write().expect("分页页码解析器锁") = Some(Arc::new(resolver));
                 Ok(())
             }
 
-            pub fn resolveCurrentPage(pageName: &str, default: u64) -> u64 {
+            pub fn resolve_current_page(page_name: &str, default: u64) -> u64 {
                 let callback = state()
                     .ok()
                     .and_then(|state| state.page.read().expect("分页页码解析器锁").clone());
                 if let Some(callback) = callback {
-                    return callback(pageName);
+                    return callback(page_name);
                 }
                 if query().is_some() {
-                    return input(pageName)
+                    return input(page_name)
                         .and_then(|value| {
                             let value = serde_json::Value::String(value);
                             crate::support::input_scalars::valid_integer(&value)
@@ -107,7 +105,7 @@ macro_rules! offset_resolvers {
                 default
             }
 
-            pub fn queryStringResolver<R>(
+            pub fn query_string_resolver<R>(
                 resolver: impl Fn() -> R + Send + Sync + 'static,
             ) -> ViewResult<()>
             where
@@ -118,7 +116,7 @@ macro_rules! offset_resolvers {
                 Ok(())
             }
 
-            pub fn resolveQueryString(
+            pub fn resolve_query_string(
                 default: Option<Vec<(String, String)>>,
             ) -> Option<Vec<(String, String)>> {
                 let callback = state()
@@ -130,14 +128,14 @@ macro_rules! offset_resolvers {
                 }
             }
 
-            pub fn viewFactoryResolver(
+            pub fn view_factory_resolver(
                 resolver: impl Fn() -> ViewResult<Arc<Factory>> + Send + Sync + 'static,
             ) -> ViewResult<()> {
                 *state()?.view.write().expect("分页视图解析器锁") = Some(Arc::new(resolver));
                 Ok(())
             }
 
-            pub fn viewFactory() -> ViewResult<Arc<Factory>> {
+            pub fn view_factory() -> ViewResult<Arc<Factory>> {
                 let callback = state()
                     .ok()
                     .and_then(|state| state.view.read().expect("分页视图解析器锁").clone());
@@ -153,29 +151,28 @@ macro_rules! offset_resolvers {
 offset_resolvers!(Paginator);
 offset_resolvers!(LengthAwarePaginator);
 
-#[allow(non_snake_case)]
 impl CursorPaginator<()> {
-    pub fn currentCursorResolver(
+    pub fn current_cursor_resolver(
         resolver: impl Fn(&str) -> Option<Cursor> + Send + Sync + 'static,
     ) -> ViewResult<()> {
         *state()?.cursor.write().expect("分页游标解析器锁") = Some(Arc::new(resolver));
         Ok(())
     }
 
-    pub fn resolveCurrentCursor(cursorName: &str, default: Option<Cursor>) -> Option<Cursor> {
+    pub fn resolve_current_cursor(cursor_name: &str, default: Option<Cursor>) -> Option<Cursor> {
         let callback = state()
             .ok()
             .and_then(|state| state.cursor.read().expect("分页游标解析器锁").clone());
         if let Some(callback) = callback {
-            return callback(cursorName);
+            return callback(cursor_name);
         }
         if query().is_some() {
-            return input(cursorName).and_then(|value| Cursor::fromEncoded(&value).ok());
+            return input(cursor_name).and_then(|value| Cursor::from_encoded(&value).ok());
         }
         default
     }
 
-    pub fn viewFactory() -> ViewResult<Arc<Factory>> {
-        Paginator::viewFactory()
+    pub fn view_factory() -> ViewResult<Arc<Factory>> {
+        Paginator::view_factory()
     }
 }

@@ -128,7 +128,7 @@ impl PayManager {
         *slot = Some(gateway.clone());
         Ok(gateway)
     }
-    pub fn forgetDrivers(&self) -> &Self {
+    pub fn forget_drivers(&self) -> &Self {
         self.drivers.write().expect("pay cache").clear();
         self
     }

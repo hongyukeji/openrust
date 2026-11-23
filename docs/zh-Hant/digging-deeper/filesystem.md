@@ -24,11 +24,11 @@ Artisan 可以建立或移除 `filesystems.links` 設定的連結。預設連結
 預設 `routes/web.rs` 按以下順序掛載：
 
 ```rust
-Route::staticDisk("web")?;
-Route::staticDisk("public")?;
+Route::static_disk("web")?;
+Route::static_disk("public")?;
 ```
 
-`web` 磁碟描述網站目錄，根目錄預設是 `public`，URL 預設是 `app.url`。在 `config/filesystems.rs` 中透過 `FILESYSTEM_WEB_ROOT` 和 `FILESYSTEM_WEB_URL` 覆寫預設值。`FILESYSTEM_WEB_ROOT` 優先指定網站磁碟根目錄；未設定時使用 `APP_PUBLIC_PATH`（預設 `public`）。相對路徑基於應用根目錄，絕對路徑直接使用。空字串或全空白值會導致設定載入失敗。應用程式使用 `web.root` 作為 `public_path()`；啟動前呼叫 `use_public_path()` 會覆寫目錄並同步 `web.root`。兩個掛載統一使用 `staticDisk`，讀取本機磁碟根目錄，並從 `url` 取得完整掛載路徑。例如，`FILESYSTEM_PUBLIC_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 公開在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源，協定、主機或有效連接埠不同會導致 HTTP 引導失敗。
+`web` 磁碟描述網站目錄，根目錄預設是 `public`，URL 預設是 `app.url`。在 `config/filesystems.rs` 中透過 `FILESYSTEM_WEB_ROOT` 和 `FILESYSTEM_WEB_URL` 覆寫預設值。`FILESYSTEM_WEB_ROOT` 優先指定網站磁碟根目錄；未設定時使用 `APP_PUBLIC_PATH`（預設 `public`）。相對路徑基於應用根目錄，絕對路徑直接使用。空字串或全空白值會導致設定載入失敗。應用程式使用 `web.root` 作為 `public_path()`；啟動前呼叫 `use_public_path()` 會覆寫目錄並同步 `web.root`。兩個掛載統一使用 `static_disk`，讀取本機磁碟根目錄，並從 `url` 取得完整掛載路徑。例如，`FILESYSTEM_PUBLIC_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 公開在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源，協定、主機或有效連接埠不同會導致 HTTP 引導失敗。
 
 兩個磁碟掛載在 Unix 上都要求檔案公開且各級目錄可遍歷，並拒絕符號連結、寫入暫存檔及具有多個硬連結的檔案。如果 `public/storage` 是符號連結，`web` 磁碟會跳過它，由 `public` 磁碟直接從其設定的根目錄提供檔案。
 
@@ -108,11 +108,11 @@ use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Option<String>)> {
     let path = "reports/today.txt";
-    Ok((disk.size(path).await?, disk.mimeType(path).await?))
+    Ok((disk.size(path).await?, disk.mime_type(path).await?))
 }
 ```
 
-用 `mimeType` 檢查內容簽章，並回退到副檔名推斷或 `application/octet-stream`。用 `checksum` 串流計算 MD5，或用 `checksumWith::<D>` 選用 Rust 摘要演算法。這兩項操作在停用 `throw` 時將磁碟錯誤回退為 `None`。無效路徑一律傳回錯誤。
+用 `mime_type` 檢查內容簽章，並回退到副檔名推斷或 `application/octet-stream`。用 `checksum` 串流計算 MD5，或用 `checksumWith::<D>` 選用 Rust 摘要演算法。這兩項操作在停用 `throw` 時將磁碟錯誤回退為 `None`。無效路徑一律傳回錯誤。
 
 ## 儲存檔案
 

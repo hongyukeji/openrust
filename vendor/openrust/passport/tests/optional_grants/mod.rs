@@ -29,7 +29,7 @@ impl Fixture {
                             .await
                             .unwrap()
                     };
-                    let id = AuthIdentifier::try_from(&record.getKey().await.unwrap())
+                    let id = AuthIdentifier::try_from(&record.get_key().await.unwrap())
                         .unwrap()
                         .to_string();
                     let model = record.model::<Client>().unwrap();
@@ -305,7 +305,8 @@ fn resolver<'a>(
     client: &'a openrust_passport::ClientRecord,
 ) -> openrust::auth::AuthFuture<'a, openrust::auth::AuthResult<Option<AuthIdentifier>>> {
     Box::pin(async move {
-        if client.getAttributeValue("name").await.unwrap() != Some(Value::Text("Password".into())) {
+        if client.get_attribute_value("name").await.unwrap() != Some(Value::Text("Password".into()))
+        {
             return Ok(None);
         }
         let mut query = User::query().unwrap();
@@ -567,7 +568,7 @@ async fn mysql_optional_scopes_defaults_client_restrictions_and_storage_failure(
     f.passport.enablePasswordGrant();
     f.passport.enableImplicitGrant();
     f.passport.setDefaultScope(vec!["read write".into()]);
-    f.db.getSchemaBuilder()
+    f.db.get_schema_builder()
         .table("oauth_clients", |t| {
             t.json("scopes").nullable();
         })
@@ -605,7 +606,10 @@ async fn mysql_optional_scopes_defaults_client_restrictions_and_storage_failure(
         jwt_claims(&fragment(&response)["access_token"])["scopes"],
         json!(["write"])
     );
-    f.db.getSchemaBuilder().dropIfExists("users").await.unwrap();
+    f.db.get_schema_builder()
+        .drop_if_exists("users")
+        .await
+        .unwrap();
     let before = f.db.table("oauth_access_tokens").count("*").await.unwrap();
     let response = f
         .password_request(&password, "alice@test", "password", None)

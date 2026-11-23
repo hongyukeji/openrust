@@ -27,7 +27,7 @@ fn keyed_selection_and_transforms_match_array_order() {
         json!({"x":{"a":2}})
     );
     assert_eq!(
-        Arr::mapSpread(&json!([[1, 2], [3, 4]]), |chunk, key| json!([
+        Arr::map_spread(&json!([[1, 2], [3, 4]]), |chunk, key| json!([
             key,
             chunk.len()
         ]))
@@ -35,16 +35,16 @@ fn keyed_selection_and_transforms_match_array_order() {
         json!([["0", 2], ["1", 2]])
     );
     assert_eq!(
-        Arr::onlyValues(&json!([1, "1", 2]), &[json!(1)], false),
+        Arr::only_values(&json!([1, "1", 2]), &[json!(1)], false),
         json!([1, "1"])
     );
     assert_eq!(
-        Arr::exceptValues(&json!([1, "1", 2]), &[json!(1)], true),
+        Arr::except_values(&json!([1, "1", 2]), &[json!(1)], true),
         json!({"1":"1","2":2})
     );
     assert_eq!(Arr::sole(&items), Err(ArrValueError::Multiple(3)));
     assert_eq!(
-        Arr::soleWhere(&items, |item, _| item["id"] == "b").unwrap(),
+        Arr::sole_where(&items, |item, _| item["id"] == "b").unwrap(),
         &items[1]
     );
 }
@@ -56,7 +56,7 @@ fn nested_and_mutating_operations_preserve_keys() {
         json!({"name":"b","0":1,"1":"接"})
     );
     assert_eq!(
-        Arr::crossJoin(&[&[1, 2], &[3, 4]]),
+        Arr::cross_join(&[&[1, 2], &[3, 4]]),
         [[1, 3], [1, 4], [2, 3], [2, 4]]
     );
     assert_eq!(
@@ -83,20 +83,20 @@ fn nested_and_mutating_operations_preserve_keys() {
 fn ordering_formatting_and_sampling() {
     let value = json!({"z":[3,1,2],"a":{"y":1,"b":2}});
     assert_eq!(
-        Arr::sortRecursive(&value, false).unwrap().to_string(),
+        Arr::sort_recursive(&value, false).unwrap().to_string(),
         r#"{"a":{"b":2,"y":1},"z":[1,2,3]}"#
     );
     assert_eq!(
-        Arr::sortBy(&json!({"b":2,"c":2,"a":1}), |item, _| item.as_i64(), false).to_string(),
+        Arr::sort_by(&json!({"b":2,"c":2,"a":1}), |item, _| item.as_i64(), false).to_string(),
         r#"{"a":1,"b":2,"c":2}"#
     );
     assert_eq!(Arr::join(&["甲", "乙", "丙"], "、", "和"), "甲、乙和丙");
     assert_eq!(
-        Arr::toCssClasses(&json!({"0":"base","active":true,"off":false})),
+        Arr::to_css_classes(&json!({"0":"base","active":true,"off":false})),
         "base active"
     );
     assert_eq!(
-        Arr::toCssStyles(&json!(["color:red;", "margin:0"])),
+        Arr::to_css_styles(&json!(["color:red;", "margin:0"])),
         "color:red; margin:0;"
     );
     let value = json!({"a":1,"b":2,"c":3});
@@ -105,7 +105,7 @@ fn ordering_formatting_and_sampling() {
         Arr::random(&value, 4, false),
         Err(ArrValueError::SampleSize)
     );
-    assert_eq!(Arr::randItem(&json!([])), Err(ArrValueError::Missing));
+    assert_eq!(Arr::rand_item(&json!([])), Err(ArrValueError::Missing));
     let mut shuffled = Arr::shuffle(&value).unwrap();
     shuffled.sort_by_key(Value::as_i64);
     assert_eq!(shuffled, [json!(1), json!(2), json!(3)]);

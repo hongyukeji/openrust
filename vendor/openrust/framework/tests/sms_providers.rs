@@ -210,7 +210,7 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
         Callback::new(&[], |_| async {
             let recipient =
                 Notify::route("sms", NotificationRoute::Sms("13800138000".into())).unwrap();
-            Notify::sendNow(&[&recipient], &CodeNotice, None)
+            Notify::send_now(&[&recipient], &CodeNotice, None)
                 .await
                 .unwrap();
 

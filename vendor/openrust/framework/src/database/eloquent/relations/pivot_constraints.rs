@@ -43,15 +43,15 @@ impl PivotConstraints {
         group.qualify_columns(table);
         let conditions = self.conditions.take().unwrap_or_default();
         self.conditions = Some(if or {
-            conditions.orWhereNested(|_| group)
+            conditions.or_where_nested(|_| group)
         } else {
-            conditions.whereNested(|_| group)
+            conditions.where_nested(|_| group)
         });
     }
 
     pub(super) fn apply<'a>(&self, query: query::Builder<'a>) -> query::Builder<'a> {
         match &self.conditions {
-            Some(conditions) => query.whereNested(|_| conditions.clone()),
+            Some(conditions) => query.where_nested(|_| conditions.clone()),
             None => query,
         }
     }
@@ -61,7 +61,7 @@ macro_rules! pivot_predicates {
     ($apply:ident, $group:ident) => {
         /// Filters Pivot rows with a grouped predicate.
         #[must_use]
-        pub fn wherePivotWith(
+        pub fn where_pivot_with(
             self,
             configure: impl FnOnce(query::Conditions) -> query::Conditions,
         ) -> Self {
@@ -70,7 +70,7 @@ macro_rules! pivot_predicates {
 
         /// Adds a grouped alternative within the current Pivot scope.
         #[must_use]
-        pub fn orWherePivotWith(
+        pub fn or_where_pivot_with(
             self,
             configure: impl FnOnce(query::Conditions) -> query::Conditions,
         ) -> Self {
@@ -79,20 +79,20 @@ macro_rules! pivot_predicates {
 
 
         pivot_predicates!(@methods $apply;
-            wherePivot => r#where(operator: &str, value: impl Into<Value>),
-            orWherePivot => orWhere(operator: &str, value: impl Into<Value>),
-            wherePivotIn => where_in(values: Vec<Value>),
-            orWherePivotIn => orWhereIn(values: Vec<Value>),
-            wherePivotNotIn => where_not_in(values: Vec<Value>),
-            orWherePivotNotIn => orWhereNotIn(values: Vec<Value>),
-            wherePivotBetween => whereBetween(bounds: [Value; 2]),
-            orWherePivotBetween => orWhereBetween(bounds: [Value; 2]),
-            wherePivotNotBetween => whereNotBetween(bounds: [Value; 2]),
-            orWherePivotNotBetween => orWhereNotBetween(bounds: [Value; 2]),
-            wherePivotNull => where_null(),
-            orWherePivotNull => orWhereNull(),
-            wherePivotNotNull => where_not_null(),
-            orWherePivotNotNull => orWhereNotNull()
+            where_pivot => r#where(operator: &str, value: impl Into<Value>),
+            or_where_pivot => or_where(operator: &str, value: impl Into<Value>),
+            where_pivot_in => where_in(values: Vec<Value>),
+            or_where_pivot_in => or_where_in(values: Vec<Value>),
+            where_pivot_not_in => where_not_in(values: Vec<Value>),
+            or_where_pivot_not_in => or_where_not_in(values: Vec<Value>),
+            where_pivot_between => where_between(bounds: [Value; 2]),
+            or_where_pivot_between => or_where_between(bounds: [Value; 2]),
+            where_pivot_not_between => where_not_between(bounds: [Value; 2]),
+            or_where_pivot_not_between => or_where_not_between(bounds: [Value; 2]),
+            where_pivot_null => where_null(),
+            or_where_pivot_null => or_where_null(),
+            where_pivot_not_null => where_not_null(),
+            or_where_pivot_not_null => or_where_not_null()
         );
     };
     (@methods $apply:ident; $($name:ident => $method:ident($($arg:ident: $ty:ty),*)),+ $(,)?) => {

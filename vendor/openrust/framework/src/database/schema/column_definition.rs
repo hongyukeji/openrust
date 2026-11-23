@@ -122,7 +122,6 @@ pub struct ColumnDefinition {
     pub(super) start: Option<u64>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ColumnDefinition {
     pub(super) fn new(name: &str, kind: ColumnType) -> Self {
         Self {
@@ -158,11 +157,11 @@ impl ColumnDefinition {
     }
 
     pub fn nullable(&mut self) -> &mut Self {
-        self.nullableWith(true)
+        self.nullable_with(true)
     }
 
     /// Sets nullability explicitly, including on generated columns.
-    pub fn nullableWith(&mut self, nullable: bool) -> &mut Self {
+    pub fn nullable_with(&mut self, nullable: bool) -> &mut Self {
         self.nullable = Some(nullable);
         self
     }
@@ -173,18 +172,18 @@ impl ColumnDefinition {
     }
 
     /// Enables auto-increment without changing the column's signedness.
-    pub fn autoIncrement(&mut self) -> &mut Self {
+    pub fn auto_increment(&mut self) -> &mut Self {
         self.increment = true;
         self
     }
 
     /// Sets the starting value of an auto-incrementing column where supported.
     pub fn from(&mut self, value: u64) -> &mut Self {
-        self.startingValue(value)
+        self.starting_value(value)
     }
 
     /// Sets the starting value of an auto-incrementing column where supported.
-    pub fn startingValue(&mut self, value: u64) -> &mut Self {
+    pub fn starting_value(&mut self, value: u64) -> &mut Self {
         self.start = Some(value);
         self
     }
@@ -195,18 +194,18 @@ impl ColumnDefinition {
     }
 
     pub fn unique(&mut self) -> &mut Self {
-        self.uniqueWith(true)
+        self.unique_with(true)
     }
 
-    pub fn uniqueWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+    pub fn unique_with(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
         self.set_index(IndexType::Unique, index.into())
     }
 
     pub fn index(&mut self) -> &mut Self {
-        self.indexWith(true)
+        self.index_with(true)
     }
 
-    pub fn indexWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+    pub fn index_with(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
         let kind = if matches!(self.kind, ColumnType::Vector(_)) {
             IndexType::Vector
         } else {
@@ -215,19 +214,19 @@ impl ColumnDefinition {
         self.set_index(kind, index.into())
     }
 
-    pub fn fullText(&mut self) -> &mut Self {
-        self.fullTextWith(true)
+    pub fn full_text(&mut self) -> &mut Self {
+        self.full_text_with(true)
     }
 
-    pub fn fullTextWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+    pub fn full_text_with(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
         self.set_index(IndexType::FullText, index.into())
     }
 
-    pub fn spatialIndex(&mut self) -> &mut Self {
-        self.spatialIndexWith(true)
+    pub fn spatial_index(&mut self) -> &mut Self {
+        self.spatial_index_with(true)
     }
 
-    pub fn spatialIndexWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+    pub fn spatial_index_with(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
         self.set_index(IndexType::Spatial, index.into())
     }
 
@@ -276,12 +275,12 @@ impl ColumnDefinition {
     }
 
     /// Computes the column from a trusted SQL expression when read.
-    pub fn virtualAs(&mut self, expression: impl Into<String>) -> &mut Self {
+    pub fn virtual_as(&mut self, expression: impl Into<String>) -> &mut Self {
         self.generated(expression, false, false)
     }
 
     /// Computes and stores the column using a trusted SQL expression.
-    pub fn storedAs(&mut self, expression: impl Into<String>) -> &mut Self {
+    pub fn stored_as(&mut self, expression: impl Into<String>) -> &mut Self {
         self.generated(expression, true, false)
     }
 
@@ -296,12 +295,12 @@ impl ColumnDefinition {
     }
 
     /// Computes the column from a JSON selector when read.
-    pub fn virtualAsJson(&mut self, selector: impl Into<String>) -> &mut Self {
+    pub fn virtual_as_json(&mut self, selector: impl Into<String>) -> &mut Self {
         self.generated(selector, false, true)
     }
 
     /// Computes and stores the column selected from JSON.
-    pub fn storedAsJson(&mut self, selector: impl Into<String>) -> &mut Self {
+    pub fn stored_as_json(&mut self, selector: impl Into<String>) -> &mut Self {
         self.generated(selector, true, true)
     }
 
@@ -315,19 +314,19 @@ impl ColumnDefinition {
     }
 
     /// Retains the values of a PostgreSQL stored generated column as ordinary data.
-    pub fn dropExpression(&mut self) -> &mut Self {
+    pub fn drop_expression(&mut self) -> &mut Self {
         self.postgres_modifiers().drop_expression = true;
         self
     }
 
     /// Uses a PostgreSQL identity sequence for this column.
-    pub fn generatedAs(&mut self) -> &mut Self {
+    pub fn generated_as(&mut self) -> &mut Self {
         self.postgres_modifiers().identity = Some(Identity::Default);
         self
     }
 
     /// Configures a PostgreSQL identity sequence with trusted SQL options.
-    pub fn generatedAsWith(&mut self, options: Expression) -> &mut Self {
+    pub fn generated_as_with(&mut self, options: Expression) -> &mut Self {
         self.postgres_modifiers().identity = Some(Identity::Options(options));
         self
     }
@@ -338,21 +337,21 @@ impl ColumnDefinition {
         self
     }
 
-    pub fn useCurrent(&mut self) -> &mut Self {
+    pub fn use_current(&mut self) -> &mut Self {
         self.current_default = CurrentDefault::AfterExplicit;
         self
     }
 
     /// Updates a MySQL timestamp or datetime when another value in the row changes.
-    pub fn useCurrentOnUpdate(&mut self) -> &mut Self {
+    pub fn use_current_on_update(&mut self) -> &mut Self {
         self.current_on_update = true;
         self
     }
 
     /// Sets a trusted MySQL ON UPDATE expression for a temporal column.
     ///
-    /// `useCurrentOnUpdate` takes precedence when both modifiers are present.
-    pub fn onUpdate(&mut self, expression: Expression) -> &mut Self {
+    /// `use_current_on_update` takes precedence when both modifiers are present.
+    pub fn on_update(&mut self, expression: Expression) -> &mut Self {
         self.on_update = Some(Box::new(expression));
         self
     }
@@ -403,7 +402,7 @@ impl ColumnDefinition {
     }
 
     /// Renames the column as part of a MySQL change operation.
-    pub fn renameTo(&mut self, name: &str) -> &mut Self {
+    pub fn rename_to(&mut self, name: &str) -> &mut Self {
         self.rename_to = Some(name.to_owned());
         self
     }

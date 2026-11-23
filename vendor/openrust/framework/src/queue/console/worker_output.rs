@@ -97,8 +97,8 @@ fn job_status(job: &dyn Job, outcome: Option<JobOutcome<'_>>, timestamp: String)
     };
     let mut entry = json!({
         "level": if matches!(status, "starting" | "success") {"info"} else {"warning"},
-        "id": job.getJobId(), "uuid": job.uuid(), "connection": job.getConnectionName(),
-        "queue": job.getQueue(), "job": job.payload().display_name(), "status": status,
+        "id": job.get_job_id(), "uuid": job.uuid(), "connection": job.get_connection_name(),
+        "queue": job.get_queue(), "job": job.payload().display_name(), "status": status,
         "attempts": job.attempts(), "timestamp": timestamp,
     });
     if let Some(outcome) = outcome {
@@ -107,11 +107,11 @@ fn job_status(job: &dyn Job, outcome: Option<JobOutcome<'_>>, timestamp: String)
             entry["exception"] = json!("QueueError");
             entry["message"] = json!(error.to_string());
         }
-        let result = if job.isDeleted() {
+        let result = if job.is_deleted() {
             Some("deleted")
-        } else if job.isReleased() {
+        } else if job.is_released() {
             Some("released")
-        } else if job.hasFailed() {
+        } else if job.has_failed() {
             Some("failed")
         } else {
             None

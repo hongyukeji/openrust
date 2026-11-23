@@ -90,7 +90,6 @@ impl Join {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     /// Starts a query to be embedded as SQL in another builder on this connection.
     pub fn subquery(&self, table: &str) -> Builder<'static> {
@@ -128,15 +127,15 @@ impl Builder<'_> {
             };
             (outer_database != inner_database).then_some(inner_database)
         };
-        query.applyBeforeQueryCallbacks()?;
+        query.apply_before_query_callbacks()?;
         let (sql, bindings) = query.compile_with_database(None, qualification.as_deref())?;
         Ok(Expression::new(sql).with_bindings(bindings))
     }
 
-    pub fn selectSub(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn select_sub(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
         let alias = self.grammar.column(alias)?;
-        Ok(self.selectRaw(&format!("({}) as {alias}", query.sql), query.bindings))
+        Ok(self.select_raw(&format!("({}) as {alias}", query.sql), query.bindings))
     }
 
     pub(in crate::database) fn select_exists(
@@ -146,7 +145,7 @@ impl Builder<'_> {
     ) -> DatabaseResult<Self> {
         let query = self.subquery_expression(query)?;
         let alias = self.grammar.quote(alias)?;
-        Ok(self.selectRaw(
+        Ok(self.select_raw(
             &format!("exists ({}) as {alias}", query.sql),
             query.bindings,
         ))
@@ -182,7 +181,7 @@ impl Builder<'_> {
         self
     }
 
-    pub fn fromSub(mut self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+    pub fn from_sub(mut self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         let source = self.subquery_expression(query)?;
         self.retain_source_bindings();
         self.source = Source::Query(source, alias.into());
@@ -190,33 +189,33 @@ impl Builder<'_> {
     }
 
     /// 原始来源片段只用于可信 SQL；外部输入必须通过 bindings 传递。
-    pub fn fromRaw(mut self, expression: &str, bindings: Vec<Value>) -> Self {
+    pub fn from_raw(mut self, expression: &str, bindings: Vec<Value>) -> Self {
         self.retain_source_bindings();
         self.source = Source::Raw(Expression::new(expression).with_bindings(bindings));
         self
     }
 
-    pub fn joinWhere(
+    pub fn join_where(
         self,
         table: &str,
         first: &str,
         operator: &str,
         second: impl Into<Value>,
     ) -> Self {
-        self.joinWith(table, |join| join.r#where(first, operator, second))
+        self.join_with(table, |join| join.r#where(first, operator, second))
     }
 
-    pub fn leftJoinWhere(
+    pub fn left_join_where(
         self,
         table: &str,
         first: &str,
         operator: &str,
         second: impl Into<Value>,
     ) -> Self {
-        self.leftJoinWith(table, |join| join.r#where(first, operator, second))
+        self.left_join_with(table, |join| join.r#where(first, operator, second))
     }
 
-    pub fn rightJoinWhere(
+    pub fn right_join_where(
         self,
         table: &str,
         first: &str,
@@ -231,10 +230,10 @@ impl Builder<'_> {
     }
 
     pub fn join(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
-        self.joinWith(table, |join| join.on(column, operator, other))
+        self.join_with(table, |join| join.on(column, operator, other))
     }
 
-    pub fn joinWith(self, table: &str, configure: impl FnOnce(JoinClause) -> JoinClause) -> Self {
+    pub fn join_with(self, table: &str, configure: impl FnOnce(JoinClause) -> JoinClause) -> Self {
         self.add_join(
             Source::Table(table.into()),
             JoinType::Inner,
@@ -242,11 +241,11 @@ impl Builder<'_> {
         )
     }
 
-    pub fn leftJoin(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
-        self.leftJoinWith(table, |join| join.on(column, operator, other))
+    pub fn left_join(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
+        self.left_join_with(table, |join| join.on(column, operator, other))
     }
 
-    pub fn leftJoinWith(
+    pub fn left_join_with(
         self,
         table: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
@@ -258,7 +257,7 @@ impl Builder<'_> {
         )
     }
 
-    pub fn rightJoin(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
+    pub fn right_join(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
         self.add_join(
             Source::Table(table.into()),
             JoinType::Right,
@@ -266,7 +265,7 @@ impl Builder<'_> {
         )
     }
 
-    pub fn crossJoin(self, table: &str) -> Self {
+    pub fn cross_join(self, table: &str) -> Self {
         self.add_join(
             Source::Table(table.into()),
             JoinType::Cross,
@@ -274,25 +273,25 @@ impl Builder<'_> {
         )
     }
 
-    pub fn crossJoinSub(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
-        self.join_sub(query, alias, JoinType::Cross, |join| join)
+    pub fn cross_join_sub(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+        self.join_sub_with_type(query, alias, JoinType::Cross, |join| join)
     }
 
-    pub fn straightJoin(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
-        self.straightJoinWith(table, |join| join.on(column, operator, other))
+    pub fn straight_join(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
+        self.straight_join_with(table, |join| join.on(column, operator, other))
     }
 
-    pub fn straightJoinWhere(
+    pub fn straight_join_where(
         self,
         table: &str,
         column: &str,
         operator: &str,
         value: impl Into<Value>,
     ) -> Self {
-        self.straightJoinWith(table, |join| join.r#where(column, operator, value))
+        self.straight_join_with(table, |join| join.r#where(column, operator, value))
     }
 
-    pub fn straightJoinWith(
+    pub fn straight_join_with(
         self,
         table: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
@@ -304,58 +303,58 @@ impl Builder<'_> {
         )
     }
 
-    pub fn straightJoinSub(
+    pub fn straight_join_sub(
         self,
         query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
-        self.join_sub(query, alias, JoinType::Straight, configure)
+        self.join_sub_with_type(query, alias, JoinType::Straight, configure)
     }
 
-    pub fn joinSub(
+    pub fn join_sub(
         self,
         query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
-        self.join_sub(query, alias, JoinType::Inner, configure)
+        self.join_sub_with_type(query, alias, JoinType::Inner, configure)
     }
 
-    pub fn leftJoinSub(
+    pub fn left_join_sub(
         self,
         query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
-        self.join_sub(query, alias, JoinType::Left, configure)
+        self.join_sub_with_type(query, alias, JoinType::Left, configure)
     }
 
-    pub fn rightJoinSub(
+    pub fn right_join_sub(
         self,
         query: &mut Builder<'_>,
         alias: &str,
         configure: impl FnOnce(JoinClause) -> JoinClause,
     ) -> DatabaseResult<Self> {
-        self.join_sub(query, alias, JoinType::Right, configure)
+        self.join_sub_with_type(query, alias, JoinType::Right, configure)
     }
 
-    pub fn joinLateral(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
-        self.join_lateral(query, alias, false)
+    pub fn join_lateral(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+        self.join_lateral_with_side(query, alias, false)
     }
 
-    pub fn leftJoinLateral(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
-        self.join_lateral(query, alias, true)
+    pub fn left_join_lateral(self, query: &mut Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+        self.join_lateral_with_side(query, alias, true)
     }
 
-    fn join_lateral(
+    fn join_lateral_with_side(
         self,
         query: &mut Builder<'_>,
         alias: &str,
         left: bool,
     ) -> DatabaseResult<Self> {
         let (operator, condition) = self.grammar.lateral_join(left)?;
-        self.join_sub(
+        self.join_sub_with_type(
             query,
             alias,
             JoinType::Lateral {
@@ -366,7 +365,7 @@ impl Builder<'_> {
         )
     }
 
-    fn join_sub(
+    fn join_sub_with_type(
         self,
         query: &mut Builder<'_>,
         alias: &str,
@@ -461,23 +460,23 @@ impl Builder<'_> {
         Ok(Expression::new(predicate).with_bindings(bindings))
     }
 
-    pub fn whereExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
-        self.where_exists(query, false, false)
+    pub fn where_exists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+        self.where_exists_boolean(query, false, false)
     }
 
-    pub fn orWhereExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
-        self.where_exists(query, true, false)
+    pub fn or_where_exists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+        self.where_exists_boolean(query, true, false)
     }
 
-    pub fn whereNotExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
-        self.where_exists(query, false, true)
+    pub fn where_not_exists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+        self.where_exists_boolean(query, false, true)
     }
 
-    pub fn orWhereNotExists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
-        self.where_exists(query, true, true)
+    pub fn or_where_not_exists(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+        self.where_exists_boolean(query, true, true)
     }
 
-    fn where_exists(
+    fn where_exists_boolean(
         mut self,
         query: &mut Builder<'_>,
         or: bool,
@@ -498,15 +497,15 @@ impl Builder<'_> {
         Ok(Expression::new(format!("{operator} ({})", query.sql)).with_bindings(query.bindings))
     }
 
-    pub fn whereInSub(self, column: &str, query: &mut Builder<'_>) -> DatabaseResult<Self> {
-        self.where_in_sub(column, query, false)
+    pub fn where_in_sub(self, column: &str, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+        self.where_in_sub_negated(column, query, false)
     }
 
-    pub fn whereNotInSub(self, column: &str, query: &mut Builder<'_>) -> DatabaseResult<Self> {
-        self.where_in_sub(column, query, true)
+    pub fn where_not_in_sub(self, column: &str, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+        self.where_in_sub_negated(column, query, true)
     }
 
-    fn where_in_sub(
+    fn where_in_sub_negated(
         mut self,
         column: &str,
         query: &mut Builder<'_>,
@@ -523,7 +522,7 @@ impl Builder<'_> {
         Ok(self)
     }
 
-    pub fn whereSub(
+    pub fn where_sub(
         mut self,
         column: &str,
         operator: &str,
@@ -544,7 +543,7 @@ impl Builder<'_> {
         self.add_union(query, false)
     }
 
-    pub fn unionAll(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
+    pub fn union_all(self, query: &mut Builder<'_>) -> DatabaseResult<Self> {
         self.add_union(query, true)
     }
 

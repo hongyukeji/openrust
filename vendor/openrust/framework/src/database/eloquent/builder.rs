@@ -88,16 +88,15 @@ pub struct Builder<'connection, M: Model> {
     model: PhantomData<M>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Builder<'static, M> {
     pub(super) fn new(connection: Connection) -> Self {
-        M::newEloquentBuilder(connection.table(M::metadata().table))
+        M::new_eloquent_builder(connection.table(M::metadata().table))
     }
 
     /// 用指定底层查询构造模型查询，供模型工厂定制默认行为。
-    pub fn fromQuery(query: query::Builder<'static>) -> Self {
+    pub fn from_query(query: query::Builder<'static>) -> Self {
         Self {
-            connection: query.getConnection().clone(),
+            connection: query.get_connection().clone(),
             query,
             table_alias: None,
             pivot: None,
@@ -120,7 +119,7 @@ impl<M: Model> Builder<'static, M> {
                         )
                     })
                     .into_iter()
-                    .chain(M::globalScopes().iter().map(|(name, scope)| {
+                    .chain(M::global_scopes().iter().map(|(name, scope)| {
                         ((*name).into(), super::scope::ScopeEntry::Static(*scope))
                     }))
                     .collect(),
@@ -130,17 +129,22 @@ impl<M: Model> Builder<'static, M> {
         }
     }
     /// Filters by the existence of a registered relation or dot-separated path.
-    pub fn whereHasPath(self, path: &str) -> DatabaseResult<Self> {
-        self.hasPathCount(path, ">=", 1)
+    pub fn where_has_path(self, path: &str) -> DatabaseResult<Self> {
+        self.has_path_count(path, ">=", 1)
     }
 
     /// Filters by the absence of a complete registered relation path.
-    pub fn whereDoesntHavePath(self, path: &str) -> DatabaseResult<Self> {
-        self.hasPathCount(path, "<", 1)
+    pub fn where_doesnt_have_path(self, path: &str) -> DatabaseResult<Self> {
+        self.has_path_count(path, "<", 1)
     }
 
     /// Applies the count comparison at the final segment of the relation path.
-    pub fn hasPathCount(mut self, path: &str, operator: &str, count: u64) -> DatabaseResult<Self> {
+    pub fn has_path_count(
+        mut self,
+        path: &str,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<Self> {
         Self::validate_path(path)?;
         let expression = super::NamedRelations::<M>::filter(
             &self.connection,
@@ -155,17 +159,17 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Discovers stored morph aliases before filtering by a named relation path.
-    pub async fn whereHasPathAll(self, path: &str) -> DatabaseResult<Self> {
-        self.hasPathCountAll(path, ">=", 1).await
+    pub async fn where_has_path_all(self, path: &str) -> DatabaseResult<Self> {
+        self.has_path_count_all(path, ">=", 1).await
     }
 
     /// Discovers stored morph aliases before testing for a missing relation path.
-    pub async fn whereDoesntHavePathAll(self, path: &str) -> DatabaseResult<Self> {
-        self.hasPathCountAll(path, "<", 1).await
+    pub async fn where_doesnt_have_path_all(self, path: &str) -> DatabaseResult<Self> {
+        self.has_path_count_all(path, "<", 1).await
     }
 
     /// Discovers stored morph aliases and compares the final segment's count.
-    pub async fn hasPathCountAll(
+    pub async fn has_path_count_all(
         mut self,
         path: &str,
         operator: &str,
@@ -184,7 +188,7 @@ impl<M: Model> Builder<'static, M> {
         Ok(self)
     }
 
-    pub fn whereRelationPath(
+    pub fn where_relation_path(
         self,
         path: &str,
         column: &str,
@@ -200,7 +204,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn orWhereRelationPath(
+    pub fn or_where_relation_path(
         self,
         path: &str,
         column: &str,
@@ -216,7 +220,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn whereDoesntHaveRelationPath(
+    pub fn where_doesnt_have_relation_path(
         self,
         path: &str,
         column: &str,
@@ -232,7 +236,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn orWhereDoesntHaveRelationPath(
+    pub fn or_where_doesnt_have_relation_path(
         self,
         path: &str,
         column: &str,
@@ -249,7 +253,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Filters using a grouped predicate on the final relationship in the path.
-    pub fn whereRelationPathWith(
+    pub fn where_relation_path_with(
         self,
         path: &str,
         constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
@@ -258,7 +262,7 @@ impl<M: Model> Builder<'static, M> {
         self.filter_path_with(path, ">=", false, &constraint, None)
     }
 
-    pub fn withWhereRelationPath(
+    pub fn with_where_relation_path(
         self,
         path: &str,
         column: &str,
@@ -273,7 +277,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Applies the same grouped predicate when filtering and loading the path.
-    pub fn withWhereRelationPathWith(
+    pub fn with_where_relation_path_with(
         self,
         path: &str,
         constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
@@ -282,7 +286,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Filters the final relationship after discovering stored morph aliases.
-    pub async fn whereRelationPathAll(
+    pub async fn where_relation_path_all(
         self,
         path: &str,
         column: &str,
@@ -295,7 +299,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Tests for the absence of a matching relationship after morph alias discovery.
-    pub async fn whereDoesntHaveRelationPathAll(
+    pub async fn where_doesnt_have_relation_path_all(
         self,
         path: &str,
         column: &str,
@@ -308,7 +312,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Applies the final column predicate using the same aliases for filtering and loading.
-    pub async fn withWhereRelationPathAll(
+    pub async fn with_where_relation_path_all(
         self,
         path: &str,
         column: &str,
@@ -321,7 +325,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Applies a grouped final predicate using the same aliases for filtering and loading.
-    pub async fn withWhereRelationPathAllWith(
+    pub async fn with_where_relation_path_all_with(
         self,
         path: &str,
         constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
@@ -404,15 +408,14 @@ impl<M: Model> Builder<'static, M> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection, M: Model> Builder<'connection, M> {
     pub fn r#where(&mut self, column: &str, operator: &str, value: impl Into<Value>) -> &mut Self {
         self.predicates = mem::take(&mut self.predicates).r#where(column, operator, value);
         self
     }
 
-    pub fn orWhere(&mut self, column: &str, operator: &str, value: impl Into<Value>) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).orWhere(column, operator, value);
+    pub fn or_where(&mut self, column: &str, operator: &str, value: impl Into<Value>) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).or_where(column, operator, value);
         self
     }
 
@@ -426,53 +429,53 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self
     }
 
-    pub fn whereNested(
+    pub fn where_nested(
         &mut self,
         configure: impl FnOnce(query::Conditions) -> query::Conditions,
     ) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).whereNested(configure);
+        self.predicates = mem::take(&mut self.predicates).where_nested(configure);
         self
     }
 
-    pub fn whereFullText(&mut self, columns: &[&str], value: &str) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).whereFullText(columns, value);
+    pub fn where_full_text(&mut self, columns: &[&str], value: &str) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).where_full_text(columns, value);
         self
     }
 
-    pub fn orWhereFullText(&mut self, columns: &[&str], value: &str) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).orWhereFullText(columns, value);
+    pub fn or_where_full_text(&mut self, columns: &[&str], value: &str) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).or_where_full_text(columns, value);
         self
     }
 
-    pub fn whereFullTextWith(
+    pub fn where_full_text_with(
         &mut self,
         columns: &[&str],
         value: &str,
         options: query::FullTextOptions,
     ) -> &mut Self {
         self.predicates =
-            mem::take(&mut self.predicates).whereFullTextWith(columns, value, options);
+            mem::take(&mut self.predicates).where_full_text_with(columns, value, options);
         self
     }
 
-    pub fn orWhereFullTextWith(
+    pub fn or_where_full_text_with(
         &mut self,
         columns: &[&str],
         value: &str,
         options: query::FullTextOptions,
     ) -> &mut Self {
         self.predicates =
-            mem::take(&mut self.predicates).orWhereFullTextWith(columns, value, options);
+            mem::take(&mut self.predicates).or_where_full_text_with(columns, value, options);
         self
     }
 
-    pub fn whereVectorDistanceLessThan(
+    pub fn where_vector_distance_less_than(
         &mut self,
         column: impl Into<query::Column>,
         vector: &[f64],
         max_distance: f64,
     ) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).whereVectorDistanceLessThan(
+        self.predicates = mem::take(&mut self.predicates).where_vector_distance_less_than(
             column,
             vector,
             max_distance,
@@ -480,13 +483,13 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self
     }
 
-    pub fn orWhereVectorDistanceLessThan(
+    pub fn or_where_vector_distance_less_than(
         &mut self,
         column: impl Into<query::Column>,
         vector: &[f64],
         max_distance: f64,
     ) -> &mut Self {
-        self.predicates = mem::take(&mut self.predicates).orWhereVectorDistanceLessThan(
+        self.predicates = mem::take(&mut self.predicates).or_where_vector_distance_less_than(
             column,
             vector,
             max_distance,
@@ -494,7 +497,7 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self
     }
 
-    pub fn whereVectorSimilarTo(
+    pub fn where_vector_similar_to(
         mut self,
         column: impl Into<query::Column>,
         vector: &[f64],
@@ -503,15 +506,15 @@ impl<'connection, M: Model> Builder<'connection, M> {
     ) -> DatabaseResult<Self> {
         let max_distance = query::vector::similarity_max_distance(min_similarity)?;
         let column = column.into();
-        self.whereVectorDistanceLessThan(column.clone(), vector, max_distance);
+        self.where_vector_distance_less_than(column.clone(), vector, max_distance);
         if order {
-            self.orderByVectorDistance(column, vector)
+            self.order_by_vector_distance(column, vector)
         } else {
             Ok(self)
         }
     }
 
-    pub async fn whereVectorSimilarToText(
+    pub async fn where_vector_similar_to_text(
         self,
         column: impl Into<query::Column> + Send,
         text: &str,
@@ -520,10 +523,10 @@ impl<'connection, M: Model> Builder<'connection, M> {
     ) -> DatabaseResult<Self> {
         query::vector::similarity_max_distance(min_similarity)?;
         let vector = self.query.text_vector(text).await?;
-        self.whereVectorSimilarTo(column, &vector, min_similarity, order)
+        self.where_vector_similar_to(column, &vector, min_similarity, order)
     }
 
-    pub async fn whereVectorDistanceLessThanText(
+    pub async fn where_vector_distance_less_than_text(
         &mut self,
         column: impl Into<query::Column> + Send,
         text: &str,
@@ -531,10 +534,10 @@ impl<'connection, M: Model> Builder<'connection, M> {
     ) -> DatabaseResult<&mut Self> {
         query::vector::validate_max_distance(max_distance)?;
         let vector = self.query.text_vector(text).await?;
-        Ok(self.whereVectorDistanceLessThan(column, &vector, max_distance))
+        Ok(self.where_vector_distance_less_than(column, &vector, max_distance))
     }
 
-    pub async fn orWhereVectorDistanceLessThanText(
+    pub async fn or_where_vector_distance_less_than_text(
         &mut self,
         column: impl Into<query::Column> + Send,
         text: &str,
@@ -542,29 +545,29 @@ impl<'connection, M: Model> Builder<'connection, M> {
     ) -> DatabaseResult<&mut Self> {
         query::vector::validate_max_distance(max_distance)?;
         let vector = self.query.text_vector(text).await?;
-        Ok(self.orWhereVectorDistanceLessThan(column, &vector, max_distance))
+        Ok(self.or_where_vector_distance_less_than(column, &vector, max_distance))
     }
 
-    pub fn whereKey(&mut self, value: impl Into<Key>) -> &mut Self {
+    pub fn where_key(&mut self, value: impl Into<Key>) -> &mut Self {
         self.key_condition(value.into(), false, false)
     }
 
-    pub fn whereKeyNot(&mut self, value: impl Into<Key>) -> &mut Self {
+    pub fn where_key_not(&mut self, value: impl Into<Key>) -> &mut Self {
         self.key_condition(value.into(), false, true)
     }
 
-    pub fn orWhereKey(&mut self, value: impl Into<Key>) -> &mut Self {
+    pub fn or_where_key(&mut self, value: impl Into<Key>) -> &mut Self {
         self.key_condition(value.into(), true, false)
     }
 
-    pub fn orWhereKeyNot(&mut self, value: impl Into<Key>) -> &mut Self {
+    pub fn or_where_key_not(&mut self, value: impl Into<Key>) -> &mut Self {
         self.key_condition(value.into(), true, true)
     }
 
     fn key_condition(&mut self, value: Key, or: bool, not: bool) -> &mut Self {
-        let column = self.qualifyColumn(M::metadata().primary_key);
+        let column = self.qualify_column(M::metadata().primary_key);
         let integer =
-            M::from_state(ModelState::default()).getKeyType() == super::ModelKeyType::Integer;
+            M::from_state(ModelState::default()).get_key_type() == super::ModelKeyType::Integer;
         let configure = |group: query::Conditions| match value {
             Key::Scalar(value) => group.r#where(
                 &column,
@@ -574,9 +577,9 @@ impl<'connection, M: Model> Builder<'connection, M> {
             Key::Many(values) if integer => {
                 let values = values.into_iter().map(integer_key).collect();
                 if not {
-                    group.whereIntegerNotInRaw(&column, values)
+                    group.where_integer_not_in_raw(&column, values)
                 } else {
-                    group.whereIntegerInRaw(&column, values)
+                    group.where_integer_in_raw(&column, values)
                 }
             }
             Key::Many(values) => {
@@ -589,14 +592,14 @@ impl<'connection, M: Model> Builder<'connection, M> {
         };
         let predicates = mem::take(&mut self.predicates);
         self.predicates = if or {
-            predicates.orWhereNested(configure)
+            predicates.or_where_nested(configure)
         } else {
             configure(predicates)
         };
         self
     }
 
-    pub fn qualifyColumn(&self, column: &str) -> String {
+    pub fn qualify_column(&self, column: &str) -> String {
         if column.contains('.') {
             return column.to_owned();
         }
@@ -613,17 +616,17 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self.select_relation_columns(columns)
     }
 
-    pub fn selectVectorDistance(
+    pub fn select_vector_distance(
         mut self,
         column: impl Into<query::Column>,
         vector: &[f64],
         alias: Option<&str>,
     ) -> DatabaseResult<Self> {
-        self.query = self.query.selectVectorDistance(column, vector, alias)?;
+        self.query = self.query.select_vector_distance(column, vector, alias)?;
         Ok(self)
     }
 
-    pub async fn selectVectorDistanceText(
+    pub async fn select_vector_distance_text(
         mut self,
         column: impl Into<query::Column> + Send,
         text: &str,
@@ -631,14 +634,14 @@ impl<'connection, M: Model> Builder<'connection, M> {
     ) -> DatabaseResult<Self> {
         self.query = self
             .query
-            .selectVectorDistanceText(column, text, alias)
+            .select_vector_distance_text(column, text, alias)
             .await?;
         Ok(self)
     }
 
     /// Applies attribute casts to models retrieved or created by this query.
     #[must_use]
-    pub fn withCasts(
+    pub fn with_casts(
         mut self,
         casts: impl IntoIterator<Item = (impl Into<String>, AttributeCast)>,
     ) -> Self {
@@ -656,15 +659,15 @@ impl<'connection, M: Model> Builder<'connection, M> {
     }
 
     #[must_use]
-    pub fn orderBy(mut self, column: &str, direction: &str) -> Self {
-        self.query = self.query.orderBy(column, direction);
+    pub fn order_by(mut self, column: &str, direction: &str) -> Self {
+        self.query = self.query.order_by(column, direction);
         self
     }
 
     /// Orders models by a supplied sequence of values using the native query grammar.
     #[must_use]
-    pub fn inOrderOf(mut self, column: &str, values: Vec<Value>) -> Self {
-        self.query = self.query.inOrderOf(column, values);
+    pub fn in_order_of(mut self, column: &str, values: Vec<Value>) -> Self {
+        self.query = self.query.in_order_of(column, values);
         self
     }
 
@@ -674,21 +677,24 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self
     }
 
-    pub fn orderByVectorDistance(
+    pub fn order_by_vector_distance(
         mut self,
         column: impl Into<query::Column>,
         vector: &[f64],
     ) -> DatabaseResult<Self> {
-        self.query = self.query.orderByVectorDistance(column, vector)?;
+        self.query = self.query.order_by_vector_distance(column, vector)?;
         Ok(self)
     }
 
-    pub async fn orderByVectorDistanceText(
+    pub async fn order_by_vector_distance_text(
         mut self,
         column: impl Into<query::Column> + Send,
         text: &str,
     ) -> DatabaseResult<Self> {
-        self.query = self.query.orderByVectorDistanceText(column, text).await?;
+        self.query = self
+            .query
+            .order_by_vector_distance_text(column, text)
+            .await?;
         Ok(self)
     }
 
@@ -714,19 +720,19 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self
     }
 
-    pub fn withScope(&mut self, scope: &dyn Scope<M>) -> DatabaseResult<&mut Self> {
+    pub fn with_scope(&mut self, scope: &dyn Scope<M>) -> DatabaseResult<&mut Self> {
         let previous = mem::take(&mut self.predicates);
         if let Err(error) = scope.apply(self) {
             self.predicates = previous;
             return Err(error);
         }
         let scope = mem::take(&mut self.predicates);
-        self.predicates = previous.whereNested(|_| scope);
+        self.predicates = previous.where_nested(|_| scope);
         Ok(self)
     }
 
     /// 注册或替换本查询的具名全局作用域，并执行其装配钩子。
-    pub fn withGlobalScope(
+    pub fn with_global_scope(
         mut self,
         identifier: impl Into<String>,
         scope: impl Scope<M> + 'static,
@@ -741,7 +747,7 @@ impl<'connection, M: Model> Builder<'connection, M> {
     }
 
     #[must_use]
-    pub fn withoutGlobalScopesExcept(mut self, scopes: &[&str]) -> Self {
+    pub fn without_global_scopes_except(mut self, scopes: &[&str]) -> Self {
         let removed: Vec<_> = self
             .scopes
             .keys()
@@ -749,50 +755,50 @@ impl<'connection, M: Model> Builder<'connection, M> {
             .cloned()
             .collect();
         for name in removed {
-            self = self.withoutGlobalScope(&name);
+            self = self.without_global_scope(&name);
         }
         self
     }
 
-    pub fn removedScopes(&self) -> &[String] {
+    pub fn removed_scopes(&self) -> &[String] {
         &self.removed_scopes
     }
 
     /// 取得当前底层查询的所有权，不自动应用尚未执行的全局作用域。
-    pub fn getQuery(self) -> query::Builder<'connection> {
-        self.query.whereNested(|_| self.predicates)
+    pub fn get_query(self) -> query::Builder<'connection> {
+        self.query.where_nested(|_| self.predicates)
     }
 
     #[must_use]
-    pub fn setQuery(mut self, query: query::Builder<'connection>) -> Self {
-        self.connection = query.getConnection().clone();
+    pub fn set_query(mut self, query: query::Builder<'connection>) -> Self {
+        self.connection = query.get_connection().clone();
         self.query = query;
         self.predicates = query::Conditions::default();
         self
     }
 
-    pub fn getEagerLoads(&self) -> &EagerLoads<M> {
+    pub fn get_eager_loads(&self) -> &EagerLoads<M> {
         &self.eager_load
     }
 
     #[must_use]
-    pub fn setEagerLoads(mut self, eagerLoads: EagerLoads<M>) -> Self {
-        self.eager_load = eagerLoads;
+    pub fn set_eager_loads(mut self, eager_loads: EagerLoads<M>) -> Self {
+        self.eager_load = eager_loads;
         self
     }
 
     #[must_use]
-    pub fn withoutGlobalScope(mut self, name: &str) -> Self {
+    pub fn without_global_scope(mut self, name: &str) -> Self {
         self.scopes.shift_remove(name);
         self.removed_scopes.push(name.into());
         self
     }
 
     #[must_use]
-    pub fn withoutGlobalScopes(mut self) -> Self {
+    pub fn without_global_scopes(mut self) -> Self {
         let names: Vec<_> = self.scopes.keys().cloned().collect();
         for name in names {
-            self = self.withoutGlobalScope(&name);
+            self = self.without_global_scope(&name);
         }
         self
     }
@@ -800,7 +806,7 @@ impl<'connection, M: Model> Builder<'connection, M> {
     #[must_use]
     pub fn with_trashed(mut self) -> Self {
         self.trashed = Trashed::Include;
-        self.withoutGlobalScope(std::any::type_name::<super::SoftDeletingScope>())
+        self.without_global_scope(std::any::type_name::<super::SoftDeletingScope>())
     }
 
     #[must_use]
@@ -808,7 +814,7 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self = self.with_trashed();
         self.trashed = Trashed::Without;
         if let Some(column) = M::metadata().deleted_at {
-            self.where_null(&self.qualifyColumn(column));
+            self.where_null(&self.qualify_column(column));
         }
         self
     }
@@ -819,14 +825,13 @@ impl<'connection, M: Model> Builder<'connection, M> {
         self.trashed = Trashed::Only;
         // 不支持软删除的模型仍在执行时显式报错。
         if let Some(column) = M::metadata().deleted_at {
-            let column = self.qualifyColumn(column);
+            let column = self.qualify_column(column);
             self.predicates = mem::take(&mut self.predicates).where_not_null(&column);
         }
         self
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Builder<'static, M> {
     pub(super) fn enable_default_counts(mut self) -> Self {
         self.default_counts = true;
@@ -835,22 +840,22 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) fn apply_default_counts(mut self) -> DatabaseResult<Self> {
         if mem::take(&mut self.default_counts) {
-            return M::withDefaultCounts(self);
+            return M::with_default_counts(self);
         }
         Ok(self)
     }
 
     /// 应用当前作用域并移交查询所有权；保留注册项，重复调用会再次应用。
-    pub fn applyScopes(mut self) -> DatabaseResult<Self> {
+    pub fn apply_scopes(mut self) -> DatabaseResult<Self> {
         let scopes = self.scopes.clone();
         let mut conditions = mem::take(&mut self.predicates);
         if !scopes.is_empty() {
             self.query = self.query.group_predicates();
-            conditions = query::Conditions::default().whereNested(|_| conditions);
+            conditions = query::Conditions::default().where_nested(|_| conditions);
             for (name, scope) in *scopes {
                 if self.scopes.contains_key(&name) {
                     scope.get().apply(&mut self)?;
-                    conditions = conditions.whereNested(|_| mem::take(&mut self.predicates));
+                    conditions = conditions.where_nested(|_| mem::take(&mut self.predicates));
                 }
             }
         }
@@ -862,9 +867,9 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub(super) fn scoped(self) -> DatabaseResult<(query::Builder<'static>, Connection)> {
-        let query = self.applyScopes()?;
+        let query = self.apply_scopes()?;
         let connection = query.connection.clone();
-        Ok((query.getQuery(), connection))
+        Ok((query.get_query(), connection))
     }
 
     #[cfg(feature = "sanctum")]
@@ -872,7 +877,7 @@ impl<M: Model> Builder<'static, M> {
         mut self,
         configure: impl FnOnce(query::Conditions) -> query::Conditions,
     ) -> Self {
-        self.query = self.query.whereNested(configure);
+        self.query = self.query.where_nested(configure);
         self
     }
 
@@ -882,7 +887,7 @@ impl<M: Model> Builder<'static, M> {
             return self;
         }
         self.require_relation_conditions(|conditions| {
-            conditions.whereRaw("BINARY tokenable_type = BINARY ?", vec![alias.into()])
+            conditions.where_raw("BINARY tokenable_type = BINARY ?", vec![alias.into()])
         })
     }
 
@@ -896,7 +901,7 @@ impl<M: Model> Builder<'static, M> {
         column: &str,
         query: &mut query::Builder<'_>,
     ) -> DatabaseResult<Self> {
-        self.query = self.query.whereSub(column, "=", query)?;
+        self.query = self.query.where_sub(column, "=", query)?;
         Ok(self)
     }
 
@@ -914,7 +919,7 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) fn restrict_relation_attributes(mut self, attributes: &Attributes) -> Self {
         for (column, value) in attributes {
-            let column = self.qualifyColumn(column);
+            let column = self.qualify_column(column);
             self.query = if matches!(value, Value::Null) {
                 self.query.where_null(&column)
             } else {
@@ -937,7 +942,7 @@ impl<M: Model> Builder<'static, M> {
         // query constraint cannot admit a different parent's records.
         self.query = self.query.where_in(column, keys.to_vec());
         if keys.len() > 1 {
-            self.query = self.query.group_limit(column);
+            self.query = self.query.configure_relation_group_limit(column);
         }
         self
     }
@@ -957,7 +962,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub(super) fn lock_for_update(mut self) -> Self {
-        self.query = self.query.lockForUpdate();
+        self.query = self.query.lock_for_update();
         self
     }
 
@@ -978,18 +983,21 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub fn has(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
-        self.whereHas(relation)
+        self.where_has(relation)
     }
 
-    pub fn whereHas(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+    pub fn where_has(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
         self.relation_exists(relation, false, false)
     }
 
-    pub fn orHas(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
-        self.orWhereHas(relation)
+    pub fn or_has(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+        self.or_where_has(relation)
     }
 
-    pub fn orWhereHas(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+    pub fn or_where_has(
+        self,
+        relation: &impl ExistenceRelation<Parent = M>,
+    ) -> DatabaseResult<Self> {
         self.relation_exists(relation, true, false)
     }
 
@@ -1000,13 +1008,13 @@ impl<M: Model> Builder<'static, M> {
         negated: bool,
     ) -> DatabaseResult<Self> {
         let mut related =
-            relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
+            relation.get_relation_existence_query(&self.connection, self.table_name())?;
         self.predicates
             .raw(or, self.query.exists_expression(&mut related, negated)?);
         Ok(self)
     }
 
-    pub fn hasCount(
+    pub fn has_count(
         mut self,
         relation: &impl ExistenceRelation<Parent = M>,
         operator: &str,
@@ -1014,12 +1022,12 @@ impl<M: Model> Builder<'static, M> {
     ) -> DatabaseResult<Self> {
         if count == 1 {
             match operator {
-                ">=" => return self.whereHas(relation),
-                "<" => return self.whereDoesntHave(relation),
+                ">=" => return self.where_has(relation),
+                "<" => return self.where_doesnt_have(relation),
                 _ => (),
             }
         }
-        let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
+        let related = relation.get_relation_existence_query(&self.connection, self.table_name())?;
         let mut related = related.select_related_aggregate("count", "*")?;
         let expression = self
             .query
@@ -1028,39 +1036,42 @@ impl<M: Model> Builder<'static, M> {
         Ok(self)
     }
 
-    pub fn whereDoesntHave(
+    pub fn where_doesnt_have(
         self,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
         self.relation_exists(relation, false, true)
     }
 
-    pub fn doesntHave(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
-        self.whereDoesntHave(relation)
-    }
-
-    pub fn orDoesntHave(
+    pub fn doesnt_have(
         self,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
-        self.orWhereDoesntHave(relation)
+        self.where_doesnt_have(relation)
     }
 
-    pub fn orWhereDoesntHave(
+    pub fn or_doesnt_have(
+        self,
+        relation: &impl ExistenceRelation<Parent = M>,
+    ) -> DatabaseResult<Self> {
+        self.or_where_doesnt_have(relation)
+    }
+
+    pub fn or_where_doesnt_have(
         self,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
         self.relation_exists(relation, true, true)
     }
 
-    pub fn whereRelation(
+    pub fn where_relation(
         self,
         relation: impl ConstrainableRelation<Parent = M>,
         column: &str,
         operator: &str,
         value: impl Into<Value>,
     ) -> DatabaseResult<Self> {
-        self.whereHas(&Self::constrain_relation(
+        self.where_has(&Self::constrain_relation(
             relation,
             column,
             operator,
@@ -1068,14 +1079,14 @@ impl<M: Model> Builder<'static, M> {
         ))
     }
 
-    pub fn orWhereRelation(
+    pub fn or_where_relation(
         self,
         relation: impl ConstrainableRelation<Parent = M>,
         column: &str,
         operator: &str,
         value: impl Into<Value>,
     ) -> DatabaseResult<Self> {
-        self.orWhereHas(&Self::constrain_relation(
+        self.or_where_has(&Self::constrain_relation(
             relation,
             column,
             operator,
@@ -1083,14 +1094,14 @@ impl<M: Model> Builder<'static, M> {
         ))
     }
 
-    pub fn whereDoesntHaveRelation(
+    pub fn where_doesnt_have_relation(
         self,
         relation: impl ConstrainableRelation<Parent = M>,
         column: &str,
         operator: &str,
         value: impl Into<Value>,
     ) -> DatabaseResult<Self> {
-        self.whereDoesntHave(&Self::constrain_relation(
+        self.where_doesnt_have(&Self::constrain_relation(
             relation,
             column,
             operator,
@@ -1098,14 +1109,14 @@ impl<M: Model> Builder<'static, M> {
         ))
     }
 
-    pub fn orWhereDoesntHaveRelation(
+    pub fn or_where_doesnt_have_relation(
         self,
         relation: impl ConstrainableRelation<Parent = M>,
         column: &str,
         operator: &str,
         value: impl Into<Value>,
     ) -> DatabaseResult<Self> {
-        self.orWhereDoesntHave(&Self::constrain_relation(
+        self.or_where_doesnt_have(&Self::constrain_relation(
             relation,
             column,
             operator,
@@ -1113,7 +1124,7 @@ impl<M: Model> Builder<'static, M> {
         ))
     }
 
-    pub fn withWhereRelation(
+    pub fn with_where_relation(
         self,
         name: impl Into<String>,
         relation: impl ConstrainableRelation<Parent = M>,
@@ -1121,7 +1132,7 @@ impl<M: Model> Builder<'static, M> {
         operator: &str,
         value: impl Into<Value>,
     ) -> DatabaseResult<Self> {
-        self.withWhereHas(
+        self.with_where_has(
             name,
             Self::constrain_relation(relation, column, operator, value.into()),
         )
@@ -1136,37 +1147,37 @@ impl<M: Model> Builder<'static, M> {
         let column = column.to_owned();
         let operator = operator.to_owned();
         relation.constrain_query(move |mut query| {
-            let column = query.qualifyColumn(&column);
+            let column = query.qualify_column(&column);
             let existing = mem::take(&mut query.predicates);
             query.predicates = query::Conditions::default()
-                .whereNested(|_| existing)
+                .where_nested(|_| existing)
                 .r#where(&column, &operator, value.clone());
             query
         })
     }
 
-    pub fn whereHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
-        self.hasMorphCount(relation, aliases, ">=", 1)
+    pub fn where_has_morph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        self.has_morph_count(relation, aliases, ">=", 1)
     }
 
     /// Filters by the foreign key and the owners' configured owner key.
-    pub fn whereBelongsTo<R: Model>(
+    pub fn where_belongs_to<R: Model>(
         self,
         relation: &BelongsTo<M, R>,
         owners: &[R],
     ) -> DatabaseResult<Self> {
-        self.where_belongs_to(relation, owners, false)
+        self.where_belongs_to_boolean(relation, owners, false)
     }
 
-    pub fn orWhereBelongsTo<R: Model>(
+    pub fn or_where_belongs_to<R: Model>(
         self,
         relation: &BelongsTo<M, R>,
         owners: &[R],
     ) -> DatabaseResult<Self> {
-        self.where_belongs_to(relation, owners, true)
+        self.where_belongs_to_boolean(relation, owners, true)
     }
 
-    fn where_belongs_to<R: Model>(
+    fn where_belongs_to_boolean<R: Model>(
         mut self,
         relation: &BelongsTo<M, R>,
         owners: &[R],
@@ -1182,14 +1193,14 @@ impl<M: Model> Builder<'static, M> {
             .iter()
             .map(|model| {
                 model
-                    .getAttribute(owner_key)
+                    .get_attribute(owner_key)
                     .cloned()
                     .unwrap_or(Value::Null)
             })
             .collect();
-        let foreign_key = self.qualifyColumn(foreign_key);
+        let foreign_key = self.qualify_column(foreign_key);
         self.predicates = if or {
-            self.predicates.orWhereIn(&foreign_key, keys)
+            self.predicates.or_where_in(&foreign_key, keys)
         } else {
             self.predicates.where_in(&foreign_key, keys)
         };
@@ -1198,23 +1209,23 @@ impl<M: Model> Builder<'static, M> {
 
     /// Filters by related models linked through the intermediate table.
     /// A polymorphic descriptor dereferences to its discriminator-aware relation.
-    pub fn whereAttachedTo<R: Model>(
+    pub fn where_attached_to<R: Model>(
         self,
         relation: &BelongsToMany<M, R>,
         related: &[R],
     ) -> DatabaseResult<Self> {
-        self.where_attached_to(relation, related, false)
+        self.where_attached_to_boolean(relation, related, false)
     }
 
-    pub fn orWhereAttachedTo<R: Model>(
+    pub fn or_where_attached_to<R: Model>(
         self,
         relation: &BelongsToMany<M, R>,
         related: &[R],
     ) -> DatabaseResult<Self> {
-        self.where_attached_to(relation, related, true)
+        self.where_attached_to_boolean(relation, related, true)
     }
 
-    fn where_attached_to<R: Model>(
+    fn where_attached_to_boolean<R: Model>(
         mut self,
         relation: &BelongsToMany<M, R>,
         related: &[R],
@@ -1227,7 +1238,7 @@ impl<M: Model> Builder<'static, M> {
         }
         let keys = related
             .iter()
-            .map(|model| model.getKey().cloned().unwrap_or(Value::Null))
+            .map(|model| model.get_key().cloned().unwrap_or(Value::Null))
             .collect();
         let mut query =
             relation.existence_query(&self.connection, self.table_name(), Some(keys))?;
@@ -1236,7 +1247,7 @@ impl<M: Model> Builder<'static, M> {
         Ok(self)
     }
 
-    pub fn whereMorphedTo(
+    pub fn where_morphed_to(
         self,
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
@@ -1244,7 +1255,7 @@ impl<M: Model> Builder<'static, M> {
         self.where_morph_identity(relation, identities, false, false)
     }
 
-    pub fn whereNotMorphedTo(
+    pub fn where_not_morphed_to(
         self,
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
@@ -1252,7 +1263,7 @@ impl<M: Model> Builder<'static, M> {
         self.where_morph_identity(relation, identities, false, true)
     }
 
-    pub fn orWhereMorphedTo(
+    pub fn or_where_morphed_to(
         self,
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
@@ -1260,7 +1271,7 @@ impl<M: Model> Builder<'static, M> {
         self.where_morph_identity(relation, identities, true, false)
     }
 
-    pub fn orWhereNotMorphedTo(
+    pub fn or_where_not_morphed_to(
         self,
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
@@ -1270,10 +1281,10 @@ impl<M: Model> Builder<'static, M> {
 
     /// Filters by a stored morph alias or by a null type.
     #[must_use]
-    pub fn whereMorphType(mut self, relation: &MorphTo<M>, alias: Option<&str>) -> Self {
-        let column = self.qualifyColumn(relation.type_column());
+    pub fn where_morph_type(mut self, relation: &MorphTo<M>, alias: Option<&str>) -> Self {
+        let column = self.qualify_column(relation.type_column());
         let value = alias.map_or(Value::Null, Value::from);
-        self.predicates = self.predicates.whereNullSafeEquals(&column, value);
+        self.predicates = self.predicates.where_null_safe_equals(&column, value);
         self
     }
 
@@ -1297,58 +1308,58 @@ impl<M: Model> Builder<'static, M> {
                 .or_default()
                 .push(identity.key.clone());
         }
-        let morph_type = self.qualifyColumn(relation.type_column());
-        let morph_id = self.qualifyColumn(relation.id_column());
+        let morph_type = self.qualify_column(relation.type_column());
+        let morph_id = self.qualify_column(relation.id_column());
         let configure = |conditions: query::Conditions| {
             groups
                 .into_iter()
                 .fold(conditions, |conditions, (alias, keys)| {
-                    conditions.orWhereNested(|group| {
+                    conditions.or_where_nested(|group| {
                         group
-                            .whereNullSafeEquals(&morph_type, alias)
+                            .where_null_safe_equals(&morph_type, alias)
                             .where_in(&morph_id, keys)
                     })
                 })
         };
         self.predicates = match (or, negated) {
-            (false, false) => self.predicates.whereNested(configure),
+            (false, false) => self.predicates.where_nested(configure),
             (false, true) => self.predicates.where_not(configure),
-            (true, false) => self.predicates.orWhereNested(configure),
-            (true, true) => self.predicates.orWhereNot(configure),
+            (true, false) => self.predicates.or_where_nested(configure),
+            (true, true) => self.predicates.or_where_not(configure),
         };
         Ok(self)
     }
 
-    pub fn whereDoesntHaveMorph(
+    pub fn where_doesnt_have_morph(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
     ) -> DatabaseResult<Self> {
-        self.hasMorphCount(relation, aliases, "<", 1)
+        self.has_morph_count(relation, aliases, "<", 1)
     }
 
-    pub fn hasMorphCount(
+    pub fn has_morph_count(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
         operator: &str,
         count: u64,
     ) -> DatabaseResult<Self> {
-        self.has_morph_count(relation, aliases, operator, count, false)
+        self.has_morph_count_with_null(relation, aliases, operator, count, false)
     }
 
     /// Discovers the stored morph types before adding an existence predicate.
-    pub async fn whereHasMorphAll(self, relation: &MorphTo<M>) -> DatabaseResult<Self> {
-        self.hasMorphCountAll(relation, ">=", 1).await
+    pub async fn where_has_morph_all(self, relation: &MorphTo<M>) -> DatabaseResult<Self> {
+        self.has_morph_count_all(relation, ">=", 1).await
     }
 
     /// Discovers the stored morph types before adding an absence predicate.
-    pub async fn whereDoesntHaveMorphAll(self, relation: &MorphTo<M>) -> DatabaseResult<Self> {
-        self.hasMorphCountAll(relation, "<", 1).await
+    pub async fn where_doesnt_have_morph_all(self, relation: &MorphTo<M>) -> DatabaseResult<Self> {
+        self.has_morph_count_all(relation, "<", 1).await
     }
 
     /// The asynchronous counterpart of wildcard morph query.
-    pub async fn hasMorphCountAll(
+    pub async fn has_morph_count_all(
         self,
         relation: &MorphTo<M>,
         operator: &str,
@@ -1361,10 +1372,10 @@ impl<M: Model> Builder<'static, M> {
             "=" => count == 0,
             _ => false,
         };
-        self.has_morph_count(relation, &aliases, operator, count, include_null)
+        self.has_morph_count_with_null(relation, &aliases, operator, count, include_null)
     }
 
-    fn has_morph_count(
+    fn has_morph_count_with_null(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
@@ -1384,7 +1395,7 @@ impl<M: Model> Builder<'static, M> {
         include_null: bool,
         or: bool,
     ) -> DatabaseResult<Self> {
-        let column = self.qualifyColumn(relation.type_column());
+        let column = self.qualify_column(relation.type_column());
         let expression = self.query.morph_count_expression(
             &column,
             queries,
@@ -1397,32 +1408,40 @@ impl<M: Model> Builder<'static, M> {
         Ok(self)
     }
 
-    pub fn hasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
-        self.whereHasMorph(relation, aliases)
+    pub fn has_morph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        self.where_has_morph(relation, aliases)
     }
 
-    pub fn doesntHaveMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
-        self.whereDoesntHaveMorph(relation, aliases)
-    }
-
-    pub fn orHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
-        self.orWhereHasMorph(relation, aliases)
-    }
-
-    pub fn orDoesntHaveMorph(
+    pub fn doesnt_have_morph(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
     ) -> DatabaseResult<Self> {
-        self.orWhereDoesntHaveMorph(relation, aliases)
+        self.where_doesnt_have_morph(relation, aliases)
     }
 
-    pub fn orWhereHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+    pub fn or_has_morph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        self.or_where_has_morph(relation, aliases)
+    }
+
+    pub fn or_doesnt_have_morph(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+    ) -> DatabaseResult<Self> {
+        self.or_where_doesnt_have_morph(relation, aliases)
+    }
+
+    pub fn or_where_has_morph(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+    ) -> DatabaseResult<Self> {
         let queries = relation.existence_queries(&self.connection, self.table_name(), aliases)?;
         self.morph_predicate(relation, queries, (">=", 1), false, true)
     }
 
-    pub fn orWhereDoesntHaveMorph(
+    pub fn or_where_doesnt_have_morph(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
@@ -1431,7 +1450,7 @@ impl<M: Model> Builder<'static, M> {
         self.morph_predicate(relation, queries, ("<", 1), false, true)
     }
 
-    pub fn whereMorphRelation(
+    pub fn where_morph_relation(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
@@ -1448,7 +1467,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn orWhereMorphRelation(
+    pub fn or_where_morph_relation(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
@@ -1465,7 +1484,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn whereMorphDoesntHaveRelation(
+    pub fn where_morph_doesnt_have_relation(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
@@ -1482,7 +1501,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn orWhereMorphDoesntHaveRelation(
+    pub fn or_where_morph_doesnt_have_relation(
         self,
         relation: &MorphTo<M>,
         aliases: &[&str],
@@ -1528,27 +1547,27 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn withWhereHas(
+    pub fn with_where_has(
         self,
         name: impl Into<String>,
         relation: impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
-        Ok(self.whereHas(&relation)?.with(name, relation))
+        Ok(self.where_has(&relation)?.with(name, relation))
     }
 
     pub(super) fn take_existence_attributes(&mut self) -> HashSet<String> {
         mem::take(&mut self.existence_attributes)
     }
 
-    pub fn withAggregate(
+    pub fn with_aggregate(
         mut self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         aggregate: RelationAggregate<'_>,
     ) -> DatabaseResult<Self> {
         let alias = aggregate.alias(name)?;
-        let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
-        let projection = self.qualifyColumn("*");
+        let related = relation.get_relation_existence_query(&self.connection, self.table_name())?;
+        let projection = self.qualify_column("*");
         let parent = self.query.select_default(&projection);
         self.query = if matches!(aggregate, RelationAggregate::Exists) {
             let mut related = related.reorder().select([query::Expression::new("1")]);
@@ -1557,61 +1576,61 @@ impl<M: Model> Builder<'static, M> {
         } else {
             let (function, column) = aggregate.function();
             let mut related = related.select_related_aggregate(function, column)?;
-            parent.selectSub(&mut related, &alias)?
+            parent.select_sub(&mut related, &alias)?
         };
         Ok(self)
     }
 
-    pub fn withCount(
+    pub fn with_count(
         self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
-        self.withAggregate(name, relation, RelationAggregate::Count)
+        self.with_aggregate(name, relation, RelationAggregate::Count)
     }
 
-    pub fn withExists(
+    pub fn with_exists(
         self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
-        self.withAggregate(name, relation, RelationAggregate::Exists)
+        self.with_aggregate(name, relation, RelationAggregate::Exists)
     }
 
-    pub fn withSum(
+    pub fn with_sum(
         self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<Self> {
-        self.withAggregate(name, relation, RelationAggregate::Sum(column))
+        self.with_aggregate(name, relation, RelationAggregate::Sum(column))
     }
 
-    pub fn withAvg(
+    pub fn with_avg(
         self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<Self> {
-        self.withAggregate(name, relation, RelationAggregate::Avg(column))
+        self.with_aggregate(name, relation, RelationAggregate::Avg(column))
     }
 
-    pub fn withMin(
+    pub fn with_min(
         self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<Self> {
-        self.withAggregate(name, relation, RelationAggregate::Min(column))
+        self.with_aggregate(name, relation, RelationAggregate::Min(column))
     }
 
-    pub fn withMax(
+    pub fn with_max(
         self,
         name: &str,
         relation: &impl ExistenceRelation<Parent = M>,
         column: &str,
     ) -> DatabaseResult<Self> {
-        self.withAggregate(name, relation, RelationAggregate::Max(column))
+        self.with_aggregate(name, relation, RelationAggregate::Max(column))
     }
 
     #[must_use]
@@ -1621,14 +1640,14 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Adds eager loads by their registered names or dot-separated paths.
-    pub fn withPaths(self, paths: &[&str]) -> DatabaseResult<Self> {
+    pub fn with_paths(self, paths: &[&str]) -> DatabaseResult<Self> {
         Ok(self.with_eager_loads(super::NamedRelations::<M>::prepare(paths)?))
     }
 
     pub(super) fn select_path_columns(self, columns: &[String]) -> Self {
         let columns = columns
             .iter()
-            .map(|column| self.qualifyColumn(column))
+            .map(|column| self.qualify_column(column))
             .collect::<Vec<_>>();
         self.select(columns.iter().map(String::as_str))
     }
@@ -1640,8 +1659,8 @@ impl<M: Model> Builder<'static, M> {
         let qualifier = self.table_name().to_owned();
         let existing = mem::take(&mut self.predicates);
         self.predicates = query::Conditions::default()
-            .whereNested(|_| existing)
-            .whereNested(|conditions| constraint(conditions, &qualifier));
+            .where_nested(|_| existing)
+            .where_nested(|conditions| constraint(conditions, &qualifier));
         self
     }
 
@@ -1659,7 +1678,7 @@ impl<M: Model> Builder<'static, M> {
 
     /// Replaces this query's eager loads with the supplied relationships.
     #[must_use]
-    pub fn withOnly(mut self, configure: impl FnOnce(EagerLoads<M>) -> EagerLoads<M>) -> Self {
+    pub fn with_only(mut self, configure: impl FnOnce(EagerLoads<M>) -> EagerLoads<M>) -> Self {
         self.eager_load = configure(EagerLoads::default());
         self
     }
@@ -1669,7 +1688,7 @@ impl<M: Model> Builder<'static, M> {
     pub fn with_attributes(mut self, attributes: Attributes, as_conditions: bool) -> Self {
         if as_conditions {
             for (column, value) in &attributes {
-                let column = self.qualifyColumn(column);
+                let column = self.qualify_column(column);
                 self.r#where(&column, "=", value.clone());
             }
         }
@@ -1689,9 +1708,9 @@ impl<M: Model> Builder<'static, M> {
 
     fn make_with_attributes(&self, attributes: Attributes) -> DatabaseResult<M> {
         if self.casts.is_empty() {
-            return M::newInstanceOn(&self.connection, attributes);
+            return M::new_instance_on(&self.connection, attributes);
         }
-        let mut model = M::newInstanceOn(&self.connection, Attributes::new())?;
+        let mut model = M::new_instance_on(&self.connection, Attributes::new())?;
         model.state_mut().casts.merge_from(&self.casts);
         model.fill(attributes)?;
         Ok(model)
@@ -1704,10 +1723,10 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Prepares insert rows with model defaults, casts, unique IDs and timestamps.
-    pub async fn fillForInsert(&self, rows: Vec<Attributes>) -> DatabaseResult<Vec<Attributes>> {
+    pub async fn fill_for_insert(&self, rows: Vec<Attributes>) -> DatabaseResult<Vec<Attributes>> {
         let mut prepared = Vec::with_capacity(rows.len());
         for row in rows {
-            let mut model = M::newInstanceOn(&self.connection, Attributes::new())?;
+            let mut model = M::new_instance_on(&self.connection, Attributes::new())?;
             let state = model.state_mut();
             state.casts.merge_from(&self.casts);
             let mut attributes = state.attributes.clone();
@@ -1739,7 +1758,7 @@ impl<M: Model> Builder<'static, M> {
         };
         let mut prepared = Vec::with_capacity(models.len());
         for mut model in models {
-            model.setUniqueIds().await?;
+            model.set_unique_ids().await?;
             let mut attributes = mem::take(&mut model.state_mut().attributes);
             if let Some(time) = &time {
                 for column in [metadata.created_at, metadata.updated_at]
@@ -1757,25 +1776,25 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Inserts prepared rows without dispatching model persistence events.
-    pub async fn fillAndInsert(self, rows: Vec<Attributes>) -> DatabaseResult<bool> {
-        let rows = self.fillForInsert(rows).await?;
+    pub async fn fill_and_insert(self, rows: Vec<Attributes>) -> DatabaseResult<bool> {
+        let rows = self.fill_for_insert(rows).await?;
         self.scoped()?.0.insert(&rows).await
     }
 
-    pub async fn fillAndInsertOrIgnore(self, rows: Vec<Attributes>) -> DatabaseResult<u64> {
-        let rows = self.fillForInsert(rows).await?;
-        self.scoped()?.0.insertOrIgnore(&rows).await
+    pub async fn fill_and_insert_or_ignore(self, rows: Vec<Attributes>) -> DatabaseResult<u64> {
+        let rows = self.fill_for_insert(rows).await?;
+        self.scoped()?.0.insert_or_ignore(&rows).await
     }
 
-    pub async fn fillAndInsertGetId(self, row: Attributes) -> DatabaseResult<Value> {
+    pub async fn fill_and_insert_get_id(self, row: Attributes) -> DatabaseResult<Value> {
         let row = self
-            .fillForInsert(vec![row])
+            .fill_for_insert(vec![row])
             .await?
             .pop()
             .expect("one prepared insert row");
         self.scoped()?
             .0
-            .insertGetIdFor(row, M::metadata().primary_key)
+            .insert_get_id_for(row, M::metadata().primary_key)
             .await
     }
 
@@ -1795,14 +1814,14 @@ impl<M: Model> Builder<'static, M> {
             return self.make_with_attributes(attributes);
         }
         let mut model = self.make_with_attributes(Attributes::new())?;
-        model.fillAsync(attributes).await?;
+        model.fill_async(attributes).await?;
         Ok(model)
     }
 
     /// Reads this query from the write connection.
     #[must_use]
-    pub fn useWritePdo(mut self) -> Self {
-        self.query = self.query.useWritePdo();
+    pub fn use_write_pdo(mut self) -> Self {
+        self.query = self.query.use_write_pdo();
         self
     }
 
@@ -1817,7 +1836,7 @@ impl<M: Model> Builder<'static, M> {
         Box::pin(async move {
             self.get_models_with_transaction(transaction)
                 .await
-                .map(M::newCollection)
+                .map(M::new_collection)
         })
     }
 
@@ -1850,14 +1869,14 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
-        self.paginateWith(PageOptions {
-            perPage: Some(per_page),
+        self.paginate_with(PageOptions {
+            per_page: Some(per_page),
             ..PageOptions::default()
         })
         .await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         self,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<M>> {
@@ -1869,12 +1888,12 @@ impl<M: Model> Builder<'static, M> {
         mut options: PageOptions<'_>,
         hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
     ) -> DatabaseResult<LengthAwarePaginator<M>> {
-        options.perPage.get_or_insert(M::metadata().per_page);
-        let key = self.qualifyColumn(M::metadata().primary_key);
+        options.per_page.get_or_insert(M::metadata().per_page);
+        let key = self.qualify_column(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
             .order_for_pagination(&key)
-            .paginateWith(options)
+            .paginate_with(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
         hydrate(page.items_mut(), &hydration.connection)?;
@@ -1884,15 +1903,15 @@ impl<M: Model> Builder<'static, M> {
         Ok(page)
     }
 
-    pub async fn simplePaginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
-        self.simplePaginateWith(PageOptions {
-            perPage: Some(per_page),
+    pub async fn simple_paginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
+        self.simple_paginate_with(PageOptions {
+            per_page: Some(per_page),
             ..PageOptions::default()
         })
         .await
     }
 
-    pub async fn simplePaginateWith(
+    pub async fn simple_paginate_with(
         self,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<M>> {
@@ -1904,12 +1923,12 @@ impl<M: Model> Builder<'static, M> {
         mut options: PageOptions<'_>,
         hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
     ) -> DatabaseResult<Paginator<M>> {
-        options.perPage.get_or_insert(M::metadata().per_page);
-        let key = self.qualifyColumn(M::metadata().primary_key);
+        options.per_page.get_or_insert(M::metadata().per_page);
+        let key = self.qualify_column(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
             .order_for_pagination(&key)
-            .simplePaginateWith(options)
+            .simple_paginate_with(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
         hydrate(page.items_mut(), &hydration.connection)?;
@@ -1927,7 +1946,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub fn lazyById(
+    pub fn lazy_by_id(
         self,
         chunk_size: u64,
         column: Option<&str>,
@@ -1936,7 +1955,7 @@ impl<M: Model> Builder<'static, M> {
         self.lazy_by_key(chunk_size, column, alias, false)
     }
 
-    pub fn lazyByIdDesc(
+    pub fn lazy_by_id_desc(
         self,
         chunk_size: u64,
         column: Option<&str>,
@@ -1960,7 +1979,7 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub async fn chunkMap<T, Fut>(
+    pub async fn chunk_map<T, Fut>(
         self,
         callback: impl FnMut(M) -> Fut,
         count: u64,
@@ -1982,12 +2001,12 @@ impl<M: Model> Builder<'static, M> {
     {
         let batches = self
             .chunk_collections(count, None, |_, _| Ok(()))
-            .map_ok(Collection::toBase);
+            .map_ok(Collection::to_base);
         query::visit_batches(batches, |_, key| Ok(key), callback).await
     }
 
     /// Visits models in ascending key order, with indices spanning all batches.
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         self,
         callback: impl FnMut(M, i64) -> Fut,
         count: u64,
@@ -2000,7 +2019,7 @@ impl<M: Model> Builder<'static, M> {
         let key = self.chunk_key(column, alias, false);
         let batches = self
             .chunk_collections(count, Some(key), |_, _| Ok(()))
-            .map_ok(Collection::toBase);
+            .map_ok(Collection::to_base);
         query::visit_batches(
             batches,
             |batch, key| query::collection_chunk_index(batch, count, key),
@@ -2023,7 +2042,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Processes successive batches ordered by the model key or a projected key.
-    pub async fn chunkById<Fut>(
+    pub async fn chunk_by_id<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
@@ -2033,11 +2052,11 @@ impl<M: Model> Builder<'static, M> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.orderedChunkById(count, callback, column, alias, false)
+        self.ordered_chunk_by_id(count, callback, column, alias, false)
             .await
     }
 
-    pub async fn chunkByIdDesc<Fut>(
+    pub async fn chunk_by_id_desc<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
@@ -2047,11 +2066,11 @@ impl<M: Model> Builder<'static, M> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.orderedChunkById(count, callback, column, alias, true)
+        self.ordered_chunk_by_id(count, callback, column, alias, true)
             .await
     }
 
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
@@ -2075,7 +2094,7 @@ impl<M: Model> Builder<'static, M> {
     ) -> query::ChunkKey {
         let primary_key = M::metadata().primary_key;
         query::ChunkKey {
-            column: column.map_or_else(|| self.qualifyColumn(primary_key), str::to_owned),
+            column: column.map_or_else(|| self.qualify_column(primary_key), str::to_owned),
             alias: alias.or(column).unwrap_or(primary_key).into(),
             descending,
             lazy: false,
@@ -2110,7 +2129,7 @@ impl<M: Model> Builder<'static, M> {
         mut hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()> + Send + 'a,
     ) -> DatabaseCursor<'a, Collection<M>> {
         Box::pin(async_stream::try_stream! {
-            let primary_key = self.qualifyColumn(M::metadata().primary_key);
+            let primary_key = self.qualify_column(M::metadata().primary_key);
             let (mut query, hydration) = self.hydration_query()?;
             let mut pages = if let Some(key) = key {
                 query.chunk_id_pages(count, key)
@@ -2123,7 +2142,7 @@ impl<M: Model> Builder<'static, M> {
                 hydrate(&mut models, &hydration.connection)?;
                 super::concerns::has_events::retrieved(&mut models, &hydration.connection).await?;
                 load_eager(hydration.eager.clone(), &mut models).await?;
-                yield M::newCollection(models);
+                yield M::new_collection(models);
             }
         })
     }
@@ -2147,22 +2166,22 @@ impl<M: Model> Builder<'static, M> {
                     std::slice::from_mut(&mut model),
                     &hydration.connection,
                 ).await?;
-                if let Some(model) = M::newCollection(vec![model]).into_iter().next() {
+                if let Some(model) = M::new_collection(vec![model]).into_iter().next() {
                     yield model;
                 }
             }
         })
     }
 
-    pub async fn cursorPaginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<M>> {
-        self.cursorPaginateWith(CursorOptions {
-            perPage: Some(per_page),
+    pub async fn cursor_paginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<M>> {
+        self.cursor_paginate_with(CursorOptions {
+            per_page: Some(per_page),
             ..CursorOptions::default()
         })
         .await
     }
 
-    pub async fn cursorPaginateWith(
+    pub async fn cursor_paginate_with(
         self,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<M>> {
@@ -2174,12 +2193,12 @@ impl<M: Model> Builder<'static, M> {
         mut options: CursorOptions<'_>,
         hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
     ) -> DatabaseResult<CursorPaginator<M>> {
-        options.perPage.get_or_insert(M::metadata().per_page);
-        let key = self.qualifyColumn(M::metadata().primary_key);
+        options.per_page.get_or_insert(M::metadata().per_page);
+        let key = self.qualify_column(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
             .order_for_pagination(&key)
-            .cursorPaginateWith(options)
+            .cursor_paginate_with(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
         hydrate(page.items_mut(), &hydration.connection)?;
@@ -2213,7 +2232,7 @@ impl<M: Model> Builder<'static, M> {
         self.value_query(column)
             .first()
             .await?
-            .map(|model| model.getAttributeValue(column.rsplit('.').next().unwrap_or(column)))
+            .map(|model| model.get_attribute_value(column.rsplit('.').next().unwrap_or(column)))
             .transpose()
             .map(|value| value.flatten().unwrap_or(Value::Null))
     }
@@ -2222,19 +2241,19 @@ impl<M: Model> Builder<'static, M> {
         super::relations::sole_match(self.limit(2).get().await?.into_iter().collect())
     }
 
-    pub async fn soleValue(self, column: &str) -> DatabaseResult<Value> {
+    pub async fn sole_value(self, column: &str) -> DatabaseResult<Value> {
         self.value_query(column)
             .sole()
             .await?
-            .getAttributeValue(column.rsplit('.').next().unwrap_or(column))
+            .get_attribute_value(column.rsplit('.').next().unwrap_or(column))
             .map(|value| value.unwrap_or(Value::Null))
     }
 
-    pub async fn valueOrFail(self, column: &str) -> DatabaseResult<Value> {
+    pub async fn value_or_fail(self, column: &str) -> DatabaseResult<Value> {
         self.value_query(column)
-            .firstOrFail()
+            .first_or_fail()
             .await?
-            .getAttributeValue(column.rsplit('.').next().unwrap_or(column))
+            .get_attribute_value(column.rsplit('.').next().unwrap_or(column))
             .map(|value| value.unwrap_or(Value::Null))
     }
 
@@ -2250,20 +2269,20 @@ impl<M: Model> Builder<'static, M> {
         Ok(self.limit(1).get().await?.into_iter().next())
     }
 
-    pub async fn firstOrFail(self) -> DatabaseResult<M> {
+    pub async fn first_or_fail(self) -> DatabaseResult<M> {
         self.first()
             .await?
             .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
     }
 
     pub async fn find(mut self, key: impl Into<Value>) -> DatabaseResult<Option<M>> {
-        self.whereKey(key);
+        self.where_key(key);
         self.first().await
     }
 
-    pub async fn findOrFail(mut self, key: impl Into<Value>) -> DatabaseResult<M> {
-        self.whereKey(key);
-        self.firstOrFail().await
+    pub async fn find_or_fail(mut self, key: impl Into<Value>) -> DatabaseResult<M> {
+        self.where_key(key);
+        self.first_or_fail().await
     }
 
     pub async fn update(self, mut attributes: Attributes) -> DatabaseResult<u64> {
@@ -2296,18 +2315,18 @@ impl<M: Model> Builder<'static, M> {
         {
             columns.push(column.into());
         }
-        let ids = M::uniqueIds();
+        let ids = M::unique_ids();
         let needs_ids = ids
             .iter()
             .any(|&column| rows.iter().any(|row| !row.contains_key(column)));
         let model = needs_ids
-            .then(|| M::newInstanceOn(&self.connection, Attributes::new()))
+            .then(|| M::new_instance_on(&self.connection, Attributes::new()))
             .transpose()?;
         for row in &mut rows {
             if let Some(model) = &model {
                 for &column in ids {
                     if !row.contains_key(column) {
-                        let id = model.newUniqueId()?;
+                        let id = model.new_unique_id()?;
                         row.insert(column.into(), id.map_or(Value::Null, Value::Text));
                     }
                 }
@@ -2334,17 +2353,17 @@ impl<M: Model> Builder<'static, M> {
         amount: impl Into<Value>,
         extra: Attributes,
     ) -> DatabaseResult<u64> {
-        self.incrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+        self.increment_each(Attributes::from([(column.into(), amount.into())]), extra)
             .await
     }
 
-    pub async fn incrementEach(
+    pub async fn increment_each(
         self,
         columns: Attributes,
         mut extra: Attributes,
     ) -> DatabaseResult<u64> {
         self.add_updated_at(&mut extra)?;
-        self.scoped()?.0.incrementEach(columns, extra).await
+        self.scoped()?.0.increment_each(columns, extra).await
     }
 
     pub async fn decrement(
@@ -2353,17 +2372,17 @@ impl<M: Model> Builder<'static, M> {
         amount: impl Into<Value>,
         extra: Attributes,
     ) -> DatabaseResult<u64> {
-        self.decrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+        self.decrement_each(Attributes::from([(column.into(), amount.into())]), extra)
             .await
     }
 
-    pub async fn decrementEach(
+    pub async fn decrement_each(
         self,
         columns: Attributes,
         mut extra: Attributes,
     ) -> DatabaseResult<u64> {
         self.add_updated_at(&mut extra)?;
-        self.scoped()?.0.decrementEach(columns, extra).await
+        self.scoped()?.0.decrement_each(columns, extra).await
     }
 
     fn add_updated_at(&self, attributes: &mut Attributes) -> DatabaseResult<()> {
@@ -2398,7 +2417,7 @@ impl<M: Model> Builder<'static, M> {
             .await
     }
 
-    pub async fn forceDelete(mut self) -> DatabaseResult<u64> {
+    pub async fn force_delete(mut self) -> DatabaseResult<u64> {
         self.scopes.clear();
         if matches!(self.trashed, Trashed::Exclude) {
             self = self.with_trashed();

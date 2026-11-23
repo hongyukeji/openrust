@@ -336,7 +336,7 @@ async fn all_filters_incompatible_scope_definitions_without_resolving_them() {
     assert!(
         store
             .r#for(Scope::Null)
-            .loadMissing(&["private"])
+            .load_missing(&["private"])
             .await
             .unwrap()
             .is_empty()

@@ -93,11 +93,11 @@ impl Store for NullStore {
 }
 
 impl CanFlushLocks for NullStore {
-    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+    fn flush_locks(&self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async { Ok(true) })
     }
 
-    fn hasSeparateLockStore(&self) -> bool {
+    fn has_separate_lock_store(&self) -> bool {
         false
     }
 }

@@ -142,27 +142,27 @@ fn views_render_conditions_each_empty_and_shared_data_through_blade() {
         root.path().join("compiled"),
     );
     views.share("shared", "!");
-    assert_eq!(views.getShared()["shared"].as_str(), Some("!"));
+    assert_eq!(views.get_shared()["shared"].as_str(), Some("!"));
     assert_eq!(
         views
-            .renderWhen(false, "missing", &Default::default())
+            .render_when(false, "missing", &Default::default())
             .unwrap(),
         ""
     );
     assert_eq!(
         views
-            .renderUnless(true, "missing", &Default::default())
+            .render_unless(true, "missing", &Default::default())
             .unwrap(),
         ""
     );
     assert!(
         views
-            .renderWhen(true, "missing", &Default::default())
+            .render_when(true, "missing", &Default::default())
             .is_err()
     );
     assert_eq!(
         views
-            .renderEach(
+            .render_each(
                 "row",
                 [("x".into(), "A".into()), (2.into(), "B".into())],
                 "item",
@@ -172,11 +172,11 @@ fn views_render_conditions_each_empty_and_shared_data_through_blade() {
         "x=A;!2=B;!"
     );
     assert_eq!(
-        views.renderEach("row", [], "item", "raw|none").unwrap(),
+        views.render_each("row", [], "item", "raw|none").unwrap(),
         "none"
     );
     assert_eq!(
-        views.renderEach("row", [], "item", "empty").unwrap(),
+        views.render_each("row", [], "item", "empty").unwrap(),
         "empty !"
     );
 }
@@ -212,7 +212,7 @@ async fn pushed_events_repeat_flush_forget_and_obey_fake_selection() {
         .unwrap();
     fake.assertDispatchedTimes("audit_pushed", 1);
     assert_eq!(calls.load(Ordering::SeqCst), 4);
-    dispatcher.forgetPushed().unwrap();
+    dispatcher.forget_pushed().unwrap();
 }
 
 #[test]
@@ -228,20 +228,20 @@ fn log_context_keeps_shared_defaults_and_resolved_channel_context_separate() {
         })
         .unwrap();
     let one = manager.channel(Some("one")).unwrap();
-    manager.shareContext([("id".into(), json!(1))].into_iter().collect());
+    manager.share_context([("id".into(), json!(1))].into_iter().collect());
     let two = manager.channel(Some("two")).unwrap();
-    one.withContext([("local".into(), json!(true))].into_iter().collect());
+    one.with_context([("local".into(), json!(true))].into_iter().collect());
     one.info("one", &[("id".into(), json!(2))].into_iter().collect())
         .unwrap();
     two.info("two", &LogContext::new()).unwrap();
-    manager.flushSharedContext();
+    manager.flush_shared_context();
     one.info("retained", &LogContext::new()).unwrap();
     manager
         .channel(Some("three"))
         .unwrap()
         .info("future", &LogContext::new())
         .unwrap();
-    manager.withoutContext(Some(&["id"]));
+    manager.without_context(Some(&["id"]));
     two.info("cleared", &LogContext::new()).unwrap();
     let r = records.lock().unwrap();
     assert_eq!(r[0]["id"], 2);
@@ -252,7 +252,7 @@ fn log_context_keeps_shared_defaults_and_resolved_channel_context_separate() {
     assert!(r[3].is_empty());
     assert!(r[4].is_empty());
     drop(r);
-    manager.shareContext([("stack".into(), json!(true))].into_iter().collect());
+    manager.share_context([("stack".into(), json!(true))].into_iter().collect());
     manager
         .stack(&["one", "two"], Some("audit-stack"))
         .unwrap()
@@ -298,13 +298,13 @@ async fn translation_contract_names_observe_nested_locales_and_fallback() {
         contract.set_locale("zh-CN").unwrap();
         contract.set_fallback("en").unwrap();
         assert_eq!(contract.get_locale(), "zh-CN");
-        assert_eq!(contract.getFallback(), "en");
+        assert_eq!(contract.get_fallback(), "en");
     }
     translator
-        .withLocale("fr", async {
+        .with_locale("fr", async {
             assert_eq!(Contract::get_locale(&translator), "fr");
             translator
-                .withLocale("de", async {
+                .with_locale("de", async {
                     assert_eq!(translator.get_locale(), "de");
                 })
                 .await
@@ -315,11 +315,11 @@ async fn translation_contract_names_observe_nested_locales_and_fallback() {
         .unwrap();
     assert_eq!(translator.get_locale(), "zh-CN");
     let (one, two) = tokio::join!(
-        translator.withLocale("en", async {
+        translator.with_locale("en", async {
             tokio::task::yield_now().await;
             translator.get_locale()
         }),
-        translator.withLocale("fr", async {
+        translator.with_locale("fr", async {
             tokio::task::yield_now().await;
             translator.get_locale()
         })
@@ -543,8 +543,8 @@ async fn redis_purge_rebuilds_named_connections_and_custom_connectors_keep_old_a
             )
         })
         .unwrap();
-    manager.setEventDispatcher(events);
-    manager.enableEvents();
+    manager.set_event_dispatcher(events);
+    manager.enable_events();
     let old = manager.connection(None).unwrap();
     old.set("key", b"one").await.unwrap();
     assert_eq!(event_count.load(Ordering::SeqCst), 1);
@@ -572,7 +572,7 @@ async fn redis_purge_rebuilds_named_connections_and_custom_connectors_keep_old_a
         .await
         .unwrap();
     assert_eq!(event_count.load(Ordering::SeqCst), before + 1);
-    manager.disableEvents();
+    manager.disable_events();
     old.get("key").await.unwrap();
     assert_eq!(event_count.load(Ordering::SeqCst), before + 1);
     let replacement = Arc::new(Dispatcher::new());
@@ -586,8 +586,8 @@ async fn redis_purge_rebuilds_named_connections_and_custom_connectors_keep_old_a
             )
         })
         .unwrap();
-    manager.setEventDispatcher(replacement);
-    manager.enableEvents();
+    manager.set_event_dispatcher(replacement);
+    manager.enable_events();
     old.get("key").await.unwrap();
     new.get("key").await.unwrap();
     assert_eq!(replacement_count.load(Ordering::SeqCst), 2);
@@ -733,7 +733,7 @@ async fn mail_global_addresses_inherit_boot_defaults_without_leaking_between_req
     container
         .scope(async {
             mailer.alwaysTo("scope@example.test").unwrap();
-            let sent = mailer.sendNow(&AddressMail).await.unwrap().unwrap();
+            let sent = mailer.send_now(&AddressMail).await.unwrap().unwrap();
             let envelope = sent.message.envelope();
             assert_eq!(envelope.from.as_ref().unwrap().address, "boot@example.test");
             assert_eq!(envelope.to[0].address, "scope@example.test");
@@ -749,7 +749,7 @@ async fn mail_global_addresses_inherit_boot_defaults_without_leaking_between_req
                 manager
                     .mailer(Some("two"))
                     .unwrap()
-                    .sendNow(&AddressMail)
+                    .send_now(&AddressMail)
                     .await
                     .unwrap()
                     .unwrap()
@@ -763,7 +763,7 @@ async fn mail_global_addresses_inherit_boot_defaults_without_leaking_between_req
         .await;
     container
         .scope(async {
-            let sent = mailer.sendNow(&AddressMail).await.unwrap().unwrap();
+            let sent = mailer.send_now(&AddressMail).await.unwrap().unwrap();
             assert_eq!(sent.message.envelope().to[0].address, "to@example.test");
             assert_eq!(
                 sent.message.envelope().from.as_ref().unwrap().address,
@@ -840,7 +840,7 @@ async fn pushed_events_preserve_listener_order_and_forget_only_the_current_reque
                 .unwrap();
             assert_eq!(*calls.lock().unwrap(), ["first", "item", "last", "wild"]);
             calls.lock().unwrap().clear();
-            dispatcher.forgetPushed().unwrap();
+            dispatcher.forget_pushed().unwrap();
             dispatcher
                 .flush("item", &mut EventContext::new())
                 .await
@@ -919,12 +919,12 @@ async fn mail_cancellation_returns_none_through_contract_facade_and_pending_with
                 let mailer = Mail::mailer(None).unwrap();
                 let contract: &dyn Contract = mailer.as_ref();
                 assert!(contract.send(&AddressMail).await.unwrap().is_none());
-                assert!(contract.sendNow(&AddressMail).await.unwrap().is_none());
-                assert!(Mail::sendNow(&AddressMail).await.unwrap().is_none());
+                assert!(contract.send_now(&AddressMail).await.unwrap().is_none());
+                assert!(Mail::send_now(&AddressMail).await.unwrap().is_none());
                 assert!(
                     Mail::to("pending@example.test")
                         .unwrap()
-                        .sendNow(&AddressMail)
+                        .send_now(&AddressMail)
                         .await
                         .unwrap()
                         .is_none()
@@ -954,7 +954,7 @@ async fn log_boot_context_is_inherited_and_request_context_is_isolated_even_with
         .unwrap();
     app.boot().await.unwrap();
     let manager = app.container().make::<LogManager>().unwrap();
-    manager.shareContext([("boot".into(), json!(true))].into_iter().collect());
+    manager.share_context([("boot".into(), json!(true))].into_iter().collect());
     let one = manager.channel(None).unwrap();
     let records = Arc::new(Mutex::new(Vec::new()));
     let captured = records.clone();
@@ -967,12 +967,12 @@ async fn log_boot_context_is_inherited_and_request_context_is_isolated_even_with
     let container = app.container();
     tokio::join!(
         container.scope(async {
-            one.withContext([("request".into(), json!(1))].into_iter().collect());
+            one.with_context([("request".into(), json!(1))].into_iter().collect());
             tokio::task::yield_now().await;
             one.info("one", &LogContext::new()).unwrap();
         }),
         container.scope(async {
-            one.withContext([("request".into(), json!(2))].into_iter().collect());
+            one.with_context([("request".into(), json!(2))].into_iter().collect());
             tokio::task::yield_now().await;
             one.info("two", &LogContext::new()).unwrap();
         })
@@ -1113,28 +1113,28 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
         app.container().scope(app.call(
             openrust::container::Callback::new(&[], move |_| async move {
                 assert_eq!(Lang::get_locale().unwrap(), "en");
-                assert_eq!(View::getShared().unwrap()["shared"].as_str(), Some("boot"));
+                assert_eq!(View::get_shared().unwrap()["shared"].as_str(), Some("boot"));
                 Lang::set_locale(&expected).unwrap();
                 Lang::set_fallback("en").unwrap();
                 View::share("shared", expected.clone()).unwrap();
                 tokio::task::yield_now().await;
                 assert_eq!(Lang::get_locale().unwrap(), expected);
-                assert_eq!(Lang::getFallback().unwrap(), "en");
+                assert_eq!(Lang::get_fallback().unwrap(), "en");
                 assert_eq!(
                     Lang::get("messages.only", &Default::default(), None).unwrap(),
                     "fallback"
                 );
                 assert!(Lang::set_locale("../bad").is_err());
                 assert_eq!(
-                    View::renderWhen(false, "missing", &Default::default()).unwrap(),
+                    View::render_when(false, "missing", &Default::default()).unwrap(),
                     ""
                 );
                 assert_eq!(
-                    View::renderUnless(true, "missing", &Default::default()).unwrap(),
+                    View::render_unless(true, "missing", &Default::default()).unwrap(),
                     ""
                 );
                 assert_eq!(
-                    View::renderEach("row", [(0.into(), "x".into())], "item", "raw|none").unwrap(),
+                    View::render_each("row", [(0.into(), "x".into())], "item", "raw|none").unwrap(),
                     format!("{expected}:x")
                 );
                 Ok(())
@@ -1150,7 +1150,7 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
         app.container()
             .make::<openrust::view::Factory>()
             .unwrap()
-            .getShared()["shared"]
+            .get_shared()["shared"]
             .as_str(),
         Some("boot")
     );
@@ -1193,7 +1193,7 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
         .make::<openrust::translation::Translator>()
         .unwrap();
     assert_eq!(translator.get_locale(), "zh-CN");
-    assert_eq!(translator.getFallback(), "en");
+    assert_eq!(translator.get_fallback(), "en");
     app.container()
         .scope(async {
             translator.set_locale("fr").unwrap();
@@ -1202,7 +1202,7 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
         })
         .await;
     assert_eq!(translator.get_locale(), "zh-CN");
-    assert_eq!(translator.getFallback(), "en");
+    assert_eq!(translator.get_fallback(), "en");
 }
 
 #[tokio::test]

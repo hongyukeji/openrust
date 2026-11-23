@@ -324,7 +324,7 @@ async fn dev_uses_registry_restart_and_output_settings() {
             Box::pin(async move {
                 DevCommands::withoutDefaultCommands()?;
                 DevCommands::disableAutoRestart()?;
-                DevCommands::withTimestamps()?;
+                DevCommands::with_timestamps()?;
                 DevCommands::register(
                     "sleep 1.1; echo test-stdout; echo test-stderr >&2; exit 23",
                     Some("example"),

@@ -141,5 +141,5 @@ pub(super) fn make(
     if let Some(elements) = elements {
         data.insert("elements".into(), elements.into());
     }
-    super::Paginator::viewFactory()?.make(name.to_owned(), data)
+    super::Paginator::view_factory()?.make(name.to_owned(), data)
 }

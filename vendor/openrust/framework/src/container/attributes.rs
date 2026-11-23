@@ -12,7 +12,7 @@ pub use builtin::{Config, CurrentResolving, Give, Tag};
 mod context;
 pub use context::Context;
 mod managers;
-pub use managers::{Cache, Database, Db as DB, Log, Storage};
+pub use managers::{Cache, Database, Db, Log, Storage};
 mod request;
 pub use request::{RequestAttribute, RouteParameter};
 

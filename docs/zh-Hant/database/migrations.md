@@ -31,9 +31,9 @@ OpenRust 在建置時自動探索 `database/migrations/` 中的 Rust 遷移。�
 
 ## 遷移結構
 
-在 `up` 執行遷移，在 `down` 撤銷。透過傳入的 `MigrationContext` 執行 Schema 和 SQL 操作，預演時遷移器才能收集陳述式。實作 `getConnection` 可指定遷移連線，實作 `should_run` 可依條件跳過遷移。
+在 `up` 執行遷移，在 `down` 撤銷。透過傳入的 `MigrationContext` 執行 Schema 和 SQL 操作，預演時遷移器才能收集陳述式。實作 `get_connection` 可指定遷移連線，實作 `should_run` 可依條件跳過遷移。
 
-`getConnection` 接收所屬應用程式的設定儲存庫，回傳 `DatabaseResult<Option<String>>`。回傳的連線名稱擁有獨立所有權，可依執行設定查詢，不需要 PHP 全域狀態，也不會在應用程式間混用。回傳 `Ok(None)` 時使用命令選擇的連線。Passport 發布遷移透過此契約讀取 `passport.connection`。
+`get_connection` 接收所屬應用程式的設定儲存庫，回傳 `DatabaseResult<Option<String>>`。回傳的連線名稱擁有獨立所有權，可依執行設定查詢，不需要 PHP 全域狀態，也不會在應用程式間混用。回傳 `Ok(None)` 時使用命令選擇的連線。Passport 發布遷移透過此契約讀取 `passport.connection`。
 
 ```rust
 use openrust::database::{
@@ -49,7 +49,7 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            connection.getSchemaBuilder().create("flights", |table| {
+            connection.get_schema_builder().create("flights", |table| {
                 table.id();
                 table.string("name", 120);
                 table.timestamps();
@@ -62,7 +62,7 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            connection.getSchemaBuilder().dropIfExists("flights").await
+            connection.get_schema_builder().drop_if_exists("flights").await
         })
     }
 }
@@ -89,10 +89,10 @@ impl Migration for Definition {
 ```rust
 fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
     Box::pin(async move {
-        use openrust::support::facades::DB;
+        use openrust::support::facades::Db;
 
         let production = app.environment(Some("production".into()))?;
-        DB::prohibitDestructiveCommands(bool::from(&production))?;
+        Db::prohibit_destructive_commands(bool::from(&production))?;
         Ok(())
     })
 }
@@ -102,10 +102,10 @@ fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult
 
 PostgreSQL 和 SQL Server 預設將一項遷移的 `up` 或 `down` 放在一個交易中。使用傳入的 `MigrationContext` 執行 Schema 變更和 SQL，遷移監聽器可使用事件上下文提供的交易。遷移或同步生命週期監聽器在交易提交前失敗時，會回滾本次變更，帳本保留原先狀態。
 
-需要自動提交的操作，例如 [PostgreSQL 線上索引](#postgresql-online-indexes)，可在該遷移的 `impl Migration` 中覆寫 `withinTransaction()`。退出交易後，後續陳述式失敗時，已完成的變更可能保留。`--pretend` 顯示 SQL，不會啟動遷移交易。
+需要自動提交的操作，例如 [PostgreSQL 線上索引](#postgresql-online-indexes)，可在該遷移的 `impl Migration` 中覆寫 `within_transaction()`。退出交易後，後續陳述式失敗時，已完成的變更可能保留。`--pretend` 顯示 SQL，不會啟動遷移交易。
 
 ```rust
-fn withinTransaction(&self) -> bool {
+fn within_transaction(&self) -> bool {
     false
 }
 ```
@@ -130,7 +130,7 @@ fn withinTransaction(&self) -> bool {
 
 ### 排除指定的待執行遷移 {#excluding-pending-migrations}
 
-在服務提供者中呼叫目前應用程式遷移器的 `withoutMigrations`，可按名稱從實際執行和預演中排除待執行遷移。可以傳入遷移名稱或 `.rs` 路徑。再次呼叫會取代清單，傳入空切片可清空。狀態仍根據帳本與遷移條件顯示，回滾仍按帳本批次執行。
+在服務提供者中呼叫目前應用程式遷移器的 `without_migrations`，可按名稱從實際執行和預演中排除待執行遷移。可以傳入遷移名稱或 `.rs` 路徑。再次呼叫會取代清單，傳入空切片可清空。狀態仍根據帳本與遷移條件顯示，回滾仍按帳本批次執行。
 
 ```rust
 use openrust::{
@@ -142,7 +142,7 @@ use openrust::{
 
 fn configure_migrations(app: &Application) -> ProviderResult {
     let migrator = app.container().get::<Migrator>("migrator")?;
-    migrator.withoutMigrations(&["database/migrations/0001_create_first.rs"]);
+    migrator.without_migrations(&["database/migrations/0001_create_first.rs"]);
     Ok(())
 }
 ```
@@ -201,15 +201,15 @@ CACHE_STORE=redis ./artisan migrate --isolated=12
 
 ## 資料表
 
-用 `Schema::create("books", |table| { … }).await?` 在預設連線建立資料表，用 `Schema::connection("reporting")?` 選擇具名連線。已持有連線時，呼叫 `getSchemaBuilder()` 取得同一套介面。
+用 `Schema::create("books", |table| { … }).await?` 在預設連線建立資料表，用 `Schema::connection("reporting")?` 選擇具名連線。已持有連線時，呼叫 `get_schema_builder()` 取得同一套介面。
 
-用 `table` 修改資料表，用 `rename` 重新命名，用 `dropIfExists` 依存在條件刪除。用 `hasTable` 和 `getTables` 檢視資料庫。Schema 操作使用寫入連線。
+用 `table` 修改資料表，用 `rename` 重新命名，用 `drop_if_exists` 依存在條件刪除。用 `has_table` 和 `get_tables` 檢視資料庫。Schema 操作使用寫入連線。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult};
 
 pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
-    let mut schema = connection.getSchemaBuilder();
+    let mut schema = connection.get_schema_builder();
 
     schema.create("authors", |table| {
         table.id();
@@ -218,7 +218,7 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
     schema.create("books", |table| {
         table.id();
-        table.foreignId("author_id").constrained().cascadeOnDelete();
+        table.foreign_id("author_id").constrained().cascade_on_delete();
         table.string("title", 200);
         table.unique(&["author_id", "title"], None);
         table.timestamps();
@@ -229,22 +229,22 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
         table.index(&["isbn"], Some("books_isbn_index"));
     }).await?;
 
-    assert!(schema.hasColumns("books", &["title", "isbn"]).await?);
-    assert!(schema.hasIndex("books", "books_isbn_index").await?);
+    assert!(schema.has_columns("books", &["title", "isbn"]).await?);
+    assert!(schema.has_index("books", "books_isbn_index").await?);
     Ok(())
 }
 ```
 
 ### MySQL 資料表選項 {#mysql-table-options}
 
-在 `Schema::create` 中用 `engine`、`charset` 和 `collation` 設定資料表。MySQL 優先採用 Blueprint 的明確設定，其次採用連線對應的預設值。`comment` 可用於建立和修改資料表。用 `getTables()` 讀取實際的儲存引擎、定序和註解。 `innoDb()` 等同於 `engine("InnoDB")`。
+在 `Schema::create` 中用 `engine`、`charset` 和 `collation` 設定資料表。MySQL 優先採用 Blueprint 的明確設定，其次採用連線對應的預設值。`comment` 可用於建立和修改資料表。用 `get_tables()` 讀取實際的儲存引擎、定序和註解。 `inno_db()` 等同於 `engine("InnoDB")`。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
 
 async fn create_customers() -> DatabaseResult<()> {
     Schema::create("customers", |table| {
-        table.innoDb();
+        table.inno_db();
         table.charset("utf8mb4");
         table.collation("utf8mb4_unicode_ci");
         table.comment("Customer records");
@@ -313,7 +313,7 @@ use openrust::database::{DatabaseResult, Value, schema::Schema};
 
 async fn staged_code() -> DatabaseResult<Value> {
     let mut session = Schema::session().await?;
-    session.getSchemaBuilder().create("import_codes", |table| {
+    session.get_schema_builder().create("import_codes", |table| {
         table.temporary();
         table.string("code", 20);
     }).await?;
@@ -324,37 +324,37 @@ async fn staged_code() -> DatabaseResult<Value> {
 }
 ```
 
-SQLite 的同一工作階段可讀取暫存資料表的中繼資料。MySQL 的 `hasTable()` 可檢查工作階段管理的暫存資料表，詳細欄位資訊可透過工作階段執行 `SHOW COLUMNS` 查看。
+SQLite 的同一工作階段可讀取暫存資料表的中繼資料。MySQL 的 `has_table()` 可檢查工作階段管理的暫存資料表，詳細欄位資訊可透過工作階段執行 `SHOW COLUMNS` 查看。
 
 ## 欄位
 
 定義閉包接收可變的 `Blueprint`。欄位修飾詞接在欄位定義後，例如 `table.string("isbn", 20).nullable()`。`id()` 建立自動遞增主鍵，`timestamps()` 建立允許為空值的建立與更新時間。長度、精確度和小數位數由 Rust 參數明確指定。
 
-用 `change` 指定替換後的欄位定義，包括要保留的修飾詞。`renameColumn` 和 `dropColumn` 使用驅動程式的原生操作。`getColumns`、`getColumnListing` 和 `getColumnType` 從資料庫目錄讀取欄位結構。
+用 `change` 指定替換後的欄位定義，包括要保留的修飾詞。`rename_column` 和 `drop_column` 使用驅動程式的原生操作。`get_columns`、`get_column_listing` 和 `get_column_type` 從資料庫目錄讀取欄位結構。
 
 SQLite 對需要重建的欄位或外鍵變更執行資料表重建。請在活動交易之外，透過連線的 Schema Builder 發起重建。重建擁有自己的交易，並恢復連線的外鍵設定。會隱含提交的 MySQL DDL 也透過連線的 Schema Builder 執行。
 
 ### 更多欄位型別 {#additional-column-types}
 
-用 `tinyText`、`year`、`ipAddress`、`macAddress` 和 `r#enum` 宣告對應的欄位。`year` 搭配 `useCurrent()` 時預設採用資料庫目前的年份。MySQL 使用原生 ENUM 和 SET。SQLite 用 CHECK 約束列舉值，對 SET 傳回不支援。
+用 `tinyText`、`year`、`ipAddress`、`mac_address` 和 `r#enum` 宣告對應的欄位。`year` 搭配 `use_current()` 時預設採用資料庫目前的年份。MySQL 使用原生 ENUM 和 SET。SQLite 用 CHECK 約束列舉值，對 SET 傳回不支援。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
 
 async fn create_events() -> DatabaseResult<()> {
     Schema::create("incoming_events", |table| {
-        table.smallIncrements("id");
+        table.small_increments("id");
         table.r#enum("status", &["pending", "processed"]).default("pending");
-        table.year("batch_year").useCurrent();
+        table.year("batch_year").use_current();
         table.ipAddress("source_ip").nullable();
-        table.binaryWith("digest", 32, true).nullable();
-        table.timestampsTz();
+        table.binary_with("digest", 32, true).nullable();
+        table.timestamps_tz();
     })
     .await
 }
 ```
 
-`binary()` 宣告 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
+`binary()` 宣告 BLOB。`binary_with(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tiny_increments`、`small_increments`、`medium_increments` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
 
 ### PostgreSQL 全文搜尋向量欄位 {#postgresql-tsvector-columns}
 
@@ -364,7 +364,7 @@ async fn create_events() -> DatabaseResult<()> {
 table.text("body");
 table
     .tsvector("search_terms")
-    .storedAs("to_tsvector('english', body)");
+    .stored_as("to_tsvector('english', body)");
 table
     .index(&["search_terms"], Some("documents_search_terms"))
     .algorithm("gin");
@@ -372,35 +372,35 @@ table
 
 ### ULID 欄位長度 {#ulid-column-length}
 
-用 `ulidWith(name, length)` 和 `foreignUlidWith(name, length)` 為匯入的識別碼指定字元欄寬。`ulid` 和 `foreignUlid` 預設仍為 26。這些方法設定欄寬。標準 ULID 仍為 26 個字元。
+用 `ulid_with(name, length)` 和 `foreign_ulid_with(name, length)` 為匯入的識別碼指定字元欄寬。`ulid` 和 `foreign_ulid` 預設仍為 26。這些方法設定欄寬。標準 ULID 仍為 26 個字元。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn create_import_tables() -> DatabaseResult<()> {
     Schema::create("imports", |table| {
-        table.ulidWith("id", 32).primary();
+        table.ulid_with("id", 32).primary();
     }).await?;
     Schema::create("import_entries", |table| {
         table.id();
-        table.foreignUlidWith("import_id", 32)
-            .constrainedOn("imports", "id", None)
-            .cascadeOnDelete();
+        table.foreign_ulid_with("import_id", 32)
+            .constrained_on("imports", "id", None)
+            .cascade_on_delete();
     }).await
 }
 ```
 
 ### 檢查 SQLite 欄位 {#inspecting-sqlite-columns}
 
-SQLite 欄位宣告為 `VARCHAR(32)` 時，`getColumnType(..., false)` 回傳 `varchar`，`getColumnType(..., true)` 回傳 `varchar(32)`。欄位未宣告型別時，兩者都回傳空字串。
+SQLite 欄位宣告為 `VARCHAR(32)` 時，`get_column_type(..., false)` 回傳 `varchar`，`get_column_type(..., true)` 回傳 `varchar(32)`。欄位未宣告型別時，兩者都回傳空字串。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn inspect_title() -> DatabaseResult<(String, String)> {
     Ok((
-        Schema::getColumnType("books", "title", false).await?,
-        Schema::getColumnType("books", "title", true).await?,
+        Schema::get_column_type("books", "title", false).await?,
+        Schema::get_column_type("books", "title", true).await?,
     ))
 }
 ```
@@ -409,27 +409,27 @@ async fn inspect_title() -> DatabaseResult<(String, String)> {
 
 ### 編輯 Blueprint {#editing-a-blueprint}
 
-用 `idWith("import_id")` 指定自動遞增主鍵欄位名稱，對應 `id("import_id")`。預設欄位名稱使用 `id()`。
+用 `id_with("import_id")` 指定自動遞增主鍵欄位名稱，對應 `id("import_id")`。預設欄位名稱使用 `id()`。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn create_imports() -> DatabaseResult<()> {
     Schema::create("imports", |table| {
-        table.idWith("import_id");
+        table.id_with("import_id");
         table.string("source", 32);
         table.text("temporary_notes");
-        table.removeColumn("temporary_notes");
+        table.remove_column("temporary_notes");
     })
     .await
 }
 ```
 
-在 Blueprint 回呼裡用 `removeColumn()` 撤銷待執行的新增欄位或修改欄位，欄位層級修飾符也會一併移除。明確宣告的索引和約束仍留在 Blueprint。刪除資料庫現有欄位時使用 `dropColumn()`。
+在 Blueprint 回呼裡用 `remove_column()` 撤銷待執行的新增欄位或修改欄位，欄位層級修飾符也會一併移除。明確宣告的索引和約束仍留在 Blueprint。刪除資料庫現有欄位時使用 `drop_column()`。
 
 ### 檢查 Blueprint {#inspecting-a-blueprint}
 
-在 Schema 回呼中，`getTable()` 回傳傳給建構器的邏輯表名，連線資料表前綴會在後續產生 SQL 時套用。`creating()` 區分 `Schema::create` 與 `Schema::table` 或條件式改表。
+在 Schema 回呼中，`get_table()` 回傳傳給建構器的邏輯表名，連線資料表前綴會在後續產生 SQL 時套用。`creating()` 區分 `Schema::create` 與 `Schema::table` 或條件式改表。
 
 ```rust
 use openrust::database::schema::Blueprint;
@@ -440,7 +440,7 @@ fn prepare_status(table: &mut Blueprint) {
     }
 
     if !table
-        .getColumns()
+        .get_columns()
         .any(|column| column.get_name() == "status")
     {
         table.string("status", 24).default("pending");
@@ -448,7 +448,7 @@ fn prepare_status(table: &mut Blueprint) {
 }
 ```
 
-用 `getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按宣告順序讀取待執行的欄位定義。這些迭代器借用 Blueprint。檢查資料庫現有欄位時，請使用 Schema 門面的目錄方法。
+用 `get_columns()`、`get_added_columns()` 和 `get_changed_columns()` 按宣告順序讀取待執行的欄位定義。這些迭代器借用 Blueprint。檢查資料庫現有欄位時，請使用 Schema 門面的目錄方法。
 
 ### 解析 Blueprint {#resolving-a-blueprint}
 
@@ -458,7 +458,7 @@ fn prepare_status(table: &mut Blueprint) {
 use openrust::database::schema::Builder;
 
 fn use_import_defaults(schema: &mut Builder<'_>) {
-    schema.blueprintResolver(|table| {
+    schema.blueprint_resolver(|table| {
         if table.creating() {
             table.id();
             table.string("source", 32);
@@ -471,15 +471,15 @@ fn use_import_defaults(schema: &mut Builder<'_>) {
 
 ### 讀取連線的資料表前綴 {#reading-the-connection-table-prefix}
 
-用 `DB::getTablePrefix()` 讀取預設連線的前綴，或用 `DB::connection(Some("archive"))?.getTablePrefix()` 讀取具名連線的前綴。Blueprint 回呼中的 `getPrefix()` 回傳該 Blueprint 所屬連線的前綴。
+用 `Db::get_table_prefix()` 讀取預設連線的前綴，或用 `Db::connection(Some("archive"))?.get_table_prefix()` 讀取具名連線的前綴。Blueprint 回呼中的 `get_prefix()` 回傳該 Blueprint 所屬連線的前綴。
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 fn migration_prefixes() -> DatabaseResult<(String, String)> {
-    let default = DB::getTablePrefix()?;
-    let archive = DB::connection(Some("archive"))?;
-    Ok((default, archive.getTablePrefix().to_owned()))
+    let default = Db::get_table_prefix()?;
+    let archive = Db::connection(Some("archive"))?;
+    Ok((default, archive.get_table_prefix().to_owned()))
 }
 ```
 
@@ -506,7 +506,7 @@ async fn create_documents() -> DatabaseResult<()> {
 
 ### 生成欄位 {#generated-columns}
 
-用 `virtualAs` 宣告讀取時運算的欄位，用 `storedAs` 儲存運算結果。兩者都接受可信 SQL 運算式。`virtualAsJson` 和 `storedAsJson` 可使用箭頭分隔的 JSON 路徑。生成欄位需要指定型別，由資料庫依其他欄位運算。
+用 `virtual_as` 宣告讀取時運算的欄位，用 `stored_as` 儲存運算結果。兩者都接受可信 SQL 運算式。`virtual_as_json` 和 `stored_as_json` 可使用箭頭分隔的 JSON 路徑。生成欄位需要指定型別，由資料庫依其他欄位運算。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
@@ -516,21 +516,21 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
         table.id();
         table.integer("quantity");
         table.integer("unit_cents");
-        table.integer("total_cents").storedAs("quantity * unit_cents");
+        table.integer("total_cents").stored_as("quantity * unit_cents");
         table.json("metadata").nullable();
-        table.string("currency", 3).virtualAsJson("metadata->currency").nullable();
+        table.string("currency", 3).virtual_as_json("metadata->currency").nullable();
     })
     .await
 }
 ```
 
-`getColumns()` 傳回生成模式和運算式。MySQL 和 SQLite 建立資料表時都支援這兩種模式。SQLite 原生 ALTER 可新增虛擬欄位。儲存型生成欄位可在建立資料表時定義，也可透過明確重建資料表的遷移新增。
+`get_columns()` 傳回生成模式和運算式。MySQL 和 SQLite 建立資料表時都支援這兩種模式。SQLite 原生 ALTER 可新增虛擬欄位。儲存型生成欄位可在建立資料表時定義，也可透過明確重建資料表的遷移新增。
 
 #### MySQL 產生欄位與目前時間預設值 {#mysql-generated-columns-and-current-defaults}
 
-MySQL 產生欄位預設允許 NULL。使用 `nullableWith(false)` 要求產生值不可為空，或使用 `nullable()` 明確允許 NULL。一般欄位預設不可為空。
+MySQL 產生欄位預設允許 NULL。使用 `nullable_with(false)` 要求產生值不可為空，或使用 `nullable()` 明確允許 NULL。一般欄位預設不可為空。
 
-在 MySQL 上，DATE、YEAR、DATETIME 和 TIMESTAMP 欄位的 `useCurrent()` 優先於明確指定的預設值，呼叫順序不影響結果。資料庫提供目前的日期、年份或時間戳記，時間戳記沿用欄位精度。其他欄位型別保留明確指定的預設值。
+在 MySQL 上，DATE、YEAR、DATETIME 和 TIMESTAMP 欄位的 `use_current()` 優先於明確指定的預設值，呼叫順序不影響結果。資料庫提供目前的日期、年份或時間戳記，時間戳記沿用欄位精度。其他欄位型別保留明確指定的預設值。
 
 ```rust
 use openrust::database::schema::Blueprint;
@@ -538,12 +538,12 @@ use openrust::database::schema::Blueprint;
 fn define_import_metrics(table: &mut Blueprint) {
     table.id();
     table.integer("quantity").nullable();
-    table.integer("doubled").virtualAs("quantity * 2");
+    table.integer("doubled").virtual_as("quantity * 2");
     table.integer("total")
-        .storedAs("COALESCE(quantity, 0)")
-        .nullableWith(false);
+        .stored_as("COALESCE(quantity, 0)")
+        .nullable_with(false);
     table.timestamp("recorded_at", 3)
-        .useCurrent()
+        .use_current()
         .default("2000-01-01 00:00:00");
 }
 ```
@@ -558,14 +558,14 @@ use openrust::database::{DatabaseResult, schema::Schema};
 async fn create_places() -> DatabaseResult<()> {
     Schema::create("places", |table| {
         table.id();
-        table.geography("location", Some("point"), None).spatialIndex();
+        table.geography("location", Some("point"), None).spatial_index();
         table.geometry("outline", Some("polygon"), Some(4326)).nullable();
     })
     .await
 }
 ```
 
-MySQL 驗證宣告的子型別和非零 SRID。對於不可為 NULL 的空間欄位，可用 `spatialIndex()` 宣告索引。SQLite 宣告 `geometry` 型別並支援存入二進位值，空間函式和空間索引需要具備空間能力的資料庫。
+MySQL 驗證宣告的子型別和非零 SRID。對於不可為 NULL 的空間欄位，可用 `spatial_index()` 宣告索引。SQLite 宣告 `geometry` 型別並支援存入二進位值，空間函式和空間索引需要具備空間能力的資料庫。
 
 ### 向量欄位 {#vector-columns}
 
@@ -574,7 +574,7 @@ PostgreSQL 宣告向量欄位前，先啟用已安裝的 `pgvector` 擴充功能
 ```rust
 use openrust::support::facades::Schema;
 
-Schema::ensureVectorExtensionExists(None).await?;
+Schema::ensure_vector_extension_exists(None).await?;
 ```
 
 ```rust
@@ -588,62 +588,62 @@ Schema::create("documents", |table| {
 
 兩種驅動程式都支援明確指定維度。PostgreSQL 也接受 `None` 建立不限維度的向量欄位。預設餘弦索引使用固定維度。MariaDB 需要明確指定維度，建立索引的欄位須為非空。
 
-對向量欄位呼叫 `index()` 會建立餘弦索引。PostgreSQL 使用 HNSW 和 `vector_cosine_ops`，MariaDB 使用 `VECTOR INDEX`、`M=6` 和餘弦距離。可用 `vectorIndex("embedding", Some("semantic_idx"))` 指定名稱。PostgreSQL 可用 `algorithm("ivfflat")` 和 `operatorClass("vector_l2_ops")` 選擇其他索引方法與運算子類別。查詢使用的距離運算式應與運算子類別相符。
+對向量欄位呼叫 `index()` 會建立餘弦索引。PostgreSQL 使用 HNSW 和 `vector_cosine_ops`，MariaDB 使用 `VECTOR INDEX`、`M=6` 和餘弦距離。可用 `vector_index("embedding", Some("semantic_idx"))` 指定名稱。PostgreSQL 可用 `algorithm("ivfflat")` 和 `operator_class("vector_l2_ops")` 選擇其他索引方法與運算子類別。查詢使用的距離運算式應與運算子類別相符。
 
-用 `dropVectorIndex("semantic_idx")` 刪除具名索引，或用 `dropVectorIndexColumns(&["embedding"])` 刪除慣例名稱的索引。查詢方式見[向量相似度查詢](./queries.md#vector-similarity-clauses)。
+用 `drop_vector_index("semantic_idx")` 刪除具名索引，或用 `drop_vector_index_columns(&["embedding"])` 刪除慣例名稱的索引。查詢方式見[向量相似度查詢](./queries.md#vector-similarity-clauses)。
 
-MariaDB 可透過 `operatorClass("M=8 DISTANCE=euclidean")` 設定向量索引參數。`M` 接受 3 到 200，`DISTANCE` 接受 `cosine` 或 `euclidean`。查詢建構器的向量搜尋方法使用餘弦距離。
+MariaDB 可透過 `operator_class("M=8 DISTANCE=euclidean")` 設定向量索引參數。`M` 接受 3 到 200，`DISTANCE` 接受 `cosine` 或 `euclidean`。查詢建構器的向量搜尋方法使用餘弦距離。
 
 需要在寫入期間建置向量索引時，見 [PostgreSQL 線上索引](#postgresql-online-indexes)。
 
 ### MySQL 欄位修飾詞
 
-用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`useCurrentOnUpdate()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `useCurrent()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。
+用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`use_current_on_update()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `use_current()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。
 
 ```rust
 Schema::table("books", |table| {
     table.string("internal_note", 120).nullable().invisible();
-    table.timestamp("reviewed_at", 6).useCurrent().useCurrentOnUpdate();
+    table.timestamp("reviewed_at", 6).use_current().use_current_on_update();
     table.string("edition", 20).nullable().after("title");
 }).await?;
 ```
 
 ## 索引
 
-用 `index`、`unique` 或 `primary` 傳入欄位切片。可以指定名稱，或傳 `None` 使用慣例名稱。用 `getIndexes`、`hasIndex` 和 `renameIndex` 檢視或重新命名索引。MySQL 支援在相容欄位建立全文索引。
+用 `index`、`unique` 或 `primary` 傳入欄位切片。可以指定名稱，或傳 `None` 使用慣例名稱。用 `get_indexes`、`has_index` 和 `rename_index` 檢視或重新命名索引。MySQL 支援在相容欄位建立全文索引。
 
 ### 外鍵約束
 
-`foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
+`foreign_id("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrained_on`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascade_on_delete()` 等參照動作。用 `get_foreign_keys` 檢視約束。SQLite 目錄提供約束欄位，`drop_foreign_columns` 可依這些欄位刪除資料表層級的外鍵。
 
 #### 預設欄位長度與時間精度 {#default-column-length-and-time-precision}
 
-`Schema::defaultStringLength` 和 `Schema::defaultTimePrecision` 設定目前應用程式後續欄位定義的預設值。初始預設值為 255 個字元和 0 位小數秒。單一欄位傳入 `None` 可使用應用程式預設值，也可以明確指定長度或精度。
+`Schema::default_string_length` 和 `Schema::default_time_precision` 設定目前應用程式後續欄位定義的預設值。初始預設值為 255 個字元和 0 位小數秒。單一欄位傳入 `None` 可使用應用程式預設值，也可以明確指定長度或精度。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn create_entries() -> DatabaseResult<()> {
-    Schema::defaultStringLength(120)?;
-    Schema::defaultTimePrecision(Some(3))?;
+    Schema::default_string_length(120)?;
+    Schema::default_time_precision(Some(3))?;
 
     Schema::create("entries", |table| {
         table.id();
         table.string("label", None);
         table.timestamps();
-        table.softDeletesDatetime(Some("removed_at"), 6);
+        table.soft_deletes_datetime(Some("removed_at"), 6);
     })
     .await
 }
 ```
 
-`timestamps()` 和 `timestampsTz()` 使用設定的精度。使用 `timestampsWith` 或 `timestampsTzWith` 指定精度。`datetimes` 建立可為空值的 `created_at` 和 `updated_at` DATETIME 欄位。`softDeletesDatetime` 建立可為空值的 DATETIME 軟刪除欄位。SQLite 使用原生欄位宣告。
+`timestamps()` 和 `timestamps_tz()` 使用設定的精度。使用 `timestamps_with` 或 `timestamps_tz_with` 指定精度。`datetimes` 建立可為空值的 `created_at` 和 `updated_at` DATETIME 欄位。`soft_deletes_datetime` 建立可為空值的 DATETIME 軟刪除欄位。SQLite 使用原生欄位宣告。
 
 #### MySQL 欄位長度與更新運算式 {#mysql-column-lengths-and-update-expressions}
 
-在 MySQL 上使用 `char(name, 0)` 建立長度為零的固定長度字元欄位。CHAR 最多支援 255 個字元。`binaryWith` 的長度為零時與 `binary` 一樣建立 BLOB，正數長度則依 `fixed` 參數建立 BINARY 或 VARBINARY。
+在 MySQL 上使用 `char(name, 0)` 建立長度為零的固定長度字元欄位。CHAR 最多支援 255 個字元。`binary_with` 的長度為零時與 `binary` 一樣建立 BLOB，正數長度則依 `fixed` 參數建立 BINARY 或 VARBINARY。
 
-透過 `onUpdate` 為 TIMESTAMP 或 DATETIME 欄位指定可信 SQL 運算式。運算式的小數秒精度應與欄位一致。兩個更新修飾符同時指定時，`useCurrentOnUpdate` 依欄位精度產生運算式並優先使用。
+透過 `on_update` 為 TIMESTAMP 或 DATETIME 欄位指定可信 SQL 運算式。運算式的小數秒精度應與欄位一致。兩個更新修飾符同時指定時，`use_current_on_update` 依欄位精度產生運算式並優先使用。
 
 ```rust
 use openrust::database::{query::Expression, schema::Blueprint};
@@ -651,16 +651,16 @@ use openrust::database::{query::Expression, schema::Blueprint};
 fn define_import_status(table: &mut Blueprint) {
     table.id();
     table.char("flag", 0).nullable();
-    table.binaryWith("payload", 0, false).nullable();
-    table.dateTime("changed_at", 3)
-        .useCurrent()
-        .onUpdate(Expression::new("NOW(3)"));
+    table.binary_with("payload", 0, false).nullable();
+    table.date_time("changed_at", 3)
+        .use_current()
+        .on_update(Expression::new("NOW(3)"));
 }
 ```
 
 #### 浮點精度與原生欄位定義 {#float-precision-and-raw-columns}
 
-`float()` 使用框架預設的 53 位元精度。用 `floatWith(name, precision)` 明確設定精度。MySQL 的 1–24 位元對應 FLOAT，25–53 位元對應 DOUBLE。用 0 宣告不帶精度參數的原生 FLOAT。SQLite 依原生浮點規則儲存，精度參數不會改變儲存行為。
+`float()` 使用框架預設的 53 位元精度。用 `float_with(name, precision)` 明確設定精度。MySQL 的 1–24 位元對應 FLOAT，25–53 位元對應 DOUBLE。用 0 宣告不帶精度參數的原生 FLOAT。SQLite 依原生浮點規則儲存，精度參數不會改變儲存行為。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -669,18 +669,18 @@ async fn create_measurements() -> DatabaseResult<()> {
     Schema::create("measurements", |table| {
         table.id();
         table.float("value");
-        table.floatWith("device_value", 24);
-        table.rawColumn("sample_count", "smallint").default(0);
+        table.float_with("device_value", 24);
+        table.raw_column("sample_count", "smallint").default(0);
     })
     .await
 }
 ```
 
-遷移中用 `rawColumn(name, definition)` 傳入可信的 SQL 欄位定義。Schema 負責引用欄位名稱並附加常用修飾符，資料庫解讀所傳入的定義。
+遷移中用 `raw_column(name, definition)` 傳入可信的 SQL 欄位定義。Schema 負責引用欄位名稱並附加常用修飾符，資料庫解讀所傳入的定義。
 
 #### 欄位群組與刪除別名 {#column-groups-and-drop-aliases}
 
-`morphs()` 和 `nullableMorphs()` 使用應用程式設定的多型鍵類型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允許空值的變體明確選擇 ID 類型。如需指定索引名稱或 MySQL 欄位位置，可向型別專用方法、`morphsWith` 或 `nullableMorphs` 傳入對應參數。 可直接用 `Schema::dropColumns(table, columns)` 移除指定欄位。
+`morphs()` 和 `nullable_morphs()` 使用應用程式設定的多型鍵類型。可用 `numeric_morphs`、`uuid_morphs`、`ulid_morphs` 及允許空值的變體明確選擇 ID 類型。如需指定索引名稱或 MySQL 欄位位置，可向型別專用方法、`morphs_with` 或 `nullable_morphs` 傳入對應參數。 可直接用 `Schema::drop_columns(table, columns)` 移除指定欄位。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -688,42 +688,42 @@ use openrust::{database::DatabaseResult, support::facades::Schema};
 async fn create_attachments() -> DatabaseResult<()> {
     Schema::create("attachments", |table| {
         table.id();
-        table.nullableMorphs("attachable", Some("attachments_attachable"), None);
-        table.rememberToken();
-        table.nullableTimestamps();
+        table.nullable_morphs("attachable", Some("attachments_attachable"), None);
+        table.remember_token();
+        table.nullable_timestamps();
     })
     .await
 }
 
 async fn remove_attachment_metadata() -> DatabaseResult<()> {
     Schema::table("attachments", |table| {
-        table.dropMorphs("attachable", Some("attachments_attachable"));
-        table.dropRememberToken();
-        table.dropTimestamps();
+        table.drop_morphs("attachable", Some("attachments_attachable"));
+        table.drop_remember_token();
+        table.drop_timestamps();
     })
     .await
 }
 
 async fn remove_legacy_columns() -> DatabaseResult<()> {
-    Schema::dropColumns("attachments", &["legacy_name", "legacy_rank"]).await
+    Schema::drop_columns("attachments", &["legacy_name", "legacy_rank"]).await
 }
 ```
 
-`dropMorphs` 先刪除複合索引，再刪除兩個欄位。建立時指定索引名稱的，刪除時傳入相同名稱。`dropConstrainedForeignId` 先刪除外鍵，再刪除欄位。`dropSoftDeletes(None)` 和 `dropSoftDeletesTz(None)` 刪除預設 `deleted_at`，傳入 `Some(name)` 可指定欄位名稱。
+`drop_morphs` 先刪除複合索引，再刪除兩個欄位。建立時指定索引名稱的，刪除時傳入相同名稱。`drop_constrained_foreign_id` 先刪除外鍵，再刪除欄位。`drop_soft_deletes(None)` 和 `drop_soft_deletes_tz(None)` 刪除預設 `deleted_at`，傳入 `Some(name)` 可指定欄位名稱。
 
 在 `Schema::table` 中使用 `table.after("title", |table| { … })`，可依宣告順序把多個欄位放在 MySQL 現有欄位之後。PostgreSQL、SQLite 和 SQL Server 忽略 `first()` 和 `after()` 排序提示，新增欄位保留資料庫預設的追加順序。
 
 #### 預設值運算式 {#default-expressions}
 
-透過 `DB::raw()` 或 `Expression::new()` 把可信的 SQL 運算式傳給 `default()`。插入資料時省略該欄位，資料庫就會計算運算式。一般字串會作為字面值預設值。
+透過 `Db::raw()` 或 `Expression::new()` 把可信的 SQL 運算式傳給 `default()`。插入資料時省略該欄位，資料庫就會計算運算式。一般字串會作為字面值預設值。
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::{DB, Schema}};
+use openrust::{database::DatabaseResult, support::facades::{Db, Schema}};
 
 async fn create_flights() -> DatabaseResult<()> {
     Schema::create("flights", |table| {
         table.id();
-        table.json("movies").default(DB::raw("(JSON_ARRAY())"));
+        table.json("movies").default(Db::raw("(JSON_ARRAY())"));
     })
     .await
 }
@@ -752,17 +752,17 @@ async fn prepare_imports() -> DatabaseResult<()> {
 }
 ```
 
-在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
+在 MySQL 上用 `from()` 或 `starting_value()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
 
 #### 自動遞增欄位與明確主鍵 {#auto-incrementing-columns-and-explicit-primary-keys}
 
-`integerIncrements("id")` 是 `increments("id")` 的別名，兩者皆建立無號整數。`autoIncrement()` 修飾符保留欄位型別的有號或無號設定。在 MySQL 中，資料表層級的 `primary` 宣告決定完整主鍵欄位。InnoDB 要求自動遞增欄位是某個索引的第一欄。
+`integer_increments("id")` 是 `increments("id")` 的別名，兩者皆建立無號整數。`auto_increment()` 修飾符保留欄位型別的有號或無號設定。在 MySQL 中，資料表層級的 `primary` 宣告決定完整主鍵欄位。InnoDB 要求自動遞增欄位是某個索引的第一欄。
 
 ```rust
 use openrust::database::schema::Blueprint;
 
 fn define_import_entries(table: &mut Blueprint) {
-    table.integer("entry_id").autoIncrement().startingValue(500);
+    table.integer("entry_id").auto_increment().starting_value(500);
     table.integer("import_id");
     table.primary(&["entry_id", "import_id"], None);
 }
@@ -770,7 +770,7 @@ fn define_import_entries(table: &mut Blueprint) {
 
 #### 條件式 Schema 變更 {#conditional-schema-changes}
 
-使用 `whenTableHasColumn`、`whenTableDoesntHaveColumn`、`whenTableHasIndex`、`whenTableDoesntHaveIndex`，只在目錄檢查符合條件時執行 Blueprint。目錄檢查和後續的 Schema 陳述式是兩次操作。
+使用 `when_table_has_column`、`when_table_doesnt_have_column`、`when_table_has_index`、`when_table_doesnt_have_index`，只在目錄檢查符合條件時執行 Blueprint。目錄檢查和後續的 Schema 陳述式是兩次操作。
 
 ```rust
 use openrust::{
@@ -779,12 +779,12 @@ use openrust::{
 };
 
 async fn prepare_imports() -> DatabaseResult<()> {
-    Schema::whenTableDoesntHaveColumn("imports", "status", |table| {
+    Schema::when_table_doesnt_have_column("imports", "status", |table| {
         table.string("status", 24).default("pending");
     })
     .await?;
 
-    Schema::whenTableDoesntHaveIndex(
+    Schema::when_table_doesnt_have_index(
         "imports",
         KeySelector::Columns(&["status", "source"]),
         |table| {
@@ -796,11 +796,11 @@ async fn prepare_imports() -> DatabaseResult<()> {
 }
 ```
 
-`hasIndexWith` 與兩個索引回呼接受依名稱或精確欄位順序比對的 `KeySelector`，可選類型包括 `primary`、`unique` 和 `btree`。`hasForeignKey` 使用相同的選擇類型比對外鍵名稱或本機欄位。
+`has_index_with` 與兩個索引回呼接受依名稱或精確欄位順序比對的 `KeySelector`，可選類型包括 `primary`、`unique` 和 `btree`。`has_foreign_key` 使用相同的選擇類型比對外鍵名稱或本機欄位。
 
 #### 建立和刪除資料庫 {#creating-and-dropping-databases}
 
-`createDatabase` 在所選 MySQL 伺服器建立資料庫，並採用連線設定的字元集與定序。資料庫同名時會回傳錯誤。`dropDatabaseIfExists` 刪除指定資料庫，資料庫已不存在時仍會成功。
+`create_database` 在所選 MySQL 伺服器建立資料庫，並採用連線設定的字元集與定序。資料庫同名時會回傳錯誤。`drop_database_if_exists` 刪除指定資料庫，資料庫已不存在時仍會成功。
 
 在 PostgreSQL 中，這兩個方法在交易外執行資料庫層級的 DDL。建立時，連線設定若提供字元集，就用它指定資料庫編碼。建立前先連線至一個已存在的資料庫。刪除時，請連線至同一伺服器上的另一個資料庫。
 
@@ -808,12 +808,12 @@ async fn prepare_imports() -> DatabaseResult<()> {
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn create_reporting_database() -> DatabaseResult<()> {
-    Schema::createDatabase("reporting_staging").await?;
+    Schema::create_database("reporting_staging").await?;
     Ok(())
 }
 
 async fn drop_reporting_database() -> DatabaseResult<()> {
-    Schema::dropDatabaseIfExists("reporting_staging").await?;
+    Schema::drop_database_if_exists("reporting_staging").await?;
     Ok(())
 }
 ```
@@ -822,17 +822,17 @@ SQLite 使用檔案路徑。目標路徑已存在時會建立失敗，原資料�
 
 #### 刪除全部資料表或檢視表 {#dropping-all-tables-or-views}
 
-`dropAllTables()` 刪除所選連線目前 Schema 中的永久資料表，`dropAllViews()` 刪除同一 Schema 中的檢視表。即使設定了資料表前置詞，方法仍會處理該類型的全部物件。操作獨立資料庫時，請使用具名連線。
+`drop_all_tables()` 刪除所選連線目前 Schema 中的永久資料表，`drop_all_views()` 刪除同一 Schema 中的檢視表。即使設定了資料表前置詞，方法仍會處理該類型的全部物件。操作獨立資料庫時，請使用具名連線。
 
-PostgreSQL 採用與 [`db:wipe` 相同的 Schema 範圍和排除規則](#rebuilding-mysql-with-fresh)。用 `dropAllTypes()` 刪除使用者定義的型別與定義域。
+PostgreSQL 採用與 [`db:wipe` 相同的 Schema 範圍和排除規則](#rebuilding-mysql-with-fresh)。用 `drop_all_types()` 刪除使用者定義的型別與定義域。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn clear_reporting_schema() -> DatabaseResult<()> {
     let mut schema = Schema::connection("reporting_staging")?;
-    schema.dropAllViews().await?;
-    schema.dropAllTables().await
+    schema.drop_all_views().await?;
+    schema.drop_all_tables().await
 }
 ```
 
@@ -840,13 +840,13 @@ async fn clear_reporting_schema() -> DatabaseResult<()> {
 
 #### 檢查資料表目錄 {#inspecting-tables}
 
-`getTables(None)` 列出所有可見使用者 Schema 的資料表。使用 `Some(name)` 限定一個 Schema，或使用 `getTablesIn(&[...])` 限定多個。檢查清除結果時應明確指定已清除的 Schema。
+`get_tables(None)` 列出所有可見使用者 Schema 的資料表。使用 `Some(name)` 限定一個 Schema，或使用 `get_tables_in(&[...])` 限定多個。檢查清除結果時應明確指定已清除的 Schema。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
-    let names = Schema::getTableListing(Some(schema)).await?;
+    let names = Schema::get_table_listing(Some(schema)).await?;
     for name in names {
         println!("{name}");
     }
@@ -854,11 +854,11 @@ async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
 }
 ```
 
-`getTableListing` 回傳限定資料表名稱。需要不含 Schema 的名稱時，使用 `getTableListingWith(schema, false)`。資料表記錄回傳資料庫目錄中的名稱，並在資料庫提供時附上大小及儲存中繼資料。
+`get_table_listing` 回傳限定資料表名稱。需要不含 Schema 的名稱時，使用 `get_table_listing_with(schema, false)`。資料表記錄回傳資料庫目錄中的名稱，並在資料庫提供時附上大小及儲存中繼資料。
 
 #### 解析資料表名稱參照 {#parsing-table-references}
 
-`parseSchemaAndTable(reference, fallback)` 在連線加入資料表前置詞之前分割邏輯資料表名稱。限定名稱優先採用明確指定的 Schema。僅傳資料表名稱時，可用 `SchemaFallback::None`、`SchemaFallback::Current` 或 `SchemaFallback::Named(name)`。用 `Schema::connection(name)` 選擇連線。資料表名稱參照最多包含兩個非空部分。
+`parse_schema_and_table(reference, fallback)` 在連線加入資料表前置詞之前分割邏輯資料表名稱。限定名稱優先採用明確指定的 Schema。僅傳資料表名稱時，可用 `SchemaFallback::None`、`SchemaFallback::Current` 或 `SchemaFallback::Named(name)`。用 `Schema::connection(name)` 選擇連線。資料表名稱參照最多包含兩個非空部分。
 
 ```rust
 use openrust::{
@@ -867,14 +867,14 @@ use openrust::{
 };
 
 async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<String>> {
-    let (schema, _) = Schema::parseSchemaAndTable(reference, SchemaFallback::Current)?;
-    Schema::getTableListing(schema.as_deref()).await
+    let (schema, _) = Schema::parse_schema_and_table(reference, SchemaFallback::Current)?;
+    Schema::get_table_listing(schema.as_deref()).await
 }
 ```
 
 #### 檢查單欄 {#inspecting-a-column}
 
-`Schema::getColumn` 回傳指定欄位的中繼資料。比對欄位名稱時忽略大小寫。欄位不存在時 Rust 回傳 `None`，資料庫錯誤透過 `DatabaseResult` 傳遞。
+`Schema::get_column` 回傳指定欄位的中繼資料。比對欄位名稱時忽略大小寫。欄位不存在時 Rust 回傳 `None`，資料庫錯誤透過 `DatabaseResult` 傳遞。
 
 在 PostgreSQL 中，欄位目錄回傳 identity 與 serial 標記、主鍵成員關係及生成運算式。未限定的資料表名稱使用伺服器目前的 Schema。可傳入限定名稱檢查其他 Schema 的資料表。
 
@@ -885,25 +885,25 @@ use openrust::{
 };
 
 async fn inspect_title() -> DatabaseResult<Option<Column>> {
-    Schema::getColumn("posts", "title").await
+    Schema::get_column("posts", "title").await
 }
 ```
 
 #### 檢查 Schema 和檢視表 {#inspecting-schemas-and-views}
 
-`getSchemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`getViews(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `getViews(Some(name))` 指定一個，或用 `getViewsIn(&[...])` 指定多個。 `getCurrentSchemaName()` 和 `getCurrentSchemaListing()` 依寫入連線設定回傳目前的 Schema。MySQL 回傳設定的資料庫名稱，SQLite 回傳 `main`。這兩個方法讀取連線設定，無須執行 SQL。
+`get_schemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`get_views(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `get_views(Some(name))` 指定一個，或用 `get_views_in(&[...])` 指定多個。 `get_current_schema_name()` 和 `get_current_schema_listing()` 依寫入連線設定回傳目前的 Schema。MySQL 回傳設定的資料庫名稱，SQLite 回傳 `main`。這兩個方法讀取連線設定，無須執行 SQL。
 
-在 PostgreSQL 中，`getCurrentSchemaListing()` 依設定順序回傳 `search_path`，並將 `$user` 解析為所選端點的使用者名稱。可使用逗號分隔的字串或 Schema 名稱陣列。`getCurrentSchemaName()` 回傳第一項。資料庫目錄方法查詢所選寫入連線，`getSchemas()` 標記伺服器實際使用的目前 Schema。
+在 PostgreSQL 中，`get_current_schema_listing()` 依設定順序回傳 `search_path`，並將 `$user` 解析為所選端點的使用者名稱。可使用逗號分隔的字串或 Schema 名稱陣列。`get_current_schema_name()` 回傳第一項。資料庫目錄方法查詢所選寫入連線，`get_schemas()` 標記伺服器實際使用的目前 Schema。
 
-`Schema::getTypes(None)` 列出 PostgreSQL 使用者 Schema 中的型別。可傳入 `Some(schema)`，或用 `Schema::getTypesIn(&[...])` 限定範圍。每項包含限定名稱、型別、類別，以及標示自動產生陣列和多範圍型別的 `implicit` 欄位。其他驅動會回傳不支援的 Schema 操作錯誤。
+`Schema::get_types(None)` 列出 PostgreSQL 使用者 Schema 中的型別。可傳入 `Some(schema)`，或用 `Schema::get_types_in(&[...])` 限定範圍。每項包含限定名稱、型別、類別，以及標示自動產生陣列和多範圍型別的 `implicit` 欄位。其他驅動會回傳不支援的 Schema 操作錯誤。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn inspect_status_view() -> DatabaseResult<()> {
-    if Schema::hasView("status_report").await? {
-        let current = Schema::getCurrentSchemaName()?;
-        for view in Schema::getViews(Some(&current)).await? {
+    if Schema::has_view("status_report").await? {
+        let current = Schema::get_current_schema_name()?;
+        for view in Schema::get_views(Some(&current)).await? {
             println!("{}", view.schema_qualified_name);
         }
     }
@@ -911,65 +911,65 @@ async fn inspect_status_view() -> DatabaseResult<()> {
 }
 ```
 
-`hasView("name")` 檢查目前的 Schema，使用限定名稱可檢查其他 Schema。連線設定的資料表前置詞會套用於 `hasView`。檢視表記錄會回傳資料庫目錄中的名稱，並在可讀取時提供定義。
+`has_view("name")` 檢查目前的 Schema，使用限定名稱可檢查其他 Schema。連線設定的資料表前置詞會套用於 `has_view`。檢視表記錄會回傳資料庫目錄中的名稱，並在可讀取時提供定義。
 
 #### 同時重新命名與修改欄位 {#renaming-and-changing-a-column}
 
-在 MySQL 上，將 `renameTo()` 和 `change()` 搭配使用，可在同一條 ALTER 中重新命名欄位並更新定義。欄位定義以目前欄位名稱開頭，並明確寫出要保留的修飾符。
+在 MySQL 上，將 `rename_to()` 和 `change()` 搭配使用，可在同一條 ALTER 中重新命名欄位並更新定義。欄位定義以目前欄位名稱開頭，並明確寫出要保留的修飾符。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn revise_import_labels() -> DatabaseResult<()> {
     Schema::table("imports", |table| {
-        table.string("old_label", 100).nullable().renameTo("label").change();
+        table.string("old_label", 100).nullable().rename_to("label").change();
     })
     .await
 }
 ```
 
-只改名時使用 `renameColumn`。在 SQLite 上，使用 `renameColumn` 改名，再單獨用 `change()` 更新欄位定義。
+只改名時使用 `rename_column`。在 SQLite 上，使用 `rename_column` 改名，再單獨用 `change()` 更新欄位定義。
 
 #### 修改欄位與索引 {#changing-columns-and-their-indexes}
 
-僅呼叫 `change()` 時會保留索引及外部索引鍵。用 `uniqueWith(false)` 或 `indexWith(false)` 搭配 `change()`，可依慣例名稱刪除索引。同一次操作重新命名欄位時，刪除會依舊欄名查找索引，新索引則使用新欄名。
+僅呼叫 `change()` 時會保留索引及外部索引鍵。用 `unique_with(false)` 或 `index_with(false)` 搭配 `change()`，可依慣例名稱刪除索引。同一次操作重新命名欄位時，刪除會依舊欄名查找索引，新索引則使用新欄名。
 
-使用 `indexWith("name")`、`uniqueWith("name")`、`fullTextWith("name")` 或 `spatialIndexWith("name")` 新增具名欄位索引。刪除自訂名稱的索引時，使用對應的資料表層級刪除方法。MySQL 要求保留外部索引鍵所依賴的索引，直到明確刪除條件約束或提供另一個可用索引。
+使用 `index_with("name")`、`unique_with("name")`、`full_text_with("name")` 或 `spatial_index_with("name")` 新增具名欄位索引。刪除自訂名稱的索引時，使用對應的資料表層級刪除方法。MySQL 要求保留外部索引鍵所依賴的索引，直到明確刪除條件約束或提供另一個可用索引。
 
 ```rust
 use openrust::database::schema::Blueprint;
 
 fn change_region_code(table: &mut Blueprint) {
     table.string("postal_code", 30)
-        .uniqueWith(false)
-        .indexWith("region_lookup")
-        .renameTo("region_code")
+        .unique_with(false)
+        .index_with("region_lookup")
+        .rename_to("region_code")
         .change();
 }
 ```
 
 #### 替換 MySQL 主鍵 {#replacing-a-mysql-primary-key}
 
-在同一個 MySQL 資料表變更回呼中依序緊接呼叫 `dropPrimary()` 和 `primary(...)`，OpenRust 會產生一條 ALTER TABLE。自動遞增欄位須為某個可用索引的第一欄，例如下例的複合主鍵。儲存引擎支援時，可在新主鍵宣告中指定 `inplace()` 或 `lock("none")`。
+在同一個 MySQL 資料表變更回呼中依序緊接呼叫 `drop_primary()` 和 `primary(...)`，OpenRust 會產生一條 ALTER TABLE。自動遞增欄位須為某個可用索引的第一欄，例如下例的複合主鍵。儲存引擎支援時，可在新主鍵宣告中指定 `inplace()` 或 `lock("none")`。
 
 ```rust
 use openrust::database::schema::Blueprint;
 
 fn replace_import_key(table: &mut Blueprint) {
-    table.dropPrimary();
+    table.drop_primary();
     table.primary(&["id", "tenant_id"], None);
 }
 ```
 
 #### 同時新增自動遞增欄位及主鍵 {#adding-an-auto-increment-column-and-a-primary-key}
 
-在既有 MySQL 資料表的同一個變更回呼中，宣告新的自動遞增欄位後，緊接著宣告包含該欄位的主鍵。OpenRust 會產生一條 ALTER TABLE。自動遞增欄位缺少其他支援索引時，應放在主鍵的第一欄。若已有主鍵，請在宣告新欄位前緊接呼叫 `dropPrimary()`。
+在既有 MySQL 資料表的同一個變更回呼中，宣告新的自動遞增欄位後，緊接著宣告包含該欄位的主鍵。OpenRust 會產生一條 ALTER TABLE。自動遞增欄位缺少其他支援索引時，應放在主鍵的第一欄。若已有主鍵，請在宣告新欄位前緊接呼叫 `drop_primary()`。
 
 ```rust
 use openrust::database::schema::Blueprint;
 
 fn add_import_key(table: &mut Blueprint) {
-    table.bigIncrements("id");
+    table.big_increments("id");
     table.primary(&["id", "tenant_id"], None);
 }
 ```
@@ -978,14 +978,14 @@ fn add_import_key(table: &mut Blueprint) {
 
 #### 依欄位清單移除索引 {#dropping-indexes-by-columns}
 
-將有序欄位清單傳給 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可移除該類型下使用預設名稱的索引。自訂名稱的索引使用對應的依名稱移除方法。
+將有序欄位清單傳給 `drop_index_columns`、`drop_unique_columns`、`drop_full_text_columns` 或 `drop_spatial_index_columns`，可移除該類型下使用預設名稱的索引。自訂名稱的索引使用對應的依名稱移除方法。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn remove_import_lookup() -> DatabaseResult<()> {
     Schema::table("imports", |table| {
-        table.dropIndexColumns(&["status", "created_at"]);
+        table.drop_index_columns(&["status", "created_at"]);
     })
     .await
 }
@@ -993,13 +993,13 @@ async fn remove_import_lookup() -> DatabaseResult<()> {
 
 #### 檢查 SQLite 主鍵索引 {#sqlite-primary-indexes}
 
-SQLite 的 `getIndexes()` 回傳主鍵底層索引的實際名稱。以 rowid 為基礎且沒有獨立索引的主鍵顯示為 `primary`。名為 `primary` 的一般索引可以與它同時出現。
+SQLite 的 `get_indexes()` 回傳主鍵底層索引的實際名稱。以 rowid 為基礎且沒有獨立索引的主鍵顯示為 `primary`。名為 `primary` 的一般索引可以與它同時出現。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn primary_columns() -> DatabaseResult<Vec<Option<String>>> {
-    let indexes = Schema::getIndexes("deliveries").await?;
+    let indexes = Schema::get_indexes("deliveries").await?;
     Ok(indexes
         .into_iter()
         .find(|index| index.primary)
@@ -1008,18 +1008,18 @@ async fn primary_columns() -> DatabaseResult<Vec<Option<String>>> {
 }
 ```
 
-用 `primary` 旗標識別主鍵，欄位按主鍵定義順序回傳。`hasIndex("deliveries", "primary")` 也能識別具有實際索引名稱的主鍵。
+用 `primary` 旗標識別主鍵，欄位按主鍵定義順序回傳。`has_index("deliveries", "primary")` 也能識別具有實際索引名稱的主鍵。
 
 #### 原生索引運算式 {#raw-indexes}
 
-`rawIndex(expression, name)` 使用資料庫方言的 SQL 鍵清單建立具名索引。MySQL 要求每個函式索引鍵額外包一層括號。SQLite 可直接寫 `lower(label)`。SQL 由遷移程式碼提供。用 `dropIndex(name)` 移除索引。
+`raw_index(expression, name)` 使用資料庫方言的 SQL 鍵清單建立具名索引。MySQL 要求每個函式索引鍵額外包一層括號。SQLite 可直接寫 `lower(label)`。SQL 由遷移程式碼提供。用 `drop_index(name)` 移除索引。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn index_labels() -> DatabaseResult<()> {
     Schema::table("imports", |table| {
-        table.rawIndex("(lower(label))", "imports_lower_label");
+        table.raw_index("(lower(label))", "imports_lower_label");
     })
     .await
 }
@@ -1038,7 +1038,7 @@ async fn revise_imports() -> DatabaseResult<()> {
             .algorithm("btree")
             .inplace()
             .lock("none");
-        table.dropColumn(&["legacy_code", "legacy_note"])
+        table.drop_column(&["legacy_code", "legacy_note"])
             .instant()
             .lock("default");
     })
@@ -1046,7 +1046,7 @@ async fn revise_imports() -> DatabaseResult<()> {
 }
 ```
 
-將多個欄位名稱傳給 `dropColumn`，可在同一條 MySQL ALTER 陳述式中刪除。可鏈式呼叫 `instant()` 或 `lock()` 要求線上 DDL 選項。引擎拒絕該陳述式時，這條陳述式涉及的欄位會保留。同一個 Blueprint 中較早的陳述式可能已經執行。
+將多個欄位名稱傳給 `drop_column`，可在同一條 MySQL ALTER 陳述式中刪除。可鏈式呼叫 `instant()` 或 `lock()` 要求線上 DDL 選項。引擎拒絕該陳述式時，這條陳述式涉及的欄位會保留。同一個 Blueprint 中較早的陳述式可能已經執行。
 
 #### 修改 PostgreSQL 欄位 {#postgresql-column-changes}
 
@@ -1056,7 +1056,7 @@ async fn revise_imports() -> DatabaseResult<()> {
 use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
 
 async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    cx.getSchemaBuilder().table("finance.fixture", |table| {
+    cx.get_schema_builder().table("finance.fixture", |table| {
         table.decimal("amount", 7, 2)
             .using(Expression::new("amount::numeric / 100"))
             .default(1)
@@ -1069,45 +1069,45 @@ async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
 
 #### PostgreSQL 生成欄位與 Identity {#postgresql-generated-and-identity}
 
-PostgreSQL 12 以上用 `storedAs()` 定義儲存生成欄位，18 以上用 `virtualAs()` 定義虛擬生成欄位。PostgreSQL 13 以上可對儲存生成欄位用 `dropExpression().change()` 移除運算式，保留目前值作為一般資料。PostgreSQL 拒絕移除虛擬生成運算式，Schema Builder 拒絕透過 `change()` 取代生成運算式。
+PostgreSQL 12 以上用 `stored_as()` 定義儲存生成欄位，18 以上用 `virtual_as()` 定義虛擬生成欄位。PostgreSQL 13 以上可對儲存生成欄位用 `drop_expression().change()` 移除運算式，保留目前值作為一般資料。PostgreSQL 拒絕移除虛擬生成運算式，Schema Builder 拒絕透過 `change()` 取代生成運算式。
 
-用 `generatedAs()` 定義 `BY DEFAULT` identity，加上 `always()` 即要求使用生成值。用 `generatedAsWith(Expression)` 傳入 `start with 10` 等可信序列選項。明確指定 identity 時，由 Blueprint 另外定義主鍵。在 `change()` 中明確宣告會依新定義重建序列，省略 identity 修飾符可以移除 identity。
+用 `generated_as()` 定義 `BY DEFAULT` identity，加上 `always()` 即要求使用生成值。用 `generated_as_with(Expression)` 傳入 `start with 10` 等可信序列選項。明確指定 identity 時，由 Blueprint 另外定義主鍵。在 `change()` 中明確宣告會依新定義重建序列，省略 identity 修飾符可以移除 identity。
 
 ```rust
 use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
 
 async fn create_generated_table(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    cx.getSchemaBuilder().create("finance.fixture", |table| {
+    cx.get_schema_builder().create("finance.fixture", |table| {
         table.bigInteger("seq")
-            .generatedAsWith(Expression::new("start with 10"))
+            .generated_as_with(Expression::new("start with 10"))
             .always();
         table.integer("base");
-        table.integer("saved").storedAs("base * 2");
-        table.integer("computed").virtualAs("base + 1");
+        table.integer("saved").stored_as("base * 2");
+        table.integer("computed").virtual_as("base + 1");
     }).await
 }
 ```
 
 #### PostgreSQL JSON 選擇器生成欄位 {#postgresql-generated-json-selectors}
 
-用 `storedAsJson()` 或 `virtualAsJson()` 定義生成欄位，使用 `->` 存取巢狀鍵、方括號存取陣列索引。PostgreSQL 將路徑末項擷取成文字。路徑缺少或 JSON null 會傳回 SQL NULL，路徑可能沒有值時，請宣告 `nullable()`。`01` 這類路徑項目是物件鍵，`[-1]` 選擇陣列最後一項。儲存欄位與虛擬欄位沿用[上文的 PostgreSQL 版本要求](#postgresql-generated-and-identity)。
+用 `stored_as_json()` 或 `virtual_as_json()` 定義生成欄位，使用 `->` 存取巢狀鍵、方括號存取陣列索引。PostgreSQL 將路徑末項擷取成文字。路徑缺少或 JSON null 會傳回 SQL NULL，路徑可能沒有值時，請宣告 `nullable()`。`01` 這類路徑項目是物件鍵，`[-1]` 選擇陣列最後一項。儲存欄位與虛擬欄位沿用[上文的 PostgreSQL 版本要求](#postgresql-generated-and-identity)。
 
 ```rust
 use openrust::database::{DatabaseResult, migrations::MigrationContext};
 
 async fn create_json_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    cx.getSchemaBuilder().create("finance.fixture", |table| {
+    cx.get_schema_builder().create("finance.fixture", |table| {
         table.integer("id");
         table.jsonb("payload");
-        table.string("label", 80).storedAsJson("payload->items[0]->label").nullable().index();
-        table.string("locale", 20).virtualAsJson("payload->settings->locale").nullable();
+        table.string("label", 80).stored_as_json("payload->items[0]->label").nullable().index();
+        table.string("locale", 20).virtual_as_json("payload->settings->locale").nullable();
     }).await
 }
 ```
 
 #### PostgreSQL 索引方法與重新命名 {#postgresql-index-methods}
 
-使用 `algorithm("brin")` 指定 PostgreSQL 索引存取方法。由伺服器檢查方法及其是否支援目標欄位或運算式。可與 `online()` 一起使用。`renameIndex()` 從帶有 Schema 的資料表名稱繼承 Schema，也接受明確限定 Schema 的舊索引名稱。資料表與舊索引名稱都未限定 Schema 時，PostgreSQL 依 `search_path` 尋找舊索引。重新命名後的索引仍在原 Schema。
+使用 `algorithm("brin")` 指定 PostgreSQL 索引存取方法。由伺服器檢查方法及其是否支援目標欄位或運算式。可與 `online()` 一起使用。`rename_index()` 從帶有 Schema 的資料表名稱繼承 Schema，也接受明確限定 Schema 的舊索引名稱。資料表與舊索引名稱都未限定 Schema 時，PostgreSQL 依 `search_path` 尋找舊索引。重新命名後的索引仍在原 Schema。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -1115,7 +1115,7 @@ use openrust::{database::DatabaseResult, support::facades::Schema};
 async fn index_references() -> DatabaseResult<()> {
     Schema::table("archive.documents", |table| {
         table.index(&["external_id"], Some("documents_reference_idx")).algorithm("brin");
-        table.renameIndex("documents_reference_idx", "documents_reference_brin");
+        table.rename_index("documents_reference_idx", "documents_reference_brin");
     })
     .await
 }
@@ -1123,7 +1123,7 @@ async fn index_references() -> DatabaseResult<()> {
 
 #### PostgreSQL 唯一約束 {#postgresql-unique-constraints}
 
-使用 `unique()` 建立具名 PostgreSQL 約束。PostgreSQL 15 及以上可用 `nullsNotDistinct(true)` 將 NULL 視為相等，以 `nullsNotDistinct(false)` 明確保留 NULL 相異行為。`deferrable(true).initiallyImmediate(false)` 將檢查延後到交易提交。`online()` 或明確指定 `algorithm("btree")` 時會先建立支援索引，再把索引附加到約束。`dropUnique()` 移除約束及其索引，也能移除早期 OpenRust 遷移在同一資料表上建立的獨立唯一索引。
+使用 `unique()` 建立具名 PostgreSQL 約束。PostgreSQL 15 及以上可用 `nulls_not_distinct(true)` 將 NULL 視為相等，以 `nulls_not_distinct(false)` 明確保留 NULL 相異行為。`deferrable(true).initially_immediate(false)` 將檢查延後到交易提交。`online()` 或明確指定 `algorithm("btree")` 時會先建立支援索引，再把索引附加到約束。`drop_unique()` 移除約束及其索引，也能移除早期 OpenRust 遷移在同一資料表上建立的獨立唯一索引。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -1132,9 +1132,9 @@ async fn require_unique_reference() -> DatabaseResult<()> {
     Schema::table("documents", |table| {
         table
             .unique(&["external_id"], Some("documents_external_unique"))
-            .nullsNotDistinct(true)
+            .nulls_not_distinct(true)
             .deferrable(true)
-            .initiallyImmediate(false);
+            .initially_immediate(false);
     })
     .await
 }
@@ -1148,41 +1148,41 @@ async fn require_unique_reference() -> DatabaseResult<()> {
 use openrust::support::facades::Schema;
 
 Schema::table("documents", |table| {
-    table.vectorIndex("embedding", Some("documents_vector_search")).online();
+    table.vector_index("embedding", Some("documents_vector_search")).online();
 }).await?;
 ```
 
-遷移中使用線上索引時，覆寫 [`withinTransaction()`](#migration-transactions) 並回傳 `false`。使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
+遷移中使用線上索引時，覆寫 [`within_transaction()`](#migration-transactions) 並回傳 `false`。使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
 
 #### 修改及刪除 SQL Server 欄位 {#sql-server-column-changes}
 
 SQL Server 的 `change()` 會先移除現有預設約束，再修改欄位型別與空值約束。如果宣告了 `default()`，建構器會在同一遷移中用獨立的 `ADD DEFAULT … FOR …` 陳述式設定新值。省略 `default()` 會移除舊預設值。
 
-用 `dropColumn()` 刪除欄位時，建構器會先移除這些欄位的預設約束與欄位層級檢查約束。引用這些欄位的資料表層級約束需要先明確移除。
+用 `drop_column()` 刪除欄位時，建構器會先移除這些欄位的預設約束與欄位層級檢查約束。引用這些欄位的資料表層級約束需要先明確移除。
 
 ```rust
 use openrust::database::{DatabaseResult, migrations::MigrationContext};
 
 async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    cx.getSchemaBuilder().table("finance.fixture", |table| {
+    cx.get_schema_builder().table("finance.fixture", |table| {
         table.string("label", Some(20)).nullable().change();
-        table.dropColumn(&["score"]);
+        table.drop_column(&["score"]);
     }).await
 }
 ```
 
 #### 重新命名 SQL Server 資料表、欄位與索引 {#sql-server-renaming}
 
-在 SQL Server 上，`rename()`、`renameColumn()` 和 `renameIndex()` 使用 `sys.sp_rename`。資料表重新命名在原 Schema 內完成，連線的資料表前綴套用到新舊名稱。索引會保留原索引欄位和資料。應用程式碼和儲存的 SQL 若仍引用舊名稱，需要一併更新。
+在 SQL Server 上，`rename()`、`rename_column()` 和 `rename_index()` 使用 `sys.sp_rename`。資料表重新命名在原 Schema 內完成，連線的資料表前綴套用到新舊名稱。索引會保留原索引欄位和資料。應用程式碼和儲存的 SQL 若仍引用舊名稱，需要一併更新。
 
 ```rust
 use openrust::database::{DatabaseResult, migrations::MigrationContext};
 
 async fn rename_fixture(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    let mut schema = cx.getSchemaBuilder();
+    let mut schema = cx.get_schema_builder();
     schema.table("finance.fixture", |table| {
-        table.renameColumn("score", "score_new");
-        table.renameIndex("ix_fixture", "ix_new");
+        table.rename_column("score", "score_new");
+        table.rename_index("ix_fixture", "ix_new");
     }).await?;
     schema.rename("finance.fixture", "finance.archive").await
 }
@@ -1196,7 +1196,7 @@ async fn rename_fixture(cx: &mut MigrationContext) -> DatabaseResult<()> {
 use openrust::database::{DatabaseResult, migrations::MigrationContext};
 
 async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    cx.getSchemaBuilder().table("finance.fixture", |table| {
+    cx.get_schema_builder().table("finance.fixture", |table| {
         table.computed("twice", "quantity * 2").persisted().change();
     }).await
 }
@@ -1204,33 +1204,33 @@ async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
 
 #### SQL Server 主鍵約束 {#sql-server-primary-key-constraints}
 
-用 `primary(columns, Some(name))` 在新表或既有資料表建立具名主鍵，再使用 `dropPrimaryNamed(name)` 移除。使用慣例名稱的主鍵可透過 `dropPrimaryColumns()` 傳入依序排列的欄位名稱來移除。無參數的 `dropPrimary()` 會查詢目標資料表上的實際主鍵。仍有外鍵參照該主鍵時，SQL Server 會拒絕移除。
+用 `primary(columns, Some(name))` 在新表或既有資料表建立具名主鍵，再使用 `drop_primary_named(name)` 移除。使用慣例名稱的主鍵可透過 `drop_primary_columns()` 傳入依序排列的欄位名稱來移除。無參數的 `drop_primary()` 會查詢目標資料表上的實際主鍵。仍有外鍵參照該主鍵時，SQL Server 會拒絕移除。
 
 ```rust
 use openrust::database::{DatabaseResult, migrations::MigrationContext};
 
 async fn remove_primary_key(cx: &mut MigrationContext) -> DatabaseResult<()> {
-    let mut schema = cx.getSchemaBuilder();
-    schema.table("finance.child", |table| table.dropForeign("fixture_foreign")).await?;
-    schema.table("finance.fixture", |table| table.dropPrimaryNamed("fixture_key")).await
+    let mut schema = cx.get_schema_builder();
+    schema.table("finance.child", |table| table.drop_foreign("fixture_foreign")).await?;
+    schema.table("finance.fixture", |table| table.drop_primary_named("fixture_key")).await
 }
 ```
 
 #### SQL Server 線上索引 {#sql-server-online-indexes}
 
-在支援線上索引操作的 SQL Server 版本上，對 `index()` 或 `unique()` 呼叫 `online()` 以使用 `WITH (ONLINE = ON)`。保留預設的[遷移交易](#migration-transactions)。使用 `dropForeign(name)` 依約束名稱移除外鍵。
+在支援線上索引操作的 SQL Server 版本上，對 `index()` 或 `unique()` 呼叫 `online()` 以使用 `WITH (ONLINE = ON)`。保留預設的[遷移交易](#migration-transactions)。使用 `drop_foreign(name)` 依約束名稱移除外鍵。
 
 ```rust
 schema.table("dbo.fixture_entries", |table| {
     table.index(&["score"], Some("fixture_search")).online();
     table.unique(&["parent_id"], Some("fixture_unique")).online();
-    table.dropForeign("fixture_parent");
+    table.drop_foreign("fixture_parent");
 }).await?;
 ```
 
 #### 從模型定義外鍵欄位 {#foreign-ids-from-models}
 
-使用 `foreignIdFor::<Model>(None)`，由 Eloquent 模型提供外鍵欄位名稱。`constrained()` 讀取模型的資料表和主鍵名稱，也支援自訂名稱。傳入 `Some(name)` 可指定引用端的欄位名稱。
+使用 `foreign_id_for::<Model>(None)`，由 Eloquent 模型提供外鍵欄位名稱。`constrained()` 讀取模型的資料表和主鍵名稱，也支援自訂名稱。傳入 `Some(name)` 可指定引用端的欄位名稱。
 
 範例中的 `PhotoAsset` 使用 `photo_assets` 資料表，主鍵 `photo_code` 為 UUID。
 
@@ -1239,34 +1239,34 @@ use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn add_photo_reference() -> DatabaseResult<()> {
     Schema::table("attachments", |table| {
-        table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+        table.foreign_id_for::<PhotoAsset>(Some("photo_ref"))
             .nullable()
             .constrained()
-            .nullOnDelete();
+            .null_on_delete();
     })
     .await
 }
 
 async fn drop_photo_reference() -> DatabaseResult<()> {
     Schema::table("attachments", |table| {
-        table.dropConstrainedForeignIdFor::<PhotoAsset>(Some("photo_ref"));
+        table.drop_constrained_foreign_id_for::<PhotoAsset>(Some("photo_ref"));
     })
     .await
 }
 ```
 
-模型 ID 預設使用無號大整數。模型為主鍵產生 UUID 或 ULID 時會採用對應欄位類型。可用 `foreignUuidFor` 和 `foreignUlidFor` 明確選擇格式。手動指派 ID 的模型可覆寫 `Model::getKeyType`。刪除沒有外鍵約束的欄位時可用 `dropForeignIdFor`。
+模型 ID 預設使用無號大整數。模型為主鍵產生 UUID 或 ULID 時會採用對應欄位類型。可用 `foreign_uuid_for` 和 `foreign_ulid_for` 明確選擇格式。手動指派 ID 的模型可覆寫 `Model::get_key_type`。刪除沒有外鍵約束的欄位時可用 `drop_foreign_id_for`。
 
 #### 外鍵約束命名 {#naming-foreign-keys}
 
-用 `constrainedWith(table, column, index_name)` 個別覆寫外鍵的參照表、參照欄位或約束名稱。省略參照表或參照欄位時沿用模型提供的值。未提供模型時，參照欄位預設是 `id`，表名根據本地欄位名稱最後一個 `_<參照欄位>` 之前的部分取複數。刪除具名約束時，向 `dropForeign` 傳入約束名稱。
+用 `constrained_with(table, column, index_name)` 個別覆寫外鍵的參照表、參照欄位或約束名稱。省略參照表或參照欄位時沿用模型提供的值。未提供模型時，參照欄位預設是 `id`，表名根據本地欄位名稱最後一個 `_<參照欄位>` 之前的部分取複數。刪除具名約束時，向 `drop_foreign` 傳入約束名稱。
 
 ```rust
 Schema::table("attachments", |table| {
-    table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+    table.foreign_id_for::<PhotoAsset>(Some("photo_ref"))
         .nullable()
-        .constrainedWith(None, None, Some("attachments_photo"))
-        .nullOnDelete();
+        .constrained_with(None, None, Some("attachments_photo"))
+        .null_on_delete();
 }).await?;
 ```
 
@@ -1279,18 +1279,18 @@ use openrust::database::{DatabaseResult, schema::Schema};
 
 async fn relax_owner_reference() -> DatabaseResult<()> {
     Schema::table("orders", |table| {
-        table.dropForeignColumns(&["owner_id"]);
+        table.drop_foreign_columns(&["owner_id"]);
         table.integer("owner_id").nullable().change();
     })
     .await
 }
 ```
 
-用 `dropForeignColumns` 依本地欄位刪除外鍵，或用 `dropForeign` 刪除有明確名稱的外鍵。兩種方法都支援內嵌 REFERENCES 和資料表層級外鍵。用 `dropPrimary` 刪除內嵌或資料表層級主鍵。其餘內嵌約束仍然生效。
+用 `drop_foreign_columns` 依本地欄位刪除外鍵，或用 `drop_foreign` 刪除有明確名稱的外鍵。兩種方法都支援內嵌 REFERENCES 和資料表層級外鍵。用 `drop_primary` 刪除內嵌或資料表層級主鍵。其餘內嵌約束仍然生效。
 
 #### PostgreSQL 外鍵 {#postgresql-foreign-keys}
 
-使用 Schema 限定名稱新增跨 Schema 外鍵。PostgreSQL 預設驗證既有資料列。`notValid()` 會略過這次掃描，之後新增或修改外鍵值時仍會檢查。`deferrable(true).initiallyImmediate(false)` 將檢查延後到提交交易。`initiallyImmediate(true)` 預設在各陳述式結束時檢查。使用 `dropForeign(name)` 移除具名外鍵，或以 `dropForeignColumns(&[...])` 移除按慣例命名的外鍵。
+使用 Schema 限定名稱新增跨 Schema 外鍵。PostgreSQL 預設驗證既有資料列。`not_valid()` 會略過這次掃描，之後新增或修改外鍵值時仍會檢查。`deferrable(true).initially_immediate(false)` 將檢查延後到提交交易。`initially_immediate(true)` 預設在各陳述式結束時檢查。使用 `drop_foreign(name)` 移除具名外鍵，或以 `drop_foreign_columns(&[...])` 移除按慣例命名的外鍵。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -1302,8 +1302,8 @@ async fn constrain_books() -> DatabaseResult<()> {
             .references("id")
             .on("authors.records")
             .deferrable(true)
-            .initiallyImmediate(false)
-            .notValid();
+            .initially_immediate(false)
+            .not_valid();
     })
     .await
 }
@@ -1311,7 +1311,7 @@ async fn constrain_books() -> DatabaseResult<()> {
 
 #### 檢查外鍵 {#inspecting-foreign-keys}
 
-用 `getForeignKeys` 查看本地欄位、目標 Schema 和資料表、目標欄位以及更新和刪除動作。複合外鍵的欄位依照約束定義順序回傳。
+用 `get_foreign_keys` 查看本地欄位、目標 Schema 和資料表、目標欄位以及更新和刪除動作。複合外鍵的欄位依照約束定義順序回傳。
 
 在 PostgreSQL 中，外鍵目錄回傳約束名稱及參照的 Schema。複合外鍵的本地欄位與目標欄位依約束順序配對，也適用於跨 Schema 參照。
 
@@ -1319,7 +1319,7 @@ async fn constrain_books() -> DatabaseResult<()> {
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn author_schema() -> DatabaseResult<Option<String>> {
-    Ok(Schema::getForeignKeys("books")
+    Ok(Schema::get_foreign_keys("books")
         .await?
         .into_iter()
         .find(|key| key.columns == ["author_id"])
@@ -1331,13 +1331,13 @@ SQLite 回傳約束所在的 Schema，例如 `main` 或附加資料庫名稱。�
 
 #### 切換外鍵檢查 {#toggling-foreign-key-constraints}
 
-用 `Schema::withoutForeignKeyConstraints` 在同一寫入工作階段中暫停外鍵檢查。透過傳入的工作階段執行 SQL，並呼叫其 `getSchemaBuilder()` 操作 Schema。離開範圍時會恢復進入前的設定。
+用 `Schema::without_foreign_key_constraints` 在同一寫入工作階段中暫停外鍵檢查。透過傳入的工作階段執行 SQL，並呼叫其 `get_schema_builder()` 操作 Schema。離開範圍時會恢復進入前的設定。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
 
 async fn import_order() -> DatabaseResult<()> {
-    Schema::withoutForeignKeyConstraints(|session| {
+    Schema::without_foreign_key_constraints(|session| {
         Box::pin(async move {
             session
                 .statement(
@@ -1352,7 +1352,7 @@ async fn import_order() -> DatabaseResult<()> {
 }
 ```
 
-需要手動切換時，呼叫 `Schema::session().await?` 或具名連線建構器的 `session().await?` 取得寫入工作階段，再呼叫 `disableForeignKeyConstraints` 或 `enableForeignKeyConstraints`，最後用 `close().await?` 歸還。SQLite 資料表重建繼續使用連線的 Schema Builder，由它管理重建所需的工作階段和交易。
+需要手動切換時，呼叫 `Schema::session().await?` 或具名連線建構器的 `session().await?` 取得寫入工作階段，再呼叫 `disable_foreign_key_constraints` 或 `enable_foreign_key_constraints`，最後用 `close().await?` 歸還。SQLite 資料表重建繼續使用連線的 Schema Builder，由它管理重建所需的工作階段和交易。
 
 ## 事件 {#events}
 

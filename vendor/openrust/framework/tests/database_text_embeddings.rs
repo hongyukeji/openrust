@@ -85,10 +85,10 @@ async fn text_vectors_reuse_http_embeddings_and_keep_application_caches_separate
     let pg = first.database().await.unwrap();
     let query = pg
         .table("documents")
-        .selectVectorDistanceText("embedding", "shared text", Some("distance"))
+        .select_vector_distance_text("embedding", "shared text", Some("distance"))
         .await
         .unwrap()
-        .whereVectorSimilarToText("embedding", "shared text", 0.5, true)
+        .where_vector_similar_to_text("embedding", "shared text", 0.5, true)
         .await
         .unwrap();
     assert_eq!(
@@ -107,29 +107,29 @@ async fn text_vectors_reuse_http_embeddings_and_keep_application_caches_separate
         .await
         .unwrap()
         .table("documents")
-        .orderByVectorDistanceText("embedding", "shared text")
+        .order_by_vector_distance_text("embedding", "shared text")
         .await
         .unwrap();
     assert_eq!(calls.load(Ordering::Relaxed), 2);
     assert!(matches!(
         pg.table("documents")
-            .whereVectorDistanceLessThanText("embedding", "retry", 0.3)
+            .where_vector_distance_less_than_text("embedding", "retry", 0.3)
             .await,
         Err(DatabaseError::Embedding(_))
     ));
     pg.table("documents")
-        .orWhereVectorDistanceLessThanText("embedding", "retry", 0.3)
+        .or_where_vector_distance_less_than_text("embedding", "retry", 0.3)
         .await
         .unwrap();
     pg.table("documents")
-        .orderByVectorDistanceText("embedding", "retry")
+        .order_by_vector_distance_text("embedding", "retry")
         .await
         .unwrap();
     assert_eq!(calls.load(Ordering::Relaxed), 4);
     for _ in 0..2 {
         assert!(matches!(
             pg.table("documents")
-                .orderByVectorDistanceText("embedding", "short")
+                .order_by_vector_distance_text("embedding", "short")
                 .await,
             Err(DatabaseError::InvalidQuery("embedding response dimensions"))
         ));
@@ -139,7 +139,7 @@ async fn text_vectors_reuse_http_embeddings_and_keep_application_caches_separate
     first.instance(provider("alternate-model")).await.unwrap();
     let new_model = pg
         .table("documents")
-        .orderByVectorDistanceText("embedding", "shared text")
+        .order_by_vector_distance_text("embedding", "shared text")
         .await
         .unwrap();
     assert_eq!(new_model.get_bindings().unwrap(), ["[0.0,1.0]".into()]);
@@ -156,7 +156,7 @@ async fn text_vectors_report_missing_providers_and_reject_unsupported_drivers() 
             .await
             .unwrap()
             .table("documents")
-            .whereVectorSimilarToText("embedding", "text", 0.5, true)
+            .where_vector_similar_to_text("embedding", "text", 0.5, true)
             .await,
         Err(DatabaseError::Embedding(_))
     ));
@@ -166,7 +166,7 @@ async fn text_vectors_report_missing_providers_and_reject_unsupported_drivers() 
             .await
             .unwrap()
             .table("documents")
-            .whereVectorSimilarToText("embedding", "text", 0.5, true)
+            .where_vector_similar_to_text("embedding", "text", 0.5, true)
             .await,
         Err(DatabaseError::UnsupportedOperation(
             "vector distance queries"

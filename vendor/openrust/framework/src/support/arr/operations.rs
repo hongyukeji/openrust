@@ -48,7 +48,6 @@ fn as_key(value: Value) -> Result<String, ArrValueError> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Arr {
     pub fn arrayable(value: &Value) -> bool {
         Self::accessible(value)
@@ -63,7 +62,7 @@ impl Arr {
         data::collapse(entries(value).map(|(_, item)| item.clone()))
     }
 
-    pub fn crossJoin<T: Clone>(arrays: &[&[T]]) -> Vec<Vec<T>> {
+    pub fn cross_join<T: Clone>(arrays: &[&[T]]) -> Vec<Vec<T>> {
         arrays.iter().fold(vec![Vec::new()], |products, array| {
             products
                 .into_iter()
@@ -104,7 +103,7 @@ impl Arr {
         pack(entries(value).filter(|(key, _)| keys.contains(&key.as_ref())))
     }
 
-    pub fn onlyValues(value: &Value, values: &[Value], strict: bool) -> Value {
+    pub fn only_values(value: &Value, values: &[Value], strict: bool) -> Value {
         Self::r#where(value, |item, _| {
             values
                 .iter()
@@ -112,7 +111,7 @@ impl Arr {
         })
     }
 
-    pub fn exceptValues(value: &Value, values: &[Value], strict: bool) -> Value {
+    pub fn except_values(value: &Value, values: &[Value], strict: bool) -> Value {
         Self::reject(value, |item, _| {
             values
                 .iter()
@@ -121,21 +120,21 @@ impl Arr {
     }
 
     pub fn first(value: &Value) -> Option<&Value> {
-        Self::firstWhere(value, |_, _| true)
+        Self::first_where(value, |_, _| true)
     }
 
     pub fn last(value: &Value) -> Option<&Value> {
-        Self::lastWhere(value, |_, _| true)
+        Self::last_where(value, |_, _| true)
     }
 
-    pub fn firstWhere(
+    pub fn first_where(
         value: &Value,
         mut predicate: impl FnMut(&Value, &str) -> bool,
     ) -> Option<&Value> {
         entries(value).find_map(|(key, item)| predicate(item, &key).then_some(item))
     }
 
-    pub fn lastWhere(
+    pub fn last_where(
         value: &Value,
         mut predicate: impl FnMut(&Value, &str) -> bool,
     ) -> Option<&Value> {
@@ -145,10 +144,10 @@ impl Arr {
     }
 
     pub fn sole(value: &Value) -> Result<&Value, ArrValueError> {
-        Self::soleWhere(value, |_, _| true)
+        Self::sole_where(value, |_, _| true)
     }
 
-    pub fn soleWhere(
+    pub fn sole_where(
         value: &Value,
         mut predicate: impl FnMut(&Value, &str) -> bool,
     ) -> Result<&Value, ArrValueError> {
@@ -189,7 +188,7 @@ impl Arr {
         format!("{}{final_glue}{last}", rest.join(glue))
     }
 
-    pub fn keyBy(value: &Value, mut project: impl FnMut(&Value, &str) -> String) -> Value {
+    pub fn key_by(value: &Value, mut project: impl FnMut(&Value, &str) -> String) -> Value {
         data::packed(
             entries(value)
                 .map(|(key, item)| (project(item, &key), item.clone()))
@@ -197,8 +196,8 @@ impl Arr {
         )
     }
 
-    pub fn prependKeysWith(value: &Value, prefix: &str) -> Value {
-        Self::keyBy(value, |_, key| format!("{prefix}{key}"))
+    pub fn prepend_keys_with(value: &Value, prefix: &str) -> Value {
+        Self::key_by(value, |_, key| format!("{prefix}{key}"))
     }
 
     pub fn map(value: &Value, mut callback: impl FnMut(&Value, &str) -> Value) -> Value {
@@ -212,7 +211,7 @@ impl Arr {
         )
     }
 
-    pub fn mapWithKeys<I: IntoIterator<Item = (String, Value)>>(
+    pub fn map_with_keys<I: IntoIterator<Item = (String, Value)>>(
         value: &Value,
         mut callback: impl FnMut(&Value, &str) -> I,
     ) -> Value {
@@ -224,7 +223,7 @@ impl Arr {
     }
 
     /// Passes a list chunk and its outer key as explicit callback arguments.
-    pub fn mapSpread(
+    pub fn map_spread(
         value: &Value,
         mut callback: impl FnMut(&[Value], &str) -> Value,
     ) -> Result<Value, ArrValueError> {
@@ -329,7 +328,7 @@ impl Arr {
         Ok(())
     }
 
-    pub fn randItem(value: &Value) -> Result<&Value, ArrValueError> {
+    pub fn rand_item(value: &Value) -> Result<&Value, ArrValueError> {
         let items: Vec<_> = entries(value).map(|(_, item)| item).collect();
         if items.is_empty() {
             return Err(ArrValueError::Missing);
@@ -373,7 +372,7 @@ impl Arr {
         Ok(items)
     }
 
-    pub fn sortBy<K: Ord>(
+    pub fn sort_by<K: Ord>(
         value: &Value,
         mut project: impl FnMut(&Value, &str) -> K,
         descending: bool,
@@ -387,26 +386,26 @@ impl Arr {
     }
 
     pub fn sort(value: &Value) -> Value {
-        Self::sortValues(value, false)
+        Self::sort_values(value, false)
     }
 
-    pub fn sortDesc(value: &Value) -> Value {
-        Self::sortValues(value, true)
+    pub fn sort_desc(value: &Value) -> Value {
+        Self::sort_values(value, true)
     }
 
-    fn sortValues(value: &Value, descending: bool) -> Value {
+    fn sort_values(value: &Value, descending: bool) -> Value {
         let mut items: Vec<_> = entries(value).collect();
         items.sort_by(|(_, left), (_, right)| order(left, right, descending));
         pack(items.into_iter())
     }
 
-    pub fn sortRecursive(value: &Value, descending: bool) -> Result<Value, DataPathError> {
+    pub fn sort_recursive(value: &Value, descending: bool) -> Result<Value, DataPathError> {
         data::check_depth(value, 0)?;
         Ok(sort_recursive(value, descending))
     }
 
-    pub fn sortRecursiveDesc(value: &Value) -> Result<Value, DataPathError> {
-        Self::sortRecursive(value, true)
+    pub fn sort_recursive_desc(value: &Value) -> Result<Value, DataPathError> {
+        Self::sort_recursive(value, true)
     }
 
     pub fn take(value: &Value, limit: isize) -> Value {
@@ -456,11 +455,11 @@ impl Arr {
         (pack(pass.into_iter()), pack(fail.into_iter()))
     }
 
-    pub fn toCssClasses(value: &Value) -> String {
+    pub fn to_css_classes(value: &Value) -> String {
         css(value, false)
     }
 
-    pub fn toCssStyles(value: &Value) -> String {
+    pub fn to_css_styles(value: &Value) -> String {
         css(value, true)
     }
 }
@@ -574,7 +573,7 @@ fn sort_recursive(value: &Value, descending: bool) -> Value {
     if !Arr::accessible(value) {
         return value.clone();
     }
-    if Arr::isList(value) {
+    if Arr::is_list(value) {
         items.sort_by(|(_, left), (_, right)| order(left, right, descending));
         Value::Array(items.into_iter().map(|(_, item)| item).collect())
     } else {

@@ -60,7 +60,7 @@ async fn manager() -> (TestApp, Arc<CacheManager>) {
 async fn custom_driver_lifetime_dispatch_and_named_configuration() {
     let (app, manager) = manager().await;
     let (_, second) = self::manager().await;
-    let owner = manager.getContainer().unwrap();
+    let owner = manager.get_container().unwrap();
     assert!(std::ptr::eq(owner.as_ref(), app.app().container()));
     let container = Arc::downgrade(&owner);
     let settings = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -69,7 +69,7 @@ async fn custom_driver_lifetime_dispatch_and_named_configuration() {
     manager
         .extend("project", move |manager, config| {
             assert!(Arc::ptr_eq(
-                &manager.getContainer().unwrap(),
+                &manager.get_container().unwrap(),
                 &container.upgrade().unwrap()
             ));
             let _ = manager.store(Some("builtin"))?;
@@ -128,7 +128,7 @@ async fn custom_driver_lifetime_dispatch_and_named_configuration() {
         &mirror,
         &manager.store(Some("mirror")).unwrap()
     ));
-    manager.setDefaultDriver("mirror").unwrap();
+    manager.set_default_driver("mirror").unwrap();
     assert!(Arc::ptr_eq(&mirror, &manager.store(None).unwrap()));
 }
 
@@ -151,7 +151,7 @@ async fn custom_driver_facade_runs_before_artisan() {
         events.dispatched(CacheHit::NAME)[0]
             .downcast_ref::<CacheHit>()
             .unwrap()
-            .storeName
+            .store_name
             .as_deref(),
         Some("reports")
     );
@@ -270,7 +270,7 @@ async fn purging_during_creation_does_not_publish_a_stale_repository() {
     let pending = manager.clone();
     let first = std::thread::spawn(move || pending.store(None).unwrap());
     entered.wait();
-    manager.forgetDriver(None).unwrap();
+    manager.forget_driver(None).unwrap();
     let current = manager.store(None).unwrap();
     release.wait();
     let stale = first.join().unwrap();

@@ -20,7 +20,7 @@
 
 遷移建立多型歸屬欄位、唯一的 64 字元權杖雜湊欄位、可為空值的能力和時間欄位，以及到期時間索引。此功能同時註冊 Sanctum 守衛與 CSRF Cookie 路由。
 
-發佈的遷移使用 `table.morphs("tokenable")`，預設建立整數型 `tokenable_id`。歸屬模型使用 UUID 或 ULID 時，請在首次遷移前，從 `openrust::database::schema` 匯入 `Schema`，並在應用程式服務提供者的 `boot` 中呼叫 `Schema::morphUsingUuids()?` 或 `Schema::morphUsingUlids()?`。此設定適用於目前應用程式後續的 `morphs` 呼叫。權杖資料表本身的主鍵仍為整數。
+發佈的遷移使用 `table.morphs("tokenable")`，預設建立整數型 `tokenable_id`。歸屬模型使用 UUID 或 ULID 時，請在首次遷移前，從 `openrust::database::schema` 匯入 `Schema`，並在應用程式服務提供者的 `boot` 中呼叫 `Schema::morph_using_uuids()?` 或 `Schema::morph_using_ulids()?`。此設定適用於目前應用程式後續的 `morphs` 呼叫。權杖資料表本身的主鍵仍為整數。
 
 ## 簽發個人存取權杖 {#issuing-api-tokens}
 
@@ -38,7 +38,7 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 在服務提供者中透過應用程式的 `Sanctum` 服務呼叫 `usePersonalAccessTokenModel::<M>()`，選擇 Eloquent 模型的資料表和連線。應用程式遷移負責建立自訂資料表，使用標準 Sanctum 屬性以及模型宣告的主鍵。簽發時套用模型的屬性修改器和轉換，並觸發 Eloquent 建立事件。Bearer 驗證透過模型的存取器和轉換讀取屬性，再透過同一模型實例儲存最後使用時間。`revokeToken` 依歸屬刪除模型實例，遵循模型刪除事件。Artisan 清理套用模型全域作用域並批次刪除，不逐筆觸發模型事件。
 
-使用 UUID 或 ULID 主鍵時，在遷移中宣告對應的欄位，並在模型中用 `ModelMetadata::uniqueId(UniqueId::Uuid)` 或 `UniqueId::Ulid` 設定產生策略。若主鍵欄位名稱不是 `id`，用 `primaryKey` 宣告。憑證格式仍為 `<主鍵>|<密鑰>`。權杖與歸屬識別碼使用 `AuthIdentifier` 保留整數或字串型別。歸屬主鍵是字串時，遷移須使用相符的 `tokenable_id` 欄位型別，簽發和撤銷時傳入該歸屬識別碼。
+使用 UUID 或 ULID 主鍵時，在遷移中宣告對應的欄位，並在模型中用 `ModelMetadata::unique_id(UniqueId::Uuid)` 或 `UniqueId::Ulid` 設定產生策略。若主鍵欄位名稱不是 `id`，用 `primary_key` 宣告。憑證格式仍為 `<主鍵>|<密鑰>`。權杖與歸屬識別碼使用 `AuthIdentifier` 保留整數或字串型別。歸屬主鍵是字串時，遷移須使用相符的 `tokenable_id` 欄位型別，簽發和撤銷時傳入該歸屬識別碼。
 
 可用 `SANCTUM_TOKEN_PREFIX` 為新簽發的權杖密鑰設定應用程式專用前綴。
 
@@ -60,7 +60,7 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 use openrust::{http::ApiResponse, routing::RoutingError, support::facades::Route};
 
 fn register() -> Result<(), RoutingError> {
-    Route::getWith("/reports", || ApiResponse::success(["quarterly"]), |route| {
+    Route::get_with("/reports", || ApiResponse::success(["quarterly"]), |route| {
         route.middleware_name("auth:sanctum").middleware_name("abilities:reports:read");
         Ok(())
     })
@@ -95,4 +95,4 @@ fn register() -> Result<(), RoutingError> {
 
 在測試中傳入擁有所有權的 Eloquent 使用者，用 `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` 為 `TestApp` 後續請求設定身分和能力。預設選擇 Sanctum 守衛。可傳入 `Some("guard-name")` 指定守衛，或傳入 `["*"]` 授予全部能力。測試夾具直接提供身分和能力，無須簽發資料庫權杖。
 
-傳回的共享使用者已清除 `wasRecentlyCreated` 狀態。
+傳回的共享使用者已清除 `was_recently_created` 狀態。

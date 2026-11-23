@@ -3863,10 +3863,9 @@ fn polish_surname(random: &FakerRandom) -> &'static str {
     })
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
     /// Samples a company slogan from the selected Company provider.
-    pub fn catchPhrase(&self) -> DatabaseResult<String> {
+    pub fn catch_phrase(&self) -> DatabaseResult<String> {
         phrases::catch_phrase(&self.random, self.provider_locale()).ok_or(
             DatabaseError::InvalidQuery("unsupported Faker catch phrase locale"),
         )
@@ -3879,15 +3878,15 @@ impl Faker {
         )
     }
 
-    pub fn catchPhraseNoun(&self) -> DatabaseResult<&'static str> {
+    pub fn catch_phrase_noun(&self) -> DatabaseResult<&'static str> {
         self.catch_phrase_part(Part::Noun)
     }
 
-    pub fn catchPhraseVerb(&self) -> DatabaseResult<&'static str> {
+    pub fn catch_phrase_verb(&self) -> DatabaseResult<&'static str> {
         self.catch_phrase_part(Part::Verb)
     }
 
-    pub fn catchPhraseAttribute(&self) -> DatabaseResult<&'static str> {
+    pub fn catch_phrase_attribute(&self) -> DatabaseResult<&'static str> {
         self.catch_phrase_part(Part::Attribute)
     }
 
@@ -3900,8 +3899,8 @@ impl Faker {
 
     /// Samples a company name using the selected locale.
     pub fn company(&self) -> String {
-        let surname = || self.lastName();
-        let suffix = || self.companySuffix();
+        let surname = || self.last_name();
+        let suffix = || self.company_suffix();
         match self.provider_locale() {
             "ar_EG" => {
                 let prefix = || self.random.sample(ARABIC_PREFIXES);
@@ -4040,12 +4039,12 @@ impl Faker {
     }
 
     /// Samples a job title using the configured Company provider.
-    pub fn jobTitle(&self) -> String {
+    pub fn job_title(&self) -> String {
         job_title::job_title(&self.random, self.provider_locale())
     }
 
     /// Samples a company prefix for a locale with a prefix catalog.
-    pub fn companyPrefix(&self) -> DatabaseResult<&'static str> {
+    pub fn company_prefix(&self) -> DatabaseResult<&'static str> {
         let prefixes = match self.provider_locale() {
             "ar_EG" | "ar_JO" | "ar_SA" => ARABIC_PREFIXES,
             "zh_CN" => CHINESE_PREFIXES,
@@ -4066,7 +4065,7 @@ impl Faker {
     }
 
     /// Samples the modifier in a Taiwanese company name.
-    pub fn companyModifier(&self) -> DatabaseResult<&'static str> {
+    pub fn company_modifier(&self) -> DatabaseResult<&'static str> {
         if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company modifier locale",
@@ -4076,10 +4075,10 @@ impl Faker {
     }
 
     /// Generates an English company name with the default Taiwanese provider.
-    pub fn companyEn(&self) -> DatabaseResult<String> {
-        self.companyEnWithLastName(|| {
+    pub fn company_en(&self) -> DatabaseResult<String> {
+        self.company_en_with_last_name(|| {
             let formatter = self
-                .getFormatter("lastNameEn")
+                .get_formatter("lastNameEn")
                 .map_err(|error| match error {
                     DatabaseError::UnknownFakerFormatter(_) => {
                         DatabaseError::InvalidQuery("unknown Faker formatter lastNameEn")
@@ -4096,7 +4095,7 @@ impl Faker {
     }
 
     /// Generates a Taiwanese English company name using a supplied surname formatter.
-    pub fn companyEnWithLastName(
+    pub fn company_en_with_last_name(
         &self,
         mut last_name: impl FnMut() -> DatabaseResult<String>,
     ) -> DatabaseResult<String> {
@@ -4109,14 +4108,14 @@ impl Faker {
         let template = self.random.u8(0..3);
         let first = last_name()?;
         Ok(match template {
-            0 => format!("{first} {}", self.companyEnSuffix()?),
+            0 => format!("{first} {}", self.company_en_suffix()?),
             1 => format!("{first}-{}", last_name()?),
             _ => format!("{first}, {} and {}", last_name()?, last_name()?),
         })
     }
 
     /// Samples a Taiwanese English company-name suffix.
-    pub fn companyEnSuffix(&self) -> DatabaseResult<&'static str> {
+    pub fn company_en_suffix(&self) -> DatabaseResult<&'static str> {
         if self.provider_locale() != "zh_TW" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker English company suffix locale",
@@ -4126,7 +4125,7 @@ impl Faker {
     }
 
     /// Samples a company name from the locale’s company catalog.
-    pub fn companyName(&self) -> DatabaseResult<&'static str> {
+    pub fn company_name(&self) -> DatabaseResult<&'static str> {
         match self.provider_locale() {
             "me_ME" => Ok(balkan::company_name(&self.random)),
             "uk_UA" => Ok(cyrillic::ukrainian_name(&self.random)),
@@ -4139,7 +4138,7 @@ impl Faker {
     }
 
     /// Generates the Ukrainian company label used by the upstream URL formatter.
-    pub fn companyUrl(&self) -> DatabaseResult<String> {
+    pub fn company_url(&self) -> DatabaseResult<String> {
         if self.provider_locale() != "uk_UA" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company URL locale",
@@ -4148,13 +4147,13 @@ impl Faker {
 
         let name = cyrillic::ukrainian_name(&self.random);
         if self.random.bool() {
-            return Ok(format!("{name}-{}", self.companySuffix()));
+            return Ok(format!("{name}-{}", self.company_suffix()));
         }
         Ok(name.to_owned())
     }
 
     /// Samples a company type from the locale’s company catalog.
-    pub fn companyType(&self) -> DatabaseResult<&'static str> {
+    pub fn company_type(&self) -> DatabaseResult<&'static str> {
         match self.provider_locale() {
             "me_ME" => Ok(balkan::company_type(&self.random)),
             "bn_BD" => Ok(south_southeast_asian::bangladeshi_company_type(
@@ -4187,7 +4186,7 @@ impl Faker {
     }
 
     /// Samples a Turkish or Iranian company field.
-    pub fn companyField(&self) -> DatabaseResult<&'static str> {
+    pub fn company_field(&self) -> DatabaseResult<&'static str> {
         match self.provider_locale() {
             "tr_TR" => Ok(lt_sl_tr::company_field(&self.random)),
             "fa_IR" => Ok(west_asian::company_field(&self.random)),
@@ -4197,7 +4196,7 @@ impl Faker {
         }
     }
 
-    pub fn companyNameElement(&self) -> DatabaseResult<&'static str> {
+    pub fn company_name_element(&self) -> DatabaseResult<&'static str> {
         cyrillic::elements(self.provider_locale())
             .or_else(|| west_asian::elements(self.provider_locale()))
             .map(|values| self.random.sample(values))
@@ -4206,7 +4205,7 @@ impl Faker {
             ))
     }
 
-    pub fn companyNameSuffix(&self) -> DatabaseResult<&'static str> {
+    pub fn company_name_suffix(&self) -> DatabaseResult<&'static str> {
         cyrillic::name_suffixes(self.provider_locale())
             .or_else(|| west_asian::name_suffixes(self.provider_locale()))
             .map(|values| self.random.sample(values))
@@ -4226,7 +4225,7 @@ impl Faker {
     }
 
     /// Samples the selected company provider's suffix.
-    pub fn companySuffix(&self) -> String {
+    pub fn company_suffix(&self) -> String {
         let suffixes = match self.provider_locale() {
             "ar_EG" => EGYPTIAN_SUFFIXES,
             "ar_JO" | "ar_SA" => JORDANIAN_SAUDI_SUFFIXES,
@@ -4267,69 +4266,70 @@ impl Faker {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
-    pub fn catchPhrase(&self) -> DatabaseResult<String> {
-        self.try_generate("catchPhrase", || self.0.catchPhrase())
+    pub fn catch_phrase(&self) -> DatabaseResult<String> {
+        self.try_generate("catchPhrase", || self.0.catch_phrase())
     }
 
     pub fn bs(&self) -> DatabaseResult<String> {
         self.try_generate("bs", || self.0.bs())
     }
 
-    pub fn catchPhraseNoun(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("catchPhraseNoun", || self.0.catchPhraseNoun())
+    pub fn catch_phrase_noun(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("catchPhraseNoun", || self.0.catch_phrase_noun())
     }
 
-    pub fn catchPhraseVerb(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("catchPhraseVerb", || self.0.catchPhraseVerb())
+    pub fn catch_phrase_verb(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("catchPhraseVerb", || self.0.catch_phrase_verb())
     }
 
-    pub fn catchPhraseAttribute(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("catchPhraseAttribute", || self.0.catchPhraseAttribute())
+    pub fn catch_phrase_attribute(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("catchPhraseAttribute", || self.0.catch_phrase_attribute())
     }
 
     pub fn company(&self) -> DatabaseResult<String> {
         self.generate("company", || self.0.company())
     }
 
-    pub fn jobTitle(&self) -> DatabaseResult<String> {
-        self.generate("jobTitle", || self.0.jobTitle())
+    pub fn job_title(&self) -> DatabaseResult<String> {
+        self.generate("jobTitle", || self.0.job_title())
     }
 
-    pub fn companyPrefix(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyPrefix", || self.0.companyPrefix())
+    pub fn company_prefix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyPrefix", || self.0.company_prefix())
     }
 
-    pub fn companyModifier(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyModifier", || self.0.companyModifier())
+    pub fn company_modifier(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyModifier", || self.0.company_modifier())
     }
 
-    pub fn companyEn(&self) -> DatabaseResult<String> {
-        self.try_generate("companyEn", || self.0.companyEn())
+    pub fn company_en(&self) -> DatabaseResult<String> {
+        self.try_generate("companyEn", || self.0.company_en())
     }
 
-    pub fn companyEnWithLastName(
+    pub fn company_en_with_last_name(
         &self,
         mut last_name: impl FnMut() -> DatabaseResult<String>,
     ) -> DatabaseResult<String> {
-        self.try_generate("companyEn", || self.0.companyEnWithLastName(&mut last_name))
+        self.try_generate("companyEn", || {
+            self.0.company_en_with_last_name(&mut last_name)
+        })
     }
 
-    pub fn companyEnSuffix(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyEnSuffix", || self.0.companyEnSuffix())
+    pub fn company_en_suffix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyEnSuffix", || self.0.company_en_suffix())
     }
 
-    pub fn companyName(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyName", || self.0.companyName())
+    pub fn company_name(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyName", || self.0.company_name())
     }
 
-    pub fn companyUrl(&self) -> DatabaseResult<String> {
-        self.try_generate("companyUrl", || self.0.companyUrl())
+    pub fn company_url(&self) -> DatabaseResult<String> {
+        self.try_generate("companyUrl", || self.0.company_url())
     }
 
-    pub fn companyType(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyType", || self.0.companyType())
+    pub fn company_type(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyType", || self.0.company_type())
     }
 
     pub fn industry(&self) -> DatabaseResult<&'static str> {
@@ -4340,23 +4340,23 @@ impl UniqueFaker<'_> {
         self.try_generate("slogan", || self.0.slogan())
     }
 
-    pub fn companyField(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyField", || self.0.companyField())
+    pub fn company_field(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyField", || self.0.company_field())
     }
 
-    pub fn companyNameElement(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyNameElement", || self.0.companyNameElement())
+    pub fn company_name_element(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyNameElement", || self.0.company_name_element())
     }
 
-    pub fn companyNameSuffix(&self) -> DatabaseResult<&'static str> {
-        self.try_generate("companyNameSuffix", || self.0.companyNameSuffix())
+    pub fn company_name_suffix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyNameSuffix", || self.0.company_name_suffix())
     }
 
     pub fn contract(&self) -> DatabaseResult<&'static str> {
         self.try_generate("contract", || self.0.contract())
     }
 
-    pub fn companySuffix(&self) -> DatabaseResult<String> {
-        self.generate("companySuffix", || self.0.companySuffix())
+    pub fn company_suffix(&self) -> DatabaseResult<String> {
+        self.generate("companySuffix", || self.0.company_suffix())
     }
 }

@@ -129,7 +129,7 @@ async fn fortify_policy_validates_confirmation_and_localized_password_failures()
         .unwrap();
     assert!(validator.validate().await.is_err());
     assert_eq!(
-        validator.errors().get("password", None).intoMessages(),
+        validator.errors().get("password", None).into_messages(),
         [
             "The password field must contain at least one uppercase and one lowercase letter.",
             "The password field must contain at least one symbol.",

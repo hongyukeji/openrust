@@ -25,11 +25,11 @@ pub type HashResult<T> = Result<T, HashError>;
 pub type HashOptions = serde_json::Map<String, serde_json::Value>;
 
 /// Algorithm identifier and parameters obtained from an encoded hash.
-#[allow(non_snake_case)]
 #[derive(Debug, serde::Serialize)]
 pub struct HashInfo {
     pub algo: Option<String>,
-    pub algoName: String,
+    #[serde(rename = "algoName")]
+    pub algo_name: String,
     pub options: HashOptions,
 }
 

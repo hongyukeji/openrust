@@ -10,9 +10,8 @@ use openrust::{
 
 pub struct Definition;
 
-#[allow(non_snake_case)]
 impl Migration for Definition {
-    fn getConnection(&self, config: &dyn Repository) -> DatabaseResult<Option<String>> {
+    fn get_connection(&self, config: &dyn Repository) -> DatabaseResult<Option<String>> {
         match config.get("passport.connection") {
             None | Some(serde_json::Value::Null) => Ok(None),
             Some(serde_json::Value::String(name)) => Ok(Some(name)),
@@ -27,7 +26,7 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("oauth_auth_codes", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.oauth_auth_codes", &Default::default())?);
                     table
@@ -35,11 +34,11 @@ impl Migration for Definition {
                         .primary()
                         .comment(__("schema.columns.id", &Default::default())?);
                     table
-                        .foreignId("user_id")
+                        .foreign_id("user_id")
                         .index()
                         .comment(__("schema.columns.user_id", &Default::default())?);
                     table
-                        .foreignUuid("client_id")
+                        .foreign_uuid("client_id")
                         .comment(__("schema.columns.client_id", &Default::default())?);
                     table
                         .text("scopes")
@@ -49,7 +48,7 @@ impl Migration for Definition {
                         .boolean("revoked")
                         .comment(__("schema.columns.revoked", &Default::default())?);
                     table
-                        .dateTime("expires_at", None)
+                        .date_time("expires_at", None)
                         .nullable()
                         .comment(__("schema.columns.expires_at", &Default::default())?);
                     Ok(())
@@ -63,8 +62,8 @@ impl Migration for Definition {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             connection
-                .getSchemaBuilder()
-                .dropIfExists("oauth_auth_codes")
+                .get_schema_builder()
+                .drop_if_exists("oauth_auth_codes")
                 .await
         })
     }

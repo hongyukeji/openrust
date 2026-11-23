@@ -111,7 +111,7 @@ impl Worker {
         options: &WorkerOptions,
     ) -> QueueResult<WorkResult> {
         let manager = self.app.make::<QueueManager>()?;
-        let name = connection.getConnectionName();
+        let name = connection.get_connection_name();
         let queue_name = queue.unwrap_or_else(|| connection.default_queue());
         manager
             .emit_control_event(JobPopping {
@@ -205,7 +205,7 @@ impl Worker {
         } else {
             queues
         };
-        let name = connection.getConnectionName();
+        let name = connection.get_connection_name();
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
         let queue_names = queues.join(",");
@@ -517,9 +517,9 @@ impl Worker {
     fn lost_connection(&self, error: &QueueError) -> QueueResult<bool> {
         if self.app.bound::<dyn LostConnectionDetector>() {
             let detector = self.app.make::<dyn LostConnectionDetector>()?;
-            return Ok(detector.causedByLostConnection(error));
+            return Ok(detector.caused_by_lost_connection(error));
         }
-        Ok(crate::database::LostConnectionDetector.causedByLostConnection(error))
+        Ok(crate::database::LostConnectionDetector.caused_by_lost_connection(error))
     }
 
     pub(super) async fn report_worker_error(&self, error: &QueueError) {
@@ -539,7 +539,7 @@ impl Worker {
         build: impl FnOnce(String, JobSnapshot) -> E,
     ) -> QueueResult<()> {
         if manager.observes_worker_event(name)? {
-            let event = build(job.getConnectionName().into(), JobSnapshot::from_job(job));
+            let event = build(job.get_connection_name().into(), JobSnapshot::from_job(job));
             manager.emit_control_event(event).await?;
         }
         Ok(())
@@ -731,7 +731,7 @@ impl Worker {
                         && manager.observes_worker_event(JobInterrupted::NAME)?)
                     .then(|| {
                         (
-                            job.getConnectionName().to_owned(),
+                            job.get_connection_name().to_owned(),
                             JobSnapshot::from_job(job),
                         )
                     });
@@ -741,8 +741,8 @@ impl Worker {
                                 // Keep the nested batch state out of the worker future's stack frame.
                                 Box::pin(manager.execute_chained_batch(
                                     job.payload(),
-                                    job.getConnectionName(),
-                                    job.getQueue(),
+                                    job.get_connection_name(),
+                                    job.get_queue(),
                                 ))
                                 .await
                             } else {
@@ -781,7 +781,7 @@ impl Worker {
                                 self.notify_job(manager, handler.as_ref(), signal, move || {
                                     Ok(manager.observes_worker_event(JobInterrupted::NAME)?.then(
                                         || JobInterrupted {
-                                            connection_name: job.getConnectionName().into(),
+                                            connection_name: job.get_connection_name().into(),
                                             job: JobSnapshot::from_job(job),
                                             signal,
                                         },
@@ -838,7 +838,7 @@ impl Worker {
                             self.app
                                 .make::<dyn ExceptionHandler>()
                                 .is_ok_and(|handler| {
-                                    handler.shouldStopRetries(&Exception::Error(&error))
+                                    handler.should_stop_retries(&Exception::Error(&error))
                                 })
                         })
                         .await
@@ -857,7 +857,7 @@ impl Worker {
             let failure = if terminal {
                 // Keep terminal failure settlement out of the attempt future's stack frame.
                 let result = Box::pin(self.fail(manager, job, error, batch)).await;
-                if matches!(result, Ok(WorkResult::Failed)) && job.hasFailed() {
+                if matches!(result, Ok(WorkResult::Failed)) && job.has_failed() {
                     self.observe_job_event(
                         manager,
                         job,
@@ -1007,12 +1007,12 @@ impl Worker {
                 return job.advance_chain(&next).await;
             }
             let manager = self.app.make::<QueueManager>()?;
-            let options = next.chain_options(job.getConnectionName(), job.getQueue());
+            let options = next.chain_options(job.get_connection_name(), job.get_queue());
             let target = options
                 .connection
                 .as_deref()
-                .unwrap_or(job.getConnectionName());
-            if target == job.getConnectionName() {
+                .unwrap_or(job.get_connection_name());
+            if target == job.get_connection_name() {
                 return job
                     .advance_chain_to(&next, options.queue.as_deref(), options.delay)
                     .await;
@@ -1053,8 +1053,8 @@ impl Worker {
             isolated_scope(self.app.clone(), manager.run_chain_catches(payload, error)).await;
         }
         let mut context = JobContext {
-            connection: job.getConnectionName().into(),
-            queue: job.getQueue().into(),
+            connection: job.get_connection_name().into(),
+            queue: job.get_queue().into(),
             attempts: job.attempts(),
             ..JobContext::default()
         };

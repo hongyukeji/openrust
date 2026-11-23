@@ -265,7 +265,7 @@ impl SupervisorOptions {
         let mut values = defaults.clone();
         for (name, value) in overrides.as_object().ok_or(Error::InvalidConfiguration)? {
             let mut merged = values.remove(name).unwrap_or(serde_json::json!({}));
-            replaceRecursive(&mut merged, value);
+            replace_recursive(&mut merged, value);
             values.insert(name.clone(), merged);
         }
         let mut result = BTreeMap::new();
@@ -358,11 +358,11 @@ fn queues<'de, D: serde::Deserializer<'de>>(
 }
 
 // PHP array_replace_recursive also replaces numeric array keys individually.
-fn replaceRecursive(default: &mut serde_json::Value, replacement: &serde_json::Value) {
+fn replace_recursive(default: &mut serde_json::Value, replacement: &serde_json::Value) {
     match (default, replacement) {
         (serde_json::Value::Object(default), serde_json::Value::Object(replacement)) => {
             for (key, value) in replacement {
-                replaceRecursive(
+                replace_recursive(
                     default
                         .entry(key.clone())
                         .or_insert(serde_json::Value::Null),
@@ -373,7 +373,7 @@ fn replaceRecursive(default: &mut serde_json::Value, replacement: &serde_json::V
         (serde_json::Value::Array(default), serde_json::Value::Array(replacement)) => {
             for (index, value) in replacement.iter().enumerate() {
                 if let Some(default) = default.get_mut(index) {
-                    replaceRecursive(default, value);
+                    replace_recursive(default, value);
                 } else {
                     default.push(value.clone());
                 }

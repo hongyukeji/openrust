@@ -19,7 +19,7 @@ async fn presence_relation_and_exclusion_follow_complete_fixed_upstream_validato
                 })
             })
             .unwrap();
-            let at = openrust::support::Date::fromUtc(
+            let at = openrust::support::Date::from_utc(
                 clock["at"].as_str().unwrap().parse().unwrap(),
                 openrust::support::DateTimezone::UTC,
             );

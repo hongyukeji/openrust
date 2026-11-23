@@ -29,7 +29,7 @@ pub trait Searchable: Model + Clone {
                 .get("scout.prefix")
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .unwrap_or_default(),
-            self.getTable()
+            self.get_table()
         ))
     }
     fn indexableAs(&self) -> Result<String> {
@@ -42,13 +42,13 @@ pub trait Searchable: Model + Clone {
         Ok(self.to_array()?)
     }
     fn getScoutKey(&self) -> Option<Value> {
-        self.getKey().cloned()
+        self.get_key().cloned()
     }
     fn getScoutKeyType(&self) -> openrust::database::eloquent::ModelKeyType {
-        self.getKeyType()
+        self.get_key_type()
     }
     fn getScoutKeyName(&self) -> String {
-        self.getKeyName().into()
+        self.get_key_name().into()
     }
     fn scoutDriver(&self) -> Option<String> {
         None
@@ -138,8 +138,8 @@ pub trait Searchable: Model + Clone {
         builder: &Builder<Self>,
         ids: Vec<Value>,
     ) -> Result<EloquentBuilder<'static, Self>> {
-        let mut query = Self::queryOn(&self.getConnection()?);
-        if self.getDeletedAtColumn().is_some() {
+        let mut query = Self::query_on(&self.get_connection()?);
+        if self.get_deleted_at_column().is_some() {
             query = query.with_trashed();
         }
         if let Some(callback) = &builder.queryCallback {
@@ -199,7 +199,7 @@ pub(crate) async fn import<M: Searchable>(
     let observed = count.clone();
     let manager = manager.clone();
     query
-        .chunkById(
+        .chunk_by_id(
             chunk,
             move |models, _| {
                 let count = observed.clone();

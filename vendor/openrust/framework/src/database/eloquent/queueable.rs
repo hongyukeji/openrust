@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::database::{DB, DatabaseError, DatabaseResult, Value, query::Conditions};
+use crate::database::{DatabaseError, DatabaseResult, Db, Value, query::Conditions};
 
 use super::{
     Builder, Collection, Model, ModelState,
@@ -43,12 +43,12 @@ pub(super) fn common_relations<'a, M: Model + 'a>(
     let Some(first) = models.next() else {
         return Vec::new();
     };
-    let mut paths = first.getQueueableRelations();
+    let mut paths = first.get_queueable_relations();
     for model in models {
         if paths.is_empty() {
             break;
         }
-        let loaded: HashSet<_> = model.getQueueableRelations().into_iter().collect();
+        let loaded: HashSet<_> = model.get_queueable_relations().into_iter().collect();
         paths.retain(|path| loaded.contains(path));
     }
     paths
@@ -150,7 +150,7 @@ impl From<PivotIdentity> for PivotDefinition {
 
 impl PivotDefinition {
     fn resolve<M: Model>(&self) -> DatabaseResult<PivotIdentity> {
-        M::queueablePivots()
+        M::queueable_pivots()
             .into_iter()
             .map(|pivot| pivot.0)
             .find(|identity| Self::from(*identity) == *self)
@@ -167,7 +167,7 @@ enum IdentifierKey {
 
 impl IdentifierKey {
     fn capture<M: Model>(model: &M) -> DatabaseResult<Self> {
-        let key = model.getQueueableId().cloned().unwrap_or(Value::Null);
+        let key = model.get_queueable_id().cloned().unwrap_or(Value::Null);
         if let Some(pivot) = model.state().pivot_identity
             && key == Value::Null
         {
@@ -175,7 +175,7 @@ impl IdentifierKey {
                 .columns()
                 .map(|column| {
                     model
-                        .getAttribute(column)
+                        .get_attribute(column)
                         .filter(|value| **value != Value::Null)
                         .ok_or(DatabaseError::InvalidQuery("missing pivot identity"))?
                         .clone()
@@ -227,30 +227,31 @@ impl IdentifierKey {
 }
 
 fn restoration_query<M: Model>(connection: Option<&str>) -> DatabaseResult<Builder<'static, M>> {
-    let connection = DB::connection(connection.or(M::metadata().connection))?;
-    Ok(M::queryOn(&connection).withoutGlobalScopes().useWritePdo())
+    let connection = Db::connection(connection.or(M::metadata().connection))?;
+    Ok(M::query_on(&connection)
+        .without_global_scopes()
+        .use_write_pdo())
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> ModelIdentifier<M> {
     pub fn capture(model: &M) -> DatabaseResult<Self> {
         Ok(Self {
             id: IdentifierKey::capture(model)?,
-            connection: model.getQueueableConnection().map(str::to_owned),
+            connection: model.get_queueable_connection().map(str::to_owned),
             pivot: model.state().pivot_identity.map(Into::into),
-            relations: model.getQueueableRelations(),
+            relations: model.get_queueable_relations(),
             model: PhantomData,
         })
     }
 
     #[must_use]
-    pub fn withoutRelations(mut self) -> Self {
+    pub fn without_relations(mut self) -> Self {
         self.relations.clear();
         self
     }
 
     /// Restores a job argument and preserves its missing-model outcome for queue settlement.
-    pub async fn restoreForJob(self) -> crate::queue::QueueResult<M> {
+    pub async fn restore_for_job(self) -> crate::queue::QueueResult<M> {
         use crate::queue::QueueError;
 
         self.restore().await.map_err(|source| match source {
@@ -269,7 +270,7 @@ impl<M: Model> ModelIdentifier<M> {
                 self.id
                     .predicates(Conditions::default(), M::metadata().primary_key, pivot)?;
             let mut query = restoration_query::<M>(self.connection.as_deref())?.for_pivot(pivot);
-            query.whereNested(|_| predicates);
+            query.where_nested(|_| predicates);
             query
                 .first()
                 .await?
@@ -280,7 +281,7 @@ impl<M: Model> ModelIdentifier<M> {
                 return Err(DatabaseError::ModelNotFound(M::metadata().table));
             }
             restoration_query::<M>(self.connection.as_deref())?
-                .findOrFail(key)
+                .find_or_fail(key)
                 .await?
         };
         let paths: Vec<_> = self.relations.iter().map(String::as_str).collect();
@@ -289,10 +290,9 @@ impl<M: Model> ModelIdentifier<M> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> ModelCollectionIdentifier<M> {
     pub fn capture(models: &Collection<M>) -> DatabaseResult<Self> {
-        let connection = models.getQueueableConnection()?.map(str::to_owned);
+        let connection = models.get_queueable_connection()?.map(str::to_owned);
         let identity = models
             .first()
             .and_then(|model| model.state().pivot_identity);
@@ -311,13 +311,13 @@ impl<M: Model> ModelCollectionIdentifier<M> {
                 .collect::<DatabaseResult<_>>()?,
             connection,
             pivot: identity.map(Into::into),
-            relations: models.getQueueableRelations(),
+            relations: models.get_queueable_relations(),
             model: PhantomData,
         })
     }
 
     #[must_use]
-    pub fn withoutRelations(mut self) -> Self {
+    pub fn without_relations(mut self) -> Self {
         self.relations.clear();
         self
     }
@@ -340,23 +340,23 @@ impl<M: Model> ModelCollectionIdentifier<M> {
                 for id in batch {
                     let branch =
                         id.predicates(Conditions::default(), M::metadata().primary_key, pivot)?;
-                    predicates = predicates.orWhereNested(|_| branch);
+                    predicates = predicates.or_where_nested(|_| branch);
                 }
                 let mut query =
                     restoration_query::<M>(self.connection.as_deref())?.for_pivot(pivot);
-                query.whereNested(|_| predicates);
+                query.where_nested(|_| predicates);
                 for model in query.get_models_with_transaction(None).await? {
                     let columns = M::metadata().primary_key;
                     let key = std::iter::once(columns)
                         .chain(pivot.columns())
-                        .map(|column| dictionary_key(model.getAttribute(column)))
+                        .map(|column| dictionary_key(model.get_attribute(column)))
                         .collect::<DatabaseResult<Vec<_>>>()?;
                     if seen.insert(key) {
                         models.push(model);
                     }
                 }
             }
-            return Ok(M::newCollection(models));
+            return Ok(M::new_collection(models));
         }
         let mut keys = Vec::with_capacity(self.ids.len());
         let mut bindings = indexmap::IndexMap::new();
@@ -368,7 +368,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
             }
         }
         if keys.is_empty() {
-            return Ok(M::newCollection(Vec::new()));
+            return Ok(M::new_collection(Vec::new()));
         }
         let mut found = HashMap::new();
         let bindings: Vec<_> = bindings.into_values().collect();
@@ -376,7 +376,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
             let mut query = restoration_query::<M>(self.connection.as_deref())?;
             query.where_in(M::metadata().primary_key, batch.to_vec());
             for model in query.get_models_with_transaction(None).await? {
-                if let Some(key) = dictionary_key(model.getKey())? {
+                if let Some(key) = dictionary_key(model.get_key())? {
                     found.insert(key, model);
                 }
             }
@@ -386,7 +386,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
             .filter_map(|key| found.get(key))
             .map(|model| M::from_state(model.state().clone()))
             .collect();
-        let mut collection = M::newCollection(models);
+        let mut collection = M::new_collection(models);
         if !collection.is_empty() {
             let paths: Vec<_> = self.relations.iter().map(String::as_str).collect();
             collection.load_missing_paths(&paths).await?;

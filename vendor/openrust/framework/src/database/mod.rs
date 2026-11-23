@@ -54,7 +54,7 @@ pub type DatabaseCursor<'a, T = Row> =
 /// The result of a database operation.
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 
-pub use facade::DB;
+pub use facade::Db;
 pub use query_log::{QueryLogEntry, RawQueryLogEntry};
 pub use value::{Row, Value};
 

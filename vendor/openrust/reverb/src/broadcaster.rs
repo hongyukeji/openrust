@@ -222,14 +222,14 @@ impl ReverbBroadcaster {
 
 #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Broadcaster for ReverbBroadcaster {
-    fn resolveAuthenticatedUserUsing(
+    fn resolve_authenticated_user_using(
         &self,
         callback: Arc<openrust::broadcasting::AuthenticatedUserResolver>,
     ) -> BroadcastResult<()> {
         *self.authenticated_user.write().expect("广播认证回调锁中毒") = Some(callback);
         Ok(())
     }
-    fn resolveAuthenticatedUser<'a>(
+    fn resolve_authenticated_user<'a>(
         &'a self,
         request: &'a mut Request,
     ) -> BroadcastFuture<'a, BroadcastResult<Option<Response>>> {
@@ -272,7 +272,7 @@ impl Broadcaster for ReverbBroadcaster {
         })
     }
 
-    fn validAuthenticationResponse<'a>(
+    fn valid_authentication_response<'a>(
         &'a self,
         request: &'a mut Request,
         result: ChannelAuthorization,

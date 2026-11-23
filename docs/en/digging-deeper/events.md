@@ -35,7 +35,7 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 Declare event registration functions in your application and pass them to `with_events(DiscoverEvents::new(&[register_orders]))`. The application loads this compiled manifest during boot. Implement `Subscriber` and call `Event::subscribe` to register related listeners together. Use `./artisan event:list --event=orders --json` to inspect the resulting registrations.
 
-Register a listener type with `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` in the manifest, or use `Event::listenClass` in the application scope. Bind the type with an application container factory, such as `bind_async` for asynchronous dependencies. The dispatcher resolves it when the event reaches that listener, using the owning application's container. A missing binding fails the dispatch. With `Delivery::AfterCommit`, dispatch resolves the instance immediately and a successful commit invokes it.
+Register a listener type with `registry.listen_class::<OrderListener>("orders.created", Delivery::Sync)?` in the manifest, or use `Event::listen_class` in the application scope. Bind the type with an application container factory, such as `bind_async` for asynchronous dependencies. The dispatcher resolves it when the event reaches that listener, using the owning application's container. A missing binding fails the dispatch. With `Delivery::AfterCommit`, dispatch resolves the instance immediately and a successful commit invokes it.
 
 For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `withListener`. Pass the resulting manifest to `with_events(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
 
@@ -54,7 +54,7 @@ use openrust::{
 struct OrderListener;
 
 impl ShouldBeDiscovered for OrderListener {
-    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+    fn should_be_discovered(app: &Application) -> EventResult<bool> {
         app.environment(Some("production".into()))
             .map(bool::from)
             .map_err(EventError::Unavailable)
@@ -100,7 +100,7 @@ Typed events may declare shared contract names through `Event::interfaces()`. Re
 
 ## Dispatching after a database transaction
 
-Pass the active transaction to `Event::dispatchInTransaction`. Use `Delivery::AfterCommit` for a single listener, or implement `ShouldDispatchAfterCommit` and call `Event::dispatchAfterCommit` to defer the entire event. A successful savepoint keeps its callbacks for the outer commit. Rolling back discards callbacks from the affected scope. Without an active transaction the listener runs immediately. A callback error after commit is reported as `DatabaseError::AfterCommit`.
+Pass the active transaction to `Event::dispatch_in_transaction`. Use `Delivery::AfterCommit` for a single listener, or implement `ShouldDispatchAfterCommit` and call `Event::dispatch_after_commit` to defer the entire event. A successful savepoint keeps its callbacks for the outer commit. Rolling back discards callbacks from the affected scope. Without an active transaction the listener runs immediately. A callback error after commit is reported as `DatabaseError::AfterCommit`.
 
 See [observers and database transactions](../eloquent/getting-started.md#observers-and-database-transactions) for model-specific callbacks.
 
@@ -142,12 +142,12 @@ An all-events fake also records database transaction lifecycle events, such as `
 
 ### Scoped event fakes {#scoped-event-fakes}
 
-In an application scope, `Event::fakeFor` runs an async callback with a temporary fake and returns the callback's result. An empty list selects every event. `Event::fakeExceptFor` instead allows the listed events to reach their listeners and fakes the rest. Use `Event::fakeExcept` for the same selection across the application until another fake is installed.
+In an application scope, `Event::fake_for` runs an async callback with a temporary fake and returns the callback's result. An empty list selects every event. `Event::fake_except_for` instead allows the listed events to reach their listeners and fakes the rest. Use `Event::fake_except` for the same selection across the application until another fake is installed.
 
 ```rust
 use openrust::{events::NamedEvent, support::facades::Event};
 
-let order_id = Event::fakeFor(
+let order_id = Event::fake_for(
     async {
         Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
         Ok(42_u64)
@@ -161,7 +161,7 @@ The scope follows the callback's future for its dispatcher. A nested scope resto
 
 ### Matching event payloads {#matching-event-payloads}
 
-In an application scope, `Event::fakeWhen` selects events by exact name or by a predicate that receives the event. `Event::fakeForWhen` uses the same selector inside an async callback. An empty name list leaves selection to the predicate. `except` and `exceptWhen` let matching events reach their ordinary listeners even when selected by the fake.
+In an application scope, `Event::fake_when` selects events by exact name or by a predicate that receives the event. `Event::fake_for_when` uses the same selector inside an async callback. An empty name list leaves selection to the predicate. `except` and `exceptWhen` let matching events reach their ordinary listeners even when selected by the fake.
 
 ```rust
 use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
@@ -171,7 +171,7 @@ let is_priority = |event: &dyn Payload| {
         && event.downcast_ref::<NamedEvent<u64>>()
             .is_some_and(|order| *order.payload() >= 42)
 };
-let fake = Event::fakeWhen(&[], is_priority)?;
+let fake = Event::fake_when(&[], is_priority)?;
 Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
 Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
 
@@ -184,4 +184,4 @@ Use `dispatchedWhere` to read matching payloads in dispatch order. The `Where` m
 
 ## Pushed events
 
-`Dispatcher::push(Arc<dyn Event>)` stores an event; `flush(name, context)` dispatches its `_pushed` listeners. Repeated flushes dispatch again until `forgetPushed` clears registrations. This differs from `defer` and after-commit dispatch. Stored events are isolated by request/queue scope; clearing a scope does not delete another request’s shared listeners.
+`Dispatcher::push(Arc<dyn Event>)` stores an event; `flush(name, context)` dispatches its `_pushed` listeners. Repeated flushes dispatch again until `forget_pushed` clears registrations. This differs from `defer` and after-commit dispatch. Stored events are isolated by request/queue scope; clearing a scope does not delete another request’s shared listeners.

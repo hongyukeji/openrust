@@ -12,12 +12,12 @@ fn faker_html_preserves_the_document_form_and_subtree_limits() {
     )
     .unwrap();
     for depth in [i32::MIN, 0, 1] {
-        let html = faker.randomHtml(Some(depth), None).unwrap();
+        let html = faker.random_html(Some(depth), None).unwrap();
         let form = form.find(&html).unwrap();
         assert_eq!(&html[form.end()..], "</body></html>\n");
     }
     for width in [-1, 0, 1] {
-        let html = faker.randomHtml(Some(2), Some(width)).unwrap();
+        let html = faker.random_html(Some(2), Some(width)).unwrap();
         assert!(!html.contains("<div"));
         if width == 1 {
             let form = form.find(&html).unwrap();
@@ -27,7 +27,7 @@ fn faker_html_preserves_the_document_form_and_subtree_limits() {
 
     let ids = Regex::new(r#"<div id="([0-9]+)">"#).unwrap();
     for _ in 0..32 {
-        let html = faker.randomHtml(None, None).unwrap();
+        let html = faker.random_html(None, None).unwrap();
         assert!(form.is_match(&html));
         let mut seen = HashSet::new();
         for captures in ids.captures_iter(&html) {
@@ -62,6 +62,6 @@ fn faker_html_preserves_the_document_form_and_subtree_limits() {
         assert_eq!(depth, 0);
     }
     let unique = faker.unique(false);
-    let first = unique.randomHtml(Some(1), None).unwrap();
-    assert_ne!(unique.randomHtml(Some(1), None).unwrap(), first);
+    let first = unique.random_html(Some(1), None).unwrap();
+    assert_ne!(unique.random_html(Some(1), None).unwrap(), first);
 }

@@ -12,7 +12,7 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = connection.getSchemaBuilder();
+            let mut schema = connection.get_schema_builder();
             schema
                 .create("users", |table| -> DatabaseResult<()> {
                     table.comment(__("schema.tables.users", &Default::default())?);
@@ -34,7 +34,7 @@ impl Migration for Definition {
                         .string("password", None)
                         .comment(__("schema.columns.password", &Default::default())?);
                     table
-                        .rememberToken()
+                        .remember_token()
                         .comment(__("schema.columns.remember_token", &Default::default())?);
                     table
                         .timestamp("created_at", None)
@@ -75,7 +75,7 @@ impl Migration for Definition {
                         .primary()
                         .comment(__("schema.columns.id", &Default::default())?);
                     table
-                        .foreignId("user_id")
+                        .foreign_id("user_id")
                         .nullable()
                         .index()
                         .comment(__("schema.columns.user_id", &Default::default())?);
@@ -105,10 +105,10 @@ impl Migration for Definition {
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let mut schema = connection.getSchemaBuilder();
-            schema.dropIfExists("users").await?;
-            schema.dropIfExists("password_reset_tokens").await?;
-            schema.dropIfExists("sessions").await
+            let mut schema = connection.get_schema_builder();
+            schema.drop_if_exists("users").await?;
+            schema.drop_if_exists("password_reset_tokens").await?;
+            schema.drop_if_exists("sessions").await
         })
     }
 }

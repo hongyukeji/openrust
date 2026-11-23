@@ -98,7 +98,7 @@ fn render(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .to_str()
             .unwrap()
             .to_owned();
-        Lang::withLocale(&locale, async {
+        Lang::with_locale(&locale, async {
             let rendered = Response::view(
                 StatusCode::OK,
                 view("test")
@@ -324,7 +324,7 @@ async fn template_helpers_preserve_missing_key_hook_context_and_replacements() {
         .container()
         .get::<openrust::translation::Translator>("translator")
         .unwrap()
-        .handleMissingKeysUsing(|missing| {
+        .handle_missing_keys_using(|missing| {
             assert_eq!(missing.key, "hook.missing");
             assert_eq!(missing.replacements["name"], "ada");
             Some(format!("{}:{}::Name", missing.locale, missing.fallback))

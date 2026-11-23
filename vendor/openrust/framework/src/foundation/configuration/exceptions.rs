@@ -137,8 +137,7 @@ impl Exceptions {
     }
 
     /// Adds log context for this exact error type, including when it is a source.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn exceptionContext<E: Error + 'static>(
+    pub fn exception_context<E: Error + 'static>(
         &mut self,
         callback: impl Fn(&E) -> LogContext + Send + Sync + 'static,
     ) -> &mut Self {
@@ -152,22 +151,19 @@ impl Exceptions {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn dontReport<E: Error + 'static>(&mut self) -> &mut Self {
+    pub fn dont_report<E: Error + 'static>(&mut self) -> &mut Self {
         self.ignored.push(Rule::typed::<E>());
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn stopIgnoring<E: Error + 'static>(&mut self) -> &mut Self {
+    pub fn stop_ignoring<E: Error + 'static>(&mut self) -> &mut Self {
         let rule = Rule::typed::<E>();
         self.ignored.retain(|existing| existing.kind != rule.kind);
         self.unignored.push(rule);
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn dontReportWhen(
+    pub fn dont_report_when(
         &mut self,
         callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
@@ -176,8 +172,7 @@ impl Exceptions {
     }
 
     /// Stops queued job retries for the given exception type or one of its sources.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn dontRetry<E: Error + 'static>(&mut self) -> &mut Self {
+    pub fn dont_retry<E: Error + 'static>(&mut self) -> &mut Self {
         let rule = Rule::typed::<E>();
         if !self
             .stop_retry_types
@@ -190,8 +185,7 @@ impl Exceptions {
     }
 
     /// Stops queued job retries when the predicate matches.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn dontRetryWhen(
+    pub fn dont_retry_when(
         &mut self,
         callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
@@ -209,8 +203,7 @@ impl Exceptions {
                 .any(|matches| matches(exception))
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn dontReportDuplicates(&mut self) -> &mut Self {
+    pub fn dont_report_duplicates(&mut self) -> &mut Self {
         self.without_duplicates = true;
         self
     }
@@ -288,8 +281,7 @@ impl Exceptions {
     }
 
     /// Excludes additional input paths from validation redirects.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn dontFlash(&mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
+    pub fn dont_flash(&mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
         self.dont_flash.extend(fields.into_iter().map(Into::into));
         self
     }
@@ -299,8 +291,7 @@ impl Exceptions {
     }
 
     /// Overrides the default request-based JSON decision.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn shouldRenderJsonWhen(
+    pub fn should_render_json_when(
         &mut self,
         policy: impl Fn(&Request, &HttpError) -> bool + Send + Sync + 'static,
     ) -> &mut Self {

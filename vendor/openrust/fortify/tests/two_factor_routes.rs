@@ -41,7 +41,7 @@ struct FactorUser(ModelState);
 impl Model for FactorUser {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("fortify_challenge_users")
-            .primaryKey("identity")
+            .primary_key("identity")
             .incrementing(false)
             .timestamps(None, None);
         &META
@@ -74,19 +74,19 @@ impl Authenticatable for FactorUser {
         field(self, "remember_token")
     }
     fn set_remember_token(&mut self, token: Option<String>) {
-        self.setAttribute("remember_token", token.map_or(Value::Null, Value::Text));
+        self.set_attribute("remember_token", token.map_or(Value::Null, Value::Text));
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
     fn get_auth_attribute(&self, name: &str) -> AuthResult<Option<Value>> {
-        self.getAttributeValue(name)
+        self.get_attribute_value(name)
             .map_err(|source| AuthError::Backend(Box::new(source)))
     }
 }
 
 fn field<'a>(user: &'a FactorUser, name: &str) -> Option<&'a str> {
-    match user.getAttribute(name) {
+    match user.get_attribute(name) {
         Some(Value::Text(value)) => Some(value),
         _ => None,
     }
@@ -179,7 +179,7 @@ impl Listener for Observe {
     > {
         Box::pin(async move {
             use openrust_fortify::events::*;
-            macro_rules! check {($($kind:ty),+)=>{$(if let Some(event)=event.downcast_ref::<$kind>() {let user=event.user::<FactorUser>(context).expect("borrowed concrete Eloquent account");assert_eq!(user.getKey(),Some(&Value::Text("001".into())));assert_eq!(user.get_auth_identifier(),AuthIdentifier::from("login-001"));})+}}
+            macro_rules! check {($($kind:ty),+)=>{$(if let Some(event)=event.downcast_ref::<$kind>() {let user=event.user::<FactorUser>(context).expect("borrowed concrete Eloquent account");assert_eq!(user.get_key(),Some(&Value::Text("001".into())));assert_eq!(user.get_auth_identifier(),AuthIdentifier::from("login-001"));})+}}
             check!(
                 TwoFactorAuthenticationChallenged,
                 TwoFactorAuthenticationFailed,
@@ -229,7 +229,7 @@ async fn start_configured(
         .connection(None)
         .unwrap();
     let version = db
-        .selectOne("SELECT VERSION() AS version", &[])
+        .select_one("SELECT VERSION() AS version", &[])
         .await
         .unwrap()
         .unwrap();
@@ -753,7 +753,7 @@ async fn challenge_limiters_csrf_container_responses_and_provider_errors_use_nat
                 .make::<openrust::cache::RateLimiter>()
                 .unwrap()
                 .r#for("challenge", |_| {
-                    openrust::cache::rate_limiting::Limit::perMinute(2)
+                    openrust::cache::rate_limiting::Limit::per_minute(2)
                 });
             app.container()
                 .instance::<dyn openrust_fortify::contracts::TwoFactorLoginResponse>(Arc::new(
@@ -950,7 +950,7 @@ async fn fixed_php_challenge_request_controller_cases_match_mysql_http_sessions_
     let server = start(json!({}), json!({})).await;
     let row = server
         .database
-        .selectOne("SELECT password FROM fortify_challenge_users", &[])
+        .select_one("SELECT password FROM fortify_challenge_users", &[])
         .await
         .unwrap()
         .unwrap();

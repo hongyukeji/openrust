@@ -82,7 +82,7 @@ impl<M: Model + Clone, O: Observer<M>> ModelEventListener<M> for AfterCommitObse
         self.0.handle(event, model, connection)
     }
 
-    fn handleInTransaction<'a>(
+    fn handle_in_transaction<'a>(
         &'a self,
         event: ModelEvent,
         model: &'a mut M,
@@ -104,7 +104,7 @@ impl<M: Model + Clone, O: Observer<M>> ModelEventListener<M> for AfterCommitObse
         let connection = transaction.query_connection().clone();
         let application = Connection::model_container(Some(&connection));
         Box::pin(async move {
-            transaction.afterCommit(move || {
+            transaction.after_commit(move || {
                 Box::pin(async move {
                     let handle = observer.handle(event, &mut snapshot, &connection);
                     match application {

@@ -40,7 +40,7 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 }
 ```
 
-郵件通知在 `to_mail` 回傳 `MailDelivery::Message`，透過 `NotificationRoute::Mail` 提供地址。`MailDelivery::Mailable` 可傳送自帶收件人的完整郵件。`sendNow` 可明確指定管道。語言依序採用通知、傳送器、收件人和應用程式的設定。
+郵件通知在 `to_mail` 回傳 `MailDelivery::Message`，透過 `NotificationRoute::Mail` 提供地址。`MailDelivery::Mailable` 可傳送自帶收件人的完整郵件。`send_now` 可明確指定管道。語言依序採用通知、傳送器、收件人和應用程式的設定。
 
 監聽器可透過 `NotificationSending` 阻止投遞。派送器也會發出 `NotificationSent`、`NotificationSkipped` 和 `NotificationFailed`。
 
@@ -132,7 +132,7 @@ let message = MailMessage::new()
     ));
 ```
 
-範例使用註冊名稱為 `invoice.trace` 的應用程式回呼。若附件實作了 `Attachable`，將其 `toMailAttachment()` 的回傳值交給 `attach`。
+範例使用註冊名稱為 `invoice.trace` 的應用程式回呼。若附件實作了 `Attachable`，將其 `to_mail_attachment()` 的回傳值交給 `attach`。
 
 ### 預覽通知郵件 {#previewing-mail-notifications}
 

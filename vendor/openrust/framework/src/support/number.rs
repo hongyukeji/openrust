@@ -112,9 +112,8 @@ impl Default for Number {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Number {
-    pub fn useLocale(&mut self, locale: &str) -> Result<(), NumberError> {
+    pub fn use_locale(&mut self, locale: &str) -> Result<(), NumberError> {
         self.locale = crate::translation::canonical_locale(locale)
             .map_err(|_| NumberError::InvalidLocale)?
             .parse()
@@ -122,37 +121,37 @@ impl Number {
         Ok(())
     }
 
-    pub fn useCurrency(&mut self, currency: &str) -> Result<(), NumberError> {
+    pub fn use_currency(&mut self, currency: &str) -> Result<(), NumberError> {
         self.currency =
             CurrencyType::try_from_str(currency).map_err(|_| NumberError::InvalidCurrency)?;
         Ok(())
     }
 
-    pub fn withLocale<T>(
+    pub fn with_locale<T>(
         &self,
         locale: &str,
         callback: impl FnOnce(&Self) -> T,
     ) -> Result<T, NumberError> {
         let mut scoped = self.clone();
-        scoped.useLocale(locale)?;
+        scoped.use_locale(locale)?;
         Ok(callback(&scoped))
     }
 
-    pub fn withCurrency<T>(
+    pub fn with_currency<T>(
         &self,
         currency: &str,
         callback: impl FnOnce(&Self) -> T,
     ) -> Result<T, NumberError> {
         let mut scoped = self.clone();
-        scoped.useCurrency(currency)?;
+        scoped.use_currency(currency)?;
         Ok(callback(&scoped))
     }
 
-    pub fn defaultLocale(&self) -> &Locale {
+    pub fn default_locale(&self) -> &Locale {
         &self.locale
     }
 
-    pub fn defaultCurrency(&self) -> CurrencyType {
+    pub fn default_currency(&self) -> CurrencyType {
         self.currency
     }
 
@@ -234,10 +233,10 @@ impl Number {
     }
 
     pub fn parse(&self, input: &str) -> Result<f64, NumberError> {
-        self.parseFloat(input)
+        self.parse_float(input)
     }
 
-    pub fn parseInt(&self, input: &str) -> Result<i64, NumberError> {
+    pub fn parse_int(&self, input: &str) -> Result<i64, NumberError> {
         let value = parse::decimal(&self.formatter()?, input)?;
         let integer = value
             .split_once('.')
@@ -245,7 +244,7 @@ impl Number {
         integer.parse().map_err(|_| NumberError::InvalidNumber)
     }
 
-    pub fn parseFloat(&self, input: &str) -> Result<f64, NumberError> {
+    pub fn parse_float(&self, input: &str) -> Result<f64, NumberError> {
         parse::decimal(&self.formatter()?, input)?
             .parse()
             .map_err(|_| NumberError::InvalidNumber)
@@ -280,7 +279,7 @@ impl Number {
         Ok(format!("{}{suffix}", self.format(number, None, None)?))
     }
 
-    pub fn spellOrdinal(&self, number: impl Into<NumberValue>) -> Result<String, NumberError> {
+    pub fn spell_ordinal(&self, number: impl Into<NumberValue>) -> Result<String, NumberError> {
         let number = number.into();
         if number == NumberValue::Integer(i64::MIN) {
             return self.format(number, None, None);
@@ -288,7 +287,7 @@ impl Number {
         spellout::format(&self.locale, number, true)
     }
 
-    pub fn fileSize(
+    pub fn file_size(
         &self,
         bytes: impl Into<NumberValue>,
         precision: u8,
@@ -318,10 +317,10 @@ impl Number {
         precision: u8,
         max_precision: Option<u8>,
     ) -> Result<String, NumberError> {
-        self.forHumans(number, precision, max_precision, true)
+        self.for_humans(number, precision, max_precision, true)
     }
 
-    pub fn forHumans(
+    pub fn for_humans(
         &self,
         number: impl Into<NumberValue>,
         precision: u8,
@@ -416,7 +415,7 @@ impl Number {
     }
 
     /// Splits a floating-point range, with the same final singleton rule as `pairs`.
-    pub fn pairsFloat(
+    pub fn pairs_float(
         to: f64,
         by: f64,
         start: f64,

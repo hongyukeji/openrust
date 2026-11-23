@@ -4,7 +4,7 @@ Declare web routes in `routes/web.rs`. The application registers those routes an
 
 Run `./artisan install:api` to generate and register `routes/api.rs` and `config/api.rs`. Both files are created on demand. Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::api_prefix(...)` in `with_routing` takes precedence. Reinstalling preserves an existing `config/api.rs`, even with `--force`.
 
-In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::getWith` when a GET route needs a name, model binding, or route-level middleware.
+In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::get_with` when a GET route needs a name, model binding, or route-level middleware.
 
 A parameter such as `{id}` is required. Add `?` to allow a trailing parameter to be omitted, as in `/profiles/{id?}/{tab?}` or `/report/{name}.{format?}`. Read the captured value with `request.route("id")`. For an omitted parameter, this returns `None` unless the route supplies a string through `defaults`. A parameter before required text or another required parameter must still be present.
 
@@ -52,7 +52,7 @@ Route::view("/hello/{name}", "welcome", ViewRouteOptions {
 
 Put templates in `resources/views`, for example `welcome.blade.html`. Captured path and domain parameters override matching keys in `data`, before view creators and composers run. Set `status` and `headers` in `ViewRouteOptions` for a custom response. PHP's alternative headers-in-status argument is represented by the explicit `headers` field. Do not use `view`, `data`, `status` or `headers` as parameter names. Route defaults currently carry strings; arbitrary typed changes to these four view settings through `Route::defaults` are not supported. Bound model objects are not automatically converted into view data.
 
-`Router::view` returns a mutable route. For facade declarations, use `Route::viewWith(uri, view, options, |route| { route.name("welcome"); Ok(()) })` to configure the route inside its registration borrow. Rendering uses the current application's view factory and middleware. A missing template or failing creator/composer follows the normal HTTP exception pipeline.
+`Router::view` returns a mutable route. For facade declarations, use `Route::view_with(uri, view, options, |route| { route.name("welcome"); Ok(()) })` to configure the route inside its registration borrow. Rendering uses the current application's view factory and middleware. A missing template or failing creator/composer follows the normal HTTP exception pipeline.
 
 ## Fallback Routes
 
@@ -66,7 +66,7 @@ Route::fallback(NotFoundController::show)?;
 
 Ordinary routes take precedence even when the fallback was declared earlier. Among matching fallbacks, registration order applies; a later declaration for the same method, domain and registered URI replaces the earlier one. An unmatched POST returns 405 with `Allow: GET, HEAD` when the fallback matches its path; automatic OPTIONS returns 200. A fallback is a registered route, so it takes precedence over the static file mounts described below.
 
-Use `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })` for facade configuration. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.set_fallback(false)` removes the marker. Routing cache preserves this precedence.
+Use `Route::fallback_with(handler, |route| { route.name("missing"); Ok(()) })` for facade configuration. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.set_fallback(false)` removes the marker. Routing cache preserves this precedence.
 
 
 A handler can explicitly return another named route's response. `respond_with_route` binds that route against the same request URI, runs its middleware and replaces the request's current route parameters and name; it does not generate a redirect or substitute the target URI.
@@ -82,15 +82,15 @@ fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 }
 ```
 
-Register `missing` using `fallbackWith` as above, then register `show_missing` as a handler. Rust requires an explicit mutable request borrow; the HTTP kernel supplies the shared runtime router through the application container. Each request keeps its own route state. Missing names return an error rendered as HTTP 500. The same public method is available on `Router` for direct consumers. Runtime router resolution is available after HTTP bootstrap; registration continues to use the route registration scope.
+Register `missing` using `fallback_with` as above, then register `show_missing` as a handler. Rust requires an explicit mutable request borrow; the HTTP kernel supplies the shared runtime router through the application container. Each request keeps its own route state. Missing names return an error rendered as HTTP 500. The same public method is available on `Router` for direct consumers. Runtime router resolution is available after HTTP bootstrap; registration continues to use the route registration scope.
 
 ## Mounting a static directory
 
 The application skeleton mounts the website directory first and the public storage disk second. See [public file configuration](../getting-started/configuration.md#public-files) for the directories and URL prefixes.
 
 ```rust
-Route::staticDisk("web")?;
-Route::staticDisk("public")?;
+Route::static_disk("web")?;
+Route::static_disk("public")?;
 ```
 
 The `web` and `public` disks are configured in `config/filesystems.rs`. Their default roots are `public` and `storage/app/public`, and their default URLs are `app.url` and `app.url` with `/storage` appended. Mount paths come from those URLs, including any application URL path prefix. Application routes take precedence. Disk mounts are checked in declaration order, with the first existing public file winning. Both mounts reject symbolic links, so a `public/storage` link is skipped and the `public` disk can serve the file directly. Only unmatched GET and HEAD requests serve files. Missing files and directory requests return 404.
@@ -201,7 +201,7 @@ use openrust::{
 };
 
 fn register_limits() -> CacheResult<()> {
-    RateLimiter::r#for("uploads", |_| Limit::perMinute(5))
+    RateLimiter::r#for("uploads", |_| Limit::per_minute(5))
 }
 
 fn routes() -> Result<(), RoutingError> {
@@ -218,7 +218,7 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 Use `middleware_name("throttle:30,0.5,uploads:")` for 30 requests per 30 seconds. A bare `throttle` allows 60 requests per minute. `throttle:5|20,1,uploads:` allows five requests per minute for guests and twenty for authenticated users. Guests share a bucket by the declared route domain and peer IP. Authenticated requests share a bucket by their authentication identifier. Give policies different prefixes to keep their quotas separate.
 
-Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upload_limit` while retaining a fixed guest quota. Database-provider users expose their columns. An application model can expose its attributes through `Authenticatable::get_auth_attribute`, delegating to `Model::getAttributeValue` for accessors and casts. Quotas accept non-negative numbers and numeric strings within the signed 64-bit range. A missing or nonnumeric attribute is a configuration error.
+Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upload_limit` while retaining a fixed guest quota. Database-provider users expose their columns. An application model can expose its attributes through `Authenticatable::get_auth_attribute`, delegating to `Model::get_attribute_value` for accessors and casts. Quotas accept non-negative numbers and numeric strings within the signed 64-bit range. A missing or nonnumeric attribute is a configuration error.
 
 ### Throttling With Redis
 
@@ -230,7 +230,7 @@ With a [default Redis cluster](../database/redis.md#clusters), all counters for 
 
 Use `Route::model::<Post>("post")?` to register an explicit binding in the application’s router. A route can also declare the model for its own parameter using the router’s `.model::<Post>("post")?` method. Read the resolved model from `request.route_model::<Post>("post")`. Missing models produce a 404. A route can supply a custom response with `missing`.
 
-The model defaults to its primary key. Override `getRouteKeyName` for a slug or use `{post:slug}` for one route. A nested custom-key binding scopes through the preceding bound model. Use `scope_bindings` to require that scope for default keys or `without_scoped_bindings` to disable it. Implement the child model’s `resolveChildRouteBinding` with a typed relationship. Use `with_trashed` to include soft-deleted records. The default `web` and `api` groups run bindings before the handler.
+The model defaults to its primary key. Override `get_route_key_name` for a slug or use `{post:slug}` for one route. A nested custom-key binding scopes through the preceding bound model. Use `scope_bindings` to require that scope for default keys or `without_scoped_bindings` to disable it. Implement the child model’s `resolve_child_route_binding` with a typed relationship. Use `with_trashed` to include soft-deleted records. The default `web` and `api` groups run bindings before the handler.
 
 ## Redirect routes
 

@@ -84,7 +84,7 @@ async fn named_drivers_are_reused_and_configuration_refresh_is_explicit() {
             .unwrap()["config"]["token"],
         "second"
     );
-    manager.forgetDrivers();
+    manager.forget_drivers();
     let fresh = manager.driver("primary").unwrap();
     assert_eq!(fresh.send(send()).await.unwrap()["content"], "Updated 42");
     assert_eq!(fresh.send(send()).await.unwrap()["config"]["token"], "new");
@@ -147,7 +147,7 @@ async fn failed_factories_can_retry_and_replacements_require_forgetting_drivers(
             .unwrap()["config"]["token"],
         "first"
     );
-    manager.forgetDrivers();
+    manager.forget_drivers();
     assert_eq!(
         manager
             .driver("primary")
@@ -204,7 +204,7 @@ async fn managers_and_facade_cache_resets_are_application_local() {
         app.call(
             Callback::new(&[], |_| async {
                 assert_eq!(Sms::get_default_driver().unwrap(), "log");
-                Sms::forgetDrivers().unwrap();
+                Sms::forget_drivers().unwrap();
                 Sms::send_text("+12025550123", "local").await.unwrap();
                 Ok(())
             }),

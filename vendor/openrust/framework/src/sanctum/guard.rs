@@ -84,7 +84,7 @@ impl Guard {
         };
         let morphs = container.make::<crate::database::eloquent::relations::MorphMap>()?;
         let model = morphs
-            .getMorphedModel(&token.tokenable_type)
+            .get_morphed_model(&token.tokenable_type)
             .unwrap_or(&token.tokenable_type);
         let user = token.tokenable(&auth, &morphs).await?;
         let valid_provider = self.provider_model.as_ref().is_none_or(|configured| {
@@ -92,7 +92,7 @@ impl Guard {
         });
         if !sanctum.valid(
             &token,
-            valid_provider && !token.isExpired(Timestamp::now(), self.expiration),
+            valid_provider && !token.is_expired(Timestamp::now(), self.expiration),
         ) {
             return Ok(None);
         }

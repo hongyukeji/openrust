@@ -185,7 +185,7 @@ impl Log {
             .channel(self.channel.as_deref())
             .map_err(|source| failed("log", source))?;
         let logger = match &self.name {
-            Some(name) => Arc::new(logger.withName(name.as_ref())),
+            Some(name) => Arc::new(logger.with_name(name.as_ref())),
             None => logger,
         };
         Ok(ParameterValue::service(logger).into())

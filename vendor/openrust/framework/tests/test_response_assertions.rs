@@ -311,7 +311,7 @@ fn shared_tag_removal_matches_fixed_php_for_quotes_comments_and_allowed_tags() {
             .collect();
         assert_eq!(
             openrust::support::Stringable::from(case["body"].as_str().unwrap())
-                .stripTags(&allowed)
+                .strip_tags(&allowed)
                 .value(),
             case["stripped"].as_str().unwrap(),
             "{case}"
@@ -599,7 +599,7 @@ fn redirect_errors(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
     use openrust::contracts::session::Session as _;
     Box::pin(async move {
         let bag_name = request.route("bag").unwrap().to_owned();
-        let previous = openrust::support::facades::URL::previous(request, None)?;
+        let previous = openrust::support::facades::Url::previous(request, None)?;
         let mut errors = openrust::support::ViewErrorBag::new();
         let mut bag = openrust::support::MessageBag::default();
         bag.add("email", "邮箱无效");

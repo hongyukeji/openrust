@@ -14,7 +14,6 @@ pub(in crate::database) struct ChunkKey {
     pub lazy: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection> Builder<'connection> {
     /// Streams rows from successive offset batches as the caller polls the stream.
     pub fn lazy(mut self, chunk_size: u64) -> DatabaseCursor<'connection, Row> {
@@ -26,7 +25,7 @@ impl<'connection> Builder<'connection> {
         })
     }
 
-    pub fn lazyById(
+    pub fn lazy_by_id(
         self,
         chunk_size: u64,
         column: Option<&str>,
@@ -35,7 +34,7 @@ impl<'connection> Builder<'connection> {
         self.lazy_by_key(chunk_size, query_chunk_key(column, alias, false))
     }
 
-    pub fn lazyByIdDesc(
+    pub fn lazy_by_id_desc(
         self,
         chunk_size: u64,
         column: Option<&str>,
@@ -59,7 +58,7 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Maps every row while fetching inputs in offset batches.
-    pub async fn chunkMap<T, Fut>(
+    pub async fn chunk_map<T, Fut>(
         self,
         callback: impl FnMut(Row) -> Fut,
         count: u64,
@@ -84,7 +83,7 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Visits rows in ascending key order, with indices spanning all batches.
-    pub async fn eachById<Fut>(
+    pub async fn each_by_id<Fut>(
         mut self,
         callback: impl FnMut(Row, i64) -> Fut,
         count: u64,
@@ -105,7 +104,7 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Processes successive batches ordered by a unique, projected key.
-    pub async fn chunkById<Fut>(
+    pub async fn chunk_by_id<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Vec<Row>, u64) -> Fut,
@@ -115,11 +114,11 @@ impl<'connection> Builder<'connection> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.orderedChunkById(count, callback, column, alias, false)
+        self.ordered_chunk_by_id(count, callback, column, alias, false)
             .await
     }
 
-    pub async fn chunkByIdDesc<Fut>(
+    pub async fn chunk_by_id_desc<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Vec<Row>, u64) -> Fut,
@@ -129,11 +128,11 @@ impl<'connection> Builder<'connection> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.orderedChunkById(count, callback, column, alias, true)
+        self.ordered_chunk_by_id(count, callback, column, alias, true)
             .await
     }
 
-    pub async fn orderedChunkById<Fut>(
+    pub async fn ordered_chunk_by_id<Fut>(
         mut self,
         count: u64,
         mut callback: impl FnMut(Vec<Row>, u64) -> Fut,
@@ -169,7 +168,7 @@ impl<'connection> Builder<'connection> {
                 Err(DatabaseError::InvalidQuery("chunkById requires a single query source; wrap the union in a subquery"))?;
             }
 
-            self.applyBeforeQueryCallbacks()?;
+            self.apply_before_query_callbacks()?;
             let (direction, operator) = if key.descending { ("desc", "<") } else { ("asc", ">") };
             let unqualified = key.column.rsplit('.').next().expect("column has one component");
             self.orders.retain(|order| {
@@ -180,7 +179,7 @@ impl<'connection> Builder<'connection> {
             let base = if predicates.is_empty() {
                 Conditions::default()
             } else {
-                Conditions::default().whereNested(|_| predicates)
+                Conditions::default().where_nested(|_| predicates)
             };
             let mut remaining = self.limit.unwrap_or(u64::MAX);
             self.predicates = base.clone().where_not_null(&key.column);
@@ -189,7 +188,7 @@ impl<'connection> Builder<'connection> {
                 self.limit = Some(size);
                 let (sql, bindings) = self.compile(None)?;
                 let rows = self.execute(&sql, &bindings).await?;
-                let rows = self.applyAfterQueryCallbacks(rows)?;
+                let rows = self.apply_after_query_callbacks(rows)?;
                 let length = rows.len() as u64;
                 let Some(last) = rows.last() else { break };
                 let last_id = last.get(&key.alias).filter(|value| !matches!(value, Value::Null)).cloned();

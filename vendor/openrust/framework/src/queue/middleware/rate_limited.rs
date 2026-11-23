@@ -35,7 +35,7 @@ impl RateLimited {
         }
     }
 
-    pub fn releaseAfter(mut self, delay: impl Into<Delay>) -> Self {
+    pub fn release_after(mut self, delay: impl Into<Delay>) -> Self {
         self.release_after = Some(delay.into());
         self
     }
@@ -76,8 +76,8 @@ impl RateLimited {
                 };
                 Quota {
                     key,
-                    max: limit.maxAttempts,
-                    decay: limit.decaySeconds,
+                    max: limit.max_attempts,
+                    decay: limit.decay_seconds,
                     charge: true,
                 }
             })
@@ -138,8 +138,8 @@ impl RateLimitedWithRedis {
         self
     }
 
-    pub fn releaseAfter(mut self, delay: impl Into<Delay>) -> Self {
-        self.limiter = self.limiter.releaseAfter(delay);
+    pub fn release_after(mut self, delay: impl Into<Delay>) -> Self {
+        self.limiter = self.limiter.release_after(delay);
         self
     }
 

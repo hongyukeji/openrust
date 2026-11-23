@@ -24,7 +24,7 @@ impl UserRepository {
         clientEntity: &ClientRecord,
     ) -> Result<Option<AuthIdentifier>, OAuthError> {
         let provider = match clientEntity
-            .getAttributeValue("provider")
+            .get_attribute_value("provider")
             .await
             .map_err(internal)?
         {

@@ -26,7 +26,7 @@ impl Model for Article {
         static META: ModelMetadata = ModelMetadata::new("scout_articles")
             .fillable(&["id", "title", "status", "category", "deleted_at"])
             .timestamps(None, None)
-            .softDeletes("deleted_at");
+            .soft_deletes("deleted_at");
         &META
     }
     fn from_state(state: ModelState) -> Self {
@@ -41,13 +41,13 @@ impl Model for Article {
 }
 impl Searchable for Article {
     fn searchIndexShouldBeUpdated(&self) -> bool {
-        self.getAttribute("title") != Some(&Value::Text("skip-index".into()))
+        self.get_attribute("title") != Some(&Value::Text("skip-index".into()))
     }
     fn shouldBeSearchable(&self) -> bool {
-        self.getAttribute("status") == Some(&Value::Text("published".into()))
+        self.get_attribute("status") == Some(&Value::Text("published".into()))
     }
     fn toSearchableArray(&self) -> openrust_scout::Result<serde_json::Map<String, Json>> {
-        Ok(json!({"title":match self.getAttribute("title"){Some(Value::Text(v))=>v.clone(),_=>String::new()},"nested":{"locale":"中文"}}).as_object().unwrap().clone())
+        Ok(json!({"title":match self.get_attribute("title"){Some(Value::Text(v))=>v.clone(),_=>String::new()},"nested":{"locale":"中文"}}).as_object().unwrap().clone())
     }
 }
 fn config(
@@ -124,13 +124,13 @@ fn search(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let results = Article::search("RUST")
             .map_err(internal)?
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .paginate(1, 1)
             .await
             .map_err(internal)?;
         Response::json(
             openrust::http::StatusCode::OK,
-            json!({"total":results.total(),"title":results.items()[0].getAttribute("title").and_then(|v|if let Value::Text(v)=v{Some(v)}else{None})}),
+            json!({"total":results.total(),"title":results.items()[0].get_attribute("title").and_then(|v|if let Value::Text(v)=v{Some(v)}else{None})}),
         )
     })
 }
@@ -141,10 +141,10 @@ fn manual_sync(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             let manager = Article::scoutManager()?;
             let nested = Article::withoutSyncingToSearch(async {
                 let mut model = Article::find(1_i64).await.unwrap().unwrap();
-                model.setAttribute("title", "suppressed");
+                model.set_attribute("title", "suppressed");
                 model.save().await.unwrap();
                 Article::withoutSyncingToSearch(async {
-                    model.setAttribute("title", "nested");
+                    model.set_attribute("title", "nested");
                     model.save().await.unwrap();
                 })
                 .await
@@ -160,7 +160,7 @@ fn manual_sync(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             assert!(cancelled.is_err());
             assert!(!manager.syncingDisabledFor::<Article>());
             let mut model = Article::find(1_i64).await?.unwrap();
-            model.setAttribute("title", "restored");
+            model.set_attribute("title", "restored");
             model.save().await?;
             model.searchableSync().await?;
             let models = Article::query()?.get().await?;
@@ -201,9 +201,9 @@ impl Fixture {
             .connection(None)
             .unwrap();
         for name in ["scout_articles", "jobs"] {
-            db.getSchemaBuilder().dropIfExists(name).await.unwrap();
+            db.get_schema_builder().drop_if_exists(name).await.unwrap();
         }
-        db.getSchemaBuilder()
+        db.get_schema_builder()
             .create("scout_articles", |table| {
                 table.id();
                 table.string("title", 255);
@@ -213,15 +213,15 @@ impl Fixture {
             })
             .await
             .unwrap();
-        db.getSchemaBuilder()
+        db.get_schema_builder()
             .create("jobs", |table| {
                 table.id();
                 table.string("queue", 255).index();
                 table.longText("payload");
-                table.unsignedInteger("attempts");
-                table.unsignedBigInteger("reserved_at").nullable();
-                table.unsignedBigInteger("available_at");
-                table.unsignedBigInteger("created_at");
+                table.unsigned_integer("attempts");
+                table.unsigned_big_integer("reserved_at").nullable();
+                table.unsigned_big_integer("available_at");
+                table.unsigned_big_integer("created_at");
             })
             .await
             .unwrap();
@@ -229,7 +229,7 @@ impl Fixture {
         Self { app, db, manager }
     }
     fn article(&self, id: i64, title: &str, status: &str) -> Article {
-        Article::newInstanceOn(
+        Article::new_instance_on(
             &self.db,
             [
                 ("id".into(), id.into()),
@@ -243,7 +243,7 @@ impl Fixture {
     }
     fn search(&self, q: &str) -> Builder<Article> {
         Builder::new(
-            Article::newInstanceOn(&self.db, Default::default()).unwrap(),
+            Article::new_instance_on(&self.db, Default::default()).unwrap(),
             q,
             self.manager.clone(),
         )
@@ -299,7 +299,7 @@ impl Recording {
             trashed: models.iter().map(Model::trashed).collect(),
             titles: models
                 .iter()
-                .map(|m| match m.getAttribute("title") {
+                .map(|m| match m.get_attribute("title") {
                     Some(Value::Text(s)) => s.clone(),
                     _ => String::new(),
                 })
@@ -389,7 +389,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
     assert_eq!(
         ids(f
             .search(r"\u4e2d")
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .get()
             .await
             .unwrap()),
@@ -398,22 +398,22 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
     assert_eq!(ids(f.search("").take(1).get().await.unwrap()), vec![4]);
     let page = f
         .search("rust")
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .take(1)
         .paginate(1, 2)
         .await
         .unwrap();
     assert_eq!(page.total(), 2);
     assert_eq!(number(&page.items()[0].getScoutKey().unwrap()), 2);
-    assert!(!page.hasMorePages());
-    let page = f.search("rust").simplePaginate(1, 1).await.unwrap();
-    assert!(page.hasMorePages());
+    assert!(!page.has_more_pages());
+    let page = f.search("rust").simple_paginate(1, 1).await.unwrap();
+    assert!(page.has_more_pages());
     assert_eq!(f.search("absent").paginate(2, 1).await.unwrap().total(), 0);
     assert!(f.search("rust").paginate(0, 1).await.is_err());
     assert_eq!(
         ids(f
             .search("rust")
-            .orderBy("id", "asc")
+            .order_by("id", "asc")
             .cursor()
             .try_collect::<Vec<_>>()
             .await
@@ -487,7 +487,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
             .is_err()
     );
     f.app.get("/api/search").await.unwrap().assert_ok();
-    let mut article = Article::queryOn(&f.db).find(1_i64).await.unwrap().unwrap();
+    let mut article = Article::query_on(&f.db).find(1_i64).await.unwrap().unwrap();
     article.delete().await.unwrap();
     assert_eq!(ids(f.search("rust").get().await.unwrap()), vec![2]);
     assert_eq!(
@@ -512,7 +512,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
             ids(f
                 .search("")
                 .r#where("id", operator, bound)
-                .orderBy("id", "asc")
+                .order_by("id", "asc")
                 .get()
                 .await
                 .unwrap()),
@@ -524,7 +524,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
     assert_eq!(ids(f.search("0").get().await.unwrap()), vec![6, 5]);
     let zero = f
         .search("0")
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .paginate(1, 2)
         .await
         .unwrap();
@@ -549,25 +549,25 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
 async fn observer_waits_for_outer_commit_discards_rollback_and_tracks_soft_delete_lifecycle() {
     let f = Fixture::new(true).await;
     let engine = f.recording();
-    let mut transaction = f.db.beginTransaction().await.unwrap();
+    let mut transaction = f.db.begin_transaction().await.unwrap();
     let mut article = f.article(1, "Rust", "published");
-    article.saveInTransaction(&mut transaction).await.unwrap();
+    article.save_in_transaction(&mut transaction).await.unwrap();
     assert!(engine.take().is_empty());
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
     assert!(engine.take().is_empty());
-    let mut outer = f.db.beginTransaction().await.unwrap();
+    let mut outer = f.db.begin_transaction().await.unwrap();
     let mut article = f.article(2, "Rust", "published");
-    article.saveInTransaction(&mut outer).await.unwrap();
+    article.save_in_transaction(&mut outer).await.unwrap();
     assert!(engine.take().is_empty());
-    outer.beginTransaction().await.unwrap();
+    outer.begin_transaction().await.unwrap();
     f.article(3, "rolled back inner", "published")
-        .saveInTransaction(&mut outer)
+        .save_in_transaction(&mut outer)
         .await
         .unwrap();
-    outer.rollBack(Some(1)).await.unwrap();
-    outer.beginTransaction().await.unwrap();
+    outer.roll_back(Some(1)).await.unwrap();
+    outer.begin_transaction().await.unwrap();
     f.article(4, "committed inner", "published")
-        .saveInTransaction(&mut outer)
+        .save_in_transaction(&mut outer)
         .await
         .unwrap();
     outer.commit().await.unwrap();
@@ -581,13 +581,13 @@ async fn observer_waits_for_outer_commit_discards_rollback_and_tracks_soft_delet
             .collect::<Vec<_>>(),
         vec![4, 2]
     );
-    article.setAttribute("status", "draft");
+    article.set_attribute("status", "draft");
     article.save().await.unwrap();
     assert_eq!(engine.take()[0].kind, "delete");
-    article.setAttribute("status", "published");
+    article.set_attribute("status", "published");
     article.save().await.unwrap();
     engine.take();
-    article.setAttribute("title", "skip-index");
+    article.set_attribute("title", "skip-index");
     article.save().await.unwrap();
     assert!(engine.take().is_empty());
     article.delete().await.unwrap();
@@ -597,7 +597,7 @@ async fn observer_waits_for_outer_commit_discards_rollback_and_tracks_soft_delet
     assert_eq!(actions[0].trashed, vec![true]);
     article.restore().await.unwrap();
     assert!(engine.take().iter().all(|a| a.kind == "update"));
-    article.forceDelete().await.unwrap();
+    article.force_delete().await.unwrap();
     let actions = engine.take();
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].kind, "delete");
@@ -625,9 +625,9 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
             json!({"connection":"database","queue":"scout"}),
         )
         .unwrap();
-    let mut transaction = f.db.beginTransaction().await.unwrap();
+    let mut transaction = f.db.begin_transaction().await.unwrap();
     let mut first = f.article(1, "Rust", "published");
-    first.saveInTransaction(&mut transaction).await.unwrap();
+    first.save_in_transaction(&mut transaction).await.unwrap();
     assert_eq!(f.db.table("jobs").count("*").await.unwrap(), 0);
     transaction.commit().await.unwrap();
     assert_eq!(f.db.table("jobs").count("*").await.unwrap(), 1);
@@ -679,7 +679,7 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
     assert_eq!(actions[0].titles, vec!["Retried Rust"]);
     assert_eq!(f.db.table("jobs").count("*").await.unwrap(), 0);
     assert_eq!(actions[0].kind, "update");
-    first.forceDelete().await.unwrap();
+    first.force_delete().await.unwrap();
     assert_eq!(f.db.table("scout_articles").count("*").await.unwrap(), 0);
     f.app
         .artisan([
@@ -738,13 +738,13 @@ async fn native_queue_reloads_latest_models_deletes_tombstones_and_import_comman
 async fn immediate_observer_indexes_before_transaction_completion_when_after_commit_is_disabled() {
     let f = Fixture::new(false).await;
     let engine = f.recording();
-    let mut transaction = f.db.beginTransaction().await.unwrap();
+    let mut transaction = f.db.begin_transaction().await.unwrap();
     f.article(1, "Rust", "published")
-        .saveInTransaction(&mut transaction)
+        .save_in_transaction(&mut transaction)
         .await
         .unwrap();
     assert_eq!(engine.take()[0].kind, "update");
-    transaction.rollBack(None).await.unwrap();
+    transaction.roll_back(None).await.unwrap();
 }
 
 #[tokio::test]
@@ -782,7 +782,7 @@ impl Model for SearchValue {
 }
 impl Searchable for SearchValue {
     fn toSearchableArray(&self) -> openrust_scout::Result<serde_json::Map<String, Json>> {
-        let Some(Value::Text(text)) = self.getAttribute("title") else {
+        let Some(Value::Text(text)) = self.get_attribute("title") else {
             panic!("fixture JSON")
         };
         Ok(serde_json::Map::from_iter([(
@@ -804,13 +804,13 @@ async fn collection_matches_fixed_php_scalar_and_json_reference() {
             .unwrap();
     }
     for case in reference["cases"].as_array().unwrap() {
-        let model = SearchValue::newInstanceOn(&fixture.db, Default::default()).unwrap();
+        let model = SearchValue::new_instance_on(&fixture.db, Default::default()).unwrap();
         let result = Builder::new(
             model,
             case["query"].as_str().unwrap(),
             fixture.manager.clone(),
         )
-        .orderBy("id", "asc")
+        .order_by("id", "asc")
         .keys()
         .await
         .unwrap();
@@ -836,17 +836,17 @@ async fn collection_matches_original_engine_unicode_filter_mapping_and_paginatio
             record["title"].as_str().unwrap(),
             record["status"].as_str().unwrap(),
         );
-        article.setAttribute("category", record["category"].as_i64().unwrap());
+        article.set_attribute("category", record["category"].as_i64().unwrap());
         article.save().await.unwrap();
     }
     for case in reference["cases"].as_array().unwrap() {
-        let model = Article::newInstanceOn(&fixture.db, Default::default()).unwrap();
+        let model = Article::new_instance_on(&fixture.db, Default::default()).unwrap();
         let mut builder = Builder::new(
             model,
             case["query"].as_str().unwrap(),
             fixture.manager.clone(),
         )
-        .orderBy("id", "asc");
+        .order_by("id", "asc");
         match case["mode"].as_str().unwrap() {
             "in" => builder = builder.where_in("category", vec![2_i64.into()]),
             "not_in" => builder = builder.where_not_in("category", vec![2_i64.into()]),
@@ -866,7 +866,7 @@ async fn collection_matches_original_engine_unicode_filter_mapping_and_paginatio
         let mapped = engine.map(&builder, &result).await.unwrap();
         let mapped: Vec<i64> = mapped
             .iter()
-            .map(|model| number(model.getKey().unwrap()))
+            .map(|model| number(model.get_key().unwrap()))
             .collect();
         assert_eq!(json!(mapped), case["mapped"], "{case}");
     }

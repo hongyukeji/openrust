@@ -149,7 +149,7 @@ impl CleanActivityLogAction {
             .map_err(|_| crate::Error::InvalidActivity)?;
         // The upstream cleaner formats seconds, discarding fractional seconds.
         cutoff
-            .asDateTime()
+            .as_date_time()
             .timestamp()
             .as_second()
             .checked_mul(1000)

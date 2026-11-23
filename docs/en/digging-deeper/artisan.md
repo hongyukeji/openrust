@@ -60,7 +60,7 @@ Run the registered development processes together from the application directory
 
 Output lines are labelled by process and retain stdout or stderr. `--timestamps` adds UTC times to inline output. `--json` emits one versioned event per line, including process starts, output, exits, retry attempts and a final `done` event.
 
-A process that fails after running for at least one second is retried up to five times with a one-second delay. A process that exits successfully is finished. A process that fails within a second is reported immediately. Disable retries for a run with `--no-restart`, or for the application with `DevCommands::disableAutoRestart()`. Use `DevCommands::withTimestamps()` to enable timestamps by default. The first permanent failure determines the exit code while other processes can keep running.
+A process that fails after running for at least one second is retried up to five times with a one-second delay. A process that exits successfully is finished. A process that fails within a second is reported immediately. Disable retries for a run with `--no-restart`, or for the application with `DevCommands::disableAutoRestart()`. Use `DevCommands::with_timestamps()` to enable timestamps by default. The first permanent failure determines the exit code while other processes can keep running.
 
 A usable Unix terminal opens the tabbed view by default. Start in the interleaved view with `--stream`. Redirected output, small terminals, Windows, `--inline`, and `--json` use the inline path. Interactive sessions return status 0 on normal exit, while inline and JSON runs report the first permanent failure.
 
@@ -129,7 +129,7 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 }
 ```
 
-Pass a separate `OsString` for each positional argument or option. Values that contain spaces stay in one token. Include a switch for a true Boolean flag, and repeat options that take multiple values. Use `Artisan::callSilently(name, arguments).await` to discard both streams and keep the exit code.
+Pass a separate `OsString` for each positional argument or option. Values that contain spaces stay in one token. Include a switch for a true Boolean flag, and repeat options that take multiple values. Use `Artisan::call_silently(name, arguments).await` to discard both streams and keep the exit code.
 
 ### Queueing Artisan Commands {#queueing-artisan-commands}
 

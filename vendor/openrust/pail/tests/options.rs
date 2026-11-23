@@ -12,7 +12,7 @@ use openrust_pail::{
 use serde_json::{Value, json};
 
 fn record(context: Value) -> MessageLogged {
-    MessageLogged::fromJson(&json!({
+    MessageLogged::from_json(&json!({
         "message":"Import CRITICAL report 你好 🚀", "datetime":"2026-11-19T03:04:05.123456+08:00",
         "level_name":"CRITICAL", "context":context,
         "channel":"pail", "level":500, "extra":{}
@@ -109,7 +109,7 @@ fn parsed_records_preserve_dates_origins_and_public_context() {
     assert!(event.to_string().contains(r"\u4f60\u597d \ud83d\ude80"));
     assert!(event.to_string().contains("reports/weekly"));
     assert!(!event.to_string().contains(r"\/"));
-    let roundtrip = MessageLogged::fromJson(&event.to_string()).unwrap();
+    let roundtrip = MessageLogged::from_json(&event.to_string()).unwrap();
     assert_eq!(roundtrip.message(), event.message());
     assert!(
         serde_json::from_str::<Value>(&event.to_string())
@@ -133,7 +133,7 @@ fn severity_origin_and_absent_fields_follow_pail() {
         ("error", "gray"),
         ("unknown", "gray"),
     ] {
-        let event=MessageLogged::fromJson(&json!({"message":"ok","datetime":"2026-11-19T23:59:59.000000-05:00","level_name":level,"context":{"__pail":{"origin":{"type":"console","command":null}}}}).to_string()).unwrap();
+        let event=MessageLogged::from_json(&json!({"message":"ok","datetime":"2026-11-19T23:59:59.000000-05:00","level_name":level,"context":{"__pail":{"origin":{"type":"console","command":null}}}}).to_string()).unwrap();
         assert_eq!(event.color(), color);
         assert_eq!(event.classOrType(), level.to_ascii_uppercase());
         assert_eq!(
@@ -154,15 +154,15 @@ fn severity_origin_and_absent_fields_follow_pail() {
             command: None
         })
     );
-    assert!(MessageLogged::fromJson("not JSON").is_err());
-    assert!(MessageLogged::fromJson("{}").is_err());
+    assert!(MessageLogged::from_json("not JSON").is_err());
+    assert!(MessageLogged::from_json("{}").is_err());
     assert!(
-        MessageLogged::fromJson(
+        MessageLogged::from_json(
             r#"{"message":1,"datetime":"now","level_name":"INFO","context":{}}"#
         )
         .is_err()
     );
-    let invalid = MessageLogged::fromJson(
+    let invalid = MessageLogged::from_json(
         r#"{"message":"ok","datetime":"now","level_name":"INFO","context":{}}"#,
     )
     .unwrap();
@@ -263,7 +263,7 @@ fn pinned_php_options_and_serialization_oracle() {
     let records: Vec<_> = corpus
         .records
         .iter()
-        .map(|json| MessageLogged::fromJson(json).unwrap())
+        .map(|json| MessageLogged::from_json(json).unwrap())
         .collect();
     for (record, expected) in records.iter().zip(&corpus.strings) {
         assert_eq!(record.to_string(), *expected);
@@ -286,7 +286,7 @@ fn pinned_php_options_and_serialization_oracle() {
 #[test]
 fn trilingual_documentation_example_selects_error_messages() {
     fn select(line: &str) -> Result<bool, serde_json::Error> {
-        let message = MessageLogged::fromJson(line)?;
+        let message = MessageLogged::from_json(line)?;
         let options = Options::new(
             3600,
             None,
@@ -313,7 +313,7 @@ fn captured_dates_accept_zulu_and_preserve_numeric_offsets() {
         ("2026-11-19T03:04:05.123400+05:30", "2026-11-19 03:04:05"),
         ("1969-12-31T23:59:59.999999-07:00", "1969-12-31 23:59:59"),
     ] {
-        let event = MessageLogged::fromJson(
+        let event = MessageLogged::from_json(
             &json!({
                 "message": "record", "datetime": datetime,
                 "level_name": "INFO", "context": {}

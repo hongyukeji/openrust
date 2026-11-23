@@ -89,7 +89,7 @@ let image_src = logo.cid();
 
 ### 可附加物件 {#attachable-objects}
 
-領域物件負責選擇附件時，實作 `Attachable`。在郵件類型回傳附件來源時，用 `toMailAttachment()` 轉換物件。
+領域物件負責選擇附件時，實作 `Attachable`。在郵件類型回傳附件來源時，用 `to_mail_attachment()` 轉換物件。
 
 ```rust
 use openrust::{
@@ -101,7 +101,7 @@ struct Report(String);
 
 impl Attachable for Report {
     #[allow(non_snake_case)]
-    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+    fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
         Ok(Attachment::fromUrl(&self.0)?.r#as("report.pdf"))
     }
 }
@@ -122,7 +122,7 @@ fn envelope(&self) -> MailResult<Envelope> {
 }
 ```
 
-測試中可用 `assertHasTag` 和 `assertHasMetadata` 檢查宣告。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 標頭。Mailgun 的結構化 API 將標籤對應至 `o:tag`，中繼資料對應至 `v:*`。Postmark 接受一個標籤和一組中繼資料。SES 和 SES v2 將信封中繼資料附加至設定的供應商標籤。Resend 將標籤以名稱與值傳送，中繼資料保留在郵件標頭。Cloudflare 在郵件標頭保存中繼資料和最後一個標籤。
+測試中可用 `assert_has_tag` 和 `assert_has_metadata` 檢查宣告。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 標頭。Mailgun 的結構化 API 將標籤對應至 `o:tag`，中繼資料對應至 `v:*`。Postmark 接受一個標籤和一組中繼資料。SES 和 SES v2 將信封中繼資料附加至設定的供應商標籤。Resend 將標籤以名稱與值傳送，中繼資料保留在郵件標頭。Cloudflare 在郵件標頭保存中繼資料和最後一個標籤。
 
 ### 自訂郵件訊息 {#customizing-the-message}
 
@@ -272,7 +272,7 @@ CommonMark 和表格一直可用。在 `config/mail.rs` 的 `mail.markdown.exten
 
 ## 郵件加入佇列
 
-讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`sendNow` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。
+讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`send_now` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。
 
 ## 呈現郵件 {#rendering-mailables}
 
@@ -298,7 +298,7 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## 擴充郵件傳輸和投遞事件
 
-在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 與 `sendNow` 都回傳 `Ok(None)`。
+在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 與 `send_now` 都回傳 `Ok(None)`。
 
 ## 測試郵件
 
@@ -308,20 +308,20 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ```rust
 receipt
-    .assertHasSubject("Receipt for Sam")
+    .assert_has_subject("Receipt for Sam")
     .assertTo("sam@example.test", None)
-    .assertSeeInHtml("A & <Sam>", true)
+    .assert_see_in_html("A & <Sam>", true)
     .await
-    .assertSeeInOrderInText(&["Plain", "receipt"])
+    .assert_see_in_order_in_text(&["Plain", "receipt"])
     .await;
 ```
 
-可在郵件類型上斷言附件宣告，無須讀取檔案或請求儲存服務。用 `assertHasAttachmentFromStorageDisk` 檢查指定磁碟，用 `assertHasNoAttachments` 檢查是否沒有宣告一般附件。
+可在郵件類型上斷言附件宣告，無須讀取檔案或請求儲存服務。用 `assert_has_attachment_from_storage_disk` 檢查指定磁碟，用 `assert_has_no_attachments` 檢查是否沒有宣告一般附件。
 
 ```rust
 receipt
-    .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
-    .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
+    .assert_has_attachment_from_storage("reports/monthly.csv", None, None)
+    .assert_has_attached_data(b"total,42", "summary.csv", Some("text/csv"));
 ```
 
 ### 測試郵件傳送 {#testing-mailable-sending}
@@ -330,7 +330,7 @@ receipt
 
 ```rust
 let mail = Mail::fake()?;
-Mail::to("ops@example.test")?.sendNow(&receipt).await?;
+Mail::to("ops@example.test")?.send_now(&receipt).await?;
 mail.assertSentMatching(receipt.kind(), |entry| {
     entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
 });
@@ -339,7 +339,7 @@ mail.assertNothingQueued();
 
 ## 預設地址與取消
 
-`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 設定目前郵件器。啟動時設定的地址作為應用程式預設值；請求與佇列作用域內的覆寫僅影響目前執行。`alwaysTo` 在郵件自訂完成後取代收件人並清空副本、密件副本。設定支援 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消時 `send`、`sendNow` 與 `PendingMail` 都回傳 `Ok(None)`，不呼叫傳輸、不派發 `MessageSent`；舊呼叫端應明確處理 `Option<SentMessage>`。
+`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 設定目前郵件器。啟動時設定的地址作為應用程式預設值；請求與佇列作用域內的覆寫僅影響目前執行。`alwaysTo` 在郵件自訂完成後取代收件人並清空副本、密件副本。設定支援 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消時 `send`、`send_now` 與 `PendingMail` 都回傳 `Ok(None)`，不呼叫傳輸、不派發 `MessageSent`；舊呼叫端應明確處理 `Option<SentMessage>`。
 
 
 ## 清除已解析的郵件實例

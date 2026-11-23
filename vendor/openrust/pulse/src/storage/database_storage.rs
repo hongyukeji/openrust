@@ -50,8 +50,8 @@ impl DatabaseStorage {
         &self.connection
     }
     pub(super) fn wrap(&self, identifier: &str) -> String {
-        let quote = if self.connection.getDriverName() == "mysql"
-            || self.connection.getDriverName() == "mariadb"
+        let quote = if self.connection.get_driver_name() == "mysql"
+            || self.connection.get_driver_name() == "mariadb"
         {
             '`'
         } else {
@@ -63,7 +63,7 @@ impl DatabaseStorage {
         )
     }
     fn keyHash(&self, key: &str, row: &mut Record) {
-        if self.connection.getDriverName() == "sqlite" {
+        if self.connection.get_driver_name() == "sqlite" {
             row.insert(
                 "key_hash".into(),
                 format!("{:x}", md5::compute(key.as_bytes())).into(),
@@ -148,16 +148,16 @@ impl DatabaseStorage {
             .collect()
     }
     fn assignments(&self, aggregate: &str) -> Vec<UpsertUpdate<'static>> {
-        let mysql = matches!(self.connection.getDriverName(), "mysql" | "mariadb");
+        let mysql = matches!(self.connection.get_driver_name(), "mysql" | "mariadb");
         let alias = mysql
             && self
                 .connection
-                .getConfig("use_upsert_alias")
+                .get_config("use_upsert_alias")
                 .and_then(|v| v.as_bool())
                 == Some(true);
         let table = self.wrap(&format!(
             "{}pulse_aggregates",
-            self.connection.getTablePrefix()
+            self.connection.get_table_prefix()
         ));
         let current = |c: &str| {
             if mysql && !alias {
@@ -181,7 +181,7 @@ impl DatabaseStorage {
             "count" | "sum" => format!("{v} + {n}"),
             "min" => format!(
                 "{}({v}, {n})",
-                if self.connection.getDriverName() == "sqlite" {
+                if self.connection.get_driver_name() == "sqlite" {
                     "min"
                 } else {
                     "least"
@@ -189,7 +189,7 @@ impl DatabaseStorage {
             ),
             "max" => format!(
                 "{}({v}, {n})",
-                if self.connection.getDriverName() == "sqlite" {
+                if self.connection.get_driver_name() == "sqlite" {
                     "max"
                 } else {
                     "greatest"
@@ -272,7 +272,7 @@ impl DatabaseStorage {
                             for rows in rows.chunks(chunk) {
                                 transaction
                                     .table("pulse_aggregates")
-                                    .upsertWith(
+                                    .upsert_with(
                                         rows,
                                         &["bucket", "period", "type", "aggregate", "key_hash"],
                                         assignments,
@@ -373,22 +373,22 @@ impl super::Storage for DatabaseStorage {
         r#type: &'a str,
         aggregates: &'a [String],
         interval: i64,
-        orderBy: Option<&'a str>,
+        order_by: Option<&'a str>,
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
-        Box::pin(self.aggregate(r#type, aggregates, interval, orderBy, direction, limit))
+        Box::pin(self.aggregate(r#type, aggregates, interval, order_by, direction, limit))
     }
     fn aggregateTypes<'a>(
         &'a self,
         types: &'a [String],
         aggregate: &'a str,
         interval: i64,
-        orderBy: Option<&'a str>,
+        order_by: Option<&'a str>,
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
-        Box::pin(self.aggregateTypes(types, aggregate, interval, orderBy, direction, limit))
+        Box::pin(self.aggregateTypes(types, aggregate, interval, order_by, direction, limit))
     }
     fn aggregateTotal<'a>(
         &'a self,

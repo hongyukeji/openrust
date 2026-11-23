@@ -1,5 +1,5 @@
 use openrust::{
-    database::{DB, DatabaseError, Transaction, Value},
+    database::{DatabaseError, Db, Transaction, Value},
     pipeline::Pipeline,
     testing::TestApp,
 };
@@ -24,14 +24,14 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
     })
     })?;
     app.freeze_time_for(async |_, _| {
-        let connection = DB::connection(Some("audit"))?;
+        let connection = Db::connection(Some("audit"))?;
         connection
             .statement("create table pipeline_rows (id integer primary key)", &[])
             .await?;
         let order = Arc::new(Mutex::new(Vec::new()));
         let begins = Arc::new(AtomicUsize::new(0));
         let counter = begins.clone();
-        connection.beforeStartingTransaction(move |connection, _| {
+        connection.before_starting_transaction(move |connection, _| {
             assert_eq!(connection.get_name(), "audit");
             counter.fetch_add(1, Ordering::SeqCst);
             Box::pin(async { Ok(()) })
@@ -39,10 +39,10 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
         let pipes = order.clone();
         let finalizer = order.clone();
         let pipeline = Pipeline::<_, DatabaseError, _, Transaction>::send(1)
-            .withinTransaction(Some("audit"))
+            .within_transaction(Some("audit"))
             .pipe(move |value, mut next| {
                 Box::pin(async move {
-                    assert_eq!(next.context().getConnection().get_name(), "audit");
+                    assert_eq!(next.context().get_connection().get_name(), "audit");
                     pipes.lock().unwrap().push("pipe");
                     next.context()
                         .statement(
@@ -72,7 +72,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
                     destination.lock().unwrap().push("destination");
                     // 嵌套管道明确复用当前事务，避免另取池连接。
                     Pipeline::<_, DatabaseError, _, Transaction>::send(value)
-                        .thenWith(transaction, |value, transaction| {
+                        .then_with(transaction, |value, transaction| {
                             Box::pin(async move {
                                 transaction
                                     .statement(
@@ -99,7 +99,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
         let finalized = Arc::new(AtomicUsize::new(0));
         let copy = finalized.clone();
         let failed = Pipeline::<_, DatabaseError, _, Transaction>::send(3)
-            .withinTransaction(Some("audit"))
+            .within_transaction(Some("audit"))
             .pipe(|value, mut next| {
                 Box::pin(async move {
                     next.context()
@@ -133,16 +133,16 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
         );
         assert_eq!(
             Pipeline::send(8)
-                .withinTransaction(Some("audit"))
+                .within_transaction(Some("audit"))
                 .thenReturn()
                 .await?,
             8
         );
         assert_eq!(
             Pipeline::<_, DatabaseError, _, Transaction>::send(9)
-                .withinTransaction(None)
+                .within_transaction(None)
                 .then(|value, transaction| Box::pin(async move {
-                    assert_eq!(transaction.getConnection().get_name(), "primary");
+                    assert_eq!(transaction.get_connection().get_name(), "primary");
                     Ok(value)
                 }))
                 .await?,
@@ -154,14 +154,14 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
             .finally(move |_| {
                 copy.fetch_add(1, Ordering::SeqCst);
             })
-            .withinTransaction(Some("missing"))
+            .within_transaction(Some("missing"))
             .thenReturn()
             .await;
         assert!(matches!(error, Err(DatabaseError::UnknownConnection(_))));
         assert_eq!(missing_finalized.load(Ordering::SeqCst), 1);
         let copy = finalized.clone();
         let cancelled = Pipeline::<_, DatabaseError, _, Transaction>::send(4)
-            .withinTransaction(Some("audit"))
+            .within_transaction(Some("audit"))
             .finally(move |_| {
                 copy.fetch_add(1, Ordering::SeqCst);
             })

@@ -46,7 +46,7 @@ async fn render(
     let redirect = if reset {
         let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
         let login = if fortify.truthy("fortify.views") {
-            Some(openrust::support::facades::URL::route("login", &[], true)?)
+            Some(openrust::support::facades::Url::route("login", &[], true)?)
         } else {
             None
         };

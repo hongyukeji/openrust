@@ -70,7 +70,7 @@ struct ViewEvents {
 
 impl Factory {
     /// Exposes a typed application service as template data.
-    pub fn registerViewService<T>(
+    pub fn register_view_service<T>(
         &self,
         name: &str,
         expose: impl Fn(&T) -> ViewResult<ViewValue> + Send + Sync + 'static,
@@ -173,7 +173,7 @@ impl Factory {
         Err(ViewError::NotFound)
     }
 
-    pub fn renderWhen(&self, condition: bool, view: &str, data: &ViewData) -> ViewResult<String> {
+    pub fn render_when(&self, condition: bool, view: &str, data: &ViewData) -> ViewResult<String> {
         if condition {
             self.render(view, data)
         } else {
@@ -181,12 +181,17 @@ impl Factory {
         }
     }
 
-    pub fn renderUnless(&self, condition: bool, view: &str, data: &ViewData) -> ViewResult<String> {
-        self.renderWhen(!condition, view, data)
+    pub fn render_unless(
+        &self,
+        condition: bool,
+        view: &str,
+        data: &ViewData,
+    ) -> ViewResult<String> {
+        self.render_when(!condition, view, data)
     }
 
     /// 键可为整数或字符串；每次迭代仅传入 key 和指定的变量。
-    pub fn renderEach(
+    pub fn render_each(
         &self,
         view: &str,
         data: impl IntoIterator<Item = (ViewValue, ViewValue)>,
@@ -240,7 +245,7 @@ impl Factory {
         )
     }
 
-    pub fn getShared(&self) -> ViewData {
+    pub fn get_shared(&self) -> ViewData {
         self.shared_data().map_or_else(
             || self.events.read().unwrap().shared.clone(),
             |data| data.lock().unwrap().clone(),
@@ -296,7 +301,7 @@ impl Factory {
             name.into(),
             Arc::new(move |data| {
                 let component = resolve(data)?;
-                if !component.shouldRender() {
+                if !component.should_render() {
                     return Ok(ResolvedComponent::Hidden);
                 }
                 let output = component.render()?;
@@ -318,7 +323,7 @@ impl Factory {
     }
 
     /// Registers a filesystem directory for anonymous Blade components.
-    pub fn anonymousComponentPath(&self, path: &Path, prefix: Option<&str>) -> ViewResult<()> {
+    pub fn anonymous_component_path(&self, path: &Path, prefix: Option<&str>) -> ViewResult<()> {
         if prefix.is_some_and(|prefix| !valid_segment(prefix)) {
             return Err(ViewError::InvalidName);
         }
@@ -335,7 +340,7 @@ impl Factory {
     }
 
     /// Maps an anonymous component prefix to a directory within the view roots.
-    pub fn anonymousComponentNamespace(
+    pub fn anonymous_component_namespace(
         &self,
         directory: &str,
         prefix: Option<&str>,
@@ -398,7 +403,7 @@ impl Factory {
                     ComponentOutput::View(mut view) => {
                         data.extend(std::mem::take(&mut view.data));
                         view.data = data;
-                        self.render_view(view, context)
+                        self.render_view_in_context(view, context)
                     }
                     ComponentOutput::InlineTemplate(source) => {
                         self.compiler().render_inline(name, &source, &data, context)
@@ -410,7 +415,7 @@ impl Factory {
                 let candidates = self.anonymous_component_candidates(name);
                 let candidates: Vec<_> = candidates.iter().map(String::as_str).collect();
                 let view = self.first(&candidates, properties.clone())?;
-                self.render_view(view, context)
+                self.render_view_in_context(view, context)
             }
         }
     }
@@ -427,11 +432,11 @@ impl Factory {
             creation_error: None,
             options: None,
         };
-        self.callCreator(&mut view)?;
+        self.call_creator(&mut view)?;
         Ok(view)
     }
 
-    pub(super) fn callCreator(&self, view: &mut View) -> ViewResult<()> {
+    pub(super) fn call_creator(&self, view: &mut View) -> ViewResult<()> {
         if !view.created {
             self.view_source(view)?;
             self.call_events(view, |events| &events.creators)?;
@@ -457,11 +462,11 @@ impl Factory {
     }
 
     pub fn render(&self, name: &str, data: &ViewData) -> ViewResult<String> {
-        self.renderView(self.make(name.to_owned(), data.clone())?)
+        self.render_view(self.make(name.to_owned(), data.clone())?)
     }
 
-    pub fn renderView(&self, view: View) -> ViewResult<String> {
-        self.render_view(view, &mut RenderContext::new(Some(self)))
+    pub fn render_view(&self, view: View) -> ViewResult<String> {
+        self.render_view_in_context(view, &mut RenderContext::new(Some(self)))
     }
 
     pub(crate) fn render_with_components(
@@ -474,11 +479,11 @@ impl Factory {
         let mut context = RenderContext::new(Some(self));
         context.component_renderer = Some(render);
         context.escaped_echo = escaped_echo;
-        self.render_view(self.make(name.to_owned(), data.clone())?, &mut context)
+        self.render_view_in_context(self.make(name.to_owned(), data.clone())?, &mut context)
     }
 
     /// Renders a trusted inline Blade template using this application's views.
-    pub fn renderInline(&self, source: &str, data: &ViewData) -> ViewResult<String> {
+    pub fn render_inline(&self, source: &str, data: &ViewData) -> ViewResult<String> {
         self.compiler()
             .render_inline("", source, data, &mut RenderContext::new(Some(self)))
     }
@@ -493,7 +498,7 @@ impl Factory {
         let html = super::request_data::render_scope(context.request.clone(), || {
             self.render_view_ref(&mut view, &mut context)
         })?;
-        let mut data = self.getShared();
+        let mut data = self.get_shared();
         if let Some(errors) = super::middleware::shared_errors() {
             data.insert("errors".into(), errors);
         }
@@ -513,10 +518,10 @@ impl Factory {
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        self.render_view(self.make(name.to_owned(), data.clone())?, context)
+        self.render_view_in_context(self.make(name.to_owned(), data.clone())?, context)
     }
 
-    pub(super) fn render_view(
+    pub(super) fn render_view_in_context(
         &self,
         mut view: View,
         context: &mut RenderContext<'_>,
@@ -541,7 +546,7 @@ impl Factory {
         });
         match fragments {
             Some(FragmentSelection::Named(names)) => {
-                self.callCreator(view)?;
+                self.call_creator(view)?;
                 let mut html = String::new();
                 for name in names {
                     let mut render = context.fresh_tree();
@@ -569,9 +574,9 @@ impl Factory {
     }
 
     fn prepare_view(&self, view: &mut View) -> ViewResult<ViewData> {
-        self.callCreator(view)?;
+        self.call_creator(view)?;
         self.call_events(view, |events| &events.composers)?;
-        let mut data = self.getShared();
+        let mut data = self.get_shared();
         if let Some(errors) = super::middleware::shared_errors() {
             data.insert("errors".into(), errors);
         }
@@ -615,16 +620,16 @@ impl Factory {
         self.engines.resolve(engine)?.render(source, data, context)
     }
 
-    pub fn getFinder(&self) -> &FileViewFinder {
+    pub fn get_finder(&self) -> &FileViewFinder {
         &self.finder
     }
 
-    pub fn getEngineResolver(&self) -> &EngineResolver {
+    pub fn get_engine_resolver(&self) -> &EngineResolver {
         &self.engines
     }
 
     pub(crate) fn compiler(&self) -> &BladeCompiler {
-        self.engines.blade().getCompiler()
+        self.engines.blade().get_compiler()
     }
 
     pub(super) fn cache_paths(&self) -> Vec<PathBuf> {
@@ -673,7 +678,7 @@ impl ContractFactory for Factory {
             creation_error: None,
             options: None,
         };
-        self.callCreator(&mut view)?;
+        self.call_creator(&mut view)?;
         Ok(Box::new(view))
     }
 
@@ -711,11 +716,11 @@ impl ContractFactory for Factory {
         }
     }
 
-    fn addNamespace(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+    fn add_namespace(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         self.finder.append_hints(namespace, hints)
     }
 
-    fn replaceNamespace(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+    fn replace_namespace(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         self.finder.replace_hints(namespace, hints)
     }
 }

@@ -21,15 +21,14 @@ impl AsFluent {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CastableObject for Fluent {
     const USES_JSON_CODEC: bool = true;
 
-    fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
-        Self::fromAttributesWithJson(name, raw, &Json::DEFAULT)
+    fn from_attributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
+        Self::from_attributes_with_json(name, raw, &Json::DEFAULT)
     }
 
-    fn fromAttributesWithJson(
+    fn from_attributes_with_json(
         name: &str,
         raw: &Attributes,
         codec: &Json,
@@ -46,10 +45,10 @@ impl CastableObject for Fluent {
         name: &str,
         raw: &Attributes,
     ) -> DatabaseResult<CastWrite> {
-        Self::toAttributesWithJson(value, name, raw, &Json::DEFAULT)
+        Self::to_attributes_with_json(value, name, raw, &Json::DEFAULT)
     }
 
-    fn toAttributesWithJson(
+    fn to_attributes_with_json(
         value: Option<&Self>,
         _: &str,
         _: &Attributes,

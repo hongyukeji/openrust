@@ -51,7 +51,7 @@ fn native_access_uses_the_actual_channel_and_matches_fixed_reference() {
         serde_json::from_str(include_str!("reference/native-logger.json")).unwrap();
     let root = Root::new();
     let manager = root.manager();
-    manager.registerProcessor("mark", |_| {
+    manager.register_processor("mark", |_| {
         Ok(Arc::new(|record| {
             record
                 .extra
@@ -60,16 +60,16 @@ fn native_access_uses_the_actual_channel_and_matches_fixed_reference() {
             Ok(())
         }))
     });
-    assert!(manager.getChannels().is_empty());
+    assert!(manager.get_channels().is_empty());
     let logger = manager.channel(None).unwrap();
     let cached = manager.channel(None).unwrap();
-    let native: Arc<NativeLogger> = logger.getLogger();
-    assert!(Arc::ptr_eq(&native, &cached.getLogger()));
+    let native: Arc<NativeLogger> = logger.get_logger();
+    assert!(Arc::ptr_eq(&native, &cached.get_logger()));
     assert_eq!(native.name(), "native");
-    assert!(Arc::ptr_eq(&native, &manager.getLogger().unwrap()));
+    assert!(Arc::ptr_eq(&native, &manager.get_logger().unwrap()));
     assert_eq!(reference["same"], true);
-    assert_eq!(manager.getChannels().len(), 1);
-    logger.withContext(LogContext::from_iter([(
+    assert_eq!(manager.get_channels().len(), 1);
+    logger.with_context(LogContext::from_iter([(
         "shared".into(),
         json!("application"),
     )]));
@@ -89,20 +89,20 @@ fn native_access_uses_the_actual_channel_and_matches_fixed_reference() {
     }).collect();
     assert_eq!(json!(records), reference["records"]);
     assert_eq!(json!(*events.lock().unwrap()), reference["events"]);
-    let renamed = logger.withName("renamed");
+    let renamed = logger.with_name("renamed");
     assert_eq!(renamed.name(), "renamed");
-    assert_eq!(renamed.getLogger().name(), "renamed");
-    assert_eq!(logger.getLogger().name(), "native");
-    assert_eq!(manager.getChannels().len(), 1);
+    assert_eq!(renamed.get_logger().name(), "renamed");
+    assert_eq!(logger.get_logger().name(), "native");
+    assert_eq!(manager.get_channels().len(), 1);
 }
 
 #[test]
 fn native_failures_propagate_and_framework_recovery_and_context_remain_separate() {
     let root = Root::new();
     let manager = root.manager();
-    manager.registerProcessor("mark", |_| Ok(Arc::new(|_| Ok(()))));
+    manager.register_processor("mark", |_| Ok(Arc::new(|_| Ok(()))));
     fs::write(root.0.join("occupied"), "file").unwrap();
-    manager.registerProcessor("fail", |_| Ok(Arc::new(|_| Err(LogError::FactoryFailed))));
+    manager.register_processor("fail", |_| Ok(Arc::new(|_| Err(LogError::FactoryFailed))));
     let events = Arc::new(Mutex::new(0));
     let captured = events.clone();
     manager
@@ -113,7 +113,7 @@ fn native_failures_propagate_and_framework_recovery_and_context_remain_separate(
         .unwrap();
     let broken = manager.channel(Some("broken")).unwrap();
     assert!(matches!(
-        broken.getLogger().error("raw failure", &LogContext::new()),
+        broken.get_logger().error("raw failure", &LogContext::new()),
         Err(LogError::WriteFailed(_))
     ));
     assert_eq!(*events.lock().unwrap(), 0);
@@ -130,7 +130,7 @@ fn native_failures_propagate_and_framework_recovery_and_context_remain_separate(
     let failed = manager.channel(Some("failed")).unwrap();
     assert!(matches!(
         failed
-            .getLogger()
+            .get_logger()
             .info("processor failure", &LogContext::new()),
         Err(LogError::FactoryFailed)
     ));
@@ -138,7 +138,7 @@ fn native_failures_propagate_and_framework_recovery_and_context_remain_separate(
     let missing = manager.channel(Some("missing")).unwrap();
     let before = *events.lock().unwrap();
     missing
-        .getLogger()
+        .get_logger()
         .warning("raw emergency", &LogContext::new())
         .unwrap();
     assert_eq!(*events.lock().unwrap(), before);
@@ -172,14 +172,14 @@ async fn facade_and_manager_return_the_same_default_native_instance() {
         .with_config(configuration)
         .booted(move |app| {
             let manager = app.container().make::<LogManager>().unwrap();
-            assert!(manager.getChannels().is_empty());
-            let direct = manager.getLogger().unwrap();
-            let facade = Log::getLogger().unwrap();
-            let channel = Log::channel(None).unwrap().getLogger();
+            assert!(manager.get_channels().is_empty());
+            let direct = manager.get_logger().unwrap();
+            let facade = Log::get_logger().unwrap();
+            let channel = Log::channel(None).unwrap().get_logger();
             assert!(Arc::ptr_eq(&direct, &facade));
             assert!(Arc::ptr_eq(&direct, &channel));
             facade.info("native facade", &LogContext::new()).unwrap();
-            assert_eq!(Log::getChannels().unwrap().len(), 1);
+            assert_eq!(Log::get_channels().unwrap().len(), 1);
             *captured.lock().unwrap() = Some((manager, facade));
             Ok(())
         })
@@ -187,9 +187,9 @@ async fn facade_and_manager_return_the_same_default_native_instance() {
         .unwrap();
     app.boot().await.unwrap();
     let (manager, held) = resolved.lock().unwrap().take().unwrap();
-    manager.forgetChannel(None);
+    manager.forget_channel(None);
     held.info("held after forget", &LogContext::new()).unwrap();
-    assert!(!Arc::ptr_eq(&held, &manager.getLogger().unwrap()));
+    assert!(!Arc::ptr_eq(&held, &manager.get_logger().unwrap()));
     let output = fs::read_to_string(root.0.join("facade.log")).unwrap();
     assert!(output.contains("native facade") && output.contains("held after forget"));
     assert!(!root.0.join("unused.log").exists());

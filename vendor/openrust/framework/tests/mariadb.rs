@@ -14,7 +14,7 @@ async fn schema_and_query_over_mariadb() {
         panic!("MariaDB server version was not text");
     };
     let table = format!("mariadb_release_{:016x}", fastrand::u64(..));
-    let mut schema = db.getSchemaBuilder();
+    let mut schema = db.get_schema_builder();
     schema
         .create(&table, |table| {
             table.id();
@@ -22,7 +22,7 @@ async fn schema_and_query_over_mariadb() {
             table
                 .json("document")
                 .default(Value::Json(json!({"title":"new"})));
-            table.string("title", 80).virtualAsJson("document->title");
+            table.string("title", 80).virtual_as_json("document->title");
             table
                 .string("old,name", 50)
                 .collation("utf8mb4_bin")
@@ -31,7 +31,7 @@ async fn schema_and_query_over_mariadb() {
         })
         .await
         .unwrap();
-    let columns = schema.getColumns(&table).await.unwrap();
+    let columns = schema.get_columns(&table).await.unwrap();
     let token = columns
         .iter()
         .find(|column| column.name == "token")
@@ -43,7 +43,7 @@ async fn schema_and_query_over_mariadb() {
     }
     let id = db
         .table(&table)
-        .insertGetId(
+        .insert_get_id(
             [(
                 "token".into(),
                 "de305d54-75b4-431b-adb2-eb6b9e546014".into(),
@@ -55,14 +55,14 @@ async fn schema_and_query_over_mariadb() {
         .unwrap();
     assert_eq!(db.table(&table).value("title").await.unwrap(), "new".into());
     schema
-        .table(&table, |table| table.renameColumn("old,name", "renamed"))
+        .table(&table, |table| table.rename_column("old,name", "renamed"))
         .await
         .unwrap();
     assert_eq!(
         db.table(&table).value("renamed").await.unwrap(),
         Value::Bytes(b"a,b'()".to_vec())
     );
-    let columns = schema.getColumns(&table).await.unwrap();
+    let columns = schema.get_columns(&table).await.unwrap();
     let renamed = columns
         .iter()
         .find(|column| column.name == "renamed")
@@ -94,8 +94,8 @@ async fn schema_and_query_over_mariadb() {
     );
     assert_eq!(
         db.table(&table)
-            .whereJsonContains("document->nested->present", json!(true))
-            .whereJsonContains("document->enabled", json!(true))
+            .where_json_contains("document->nested->present", json!(true))
+            .where_json_contains("document->enabled", json!(true))
             .count("*")
             .await
             .unwrap(),
@@ -103,8 +103,8 @@ async fn schema_and_query_over_mariadb() {
     );
     assert!(matches!(
         db.table(&table)
-            .joinLateral(&mut db.table(&table), "inner_table"),
+            .join_lateral(&mut db.table(&table), "inner_table"),
         Err(DatabaseError::InvalidQuery(_))
     ));
-    schema.dropIfExists(&table).await.unwrap();
+    schema.drop_if_exists(&table).await.unwrap();
 }

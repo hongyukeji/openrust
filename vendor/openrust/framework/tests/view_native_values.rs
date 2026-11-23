@@ -90,12 +90,12 @@ fn nonfinite_numbers_cross_arrays_includes_components_and_native_extension_param
     let factory = root.factory();
     factory.component("native", |data| Ok(NativeComponent(data["value"].clone())));
     let openrust::view::engines::Engine::Blade(engine) =
-        factory.getEngineResolver().resolve("blade").unwrap()
+        factory.get_engine_resolver().resolve("blade").unwrap()
     else {
         panic!("blade");
     };
     engine
-        .getCompiler()
+        .get_compiler()
         .directive("nativeNumber", |args| {
             assert!(args[0][0].as_f64().unwrap().is_infinite());
             assert!(args[0][1].as_f64().unwrap().is_nan());
@@ -160,12 +160,12 @@ fn pinned_php_native_array_include_component_and_json_boundaries_match() {
     }
     let factory = root.factory();
     let openrust::view::engines::Engine::Blade(engine) =
-        factory.getEngineResolver().resolve("blade").unwrap()
+        factory.get_engine_resolver().resolve("blade").unwrap()
     else {
         panic!("blade");
     };
     engine
-        .getCompiler()
+        .get_compiler()
         .directive("nativeKind", |args| {
             Ok(DirectiveOutput::Text(
                 if args[0].is_f64() {

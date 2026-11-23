@@ -121,10 +121,10 @@ fn rust_projection_callbacks_and_compilation_have_explicit_lifecycles() {
     let root = Root::new();
     let path = root.write("lifecycle", "{{ $prepared }}|@formatName([...$items])|@enabled <x-caption>{{ $component->caption }}</x-caption>@endenabled");
     let factory = root.factory();
-    let Engine::Blade(engine) = factory.getEngineResolver().resolve("blade").unwrap() else {
+    let Engine::Blade(engine) = factory.get_engine_resolver().resolve("blade").unwrap() else {
         panic!("blade");
     };
-    let compiler = engine.getCompiler();
+    let compiler = engine.get_compiler();
     let calls = Arc::new(AtomicUsize::new(0));
     let directives = calls.clone();
     compiler
@@ -205,7 +205,7 @@ fn unsupported_php_runtime_syntax_fails_compilation_but_literals_and_unknown_dir
             "{source}"
         );
         assert!(
-            !compiler.getCompiledPath(&path).unwrap().exists(),
+            !compiler.get_compiled_path(&path).unwrap().exists(),
             "{source}"
         );
     }

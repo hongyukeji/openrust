@@ -18,7 +18,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
         Ok(text(self, "two_factor_secret")?.is_some()
             && (!fortify.confirmsTwoFactorAuthentication()?
                 || !matches!(
-                    self.getAttributeValue("two_factor_confirmed_at")?,
+                    self.get_attribute_value("two_factor_confirmed_at")?,
                     None | Some(Value::Null)
                 )))
     }
@@ -54,7 +54,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
             let encrypted = encrypter
                 .encrypt(updated.as_bytes(), true)
                 .map_err(internal)?;
-            self.forceFill([("two_factor_recovery_codes".into(), encrypted.into())].into())
+            self.force_fill([("two_factor_recovery_codes".into(), encrypted.into())].into())
                 .map_err(internal)?
                 .save()
                 .await
@@ -85,7 +85,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
             .ok_or(FortifyError::InvalidAttribute("two_factor_secret"))?;
         let cleartext = Zeroizing::new(fortify.currentEncrypter()?.decrypt(&encrypted, true)?);
         let secret = std::str::from_utf8(&cleartext).map_err(|_| FortifyError::InvalidUtf8)?;
-        let username = self.getAttributeValue(&fortify.username())?;
+        let username = self.get_attribute_value(&fortify.username())?;
         let username = match username {
             Some(Value::Text(value)) => value,
             _ => return Err(FortifyError::InvalidAttribute("username")),
@@ -94,7 +94,7 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
     }
 }
 pub(crate) fn text<T: Model>(user: &T, attribute: &'static str) -> FortifyResult<Option<String>> {
-    match user.getAttributeValue(attribute)? {
+    match user.get_attribute_value(attribute)? {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Text(value)) => Ok(Some(value)),
         _ => Err(FortifyError::InvalidAttribute(attribute)),

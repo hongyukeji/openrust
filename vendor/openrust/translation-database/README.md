@@ -10,7 +10,7 @@ Create the table in an application migration:
 use openrust::database::{Connection, DatabaseResult};
 
 pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> {
-    connection.getSchemaBuilder().create("language_lines", |table| {
+    connection.get_schema_builder().create("language_lines", |table| {
         table.id();
         table.string("group", None).index();
         table.string("key", None);

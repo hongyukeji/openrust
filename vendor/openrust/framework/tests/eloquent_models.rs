@@ -31,7 +31,7 @@ impl Relation for SelfReference {
     type Parent = Article;
     type Output = Arc<OnceLock<Weak<Article>>>;
 
-    fn matchResults<'a>(
+    fn match_results<'a>(
         &'a self,
         parents: &'a [&'a Article],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
@@ -90,7 +90,7 @@ impl Castable for Scaled {
     type Arguments = i64;
     type Caster = Self;
 
-    fn castUsing(factor: &i64) -> DatabaseResult<Self> {
+    fn cast_using(factor: &i64) -> DatabaseResult<Self> {
         if *factor > 0 {
             Ok(Self(*factor))
         } else {
@@ -138,7 +138,7 @@ struct Codes {
 }
 
 impl CastableObject for Codes {
-    fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
+    fn from_attributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
         match (raw.get(name), raw.get("right_code")) {
             (Some(Value::Text(left)), Some(Value::Text(right))) => Ok(Some(Self {
                 left: left.clone(),
@@ -177,8 +177,8 @@ struct FreshCodes(Codes);
 impl CastableObject for FreshCodes {
     const WITHOUT_OBJECT_CACHING: bool = true;
 
-    fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
-        Codes::fromAttributes(name, raw).map(|value| value.map(Self))
+    fn from_attributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>> {
+        Codes::from_attributes(name, raw).map(|value| value.map(Self))
     }
 
     fn to_attributes(
@@ -201,7 +201,7 @@ enum Status {
 }
 
 impl CastableEnum for Status {
-    fn fromValue(value: &Value) -> DatabaseResult<Self> {
+    fn from_value(value: &Value) -> DatabaseResult<Self> {
         match value {
             Value::Text(name) if name == "Draft" => Ok(Self::Draft),
             Value::Text(name) if name == "Published" => Ok(Self::Published),
@@ -209,7 +209,7 @@ impl CastableEnum for Status {
         }
     }
 
-    fn intoValue(self) -> Value {
+    fn into_value(self) -> Value {
         match self {
             Self::Draft => "Draft".into(),
             Self::Published => "Published".into(),
@@ -224,7 +224,7 @@ enum Priority {
 }
 
 impl CastableEnum for Priority {
-    fn fromValue(value: &Value) -> DatabaseResult<Self> {
+    fn from_value(value: &Value) -> DatabaseResult<Self> {
         match value {
             Value::Integer(1) => Ok(Self::Normal),
             Value::Integer(2) => Ok(Self::Urgent),
@@ -232,7 +232,7 @@ impl CastableEnum for Priority {
         }
     }
 
-    fn intoValue(self) -> Value {
+    fn into_value(self) -> Value {
         match self {
             Self::Normal => 1.into(),
             Self::Urgent => 2.into(),
@@ -308,7 +308,7 @@ impl Model for CastRecord {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("cast_records")
             .timestamps(None, None)
-            .dateFormat("%Y-%m-%d %H:%M:%S%.6f")
+            .date_format("%Y-%m-%d %H:%M:%S%.6f")
             .hidden(&["label", "invalid_blob"])
             .appends(&["summary"])
             .fillable(&[
@@ -384,7 +384,7 @@ impl Model for CastRecord {
         CASTS
     }
 
-    fn serializeDate(&self, date: jiff::Timestamp) -> DatabaseResult<String> {
+    fn serialize_date(&self, date: jiff::Timestamp) -> DatabaseResult<String> {
         Ok(date.strftime("%Y-%m-%d").to_string())
     }
 
@@ -413,9 +413,9 @@ impl Model for CastRecord {
 impl Model for Article {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("articles")
-            .primaryKey("article_id")
+            .primary_key("article_id")
             .fillable(&["title", "account", "status"])
-            .softDeletes("deleted_at");
+            .soft_deletes("deleted_at");
         &METADATA
     }
 
@@ -431,7 +431,7 @@ impl Model for Article {
         &mut self.0
     }
 
-    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+    fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("account", &CurrentAccount)]
     }
 }
@@ -451,7 +451,7 @@ impl Scope<Article> for Published {
     fn apply(&self, builder: &mut Builder<'_, Article>) -> DatabaseResult<()> {
         builder
             .r#where("status", "=", "published")
-            .orWhere("status", "=", "review");
+            .or_where("status", "=", "review");
         Ok(())
     }
 }
@@ -461,7 +461,7 @@ struct Label(ModelState);
 impl Model for Label {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("labels")
-            .primaryKey("slug")
+            .primary_key("slug")
             .incrementing(false)
             .timestamps(None, None);
         &METADATA
@@ -518,7 +518,7 @@ async fn verify_casts(db: &Connection, mysql: bool) {
     db.statement(&format!(
         "CREATE TABLE cast_records (id {id}, label VARCHAR(80), number VARCHAR(80), active VARCHAR(20), options {json_type}, measure VARCHAR(80), missing VARCHAR(20), amount {decimal_type}, occurred_at DATETIME(6), day DATETIME(6), epoch VARCHAR(40), status VARCHAR(20), priority BIGINT, left_code VARCHAR(40), right_code VARCHAR(40), code VARCHAR(40), inbound_code VARCHAR(40), enum_list TEXT, enum_array TEXT, factory_value BIGINT, factory_inbound BIGINT, json_collection TEXT, json_array {json_type}, json_nullable {json_type}, json_mapped {json_type}, json_callback {json_type}, binary_uuid BLOB, binary_ulid BINARY(16), binary_label BLOB, embedding TEXT, embedding_blob BLOB)"
     ), &[]).await.unwrap();
-    let query = || CastRecord::queryOn(db);
+    let query = || CastRecord::query_on(db);
     let model = query()
         .create(attrs([
             ("label", "  Hello ".into()),
@@ -534,133 +534,136 @@ async fn verify_casts(db: &Connection, mysql: bool) {
         .await
         .unwrap();
     let mut loaded = query()
-        .findOrFail(model.getKey().unwrap().clone())
+        .find_or_fail(model.get_key().unwrap().clone())
         .await
         .unwrap();
     assert_eq!(
-        loaded.getRawOriginal("occurred_at"),
+        loaded.get_raw_original("occurred_at"),
         Some(&"2025-06-01 08:30:00.123456".into())
     );
     assert_eq!(
-        loaded.getAttributeValue("occurred_at").unwrap(),
+        loaded.get_attribute_value("occurred_at").unwrap(),
         Some("2025-06-01T12:30:00.123456Z".into())
     );
     assert_eq!(
-        loaded.getAttributeValue("day").unwrap(),
+        loaded.get_attribute_value("day").unwrap(),
         Some("2025-06-01T04:00:00.000000Z".into())
     );
     assert_eq!(
-        loaded.getAttributeValue("epoch").unwrap(),
+        loaded.get_attribute_value("epoch").unwrap(),
         Some((-1).into())
     );
     loaded
-        .setAttributeValue("occurred_at", "2025-06-01T14:30:00.123456+02:00")
+        .set_attribute_value("occurred_at", "2025-06-01T14:30:00.123456+02:00")
         .unwrap();
-    assert!(loaded.originalIsEquivalent("occurred_at").unwrap());
+    assert!(loaded.original_is_equivalent("occurred_at").unwrap());
     let utc = connect_with_timezone(json!({"driver":"sqlite","database":":memory:"}), "UTC");
-    let other = CastRecord::queryOn(&utc)
+    let other = CastRecord::query_on(&utc)
         .make(attrs([(
             "occurred_at",
             "2025-06-01T12:30:00.123456Z".into(),
         )]))
         .unwrap();
     assert_eq!(
-        other.getAttribute("occurred_at"),
+        other.get_attribute("occurred_at"),
         Some(&"2025-06-01 12:30:00.123456".into())
     );
     assert_eq!(
-        other.getAttributeValue("occurred_at").unwrap(),
-        loaded.getAttributeValue("occurred_at").unwrap()
+        other.get_attribute_value("occurred_at").unwrap(),
+        loaded.get_attribute_value("occurred_at").unwrap()
     );
     assert!(
         loaded
-            .setAttributeValue("occurred_at", "2025-03-09 02:30:00")
+            .set_attribute_value("occurred_at", "2025-03-09 02:30:00")
             .is_err()
     );
-    assert!(!loaded.isDirty().unwrap());
+    assert!(!loaded.is_dirty().unwrap());
     let mut fallback = query().make(Attributes::new()).unwrap();
     fallback
-        .setAttributeValue("occurred_at", "2025-11-02 01:30:00")
+        .set_attribute_value("occurred_at", "2025-11-02 01:30:00")
         .unwrap();
     assert_eq!(
-        fallback.getAttributeValue("occurred_at").unwrap(),
+        fallback.get_attribute_value("occurred_at").unwrap(),
         Some("2025-11-02T05:30:00.000000Z".into())
     );
-    assert_eq!(loaded.getAttribute("label"), Some(&"hello".into()));
+    assert_eq!(loaded.get_attribute("label"), Some(&"hello".into()));
     assert_eq!(
-        loaded.getAttributeValue("label").unwrap(),
+        loaded.get_attribute_value("label").unwrap(),
         Some("HELLO".into())
     );
     assert_eq!(
-        loaded.getAttributeValue("summary").unwrap(),
+        loaded.get_attribute_value("summary").unwrap(),
         Some("hello".into())
     );
-    assert_eq!(loaded.getAttributeValue("number").unwrap(), Some(42.into()));
     assert_eq!(
-        loaded.getAttributeValue("active").unwrap(),
+        loaded.get_attribute_value("number").unwrap(),
+        Some(42.into())
+    );
+    assert_eq!(
+        loaded.get_attribute_value("active").unwrap(),
         Some(true.into())
     );
     assert_eq!(
-        loaded.getAttributeValue("measure").unwrap(),
+        loaded.get_attribute_value("measure").unwrap(),
         Some(Value::Real(125.0))
     );
     assert_eq!(
-        loaded.getAttributeValue("missing").unwrap(),
+        loaded.get_attribute_value("missing").unwrap(),
         Some(Value::Null)
     );
-    assert_eq!(loaded.getAttributeValue("absent").unwrap(), None);
+    assert_eq!(loaded.get_attribute_value("absent").unwrap(), None);
     assert_eq!(
-        loaded.getAttributeValue("options").unwrap(),
+        loaded.get_attribute_value("options").unwrap(),
         Some(Value::Json(json!({"mode":"demo"})))
     );
-    assert!(!loaded.state().isDirty());
+    assert!(!loaded.state().is_dirty());
 
     assert_eq!(
-        loaded.getAttributeValue("amount").unwrap(),
+        loaded.get_attribute_value("amount").unwrap(),
         Some("9007199254740993.13".into())
     );
-    let raw_amount = loaded.getRawOriginal("amount").cloned().unwrap();
+    let raw_amount = loaded.get_raw_original("amount").cloned().unwrap();
     loaded
-        .setAttributeValue("amount", "9007199254740993.1251")
+        .set_attribute_value("amount", "9007199254740993.1251")
         .unwrap();
-    loaded.setAttributeValue("number", 42).unwrap();
-    loaded.setAttributeValue("measure", "125").unwrap();
+    loaded.set_attribute_value("number", 42).unwrap();
+    loaded.set_attribute_value("measure", "125").unwrap();
     loaded
-        .setAttributeValue("options", Value::Json(json!({"mode":"demo"})))
+        .set_attribute_value("options", Value::Json(json!({"mode":"demo"})))
         .unwrap();
-    assert!(loaded.state().isDirty());
-    assert!(!loaded.isDirty().unwrap());
+    assert!(loaded.state().is_dirty());
+    assert!(!loaded.is_dirty().unwrap());
     loaded.save().await.unwrap();
     let unchanged = query()
-        .findOrFail(model.getKey().unwrap().clone())
+        .find_or_fail(model.get_key().unwrap().clone())
         .await
         .unwrap();
-    assert_eq!(unchanged.getRawOriginal("amount"), Some(&raw_amount));
+    assert_eq!(unchanged.get_raw_original("amount"), Some(&raw_amount));
 
     let mut example = query().make(Attributes::new()).unwrap();
-    example.setAttributeValue("amount", "-1.235").unwrap();
+    example.set_attribute_value("amount", "-1.235").unwrap();
     assert_eq!(
-        example.getAttributeValue("amount").unwrap(),
+        example.get_attribute_value("amount").unwrap(),
         Some("-1.24".into())
     );
-    example.setAttributeValue("amount", "1/8").unwrap();
+    example.set_attribute_value("amount", "1/8").unwrap();
     assert_eq!(
-        example.getAttributeValue("amount").unwrap(),
+        example.get_attribute_value("amount").unwrap(),
         Some("0.13".into())
     );
-    example.setAttributeValue("amount", "1e100000").unwrap();
-    assert!(example.getAttributeValue("amount").is_err());
+    example.set_attribute_value("amount", "1e100000").unwrap();
+    assert!(example.get_attribute_value("amount").is_err());
 
     assert!(
         loaded
             .fill(attrs([("active", "0".into()), ("label", 1.into())]))
             .is_err()
     );
-    assert!(loaded.state().isDirty());
+    assert!(loaded.state().is_dirty());
     let reference: Json =
         serde_json::from_str(include_str!("reference/eloquent-strictness.json")).unwrap();
     assert_eq!(
-        loaded.getAttribute("active"),
+        loaded.get_attribute("active"),
         Some(
             &reference["fill_cast_setter_failure"]["active"]
                 .as_str()
@@ -668,61 +671,61 @@ async fn verify_casts(db: &Connection, mysql: bool) {
                 .into()
         )
     );
-    loaded.setAttributeValue("label", " World ").unwrap();
-    loaded.setAttributeValue("options", "text").unwrap();
+    loaded.set_attribute_value("label", " World ").unwrap();
+    loaded.set_attribute_value("options", "text").unwrap();
     loaded
-        .setAttributeValue("amount", "9007199254740993.135")
+        .set_attribute_value("amount", "9007199254740993.135")
         .unwrap();
-    assert_eq!(loaded.getRawOriginal("label"), Some(&"hello".into()));
+    assert_eq!(loaded.get_raw_original("label"), Some(&"hello".into()));
     loaded.save().await.unwrap();
     let updated = query()
-        .findOrFail(model.getKey().unwrap().clone())
+        .find_or_fail(model.get_key().unwrap().clone())
         .await
         .unwrap();
     assert_eq!(
-        updated.getAttributeValue("amount").unwrap(),
+        updated.get_attribute_value("amount").unwrap(),
         Some("9007199254740993.14".into())
     );
     assert_eq!(
-        updated.getAttributeValue("label").unwrap(),
+        updated.get_attribute_value("label").unwrap(),
         Some("WORLD".into())
     );
     assert_eq!(
-        updated.getAttributeValue("options").unwrap(),
+        updated.get_attribute_value("options").unwrap(),
         Some(Value::Json(json!("text")))
     );
     verify_model_projection(updated);
-    verify_query_casts(db, model.getKey().unwrap().clone()).await;
+    verify_query_casts(db, model.get_key().unwrap().clone()).await;
     verify_enum_and_class_casts(db).await;
     verify_enum_collections_and_objects(db).await;
     verify_factory_casts(db).await;
     verify_json_collection_casts(db).await;
     verify_binary_and_vector_casts(db).await;
-    verify_collection_projection(db, model.getKey().unwrap()).await;
+    verify_collection_projection(db, model.get_key().unwrap()).await;
     db.statement("DROP TABLE cast_records", &[]).await.unwrap();
 }
 
 async fn verify_collection_projection(db: &Connection, key: &Value) {
-    let second = CastRecord::queryOn(db)
+    let second = CastRecord::query_on(db)
         .create(attrs([("label", "Other".into())]))
         .await
         .unwrap();
     let query = || {
-        let mut query = CastRecord::queryOn(db);
-        query.where_in("id", vec![key.clone(), second.getKey().unwrap().clone()]);
-        query.orderBy("id", "asc")
+        let mut query = CastRecord::query_on(db);
+        query.where_in("id", vec![key.clone(), second.get_key().unwrap().clone()]);
+        query.order_by("id", "asc")
     };
     let mut records = query().get().await.unwrap();
     let untouched = query().get().await.unwrap();
     assert_eq!(records.len(), 2);
 
     records
-        .setVisible(&["id", "label"])
-        .mergeVisible(&["summary", "number"])
-        .mergeHidden(&["number"]);
+        .set_visible(&["id", "label"])
+        .merge_visible(&["summary", "number"])
+        .merge_hidden(&["number"]);
     for record in records.all() {
-        assert_eq!(record.getHidden(), ["label", "invalid_blob", "number"]);
-        assert_eq!(record.getVisible(), ["id", "label", "summary", "number"]);
+        assert_eq!(record.get_hidden(), ["label", "invalid_blob", "number"]);
+        assert_eq!(record.get_visible(), ["id", "label", "summary", "number"]);
     }
     let original = serde_json::from_str::<Json>(&records.to_json().unwrap()).unwrap();
     for record in original.as_array().unwrap() {
@@ -731,11 +734,11 @@ async fn verify_collection_projection(db: &Connection, key: &Value) {
         assert!(record.get("number").is_none());
     }
 
-    records.setAppends(&["label"]);
+    records.set_appends(&["label"]);
     assert!(
         records
             .iter()
-            .all(|record| record.getAppends() == ["label"])
+            .all(|record| record.get_appends() == ["label"])
     );
     assert!(
         records
@@ -744,8 +747,8 @@ async fn verify_collection_projection(db: &Connection, key: &Value) {
             .iter()
             .all(|row| !row.contains_key("summary"))
     );
-    records.setAppends(&["summary"]).withoutAppends();
-    assert!(records.iter().all(|record| record.getAppends().is_empty()));
+    records.set_appends(&["summary"]).without_appends();
+    assert!(records.iter().all(|record| record.get_appends().is_empty()));
     assert!(
         records
             .to_array()
@@ -779,7 +782,7 @@ async fn verify_binary_and_vector_casts(db: &Connection) {
         },
     );
     let query = || {
-        CastRecord::queryOn(db).withCasts([
+        CastRecord::query_on(db).with_casts([
             ("binary_uuid", AsBinary::uuid()),
             ("binary_ulid", AsBinary::ulid()),
             ("binary_label", AsBinary::of(BinaryFormat::Custom(label))),
@@ -789,52 +792,52 @@ async fn verify_binary_and_vector_casts(db: &Connection) {
     };
     let mut model = query().make(Attributes::new()).unwrap();
     model
-        .setAttributeValue("binary_uuid", UUID.to_ascii_uppercase())
+        .set_attribute_value("binary_uuid", UUID.to_ascii_uppercase())
         .unwrap();
     model
-        .setAttributeValue("binary_ulid", ULID.to_ascii_lowercase())
+        .set_attribute_value("binary_ulid", ULID.to_ascii_lowercase())
         .unwrap();
     model
-        .setAttributeValue("binary_label", "label:example")
+        .set_attribute_value("binary_label", "label:example")
         .unwrap();
     model
-        .setAttributeValue("embedding", Value::Json(json!([0.5, -1.25, 3.75])))
+        .set_attribute_value("embedding", Value::Json(json!([0.5, -1.25, 3.75])))
         .unwrap();
     assert_eq!(
-        model.getAttributeValue("binary_uuid").unwrap(),
+        model.get_attribute_value("binary_uuid").unwrap(),
         Some(UUID.into())
     );
     assert_eq!(
-        model.getAttributeValue("binary_ulid").unwrap(),
+        model.get_attribute_value("binary_ulid").unwrap(),
         Some(ULID.into())
     );
-    model.setAttribute("embedding_blob", Value::Bytes(vec![0x5b, 0, 0x80, 0x3f]));
+    model.set_attribute("embedding_blob", Value::Bytes(vec![0x5b, 0, 0x80, 0x3f]));
     model.save().await.unwrap();
-    let key = model.getKey().unwrap().clone();
-    let mut loaded = query().findOrFail(key.clone()).await.unwrap();
+    let key = model.get_key().unwrap().clone();
+    let mut loaded = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(
-        loaded.getRawOriginal("binary_uuid"),
+        loaded.get_raw_original("binary_uuid"),
         Some(&Value::Bytes(vec![
             0x55, 0x0e, 0x84, 0, 0xe2, 0x9b, 0x41, 0xd4, 0xa7, 0x16, 0x44, 0x66, 0x55, 0x44, 0, 0
         ]))
     );
     assert_eq!(
-        loaded.getRawOriginal("binary_ulid"),
+        loaded.get_raw_original("binary_ulid"),
         Some(&Value::Bytes(vec![
             0x01, 0x56, 0x3e, 0x3a, 0xb5, 0xd3, 0xd6, 0x76, 0x4c, 0x61, 0xef, 0xb9, 0x93, 0x02,
             0xbd, 0x5b
         ]))
     );
     assert_eq!(
-        loaded.getRawOriginal("binary_label"),
+        loaded.get_raw_original("binary_label"),
         Some(&Value::Bytes(b"example".to_vec()))
     );
     assert_eq!(
-        loaded.getAttributeValue("binary_label").unwrap(),
+        loaded.get_attribute_value("binary_label").unwrap(),
         Some("label:example".into())
     );
     assert_eq!(
-        loaded.getRawOriginal("embedding"),
+        loaded.get_raw_original("embedding"),
         Some(&"[0.5,-1.25,3.75]".into())
     );
     let output = loaded.to_array().unwrap();
@@ -842,37 +845,41 @@ async fn verify_binary_and_vector_casts(db: &Connection) {
     assert_eq!(output["embedding_blob"], json!([1.0000108480453491]));
     assert_eq!(output["binary_uuid"], json!(UUID));
     assert_eq!(output["binary_ulid"], json!(ULID));
-    assert!(loaded.setAttributeValue("binary_uuid", "invalid").is_err());
     assert!(
         loaded
-            .setAttributeValue("binary_ulid", "81ARZ3NDEKTSV4RRFFQ69G5FAV")
+            .set_attribute_value("binary_uuid", "invalid")
             .is_err()
     );
     assert!(
         loaded
-            .setAttributeValue("embedding", "not an array")
+            .set_attribute_value("binary_ulid", "81ARZ3NDEKTSV4RRFFQ69G5FAV")
             .is_err()
     );
     assert!(
         loaded
-            .setAttributeValue("embedding", Value::Json(json!(["1e999"])))
+            .set_attribute_value("embedding", "not an array")
             .is_err()
     );
-    assert!(!loaded.isDirty().unwrap());
+    assert!(
+        loaded
+            .set_attribute_value("embedding", Value::Json(json!(["1e999"])))
+            .is_err()
+    );
+    assert!(!loaded.is_dirty().unwrap());
     loaded
-        .setAttributeValue("binary_ulid", "01563e3a-b5d3-d676-4c61-efb99302bd5b")
+        .set_attribute_value("binary_ulid", "01563e3a-b5d3-d676-4c61-efb99302bd5b")
         .unwrap();
     loaded
-        .setAttributeValue("binary_ulid", "1AaLyDYFxmKZxXbNo18znE")
+        .set_attribute_value("binary_ulid", "1AaLyDYFxmKZxXbNo18znE")
         .unwrap();
-    assert!(!loaded.isDirty().unwrap());
-    loaded.setAttributeValue("binary_uuid", " ").unwrap();
+    assert!(!loaded.is_dirty().unwrap());
+    loaded.set_attribute_value("binary_uuid", " ").unwrap();
     loaded
-        .setAttributeValue("embedding", Value::Json(json!([1, "2.25", false])))
+        .set_attribute_value("embedding", Value::Json(json!([1, "2.25", false])))
         .unwrap();
     loaded.save().await.unwrap();
-    let loaded = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(loaded.getRawOriginal("binary_uuid"), Some(&Value::Null));
+    let loaded = query().find_or_fail(key.clone()).await.unwrap();
+    assert_eq!(loaded.get_raw_original("binary_uuid"), Some(&Value::Null));
     assert_eq!(
         loaded.to_array().unwrap()["embedding"],
         json!([1.0, 2.25, 0.0])
@@ -883,25 +890,27 @@ async fn verify_binary_and_vector_casts(db: &Connection) {
     )
     .await
     .unwrap();
-    let mut invalid = query().findOrFail(key.clone()).await.unwrap();
-    assert!(invalid.getAttributeValue("binary_uuid").is_err());
-    assert!(invalid.getAttributeValue("embedding").is_err());
-    invalid.setAttributeValue("binary_uuid", UUID).unwrap();
-    invalid.setAttributeValue("embedding", Value::Null).unwrap();
+    let mut invalid = query().find_or_fail(key.clone()).await.unwrap();
+    assert!(invalid.get_attribute_value("binary_uuid").is_err());
+    assert!(invalid.get_attribute_value("embedding").is_err());
+    invalid.set_attribute_value("binary_uuid", UUID).unwrap();
+    invalid
+        .set_attribute_value("embedding", Value::Null)
+        .unwrap();
     invalid.save().await.unwrap();
-    let repaired = query().findOrFail(key).await.unwrap();
+    let repaired = query().find_or_fail(key).await.unwrap();
     assert_eq!(
-        repaired.getAttributeValue("binary_uuid").unwrap(),
+        repaired.get_attribute_value("binary_uuid").unwrap(),
         Some(UUID.into())
     );
     assert_eq!(
-        repaired.getAttributeValue("embedding").unwrap(),
+        repaired.get_attribute_value("embedding").unwrap(),
         Some(Value::Null)
     );
 }
 
 async fn verify_json_collection_casts(db: &Connection) {
-    let query = || CastRecord::queryOn(db);
+    let query = || CastRecord::query_on(db);
     let mut model = query()
         .create(attrs([
             ("json_array", Value::Null),
@@ -918,25 +927,30 @@ async fn verify_json_collection_casts(db: &Connection) {
         .await
         .unwrap();
     model
-        .setJsonCollection(
+        .set_json_collection(
             "json_collection",
-            Collection::fromEntries([("second", json!(2)), ("first", json!(1))]),
+            Collection::from_entries([("second", json!(2)), ("first", json!(1))]),
         )
         .unwrap();
     model.save().await.unwrap();
-    let key = model.getKey().unwrap().clone();
-    let row = db.selectOne(
+    let key = model.get_key().unwrap().clone();
+    let row = db.select_one(
         "SELECT CASE WHEN json_array IS NULL THEN 1 ELSE 0 END AS array_null, CASE WHEN json_nullable IS NULL THEN 1 ELSE 0 END AS nullable_null FROM cast_records WHERE id = ?",
         std::slice::from_ref(&key),
     ).await.unwrap().unwrap();
     assert_eq!(row.get("array_null"), Some(&0.into()));
     assert_eq!(row.get("nullable_null"), Some(&1.into()));
-    let mut loaded = query().findOrFail(key.clone()).await.unwrap();
-    assert!(loaded.getJsonCollection("json_array").unwrap().is_none());
-    assert!(loaded.getJsonCollection("json_nullable").unwrap().is_none());
+    let mut loaded = query().find_or_fail(key.clone()).await.unwrap();
+    assert!(loaded.get_json_collection("json_array").unwrap().is_none());
+    assert!(
+        loaded
+            .get_json_collection("json_nullable")
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(
         loaded
-            .getJsonCollection("json_collection")
+            .get_json_collection("json_collection")
             .unwrap()
             .unwrap()
             .into_iter()
@@ -949,7 +963,7 @@ async fn verify_json_collection_casts(db: &Connection) {
     assert_eq!(projected["json_callback"], json!({"label":"VALUE"}));
     assert_eq!(
         loaded
-            .getJsonCollectionAs::<CollectionItem>("json_mapped")
+            .get_json_collection_as::<CollectionItem>("json_mapped")
             .unwrap()
             .unwrap()
             .get(0),
@@ -959,38 +973,38 @@ async fn verify_json_collection_casts(db: &Connection) {
     );
     assert!(
         loaded
-            .editJsonCollection("json_collection", |values| {
+            .edit_json_collection("json_collection", |values| {
                 values.put("third", json!(3));
                 Err(DatabaseError::InvalidQuery("test edit failure"))
             })
             .is_err()
     );
-    assert!(!loaded.isDirty().unwrap());
+    assert!(!loaded.is_dirty().unwrap());
     loaded
-        .editJsonCollection("json_collection", |values| {
+        .edit_json_collection("json_collection", |values| {
             values.put("third", json!(3));
             Ok(())
         })
         .unwrap();
     loaded
-        .fillJsonAttribute("json_array->0->name", "array")
+        .fill_json_attribute("json_array->0->name", "array")
         .unwrap();
     loaded
-        .setAttributeValue("json_mapped", Value::Json(json!([{"name":1}])))
+        .set_attribute_value("json_mapped", Value::Json(json!([{"name":1}])))
         .unwrap();
     loaded.save().await.unwrap();
-    let mut invalid = query().findOrFail(key.clone()).await.unwrap();
-    assert!(invalid.getJsonCollection("json_mapped").is_err());
+    let mut invalid = query().find_or_fail(key.clone()).await.unwrap();
+    assert!(invalid.get_json_collection("json_mapped").is_err());
     assert_eq!(
-        invalid.getAttributeValue("json_array").unwrap(),
+        invalid.get_attribute_value("json_array").unwrap(),
         Some(Value::Json(json!([{"name":"array"}])))
     );
     assert_eq!(
-        invalid.getRawOriginal("json_collection"),
+        invalid.get_raw_original("json_collection"),
         Some(&r#"{"second":2,"first":1,"third":3}"#.into())
     );
     invalid
-        .setJsonCollection(
+        .set_json_collection(
             "json_mapped",
             Collection::make([CollectionItem {
                 name: "repaired".into(),
@@ -999,13 +1013,13 @@ async fn verify_json_collection_casts(db: &Connection) {
         .unwrap();
     invalid.save().await.unwrap();
     assert_eq!(
-        query().findOrFail(key).await.unwrap().to_array().unwrap()["json_mapped"],
+        query().find_or_fail(key).await.unwrap().to_array().unwrap()["json_mapped"],
         json!([{"name":"repaired"}])
     );
 }
 
 async fn verify_factory_casts(db: &Connection) {
-    let query = || CastRecord::queryOn(db);
+    let query = || CastRecord::query_on(db);
     let model = query()
         .create(attrs([
             ("factory_value", 9.into()),
@@ -1013,20 +1027,20 @@ async fn verify_factory_casts(db: &Connection) {
         ]))
         .await
         .unwrap();
-    let key = model.getKey().unwrap().clone();
-    let mut plain = query().findOrFail(key.clone()).await.unwrap();
+    let key = model.get_key().unwrap().clone();
+    let mut plain = query().find_or_fail(key.clone()).await.unwrap();
     let mut overridden = query()
-        .withCasts([("factory_value", ClassCast::of::<Scaled>(&3))])
-        .findOrFail(key.clone())
+        .with_casts([("factory_value", ClassCast::of::<Scaled>(&3))])
+        .find_or_fail(key.clone())
         .await
         .unwrap();
-    assert_eq!(plain.getRawOriginal("factory_value"), Some(&18.into()));
+    assert_eq!(plain.get_raw_original("factory_value"), Some(&18.into()));
     assert_eq!(
-        plain.getAttributeValue("factory_value").unwrap(),
+        plain.get_attribute_value("factory_value").unwrap(),
         Some(9.into())
     );
     assert_eq!(
-        plain.getAttributeValue("factory_inbound").unwrap(),
+        plain.get_attribute_value("factory_inbound").unwrap(),
         Some(36.into())
     );
     assert_eq!(
@@ -1034,33 +1048,33 @@ async fn verify_factory_casts(db: &Connection) {
         json!({"decoded":9})
     );
     assert_eq!(
-        overridden.getAttributeValue("factory_value").unwrap(),
+        overridden.get_attribute_value("factory_value").unwrap(),
         Some(6.into())
     );
-    overridden.mergeCasts([("factory_value", ClassCast::of::<Scaled>(&0))]);
-    let snapshot = overridden.state().getAttributes().clone();
-    assert!(overridden.setAttributeValue("factory_value", 4).is_err());
-    assert_eq!(overridden.state().getAttributes(), &snapshot);
-    overridden.mergeCasts([("factory_value", ClassCast::of::<Scaled>(&3))]);
-    overridden.setAttributeValue("factory_value", 4).unwrap();
+    overridden.merge_casts([("factory_value", ClassCast::of::<Scaled>(&0))]);
+    let snapshot = overridden.state().get_attributes().clone();
+    assert!(overridden.set_attribute_value("factory_value", 4).is_err());
+    assert_eq!(overridden.state().get_attributes(), &snapshot);
+    overridden.merge_casts([("factory_value", ClassCast::of::<Scaled>(&3))]);
+    overridden.set_attribute_value("factory_value", 4).unwrap();
     overridden.save().await.unwrap();
     assert_eq!(
-        plain.getAttributeValue("factory_value").unwrap(),
+        plain.get_attribute_value("factory_value").unwrap(),
         Some(9.into())
     );
     assert_eq!(
         query()
-            .findOrFail(key)
+            .find_or_fail(key)
             .await
             .unwrap()
-            .getAttributeValue("factory_value")
+            .get_attribute_value("factory_value")
             .unwrap(),
         Some(6.into())
     );
 
-    plain.mergeCasts([("left_code", ValueObjectCast::of::<FreshCodes>())]);
+    plain.merge_casts([("left_code", ValueObjectCast::of::<FreshCodes>())]);
     plain
-        .setValueObject(
+        .set_value_object(
             "left_code",
             Some(FreshCodes(Codes {
                 left: "x".into(),
@@ -1069,21 +1083,21 @@ async fn verify_factory_casts(db: &Connection) {
         )
         .unwrap();
     assert!(matches!(
-        plain.getValueObject::<FreshCodes>("left_code").unwrap(),
+        plain.get_value_object::<FreshCodes>("left_code").unwrap(),
         Some(std::borrow::Cow::Owned(_))
     ));
     plain
-        .editValueObject::<FreshCodes>("left_code", |value| {
+        .edit_value_object::<FreshCodes>("left_code", |value| {
             value.0.right = "z".into();
             Ok(())
         })
         .unwrap();
-    assert_eq!(plain.getAttribute("right_code"), Some(&"z".into()));
+    assert_eq!(plain.get_attribute("right_code"), Some(&"z".into()));
     let mut collection = openrust::database::eloquent::Collection::new(vec![plain, overridden]);
     collection
-        .setVisible(&["factory_value"])
-        .makeVisible(&["factory_inbound"])
-        .makeHidden(&["factory_value"]);
+        .set_visible(&["factory_value"])
+        .make_visible(&["factory_inbound"])
+        .make_hidden(&["factory_value"]);
     assert_eq!(
         collection.to_array().unwrap(),
         vec![
@@ -1094,34 +1108,34 @@ async fn verify_factory_casts(db: &Connection) {
 }
 
 async fn verify_enum_collections_and_objects(db: &Connection) {
-    let query = || CastRecord::queryOn(db);
+    let query = || CastRecord::query_on(db);
     let mut model = query().make(Attributes::new()).unwrap();
     assert!(
         model
-            .getEnumCollection::<Status>("enum_list")
+            .get_enum_collection::<Status>("enum_list")
             .unwrap()
             .is_none()
     );
     assert!(
         model
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .is_none()
     );
     model
-        .setEnumCollection(
+        .set_enum_collection(
             "enum_list",
-            Collection::fromEntries([("second", Status::Published), ("first", Status::Draft)]),
+            Collection::from_entries([("second", Status::Published), ("first", Status::Draft)]),
         )
         .unwrap();
     model
-        .setEnumCollection(
+        .set_enum_collection(
             "enum_array",
-            Collection::fromEntries([("second", Priority::Urgent), ("first", Priority::Normal)]),
+            Collection::from_entries([("second", Priority::Urgent), ("first", Priority::Normal)]),
         )
         .unwrap();
     model
-        .setValueObject(
+        .set_value_object(
             "left_code",
             Some(Codes {
                 left: "A".into(),
@@ -1131,10 +1145,10 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
         .unwrap();
     model.save().await.unwrap();
 
-    let key = model.getKey().unwrap().clone();
-    let mut model = query().findOrFail(key.clone()).await.unwrap();
+    let key = model.get_key().unwrap().clone();
+    let mut model = query().find_or_fail(key.clone()).await.unwrap();
     let list = model
-        .getEnumCollection::<Status>("enum_list")
+        .get_enum_collection::<Status>("enum_list")
         .unwrap()
         .unwrap();
     assert_eq!(
@@ -1142,10 +1156,10 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
         vec!["second".into(), "first".into()]
     );
     assert_eq!(
-        model.getRawOriginal("enum_list"),
+        model.get_raw_original("enum_list"),
         Some(&r#"{"second":"Published","first":"Draft"}"#.into())
     );
-    assert_eq!(model.getRawOriginal("enum_array"), Some(&"[2,1]".into()));
+    assert_eq!(model.get_raw_original("enum_array"), Some(&"[2,1]".into()));
     let output = model.to_array().unwrap();
     assert_eq!(output["enum_array"], json!([2, 1]));
     assert_eq!(
@@ -1153,18 +1167,18 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
         json!({"second":"Published","first":"Draft"})
     );
     assert_eq!(output["left_code"], json!({"left":"A","right":"B"}));
-    assert!(model.getEnumCollection::<Priority>("enum_list").is_err());
+    assert!(model.get_enum_collection::<Priority>("enum_list").is_err());
 
     let before = std::ptr::from_ref(
         model
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .unwrap()
             .as_ref(),
     );
     let after = std::ptr::from_ref(
         model
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .unwrap()
             .as_ref(),
@@ -1172,41 +1186,41 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
     assert_eq!(before, after);
     assert!(
         model
-            .editValueObject::<Codes>("left_code", |value| {
+            .edit_value_object::<Codes>("left_code", |value| {
                 value.left.clear();
                 Ok(())
             })
             .is_err()
     );
-    assert!(!model.isDirty().unwrap());
+    assert!(!model.is_dirty().unwrap());
     assert_eq!(
         model
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .unwrap()
             .left,
         "A"
     );
     model
-        .editValueObject::<Codes>("left_code", |value| {
+        .edit_value_object::<Codes>("left_code", |value| {
             value.right = "C".into();
             Ok(())
         })
         .unwrap();
-    assert!(model.isDirty().unwrap());
-    assert_eq!(model.getRawOriginal("right_code"), Some(&"B".into()));
-    assert_eq!(model.getAttribute("right_code"), Some(&"C".into()));
+    assert!(model.is_dirty().unwrap());
+    assert_eq!(model.get_raw_original("right_code"), Some(&"B".into()));
+    assert_eq!(model.get_attribute("right_code"), Some(&"C".into()));
     model
-        .editEnumCollection::<Status>("enum_list", |cases| {
+        .edit_enum_collection::<Status>("enum_list", |cases| {
             cases.put("third", Status::Published);
             Ok(())
         })
         .unwrap();
     model.save().await.unwrap();
-    let mut other = query().findOrFail(key.clone()).await.unwrap();
+    let mut other = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(
         other
-            .getEnumCollection::<Status>("enum_list")
+            .get_enum_collection::<Status>("enum_list")
             .unwrap()
             .unwrap()
             .get("third"),
@@ -1214,18 +1228,18 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
     );
     assert_eq!(
         other
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .unwrap()
             .right,
         "C"
     );
-    model.setValueObject::<Codes>("left_code", None).unwrap();
-    assert!(model.setAttributeValue("enum_array", true).is_err());
-    model.setAttributeValue("enum_list", true).unwrap();
-    assert_eq!(model.getAttribute("enum_list"), Some(&"[true]".into()));
+    model.set_value_object::<Codes>("left_code", None).unwrap();
+    assert!(model.set_attribute_value("enum_array", true).is_err());
+    model.set_attribute_value("enum_list", true).unwrap();
+    assert_eq!(model.get_attribute("enum_list"), Some(&"[true]".into()));
     model
-        .setAttributeValue(
+        .set_attribute_value(
             "enum_list",
             Value::Json(json!(["Unknown", null, {"raw": true}])),
         )
@@ -1233,47 +1247,47 @@ async fn verify_enum_collections_and_objects(db: &Connection) {
     model.save().await.unwrap();
     assert_eq!(
         other
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .unwrap()
             .right,
         "C"
     );
-    let mut invalid = query().findOrFail(key.clone()).await.unwrap();
+    let mut invalid = query().find_or_fail(key.clone()).await.unwrap();
     assert!(
         invalid
-            .getValueObject::<Codes>("left_code")
+            .get_value_object::<Codes>("left_code")
             .unwrap()
             .is_none()
     );
-    assert!(invalid.getEnumCollection::<Status>("enum_list").is_err());
+    assert!(invalid.get_enum_collection::<Status>("enum_list").is_err());
     invalid
-        .setEnumCollection("enum_list", Collection::make([Status::Draft]))
+        .set_enum_collection("enum_list", Collection::make([Status::Draft]))
         .unwrap();
     invalid.save().await.unwrap();
-    let repaired = query().findOrFail(key).await.unwrap();
+    let repaired = query().find_or_fail(key).await.unwrap();
     assert_eq!(repaired.to_array().unwrap()["enum_list"], json!(["Draft"]));
 }
 
 fn verify_model_projection(mut model: CastRecord) {
-    assert_eq!(model.getHidden(), vec!["label", "invalid_blob"]);
-    assert!(model.hasAppended("summary"));
-    model.makeVisibleIf(false, &["label"]);
+    assert_eq!(model.get_hidden(), vec!["label", "invalid_blob"]);
+    assert!(model.has_appended("summary"));
+    model.make_visible_if(false, &["label"]);
     assert!(!model.to_array().unwrap().contains_key("label"));
     let mut evaluations = 0;
-    model.makeVisibleIf(
+    model.make_visible_if(
         |record: &CastRecord| {
             evaluations += 1;
-            record.getAttribute("label") == Some(&"world".into())
+            record.get_attribute("label") == Some(&"world".into())
         },
         &["label"],
     );
     assert_eq!(evaluations, 1);
-    model.makeHiddenIf(false, &["label"]);
+    model.make_hidden_if(false, &["label"]);
     assert_eq!(model.to_array().unwrap()["label"], json!("WORLD"));
-    model.makeHiddenIf(|_: &CastRecord| true, &["label"]);
-    model.setAttribute("invalid_blob", Value::Bytes(vec![0xff]));
-    let array = model.attributesToArray().unwrap();
+    model.make_hidden_if(|_: &CastRecord| true, &["label"]);
+    model.set_attribute("invalid_blob", Value::Bytes(vec![0xff]));
+    let array = model.attributes_to_array().unwrap();
     assert!(!array.contains_key("label"));
     assert!(!array.contains_key("invalid_blob"));
     assert_eq!(array["summary"], json!("world"));
@@ -1282,10 +1296,10 @@ fn verify_model_projection(mut model: CastRecord) {
     assert_eq!(array["epoch"], json!(-1));
     assert_eq!(array["options"], json!("text"));
     assert_eq!(
-        model.getRawOriginal("occurred_at"),
+        model.get_raw_original("occurred_at"),
         Some(&"2025-06-01 08:30:00.123456".into())
     );
-    model.mergeCasts([
+    model.merge_casts([
         (
             "occurred_at",
             AttributeCast::DateTimeWithFormat("%H:%M:%S%.6f %:z"),
@@ -1298,19 +1312,19 @@ fn verify_model_projection(mut model: CastRecord) {
     assert_eq!(formatted["day"], json!("2025/06/01 00:00 -04:00"));
     assert!(formatted["missing"].is_null());
     model
-        .setAttributeValue("occurred_at", "2025-06-01T14:30:00.123456+02:00")
+        .set_attribute_value("occurred_at", "2025-06-01T14:30:00.123456+02:00")
         .unwrap();
-    assert!(model.originalIsEquivalent("occurred_at").unwrap());
+    assert!(model.original_is_equivalent("occurred_at").unwrap());
     assert_eq!(
-        model.getAttributeValue("occurred_at").unwrap(),
+        model.get_attribute_value("occurred_at").unwrap(),
         Some("2025-06-01T12:30:00.123456Z".into())
     );
-    model.makeVisible(&["invalid_blob"]);
+    model.make_visible(&["invalid_blob"]);
     assert!(model.to_json().is_err());
-    model.makeHidden(&["invalid_blob"]);
+    model.make_hidden(&["invalid_blob"]);
     assert!(model.to_json().is_ok());
-    model.mergeCasts([("label", AttributeCast::Custom(&CanonicalCode))]);
-    model.setVisible(&["summary"]).makeVisible(&["label"]);
+    model.merge_casts([("label", AttributeCast::Custom(&CanonicalCode))]);
+    model.set_visible(&["summary"]).make_visible(&["label"]);
     assert_eq!(
         serde_json::from_str::<Json>(&model.to_json().unwrap()).unwrap(),
         json!({
@@ -1318,31 +1332,31 @@ fn verify_model_projection(mut model: CastRecord) {
             "summary": "world"
         })
     );
-    model.withoutAppends();
+    model.without_appends();
     assert_eq!(
         model.to_array().unwrap(),
         json!({"label":"WORLD"}).as_object().unwrap().clone()
     );
     model
         .append(&["summary", "summary"])
-        .makeHidden(&["summary"]);
-    assert_eq!(model.getAppends(), vec!["summary"]);
+        .make_hidden(&["summary"]);
+    assert_eq!(model.get_appends(), vec!["summary"]);
     assert!(!model.to_array().unwrap().contains_key("summary"));
 }
 
 async fn verify_enum_and_class_casts(db: &Connection) {
-    let query = || CastRecord::queryOn(db);
+    let query = || CastRecord::query_on(db);
     let mut model = query().make(Attributes::new()).unwrap();
-    assert_eq!(model.getEnum::<Status>("status").unwrap(), None);
-    assert!(model.setEnum("status", Priority::Urgent).is_err());
-    model.setEnum("status", Status::Draft).unwrap();
-    assert_eq!(model.getAttribute("status"), Some(&"Draft".into()));
+    assert_eq!(model.get_enum::<Status>("status").unwrap(), None);
+    assert!(model.set_enum("status", Priority::Urgent).is_err());
+    model.set_enum("status", Status::Draft).unwrap();
+    assert_eq!(model.get_attribute("status"), Some(&"Draft".into()));
     assert_eq!(
-        model.getAttributeValue("status").unwrap(),
+        model.get_attribute_value("status").unwrap(),
         Some("Draft".into())
     );
-    assert!(model.setAttributeValue("status", "Undefined").is_err());
-    assert_eq!(model.getEnum("status").unwrap(), Some(Status::Draft));
+    assert!(model.set_attribute_value("status", "Undefined").is_err());
+    assert_eq!(model.get_enum("status").unwrap(), Some(Status::Draft));
     model
         .fill(attrs([
             ("priority", 2.into()),
@@ -1352,31 +1366,31 @@ async fn verify_enum_and_class_casts(db: &Connection) {
         ]))
         .unwrap();
     model.save().await.unwrap();
-    let key = model.getKey().unwrap().clone();
-    let mut loaded = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(loaded.getRawOriginal("priority"), Some(&2.into()));
-    assert_eq!(loaded.getEnum("priority").unwrap(), Some(Priority::Urgent));
+    let key = model.get_key().unwrap().clone();
+    let mut loaded = query().find_or_fail(key.clone()).await.unwrap();
+    assert_eq!(loaded.get_raw_original("priority"), Some(&2.into()));
+    assert_eq!(loaded.get_enum("priority").unwrap(), Some(Priority::Urgent));
     assert_eq!(
-        loaded.getAttributeValue("pair").unwrap(),
+        loaded.get_attribute_value("pair").unwrap(),
         Some("alpha/beta".into())
     );
-    assert_eq!(loaded.getRawOriginal("left_code"), Some(&"alpha".into()));
-    assert_eq!(loaded.getRawOriginal("right_code"), Some(&"beta".into()));
-    assert_eq!(loaded.getRawOriginal("code"), Some(&"hello".into()));
+    assert_eq!(loaded.get_raw_original("left_code"), Some(&"alpha".into()));
+    assert_eq!(loaded.get_raw_original("right_code"), Some(&"beta".into()));
+    assert_eq!(loaded.get_raw_original("code"), Some(&"hello".into()));
     let json = loaded.to_array().unwrap();
     assert_eq!(json["code"], json!({"code": "HELLO"}));
     assert_eq!(json["priority"], json!(2));
     assert_eq!(json["status"], json!("Draft"));
     assert_eq!(
-        loaded.getAttributeValue("code").unwrap(),
+        loaded.get_attribute_value("code").unwrap(),
         Some("HELLO".into())
     );
     assert_eq!(
-        loaded.getAttributeValue("inbound_code").unwrap(),
+        loaded.get_attribute_value("inbound_code").unwrap(),
         Some("world".into())
     );
 
-    let mut snapshot = loaded.state().getAttributes().clone();
+    let mut snapshot = loaded.state().get_attributes().clone();
     snapshot.insert("code".into(), "changed".into());
     assert!(
         loaded
@@ -1386,18 +1400,18 @@ async fn verify_enum_and_class_casts(db: &Connection) {
             ]))
             .is_err()
     );
-    assert_eq!(loaded.state().getAttributes(), &snapshot);
-    loaded.setAttribute("code", "HELLO");
-    assert!(!loaded.isDirty().unwrap());
+    assert_eq!(loaded.state().get_attributes(), &snapshot);
+    loaded.set_attribute("code", "HELLO");
+    assert!(!loaded.is_dirty().unwrap());
     loaded.save().await.unwrap();
-    loaded.setAttributeValue("pair", "second/third").unwrap();
-    loaded.setAttributeValue("status", Value::Null).unwrap();
+    loaded.set_attribute_value("pair", "second/third").unwrap();
+    loaded.set_attribute_value("status", Value::Null).unwrap();
     loaded.save().await.unwrap();
-    let loaded = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(loaded.getRawOriginal("code"), Some(&"hello".into()));
-    assert_eq!(loaded.getEnum::<Status>("status").unwrap(), None);
+    let loaded = query().find_or_fail(key.clone()).await.unwrap();
+    assert_eq!(loaded.get_raw_original("code"), Some(&"hello".into()));
+    assert_eq!(loaded.get_enum::<Status>("status").unwrap(), None);
     assert_eq!(
-        loaded.getAttributeValue("pair").unwrap(),
+        loaded.get_attribute_value("pair").unwrap(),
         Some("second/third".into())
     );
     db.statement(
@@ -1406,19 +1420,19 @@ async fn verify_enum_and_class_casts(db: &Connection) {
     )
     .await
     .unwrap();
-    let mut loaded = query().findOrFail(key.clone()).await.unwrap();
-    assert!(loaded.getEnum::<Priority>("priority").is_err());
-    loaded.setEnum("priority", Priority::Normal).unwrap();
+    let mut loaded = query().find_or_fail(key.clone()).await.unwrap();
+    assert!(loaded.get_enum::<Priority>("priority").is_err());
+    loaded.set_enum("priority", Priority::Normal).unwrap();
     loaded.save().await.unwrap();
-    let repaired = query().findOrFail(key).await.unwrap();
+    let repaired = query().find_or_fail(key).await.unwrap();
     assert_eq!(
-        repaired.getEnum("priority").unwrap(),
+        repaired.get_enum("priority").unwrap(),
         Some(Priority::Normal)
     );
 }
 
 async fn verify_query_casts(db: &Connection, key: Value) {
-    let query = || CastRecord::queryOn(db);
+    let query = || CastRecord::query_on(db);
     let mut projected = query()
         .select([
             Column::from("id"),
@@ -1427,50 +1441,53 @@ async fn verify_query_casts(db: &Connection, key: Value) {
             Expression::new("occurred_at AS selected_at").into(),
             Expression::new("NULL AS missing_at").into(),
         ])
-        .withCasts([
+        .with_casts([
             ("number", AttributeCast::Float),
             ("selected_at", AttributeCast::DateTime),
             ("missing_at", AttributeCast::DateTime),
             ("label", AttributeCast::Integer),
         ])
-        .withCasts([("number", AttributeCast::String)])
-        .findOrFail(key.clone())
+        .with_casts([("number", AttributeCast::String)])
+        .find_or_fail(key.clone())
         .await
         .unwrap();
     let expected = Some("2025-06-01T12:30:00.123456Z".into());
     assert_eq!(
-        projected.getAttributeValue("selected_at").unwrap(),
+        projected.get_attribute_value("selected_at").unwrap(),
         expected
     );
     assert_eq!(
-        projected.getRawOriginal("selected_at"),
+        projected.get_raw_original("selected_at"),
         Some(&"2025-06-01 08:30:00.123456".into())
     );
     assert_eq!(
-        projected.getAttributeValue("missing_at").unwrap(),
+        projected.get_attribute_value("missing_at").unwrap(),
         Some(Value::Null)
     );
     assert_eq!(
-        projected.getAttributeValue("label").unwrap(),
+        projected.get_attribute_value("label").unwrap(),
         Some("WORLD".into())
     );
     assert_eq!(
-        projected.getAttributeValue("number").unwrap(),
+        projected.get_attribute_value("number").unwrap(),
         Some("  42.8x".into())
     );
     projected
-        .setAttributeValue("selected_at", "2025-06-01T14:30:00.123456+02:00")
+        .set_attribute_value("selected_at", "2025-06-01T14:30:00.123456+02:00")
         .unwrap();
-    assert!(!projected.isDirty().unwrap());
-    projected.mergeCasts([(String::from("number"), AttributeCast::Float)]);
+    assert!(!projected.is_dirty().unwrap());
+    projected.merge_casts([(String::from("number"), AttributeCast::Float)]);
     assert_eq!(
-        projected.getAttributeValue("number").unwrap(),
+        projected.get_attribute_value("number").unwrap(),
         Some(Value::Real(42.8))
     );
 
-    let plain = query().findOrFail(key).await.unwrap();
-    assert_eq!(plain.getAttributeValue("number").unwrap(), Some(42.into()));
-    assert_eq!(plain.getAttributeValue("selected_at").unwrap(), None);
+    let plain = query().find_or_fail(key).await.unwrap();
+    assert_eq!(
+        plain.get_attribute_value("number").unwrap(),
+        Some(42.into())
+    );
+    assert_eq!(plain.get_attribute_value("selected_at").unwrap(), None);
     let refreshed = openrust::database::eloquent::Collection::new(vec![projected, plain])
         .fresh()
         .await
@@ -1478,59 +1495,62 @@ async fn verify_query_casts(db: &Connection, key: Value) {
     assert_eq!(refreshed.all().len(), 2);
     for model in refreshed.iter() {
         assert_eq!(
-            model.getAttributeValue("number").unwrap(),
+            model.get_attribute_value("number").unwrap(),
             Some(Value::Real(42.8))
         );
-        assert_eq!(model.getAttributeValue("selected_at").unwrap(), None);
+        assert_eq!(model.get_attribute_value("selected_at").unwrap(), None);
     }
 
-    let builder = query().withCasts([("number", AttributeCast::DateTime)]);
+    let builder = query().with_casts([("number", AttributeCast::DateTime)]);
     assert!(builder.make(attrs([("number", "invalid".into())])).is_err());
     let created = builder
         .create(attrs([("number", "2025-06-01T12:30:00.123456Z".into())]))
         .await
         .unwrap();
-    assert_eq!(created.getAttributeValue("number").unwrap(), expected);
+    assert_eq!(created.get_attribute_value("number").unwrap(), expected);
     let mut siblings = query()
-        .withCasts([("number", AttributeCast::String)])
-        .orderBy("id", "asc")
+        .with_casts([("number", AttributeCast::String)])
+        .order_by("id", "asc")
         .get()
         .await
         .unwrap()
         .into_iter();
     let mut first = siblings.next().unwrap();
     let second = siblings.next().unwrap();
-    first.mergeCasts([("number", AttributeCast::Integer)]);
-    assert_eq!(first.getAttributeValue("number").unwrap(), Some(42.into()));
+    first.merge_casts([("number", AttributeCast::Integer)]);
     assert_eq!(
-        second.getAttributeValue("number").unwrap(),
+        first.get_attribute_value("number").unwrap(),
+        Some(42.into())
+    );
+    assert_eq!(
+        second.get_attribute_value("number").unwrap(),
         Some("2025-06-01 08:30:00.123456".into())
     );
 }
 
 async fn verify_locked_reload(db: &Connection, model: &mut Article, mysql: bool) {
     let mut wrong = connect(json!({"driver":"sqlite","database":":memory:"}))
-        .beginTransaction()
+        .begin_transaction()
         .await
         .unwrap();
     assert!(matches!(
-        model.refreshForUpdate(&mut wrong).await,
+        model.refresh_for_update(&mut wrong).await,
         Err(DatabaseError::InvalidQuery("model transaction connection"))
     ));
-    wrong.rollBack(None).await.unwrap();
+    wrong.roll_back(None).await.unwrap();
 
-    let key = model.getKey().unwrap().clone();
+    let key = model.get_key().unwrap().clone();
     for commit in [true, false] {
-        let mut owner = db.beginTransaction().await.unwrap();
-        model.refreshForUpdate(&mut owner).await.unwrap();
-        assert_eq!(model.getKey(), Some(&key));
-        assert_eq!(owner.transactionLevel(), 1);
+        let mut owner = db.begin_transaction().await.unwrap();
+        model.refresh_for_update(&mut owner).await.unwrap();
+        assert_eq!(model.get_key(), Some(&key));
+        assert_eq!(owner.transaction_level(), 1);
 
         if mysql {
-            let mut contender = db.beginTransaction().await.unwrap();
+            let mut contender = db.begin_transaction().await.unwrap();
             let sql = "SELECT article_id FROM articles WHERE article_id = ? FOR UPDATE NOWAIT";
             let bindings = std::slice::from_ref(&key);
-            let blocked = contender.selectOne(sql, bindings).await.unwrap_err();
+            let blocked = contender.select_one(sql, bindings).await.unwrap_err();
             let DatabaseError::Driver { source, .. } = blocked else {
                 panic!("expected MySQL row lock error");
             };
@@ -1544,22 +1564,22 @@ async fn verify_locked_reload(db: &Connection, model: &mut Article, mysql: bool)
             if commit {
                 owner.commit().await.unwrap();
             } else {
-                owner.rollBack(None).await.unwrap();
+                owner.roll_back(None).await.unwrap();
             }
-            assert!(contender.selectOne(sql, bindings).await.unwrap().is_some());
-            contender.rollBack(None).await.unwrap();
+            assert!(contender.select_one(sql, bindings).await.unwrap().is_some());
+            contender.roll_back(None).await.unwrap();
         } else {
-            owner.rollBack(None).await.unwrap();
+            owner.roll_back(None).await.unwrap();
         }
         assert!(matches!(
-            model.refreshForUpdate(&mut owner).await,
+            model.refresh_for_update(&mut owner).await,
             Err(DatabaseError::TransactionClosed)
         ));
     }
 }
 
 async fn verify_model_reload(db: &Connection, model: &mut Article) {
-    let key = model.getKey().unwrap().clone();
+    let key = model.get_key().unwrap().clone();
     db.table("articles")
         .r#where("article_id", "=", key.clone())
         .update(attrs([
@@ -1570,22 +1590,22 @@ async fn verify_model_reload(db: &Connection, model: &mut Article) {
         .await
         .unwrap();
     assert!(
-        Article::queryOn(db)
+        Article::query_on(db)
             .find(key.clone())
             .await
             .unwrap()
             .is_none()
     );
-    model.setAttribute("article_id", 9999);
-    model.setAttribute("title", "Local edit");
+    model.set_attribute("article_id", 9999);
+    model.set_attribute("title", "Local edit");
     let fresh = model.fresh().await.unwrap().unwrap();
-    assert_eq!(fresh.getKey(), Some(&key));
-    assert_eq!(fresh.getAttribute("title"), Some(&"Read back".into()));
+    assert_eq!(fresh.get_key(), Some(&key));
+    assert_eq!(fresh.get_attribute("title"), Some(&"Read back".into()));
     assert!(fresh.trashed());
-    assert_eq!(model.getAttribute("title"), Some(&"Local edit".into()));
-    assert_eq!(model.refresh().await.unwrap().getKey(), Some(&key));
-    assert!(!model.state().isDirty());
-    assert_eq!(model.getRawOriginal("title"), Some(&"Read back".into()));
+    assert_eq!(model.get_attribute("title"), Some(&"Local edit".into()));
+    assert_eq!(model.refresh().await.unwrap().get_key(), Some(&key));
+    assert!(!model.state().is_dirty());
+    assert_eq!(model.get_raw_original("title"), Some(&"Read back".into()));
 
     db.table("articles")
         .r#where("article_id", "=", key)
@@ -1597,7 +1617,7 @@ async fn verify_model_reload(db: &Connection, model: &mut Article) {
         model.refresh().await,
         Err(DatabaseError::ModelNotFound("articles"))
     ));
-    assert_eq!(model.getAttribute("title"), Some(&"Read back".into()));
+    assert_eq!(model.get_attribute("title"), Some(&"Read back".into()));
     let mut unsaved = Article::new_instance(Attributes::new()).unwrap();
     assert!(unsaved.fresh().await.unwrap().is_none());
     assert!(!unsaved.refresh().await.unwrap().state().exists());
@@ -1617,7 +1637,7 @@ async fn verify(db: Connection, mysql: bool) {
         &[],
     ).await.unwrap();
 
-    let query = || Article::queryOn(&db);
+    let query = || Article::query_on(&db);
     let mut model = query()
         .create(attrs([
             ("title", "Initial".into()),
@@ -1627,31 +1647,31 @@ async fn verify(db: Connection, mysql: bool) {
         ]))
         .await
         .unwrap();
-    assert!(model.state().exists() && model.state().wasRecentlyCreated());
-    assert!(!model.state().isDirty());
-    assert_eq!(model.getKey(), Some(&1.into()));
-    assert_eq!(model.getConnectionName(), Some("models"));
+    assert!(model.state().exists() && model.state().was_recently_created());
+    assert!(!model.state().is_dirty());
+    assert_eq!(model.get_key(), Some(&1.into()));
+    assert_eq!(model.get_connection_name(), Some("models"));
     assert_eq!(
-        model.getAttribute("created_at"),
-        model.getAttribute("updated_at")
+        model.get_attribute("created_at"),
+        model.get_attribute("updated_at")
     );
-    assert!(model.getAttribute("created_at").is_some());
+    assert!(model.get_attribute("created_at").is_some());
 
-    let mut hydrated = query().findOrFail(1).await.unwrap();
-    assert!(!hydrated.state().wasRecentlyCreated());
-    assert_eq!(hydrated.getAttribute("protected"), Some(&7.into()));
+    let mut hydrated = query().find_or_fail(1).await.unwrap();
+    assert!(!hydrated.state().was_recently_created());
+    assert_eq!(hydrated.get_attribute("protected"), Some(&7.into()));
     hydrated
-        .setAttribute("article_id", 11)
-        .setAttribute("title", "Renamed");
-    assert_eq!(hydrated.state().getDirty().len(), 2);
+        .set_attribute("article_id", 11)
+        .set_attribute("title", "Renamed");
+    assert_eq!(hydrated.state().get_dirty().len(), 2);
     assert!(hydrated.save().await.unwrap());
     assert_eq!(
-        hydrated.state().getChanges().get("title"),
+        hydrated.state().get_changes().get("title"),
         Some(&"Renamed".into())
     );
     assert!(query().find(1).await.unwrap().is_none());
     assert_eq!(
-        query().findOrFail(11).await.unwrap().getKey(),
+        query().find_or_fail(11).await.unwrap().get_key(),
         Some(&11.into())
     );
 
@@ -1663,7 +1683,7 @@ async fn verify(db: Connection, mysql: bool) {
         ]))
         .await
         .unwrap();
-    let other = model.getKey().unwrap().clone();
+    let other = model.get_key().unwrap().clone();
     let mut draft = query()
         .create(attrs([
             ("title", "Draft".into()),
@@ -1672,21 +1692,21 @@ async fn verify(db: Connection, mysql: bool) {
         ]))
         .await
         .unwrap();
-    let draft_key = draft.getKey().unwrap().clone();
+    let draft_key = draft.get_key().unwrap().clone();
 
     let mut scoped = query();
     scoped
         .r#where("title", "=", "Renamed")
-        .orWhere("title", "=", "Other account");
-    scoped.withScope(&Published).unwrap();
+        .or_where("title", "=", "Other account");
+    scoped.with_scope(&Published).unwrap();
     assert_eq!(scoped.get().await.unwrap().len(), 1);
     assert!(matches!(
-        query().findOrFail(other.clone()).await,
+        query().find_or_fail(other.clone()).await,
         Err(DatabaseError::ModelNotFound("articles"))
     ));
     assert!(
         query()
-            .withoutGlobalScope("account")
+            .without_global_scope("account")
             .find(other.clone())
             .await
             .unwrap()
@@ -1702,10 +1722,10 @@ async fn verify(db: Connection, mysql: bool) {
     assert!(query().find(draft_key.clone()).await.unwrap().is_some());
 
     let mut bulk = query();
-    bulk.whereKey(draft_key.clone());
+    bulk.where_key(draft_key.clone());
     assert_eq!(bulk.delete().await.unwrap(), 1);
     let mut bulk = query().only_trashed();
-    bulk.whereKey(draft_key.clone());
+    bulk.where_key(draft_key.clone());
     assert_eq!(bulk.restore().await.unwrap(), 1);
     let mut bulk = query();
     bulk.r#where("account", "=", 1);
@@ -1717,16 +1737,16 @@ async fn verify(db: Connection, mysql: bool) {
     );
 
     // Failed writes retain the original snapshot so that a corrected retry is safe.
-    hydrated.setAttribute("title", "Draft");
+    hydrated.set_attribute("title", "Draft");
     assert!(hydrated.save().await.is_err());
     assert_eq!(
-        hydrated.state().getOriginal().get("title"),
+        hydrated.state().get_original().get("title"),
         Some(&"Renamed".into())
     );
-    hydrated.setAttribute("title", "Retried");
+    hydrated.set_attribute("title", "Retried");
     assert!(hydrated.save().await.unwrap());
 
-    assert!(draft.forceDelete().await.unwrap());
+    assert!(draft.force_delete().await.unwrap());
     assert!(!draft.state().exists());
     assert!(
         query()
@@ -1737,8 +1757,8 @@ async fn verify(db: Connection, mysql: bool) {
             .is_none()
     );
     let mut bulk = query();
-    bulk.whereKey(other);
-    assert_eq!(bulk.forceDelete().await.unwrap(), 1);
+    bulk.where_key(other);
+    assert_eq!(bulk.force_delete().await.unwrap(), 1);
     assert_eq!(query().get().await.unwrap().len(), 1);
     Box::pin(verify_locked_reload(&db, &mut hydrated, mysql)).await;
     Box::pin(verify_model_reload(&db, &mut hydrated)).await;
@@ -1753,23 +1773,23 @@ async fn verify(db: Connection, mysql: bool) {
     )
     .await
     .unwrap();
-    let mut label = Label::queryOn(&db).make(Attributes::new()).unwrap();
+    let mut label = Label::query_on(&db).make(Attributes::new()).unwrap();
     assert!(matches!(
         label.fill(attrs([("slug", "old".into())])),
         Err(DatabaseError::MassAssignment(key)) if key == "slug"
     ));
     label
-        .forceFill(attrs([
+        .force_fill(attrs([
             ("slug", "old".into()),
             ("title", "Original".into()),
         ]))
         .unwrap();
     assert!(label.save().await.unwrap());
-    assert_eq!(label.getKey(), Some(&"old".into()));
-    label.setAttribute("slug", "new");
+    assert_eq!(label.get_key(), Some(&"old".into()));
+    label.set_attribute("slug", "new");
     assert!(label.save().await.unwrap());
-    assert!(Label::queryOn(&db).find("old").await.unwrap().is_none());
-    assert!(Label::queryOn(&db).find("new").await.unwrap().is_some());
+    assert!(Label::query_on(&db).find("old").await.unwrap().is_none());
+    assert!(Label::query_on(&db).find("new").await.unwrap().is_some());
     assert!(label.delete().await.unwrap());
     assert!(!label.state().exists());
     db.statement("DROP TABLE labels", &[]).await.unwrap();

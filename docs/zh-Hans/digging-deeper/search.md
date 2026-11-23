@@ -4,23 +4,23 @@
 
 ## 全文搜索 {#full-text-search}
 
-使用 MySQL 兼容连接，创建列清单与查询一致的全文索引。查询构建器将搜索词绑定为参数。`whereFullText` 使用自然语言模式。用 `whereFullTextWith` 可选择 `Boolean` 或 `QueryExpansion`。
+使用 MySQL 兼容连接，创建列清单与查询一致的全文索引。查询构建器将搜索词绑定为参数。`where_full_text` 使用自然语言模式。用 `where_full_text_with` 可选择 `Boolean` 或 `QueryExpansion`。
 
 示例使用已有数据库连接 `db`，创建表及全文索引后执行分页搜索。
 
 ```rust
 use openrust::database::query::FullTextOptions;
 
-db.getSchemaBuilder().create("articles", |table| {
+db.get_schema_builder().create("articles", |table| {
     table.id();
     table.string("title", 150);
     table.text("body");
-    table.fullText(&["title", "body"], None);
+    table.full_text(&["title", "body"], None);
 }).await?;
 
 let results = db.table("articles")
-    .whereFullTextWith(&["title", "body"], "+openrust -draft", FullTextOptions::Boolean)
-    .orderBy("id", "asc")
+    .where_full_text_with(&["title", "body"], "+openrust -draft", FullTextOptions::Boolean)
+    .order_by("id", "asc")
     .paginate(10)
     .await?;
 ```
@@ -32,22 +32,22 @@ Eloquent 查询和嵌套条件组也支持该谓词。记录变更提交后，�
 将连接驱动设为 `pgsql`。Blueprint 用与查询相同的文本向量表达式建立 GIN 索引，默认语言配置为英语。下例的 `db` 使用 PostgreSQL 连接。
 
 ```rust
-db.getSchemaBuilder().create("articles", |table| {
+db.get_schema_builder().create("articles", |table| {
     table.id();
     table.string("title", 150);
     table.text("body");
     table.string("slug", 80).default("");
-    table.fullText(&["title", "body"], None).language("english");
+    table.full_text(&["title", "body"], None).language("english");
 }).await?;
 
 let page = db.table("articles")
-    .whereFullText(&["title", "body"], "running")
-    .orderBy("id", "asc")
+    .where_full_text(&["title", "body"], "running")
+    .order_by("id", "asc")
     .paginate(10)
     .await?;
 ```
 
-通过 `whereFullTextWith` 传入 `FullTextOptions::Postgres`，可选择 `Plain`、`Phrase`、`WebSearch` 或 `Raw` 解析方式。用 `vector: true` 搜索已有的 `tsvector` 列。索引与查询使用相同的语言配置。PostgreSQL 上的 `whereFullText` 负责筛选，排序由查询指定。
+通过 `where_full_text_with` 传入 `FullTextOptions::Postgres`，可选择 `Plain`、`Phrase`、`WebSearch` 或 `Raw` 解析方式。用 `vector: true` 搜索已有的 `tsvector` 列。索引与查询使用相同的语言配置。PostgreSQL 上的 `where_full_text` 负责筛选，排序由查询指定。
 
 ## 数据库模型搜索 {#database-engine}
 
@@ -57,7 +57,7 @@ let page = db.table("articles")
 use openrust::database::eloquent::{SearchColumn, Searchable};
 
 impl Searchable for Article {
-    fn searchableColumns() -> &'static [SearchColumn] {
+    fn searchable_columns() -> &'static [SearchColumn] {
         &[
             SearchColumn::FullText("title"),
             SearchColumn::FullText("body"),
@@ -66,15 +66,15 @@ impl Searchable for Article {
     }
 }
 
-let page = Article::searchOn(&db, "openrust")
-    .orderBy("id", "asc")
+let page = Article::search_on(&db, "openrust")
+    .order_by("id", "asc")
     .paginate(10)
     .await?;
 ```
 
 在应用内用 `Article::search(term)?` 解析模型连接。用 `with_trashed` 或 `only_trashed` 调整软删除过滤。空搜索词保留模型的常规过滤。数据库在写事务中维护索引。
 
-PostgreSQL 模型有全文列且未明确指定排序时，先按 `ts_rank` 排序，分数相同时按主键降序。排序在分页前生效。可用模型的 `fullTextOptions()` 调整默认全文设置。
+PostgreSQL 模型有全文列且未明确指定排序时，先按 `ts_rank` 排序，分数相同时按主键降序。排序在分页前生效。可用模型的 `full_text_options()` 调整默认全文设置。
 
 ### 事务后的索引可见性 {#index-transactions}
 

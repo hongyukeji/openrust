@@ -20,7 +20,7 @@ impl Model for Account {
         static META: ModelMetadata = ModelMetadata::new("accounts")
             .fillable(&["name"])
             .guarded(&["password"])
-            .softDeletes("removed_at");
+            .soft_deletes("removed_at");
         &META
     }
     fn from_state(state: ModelState) -> Self {
@@ -80,8 +80,9 @@ async fn registered_auth_model_uses_its_own_morph_map_and_preserves_errors() {
     let second_auth = second.container().make::<AuthManager>().unwrap();
     first_auth.register_model::<Account>("accounts");
     second_auth.register_model::<Account>("accounts");
-    MorphMap::enforceMorphMap(&first, [MorphMapEntry::model::<Account>("staff")], false).unwrap();
-    MorphMap::enforceMorphMap(&second, [MorphMapEntry::model::<Account>("member")], false).unwrap();
+    MorphMap::enforce_morph_map(&first, [MorphMapEntry::model::<Account>("staff")], false).unwrap();
+    MorphMap::enforce_morph_map(&second, [MorphMapEntry::model::<Account>("member")], false)
+        .unwrap();
     let db = first
         .container()
         .make::<DatabaseManager>()
@@ -94,11 +95,11 @@ async fn registered_auth_model_uses_its_own_morph_map_and_preserves_errors() {
         .unwrap()
         .connection(None)
         .unwrap();
-    let account = Account::queryOn(&db).make(Attributes::new()).unwrap();
-    let member = Account::queryOn(&other).make(Attributes::new()).unwrap();
-    assert_eq!(account.getFillable(), &["name"]);
-    assert_eq!(account.getGuarded(), &["password"]);
-    assert_eq!(account.getDeletedAtColumn(), Some("removed_at"));
+    let account = Account::query_on(&db).make(Attributes::new()).unwrap();
+    let member = Account::query_on(&other).make(Attributes::new()).unwrap();
+    assert_eq!(account.get_fillable(), &["name"]);
+    assert_eq!(account.get_guarded(), &["password"]);
+    assert_eq!(account.get_deleted_at_column(), Some("removed_at"));
     assert_eq!(
         first_auth.user_morph_class(&account).unwrap(),
         Some("staff")
@@ -116,7 +117,7 @@ async fn registered_auth_model_uses_its_own_morph_map_and_preserves_errors() {
         first_auth.user_morph_class(&member).unwrap(),
         Some("member")
     );
-    MorphMap::enforceMorphMap(&first, [], false).unwrap();
+    MorphMap::enforce_morph_map(&first, [], false).unwrap();
     assert!(first_auth.user_morph_class(&account).is_err());
     let unregistered = application().await;
     assert_eq!(

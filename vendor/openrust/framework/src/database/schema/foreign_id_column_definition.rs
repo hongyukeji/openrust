@@ -7,7 +7,6 @@ pub struct ForeignIdColumnDefinition<'a> {
     model_target: Option<(&'static str, &'static str)>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> ForeignIdColumnDefinition<'a> {
     pub(super) fn new(blueprint: &'a mut Blueprint, name: &str) -> Self {
         Self {
@@ -51,11 +50,11 @@ impl<'a> ForeignIdColumnDefinition<'a> {
     }
 
     pub fn constrained(self) -> &'a mut ForeignKeyDefinition {
-        self.constrainedWith(None, None, None)
+        self.constrained_with(None, None, None)
     }
 
     /// Overrides individual parts of the inferred foreign key reference.
-    pub fn constrainedWith(
+    pub fn constrained_with(
         self,
         table: Option<&str>,
         column: Option<&str>,
@@ -83,12 +82,12 @@ impl<'a> ForeignIdColumnDefinition<'a> {
             .references(column)
     }
 
-    pub fn constrainedOn(
+    pub fn constrained_on(
         self,
         table: &str,
         column: &str,
         name: Option<&str>,
     ) -> &'a mut ForeignKeyDefinition {
-        self.constrainedWith(Some(table), Some(column), name)
+        self.constrained_with(Some(table), Some(column), name)
     }
 }

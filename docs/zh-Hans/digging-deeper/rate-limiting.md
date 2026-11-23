@@ -15,4 +15,4 @@ async fn send_message(key: &str) -> CacheResult<Attempt<&'static str>> {
 }
 ```
 
-用 `hit` 直接消耗一次额度，`attempts` 和 `remaining` 查询额度，`availableIn` 查询重置时间，`clear` 清除计数。限流器使用 `cache.limiter` 指定的缓存存储，未指定时使用默认存储。所选存储需要支持原子锁。
+用 `hit` 直接消耗一次额度，`attempts` 和 `remaining` 查询额度，`available_in` 查询重置时间，`clear` 清除计数。限流器使用 `cache.limiter` 指定的缓存存储，未指定时使用默认存储。所选存储需要支持原子锁。

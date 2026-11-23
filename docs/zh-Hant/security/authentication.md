@@ -39,11 +39,11 @@ async fn sign_in(
 use openrust::{routing::RoutingError, support::facades::Route, view::view};
 
 fn register_basic_routes() -> Result<(), RoutingError> {
-    Route::getWith("/profile", || view("profile"), |route| {
+    Route::get_with("/profile", || view("profile"), |route| {
         route.middleware_name("auth.basic");
         Ok(())
     })?;
-    Route::getWith("/profile/by-name", || view("profile"), |route| {
+    Route::get_with("/profile/by-name", || view("profile"), |route| {
         route.middleware_name("auth.basic:web,username");
         Ok(())
     })
@@ -97,7 +97,7 @@ fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
 use openrust::{routing::RoutingError, support::facades::Route, view::view};
 
 fn register_account_routes() -> Result<(), RoutingError> {
-    Route::getWith("/account", || view("account"), |route| {
+    Route::get_with("/account", || view("account"), |route| {
         route.middleware_name("auth").middleware_name("auth.session");
         Ok(())
     })
@@ -132,7 +132,7 @@ fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 }
 
 fn register_password_routes() -> Result<(), RoutingError> {
-    Route::getWith("/confirm-password", || view("auth.confirm-password"), |route| {
+    Route::get_with("/confirm-password", || view("auth.confirm-password"), |route| {
         route.name("password.confirm").middleware_name("auth");
         Ok(())
     })?;
@@ -143,7 +143,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
             Ok(())
         },
     )?;
-    Route::getWith("/settings", || view("settings"), |route| {
+    Route::get_with("/settings", || view("settings"), |route| {
         route.middleware_name("auth").middleware_name("password.confirm");
         Ok(())
     })
@@ -166,6 +166,6 @@ let providers = serde_json::json!({
 
 使用前在應用程式的模型模組中宣告 `Admin`。新增模型類別參照後須重新建置；`AUTH_MODEL` 可選擇已參照且編譯的模型，未知類別名稱在解析 Eloquent 提供器時失敗。即使設定快取略過載入函式，連結器仍保留型別工廠。框架按需解析工廠，不查詢使用者資料表，可變驗證狀態按應用程式隔離。可用第二個參數指定穩定別名，例如 `model!(Admin, "app::models::Admin")`。`AuthManager::register_model` 保留為明確的執行階段擴充入口。也可為 `database` 提供器設定資料表與欄位；用 `provider` 註冊提供器，用 `via_request` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
 
-對於透過 `AuthManager::register_model` 註冊的身分，`manager.user_morph_class(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `getMorphClass`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
+對於透過 `AuthManager::register_model` 註冊的身分，`manager.user_morph_class(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `get_morph_class`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
 
 同步回呼可用 `manager.resolved_user(None)` 或 `Auth::resolved_user(None)?` 讀取目前 HTTP 請求中已解析的身分，無需啟用日誌監聽。`None` 遵循 `should_use` 和預設 Guard，`Some("web")` 明確選擇指定 Guard。這些 Rust 適配入口不會觸發非同步驗證或查詢使用者提供器；尚未解析、訪客或處於所屬請求作用域之外時回傳 `None`。需要惰性驗證的回呼應先在非同步中介軟體中解析 Guard。

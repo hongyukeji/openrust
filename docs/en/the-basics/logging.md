@@ -12,7 +12,7 @@ The implemented drivers are `single` for files, `stderr` for standard error, `nu
 
 Set `channels` to a list or comma-separated string. Members run in order. A handler with `bubble: false` stops the stack after accepting a record. The `null` handler discards an accepted record and stops the stack. With `ignore_exceptions: true`, the group attempts every handler and suppresses write failures.
 
-Use `Log::stack(&["single", "stderr"], None)` for a stack scoped to the returned logger. Named channels are resolved lazily and cached per application. After changing a named channel's configuration, call `forgetChannel(Some(name))` to resolve it again.
+Use `Log::stack(&["single", "stderr"], None)` for a stack scoped to the returned logger. Named channels are resolved lazily and cached per application. After changing a named channel's configuration, call `forget_channel(Some(name))` to resolve it again.
 
 ## Writing Log Messages
 
@@ -39,9 +39,9 @@ Use `daily` or `monthly` for files such as `openrust-2026-11-11.log` and `openru
 
 ## On-Demand and Custom Channels
 
-`Log::build(&settings)?` creates an on-demand logger. Use `Log::stackChannels` with `StackChannel::Named` and `StackChannel::Logger` to combine configured channels and on-demand loggers. The resulting stack has its own label.
+`Log::build(&settings)?` creates an on-demand logger. Use `Log::stack_channels` with `StackChannel::Named` and `StackChannel::Logger` to combine configured channels and on-demand loggers. The resulting stack has its own label.
 
-For `driver: "custom"`, set `via` to the name of a factory registered with `LogManager::registerFactory`. Use `LogManager::extend` to register a named driver. Factories are compiled Rust closures that receive the manager and channel configuration and return a logger implementing the logging contract. They can run concurrently on the first lookup, so keep initialization safe to repeat. Successful named lookups share the published logger. Factory failures go to the emergency logger and can be retried.
+For `driver: "custom"`, set `via` to the name of a factory registered with `LogManager::register_factory`. Use `LogManager::extend` to register a named driver. Factories are compiled Rust closures that receive the manager and channel configuration and return a logger implementing the logging contract. They can run concurrently on the first lookup, so keep initialization safe to repeat. Successful named lookups share the published logger. Factory failures go to the emergency logger and can be retried.
 
 ```rust
 use openrust::{config::Repository, log::{LogContext, LogManager, StackChannel}};
@@ -51,12 +51,12 @@ use std::sync::Arc;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::env::current_dir()?;
     let manager = LogManager::new(Arc::new(Repository::new(Default::default())), root);
-    manager.registerFactory("audit", |manager, config| {
+    manager.register_factory("audit", |manager, config| {
         let logger = manager.build(&json!({"driver":"monthly", "path":config["path"]}))?;
         Ok(logger)
     });
     let audit = manager.build(&json!({"driver":"custom", "via":"audit", "path":"audit.log"}))?;
-    let stack = manager.stackChannels(
+    let stack = manager.stack_channels(
         &[StackChannel::Named("single"), StackChannel::Logger(&audit)],
         Some("orders"),
     )?;
@@ -67,11 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Customizing Channel Records {#customizing-channel-records}
 
-Register names with `LogManager::registerFormatter`, `registerProcessor`, and `registerTap` in your service provider. Select a formatter with `formatter` and pass its settings in `formatter_with`. Use `formatter: "default"` for the built-in format. Formatters write the exact bytes returned, including any record separator, for file, rotating file, and standard error handlers. Custom logger factories control their own output.
+Register names with `LogManager::register_formatter`, `register_processor`, and `register_tap` in your service provider. Select a formatter with `formatter` and pass its settings in `formatter_with`. Use `formatter: "default"` for the built-in format. Formatters write the exact bytes returned, including any record separator, for file, rotating file, and standard error handlers. Custom logger factories control their own output.
 
 Declare `processors` as names or objects with `processor` and `with`. Processors run in configuration order before formatting. They can edit the message, record context, and public scope metadata through `LogRecord`. A stack collects its members’ processors in member order. Each member retains its own formatter.
 
-A tap such as `"audit:orders,prod"` receives the logger and the two arguments. Taps run in list order before the channel is cached. Use `setFormatter` to replace the channel formatter or `pushProcessor` to prepend a processor.
+A tap such as `"audit:orders,prod"` receives the logger and the two arguments. Taps run in list order before the channel is cached. Use `set_formatter` to replace the channel formatter or `push_processor` to prepend a processor.
 
 ```rust
 use openrust::{
@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(Repository::new(Default::default())),
         std::env::current_dir()?,
     );
-    manager.registerFormatter("message", |_| {
+    manager.register_formatter("message", |_| {
         Ok(Arc::new(|record| Ok(format!("{}\n", record.message()))))
     });
     let channel = manager.build(&json!({
@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Handler Channels {#handler-channels}
 
-Use `driver: "monolog"` with a named Rust handler. The built-in `stream` handler accepts paths, `stderr`, and `stdout`. To supply another handler, use `LogManager::registerHandler`. Its factory receives the merged settings and returns a callback that receives the structured record and formatted text. Settings are merged in order from the channel `level`, `with`, then `handler_with`. Later values take precedence.
+Use `driver: "monolog"` with a named Rust handler. The built-in `stream` handler accepts paths, `stderr`, and `stdout`. To supply another handler, use `LogManager::register_handler`. Its factory receives the merged settings and returns a callback that receives the structured record and formatted text. Settings are merged in order from the channel `level`, `with`, then `handler_with`. Later values take precedence.
 
 Set `action_level` to accumulate records until a record reaches that severity, then flush the accumulated batch. The wrapped handler applies its own minimum `level` to every record. After the first flush, subsequent records go straight to the handler. Set `stop_buffering: false` to start a new batch after each flush. Buffer state belongs to the resolved channel; an untriggered batch is discarded when the channel is dropped.
 
@@ -177,7 +177,7 @@ Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
 
 Select `formatter: "json"` to emit structured records. Use `formatter_with` to set `append_newline`, `ignore_empty_context_and_extra`, or `max_normalize_depth` (default 9).
 
-Pass an error to `Log::logException(level, message, &error, &context)` to include `context.exception` and its `previous` chain. Register `exceptionContext::<E>` in `with_exceptions` to add fields to each matching error type, including sources. The existing `context` callbacks enrich a directly logged root error. When the application reports an error, its root fields appear only in the record context, and source-specific fields remain with their source. Rust can name the directly supplied type and registered source types. A type-erased source can appear as `Error`. Rust's standard error contract does not supply the original file or stack trace.
+Pass an error to `Log::log_exception(level, message, &error, &context)` to include `context.exception` and its `previous` chain. Register `exception_context::<E>` in `with_exceptions` to add fields to each matching error type, including sources. The existing `context` callbacks enrich a directly logged root error. When the application reports an error, its root fields appear only in the record context, and source-specific fields remain with their source. Rust can name the directly supplied type and registered source types. A type-erased source can appear as `Error`. Rust's standard error contract does not supply the original file or stack trace.
 
 ```rust
 use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
@@ -195,20 +195,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "formatter": "json",
     }))?;
     let error = io::Error::other("storage offline");
-    logger.logException(Level::Error, "Import failed", &error, &LogContext::new())?;
+    logger.log_exception(Level::Error, "Import failed", &error, &LogContext::new())?;
     Ok(())
 }
 ```
 
 ## Contextual Information
 
-The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `logWithContext` to receive both maps. Hidden fields stay in the context repository.
+The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `log_with_context` to receive both maps. Hidden fields stay in the context repository.
 
 ## Listening for Log Messages
 
 Register `Log::listen` in a service provider's `boot` method. Its callback runs synchronously after an accepted record is written, and returns `LogResult<()>`. `LogManager::listen` and `Logger::listen` use the same application-wide listeners across named channels, stacks, on-demand channels, and renamed loggers.
 
-The `MessageLogged` payload contains the original message, level, and context. Placeholder interpolation and channel processors apply to the written record. `logException` also supplies the normalized `context["exception"]`. Records below every handler's threshold skip notification. Emergency fallback records and its diagnostics notify listeners too.
+The `MessageLogged` payload contains the original message, level, and context. Placeholder interpolation and channel processors apply to the written record. `log_exception` also supplies the normalized `context["exception"]`. Records below every handler's threshold skip notification. Emergency fallback records and its diagnostics notify listeners too.
 
 Callbacks run in registration order. A callback error propagates after the write and stops later callbacks. A callback may log or register another listener. Registrations made during a notification take effect on the next notification. The synchronous log listener API executes inside the calling application scope. General asynchronous event dispatch remains an explicit operation.
 
@@ -236,18 +236,18 @@ Records include HTTP method/path, command name or queue/job metadata under `cont
 Synchronous `Log::info` and other existing methods capture the current guard's already-resolved identity; unresolved users are null. In an asynchronous HTTP handler, use the request-aware entry point when the log should resolve authentication at that call:
 
 ```rust
-Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
+Log::log_with_request(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
 ```
 
 The same method is available on `LogManager` and resolved `Logger` channels. The channel writes first; accepted records then notify observers in registration order. With an active Pail session, Pail awaits the selected guard and captures its ID and email before this call returns. Cached users are reused; login, logout and guard selection affect subsequent logs. No active session, a rejected log level or a suppressed deprecation does not trigger authentication. The built-in HTTP exception reporter uses the request-aware path as well.
 
-This explicit await replaces PHP's ability to resolve a guard inside a synchronous log listener. Container callbacks and other synchronous code keep snapshot semantics. `LogManager::listenForRequest` registers a synchronous observer and its awaited request counterpart; ordinary `listen` callbacks still run synchronously. No listener registry lock is held while callbacks run. Logs produced during guard resolution capture the existing snapshot and do not start recursive authentication.
+This explicit await replaces PHP's ability to resolve a guard inside a synchronous log listener. Container callbacks and other synchronous code keep snapshot semantics. `LogManager::listen_for_request` registers a synchronous observer and its awaited request counterpart; ordinary `listen` callbacks still run synchronously. No listener registry lock is held while callbacks run. Logs produced during guard resolution capture the existing snapshot and do not start recursive authentication.
 
 Authentication or observer errors return through the log result after the ordinary channel write. Cancelling the future may therefore leave a written channel record without a Pail capture. Cancellation releases the request borrow and resolution scope; a later call can retry. Requests and applications keep separate authentication state; programmatic Artisan calls within HTTP retain that HTTP origin, while standalone Artisan uses console origin.
 
 ### Reading and Filtering Captures
 
-`openrust_pail::value_objects::MessageLogged::fromJson` reads a capture line. It exposes its message, level, date/time, exception class/file, trace and typed HTTP, console or queue origin. Parsing, date conversion and origin decoding return `Result` where they can fail. `context()` excludes the reserved `__pail`, `exception` and `userId` fields.
+`openrust_pail::value_objects::MessageLogged::from_json` reads a capture line. It exposes its message, level, date/time, exception class/file, trace and typed HTTP, console or queue origin. Parsing, date conversion and origin decoding return `Result` where they can fail. `context()` excludes the reserved `__pail`, `exception` and `userId` fields.
 
 `Options::accepts` combines all supplied filters. Level comparison and substring searches fold ASCII case. The message filter searches only message text; the general filter searches the four-field JSON representation, including origin and context. That representation follows PHP's Unicode escaping, object order and float notation, so a general Unicode search may need its `\u` spelling. Authentication IDs compare as exact strings; `12` and `012` differ. `fromCommand(&Input)` preserves `auth` precedence over `user`, including an explicitly empty value, and PHP's timeout conversion. It reads the Rust command's separate input object.
 
@@ -255,7 +255,7 @@ Authentication or observer errors return through the log result after the ordina
 use openrust_pail::{Options, value_objects::MessageLogged};
 
 fn select(line: &str) -> Result<bool, serde_json::Error> {
-    let message = MessageLogged::fromJson(line)?;
+    let message = MessageLogged::from_json(line)?;
     let options = Options::new(3600, None, Some("ERROR".into()), None, Some("payment".into()));
     Ok(options.accepts(&message))
 }
@@ -307,24 +307,24 @@ Registration tests the provider identity, independently of capture gates. In `te
 The loaded-provider check is repeated when resolving the registry, so an early query before Pail registers does not permanently hide `logs`.
 ## Channel Context
 
-Use `withContext` and `withoutContext` for channel context. `shareContext` merges context into resolved and future channels; per-message fields override channel fields. `sharedContext` reads the defaults for future channels. `flushSharedContext` clears those defaults without deleting fields already merged into channels; use `withoutContext` to remove channel fields. Boot-time defaults are inherited by each request or queue scope. Dynamic context is isolated by scope, even when channel handles are reused.
+Use `with_context` and `without_context` for channel context. `share_context` merges context into resolved and future channels; per-message fields override channel fields. `shared_context` reads the defaults for future channels. `flush_shared_context` clears those defaults without deleting fields already merged into channels; use `without_context` to remove channel fields. Boot-time defaults are inherited by each request or queue scope. Dynamic context is isolated by scope, even when channel handles are reused.
 
 
 ## Inspecting resolved channels
 
-`LogManager::getChannels()` and `Log::getChannels()` return a snapshot mapping resolved channel names to their `Arc<Logger>` handles. Reading the map does not create unused channels. Removing a channel with `forgetChannel` affects subsequent resolutions; previously returned snapshots and logger handles remain usable.
+`LogManager::get_channels()` and `Log::get_channels()` return a snapshot mapping resolved channel names to their `Arc<Logger>` handles. Reading the map does not create unused channels. Removing a channel with `forget_channel` affects subsequent resolutions; previously returned snapshots and logger handles remain usable.
 
 ## Accessing the Native Logger
 
-`Logger::getLogger()` returns the channel's actual `Arc<NativeLogger>` handle. `LogManager::getLogger()` and `Log::getLogger()` resolve the default channel and return the same native instance through `Result`. Reading an already resolved handle does not create other channels, and retained handles remain usable after `forgetChannel`.
+`Logger::get_logger()` returns the channel's actual `Arc<NativeLogger>` handle. `LogManager::get_logger()` and `Log::get_logger()` resolve the default channel and return the same native instance through `Result`. Reading an already resolved handle does not create other channels, and retained handles remain usable after `forget_channel`.
 
 ```rust
 use openrust::{log::LogContext, support::facades::Log};
 
 let channel = Log::channel(None)?;
-let native = channel.getLogger();
+let native = channel.get_logger();
 native.info("Worker started", &LogContext::new())?;
-let default_native = Log::getLogger()?;
+let default_native = Log::get_logger()?;
 ```
 
 Native writes use the configured severity filters, processors, formatters and output handlers. They receive only the supplied context and bypass application channel context, Context metadata, MessageLogged observers and Pail capture. Native write or processor failures return an error directly. Use the channel or Log facade's level methods for application logging with context, events and emergency recovery. The native handle implements the existing Rust log contract; configure shared channel processors and formatters through the usual registration and tap interfaces.

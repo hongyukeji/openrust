@@ -211,17 +211,20 @@ async fn exercise(mysql: bool) {
         .unwrap()
         .connection(None)
         .unwrap();
-    let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("collection_retry_jobs").await.unwrap();
+    let mut schema = db.get_schema_builder();
+    schema
+        .drop_if_exists("collection_retry_jobs")
+        .await
+        .unwrap();
     schema
         .create("collection_retry_jobs", |table| {
             table.id();
             table.string("queue", 255).index();
             table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
         })
         .await
         .unwrap();
@@ -284,7 +287,10 @@ async fn exercise(mysql: bool) {
         "fetch:external:first\nforget:external:first\nfetch:bad\n"
     );
     assert_eq!(queue.size(Some("retries")).await.unwrap(), 1);
-    schema.dropIfExists("collection_retry_jobs").await.unwrap();
+    schema
+        .drop_if_exists("collection_retry_jobs")
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

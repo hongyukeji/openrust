@@ -42,8 +42,8 @@ impl DatabaseRule {
 
     pub(super) fn model(model: &impl Model, column: Option<&str>) -> Self {
         Self {
-            connection: model.getConnectionName().map(str::to_owned),
-            table: model.getTable().to_owned(),
+            connection: model.get_connection_name().map(str::to_owned),
+            table: model.get_table().to_owned(),
             column: column.map(str::to_owned),
             conditions: Vec::new(),
         }
@@ -113,7 +113,7 @@ impl DatabaseRule {
                 Condition::In(column, values, false) => query.where_in(column, values.clone()),
                 Condition::In(column, values, true) => query.where_not_in(column, values.clone()),
                 Condition::Callback(callback) => {
-                    query.whereNested(|conditions| callback(conditions))
+                    query.where_nested(|conditions| callback(conditions))
                 }
             })
     }

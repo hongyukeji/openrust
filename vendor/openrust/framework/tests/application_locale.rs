@@ -184,11 +184,11 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         assert_eq!(Config::array("app").unwrap()["locale"], locale);
         assert_eq!(Config::all().unwrap()["app"]["locale"], locale);
         App::set_fallback_locale("en")?;
-        assert_eq!(Lang::getFallback().unwrap(), "en");
+        assert_eq!(Lang::get_fallback().unwrap(), "en");
         App::set_fallback_locale("zh-Hant")?;
         assert_eq!(App::get_fallback_locale().unwrap(), "zh-Hant");
         assert_eq!(Config::string("app.fallback_locale").unwrap(), "zh-Hant");
-        assert_eq!(Lang::getFallback().unwrap(), "zh-Hant");
+        assert_eq!(Lang::get_fallback().unwrap(), "zh-Hant");
         App::set_fallback_locale("en")?;
         Response::view(
             StatusCode::OK,
@@ -294,7 +294,7 @@ async fn application_instance_and_facade_share_locale_and_fallback_state() {
         .get::<openrust::translation::Translator>("translator")
         .unwrap();
     assert_eq!(translator.get_locale(), "zh-Hans");
-    assert_eq!(translator.getFallback(), "zh-Hant");
+    assert_eq!(translator.get_fallback(), "zh-Hant");
     application
         .container()
         .scope(async {
@@ -481,7 +481,7 @@ fn first_config(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         )
         .unwrap();
         assert_eq!(Lang::get_locale().unwrap(), "zh-Hant");
-        assert_eq!(Lang::getFallback().unwrap(), "zh-Hans");
+        assert_eq!(Lang::get_fallback().unwrap(), "zh-Hans");
         assert_eq!(
             Lang::get("messages.welcome", &BTreeMap::new(), None).unwrap(),
             "您好，:name"
@@ -502,7 +502,7 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
         .get::<openrust::translation::Translator>("translator")
         .unwrap();
     assert_eq!(translator.get_locale(), "en");
-    assert_eq!(translator.getFallback(), "en");
+    assert_eq!(translator.get_fallback(), "en");
 
     // 队列等任务共用相同容器生命周期，首次解析同样不能污染默认值。
     let task_root = Root::new("en");
@@ -524,7 +524,7 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
                 .get::<openrust::translation::Translator>("translator")
                 .unwrap();
             assert_eq!(translator.get_locale(), "zh-Hans");
-            assert_eq!(translator.getFallback(), "zh-Hant");
+            assert_eq!(translator.get_fallback(), "zh-Hant");
             tokio::task::yield_now().await;
             assert_eq!(translator.get_locale(), "zh-Hans");
         })
@@ -535,5 +535,5 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
         .get::<openrust::translation::Translator>("translator")
         .unwrap();
     assert_eq!(translator.get_locale(), "en");
-    assert_eq!(translator.getFallback(), "en");
+    assert_eq!(translator.get_fallback(), "en");
 }

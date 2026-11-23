@@ -103,10 +103,9 @@ impl Resolved {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker generator methods")]
 impl Faker {
     /// Installs every formatter on this generator. The latest provider wins.
-    pub fn addProvider(&self, provider: FakerProvider) {
+    pub fn add_provider(&self, provider: FakerProvider) {
         let replaced = {
             let mut formatters = self.formatters.write().unwrap();
             provider
@@ -146,7 +145,7 @@ impl Faker {
     }
 
     /// Resolves a formatter by name. The returned callback retains the resolved provider.
-    pub fn getFormatter<'a>(
+    pub fn get_formatter<'a>(
         &'a self,
         name: &str,
     ) -> DatabaseResult<impl Fn(&[Value]) -> DatabaseResult<Value> + 'a + use<'a>> {
@@ -170,12 +169,12 @@ impl Faker {
     }
 
     pub fn format(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
-        self.getFormatter(name)?(arguments)
+        self.get_formatter(name)?(arguments)
     }
 
     /// Invokes a named formatter, awaiting I/O when the formatter downloads an image.
-    pub async fn formatAsync(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
-        match self.getFormatter(name) {
+    pub async fn format_async(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
+        match self.get_formatter(name) {
             Ok(formatter) => formatter(arguments),
             Err(DatabaseError::UnknownFakerFormatter(_)) if name.eq_ignore_ascii_case("image") => {
                 named_identity::image(self, arguments).await
@@ -254,9 +253,9 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
         (BARCODE, "ean8") => |faker, _| Ok(faker.ean8().into()),
         (BARCODE, "isbn10") => |faker, _| Ok(faker.isbn10().into()),
         (BARCODE, "isbn13") => |faker, _| Ok(faker.isbn13().into()),
-        (BLOOD, "bloodtype") => |faker, _| Ok(faker.bloodType().into()),
-        (BLOOD, "bloodrh") => |faker, _| Ok(faker.bloodRh().into()),
-        (BLOOD, "bloodgroup") => |faker, _| Ok(faker.bloodGroup().into()),
+        (BLOOD, "bloodtype") => |faker, _| Ok(faker.blood_type().into()),
+        (BLOOD, "bloodrh") => |faker, _| Ok(faker.blood_rh().into()),
+        (BLOOD, "bloodgroup") => |faker, _| Ok(faker.blood_group().into()),
         (COLOR, name) => return color_formatter(name, true),
         (DATE_TIME, "date") => |faker, args| php_date(faker, args, "Y-m-d"),
         (DATE_TIME, "time") => |faker, args| php_date(faker, args, "H:i:s"),
@@ -264,9 +263,9 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
             let [until] = arguments(args)?;
             match until {
                 Some(Value::Text(expression)) => {
-                    faker.unixTimeExpression(expression).map(Value::from)
+                    faker.unix_time_expression(expression).map(Value::from)
                 }
-                _ => Ok(faker.unixTime(date_max(faker, until)?).into()),
+                _ => Ok(faker.unix_time(date_max(faker, until)?).into()),
             }
         },
         (DATE_TIME, "datetime") => |faker, args| date_time(faker, args, false),
@@ -326,17 +325,17 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
                 .map_err(|error| DatabaseError::FakerIo(error.error))?;
             Ok(path.into())
         },
-        (FILE, "mimetype") => |faker, _| Ok(faker.mimeType().into()),
-        (FILE, "extension") => |faker, _| Ok(faker.fileExtension().into()),
+        (FILE, "mimetype") => |faker, _| Ok(faker.mime_type().into()),
+        (FILE, "extension") => |faker, _| Ok(faker.file_extension().into()),
         (UUID, "uuid3") => |faker, _| Ok(faker.uuid().to_string().into()),
-        (NUMBER, "randomdigit") => |faker, _| Ok(i64::from(faker.randomDigit()).into()),
+        (NUMBER, "randomdigit") => |faker, _| Ok(i64::from(faker.random_digit()).into()),
         (NUMBER, "randomdigitnotzero") => {
-            |faker, _| Ok(i64::from(faker.randomDigitNotNull()).into())
+            |faker, _| Ok(i64::from(faker.random_digit_not_null()).into())
         }
         (NUMBER, "numberbetween") => |faker, args| {
             let [first, second] = arguments(args)?;
             Ok(faker
-                .numberBetween(
+                .number_between(
                     integer(first)?.unwrap_or(0),
                     integer(second)?.unwrap_or(if second.is_none() {
                         i64::from(i32::MAX)
@@ -352,7 +351,7 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
                     "Faker randomDigitNot requires an integer",
                 ));
             };
-            Ok(i64::from(faker.randomDigitNot(integer(Some(except))?.unwrap_or(0))).into())
+            Ok(i64::from(faker.random_digit_not(integer(Some(except))?.unwrap_or(0))).into())
         },
         (NUMBER, "randomnumber") => |faker, args| {
             let [digits, strict] = arguments(args)?;
@@ -371,7 +370,7 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
                     ));
                 }
             };
-            faker.randomNumber(digits, strict).map(Value::from)
+            faker.random_number(digits, strict).map(Value::from)
         },
         (NUMBER, "randomfloat") => |faker, args| {
             let [decimals, min, max] = arguments(args)?;
@@ -382,7 +381,7 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
                     DatabaseError::InvalidQuery("Faker decimal precision is out of range")
                 })?;
             faker
-                .randomFloat(decimals, real(min)?.unwrap_or(0.0), real(max)?)
+                .random_float(decimals, real(min)?.unwrap_or(0.0), real(max)?)
                 .map(Value::Real)
         },
         _ => return None,
@@ -394,25 +393,25 @@ fn defaults(name: &str) -> Option<Builtin> {
         "address" => |faker, _| Ok(faker.address().into()),
         "city" => |faker, _| Ok(faker.city().into()),
         "company" => |faker, _| Ok(faker.company().into()),
-        "companyen" => |faker, _| faker.companyEn().map(Value::from),
+        "companyen" => |faker, _| faker.company_en().map(Value::from),
         "email" => |faker, _| faker.email().map(Value::from),
-        "freeemail" => |faker, _| Ok(faker.freeEmail().into()),
-        "phonenumber" => |faker, _| Ok(faker.phoneNumber().into()),
-        "safeemail" => |faker, _| Ok(faker.safeEmail().into()),
-        "username" => |faker, _| Ok(faker.userName().into()),
+        "freeemail" => |faker, _| Ok(faker.free_email().into()),
+        "phonenumber" => |faker, _| Ok(faker.phone_number().into()),
+        "safeemail" => |faker, _| Ok(faker.safe_email().into()),
+        "username" => |faker, _| Ok(faker.user_name().into()),
         "uuid" => |faker, _| Ok(faker.uuid().to_string().into()),
-        "randomdigitnotnull" => |faker, _| Ok(i64::from(faker.randomDigitNotNull()).into()),
+        "randomdigitnotnull" => |faker, _| Ok(i64::from(faker.random_digit_not_null()).into()),
         "boolean" => |faker, args| {
             let [chance] = arguments(args)?;
             Ok(faker
                 .boolean(integer(chance)?.or_else(|| chance.map(|_| 0)))
                 .into())
         },
-        "locale" => |faker, _| Ok(faker.randomLocale().into()),
-        "languagecode" => |faker, _| Ok(faker.languageCode().into()),
-        "countrycode" => |faker, _| Ok(faker.countryCode().into()),
-        "countryisoalpha3" => |faker, _| Ok(faker.countryISOAlpha3().into()),
-        "currencycode" => |faker, _| Ok(faker.currencyCode().into()),
+        "locale" => |faker, _| Ok(faker.random_locale().into()),
+        "languagecode" => |faker, _| Ok(faker.language_code().into()),
+        "countrycode" => |faker, _| Ok(faker.country_code().into()),
+        "countryisoalpha3" => |faker, _| Ok(faker.country_iso_alpha3().into()),
+        "currencycode" => |faker, _| Ok(faker.currency_code().into()),
         "emoji" => |faker, _| Ok(faker.emoji().into()),
         "tolower" => |_, args| {
             let [input] = arguments(args)?;
@@ -430,7 +429,7 @@ fn defaults(name: &str) -> Option<Builtin> {
                 ));
             }
             faker
-                .biasedNumberBetween(integer(min)?, integer(max)?, None)
+                .biased_number_between(integer(min)?, integer(max)?, None)
                 .map(Value::from)
         },
         "latitude" => |faker, args| coordinate(faker, args, 90.0),
@@ -439,7 +438,7 @@ fn defaults(name: &str) -> Option<Builtin> {
             let [input] = arguments(args)?;
             let values = collection_values(input, default_elements())?;
             Ok(faker
-                .randomElement(&values)
+                .random_element(&values)
                 .map_or(Value::Null, |value| json_value(value)))
         },
         "randomelements" => |faker, args| {
@@ -455,7 +454,7 @@ fn defaults(name: &str) -> Option<Builtin> {
                     })
                     .transpose()?,
             };
-            let selected = faker.randomElements(&values, count, flag(duplicates)?)?;
+            let selected = faker.random_elements(&values, count, flag(duplicates)?)?;
             Ok(Value::Json(Json::Array(
                 selected.into_iter().map(|value| (*value).clone()).collect(),
             )))
@@ -465,7 +464,7 @@ fn defaults(name: &str) -> Option<Builtin> {
             let [input] = arguments(args)?;
             match input {
                 None => Ok("".into()),
-                Some(Value::Text(text)) => Ok(faker.shuffleString(text).into()),
+                Some(Value::Text(text)) => Ok(faker.shuffle_string(text).into()),
                 input => shuffle_collection(faker, input),
             }
         },
@@ -483,7 +482,7 @@ fn defaults(name: &str) -> Option<Builtin> {
                     "Faker shuffleString requires UTF-8 text",
                 ));
             }
-            Ok(faker.shuffleString(text(input)?.unwrap_or("")).into())
+            Ok(faker.shuffle_string(text(input)?.unwrap_or("")).into())
         },
         "passthrough" => |_, args| {
             let [Some(value)] = arguments(args)? else {
@@ -493,8 +492,8 @@ fn defaults(name: &str) -> Option<Builtin> {
             };
             Ok(value.clone())
         },
-        "randomletter" => |faker, _| Ok(faker.randomLetter().to_string().into()),
-        "randomascii" => |faker, _| Ok(faker.randomAscii().to_string().into()),
+        "randomletter" => |faker, _| Ok(faker.random_letter().to_string().into()),
+        "randomascii" => |faker, _| Ok(faker.random_ascii().to_string().into()),
         "numerify" => |faker, args| nullable_pattern(faker, args, Faker::numerify),
         "lexify" => |faker, args| nullable_pattern(faker, args, Faker::lexify),
         "bothify" => |faker, args| nullable_pattern(faker, args, Faker::bothify),
@@ -519,30 +518,34 @@ fn color_formatter(name: &str, core: bool) -> Option<Builtin> {
     Some(match name {
         "safecolorname" if core => |faker, _| Ok(faker.sample_color_name("en_US", true).into()),
         "colorname" if core => |faker, _| Ok(faker.sample_color_name("en_US", false).into()),
-        "hexcolor" => |faker, _| Ok(faker.hexColor().into()),
-        "safehexcolor" => |faker, _| Ok(faker.safeHexColor().into()),
-        "rgbcolor" => |faker, _| Ok(faker.rgbColor().into()),
-        "rgbcsscolor" => |faker, _| Ok(faker.rgbCssColor().into()),
-        "rgbacsscolor" => |faker, _| Ok(faker.rgbaCssColor().into()),
-        "safecolorname" => |faker, _| Ok(faker.safeColorName().into()),
-        "colorname" => |faker, _| Ok(faker.colorName().into()),
-        "hslcolor" => |faker, _| Ok(faker.hslColor().into()),
-        "rgbcolorasarray" => |faker, _| Ok(Value::Json(serde_json::json!(faker.rgbColorAsArray()))),
-        "hslcolorasarray" => |faker, _| Ok(Value::Json(serde_json::json!(faker.hslColorAsArray()))),
+        "hexcolor" => |faker, _| Ok(faker.hex_color().into()),
+        "safehexcolor" => |faker, _| Ok(faker.safe_hex_color().into()),
+        "rgbcolor" => |faker, _| Ok(faker.rgb_color().into()),
+        "rgbcsscolor" => |faker, _| Ok(faker.rgb_css_color().into()),
+        "rgbacsscolor" => |faker, _| Ok(faker.rgba_css_color().into()),
+        "safecolorname" => |faker, _| Ok(faker.safe_color_name().into()),
+        "colorname" => |faker, _| Ok(faker.color_name().into()),
+        "hslcolor" => |faker, _| Ok(faker.hsl_color().into()),
+        "rgbcolorasarray" => {
+            |faker, _| Ok(Value::Json(serde_json::json!(faker.rgb_color_as_array())))
+        }
+        "hslcolorasarray" => {
+            |faker, _| Ok(Value::Json(serde_json::json!(faker.hsl_color_as_array())))
+        }
         _ => return None,
     })
 }
 
 fn legacy_date_formatter(name: &str) -> Option<Builtin> {
     Some(match name {
-        "ampm" => |faker, args| legacy_date_component(faker, args, Faker::amPm),
-        "dayofmonth" => |faker, args| legacy_date_component(faker, args, Faker::dayOfMonth),
-        "dayofweek" => |faker, args| legacy_date_component(faker, args, Faker::dayOfWeek),
-        "monthname" => |faker, args| legacy_date_component(faker, args, Faker::monthName),
+        "ampm" => |faker, args| legacy_date_component(faker, args, Faker::am_pm),
+        "dayofmonth" => |faker, args| legacy_date_component(faker, args, Faker::day_of_month),
+        "dayofweek" => |faker, args| legacy_date_component(faker, args, Faker::day_of_week),
+        "monthname" => |faker, args| legacy_date_component(faker, args, Faker::month_name),
         "monthnamegenitive" => |faker, args| {
             let [until] = arguments(args)?;
             faker
-                .monthNameGenitive(date_max(faker, until)?)
+                .month_name_genitive(date_max(faker, until)?)
                 .map(Value::from)
         },
         "formatteddate" => |faker, args| {
@@ -558,7 +561,7 @@ fn legacy_date_formatter(name: &str) -> Option<Builtin> {
         },
         "getdefaulttimezone" => |faker, args| {
             let [] = arguments(args)?;
-            Ok(faker.getDefaultTimezone().map_or(Value::Null, |zone| {
+            Ok(faker.get_default_timezone().map_or(Value::Null, |zone| {
                 zone.iana_name()
                     .map(str::to_owned)
                     .unwrap_or_else(|| zone.to_offset(Timestamp::UNIX_EPOCH).to_string())
@@ -567,20 +570,20 @@ fn legacy_date_formatter(name: &str) -> Option<Builtin> {
         },
         "setdefaulttimezone" => |faker, args| {
             let [zone] = arguments(args)?;
-            faker.setDefaultTimezone(date_zone(zone)?);
+            faker.set_default_timezone(date_zone(zone)?);
             Ok(Value::Null)
         },
         "datetimethismonth" => {
-            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisMonth)
+            |faker, args| legacy_date_period(faker, args, Faker::date_time_this_month)
         }
         "datetimethisyear" => {
-            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisYear)
+            |faker, args| legacy_date_period(faker, args, Faker::date_time_this_year)
         }
         "datetimethisdecade" => {
-            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisDecade)
+            |faker, args| legacy_date_period(faker, args, Faker::date_time_this_decade)
         }
         "datetimethiscentury" => {
-            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisCentury)
+            |faker, args| legacy_date_period(faker, args, Faker::date_time_this_century)
         }
         "date" | "time" | "unixtime" | "datetime" | "datetimead" | "datetimebetween"
         | "datetimeininterval" | "iso8601" | "month" | "year" | "century" | "timezone" => {
@@ -675,7 +678,7 @@ fn coordinate(faker: &Faker, args: &[Value], bound: f64) -> DatabaseResult<Value
     } else {
         real(max)?
     };
-    faker.randomFloat(Some(6), min, max).map(Value::Real)
+    faker.random_float(Some(6), min, max).map(Value::Real)
 }
 
 fn flag(value: Option<&Value>) -> DatabaseResult<bool> {
@@ -706,7 +709,9 @@ fn date_max_at(
     now: Timestamp,
 ) -> DatabaseResult<Option<Timestamp>> {
     let timestamp = match value {
-        Some(Value::Text(expression)) => return faker.resolve_date_max(expression, now).map(Some),
+        Some(Value::Text(expression)) => {
+            return faker.resolve_date_max_at(expression, now).map(Some);
+        }
         value => integer(value)?,
     };
     timestamp
@@ -720,14 +725,14 @@ fn date_max_at(
 fn php_date(faker: &Faker, args: &[Value], default: &str) -> DatabaseResult<Value> {
     let [format, until] = arguments(args)?;
     faker
-        .dateWithPhpFormat(text(format)?.unwrap_or(default), date_max(faker, until)?)
+        .date_with_php_format(text(format)?.unwrap_or(default), date_max(faker, until)?)
         .map(Value::from)
 }
 
 fn date_component(faker: &Faker, args: &[Value], format: &str) -> DatabaseResult<Value> {
     let [until] = arguments(args)?;
     faker
-        .dateWithPhpFormat(format, date_max(faker, until)?)
+        .date_with_php_format(format, date_max(faker, until)?)
         .map(Value::from)
 }
 
@@ -736,9 +741,9 @@ fn date_time(faker: &Faker, args: &[Value], ad: bool) -> DatabaseResult<Value> {
     let zone = date_zone(zone)?;
     let until = date_max(faker, until)?;
     let date = if ad {
-        faker.dateTimeADInTimezone(until, zone)
+        faker.date_time_ad_in_timezone(until, zone)
     } else {
-        faker.dateTimeInTimezone(until, zone)
+        faker.date_time_in_timezone(until, zone)
     };
     Ok(rfc3339_seconds(&date).into())
 }
@@ -757,7 +762,7 @@ fn date_bound(
     now: Timestamp,
 ) -> DatabaseResult<Timestamp> {
     match value {
-        None => faker.resolve_date_max(default, now),
+        None => faker.resolve_date_max_at(default, now),
         Some(value) => Ok(date_max_at(faker, Some(value), now)?.unwrap_or(now)),
     }
 }
@@ -768,7 +773,7 @@ fn date_between(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
     let now = Timestamp::now();
     let start = date_bound(faker, from, "-30 years", now)?;
     let end = date_bound(faker, until, "now", now)?;
-    let date = faker.dateTimeBetween(start, end)?;
+    let date = faker.date_time_between(start, end)?;
     Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
@@ -785,7 +790,7 @@ fn date_interval(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
             Some(timestamp.as_str())
         }
     };
-    let date = faker.dateTimeInIntervalExpressions(from, text(interval)?)?;
+    let date = faker.date_time_in_interval_expressions(from, text(interval)?)?;
     Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
@@ -798,9 +803,9 @@ fn date_period(
     let [until, zone] = arguments(args)?;
     let zone = date_zone(zone)?;
     let now = Timestamp::now();
-    let start = faker.resolve_date_max(start, now)?;
+    let start = faker.resolve_date_max_at(start, now)?;
     let end = date_bound(faker, until, default_end, now)?;
-    let date = faker.dateTimeBetween(start, end)?;
+    let date = faker.date_time_between(start, end)?;
     Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
@@ -810,7 +815,7 @@ fn date_calendar_period(faker: &Faker, args: &[Value], years: i32) -> DatabaseRe
     let now = Timestamp::now();
     let start = faker.calendar_period_start(now, years)?;
     let end = date_bound(faker, until, "now", now)?;
-    let date = faker.dateTimeBetween(start, end)?;
+    let date = faker.date_time_between(start, end)?;
     Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
@@ -856,12 +861,12 @@ fn random_key(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
     match input {
         None | Some(Value::Null) => Ok(Value::Null),
         Some(Value::Json(Json::Array(values))) => Ok(faker
-            .randomKey(values)
+            .random_key(values)
             .map_or(Value::Null, |key| Value::Integer(key as i64))),
         Some(Value::Json(Json::Object(values))) => {
             let keys: Vec<_> = values.keys().collect();
             Ok(faker
-                .randomElement(&keys)
+                .random_element(&keys)
                 .map_or(Value::Null, |key| Value::from(key.as_str())))
         }
         _ => Err(DatabaseError::InvalidQuery(
@@ -872,7 +877,7 @@ fn random_key(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
 
 fn shuffle_collection(faker: &Faker, input: Option<&Value>) -> DatabaseResult<Value> {
     let values = collection_values(input, &[])?;
-    let values = faker.shuffleArray(&values).into_iter().cloned().collect();
+    let values = faker.shuffle_array(&values).into_iter().cloned().collect();
     Ok(Value::Json(Json::Array(values)))
 }
 

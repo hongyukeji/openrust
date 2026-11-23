@@ -13,19 +13,19 @@ use openrust::{
     foundation::{Application, configuration::Routing},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::Date,
-    support::facades::{DB, Route},
+    support::facades::{Db, Route},
     testing::TestApp,
 };
 
 type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 fn instant(text: &str) -> Date {
-    Date::fromUtc(text.parse::<Timestamp>().unwrap(), jiff::tz::TimeZone::UTC)
+    Date::from_utc(text.parse::<Timestamp>().unwrap(), jiff::tz::TimeZone::UTC)
 }
 
 fn date_text() -> Result<String, openrust::support::DateError> {
     Ok(Date::now(None)?
-        .asDateTime()
+        .as_date_time()
         .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
         .to_string())
 }
@@ -39,7 +39,7 @@ fn clock_route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             (
                 now,
                 midnight
-                    .asDateTime()
+                    .as_date_time()
                     .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
                     .to_string(),
             ),
@@ -117,9 +117,9 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
 
     let after = first.travel(1).day().await?;
     assert_eq!(
-        after.asDateTime().timestamp(),
+        after.as_date_time().timestamp(),
         instant("2024-03-10T16:00:00.123456Z")
-            .asDateTime()
+            .as_date_time()
             .timestamp()
     );
     assert_eq!(first.freeze_time().await?, after);
@@ -127,7 +127,7 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
         first
             .freeze_second()
             .await?
-            .asDateTime()
+            .as_date_time()
             .subsec_nanosecond(),
         0
     );
@@ -148,16 +148,16 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
 
     first.travel(-1).minute().await?;
     let connection = first.database().await?;
-    let model = Stamp::queryOn(&connection)
+    let model = Stamp::query_on(&connection)
         .create(Attributes::from([("label".into(), "direct".into())]))
         .await?;
     assert_eq!(
-        model.getRawOriginal("created_at"),
+        model.get_raw_original("created_at"),
         Some(&Value::from("2024-03-10 11:59:00"))
     );
     assert!(first.travel(i64::MAX).milliseconds().await.is_err());
     let wall_clock = Timestamp::now();
-    let restored = first.travel_back().await?.asDateTime().timestamp();
+    let restored = first.travel_back().await?.as_date_time().timestamp();
     assert!((wall_clock..=Timestamp::now()).contains(&restored));
     Ok(())
 }
@@ -173,7 +173,7 @@ async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResu
             let shifted = fixture.travel(1).month().await?;
             assert_eq!(
                 shifted
-                    .asDateTime()
+                    .as_date_time()
                     .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
                     .to_string(),
                 "2024-03-02T12:00:00-05:00"
@@ -193,9 +193,9 @@ async fn scoped_time_restores_after_nested_errors_and_cancellation() -> TestResu
         fixture
             .freeze_time_for(async |_, time| Ok(time))
             .await?
-            .asDateTime()
+            .as_date_time()
             .timestamp(),
-        outer.asDateTime().timestamp()
+        outer.as_date_time().timestamp()
     );
 
     let cancelled = tokio::time::timeout(
@@ -235,14 +235,15 @@ impl Model for Stamp {
 
 fn stamp_route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        let database = DB::connection(None)?;
-        let row = Stamp::queryOn(&database)
+        let database = Db::connection(None)?;
+        let row = Stamp::query_on(&database)
             .create(Attributes::from([("label".into(), "test".into())]))
             .await?;
-        let timestamps = ["created_at", "updated_at"].map(|name| match row.getRawOriginal(name) {
-            Some(Value::Text(value)) => Some(value.as_str()),
-            _ => None,
-        });
+        let timestamps =
+            ["created_at", "updated_at"].map(|name| match row.get_raw_original(name) {
+                Some(Value::Text(value)) => Some(value.as_str()),
+                _ => None,
+            });
         Response::json(StatusCode::OK, timestamps)
     })
 }
@@ -254,14 +255,14 @@ async fn freezing_seconds_before_the_epoch_keeps_the_beginning_of_the_second() -
     let expected: Timestamp = "1969-12-31T23:59:59Z".parse()?;
     fixture.travel_to(fractional.clone());
     assert_eq!(
-        fixture.freeze_second().await?.asDateTime().timestamp(),
+        fixture.freeze_second().await?.as_date_time().timestamp(),
         expected
     );
     fixture.travel_to(fractional);
     fixture
         .freeze_second_for(async |_, now| {
-            assert_eq!(now.asDateTime().timestamp(), expected);
-            assert_eq!(Date::now(None)?.asDateTime().timestamp(), expected);
+            assert_eq!(now.as_date_time().timestamp(), expected);
+            assert_eq!(Date::now(None)?.as_date_time().timestamp(), expected);
             Ok(())
         })
         .await?;

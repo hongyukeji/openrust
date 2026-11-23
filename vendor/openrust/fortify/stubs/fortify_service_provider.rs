@@ -39,15 +39,15 @@ impl ServiceProvider for FortifyServiceProvider {
             fortify.updateUserPasswordsUsing(Arc::new(UpdateUserPassword));
             fortify.resetUserPasswordsUsing(Arc::new(ResetUserPassword));
             let login = app.make::<LoginRateLimiter>().await?;
-            RateLimiter::forAsync("login", move |request| {
+            RateLimiter::for_async("login", move |request| {
                 let login = Arc::clone(&login);
                 Box::pin(async move {
-                    Ok(Limit::perMinute(5)
+                    Ok(Limit::per_minute(5)
                         .by(login.throttleKey(request).await?)
                         .into())
                 })
             })?;
-            RateLimiter::forAsync("two-factor", |request| {
+            RateLimiter::for_async("two-factor", |request| {
                 Box::pin(async move {
                     let key = request
                         .session()?
@@ -55,10 +55,10 @@ impl ServiceProvider for FortifyServiceProvider {
                         .cloned()
                         .unwrap_or(serde_json::Value::Null);
                     let key = scalar(&key);
-                    Ok(Limit::perMinute(5).by(key).into())
+                    Ok(Limit::per_minute(5).by(key).into())
                 })
             })?;
-            RateLimiter::forAsync("passkeys", |request| {
+            RateLimiter::for_async("passkeys", |request| {
                 Box::pin(async move {
                     let credential = request
                         .input(Some("credential.id"))
@@ -70,7 +70,7 @@ impl ServiceProvider for FortifyServiceProvider {
                     } else {
                         credential
                     };
-                    Ok(Limit::perMinute(10)
+                    Ok(Limit::per_minute(10)
                         .by(format!(
                             "{key}|{}",
                             request.ip().map(|ip| ip.to_string()).unwrap_or_default()

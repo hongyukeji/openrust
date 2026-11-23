@@ -22,11 +22,10 @@ impl SearchColumn {
 }
 
 /// Opts an Eloquent model into searching its own database columns.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Searchable: Model {
-    fn searchableColumns() -> &'static [SearchColumn];
+    fn searchable_columns() -> &'static [SearchColumn];
 
-    fn fullTextOptions() -> FullTextOptions {
+    fn full_text_options() -> FullTextOptions {
         FullTextOptions::default()
     }
 
@@ -34,8 +33,8 @@ pub trait Searchable: Model {
         Ok(SearchBuilder::new(Self::query()?, term))
     }
 
-    fn searchOn(connection: &Connection, term: &str) -> SearchBuilder<Self> {
-        SearchBuilder::new(Self::queryOn(connection), term)
+    fn search_on(connection: &Connection, term: &str) -> SearchBuilder<Self> {
+        SearchBuilder::new(Self::query_on(connection), term)
     }
 }
 
@@ -46,23 +45,22 @@ pub struct SearchBuilder<M: Searchable> {
     relevance: Option<(Vec<String>, String, String)>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Searchable> SearchBuilder<M> {
     fn new(mut query: Builder<'static, M>, term: &str) -> Self {
-        let columns = M::searchableColumns();
+        let columns = M::searchable_columns();
         let key = M::metadata().primary_key;
-        let qualified_key = query.qualifyColumn(key);
+        let qualified_key = query.qualify_column(key);
         let full_text = columns
             .iter()
             .filter_map(|column| match column {
-                SearchColumn::FullText(column) => Some(query.qualifyColumn(column)),
+                SearchColumn::FullText(column) => Some(query.qualify_column(column)),
                 _ => None,
             })
             .collect::<Vec<_>>();
         let postgres = query.connection.grammar.is_postgres();
         let has_term = !term.trim().is_empty();
         if has_term {
-            let exact_key = if M::getIncrementing()
+            let exact_key = if M::get_incrementing()
                 && columns.iter().any(|column| column.name() == key)
                 && term.bytes().all(|byte| byte.is_ascii_digit())
             {
@@ -84,19 +82,19 @@ impl<M: Searchable> SearchBuilder<M> {
                         SearchColumn::Prefix(_) => format!("{term}%"),
                         SearchColumn::FullText(_) => return None,
                     };
-                    Some((query.qualifyColumn(column.name()), pattern))
+                    Some((query.qualify_column(column.name()), pattern))
                 })
                 .collect::<Vec<_>>();
-            query.whereNested(|mut group| {
+            query.where_nested(|mut group| {
                 if let Some(value) = exact_key {
-                    group = group.orWhere(&qualified_key, "=", value);
+                    group = group.or_where(&qualified_key, "=", value);
                 }
                 for (column, pattern) in alternatives {
-                    group = group.orWhereLike(&column, &pattern, false);
+                    group = group.or_where_like(&column, &pattern, false);
                 }
                 if !full_text.is_empty() {
                     let columns = full_text.iter().map(String::as_str).collect::<Vec<_>>();
-                    group = group.orWhereFullTextWith(&columns, term, M::fullTextOptions());
+                    group = group.or_where_full_text_with(&columns, term, M::full_text_options());
                 }
                 group
             });
@@ -117,8 +115,8 @@ impl<M: Searchable> SearchBuilder<M> {
         self
     }
 
-    pub fn orderBy(mut self, column: &str, direction: &str) -> Self {
-        self.query = self.query.orderBy(column, direction);
+    pub fn order_by(mut self, column: &str, direction: &str) -> Self {
+        self.query = self.query.order_by(column, direction);
         self.relevance = None;
         self
     }
@@ -133,35 +131,35 @@ impl<M: Searchable> SearchBuilder<M> {
         self
     }
 
-    pub fn intoQuery(self) -> Builder<'static, M> {
+    pub fn into_query(self) -> Builder<'static, M> {
         if let Some((columns, term, key)) = self.relevance {
             return self
                 .query
-                .order_by_full_text(columns, term, M::fullTextOptions())
-                .orderBy(&key, "desc");
+                .order_by_full_text(columns, term, M::full_text_options())
+                .order_by(&key, "desc");
         }
         match self.key_order {
-            Some(key) => self.query.orderBy(&key, "desc"),
+            Some(key) => self.query.order_by(&key, "desc"),
             None => self.query,
         }
     }
 
     pub async fn get(self) -> DatabaseResult<Collection<M>> {
-        self.intoQuery().get().await
+        self.into_query().get().await
     }
 
     pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
-        self.intoQuery().paginate(per_page).await
+        self.into_query().paginate(per_page).await
     }
 
-    pub async fn paginateWith(
+    pub async fn paginate_with(
         self,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<M>> {
-        self.intoQuery().paginateWith(options).await
+        self.into_query().paginate_with(options).await
     }
 
-    pub async fn simplePaginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
-        self.intoQuery().simplePaginate(per_page).await
+    pub async fn simple_paginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
+        self.into_query().simple_paginate(per_page).await
     }
 }

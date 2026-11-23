@@ -94,13 +94,13 @@ fn model_tags_require_a_supported_identifier_and_include_the_rust_model_type() {
         (Value::Unsigned(43), "43"),
         (Value::Text("order-44".into()), "order-44"),
     ] {
-        order.state_mut().setAttribute("id", value);
+        order.state_mut().set_attribute("id", value);
         assert_eq!(
             Tags::forModel(&order).unwrap(),
             format!("{}:{key}", std::any::type_name::<Order>())
         );
     }
-    order.state_mut().setAttribute("id", Value::Bool(true));
+    order.state_mut().set_attribute("id", Value::Bool(true));
     assert!(Tags::forModel(&order).is_err());
 }
 

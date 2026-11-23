@@ -58,14 +58,14 @@ docker build --platform linux/amd64 -t openrust/mysql57-ecdhe docker/mysql57-ecd
 }
 ```
 
-查詢預設走讀庫。寫入和交易走寫庫。開啟 `sticky: true` 後，同一次 HTTP 請求或 Artisan 執行中，修改資料後的查詢走寫庫。直接使用 `DatabaseManager` 時，連線複本共用路由狀態，可用 `forgetRecordModificationState` 清除。用 `selectFromWriteConnection` 將單次查詢送往寫庫。
+查詢預設走讀庫。寫入和交易走寫庫。開啟 `sticky: true` 後，同一次 HTTP 請求或 Artisan 執行中，修改資料後的查詢走寫庫。直接使用 `DatabaseManager` 時，連線複本共用路由狀態，可用 `forget_record_modification_state` 清除。用 `select_from_write_connection` 將單次查詢送往寫庫。
 
 
 ## 執行 SQL
 
-在應用程式生命週期內使用 `DB::select`、`DB::selectOne`、`DB::scalar`、`DB::insert`、`DB::update`、`DB::delete` 和 `DB::statement`。SQL 使用 `?` 預留位置，參數另行傳入。`selectOne` 傳回可選資料列，`scalar` 在無相符資料列時傳回 SQL null，有結果時須只有一個欄位。`update` 和 `delete` 傳回受影響的列數。`unprepared` 執行原始 SQL，應傳入由應用程式控制的文字。
+在應用程式生命週期內使用 `Db::select`、`Db::select_one`、`Db::scalar`、`Db::insert`、`Db::update`、`Db::delete` 和 `Db::statement`。SQL 使用 `?` 預留位置，參數另行傳入。`select_one` 傳回可選資料列，`scalar` 在無相符資料列時傳回 SQL null，有結果時須只有一個欄位。`update` 和 `delete` 傳回受影響的列數。`unprepared` 執行原始 SQL，應傳入由應用程式控制的文字。
 
-`DB::connection(Some("name"))` 解析具名連線並共用應用程式內的連線池。查詢非同步執行，參數使用具型別的值。MySQL 無號整數和定點小數保留完整精確度，定點小數結果以文字表示。
+`Db::connection(Some("name"))` 解析具名連線並共用應用程式內的連線池。查詢非同步執行，參數使用具型別的值。MySQL 無號整數和定點小數保留完整精確度，定點小數結果以文字表示。
 
 ```rust
 use openrust::{config::Repository, database::{DatabaseManager, Value}};
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 查詢多個結果集 {#selecting-multiple-result-sets}
 
-使用 `DB::selectResultSets` 執行可傳回多個結果集的 MySQL 預備陳述式，例如預存程序呼叫。結果依傳回順序排列，並保留空結果集。MySQL 的 `CALL` 還會在最後傳回一個空的狀態結果集。
+使用 `Db::select_result_sets` 執行可傳回多個結果集的 MySQL 預備陳述式，例如預存程序呼叫。結果依傳回順序排列，並保留空結果集。MySQL 的 `CALL` 還會在最後傳回一個空的狀態結果集。
 
 傳入 `true` 時遵循正常的讀取連線路由，傳入 `false` 時使用寫入連線。在交易中透過交易物件呼叫此方法，查詢會在交易所在連線上執行。SQLite 對此介面傳回 `DatabaseError::UnsupportedOperation`。
 
@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
-    db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+    db.select_result_sets("CALL find_active_users(?)", &[active.into()], true).await
 }
 ```
 
@@ -107,10 +107,10 @@ async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<
 為每個具名參數繫結值，每條陳述式使用一種預留位置。SQLite 允許重複使用同一個名稱。使用 MySQL 原生預備陳述式時，每個預留位置使用不同名稱。
 
 ```rust
-use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::DB};
+use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::Db};
 
 async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
-    DB::selectOne(
+    Db::select_one(
         "SELECT * FROM users WHERE id = :id",
         Bindings::Named(&[("id", id.into())]),
     ).await
@@ -119,30 +119,30 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 ### 使用多個資料庫連線
 
-用 `DB::connection(Some("reporting"))` 按名稱選擇連線。用 `::read` 和 `::write` 後綴直接選擇對應角色，例如 `DB::connection(Some("reporting::read"))`。
+用 `Db::connection(Some("reporting"))` 按名稱選擇連線。用 `::read` 和 `::write` 後綴直接選擇對應角色，例如 `Db::connection(Some("reporting::read"))`。
 
 #### 直連別名 {#direct-connection-alias}
 
-對 MySQL 和 SQLite，`DB::connection(Some("mysql::direct"))` 會讓讀寫操作都使用該連線的寫入端點。將 `mysql` 換成實際連線名稱。查詢記錄和事件會以 `QueryRole::Direct` 標示。框架 未設定獨立直連端點時也會回退到寫入端點。
+對 MySQL 和 SQLite，`Db::connection(Some("mysql::direct"))` 會讓讀寫操作都使用該連線的寫入端點。將 `mysql` 換成實際連線名稱。查詢記錄和事件會以 `QueryRole::Direct` 標示。框架 未設定獨立直連端點時也會回退到寫入端點。
 
-PostgreSQL 的 `direct` 設定非空時，`DB::connection(Some("pgsql::direct"))` 會選擇獨立端點。依需要設定 `DB_DIRECT_HOST`、`DB_DIRECT_PORT`、`DB_DIRECT_USERNAME`、`DB_DIRECT_PASSWORD` 與 `DB_DIRECT_SSLMODE`。具名連線的 `direct` 選項繼承其基礎設定。遷移和帳本操作預設使用該端點。明確指定 `::read`、`::write`、`::direct` 後綴時，依呼叫端指定的角色執行。
+PostgreSQL 的 `direct` 設定非空時，`Db::connection(Some("pgsql::direct"))` 會選擇獨立端點。依需要設定 `DB_DIRECT_HOST`、`DB_DIRECT_PORT`、`DB_DIRECT_USERNAME`、`DB_DIRECT_PASSWORD` 與 `DB_DIRECT_SSLMODE`。具名連線的 `direct` 選項繼承其基礎設定。遷移和帳本操作預設使用該端點。明確指定 `::read`、`::write`、`::direct` 後綴時，依呼叫端指定的角色執行。
 
 使用 PgBouncer 交易池時，設定 `DB_POOLED=true` 或設定 PostgreSQL 的 `direct` 端點。池化的讀寫連線預設模擬預備陳述式，以 PostgreSQL 簡單查詢協定執行已編碼的繫結值，支援 `max_prepared_statements=0`。此模式下，擴充型別和使用者自訂型別會依伺服器回傳的文字讀取。直連預設使用原生預備陳述式。可在連線或其 `read`、`write`、`direct` 設定中以 `emulate_prepares` 覆寫預設值。若池化端點使用原生預備陳述式，啟用 PgBouncer 的具名陳述式追蹤。讓應用程式和伺服器的 `search_path` 保持一致，遷移使用直連端點。
 
 #### 中斷、重連及清除連線 {#reconnecting-database-connections}
 
-`DB::disconnect` 退役目前的讀寫連線池，下一次非同步操作依目前設定建立新池。`DB::reconnect` 立即更新連線池，保留邏輯連線與查詢日誌。`DB::purge` 同時清除快取的連線，下次解析會建立新的邏輯連線。
+`Db::disconnect` 退役目前的讀寫連線池，下一次非同步操作依目前設定建立新池。`Db::reconnect` 立即更新連線池，保留邏輯連線與查詢日誌。`Db::purge` 同時清除快取的連線，下次解析會建立新的邏輯連線。
 
 進行中的交易繼續使用原工作階段直到結束。已取得工作階段的操作可以完成，新操作使用替換後的連線池。
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 async fn refresh_database() -> DatabaseResult<()> {
-    DB::disconnect(None)?;
-    let connection = DB::reconnect(None).await?;
+    Db::disconnect(None)?;
+    let connection = Db::reconnect(None).await?;
     assert_eq!(connection.scalar("SELECT 1", &[]).await?, 1.into());
-    DB::purge(None)?;
+    Db::purge(None)?;
     Ok(())
 }
 ```
@@ -155,16 +155,16 @@ async fn refresh_database() -> DatabaseResult<()> {
 
 ### 預演查詢 {#previewing-queries}
 
-用 `DB::pretend` 或指定連線的 `pretend` 收集 SQL。預演只記錄 SQL，讀取操作傳回空結果，寫入操作依方法傳回成功或零影響列。查詢前回呼和查詢事件仍會執行。傳回的項目包含轉換後的 SQL 和原始繫結值，預演記錄獨立於即時查詢記錄。
+用 `Db::pretend` 或指定連線的 `pretend` 收集 SQL。預演只記錄 SQL，讀取操作傳回空結果，寫入操作依方法傳回成功或零影響列。查詢前回呼和查詢事件仍會執行。傳回的項目包含轉換後的 SQL 和原始繫結值，預演記錄獨立於即時查詢記錄。
 
 ```rust
 use openrust::{
     database::{DatabaseResult, QueryLogEntry},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
-    DB::pretend(|connection| {
+    Db::pretend(|connection| {
         Box::pin(async move {
             connection
                 .update("UPDATE settings SET enabled = ? WHERE id = ?", &[1.into(), 42.into()])
@@ -176,17 +176,17 @@ async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
 }
 ```
 
-預演作用於目前非同步範圍中的指定連線。獨立啟動的工作會進入自己的範圍。用 `pretending()` 檢查目前是否在預演，用 `withoutPretending` 在預演中明確執行實際操作。交易的開始、提交及回復需要實際執行範圍。
+預演作用於目前非同步範圍中的指定連線。獨立啟動的工作會進入自己的範圍。用 `pretending()` 檢查目前是否在預演，用 `without_pretending` 在預演中明確執行實際操作。交易的開始、提交及回復需要實際執行範圍。
 
 ### 查詢執行前回呼 {#before-executing}
 
-用 `DB::beforeExecuting` 向預設連線註冊，也可以在指定連線上呼叫 `beforeExecuting`。回呼依註冊順序、在資料庫操作之前收到原始 SQL 和繫結值。回呼傳回錯誤會中止本次操作及後續回呼。游標第一次輪詢時執行回呼。驅動程式重播同一次查詢時會略過回呼。
+用 `Db::before_executing` 向預設連線註冊，也可以在指定連線上呼叫 `before_executing`。回呼依註冊順序、在資料庫操作之前收到原始 SQL 和繫結值。回呼傳回錯誤會中止本次操作及後續回呼。游標第一次輪詢時執行回呼。驅動程式重播同一次查詢時會略過回呼。
 
 ```rust
-use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::DB};
+use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::Db};
 
 async fn read_value() -> DatabaseResult<Value> {
-    DB::beforeExecuting(|sql, bindings, _, _| {
+    Db::before_executing(|sql, bindings, _, _| {
         Box::pin(async move {
             if sql == "SELECT ? AS n" {
                 assert!(matches!(bindings, Bindings::Positional([Value::Integer(42)])));
@@ -195,7 +195,7 @@ async fn read_value() -> DatabaseResult<Value> {
         })
     })?;
 
-    DB::scalar("SELECT ? AS n", &[42.into()]).await
+    Db::scalar("SELECT ? AS n", &[42.into()]).await
 }
 ```
 
@@ -211,7 +211,7 @@ use openrust::{
     contracts::events::Event as EventPayload,
     database::events::ConnectionEstablished,
     events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    support::facades::{DB, Event},
+    support::facades::{Db, Event},
 };
 
 fn connected<'a>(
@@ -228,18 +228,18 @@ fn connected<'a>(
 
 async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
     Event::listen(ConnectionEstablished::NAME, Arc::new(connected), Delivery::Sync)?;
-    DB::connection(None)?.establish().await?;
+    Db::connection(None)?.establish().await?;
     Ok(())
 }
 ```
 
 ### 監聽查詢事件 {#listening-for-query-events}
 
-使用 `DB::listen` 監聽應用程式連線的成功查詢。`QueryExecuted` 包含原始 SQL、繫結參數、讀寫角色、連線和 `Duration` 耗時。資料游標在成功耗盡後派送，計時排除呼叫端在兩列之間處理資料的時間。
+使用 `Db::listen` 監聽應用程式連線的成功查詢。`QueryExecuted` 包含原始 SQL、繫結參數、讀寫角色、連線和 `Duration` 耗時。資料游標在成功耗盡後派送，計時排除呼叫端在兩列之間處理資料的時間。
 
 ### 監控累計查詢耗時 {#monitoring-cumulative-query-time}
 
-使用 `DB::whenQueryingForLongerThan` 監控預設連線，也可在具名連線上註冊。累計耗時超過門檻後，每個處理器執行一次。`resetTotalQueryDuration` 清除耗時。`allowQueryDurationHandlersToRunAgain` 允許處理器再次執行。
+使用 `Db::when_querying_for_longer_than` 監控預設連線，也可在具名連線上註冊。累計耗時超過門檻後，每個處理器執行一次。`reset_total_query_duration` 清除耗時。`allow_query_duration_handlers_to_run_again` 允許處理器再次執行。
 
 ```rust
 use std::{sync::Arc, time::Duration};
@@ -247,7 +247,7 @@ use openrust::{
     contracts::events::Event as EventPayload,
     database::{DatabaseResult, events::QueryExecuted},
     events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    support::facades::DB,
+    support::facades::Db,
 };
 
 fn report_query<'a>(
@@ -263,37 +263,37 @@ fn report_query<'a>(
 }
 
 fn subscribe() -> DatabaseResult<()> {
-    DB::listen(Arc::new(report_query))
+    Db::listen(Arc::new(report_query))
 }
 
 fn monitor_cumulative_time() -> DatabaseResult<()> {
-    DB::whenQueryingForLongerThan(Duration::from_millis(500), Arc::new(report_query))
+    Db::when_querying_for_longer_than(Duration::from_millis(500), Arc::new(report_query))
 }
 ```
 
 ### 檢視查詢日誌 {#inspecting-query-logs}
 
-`QueryExecuted::toRawSql()` 將原始陳述式及繫結值呈現為診斷 SQL。呈現時保留引號文字、識別字及註解裡的預留位置。資料庫仍使用預備陳述式與獨立繫結執行查詢。
+`QueryExecuted::to_raw_sql()` 將原始陳述式及繫結值呈現為診斷 SQL。呈現時保留引號文字、識別字及註解裡的預留位置。資料庫仍使用預備陳述式與獨立繫結執行查詢。
 
-查詢日誌預設關閉。可在連線上開啟，也可透過 `DB` 為預設連線開啟。`getQueryLog` 傳回 SQL 及繫結值，`getRawQueryLog` 傳回嵌入值的 SQL。`disableQueryLog` 停止記錄，`flushQueryLog` 清除已記錄的項目。
+查詢日誌預設關閉。可在連線上開啟，也可透過 `Db` 為預設連線開啟。`get_query_log` 傳回 SQL 及繫結值，`get_raw_query_log` 傳回嵌入值的 SQL。`disable_query_log` 停止記錄，`flush_query_log` 清除已記錄的項目。
 
 ```rust
-use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::DB};
+use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::Db};
 
 async fn inspect_value() -> DatabaseResult<Vec<RawQueryLogEntry>> {
-    DB::enableQueryLog()?;
-    let result = DB::select("SELECT ? AS inspected", &[42.into()]).await;
-    DB::disableQueryLog()?;
+    Db::enable_query_log()?;
+    let result = Db::select("SELECT ? AS inspected", &[42.into()]).await;
+    Db::disable_query_log()?;
     result?;
-    let log = DB::getRawQueryLog()?;
-    DB::flushQueryLog()?;
+    let log = Db::get_raw_query_log()?;
+    Db::flush_query_log()?;
     Ok(log)
 }
 ```
 
 ## 資料庫交易
 
-預設連線使用 `DB::transaction`，具名連線直接呼叫 `transaction`。在回呼中透過傳入的交易控制代碼執行 SQL。該控制代碼獨占一條寫庫實體連線，直到提交或復原。Rust 用裝箱的 Future 在非同步查詢期間借用交易控制代碼。第二個參數是總嘗試次數，傳 `1` 表示執行一次。並行錯誤可能重跑整個回呼，請將外部副作用放在交易之外，或確保可安全重複執行。
+預設連線使用 `Db::transaction`，具名連線直接呼叫 `transaction`。在回呼中透過傳入的交易控制代碼執行 SQL。該控制代碼獨占一條寫庫實體連線，直到提交或復原。Rust 用裝箱的 Future 在非同步查詢期間借用交易控制代碼。第二個參數是總嘗試次數，傳 `1` 表示執行一次。並行錯誤可能重跑整個回呼，請將外部副作用放在交易之外，或確保可安全重複執行。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Value};
@@ -317,11 +317,11 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 }
 ```
 
-手動控制時呼叫 `beginTransaction().await?`，然後在傳回的控制代碼上呼叫 `commit` 或 `rollBack(None)`。在控制代碼上再次呼叫 `beginTransaction` 會建立儲存點。`rollBack(Some(level))` 復原到指定層級，層級零復原整個交易。捨棄活動的控制代碼會復原尚未提交的操作。MySQL 的 DDL 等陳述式可能隱含提交，請放在要求不可分割性的交易之外。
+手動控制時呼叫 `begin_transaction().await?`，然後在傳回的控制代碼上呼叫 `commit` 或 `roll_back(None)`。在控制代碼上再次呼叫 `begin_transaction` 會建立儲存點。`roll_back(Some(level))` 復原到指定層級，層級零復原整個交易。捨棄活動的控制代碼會復原尚未提交的操作。MySQL 的 DDL 等陳述式可能隱含提交，請放在要求不可分割性的交易之外。
 
 ### 共用連線介面 {#connection-interface}
 
-同一段 SQL 或建構器程式碼需要同時支援集區 `Connection` 和綁定實體工作階段的 `Transaction` 時，可使用 `&mut dyn ConnectionInterface`。明確傳入具名或定位 `Bindings`。`select`、`selectOne`、`scalar` 和 `cursor` 的讀取角色參數傳入 `false` 時，集區連線會走寫入端。交易中的查詢一律使用交易自己的工作階段。交易的開始、提交及回滾由具體的連線和交易控制代碼管理。
+同一段 SQL 或建構器程式碼需要同時支援集區 `Connection` 和綁定實體工作階段的 `Transaction` 時，可使用 `&mut dyn ConnectionInterface`。明確傳入具名或定位 `Bindings`。`select`、`select_one`、`scalar` 和 `cursor` 的讀取角色參數傳入 `false` 時，集區連線會走寫入端。交易中的查詢一律使用交易自己的工作階段。交易的開始、提交及回滾由具體的連線和交易控制代碼管理。
 
 ```rust
 use openrust::database::{Bindings, ConnectionInterface, DatabaseResult, Value};
@@ -335,7 +335,7 @@ pub async fn answer(connection: &mut dyn ConnectionInterface) -> DatabaseResult<
 
 ### SQL Server 自動回滾 {#sql-server-automatic-rollback}
 
-SQL Server 在陳述式失敗時可能自動回滾整筆交易。交易回呼傳回該錯誤時，OpenRust 會先檢查伺服器端交易狀態。伺服器已回滾時，回呼會傳回原始陳述式錯誤並關閉交易控制代碼。若剩餘交易無法回滾至儲存點，OpenRust 會回滾整筆交易。確認回滾後，執行對應的 `afterRollBack()` 回呼。
+SQL Server 在陳述式失敗時可能自動回滾整筆交易。交易回呼傳回該錯誤時，OpenRust 會先檢查伺服器端交易狀態。伺服器已回滾時，回呼會傳回原始陳述式錯誤並關閉交易控制代碼。若剩餘交易無法回滾至儲存點，OpenRust 會回滾整筆交易。確認回滾後，執行對應的 `after_roll_back()` 回呼。
 
 ### 交易事件 {#transaction-events}
 
@@ -378,15 +378,15 @@ fn register() -> EventResult<()> {
 
 ### 交易回呼 {#transaction-callbacks}
 
-`DB::beforeStartingTransaction` 在預設連線註冊掛鉤，在最外層交易或儲存點開始前執行。掛鉤收到連線，巢狀開始時還可借用作用中的交易。掛鉤傳回錯誤會中止本次開始操作。
+`Db::before_starting_transaction` 在預設連線註冊掛鉤，在最外層交易或儲存點開始前執行。掛鉤收到連線，巢狀開始時還可借用作用中的交易。掛鉤傳回錯誤會中止本次開始操作。
 
-`Transaction::afterRollBack` 為目前層級註冊回呼。儲存點提交後，復原回呼保留在父交易，直到最外層交易結束。確認復原後執行已撤銷層級的回呼。最外層復原回呼在工作階段歸還後執行。
+`Transaction::after_roll_back` 為目前層級註冊回呼。儲存點提交後，復原回呼保留在父交易，直到最外層交易結束。確認復原後執行已撤銷層級的回呼。最外層復原回呼在工作階段歸還後執行。
 
 ```rust
-use openrust::{database::DatabaseResult, support::facades::DB};
+use openrust::{database::DatabaseResult, support::facades::Db};
 
 async fn run_with_callbacks() -> DatabaseResult<()> {
-    DB::beforeStartingTransaction(|connection, active| {
+    Db::before_starting_transaction(|connection, active| {
         Box::pin(async move {
             match active {
                 Some(transaction) => transaction.scalar("SELECT 1", &[]).await?,
@@ -396,11 +396,11 @@ async fn run_with_callbacks() -> DatabaseResult<()> {
         })
     })?;
 
-    let mut transaction = DB::beginTransaction().await?;
-    transaction.afterRollBack(|| Box::pin(async {
+    let mut transaction = Db::begin_transaction().await?;
+    transaction.after_roll_back(|| Box::pin(async {
         println!("Transaction rolled back");
         Ok(())
     }))?;
-    transaction.rollBack(None).await
+    transaction.roll_back(None).await
 }
 ```

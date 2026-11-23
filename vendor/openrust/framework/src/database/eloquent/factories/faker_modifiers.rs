@@ -40,11 +40,10 @@ impl From<&Value> for Sample {
 
 const DEFAULT_RETRIES: usize = 10_000;
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
     /// Draws from an inclusive integer range with the supplied acceptance curve.
     /// The default curve is the square root.
-    pub fn biasedNumberBetween(
+    pub fn biased_number_between(
         &self,
         min: Option<i64>,
         max: Option<i64>,
@@ -98,13 +97,13 @@ impl Faker {
     pub fn valid<T>(
         &self,
         mut validator: impl FnMut(&T) -> bool,
-        maxRetries: Option<usize>,
+        max_retries: Option<usize>,
         mut generate: impl FnMut(&Faker) -> DatabaseResult<T>,
     ) -> DatabaseResult<T> {
-        let maxRetries = maxRetries.unwrap_or(DEFAULT_RETRIES);
-        for attempt in 0..=maxRetries {
+        let max_retries = max_retries.unwrap_or(DEFAULT_RETRIES);
+        for attempt in 0..=max_retries {
             let value = generate(self)?;
-            if attempt < maxRetries && validator(&value) {
+            if attempt < max_retries && validator(&value) {
                 return Ok(value);
             }
         }
@@ -112,7 +111,6 @@ impl Faker {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
     /// Generates a distinct result for a named formatter.
     ///
@@ -134,14 +132,14 @@ impl UniqueFaker<'_> {
         )
     }
 
-    pub fn biasedNumberBetween(
+    pub fn biased_number_between(
         &self,
         min: Option<i64>,
         max: Option<i64>,
         function: Option<&dyn Fn(f64) -> f64>,
     ) -> DatabaseResult<i64> {
         self.try_generate("biasedNumberBetween", || {
-            self.0.biasedNumberBetween(min, max, function)
+            self.0.biased_number_between(min, max, function)
         })
     }
 }

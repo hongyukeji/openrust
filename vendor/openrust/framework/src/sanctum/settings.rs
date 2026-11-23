@@ -160,7 +160,7 @@ impl Sanctum {
             name: type_name::<M>(),
             store: |database, prefix| {
                 let model = M::from_state(Default::default());
-                let connection = database.connection(model.getConnectionName())?;
+                let connection = database.connection(model.get_connection_name())?;
                 Ok(PersonalAccessTokens::for_model::<M>(connection, prefix))
             },
         });

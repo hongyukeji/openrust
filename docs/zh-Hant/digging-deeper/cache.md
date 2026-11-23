@@ -79,13 +79,13 @@ CACHE_STORAGE_PATH=framework/cache/items
 
 ### 讀取快取項目 {#retrieving-items-from-the-cache}
 
-`get_or(key, default)` 接受預設值，`getOrElse(key, resolve)` 接受非同步後援閉包。鍵缺少或快取值為 JSON `null` 時使用預設值，命中時略過後援。後端錯誤仍回傳給呼叫端，後援計算的結果只回傳給呼叫端。
+`get_or(key, default)` 接受預設值，`get_or_else(key, resolve)` 接受非同步後援閉包。鍵缺少或快取值為 JSON `null` 時使用預設值，命中時略過後援。後端錯誤仍回傳給呼叫端，後援計算的結果只回傳給呼叫端。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_title() -> CacheResult<Value> {
-    Cache::getOrElse("reports:title", || async { Ok(Value::from("Untitled")) }).await
+    Cache::get_or_else("reports:title", || async { Ok(Value::from("Untitled")) }).await
 }
 ```
 
@@ -105,13 +105,13 @@ Redis 保留新寫入的數字字串及其原始寫法。既有整數項目可�
 
 ### 批次操作 {#cache-batch-operations}
 
-`getMultiple(keys, default)` 按輸入順序回傳對應表，可傳入統一的預設值。`manyOr` 為每個鍵接收預設值，`manyOrElse` 按鍵延遲計算預設值。批次讀取只呼叫一次儲存空間，缺少的鍵和 null 使用預設值。`set` 和 `setMultiple` 寫入，`delete` 和 `deleteMultiple` 移除項目，`clear` 清空所選儲存庫。批次刪除遇到缺少的鍵會繼續，並在任一鍵缺少時回傳 `false`。
+`get_multiple(keys, default)` 按輸入順序回傳對應表，可傳入統一的預設值。`many_or` 為每個鍵接收預設值，`many_or_else` 按鍵延遲計算預設值。批次讀取只呼叫一次儲存空間，缺少的鍵和 null 使用預設值。`set` 和 `set_multiple` 寫入，`delete` 和 `delete_multiple` 移除項目，`clear` 清空所選儲存庫。批次刪除遇到缺少的鍵會繼續，並在任一鍵缺少時回傳 `false`。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn report_state() -> CacheResult<Value> {
-    let entries = Cache::manyOr(&[
+    let entries = Cache::many_or(&[
         ("reports:title", Value::from("Untitled")),
         ("reports:limit", Value::from(10)),
     ]).await?;
@@ -121,13 +121,13 @@ pub async fn report_state() -> CacheResult<Value> {
 
 ### 讀取並回填 {#retrieve-store}
 
-`remember` 回傳快取值，未命中時執行計算並寫入快取。`rememberWithWarmth` 回傳 `(value, warm)`，命中非空值時 `warm` 為 `true`。`rememberWithWarmthFor` 在未命中時根據計算結果設定 TTL。`rememberForever` 和別名 `sear` 將計算結果寫入快取且不設定到期時間。
+`remember` 回傳快取值，未命中時執行計算並寫入快取。`remember_with_warmth` 回傳 `(value, warm)`，命中非空值時 `warm` 為 `true`。`remember_with_warmth_for` 在未命中時根據計算結果設定 TTL。`remember_forever` 和別名 `sear` 將計算結果寫入快取且不設定到期時間。
 
 ```rust
 use openrust::{cache::{CacheResult, Ttl, Value}, support::facades::Cache};
 
 pub async fn load_report() -> CacheResult<(Value, bool)> {
-    Cache::rememberWithWarmth("reports:latest", Some(Ttl::Seconds(60)), async {
+    Cache::remember_with_warmth("reports:latest", Some(Ttl::Seconds(60)), async {
         Ok(Value::from("ready"))
     }).await
 }
@@ -147,11 +147,11 @@ pub async fn refresh_report() -> CacheResult<Value> {
 }
 ```
 
-背景更新使用快取原子鎖。如果其他呼叫端已更新同一代快取，等待執行的更新會略過計算。更新失敗時，舊值可以繼續使用到原定到期時間。`flexibleWith` 接受兩個 `Ttl` 和 `FlexibleOptions`，可設定鎖租期、擁有者權杖或失敗後仍更新的 `always_defer`。在應用程式生命週期之外直接呼叫儲存庫時，可讀取舊值直到到期。背景計算需要擷取擁有所有權的值，以便在請求處理函式回傳後執行。
+背景更新使用快取原子鎖。如果其他呼叫端已更新同一代快取，等待執行的更新會略過計算。更新失敗時，舊值可以繼續使用到原定到期時間。`flexible_with` 接受兩個 `Ttl` 和 `FlexibleOptions`，可設定鎖租期、擁有者權杖或失敗後仍更新的 `always_defer`。在應用程式生命週期之外直接呼叫儲存庫時，可讀取舊值直到到期。背景計算需要擷取擁有所有權的值，以便在請求處理函式回傳後執行。
 
 ### 取回並刪除 {#retrieve-delete}
 
-`pullOr(key, default)` 和 `pullOrElse(key, resolve)` 支援預設值。兩者先執行儲存庫的原子 `pull`，項目缺少或值為 `null` 時再使用預設值。兩個呼叫同時取回同一非空項目時，只有一個能取得該值。
+`pull_or(key, default)` 和 `pull_or_else(key, resolve)` 支援預設值。兩者先執行儲存庫的原子 `pull`，項目缺少或值為 `null` 時再使用預設值。兩個呼叫同時取回同一非空項目時，只有一個能取得該值。
 
 ## 快取記憶化 {#cache-memoization}
 
@@ -171,15 +171,15 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
-在支援標籤的儲存上，可用 `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`。同一生命週期內，完全相同的有序標籤清單會共用命中和未命中，改變順序或重複項目會選取其他標籤群組。透過記憶化標籤儲存庫寫入會使對應鍵失效。呼叫標籤儲存庫的 `flush()` 會清空後端所選標籤，並使該儲存的所有標籤群組快照失效。呼叫 `clear()` 會清空整個儲存，包括一般快取值。呼叫 `flushMemoized()` 只清除所選標籤群組的記憶化結果。
+在支援標籤的儲存上，可用 `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`。同一生命週期內，完全相同的有序標籤清單會共用命中和未命中，改變順序或重複項目會選取其他標籤群組。透過記憶化標籤儲存庫寫入會使對應鍵失效。呼叫標籤儲存庫的 `flush()` 會清空後端所選標籤，並使該儲存的所有標籤群組快照失效。呼叫 `clear()` 會清空整個儲存，包括一般快取值。呼叫 `flush_memoized()` 只清除所選標籤群組的記憶化結果。
 
-在 Redis 上，`flushStale().await?` 會轉送給所選標籤，清理到期索引參照，並保留有效值及記憶化結果。透過獨立的一般 Redis 儲存庫清空標籤後，本生命週期仍可讀取已記憶化的舊結果，直到記憶化檢視使它們失效。
+在 Redis 上，`flush_stale().await?` 會轉送給所選標籤，清理到期索引參照，並保留有效值及記憶化結果。透過獨立的一般 Redis 儲存庫清空標籤後，本生命週期仍可讀取已記憶化的舊結果，直到記憶化檢視使它們失效。
 
 ## cache 輔助工具 {#the-cache-helper}
 
 `cache!()` 或 `openrust::support::cache()` 取得目前應用程式的快取管理員。呼叫 `.store(None)?` 取得預設儲存庫。`cache!(key).await?` 回傳 `Option<Value>`，`cache!(key, default).await?` 支援預設值。
 
-寫入形式接受至少一組鍵值和 `Option<Ttl>`。與固定 輔助工具一致，它只寫入第一項。需要寫入全部項目時使用 `Cache::putMany`。
+寫入形式接受至少一組鍵值和 `Option<Ttl>`。與固定 輔助工具一致，它只寫入第一項。需要寫入全部項目時使用 `Cache::put_many`。
 
 ```rust
 use openrust::{cache, cache::{CacheResult, Ttl, Value}};
@@ -192,18 +192,18 @@ pub async fn report() -> CacheResult<Value> {
 
 ## 儲存庫設定 {#cache-repository-settings}
 
-`get_name`、`getStore` 和 `getEventDispatcher` 分別讀取已設定的儲存庫名稱、底層儲存空間和事件分派器。具名儲存庫停用快取事件後仍可讀取名稱。建立標籤儲存庫時，會繼承來源儲存庫的名稱、事件分派器和預設有效時間。
+`get_name`、`get_store` 和 `get_event_dispatcher` 分別讀取已設定的儲存庫名稱、底層儲存空間和事件分派器。具名儲存庫停用快取事件後仍可讀取名稱。建立標籤儲存庫時，會繼承來源儲存庫的名稱、事件分派器和預設有效時間。
 
-`putWithDefault` 使用 `getDefaultCacheTime` 回傳的時間，初始值為 3600 秒。明確呼叫 `put(key, value, None)` 會永久保存。使用 `setDefaultCacheTime` 修改自有儲存庫的預設有效時間。`setStore` 和 `setEventDispatcher` 也用於自有儲存庫。複製後的儲存庫共用底層儲存空間，每份副本可以各自取代設定。
+`put_with_default` 使用 `get_default_cache_time` 回傳的時間，初始值為 3600 秒。明確呼叫 `put(key, value, None)` 會永久保存。使用 `set_default_cache_time` 修改自有儲存庫的預設有效時間。`set_store` 和 `set_event_dispatcher` 也用於自有儲存庫。複製後的儲存庫共用底層儲存空間，每份副本可以各自取代設定。
 
 ```rust
 use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
 
 pub async fn cache_report() -> CacheResult<bool> {
     let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
-    repository.setDefaultCacheTime(Some(60));
+    repository.set_default_cache_time(Some(60));
     let reports = repository.tags(&["reports"])?;
-    reports.putWithDefault("latest", &Value::from("ready")).await
+    reports.put_with_default("latest", &Value::from("ready")).await
 }
 ```
 
@@ -227,7 +227,7 @@ async fn store_report() -> Result<bool, CacheError> {
 
 讀取時傳入完全相同的標籤順序，包括重複項目。呼叫 `Cache::tags(&["daily"])?.flush().await?` 可使所有帶有 `daily` 標籤的項目失效。一般鍵及僅含無關標籤的項目會保留。標籤透過切換世代失效。`array` 和 `failover` 的舊項目無法再依標籤讀取，依原 TTL 到期。直接選擇 Redis 儲存時，還會分批刪除舊世代的實際鍵。Redis 在同一指令碼內寫入項目並更新索引，清理舊世代期間仍可寫入新世代。
 
-呼叫 `Cache::tags(&["daily"])?.flushStale().await?` 可清理指定 Redis 標籤的到期參照。它保留有效快取值和其他標籤索引。傳入空清單時不存取 Redis。
+呼叫 `Cache::tags(&["daily"])?.flush_stale().await?` 可清理指定 Redis 標籤的到期參照。它保留有效快取值和其他標籤索引。傳入空清單時不存取 Redis。
 
 執行 `./artisan cache:prune-stale-tags redis` 可清理整個儲存。兩種方式都以 Redis 伺服器時間與有序集合記錄的到期時間判斷參照是否到期，也會移除值鍵已不存在的參照。清理只修改索引，快取值與仍存在的永久項目參照均會保留。可指定儲存名稱，或省略以使用預設儲存。
 
@@ -235,11 +235,11 @@ async fn store_report() -> Result<bool, CacheError> {
 
 在 Redis Cluster 中，儲存層級的清理也會在負責該儲存標籤插槽的主節點尋找標籤索引。若 Redis 淘汰了索引登記集合，清理可重新發現仍存在的索引、移除過期參照並保留有效值。若待回收世代的索引與登記都已遺失，清理也會移除對應的待回收記錄。清理也會移除格式無效的待回收世代識別碼。命令在同一插槽內每批最多檢查 128 個待回收世代。仍有有效索引參照的世代會保留，讓後續按標籤清空時可以繼續處理。
 
-在 Redis Cluster 中，`flushStale()` 會尋找所選標籤各世代仍存在的索引，也會移除這些標籤中已無索引參照或格式無效的待回收記錄，包括索引已被淘汰的世代。所選標籤的索引遺失後，即使沒有待回收記錄，也會移除殘留的索引登記。能確定歸屬所選標籤的異常登記也會移除，其指向的 Redis 鍵會保留。無法識別標籤歸屬的異常登記可透過儲存層級命令清理。仍有有效參照的待回收世代會保留，供後續按標籤清空時繼續處理。
+在 Redis Cluster 中，`flush_stale()` 會尋找所選標籤各世代仍存在的索引，也會移除這些標籤中已無索引參照或格式無效的待回收記錄，包括索引已被淘汰的世代。所選標籤的索引遺失後，即使沒有待回收記錄，也會移除殘留的索引登記。能確定歸屬所選標籤的異常登記也會移除，其指向的 Redis 鍵會保留。無法識別標籤歸屬的異常登記可透過儲存層級命令清理。仍有有效參照的待回收世代會保留，供後續按標籤清空時繼續處理。
 
 即使標籤索引的登記已遺失，索引鍵型別異常也會使清理失敗。清理範圍內的待回收集合型別異常時，清理也會失敗。命令以狀態碼 1 結束，恢復正確的鍵型別後可重新清理。
 
-Redis Cluster 插槽遷移期間，清理批次涉及缺少的鍵，或同一批次的鍵分布於不同節點時，Redis 可能回傳 `TRYAGAIN`。此時 `flushStale()` 回傳錯誤，`cache:prune-stale-tags` 以狀態碼 1 結束。插槽遷移完成後可重試同一清理。已完成的批次會保留結果，重試時會略過已移除的參照。
+Redis Cluster 插槽遷移期間，清理批次涉及缺少的鍵，或同一批次的鍵分布於不同節點時，Redis 可能回傳 `TRYAGAIN`。此時 `flush_stale()` 回傳錯誤，`cache:prune-stale-tags` 以狀態碼 1 結束。插槽遷移完成後可重試同一清理。已完成的批次會保留結果，重試時會略過已移除的參照。
 
 如果 Redis Cluster 中的標籤清空中斷，可再次執行 `./artisan cache:clear redis --tags=artists`，繼續刪除舊世代的值。重試時會分批清理已退役的世代，並移除格式無效的世代識別碼。如果 Redis 鍵型別異常，命令會以狀態碼 1 結束。恢復正確的鍵型別後即可重試。
 
@@ -247,17 +247,17 @@ Redis Cluster 插槽遷移期間，清理批次涉及缺少的鍵，或同一批
 
 ## 原子鎖
 
-用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。
+用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restore_lock`。使用有限租期可在處理程序提前結束後復原。
 
 ### 跨處理程序檔案鎖 {#managing-locks-across-processes}
 
-同一主機上的檔案快取會透過本機檔案系統上的同一快取目錄協調多個處理程序。在 Windows 上，可把取得鎖的處理程序權杖傳給釋放端的 `Cache::restoreLock`。兩個應用程式應使用相同的鎖目錄與快取前綴。
+同一主機上的檔案快取會透過本機檔案系統上的同一快取目錄協調多個處理程序。在 Windows 上，可把取得鎖的處理程序權杖傳給釋放端的 `Cache::restore_lock`。兩個應用程式應使用相同的鎖目錄與快取前綴。
 
 ### 鎖定狀態與重試間隔 {#lock-status}
 
-`isLocked().await?` 查詢後端是否持有鎖。`isOwnedBy(token).await?` 比對指定權杖，`isOwnedByCurrentProcess().await?` 比對目前控制代碼的權杖。`isOwnedBy(None).await?` 檢查是否沒有擁有者。狀態查詢不會取得鎖或續期。`null` 儲存庫始終回報未鎖定，擁有者查詢使用目前控制代碼的權杖。
+`is_locked().await?` 查詢後端是否持有鎖。`is_owned_by(token).await?` 比對指定權杖，`is_owned_by_current_process().await?` 比對目前控制代碼的權杖。`is_owned_by(None).await?` 檢查是否沒有擁有者。狀態查詢不會取得鎖或續期。`null` 儲存庫始終回報未鎖定，擁有者查詢使用目前控制代碼的權杖。
 
-`betweenBlockedAttemptsSleepFor(milliseconds)` 設定傳回之控制代碼的 `block` 和 `blockWith` 重試間隔，預設為 250 毫秒。間隔為 0 時，每次重試前會讓出 Tokio 執行權。
+`between_blocked_attempts_sleep_for(milliseconds)` 設定傳回之控制代碼的 `block` 和 `block_with` 重試間隔，預設為 250 毫秒。間隔為 0 時，每次重試前會讓出 Tokio 執行權。
 
 ```rust
 use std::time::Duration;
@@ -266,9 +266,9 @@ use openrust::{cache::CacheResult, support::facades::Cache};
 
 pub async fn ready_for_report() -> CacheResult<bool> {
     let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?
-        .betweenBlockedAttemptsSleepFor(25)?;
+        .between_blocked_attempts_sleep_for(25)?;
     lock.block(Duration::from_secs(2)).await?;
-    let owned = lock.isOwnedByCurrentProcess().await;
+    let owned = lock.is_owned_by_current_process().await;
     lock.release().await?;
     owned
 }
@@ -276,7 +276,7 @@ pub async fn ready_for_report() -> CacheResult<bool> {
 
 ### 持鎖執行回呼 {#lock-callbacks}
 
-用 `getWith` 嘗試一次，或用 `blockWith` 等待。兩者接管鎖的控制代碼，在回呼傳回時釋放鎖，包含回呼出錯的情況。鎖被占用時，`getWith` 傳回 `None`。等待逾時則由 `blockWith` 傳回 `CacheError::LockTimeout`。取得失敗時均不會呼叫回呼。
+用 `get_with` 嘗試一次，或用 `block_with` 等待。兩者接管鎖的控制代碼，在回呼傳回時釋放鎖，包含回呼出錯的情況。鎖被占用時，`get_with` 傳回 `None`。等待逾時則由 `block_with` 傳回 `CacheError::LockTimeout`。取得失敗時均不會呼叫回呼。
 
 ```rust
 use std::time::Duration;
@@ -288,7 +288,7 @@ use openrust::{
 
 pub async fn cache_report() -> CacheResult<Option<bool>> {
     Cache::lock("report", Some(Duration::from_secs(10)))?
-        .getWith(|| async {
+        .get_with(|| async {
             Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await
         })
         .await
@@ -299,7 +299,7 @@ Future 被取消或回呼 panic 時，Tokio 會排程清理。執行階段結束
 
 ### 並行限制 {#concurrency-limiting}
 
-`Cache::without_overlapping(key, callback).await?` 對同一個鍵一次只執行一個回呼，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待時間，並接受選用的擁有者權杖。租期為零時使用驅動程式的預設值。無法取得鎖時回傳 `CacheError::LockTimeout`。
+`Cache::without_overlapping(key, callback).await?` 對同一個鍵一次只執行一個回呼，最多等待 10 秒。`without_overlapping_with(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待時間，並接受選用的擁有者權杖。租期為零時使用驅動程式的預設值。無法取得鎖時回傳 `CacheError::LockTimeout`。
 
 使用 `Cache::funnel` 允許多個回呼並行執行。各應用程式執行個體須使用同一個共用鎖儲存空間、快取前綴、限制器名稱和並行上限。租期應涵蓋回呼的執行時間，到期後其他呼叫端可以取得該名額。`null` 儲存庫允許所有呼叫通過。
 
@@ -309,18 +309,18 @@ use openrust::{cache::CacheResult, support::facades::Cache};
 pub async fn generate_report() -> CacheResult<&'static str> {
     Cache::funnel("reports:generate:")?
         .limit(3)
-        .releaseAfter(60)
+        .release_after(60)
         .block(10)
-        .thenWith(|| async { Ok("generated") }, |_| async { Ok("busy") })
+        .then_with(|| async { Ok("generated") }, |_| async { Ok("busy") })
         .await
 }
 ```
 
-用 `limit` 設定並行名額。租期預設 60 秒，等待預設 3 秒，`sleep(milliseconds)` 預設 250 毫秒。`block(0)` 只掃描一次名額。`then(callback)` 回傳 `CacheError::LimiterTimeout`，`thenWith(callback, fallback)` 可在回呼中處理該錯誤。可用 `Cache::store(Some("redis"))?.funnel(name)?` 選取具名儲存庫。缺少原子鎖能力的儲存庫回傳 `CacheError::LocksUnsupported`。
+用 `limit` 設定並行名額。租期預設 60 秒，等待預設 3 秒，`sleep(milliseconds)` 預設 250 毫秒。`block(0)` 只掃描一次名額。`then(callback)` 回傳 `CacheError::LimiterTimeout`，`then_with(callback, fallback)` 可在回呼中處理該錯誤。可用 `Cache::store(Some("redis"))?.funnel(name)?` 選取具名儲存庫。缺少原子鎖能力的儲存庫回傳 `CacheError::LocksUnsupported`。
 
 ### 清除快取鎖 {#clearing-cache-locks}
 
-使用 `Cache::flushLocks().await?` 清除預設儲存的鎖，或用 `Cache::store(Some("database"))?.flushLocks().await?` 指定儲存。Artisan 也可以指定儲存名稱。
+使用 `Cache::flush_locks().await?` 清除預設儲存的鎖，或用 `Cache::store(Some("database"))?.flush_locks().await?` 指定儲存。Artisan 也可以指定儲存名稱。
 
 ```sh
 ./artisan cache:clear database --locks
@@ -345,7 +345,7 @@ pub async fn generate_report() -> CacheResult<&'static str> {
 
 每次操作都從第一個儲存開始。儲存回傳錯誤時才嘗試下一個，快取未命中或成功回傳 `false` 時直接結束。主要儲存恢復後會再次優先讀取它，故障期間寫入備援儲存的項目此時可能讀不到。所有儲存均失敗時，操作會回傳最後一個錯誤。
 
-在應用程式事件分派器中監聽 `openrust::cache::events::CacheFailedOver`，可得知新發生的儲存錯誤。事件包含 `storeName` 和 `exception` 錯誤訊息。同一儲存連續回傳錯誤只會產生一次事件，經過一次該儲存未回傳錯誤的操作後，再次回傳錯誤才會重新觸發。鎖控制代碼由第一個能建立它的儲存提供，後續取得、續期與釋放均使用該儲存。
+在應用程式事件分派器中監聽 `openrust::cache::events::CacheFailedOver`，可得知新發生的儲存錯誤。事件包含 `store_name` 和 `exception` 錯誤訊息。同一儲存連續回傳錯誤只會產生一次事件，經過一次該儲存未回傳錯誤的操作後，再次回傳錯誤才會重新觸發。鎖控制代碼由第一個能建立它的儲存提供，後續取得、續期與釋放均使用該儲存。
 
 ```rust
 use openrust::{
@@ -372,9 +372,9 @@ Cache::extend("project", |manager, config| {
 })?;
 ```
 
-在 `config/cache.rs` 中將具名儲存的 `driver` 設為 `project`。工廠會收到快取管理器和完整儲存設定。透過 `manager.getContainer()` 取得應用程式服務，透過 `manager.repository(..., config)` 保留儲存名稱與事件設定。儲存解析為同步操作，回呼負責建立後端，非同步 I/O 放在個別快取操作中。
+在 `config/cache.rs` 中將具名儲存的 `driver` 設為 `project`。工廠會收到快取管理器和完整儲存設定。透過 `manager.get_container()` 取得應用程式服務，透過 `manager.repository(..., config)` 保留儲存名稱與事件設定。儲存解析為同步操作，回呼負責建立後端，非同步 I/O 放在個別快取操作中。
 
-具名儲存庫會在首次存取時建立，後續繼續沿用。替換工廠後，可呼叫 `Cache::forgetDriver(Some("reports"))?` 或 `Cache::purge(Some("reports"))?`，下次解析就會使用新工廠。`Cache::build(config)?` 會依指定設定即時建立獨立儲存庫。
+具名儲存庫會在首次存取時建立，後續繼續沿用。替換工廠後，可呼叫 `Cache::forget_driver(Some("reports"))?` 或 `Cache::purge(Some("reports"))?`，下次解析就會使用新工廠。`Cache::build(config)?` 會依指定設定即時建立獨立儲存庫。
 
 ## 快取事件 {#cache-events}
 
@@ -397,4 +397,4 @@ events.assertDispatched(CacheHit::NAME);
 
 ## 查詢與恢復鎖
 
-`Lock` 契約提供 `currentOwner()` 查詢後端 owner，不取得鎖；`forceRelease()` 強制釋放鎖，不檢查目前控制代碼的 owner。`LockProvider::restoreLock(name, owner)` 使用保存的 owner 識別重建控制代碼。trait 物件也可直接呼叫這些方法；恢復控制代碼不會取得鎖或續租。
+`Lock` 契約提供 `current_owner()` 查詢後端 owner，不取得鎖；`force_release()` 強制釋放鎖，不檢查目前控制代碼的 owner。`LockProvider::restore_lock(name, owner)` 使用保存的 owner 識別重建控制代碼。trait 物件也可直接呼叫這些方法；恢復控制代碼不會取得鎖或續租。

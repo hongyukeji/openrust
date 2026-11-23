@@ -9,7 +9,6 @@ pub struct Pivot {
     attributes: Attributes,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Pivot {
     pub(in crate::database::eloquent) fn serialize(
         &self,
@@ -25,15 +24,15 @@ impl Pivot {
         Self { table, attributes }
     }
 
-    pub fn getTable(&self) -> &'static str {
+    pub fn get_table(&self) -> &'static str {
         self.table
     }
 
-    pub fn getAttribute(&self, name: &str) -> Option<&Value> {
+    pub fn get_attribute(&self, name: &str) -> Option<&Value> {
         self.attributes.get(name)
     }
 
-    pub fn getAttributes(&self) -> &Attributes {
+    pub fn get_attributes(&self) -> &Attributes {
         &self.attributes
     }
 }

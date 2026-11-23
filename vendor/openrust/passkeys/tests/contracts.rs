@@ -28,7 +28,7 @@ fn user_defaults_match_48_pinned_php_trait_vectors() {
                 } else {
                     Value::Integer(value.as_i64().unwrap())
                 };
-                user.setAttribute(key, value);
+                user.set_attribute(key, value);
             }
         }
         assert_eq!(
@@ -92,9 +92,9 @@ fn passkey_metadata_keeps_server_owned_foreign_key_out_of_mass_assignment() {
         [("name".into(), "Key".into()), ("user_id".into(), 99.into())].into(),
     )
     .unwrap();
-    assert_eq!(record.getAttribute("name"), Some(&Value::from("Key")));
-    assert_eq!(record.getAttribute("user_id"), None);
-    assert_eq!(record.getTable(), "passkeys");
+    assert_eq!(record.get_attribute("name"), Some(&Value::from("Key")));
+    assert_eq!(record.get_attribute("user_id"), None);
+    assert_eq!(record.get_table(), "passkeys");
 }
 
 #[derive(Clone, Default)]
@@ -102,7 +102,7 @@ struct SelectedPasskey(Passkey);
 impl Model for SelectedPasskey {
     fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
         static META: openrust::database::eloquent::ModelMetadata =
-            openrust::database::eloquent::ModelMetadata::new("selected_passkeys").primaryKey("pk");
+            openrust::database::eloquent::ModelMetadata::new("selected_passkeys").primary_key("pk");
         &META
     }
     fn from_state(state: ModelState) -> Self {
@@ -137,10 +137,10 @@ async fn selected_models_are_application_local_and_records_retain_the_actual_ins
         &model,
         &shared.model::<SelectedPasskey>().unwrap()
     ));
-    model.lock().await.setAttribute("pk", 42_i64);
-    assert_eq!(shared.getKey().await, Some(42.into()));
+    model.lock().await.set_attribute("pk", 42_i64);
+    assert_eq!(shared.get_key().await, Some(42.into()));
     assert_eq!(shared.to_array().await.unwrap()["pk"], 42);
     first.usePasskeyModel::<Passkey>();
     assert_eq!(first.passkeyModel(), second.passkeyModel());
-    assert_eq!(record.getKey().await, Some(42.into()));
+    assert_eq!(record.get_key().await, Some(42.into()));
 }

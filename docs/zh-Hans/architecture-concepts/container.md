@@ -1039,7 +1039,7 @@ fn main() {
 
 ### 服务管理器属性 {#service-manager-attributes}
 
-构造函数或方法参数可声明 `Cache`、`Database` 或 `DB`、`Log` 和 `Storage`。属性从当前容器解析管理器，使用默认服务或传入 `new` 的名称。
+构造函数或方法参数可声明 `Cache`、`Database` 或 `Db`、`Log` 和 `Storage`。属性从当前容器解析管理器，使用默认服务或传入 `new` 的名称。
 
 注入类型分别为 `Arc<cache::Repository>`、`Arc<database::Connection>`、`Arc<log::Logger>` 和 `Arc<filesystem::FilesystemAdapter>`。`Cache::memoized()` 在当前作用域共享缓存读取结果。`Log::named()` 修改注入日志器的名称，同时沿用频道的处理器。
 

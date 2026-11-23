@@ -20,7 +20,7 @@ Once published, the migration is part of the application. The next build include
 
 The migration creates a polymorphic owner, a unique 64-character token hash column, nullable abilities and timestamps, and an expiration index. The feature also registers the Sanctum guard and CSRF cookie route.
 
-The published migration uses `table.morphs("tokenable")`. It creates an integer `tokenable_id` by default. For UUID or ULID owner models, call `Schema::morphUsingUuids()?` or `Schema::morphUsingUlids()?` in your application service provider's `boot` before the first migration. Import `Schema` from `openrust::database::schema`. This default applies to subsequent `morphs` calls in the application. The token table's own primary key remains an integer.
+The published migration uses `table.morphs("tokenable")`. It creates an integer `tokenable_id` by default. For UUID or ULID owner models, call `Schema::morph_using_uuids()?` or `Schema::morph_using_ulids()?` in your application service provider's `boot` before the first migration. Import `Schema` from `openrust::database::schema`. This default applies to subsequent `morphs` calls in the application. The token table's own primary key remains an integer.
 
 ## Issuing personal access tokens {#issuing-api-tokens}
 
@@ -38,7 +38,7 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 In a service provider, call `usePersonalAccessTokenModel::<M>()` on the application’s `Sanctum` service to select the Eloquent model’s table and connection. Create the custom table in an application migration using the standard Sanctum attributes and the primary key declared by the model. Issuance applies model mutators and casts before saving and fires the Eloquent creation events. Bearer authentication reads through the model’s accessors and casts and saves the last-used timestamp through the same model instance. `revokeToken` deletes the owner’s model instance and honors its deletion events. Artisan pruning applies the model’s global scopes and deletes in bulk without firing per-token events.
 
-For UUID or ULID keys, declare the corresponding column in the migration and use `ModelMetadata::uniqueId(UniqueId::Uuid)` or `UniqueId::Ulid` on the model. Use `primaryKey` for a key column other than `id`. The credential stays in `<key>|<secret>` format. Token and owner identifiers use `AuthIdentifier` to retain their numeric or text representation. For a string owner key, use a compatible `tokenable_id` column and pass the owner’s identifier to issuance and revocation.
+For UUID or ULID keys, declare the corresponding column in the migration and use `ModelMetadata::unique_id(UniqueId::Uuid)` or `UniqueId::Ulid` on the model. Use `primary_key` for a key column other than `id`. The credential stays in `<key>|<secret>` format. Token and owner identifiers use `AuthIdentifier` to retain their numeric or text representation. For a string owner key, use a compatible `tokenable_id` column and pass the owner’s identifier to issuance and revocation.
 
 Set `SANCTUM_TOKEN_PREFIX` to prepend an application-specific prefix to newly issued secrets.
 
@@ -60,7 +60,7 @@ Attach `auth:sanctum` to protected routes. Send the credential in `Authorization
 use openrust::{http::ApiResponse, routing::RoutingError, support::facades::Route};
 
 fn register() -> Result<(), RoutingError> {
-    Route::getWith("/reports", || ApiResponse::success(["quarterly"]), |route| {
+    Route::get_with("/reports", || ApiResponse::success(["quarterly"]), |route| {
         route.middleware_name("auth:sanctum").middleware_name("abilities:reports:read");
         Ok(())
     })
@@ -93,4 +93,4 @@ Run the command with the Sanctum feature enabled. The default retention is 24 ho
 
 ## Testing {#testing}
 
-Use `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` with a `TestApp` and an owned Eloquent user. It returns a shared user whose `wasRecentlyCreated` flag has been cleared. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.
+Use `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` with a `TestApp` and an owned Eloquent user. It returns a shared user whose `was_recently_created` flag has been cleared. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.

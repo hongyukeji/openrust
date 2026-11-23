@@ -38,7 +38,7 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 Use `push` to append to an array or associative array. `increment` and `decrement` take an explicit integer amount and return the new JSON value. An invalid input returns an error and preserves the original entry.
 
-Use `putMany` to set multiple keys, including dotted paths. `replace` updates the supplied keys and keeps the other attributes. Use `has_old_input(Some(key))` to check for a non-null flashed field, or `has_old_input(None)` to check whether the old input bag has any entries.
+Use `put_many` to set multiple keys, including dotted paths. `replace` updates the supplied keys and keeps the other attributes. Use `has_old_input(Some(key))` to check for a non-null flashed field, or `has_old_input(None)` to check whether the old input bag has any entries.
 
 ## Flash Data
 
@@ -77,7 +77,7 @@ By default, requests using the same session can run concurrently. Call `block(lo
 ```rust
 use openrust::support::facades::Route;
 
-Route::getWith("/profile", remember, |route| {
+Route::get_with("/profile", remember, |route| {
     route.block(10, 10);
     Ok(())
 })?;

@@ -67,7 +67,7 @@ impl Command for CacheCommand {
                 notify(
                     dispatcher,
                     CacheClearing {
-                        storeName: name.cloned(),
+                        store_name: name.cloned(),
                         tags: tags.iter().map(|tag| (*tag).to_owned()).collect(),
                     },
                 )
@@ -78,7 +78,7 @@ impl Command for CacheCommand {
                 let key = input.get_one::<String>("key").expect("required cache key");
                 store.forget(key).await
             } else if locks {
-                store.flushLocks().await
+                store.flush_locks().await
             } else if tags.is_empty() {
                 store.flush().await
             } else {
@@ -90,7 +90,7 @@ impl Command for CacheCommand {
                     notify(
                         dispatcher,
                         CacheCleared {
-                            storeName: name.cloned(),
+                            store_name: name.cloned(),
                             tags: tags.iter().map(|tag| (*tag).to_owned()).collect(),
                         },
                     )

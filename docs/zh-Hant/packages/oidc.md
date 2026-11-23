@@ -32,7 +32,7 @@ cargo +1.94.0 build --locked --features oidc --bin main
 
 ## 授權與回呼 {#authorization}
 
-登入與固定回呼路由使用相同設定名稱。`redirect()` 與 `user()` 均為非同步方法；provider 持有請求可變借用，每次回呼新建 provider。`prompt("login")` 請求重新認證，`maxAge(60)` 要求足夠近期的 `auth_time`。相同 Session 為同名 provider 新建授權會替換上一次嘗試。
+登入與固定回呼路由使用相同設定名稱。`redirect()` 與 `user()` 均為非同步方法；provider 持有請求可變借用，每次回呼新建 provider。`prompt("login")` 請求重新認證，`max_age(60)` 要求足夠近期的 `auth_time`。相同 Session 為同名 provider 新建授權會替換上一次嘗試。
 
 ```rust,ignore
 use openrust_oidc::facades::Oidc;
@@ -47,7 +47,7 @@ let identity = &authentication.identity;
 
 ## 已驗證身分 {#identity}
 
-`Authentication.identity` 是經過簽章及宣告校驗後才能建構的 `VerifiedIdentity`。`issuer()` 與 `subject()` 組成穩定身分對，另提供 `email()`、`emailVerified()`、`claims()` 和 `userInfo()`。UserInfo 的 subject 必須精確等於已驗證 subject。信箱改變時不繼承 ID Token 的驗證標記，須由本次 UserInfo 自己給出布林 `email_verified: true`。`Authentication.tokens` 明確暴露零化的 access／ID／可選 refresh token 與可選到期秒數，不實作 Debug／Serialize。refresh-token grant 不屬於此 RP 用戶端 API。
+`Authentication.identity` 是經過簽章及宣告校驗後才能建構的 `VerifiedIdentity`。`issuer()` 與 `subject()` 組成穩定身分對，另提供 `email()`、`emailVerified()`、`claims()` 和 `user_info()`。UserInfo 的 subject 必須精確等於已驗證 subject。信箱改變時不繼承 ID Token 的驗證標記，須由本次 UserInfo 自己給出布林 `email_verified: true`。`Authentication.tokens` 明確暴露零化的 access／ID／可選 refresh token 與可選到期秒數，不實作 Debug／Serialize。refresh-token grant 不屬於此 RP 用戶端 API。
 
 ## 本機帳戶綁定 {#local-binding}
 
@@ -67,7 +67,7 @@ CREATE TABLE oidc_identities (
 use openrust::{
     auth::{Auth, AuthIdentifier},
     contracts::{auth::StatefulGuard as _, session::Session as _},
-    database::DB,
+    database::Db,
     http::{HttpError, Request},
 };
 use openrust_oidc::VerifiedIdentity;
@@ -83,10 +83,10 @@ pub async fn login_bound_user(
     request: &mut Request,
     remote: &VerifiedIdentity,
 ) -> Result<bool, HttpError> {
-    let Some(binding) = DB::table("oidc_identities")
+    let Some(binding) = Db::table("oidc_identities")
         .map_err(internal)?
-        .whereExactText("issuer", remote.issuer())
-        .whereExactText("subject", remote.subject())
+        .where_exact_text("issuer", remote.issuer())
+        .where_exact_text("subject", remote.subject())
         .first()
         .await
         .map_err(internal)?
@@ -119,7 +119,7 @@ Discovery 端點預設限於 issuer 同源。確需跨源時在 `allowed_origins
 
 ## 瀏覽器 SSO 與登出 {#sso-logout}
 
-為每個 RP 分別設定用戶端 ID、應用金鑰、資料庫和本地使用者綁定。首次在 OP 登入後，第二個 RP 可藉助既有 OP 瀏覽器 Session 授權；每個 RP 仍擁有獨立本地 Session，並分別解析 `(issuer, subject)`。`prompt("login")` 請求 OP 重新認證，`maxAge` 另外檢查傳回的 `auth_time`。
+為每個 RP 分別設定用戶端 ID、應用金鑰、資料庫和本地使用者綁定。首次在 OP 登入後，第二個 RP 可藉助既有 OP 瀏覽器 Session 授權；每個 RP 仍擁有獨立本地 Session，並分別解析 `(issuer, subject)`。`prompt("login")` 請求 OP 重新認證，`max_age` 另外檢查傳回的 `auth_time`。
 
 RP 發起登出遵循 OpenID Connect RP-Initiated Logout 1.0（2022-09-12）。將 `OIDC_POST_LOGOUT_REDIRECT_URI`（`post_logout_redirect`）設為 OP 已登記的固定回呼。在 `user()` 及本地帳戶綁定成功後，呼叫 `Oidc::provider("work", request)?.rememberLogout(&authentication)?`，明確將已驗證的 ID Token 儲存到伺服器端 Session。`LogoutHint` 是不透明型別，修改公開 token 欄位無法替換擷取的已驗證提示。Session 儲存和送出的登出 URL 均視為敏感資料。
 

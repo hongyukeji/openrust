@@ -57,55 +57,55 @@ async fn verify(config: Json, id: &str) {
     )
     .await
     .unwrap();
-    let query = || Record::queryOn(&db);
+    let query = || Record::query_on(&db);
     let label = "\u{feff} \u{200b}甲\u{200b}乙\u{a0}";
     let record = query()
         .create(Attributes::from([("label".into(), label.into())]))
         .await
         .unwrap();
-    let key = record.getKey().unwrap().clone();
-    let mut record = query().findOrFail(key.clone()).await.unwrap();
-    assert_eq!(record.getAttribute("label"), Some(&label.into()));
+    let key = record.get_key().unwrap().clone();
+    let mut record = query().find_or_fail(key.clone()).await.unwrap();
+    assert_eq!(record.get_attribute("label"), Some(&label.into()));
     let text = record
-        .getValueObject::<Stringable>("label")
+        .get_value_object::<Stringable>("label")
         .unwrap()
         .unwrap();
-    assert_eq!(text.toString(), label);
+    assert_eq!(text.to_string(), label);
     let trimmed = text.into_owned().trim();
     assert_eq!(trimmed.value(), "甲\u{200b}乙");
     assert_eq!(
         serde_json::to_value(&trimmed).unwrap(),
         json!("甲\u{200b}乙")
     );
-    assert!(!record.isDirty().unwrap());
-    record.setValueObject("label", Some(trimmed)).unwrap();
-    assert!(record.isDirty().unwrap());
+    assert!(!record.is_dirty().unwrap());
+    record.set_value_object("label", Some(trimmed)).unwrap();
+    assert!(record.is_dirty().unwrap());
     assert!(record.save().await.unwrap());
-    let mut record = query().findOrFail(key.clone()).await.unwrap();
+    let mut record = query().find_or_fail(key.clone()).await.unwrap();
     assert_eq!(record.to_array().unwrap()["label"], json!("甲\u{200b}乙"));
 
     assert!(
         record
-            .setAttributeValue("label", Value::Json(json!({"no":"text"})))
+            .set_attribute_value("label", Value::Json(json!({"no":"text"})))
             .is_err()
     );
     assert_eq!(record.to_array().unwrap()["label"], json!("甲\u{200b}乙"));
     for (value, expected) in [(Value::Bool(false), ""), (Value::Integer(42), "42")] {
-        record.setAttributeValue("label", value).unwrap();
+        record.set_attribute_value("label", value).unwrap();
         assert!(record.save().await.unwrap());
-        record = query().findOrFail(key.clone()).await.unwrap();
+        record = query().find_or_fail(key.clone()).await.unwrap();
         assert_eq!(record.to_array().unwrap()["label"], json!(expected));
     }
-    record.setAttributeValue("label", Value::Null).unwrap();
+    record.set_attribute_value("label", Value::Null).unwrap();
     assert!(record.save().await.unwrap());
-    let mut record = query().findOrFail(key).await.unwrap();
+    let mut record = query().find_or_fail(key).await.unwrap();
     assert!(
         record
-            .getValueObject::<Stringable>("label")
+            .get_value_object::<Stringable>("label")
             .unwrap()
             .is_none()
     );
-    assert_eq!(record.getAttribute("label"), Some(&Value::Null));
+    assert_eq!(record.get_attribute("label"), Some(&Value::Null));
     assert_eq!(record.to_array().unwrap()["label"], Json::Null);
     db.statement("DROP TABLE stringable_records", &[])
         .await

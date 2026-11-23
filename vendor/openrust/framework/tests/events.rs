@@ -19,7 +19,7 @@ use openrust::{
         foundation::Application as _,
         http::Kernel as _,
     },
-    database::{DB, DatabaseError, DatabaseManager, Value},
+    database::{DatabaseError, DatabaseManager, Db, Value},
     events::{
         Delivery, DispatchResult, Dispatcher, EventContext, EventError, EventFuture, EventResult,
         ListenerRegistry, ListenerResponse,
@@ -79,7 +79,7 @@ impl Listener for Record {
                 .ok_or(EventError::InvalidPayload)?;
             if self.0 == "after" {
                 assert!(context.transaction().is_none());
-                let connection = DB::connection(None).map_err(EventError::Transaction)?;
+                let connection = Db::connection(None).map_err(EventError::Transaction)?;
                 let count = connection
                     .scalar("select count(*) from event_records", &[])
                     .await
@@ -138,18 +138,18 @@ fn run(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         };
         assert_eq!(answer.downcast_ref::<u32>(), Some(&42));
 
-        let db = DB::connection(None)?;
-        let mut transaction = db.beginTransaction().await?;
+        let db = Db::connection(None)?;
+        let mut transaction = db.begin_transaction().await?;
         transaction
             .insert("insert into event_records (id) values (1)", &[])
             .await?;
-        Event::dispatchInTransaction(
+        Event::dispatch_in_transaction(
             Notice::new("order.completed", "outer", &observed),
             &mut transaction,
         )
         .await?;
-        transaction.beginTransaction().await?;
-        let result = Event::dispatchAfterCommit(
+        transaction.begin_transaction().await?;
+        let result = Event::dispatch_after_commit(
             Notice::new("order.whole", "kept", &observed),
             &mut transaction,
         )
@@ -157,15 +157,15 @@ fn run(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         assert!(matches!(result, DispatchResult::Deferred));
         transaction.commit().await?;
 
-        transaction.beginTransaction().await?;
-        transaction.beginTransaction().await?;
-        Event::dispatchAfterCommit(
+        transaction.begin_transaction().await?;
+        transaction.begin_transaction().await?;
+        Event::dispatch_after_commit(
             Notice::new("order.whole", "discarded", &observed),
             &mut transaction,
         )
         .await?;
         transaction.commit().await?;
-        transaction.rollBack(Some(1)).await?;
+        transaction.roll_back(Some(1)).await?;
         assert_eq!(
             &*observed.lock().unwrap(),
             &[
@@ -178,23 +178,23 @@ fn run(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         );
         transaction.commit().await?;
 
-        let mut rolled_back = db.beginTransaction().await?;
+        let mut rolled_back = db.begin_transaction().await?;
         rolled_back
             .insert("insert into event_records (id) values (3)", &[])
             .await?;
-        Event::dispatchAfterCommit(
+        Event::dispatch_after_commit(
             Notice::new("order.whole", "rolled back", &observed),
             &mut rolled_back,
         )
         .await?;
-        rolled_back.rollBack(None).await?;
+        rolled_back.roll_back(None).await?;
         assert_eq!(
             db.scalar("select count(*) from event_records", &[]).await?,
             Value::Integer(1),
         );
 
-        let mut discarded = db.beginTransaction().await?;
-        Event::dispatchAfterCommit(
+        let mut discarded = db.begin_transaction().await?;
+        Event::dispatch_after_commit(
             Notice::new("order.whole", "dropped", &observed),
             &mut discarded,
         )
@@ -279,7 +279,7 @@ fn class_listeners(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         assert!(dispatcher.listing().iter().any(|(name, labels)| {
             name == "class.ready" && labels == &[std::any::type_name::<ClassListener>()]
         }));
-        Event::listenClass::<ClassListener>("class.facade", Delivery::Sync)?;
+        Event::listen_class::<ClassListener>("class.facade", Delivery::Sync)?;
         for (name, note) in [
             ("class.ready", "first"),
             ("class.facade", "second"),
@@ -287,22 +287,22 @@ fn class_listeners(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         ] {
             Event::dispatch(Notice::new(name, note, &observed)).await?;
         }
-        let db = DB::connection(None)?;
-        let mut transaction = db.beginTransaction().await?;
-        Event::dispatchInTransaction(
+        let db = Db::connection(None)?;
+        let mut transaction = db.begin_transaction().await?;
+        Event::dispatch_in_transaction(
             Notice::new("class.committed", "committed", &observed),
             &mut transaction,
         )
         .await?;
         assert_eq!(observed.lock().unwrap().len(), 3);
         transaction.commit().await?;
-        let mut transaction = db.beginTransaction().await?;
-        Event::dispatchInTransaction(
+        let mut transaction = db.begin_transaction().await?;
+        Event::dispatch_in_transaction(
             Notice::new("class.committed", "rolled back", &observed),
             &mut transaction,
         )
         .await?;
-        transaction.rollBack(None).await?;
+        transaction.roll_back(None).await?;
         let result = observed.lock().unwrap().clone();
         Response::json(StatusCode::OK, result)
     })
@@ -373,7 +373,7 @@ async fn verify(connection: Json) {
         .unwrap();
     let dispatcher = app.container().make::<Dispatcher>().unwrap();
     dispatcher.subscribe(&Extra).unwrap();
-    assert!(dispatcher.hasListeners("notice.extra"));
+    assert!(dispatcher.has_listeners("notice.extra"));
     for sql in [
         "drop table if exists event_records",
         "create table event_records (id bigint primary key)",
@@ -427,7 +427,7 @@ async fn verify(connection: Json) {
                     transaction
                         .insert("insert into event_records (id) values (2)", &[])
                         .await?;
-                    transaction.afterCommit(|| {
+                    transaction.after_commit(|| {
                         Box::pin(async { Err(DatabaseError::InvalidQuery("callback failure")) })
                     })?;
                     Ok(())
@@ -444,7 +444,7 @@ async fn verify(connection: Json) {
         Value::Integer(2)
     );
     dispatcher.forget("notice.*");
-    assert!(!dispatcher.hasListeners("notice.extra"));
+    assert!(!dispatcher.has_listeners("notice.extra"));
     server.abort();
     other_server.abort();
     db.statement("drop table event_records", &[]).await.unwrap();
@@ -486,10 +486,10 @@ async fn event_contracts_run_after_wildcards_over_http() {
 
 async fn verify_class_listeners(connection: Json) {
     fn register_classes(registry: &mut ListenerRegistry) -> EventResult<()> {
-        registry.listenClass::<ClassListener>("class.ready", Delivery::Sync)?;
+        registry.listen_class::<ClassListener>("class.ready", Delivery::Sync)?;
         registry.listen("class.stop", Arc::new(Record("stop")), Delivery::Sync)?;
-        registry.listenClass::<ClassListener>("class.stop", Delivery::Sync)?;
-        registry.listenClass::<ClassListener>("class.committed", Delivery::AfterCommit)
+        registry.listen_class::<ClassListener>("class.stop", Delivery::Sync)?;
+        registry.listen_class::<ClassListener>("class.committed", Delivery::AfterCommit)
     }
 
     for label in ["first-app", "second-app"] {
@@ -574,7 +574,7 @@ async fn event_delivery_over_http_on_mysql() {
 struct ProductionListener;
 
 impl ShouldBeDiscovered for ProductionListener {
-    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+    fn should_be_discovered(app: &Application) -> EventResult<bool> {
         if app
             .environment(Some("broken".into()))
             .map(bool::from)
@@ -667,7 +667,7 @@ async fn discovery_policy_filters_http_and_artisan_per_application() {
             .container()
             .make::<Dispatcher>()
             .unwrap()
-            .hasListeners("order.ready")
+            .has_listeners("order.ready")
     );
 }
 
@@ -686,7 +686,7 @@ async fn failed_discovery_leaves_the_manifest_unregistered() {
     }
 
     impl ShouldBeDiscovered for FailingPolicy {
-        fn shouldBeDiscovered(_: &Application) -> EventResult<bool> {
+        fn should_be_discovered(_: &Application) -> EventResult<bool> {
             Err(EventError::InvalidRegistration)
         }
     }
@@ -698,7 +698,7 @@ async fn failed_discovery_leaves_the_manifest_unregistered() {
     .unwrap();
     assert!(app.boot().await.is_err());
     let dispatcher = app.app().container().make::<Dispatcher>().unwrap();
-    assert!(!dispatcher.hasListeners("order.ready"));
+    assert!(!dispatcher.has_listeners("order.ready"));
 }
 
 #[tokio::test]

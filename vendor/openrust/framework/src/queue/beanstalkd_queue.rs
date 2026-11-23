@@ -146,7 +146,7 @@ impl BeanstalkdQueue {
 }
 
 impl Contract for BeanstalkdQueue {
-    fn getConnectionName(&self) -> &str {
+    fn get_connection_name(&self) -> &str {
         &self.name
     }
     fn default_queue(&self) -> &str {

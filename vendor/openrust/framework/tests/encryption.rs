@@ -28,30 +28,30 @@ fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
         let previous = Encrypter::new(vec![b'o'; size], cipher).unwrap();
         let old = fixture["wire"].as_str().unwrap();
         assert!(matches!(
-            current.decryptString(old),
+            current.decrypt_string(old),
             Err(DecryptException::AuthenticationFailed)
         ));
         let rotated = Encrypter::new(vec![b'n'; size], cipher)
             .unwrap()
             .previousKeys(vec![vec![b'x'; size], vec![b'o'; size]])
             .unwrap();
-        assert_eq!(rotated.decryptString(old).unwrap(), b"persisted\0\xff");
-        assert_eq!(rotated.getAllKeys().len(), 3);
+        assert_eq!(rotated.decrypt_string(old).unwrap(), b"persisted\0\xff");
+        assert_eq!(rotated.get_all_keys().len(), 3);
 
         let raw = b"binary\0\xff\"data";
         let serialized = rotated.encrypt(raw, true).unwrap();
         assert_eq!(rotated.decrypt(&serialized, true).unwrap(), raw);
         assert_eq!(
-            rotated.decryptString(&serialized).unwrap(),
+            rotated.decrypt_string(&serialized).unwrap(),
             b"s:13:\"binary\0\xff\"data\";"
         );
-        let value = rotated.encryptString(raw).unwrap();
-        assert_ne!(value, rotated.encryptString(raw).unwrap());
-        assert_eq!(current.decryptString(&value).unwrap(), raw);
-        assert!(previous.decryptString(&value).is_err());
+        let value = rotated.encrypt_string(raw).unwrap();
+        assert_ne!(value, rotated.encrypt_string(raw).unwrap());
+        assert_eq!(current.decrypt_string(&value).unwrap(), raw);
+        assert!(previous.decrypt_string(&value).is_err());
         assert_eq!(
             rotated
-                .decryptString(&rotated.encryptString(b"").unwrap())
+                .decrypt_string(&rotated.encrypt_string(b"").unwrap())
                 .unwrap(),
             b""
         );
@@ -70,12 +70,12 @@ fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
         }
         let tampered = STANDARD.encode(serde_json::to_vec(&envelope).unwrap());
         assert!(matches!(
-            rotated.decryptString(&tampered),
+            rotated.decrypt_string(&tampered),
             Err(DecryptException::AuthenticationFailed)
         ));
         envelope["iv"] = serde_json::json!(STANDARD.encode([0; 17]));
         assert!(matches!(
-            rotated.decryptString(&STANDARD.encode(serde_json::to_vec(&envelope).unwrap())),
+            rotated.decrypt_string(&STANDARD.encode(serde_json::to_vec(&envelope).unwrap())),
             Err(DecryptException::InvalidPayload)
         ));
         assert!(matches!(
@@ -120,7 +120,7 @@ async fn crypt_uses_each_apps_current_and_previous_keys_over_http() {
 
     fn encrypt(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            match Crypt::encryptString("hello") {
+            match Crypt::encrypt_string("hello") {
                 Ok(value) => Ok(Response::new(StatusCode::OK, Body::from(value))),
                 Err(EncryptException::MissingKey) => {
                     Ok(Response::empty(StatusCode::SERVICE_UNAVAILABLE))
@@ -140,7 +140,7 @@ async fn crypt_uses_each_apps_current_and_previous_keys_over_http() {
             .to_str()
             .unwrap();
         Box::pin(async move {
-            match Crypt::decryptString(payload) {
+            match Crypt::decrypt_string(payload) {
                 Ok(value) => Ok(Response::new(StatusCode::OK, Body::from(value))),
                 Err(_) => Ok(Response::empty(StatusCode::UNPROCESSABLE_ENTITY)),
             }

@@ -302,7 +302,7 @@ impl CashierManager {
         drivers.insert(name.into(), client.clone());
         Ok(client)
     }
-    pub fn forgetDrivers(&self) -> &Self {
+    pub fn forget_drivers(&self) -> &Self {
         self.drivers.lock().expect("cashier manager").clear();
         self
     }

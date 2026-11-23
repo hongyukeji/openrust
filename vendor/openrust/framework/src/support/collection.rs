@@ -130,7 +130,6 @@ impl<T: PartialEq> PartialEq for Collection<T> {
 
 impl<T: Eq> Eq for Collection<T> {}
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn new() -> Self {
         Self::default()
@@ -140,7 +139,7 @@ impl<T> Collection<T> {
         items.into_iter().collect()
     }
 
-    pub fn fromEntries<K: Into<ArrayKey>>(items: impl IntoIterator<Item = (K, T)>) -> Self {
+    pub fn from_entries<K: Into<ArrayKey>>(items: impl IntoIterator<Item = (K, T)>) -> Self {
         let mut collection = Self::new();
         for (key, value) in items {
             collection.put(key, value);
@@ -160,7 +159,7 @@ impl<T> Collection<T> {
         self.items.get(&key.into().normalized())
     }
 
-    pub fn getMut(&mut self, key: impl Into<ArrayKey>) -> Option<&mut T> {
+    pub fn get_mut(&mut self, key: impl Into<ArrayKey>) -> Option<&mut T> {
         self.items.get_mut(&key.into().normalized())
     }
 
@@ -230,13 +229,13 @@ impl<T> Collection<T> {
         self.items.first().map(|(_, value)| value)
     }
 
-    pub fn firstWhere(&self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Option<&T> {
+    pub fn first_where(&self, mut predicate: impl FnMut(&T, &ArrayKey) -> bool) -> Option<&T> {
         self.items
             .iter()
             .find_map(|(key, value)| predicate(value, key).then_some(value))
     }
 
-    pub fn firstOrFail(&self) -> CollectionResult<&T> {
+    pub fn first_or_fail(&self) -> CollectionResult<&T> {
         self.first().ok_or(CollectionError::ItemNotFound)
     }
 
@@ -245,10 +244,10 @@ impl<T> Collection<T> {
     }
 
     pub fn sole(&self) -> CollectionResult<&T> {
-        self.soleWhere(|_, _| true)
+        self.sole_where(|_, _| true)
     }
 
-    pub fn soleWhere(
+    pub fn sole_where(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
     ) -> CollectionResult<&T> {
@@ -272,7 +271,7 @@ impl<T> From<Vec<T>> for Collection<T> {
 
 impl<T> FromIterator<T> for Collection<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self::fromEntries(iter.into_iter().enumerate().map(|(index, value)| {
+        Self::from_entries(iter.into_iter().enumerate().map(|(index, value)| {
             (
                 i64::try_from(index).expect("a collection fits within the integer key space"),
                 value,

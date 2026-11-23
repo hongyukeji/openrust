@@ -89,12 +89,12 @@ impl ServiceProvider for ActivitylogServiceProvider {
                         .logProperties(&refs(&properties))
                         .logOnly(&refs(&attributes))
                         .logExcept(&refs(&except));
-                    let modelName = config
+                    let model_name = config
                         .get("activitylog.activity_model")
                         .and_then(|v| v.as_str().map(str::to_owned))
                         .ok_or_else(binding)?;
                     let model =
-                        container.get::<crate::models::ActivityModel>(modelName.as_str())?;
+                        container.get::<crate::models::ActivityModel>(model_name.as_str())?;
                     let connection = container
                         .make::<openrust::database::DatabaseManager>()?
                         .connection(name.or(model.connection.as_deref()))

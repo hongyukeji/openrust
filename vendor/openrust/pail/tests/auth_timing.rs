@@ -149,9 +149,14 @@ impl ServiceProvider for Probe {
                     counts.resolved.fetch_add(1, Ordering::SeqCst);
                     // Both kinds of nested logging must avoid recursive authentication.
                     Log::info("resolver sync", &LogContext::new()).unwrap();
-                    Log::logWithRequest(request, Level::Info, "resolver async", &LogContext::new())
-                        .await
-                        .unwrap();
+                    Log::log_with_request(
+                        request,
+                        Level::Info,
+                        "resolver async",
+                        &LogContext::new(),
+                    )
+                    .await
+                    .unwrap();
                     tokio::task::yield_now().await;
                     if id == "error" {
                         return Err(AuthError::InvalidIdentity);
@@ -214,10 +219,10 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         if id == "filtered" {
             Log::channel(Some("filtered"))
                 .unwrap()
-                .logWithRequest(request, Level::Info, "filtered", &LogContext::new())
+                .log_with_request(request, Level::Info, "filtered", &LogContext::new())
                 .await
                 .unwrap();
-            Log::logWithRequest(
+            Log::log_with_request(
                 request,
                 Level::Warning,
                 "Deprecated probe",
@@ -232,7 +237,7 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             assert!(
                 tokio::time::timeout(
                     Duration::from_millis(10),
-                    Log::logWithRequest(request, Level::Info, "cancelled", &LogContext::new())
+                    Log::log_with_request(request, Level::Info, "cancelled", &LogContext::new())
                 )
                 .await
                 .is_err()
@@ -240,16 +245,16 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         }
         if id == "error" {
             assert!(
-                Log::logWithRequest(request, Level::Info, "rejected", &LogContext::new())
+                Log::log_with_request(request, Level::Info, "rejected", &LogContext::new())
                     .await
                     .is_err()
             );
             return Ok(Response::new(StatusCode::OK, Body::from("error handled")));
         }
-        Log::logWithRequest(request, Level::Info, "first", &LogContext::new())
+        Log::log_with_request(request, Level::Info, "first", &LogContext::new())
             .await
             .unwrap();
-        Log::logWithRequest(request, Level::Info, "cached", &LogContext::new())
+        Log::log_with_request(request, Level::Info, "cached", &LogContext::new())
             .await
             .unwrap();
         if id == "sequence" {
@@ -262,7 +267,7 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 .login(Box::new(User("session".into())), false)
                 .await
                 .unwrap();
-            Log::logWithRequest(request, Level::Info, "login", &LogContext::new())
+            Log::log_with_request(request, Level::Info, "login", &LogContext::new())
                 .await
                 .unwrap();
             Auth::session_guard(request, Some("other"))
@@ -270,15 +275,15 @@ fn timing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 .logout()
                 .await
                 .unwrap();
-            Log::logWithRequest(request, Level::Info, "logout", &LogContext::new())
+            Log::log_with_request(request, Level::Info, "logout", &LogContext::new())
                 .await
                 .unwrap();
             Auth::manager().unwrap().should_use(request, "web").unwrap();
-            Log::logWithRequest(request, Level::Info, "back", &LogContext::new())
+            Log::log_with_request(request, Level::Info, "back", &LogContext::new())
                 .await
                 .unwrap();
-            Artisan::callSilently("timing:log", &[]).await.unwrap();
-            Log::logWithRequest(request, Level::Info, "after artisan", &LogContext::new())
+            Artisan::call_silently("timing:log", &[]).await.unwrap();
+            Log::log_with_request(request, Level::Info, "after artisan", &LogContext::new())
                 .await
                 .unwrap();
         }

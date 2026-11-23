@@ -144,7 +144,7 @@ pub trait ServiceProvider: Any + Send + Sync {
         Box::pin(async move {
             app.make::<Factory>()
                 .await?
-                .getFinder()
+                .get_finder()
                 .add_package_namespace(namespace, path)?;
             Ok(())
         })

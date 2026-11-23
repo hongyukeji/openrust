@@ -175,7 +175,7 @@ pub(super) async fn load_on_model_access<M: Model, R: Relation<Parent = M>>(
         tail = &entry.next;
     }
     load(&mut peers, name, relation, true).await?;
-    if peers[link.index].getRelation::<R::Output>(name).is_some() {
+    if peers[link.index].get_relation::<R::Output>(name).is_some() {
         propagate::<M, R>(&mut peers, name);
         let values = peers
             .iter()
@@ -200,11 +200,11 @@ fn propagate<M: Model, R: Relation<Parent = M>>(models: &mut [M], name: &str) {
         .filter_map(|(index, model)| {
             Some((
                 index,
-                R::autoloadOutput(model.getRelation::<R::Output>(name)?)?,
+                R::autoload_output(model.get_relation::<R::Output>(name)?)?,
             ))
         })
         .unzip();
-    R::attachAutoload(&mut outputs);
+    R::attach_autoload(&mut outputs);
     for (index, output) in positions.into_iter().zip(outputs) {
         models[index]
             .state_mut()

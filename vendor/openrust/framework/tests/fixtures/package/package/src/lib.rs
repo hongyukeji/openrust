@@ -120,7 +120,7 @@ impl Migration for CreateProbeTable {
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async {
             connection
-                .getSchemaBuilder()
+                .get_schema_builder()
                 .create("package_probe", |table| {
                     table.id();
                 })
@@ -132,7 +132,7 @@ impl Migration for CreateProbeTable {
         &'a self,
         connection: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(async { connection.getSchemaBuilder().drop("package_probe").await })
+        Box::pin(async { connection.get_schema_builder().drop("package_probe").await })
     }
 }
 

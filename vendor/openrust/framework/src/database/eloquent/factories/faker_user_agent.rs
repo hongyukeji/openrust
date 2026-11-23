@@ -21,35 +21,33 @@ const LINUX: [&str; 2] = ["i686", "x86_64"];
 const LANGUAGES: [&str; 3] = ["en-US", "sl-SI", "nl-NL"];
 
 macro_rules! formatters {
-    ($($name:ident -> $result:ty = $sample:path;)*) => {
-        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+    ($($name:ident [$history:literal] -> $result:ty = $sample:path;)*) => {
         impl Faker {
             $(pub fn $name(&self) -> $result {
                 $sample(&self.random)
             })*
         }
 
-        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
         impl UniqueFaker<'_> {
             $(pub fn $name(&self) -> DatabaseResult<$result> {
-                self.generate(stringify!($name), || self.0.$name())
+                self.generate($history, || self.0.$name())
             })*
         }
     };
 }
 
 formatters! {
-    windowsPlatformToken -> &'static str = windows;
-    macProcessor -> &'static str = mac_processor;
-    linuxProcessor -> &'static str = linux_processor;
-    macPlatformToken -> String = mac;
-    linuxPlatformToken -> String = linux;
-    iosMobileToken -> String = ios;
-    chrome -> String = chrome;
-    msedge -> String = edge;
-    safari -> String = safari;
-    opera -> String = opera;
-    internetExplorer -> String = internet_explorer;
+    windows_platform_token ["windowsPlatformToken"] -> &'static str = windows;
+    mac_processor ["macProcessor"] -> &'static str = mac_processor;
+    linux_processor ["linuxProcessor"] -> &'static str = linux_processor;
+    mac_platform_token ["macPlatformToken"] -> String = mac;
+    linux_platform_token ["linuxPlatformToken"] -> String = linux;
+    ios_mobile_token ["iosMobileToken"] -> String = ios;
+    chrome ["chrome"] -> String = chrome;
+    msedge ["msedge"] -> String = edge;
+    safari ["safari"] -> String = safari;
+    opera ["opera"] -> String = opera;
+    internet_explorer ["internetExplorer"] -> String = internet_explorer;
 }
 
 impl Faker {
@@ -57,7 +55,7 @@ impl Faker {
         Ok(match self.random.u16(0..6) {
             0 => self.firefox()?,
             1 => self.chrome(),
-            2 => self.internetExplorer(),
+            2 => self.internet_explorer(),
             3 => self.opera(),
             4 => self.safari(),
             _ => self.msedge(),
@@ -66,7 +64,7 @@ impl Faker {
 
     pub fn firefox(&self) -> DatabaseResult<String> {
         let date = self
-            .dateTimeBetweenExpressions("2010-01-01", "now")?
+            .date_time_between_expressions("2010-01-01", "now")?
             .to_zoned(self.application_timezone.clone());
         let platform = match self.random.u16(0..3) {
             0 => format!(

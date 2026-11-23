@@ -38,7 +38,7 @@ pub trait PersonalAccessTokenModel: Model {
                 let Some(key) = credential_key::<Self>(id, connection) else {
                     return Ok(None);
                 };
-                query.whereKey(key);
+                query.where_key(key);
                 token_hash(secret)
             } else if credential.is_empty() {
                 return Ok(None);
@@ -90,11 +90,11 @@ impl Model for DefaultPersonalAccessToken {
 impl PersonalAccessTokenModel for DefaultPersonalAccessToken {}
 
 fn credential_key<M: Model>(id: &str, connection: &Connection) -> Option<Value> {
-    if M::getIncrementing() {
+    if M::get_incrementing() {
         integer_key(id, connection)
     } else {
-        let key = M::from_state(Default::default()).getKeyName();
-        M::routeBindingValue(key, id)
+        let key = M::from_state(Default::default()).get_key_name();
+        M::route_binding_value(key, id)
     }
 }
 
@@ -162,7 +162,7 @@ impl<M: Model> EloquentTokenStore<M> {
             query
         } else {
             query.require_relation_conditions(|conditions| {
-                conditions.whereRaw(
+                conditions.where_raw(
                     "BINARY CAST(tokenable_id AS CHAR) = BINARY ?",
                     vec![owner_id.to_string().into()],
                 )
@@ -171,7 +171,7 @@ impl<M: Model> EloquentTokenStore<M> {
     }
 
     fn query(&self) -> Builder<'static, M> {
-        M::queryOn(&self.connection).useWritePdo().withCasts(
+        M::query_on(&self.connection).use_write_pdo().with_casts(
             [
                 ("abilities", AttributeCast::Json),
                 ("expires_at", AttributeCast::DateTime),
@@ -185,7 +185,7 @@ impl<M: Model> EloquentTokenStore<M> {
 
 impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
     fn integer_key(&self) -> bool {
-        M::getIncrementing()
+        M::get_incrementing()
     }
 
     fn create(
@@ -195,7 +195,7 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
         Box::pin(async move {
             let mut model = self.query().make_async(Attributes::new()).await?;
             for (column, value) in attributes {
-                model.setAttributeValueAsync(&column, value).await?;
+                model.set_attribute_value_async(&column, value).await?;
             }
             if !model.save().await? {
                 return Err(DatabaseError::InvalidQuery(
@@ -238,27 +238,27 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
                 return Ok(false);
             };
             query
-                .whereKey(key)
+                .where_key(key)
                 .r#where("tokenable_type", "=", owner)
                 .r#where("tokenable_id", "=", Value::from(owner_id.clone()));
             let Some(mut model) = query.first().await? else {
                 return Ok(false);
             };
             let stored_owner = model
-                .getRawOriginal("tokenable_id")
+                .get_raw_original("tokenable_id")
                 .ok_or_else(invalid_row)?;
             if identifier(stored_owner)? != identifier(&owner_id.into())?
-                || model.getRawOriginal("tokenable_type") != Some(&Value::from(owner))
+                || model.get_raw_original("tokenable_type") != Some(&Value::from(owner))
             {
                 return Ok(false);
             }
-            let mut transaction = self.connection.beginTransaction().await?;
+            let mut transaction = self.connection.begin_transaction().await?;
             let deleted = lock_token(&mut transaction, &model).await?
-                && model.deleteInTransaction(&mut transaction).await?;
+                && model.delete_in_transaction(&mut transaction).await?;
             if deleted {
                 transaction.commit().await?;
             } else {
-                transaction.rollBack(None).await?;
+                transaction.roll_back(None).await?;
             }
             Ok(deleted)
         })
@@ -291,7 +291,7 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
                 let Some(key) = credential_key::<M>(&id.to_string(), &self.connection) else {
                     return Ok(0);
                 };
-                query.whereKey(key);
+                query.where_key(key);
             }
             query.delete().await
         })
@@ -326,29 +326,29 @@ struct LoadedModel<M> {
 impl<M: Model> ModelToken for LoadedModel<M> {
     fn record_use(&mut self, now: Timestamp) -> DatabaseFuture<'_, DatabaseResult<bool>> {
         Box::pin(async move {
-            let modified = self.connection.hasModifiedRecords();
+            let modified = self.connection.has_modified_records();
             let result = async {
-                let mut transaction = self.connection.beginTransaction().await?;
+                let mut transaction = self.connection.begin_transaction().await?;
                 if !lock_token(&mut transaction, &self.model).await? {
-                    transaction.rollBack(None).await?;
+                    transaction.roll_back(None).await?;
                     return Ok(false);
                 }
                 self.model
-                    .setAttributeValueAsync(
+                    .set_attribute_value_async(
                         "last_used_at",
                         super::personal_access_token::timestamp_text(now),
                     )
                     .await?;
-                if self.model.saveInTransaction(&mut transaction).await? {
+                if self.model.save_in_transaction(&mut transaction).await? {
                     transaction.commit().await?;
                 } else {
                     // A model observer may suppress the timestamp update without revoking the token.
-                    transaction.rollBack(None).await?;
+                    transaction.roll_back(None).await?;
                 }
                 Ok(true)
             }
             .await;
-            self.connection.setRecordModificationState(modified);
+            self.connection.set_record_modification_state(modified);
             result
         })
     }
@@ -367,17 +367,22 @@ impl<M: Model> ModelToken for LoadedModel<M> {
 }
 
 async fn lock_token<M: Model>(transaction: &mut Transaction, model: &M) -> DatabaseResult<bool> {
-    let key = model.getKeyName();
-    let mut query = transaction.table(model.getTable());
+    let key = model.get_key_name();
+    let mut query = transaction.table(model.get_table());
     for column in [key, "tokenable_type", "tokenable_id", "token"] {
-        let value = model.getRawOriginal(column).ok_or_else(invalid_row)?;
+        let value = model.get_raw_original(column).ok_or_else(invalid_row)?;
         query = query.r#where(column, "=", value.clone());
     }
-    Ok(query.select([key]).lockForUpdate().first().await?.is_some())
+    Ok(query
+        .select([key])
+        .lock_for_update()
+        .first()
+        .await?
+        .is_some())
 }
 
 fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
-    let abilities = match model.getAttributeValue("abilities")? {
+    let abilities = match model.get_attribute_value("abilities")? {
         Some(Value::Json(abilities)) => {
             serde_json::from_value(abilities).map_err(|_| invalid_row())?
         }
@@ -388,11 +393,11 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
         _ => return Err(invalid_row()),
     };
     Ok(PersonalAccessToken {
-        id: token_key(model.getKey().ok_or_else(invalid_row)?)?,
+        id: token_key(model.get_key().ok_or_else(invalid_row)?)?,
         tokenable_type: text(model, "tokenable_type")?,
         tokenable_id: identifier(
             &model
-                .getAttributeValue("tokenable_id")?
+                .get_attribute_value("tokenable_id")?
                 .ok_or_else(invalid_row)?,
         )?,
         name: text(model, "name")?,
@@ -426,14 +431,14 @@ fn token_key(value: &Value) -> DatabaseResult<AuthIdentifier> {
 }
 
 fn text<M: Model>(model: &M, column: &str) -> DatabaseResult<String> {
-    match model.getAttributeValue(column)? {
+    match model.get_attribute_value(column)? {
         Some(Value::Text(text)) => Ok(text),
         _ => Err(invalid_row()),
     }
 }
 
 fn date<M: Model>(model: &M, column: &str) -> DatabaseResult<Option<Timestamp>> {
-    match model.getAttributeValue(column)? {
+    match model.get_attribute_value(column)? {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Text(value)) => parse_timestamp(&value).map(Some),
         Some(Value::Integer(value)) => Timestamp::from_second(value)

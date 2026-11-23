@@ -106,7 +106,7 @@ impl DatabasePresenceVerifier {
             .connection(rule.connection.as_deref())
             .map_err(execution)?
             .table(&rule.table)
-            .useWritePdo())
+            .use_write_pdo())
     }
 }
 

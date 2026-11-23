@@ -6,7 +6,7 @@ use crate::contracts::database::LostConnectionDetector as Detector;
 pub struct LostConnectionDetector;
 
 impl Detector for LostConnectionDetector {
-    fn causedByLostConnection(&self, error: &(dyn Error + 'static)) -> bool {
+    fn caused_by_lost_connection(&self, error: &(dyn Error + 'static)) -> bool {
         let mut source = Some(error);
         while let Some(error) = source {
             if error
