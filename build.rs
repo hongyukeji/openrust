@@ -46,10 +46,11 @@ fn generate_migrations(root: &Path, output: &Path) -> io::Result<()> {
         .unwrap();
     }
 
+    fs::write(output.join("migrations.rs"), modules)?;
     fs::write(
-        output.join("migrations.rs"),
+        output.join("migration_entries.rs"),
         format!(
-            "{modules}\npub(crate) const fn entries() -> &'static [MigrationEntry] {{\n    static ENTRIES: &[MigrationEntry] = &[\n{entries}    ];\n    ENTRIES\n}}\n"
+            "{{\n    static ENTRIES: &[MigrationEntry] = &[\n{entries}    ];\n    ENTRIES\n}}\n"
         ),
     )
 }
@@ -84,11 +85,10 @@ fn generate_seeders(root: &Path, output: &Path) -> io::Result<()> {
         writeln!(modules, "#[path = {source:?}]\nmod seeder_{index};").unwrap();
         writeln!(entries, "        seeder_{index}::ENTRY,").unwrap();
     }
+    fs::write(output.join("seeders.rs"), modules)?;
     fs::write(
-        output.join("seeders.rs"),
-        format!(
-            "{modules}\npub(crate) const fn entries() -> &'static [SeederEntry] {{\n    static ENTRIES: &[SeederEntry] = &[\n{entries}    ];\n    ENTRIES\n}}\n"
-        ),
+        output.join("seeder_entries.rs"),
+        format!("{{\n    static ENTRIES: &[SeederEntry] = &[\n{entries}    ];\n    ENTRIES\n}}\n"),
     )
 }
 
