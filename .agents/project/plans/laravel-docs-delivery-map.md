@@ -199,3 +199,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第七组：Rule::custom支持字段级闭包，对象is_implicit控制缺失/nullable/空值调度；修正字面点字段名，复用原管线。固定PHP10组调度与真实HTTP、MySQL8.4.13等89项通过，三语18段提取及严格Clippy/fmt/构建浏览器通过。make:rule和其余对象setter/首选语言/builder等继续逐入口收尾。
 
 2026-11-24 Validation第八组：make:rule／--implicit与两类可发布模板已接通；修复请求／规则模板合法类型名与导入、标准库名称冲突。8项实际CLI、三语12条命令生成文件、2项真实TCP生成代码消费者通过；清理后严格workspace Clippy/fmt/三语构建通过。生成器子范围闭合，逐失败语言、规则setter、builder和email扩展模式继续按[教程记录](../audits/docs-tutorials/README.md)逐项处理，整章不提前关闭。
+
+2026-11-24 Validation第九组：RuleFailure通过显式RuleContext借用提供translate／translate_choice，当场解析首选语言与复数，保持原JSON错误包和默认消息；固定PHP包含语言切换时序、回退与嵌套替换参数的输出已用24并发真实TCP回放。20项验证回归＋三语21段直接提取的3项HTTP消费者通过，严格Clippy/fmt/三语构建通过。其余setter／builder／email差异继续，未宣称整章关闭。

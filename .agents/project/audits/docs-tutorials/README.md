@@ -182,3 +182,20 @@ URL第二组最终补验：清理后实际重编译，request_docs_generated三�
 make:rule与生成模板消费者本组闭合。逐失败首选语言、DataAware/ValidatorAware可变setter、fluent builders/anyOf/forEach及email扩展模式仍是明确待处理事项，不将本组生成器验收写为Validation整章完成。
 
 第八组三语浏览器检查、根与/docs两种挂载的全部导航，以及不带API导出的参考页检查均退出0，见rule-generator-browser.log与对应三份check日志。没有新增数据库／容器／后台服务；保留同工作流热缓存与证据，临时应用由脚本退出时删除。
+
+## 第九组：规则失败的首选语言、即时翻译和复数
+
+固定PotentiallyTranslatedString::translate／translateChoice在调用时执行翻译，InvokableValidationRule将最终消息交回原验证器。复用现有Translator::string／choose和验证器字段替换器，不新建语言目录、并发全局状态或另一套复数算法。固定来源：https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/PotentiallyTranslatedString.php 。v0.x未提供可复用的逐失败首选语言入口。
+
+- RuleFailure::translate(context,replacements,locale)与translate_choice(context,count,replacements,locale)立即解析消息；None使用当前验证器语言，Some只影响本条消息。RuleContext借用原验证器翻译器；原data借用接口保持。
+- Rust显式传RuleContext，替代PHP失败闭包持有的隐式翻译器；避免无上下文的静态查找，也不延迟到整条规则返回后才选择语言。实际同一回调先英语翻译、再切法语翻译、恢复英语，证明各条已解析消息不被后续语言改变。
+- 显式翻译后仍由原MessageBag去重和原验证器替换字段占位符，不再受通用规则消息覆盖。翻译参数只处理一次；包含:attribute或:token的替换值不会被再次作为全部翻译参数递归展开。原RuleFailure::new默认行为不变。
+- RuleFailure新增translated标志，构造器默认false；RuleContext新增框架内部翻译器借用。仓库及三语示例均使用现有构造器／规则回调，未发现外部结构体字面量消费者；直接构造旧公开结构体的下游源码需改用构造器。HTTP JSON／消息包字段、CLI、默认语言与旧消息行为不改，不能将此结构扩展称为所有Rust源码无差异。
+
+早期内部候选用延迟语言元数据，在最终复核时发现与PHP调用时序不符，已在提交前替换成显式上下文借用的即时翻译。首次新夹具误写不存在的Response::text，编译失败后改为原Response::json；不是框架缺陷，也不计通过。固定PHP真实输出保留validation-failure-translation.json，覆盖中/英/法、指定语言、默认语言、回退、单复数、缺失键、字面量、字段替换、规则消息覆盖优先级、去重与翻译时序。
+
+最终6目标20项通过、0忽略（failure_translation、rule_tutorial、mutation、lifecycle、extensions、options）；新增真实TCP测试并发24次均匹配固定PHP错误数组。三语二十一段正式代码直接提取并编译为3项实际HTTP Kernel消费者，使用应用法语词条得到完整消息；合计23项测试，不将24次请求计为24个功能。最终日志failure-translation-final.log、failure-translation-{doc-extract-final,doc-tests-final,clippy-final,fmt-final,docs-final}.log；workspace/all-targets -D warnings、fmt、三语构建通过。最后一轮原始参数嵌套反例补强后已重新执行上述最终门禁。
+
+本组关闭指定语言／复数及显式翻译时序子范围。DataAware／ValidatorAware可变setter、Rule fluent builders／anyOf／forEach及email扩展模式仍按原清单接续，不提前关闭Validation整章。不包含其他协作者的队列／云接线在途代码，没有新建持久化服务或容器。
+
+第九组最终三语浏览器、两种挂载全部导航与无API导出参考页检查全部退出0，failure-translation-gates.log的六个阶段均为0。新借用与原回调共同通过workspace严格门禁，未添加命名或其他lint豁免；证据与热缓存保留，临时PHP对照容器使用--rm退出，无项目数据库或卷变更。

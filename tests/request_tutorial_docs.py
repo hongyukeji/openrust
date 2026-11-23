@@ -33,7 +33,7 @@ async fn call(kernel:&Kernel,method:&str,path:&str,body:&str)->(StatusCode,Value
  (status,serde_json::from_slice(&bytes).unwrap_or_else(|_|json!(String::from_utf8_lossy(&bytes))))
 }
 async fn verify(register:fn(&Application)->Result<Router,RoutingError>) {
- let root=tempfile::tempdir().unwrap();let app=Application::configure(root.path().to_owned()).with_config(|_,_|Ok(std::collections::BTreeMap::from([
+ let root=tempfile::tempdir().unwrap();std::fs::create_dir_all(root.path().join("lang/fr")).unwrap();std::fs::write(root.path().join("lang/fr/rules.json"),r#"{"invalid":"Le champ :attribute est invalide (:token)."}"#).unwrap();let app=Application::configure(root.path().to_owned()).with_config(|_,_|Ok(std::collections::BTreeMap::from([
  ("app".into(),json!({"key":"a".repeat(32),"locale":"en","supported_locales":[],"url":"http://tutorial.test","url_explicit":false})),
  ]))).with_routing(Routing::new(register)).create().unwrap();
  let mut kernel=Kernel::new(app);kernel.bootstrap().await.unwrap();
@@ -59,6 +59,7 @@ async fn verify(register:fn(&Application)->Result<Router,RoutingError>) {
   assert_eq!(status,StatusCode::CREATED);assert_eq!(value,json!({"title":"Hello"}));
  }
  for body in ["{}",r#"{"title":""}"#] {let (status,value)=call(&kernel,"POST","http://tutorial.test/implicit-posts",body).await;assert_eq!(status,StatusCode::UNPROCESSABLE_ENTITY);assert!(value["errors"]["title"].is_array());}
+ let(status,data)=call(&kernel,"POST","http://tutorial.test/translated-posts",r#"{"title":"x"}"#).await;assert_eq!(status,StatusCode::UNPROCESSABLE_ENTITY);assert_eq!(data["errors"]["title"][0],"Le champ title est invalide (X).");
  let data=json!({"title":"x".repeat(256)}).to_string();assert_eq!(call(&kernel,"POST","http://tutorial.test/posts",&data).await.0,StatusCode::UNPROCESSABLE_ENTITY);
 }
 '''
@@ -70,7 +71,12 @@ for locale in ('en', 'zh-Hans', 'zh-Hant'):
  router.get("/link",||async {Ok::<_,HttpError>(openrust::support::facades::Url::signed_route("unsubscribe",&[openrust::routing::RouteParameter::named("email","signed@example.test")],None,openrust::routing::SignatureMode::Absolute)?)})?;Ok(())
 }}
 mod validation {
-''' + block(locale, 'validation', 'store') + '\nmod messages {\n' + block(locale, 'validation', 'store_with_messages', '{#custom-validation-messages}').replace('fn store_with_messages(', 'pub(super) fn store_with_messages(', 1) + '\n}\nmod unknown_fields {\n' + block(locale, 'validation', 'store_strict', '{#failing-on-unknown-fields}').replace('fn store_strict(', 'pub(super) fn store_strict(', 1) + '\n}\nmod callbacks {\n' + block(locale, 'validation', 'store_callback', '{#using-closures}').replace('fn store_callback(', 'pub(super) fn store_callback(', 1) + '\n}\nmod implicit {\n' + block(locale, 'validation', 'store_implicit', '{#implicit-rules}').replace('fn store_implicit(', 'pub(super) fn store_implicit(', 1) + '\n}\n' + '''pub fn register(router:&mut openrust::routing::Router)->Result<(),openrust::routing::RoutingError> {router.post("/posts",store)?;router.post("/custom-posts",messages::store_with_messages)?;router.post("/strict-posts",unknown_fields::store_strict)?;router.post("/callback-posts",callbacks::store_callback)?;router.post("/implicit-posts",implicit::store_implicit)?;Ok(())}
+''' + block(locale, 'validation', 'store') + '\nmod messages {\n' + block(locale, 'validation', 'store_with_messages', '{#custom-validation-messages}').replace('fn store_with_messages(', 'pub(super) fn store_with_messages(', 1) + '\n}\nmod unknown_fields {\n' + block(locale, 'validation', 'store_strict', '{#failing-on-unknown-fields}').replace('fn store_strict(', 'pub(super) fn store_strict(', 1) + '\n}\nmod callbacks {\n' + block(locale, 'validation', 'store_callback', '{#using-closures}').replace('fn store_callback(', 'pub(super) fn store_callback(', 1) + '\n}\nmod implicit {\n' + block(locale, 'validation', 'store_implicit', '{#implicit-rules}').replace('fn store_implicit(', 'pub(super) fn store_implicit(', 1) + '\n}\nmod translated {\n' + block(locale, 'validation', 'localized_failure', '{#translating-validation-messages}') + '''
+pub(super) fn store(request:&mut openrust::http::Request)->openrust::http::HttpFuture<'_,Result<openrust::http::Response,openrust::http::HttpError>>{Box::pin(async move{
+ let rule=openrust::validation::Rule::custom(|context:&openrust::validation::RuleContext<'_>,_:&str,_:Option<&serde_json::Value>|Ok(vec![localized_failure(context)]));
+ let rules=openrust::validation::RuleSet::new().field("title",[rule])?;let data=request.validate(rules).await?;openrust::http::Response::json(openrust::http::StatusCode::OK,data.into_value())
+})}
+}\n''' + '''pub fn register(router:&mut openrust::routing::Router)->Result<(),openrust::routing::RoutingError> {router.post("/posts",store)?;router.post("/custom-posts",messages::store_with_messages)?;router.post("/strict-posts",unknown_fields::store_strict)?;router.post("/callback-posts",callbacks::store_callback)?;router.post("/implicit-posts",implicit::store_implicit)?;router.post("/translated-posts",translated::store)?;Ok(())}
 }
 pub fn register(_: &openrust::foundation::Application)->Result<openrust::routing::Router,openrust::routing::RoutingError> {
  let mut router=openrust::routing::Router::new();urls::register(&mut router)?;validation::register(&mut router)?;Ok(router)
@@ -82,4 +88,4 @@ if not target.resolve().is_relative_to(source):
     parser.error('生成路径不能通过符号链接逃逸源码快照')
 target.write_text(code)
 subprocess.run(['rustfmt', '+1.94.0', '--edition', '2024', str(target)], check=True)
-print('已直接提取三语共十八段教程，生成三个 HTTP Kernel 消费者')
+print('已直接提取三语共二十一段教程，生成三个 HTTP Kernel 消费者')

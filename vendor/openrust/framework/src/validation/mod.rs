@@ -58,12 +58,15 @@ pub type Value = serde_json::Value;
 /// The data available to a custom validation rule.
 pub struct RuleContext<'a> {
     pub data: &'a Data,
+    pub(crate) translator: Option<&'a crate::translation::Translator>,
 }
 
 /// A custom rule failure with a translation key or literal message.
 pub struct RuleFailure {
     pub message: String,
     pub replacements: std::collections::BTreeMap<String, String>,
+    /// 已显式翻译的消息不再经过通用规则消息覆盖。
+    pub translated: bool,
 }
 
 impl RuleFailure {
@@ -71,7 +74,47 @@ impl RuleFailure {
         Self {
             message: message.into(),
             replacements: Default::default(),
+            translated: false,
         }
+    }
+
+    /// 当场借用验证器的翻译器，不改变应用或请求语言。
+    pub fn translate(
+        mut self,
+        context: &RuleContext<'_>,
+        replacements: std::collections::BTreeMap<String, String>,
+        locale: Option<&str>,
+    ) -> Self {
+        self.message = context
+            .translator
+            .and_then(|translator| translator.string(&self.message, &replacements, locale).ok())
+            .unwrap_or_else(|| validator::replace(&self.message, &replacements));
+        // 参数已在翻译阶段替换，最终只处理验证器字段占位符，避免二次展开。
+        self.replacements.clear();
+        self.translated = true;
+        self
+    }
+
+    /// 当场选择复数分支，复用语言模块的选择与替换规则。
+    pub fn translate_choice(
+        mut self,
+        context: &RuleContext<'_>,
+        count: impl Into<crate::translation::PluralCount>,
+        replacements: std::collections::BTreeMap<String, String>,
+        locale: Option<&str>,
+    ) -> Self {
+        self.message = context
+            .translator
+            .and_then(|translator| {
+                translator
+                    .choose(&self.message, count, &replacements, locale)
+                    .ok()
+            })
+            .unwrap_or_else(|| validator::replace(&self.message, &replacements));
+        // 参数已在翻译阶段替换，最终只处理验证器字段占位符，避免二次展开。
+        self.replacements.clear();
+        self.translated = true;
+        self
     }
 }
 

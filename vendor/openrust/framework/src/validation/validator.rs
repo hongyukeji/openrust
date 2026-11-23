@@ -873,7 +873,10 @@ impl Validator {
         if let Kind::Custom(rule) = rule
             && rule.is_implicit()
         {
-            let context = RuleContext { data: &self.data };
+            let context = RuleContext {
+                data: &self.data,
+                translator: self.translator.as_deref(),
+            };
             return rule
                 .validate(&context, &custom_rule_attribute(attribute), value)
                 .await;
@@ -1402,7 +1405,10 @@ impl Validator {
                     .then_some("unique")
             }
             (Kind::Custom(rule), Some(value)) => {
-                let context = RuleContext { data: &self.data };
+                let context = RuleContext {
+                    data: &self.data,
+                    translator: self.translator.as_deref(),
+                };
                 return rule
                     .validate(&context, &custom_rule_attribute(attribute), Some(value))
                     .await;
@@ -1474,9 +1480,17 @@ impl Validator {
     fn format_message(&self, pattern: &str, attribute: &str, mut failure: RuleFailure) -> String {
         let attribute = unescape(attribute);
         let display = self.display_attribute(pattern, &attribute);
-        failure
-            .replacements
-            .extend(message_cases("attribute", &[display], ""));
+        let attributes = message_cases("attribute", &[display], "");
+        if failure.translated {
+            for (key, value) in attributes {
+                failure.replacements.entry(key).or_insert(value);
+            }
+        } else {
+            failure.replacements.extend(attributes);
+        }
+        if failure.translated {
+            return replace(&failure.message, &failure.replacements);
+        }
         let rule_key = failure.message.strip_prefix("validation.");
         let rule = rule_key.and_then(|key| {
             if key.starts_with("password.") {
@@ -1647,7 +1661,7 @@ pub(super) fn unescape(attribute: &str) -> String {
         .collect()
 }
 
-fn replace(template: &str, replacements: &BTreeMap<String, String>) -> String {
+pub(super) fn replace(template: &str, replacements: &BTreeMap<String, String>) -> String {
     let mut output = String::new();
     let mut tail = template;
     while let Some((prefix, value)) = tail.split_once(':') {

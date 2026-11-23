@@ -436,7 +436,7 @@ fn store_callback(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
 
 ## 隱式規則物件 {#implicit-rules}
 
-覆寫 `ValidationRule::is_implicit()`，在欄位缺失、為空或 null 時亦執行，包括 nullable 欄位；`sometimes` 仍跳過缺失欄位。旗標本身不會拒絕輸入，是否傳回失敗由規則決定。普通閉包跳過缺失欄位、原始空字串和 nullable null；正常 HTTP 的空字串轉 null 發生在請求驗證前。`RuleContext::data` 借用本驗證器輸入，不向共用規則物件複製狀態。失敗訊息的翻譯鍵使用驗證器目前的翻譯器；本介面不提供逐條失敗的首選語言參數或 ValidatorAware setter。
+覆寫 `ValidationRule::is_implicit()`，在欄位缺失、為空或 null 時亦執行，包括 nullable 欄位；`sometimes` 仍跳過缺失欄位。旗標本身不會拒絕輸入，是否傳回失敗由規則決定。普通閉包跳過缺失欄位、原始空字串和 nullable null；正常 HTTP 的空字串轉 null 發生在請求驗證前。`RuleContext::data` 借用本驗證器輸入，不向共用規則物件複製狀態。失敗訊息的翻譯鍵使用驗證器目前的翻譯器；本介面不提供ValidatorAware setter。
 
 ```rust
 use openrust::{
@@ -473,5 +473,22 @@ fn store_implicit(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
         let data = request.validate(rules).await?;
         Response::json(StatusCode::CREATED, data.into_value())
     })
+}
+```
+
+## 翻譯規則失敗訊息 {#translating-validation-messages}
+
+呼叫 `RuleFailure::translate`，傳入目前 `RuleContext`、替換參數與可選語言；`None` 使用目前驗證器語言。可使用 `lang/fr/rules.json` 中的 `rules.invalid` 等應用詞條。`translate_choice(context, count, replacements, locale)` 額外透過既有翻譯器選擇複數分支。每條失敗單獨保存選擇，不改變其他失敗或請求語言。缺少詞條保留鍵名，字面訊息仍替換參數；明確翻譯的訊息不被通用規則訊息覆寫。請使用 `RuleFailure::new` 建構失敗，翻譯標誌不進入 HTTP 序列化回應。明確的上下文借用原翻譯器並立即解析訊息，避免隱藏全域狀態和延遲語言選擇。
+
+```rust
+use openrust::validation::{RuleContext, RuleFailure};
+use std::collections::BTreeMap;
+
+fn localized_failure(context: &RuleContext<'_>) -> RuleFailure {
+    RuleFailure::new("rules.invalid").translate(
+        context,
+        BTreeMap::from([("token".into(), "X".into())]),
+        Some("fr"),
+    )
 }
 ```

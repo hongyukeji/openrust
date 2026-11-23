@@ -436,7 +436,7 @@ fn store_callback(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
 
 ## Implicit rule objects {#implicit-rules}
 
-Override `ValidationRule::is_implicit()` to run when a field is missing, empty or null, including nullable fields. `sometimes` still skips an absent field. The flag does not reject input by itself: return a failure when required. Ordinary callbacks skip absent fields, raw empty strings and nullable nulls; normal HTTP empty-string-to-null processing occurs before request validation. `RuleContext::data` exposes the input used by this validator without copying it into shared rule state. Failure translation keys use the validator’s current translator; per-failure preferred locale parameters and ValidatorAware setters are not provided by this interface.
+Override `ValidationRule::is_implicit()` to run when a field is missing, empty or null, including nullable fields. `sometimes` still skips an absent field. The flag does not reject input by itself: return a failure when required. Ordinary callbacks skip absent fields, raw empty strings and nullable nulls; normal HTTP empty-string-to-null processing occurs before request validation. `RuleContext::data` exposes the input used by this validator without copying it into shared rule state. Failure translation keys use the validator’s current translator; ValidatorAware setters are not provided by this interface.
 
 ```rust
 use openrust::{
@@ -473,5 +473,22 @@ fn store_implicit(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
         let data = request.validate(rules).await?;
         Response::json(StatusCode::CREATED, data.into_value())
     })
+}
+```
+
+## Translate rule failures {#translating-validation-messages}
+
+Call `RuleFailure::translate` with the current `RuleContext`, replacement values and an optional locale; `None` uses the current validator language. Use application keys such as `rules.invalid` from `lang/fr/rules.json`. `translate_choice(context, count, replacements, locale)` additionally selects a plural branch using the existing translator. Each failure keeps its own selection: it does not change another failure or the request language. Missing keys remain keys, and literal messages still receive replacements. Explicitly translated messages bypass generic rule-message overrides. Construct failures through `RuleFailure::new`; the translation marker is not serialized into HTTP responses. The explicit context borrows the original translator and resolves the message immediately; it avoids hidden global state and delayed locale selection.
+
+```rust
+use openrust::validation::{RuleContext, RuleFailure};
+use std::collections::BTreeMap;
+
+fn localized_failure(context: &RuleContext<'_>) -> RuleFailure {
+    RuleFailure::new("rules.invalid").translate(
+        context,
+        BTreeMap::from([("token".into(), "X".into())]),
+        Some("fr"),
+    )
 }
 ```

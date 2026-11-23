@@ -298926,6 +298926,25 @@
         "email扩展模式"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_rule_failure_translation",
+      "status": "逐失败语言、复数与即时翻译消费者已验收；整章继续",
+      "implementation": "RuleFailure::translate/translate_choice显式借用RuleContext原翻译器，在调用时解析，不改变请求语言；保留原JSON和消息包",
+      "rust_adaptation": "显式上下文替代PHP闭包捕获；RuleFailure新增构造器默认false标志，直接结构体字面量下游需改用构造器",
+      "consumers": [
+        "framework/tests/validation_failure_translation.rs",
+        "framework/tests/reference/validation-failure-translation.json",
+        "tests/request_tutorial_docs.py"
+      ],
+      "actual_results": "6目标20回归+3三语消费者=23项通过；24并发TCP匹配固定PHP；最终严格Clippy/fmt/三语构建通过",
+      "remaining": [
+        "DataAware/ValidatorAware可变setter",
+        "Rule fluent builders/anyOf/forEach",
+        "email扩展模式"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

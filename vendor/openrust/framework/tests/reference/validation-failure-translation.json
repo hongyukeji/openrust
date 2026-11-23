@@ -1,0 +1,18 @@
+{
+    "errors": {
+        "title": [
+            "en snapshot title",
+            "fr snapshot title",
+            "FR chosen X",
+            "中文 title",
+            "EN title",
+            "One title",
+            "2 title items",
+            "rules.absent",
+            "literal X",
+            "nested title \/ :token",
+            "FR required title"
+        ]
+    },
+    "locale": "en"
+}
