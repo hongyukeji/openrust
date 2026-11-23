@@ -97,6 +97,36 @@ Files must be regular UTF-8 files, at most 8 MiB; target symbolic links and Wind
 
 After editing production configuration, explicitly rebuild the configuration cache (`artisan config:cache`) and restart long-running HTTP, queue and scheduler processes. Without a cache, a newly booted application reads the changed file. Existing snapshots and process environment overrides retain their original precedence. `key:generate` and `init` share this file-writing backend while keeping their own key validation, production confirmation and initialization rules.
 
+### Position and Spacing {#environment-file-layout}
+
+```rust
+use openrust::config::{EnvironmentDocument, EnvironmentWriteOptions};
+
+let options = EnvironmentWriteOptions::new()
+    .after("DB_PASSWORD")
+    .blank_lines(1);
+file.set_with_options("SMS_DRIVER", "log", &options)?;
+```
+
+Use `before(key)`, `after(key)`, `at_start()` or `at_end()`. `blank_lines(1)` puts one empty line on each side; `blank_lines_before(n)` and `blank_lines_after(n)` control them separately. Zero means no additional empty line; the line break separating assignments still exists. Unspecified spacing preserves existing whitespace. Explicit counts normalize only adjacent blank lines, leaving comments untouched. File boundaries can have explicitly requested leading or trailing blank lines. LF/CRLF and the UTF-8 BOM are retained.
+
+Existing variables are updated in place, with explicit spacing still applied. Add `.move_existing(true)` to move their declarations too. Position anchors are checked for insertion and explicit moves: missing or duplicate anchors fail without changing the document; positioning a variable relative to itself fails. Moves retain `export` and inline comments, while standalone comments stay in their original position. The operation is idempotent, so repeating it does not accumulate empty lines. Moving declarations can change variable-expansion order. Use `set_expression_with_options` for an explicit expression, or perform several edits in a file editing session before saving once.
+
+During a known Windows replacement window, file reads wait up to 100 ms for the writer; a still-held lock returns `Busy`. A genuinely missing file still fails.
+
+The same engine is available without an application, container or disk file:
+
+```rust
+let mut document = EnvironmentDocument::parse("APP_NAME=Example\n")?;
+document.set_with_options(
+    "SMS_DRIVER", "log",
+    &EnvironmentWriteOptions::new().after("APP_NAME").blank_lines(1),
+)?;
+let output = document.content();
+```
+
+`EnvironmentDocument` supports the same reads, literal/expression writes, batch updates and removals, plus `new()` for an empty document. It changes only its own text. Persist `content()` through your own storage adapter and concurrency policy, or use `EnvironmentFile::open(path)` for the built-in locked atomic file writer. `for_application` is an optional convenience; neither a fixed `.env` filename nor an application container is required.
+
 ## Configuration Caching {#configuration-caching}
 
 Use `config:cache` to write the configuration from a fresh application boot, including service provider changes. Later HTTP and Artisan boots read the snapshot. Use `config:clear` to remove it before restarting with updated settings.

@@ -436,3 +436,261 @@ fn oversized_and_non_utf8_files_are_rejected_without_replacement() {
     assert!(EnvironmentFile::open(&path).is_err());
     assert_eq!(fs::read(&path).unwrap(), [0xff, 0xfe]);
 }
+
+#[test]
+fn positioned_insertions_and_exact_blank_lines_are_idempotent() {
+    use openrust::config::EnvironmentWriteOptions as Options;
+    let (_dir, file) = fixture("APP_NAME=Demo\nDB_PASSWORD=old\n\n# Mail\nMAIL_HOST=localhost\n");
+    let options = Options::new().after("DB_PASSWORD").blank_lines(1);
+    file.set_with_options("SMS_DRIVER", "log", &options)
+        .unwrap();
+    assert_eq!(
+        text(&file),
+        "APP_NAME=Demo\nDB_PASSWORD=old\n\nSMS_DRIVER=log\n\n# Mail\nMAIL_HOST=localhost\n"
+    );
+    assert!(
+        !file
+            .set_with_options("SMS_DRIVER", "log", &options)
+            .unwrap()
+    );
+    file.set_with_options(
+        "SMS_FROM",
+        "sender",
+        &Options::new().before("SMS_DRIVER").blank_lines_before(0),
+    )
+    .unwrap();
+    assert!(text(&file).contains("DB_PASSWORD=old\nSMS_FROM=sender\nSMS_DRIVER=log"));
+    let changed = text(&file);
+    assert!(
+        !file
+            .set_with_options(
+                "SMS_FROM",
+                "sender",
+                &Options::new().before("SMS_DRIVER").blank_lines_before(0)
+            )
+            .unwrap()
+    );
+    assert_eq!(text(&file), changed);
+}
+#[test]
+fn positioning_preserves_bom_multiline_export_comments_and_unterminated_tail() {
+    use openrust::config::EnvironmentWriteOptions as Options;
+    let (_dir, file) = fixture("\u{feff}export A=\"first\nlast\" # note\r\nB=tail");
+    file.set_with_options("FIRST", "yes", &Options::new().at_start())
+        .unwrap();
+    assert_eq!(
+        text(&file),
+        "\u{feff}FIRST=yes\r\nexport A=\"first\nlast\" # note\r\nB=tail"
+    );
+    file.set_with_options(
+        "SECOND",
+        "yes",
+        &Options::new().after("A").blank_lines_after(1),
+    )
+    .unwrap();
+    assert!(text(&file).contains("last\" # note\r\nSECOND=yes\r\n\r\nB=tail"));
+    file.set_with_options(
+        "FIRST",
+        "new",
+        &Options::new().after("B").move_existing(true),
+    )
+    .unwrap();
+    assert!(text(&file).starts_with("\u{feff}export A="));
+    assert!(text(&file).ends_with("B=tail\r\nFIRST=new\r\n"));
+    file.remove("A").unwrap();
+    assert!(text(&file).starts_with("\u{feff}# note\r\n"));
+}
+#[test]
+fn existing_entries_stay_put_unless_explicitly_moved_and_keep_inline_metadata() {
+    use openrust::config::EnvironmentWriteOptions as Options;
+    let (_dir, file) = fixture("A=1\n# retained\nexport B=old # inline\nC=3\n");
+    file.set_with_options("B", "new", &Options::new().before("A"))
+        .unwrap();
+    assert_eq!(text(&file), "A=1\n# retained\nexport B=new # inline\nC=3\n");
+    let options = Options::new()
+        .before("A")
+        .move_existing(true)
+        .blank_lines_after(1);
+    file.set_with_options("B", "new", &options).unwrap();
+    assert_eq!(
+        text(&file),
+        "export B=new # inline\n\nA=1\n# retained\nC=3\n"
+    );
+    assert!(!file.set_with_options("B", "new", &options).unwrap());
+}
+#[test]
+fn failed_positions_leave_file_and_editor_unchanged() {
+    use openrust::config::EnvironmentWriteOptions as Options;
+    let (_dir, file) = fixture("A=1\n");
+    let mut editor = file.edit().unwrap();
+    assert!(matches!(
+        editor.set_with_options("B", "secret", &Options::new().before("MISSING")),
+        Err(Error::MissingAnchor { .. })
+    ));
+    assert!(!editor.has_changes());
+    assert_eq!(text(&file), "A=1\n");
+    assert!(matches!(
+        file.set_with_options(
+            "A",
+            "secret",
+            &Options::new().before("A").move_existing(true)
+        ),
+        Err(Error::InvalidPosition)
+    ));
+    assert!(matches!(
+        file.set_with_options("B", "secret", &Options::new().blank_lines(usize::MAX)),
+        Err(Error::TooLarge)
+    ));
+    fs::write(file.path(), "A=1\nA=2\n").unwrap();
+    assert!(matches!(
+        file.set_with_options("B", "value", &Options::new().after("A")),
+        Err(Error::DuplicateKey { .. })
+    ));
+    assert_eq!(text(&file), "A=1\nA=2\n");
+}
+#[test]
+fn memory_documents_work_without_an_application_or_filesystem_and_redact_debug() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    let mut document = Document::parse("A=one\n\n\nB=two\n\n\n").unwrap();
+    document
+        .set_with_options("X", "secret", &Options::new().after("A").blank_lines(1))
+        .unwrap();
+    assert_eq!(document.content(), "A=one\n\nX=secret\n\nB=two\n\n\n");
+    let mut copy = document.clone();
+    copy.set_with_options(
+        "B",
+        "two",
+        &Options::new().at_end().move_existing(true).blank_lines(0),
+    )
+    .unwrap();
+    assert_eq!(copy.content(), "A=one\n\nX=secret\nB=two\n");
+    assert!(!format!("{document:?}").contains("secret"));
+    assert_ne!(copy.content(), document.content());
+    let before = document.content().to_owned();
+    assert!(
+        document
+            .set_many([("A", "new"), ("BAD KEY", "value")])
+            .is_err()
+    );
+    assert_eq!(document.content(), before);
+    document
+        .set_expression_with_options("REF", "${A}", &Options::new().after("A"))
+        .unwrap();
+    assert_eq!(document.get("REF").unwrap().as_deref(), Some("one"));
+    assert!(document.contains("REF").unwrap());
+    assert_eq!(
+        document.get_raw("REF").unwrap().as_deref(),
+        Some("\"${A}\"")
+    );
+    document.remove("REF").unwrap();
+    assert_eq!(document.all().unwrap().len(), 3);
+    let mut empty = Document::new();
+    empty
+        .set_with_options(
+            "A",
+            "1",
+            &Options::new()
+                .at_start()
+                .blank_lines_before(2)
+                .blank_lines_after(2),
+        )
+        .unwrap();
+    assert_eq!(empty.content(), "\n\nA=1\n\n\n");
+}
+
+#[test]
+fn layout_matrix_is_idempotent_across_positions_counts_and_line_endings() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    for nl in ["\n", "\r\n"] {
+        for ending in ["", nl] {
+            for position in 0..4 {
+                for before in 0..3 {
+                    for after in 0..3 {
+                        let source =
+                            format!("\u{feff}# Header{nl}A=one{nl}{nl}# Group{nl}B=two{ending}");
+                        let options = match position {
+                            0 => Options::new().at_start(),
+                            1 => Options::new().at_end(),
+                            2 => Options::new().before("B"),
+                            _ => Options::new().after("A"),
+                        }
+                        .blank_lines_before(before)
+                        .blank_lines_after(after)
+                        .move_existing(true);
+                        let mut doc = Document::parse(&source).unwrap();
+                        doc.set_with_options("X", "中文 $literal", &options)
+                            .unwrap();
+                        let once = doc.content().to_owned();
+                        doc.set_with_options("X", "中文 $literal", &options)
+                            .unwrap();
+                        assert_eq!(
+                            doc.content(),
+                            once,
+                            "position={position} before={before} after={after} nl={nl:?}"
+                        );
+                        assert_eq!(doc.get("X").unwrap().as_deref(), Some("中文 $literal"));
+                        assert!(doc.content().contains("# Header"));
+                        assert!(doc.content().contains("# Group"));
+                        assert!(doc.content().starts_with('\u{feff}'));
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn file_and_session_expression_options_use_the_same_engine() {
+    use openrust::config::EnvironmentWriteOptions as Options;
+    let (_dir, file) = fixture("HOST=example.test\nTAIL=end\n");
+    file.set_expression_with_options(
+        "URL",
+        "https://${HOST}",
+        &Options::new().after("HOST").blank_lines_after(1),
+    )
+    .unwrap();
+    assert_eq!(
+        file.get("URL").unwrap().as_deref(),
+        Some("https://example.test")
+    );
+    let mut edit = file.edit().unwrap();
+    edit.set_expression_with_options("OTHER", "${HOST}", &Options::new().before("TAIL"))
+        .unwrap();
+    assert!(edit.save().unwrap());
+    assert_eq!(file.get("OTHER").unwrap().as_deref(), Some("example.test"));
+}
+#[test]
+fn default_options_match_existing_set_behavior() {
+    use openrust::config::{EnvironmentDocument as Document, EnvironmentWriteOptions as Options};
+    for source in ["", "\u{feff}", "A=old", "A=old\n\n", "# header\r\nA=old"] {
+        for key in ["A", "B"] {
+            let mut legacy = Document::parse(source).unwrap();
+            let mut positioned = legacy.clone();
+            legacy.set(key, "new $literal").unwrap();
+            positioned
+                .set_with_options(key, "new $literal", &Options::default())
+                .unwrap();
+            assert_eq!(legacy.content(), positioned.content());
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_transient_missing_target_respects_the_writer_lock_and_timeout() {
+    let (dir, file) = fixture("KEY=original\n");
+    let guard = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(file.path().with_file_name(".env.lock"))
+        .unwrap();
+    guard.lock().unwrap();
+    let staged = dir.path().join("staged");
+    fs::rename(file.path(), &staged).unwrap();
+    let result = EnvironmentFile::open(file.path());
+    fs::rename(&staged, file.path()).unwrap();
+    guard.unlock().unwrap();
+    drop(guard);
+    assert!(matches!(result, Err(Error::Busy)));
+    assert_eq!(file.get("KEY").unwrap().as_deref(), Some("original"));
+}

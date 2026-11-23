@@ -133,5 +133,21 @@ fn real_artisan_selected_file_and_config_cache_require_explicit_refresh() {
             .unwrap()
             .starts_with("base64:")
     );
+    selected
+        .set_with_options(
+            "MAIL_PORT",
+            "2527",
+            &openrust::config::EnvironmentWriteOptions::new()
+                .after("APP_NAME")
+                .blank_lines(1),
+        )
+        .unwrap();
+    assert!(
+        artisan(
+            root,
+            &["config:show", "mail.mailers.smtp.port", "--env=editor"]
+        )
+        .contains("2527")
+    );
     assert!(artisan(root, &["config:show", "app.name", "--env=editor"]).contains("Selected"));
 }

@@ -8,7 +8,10 @@ mod repository;
 
 pub use environment::Environment;
 pub(crate) use environment_file::render_environment;
-pub use environment_file::{EnvironmentEditor, EnvironmentFile, EnvironmentFileError};
+pub use environment_file::{
+    EnvironmentDocument, EnvironmentEditor, EnvironmentFile, EnvironmentFileError,
+    EnvironmentPosition, EnvironmentWriteOptions,
+};
 pub use error::ConfigError;
 pub(crate) use repository::LocaleOverrides;
 pub use repository::Repository;

@@ -97,6 +97,36 @@ let changed = editor.save()?;
 
 生产环境改完后应显式执行 `artisan config:cache` 并重启常驻 HTTP、队列和调度进程；未缓存时，新启动的应用读取新文件。已有快照不变，进程环境覆盖的优先级保持原样。`key:generate` 和 `init` 共用文件写入后端，继续保留各自的密钥校验、生产确认和初始化规则。
 
+### 插入位置与空行 {#environment-file-layout}
+
+```rust
+use openrust::config::{EnvironmentDocument, EnvironmentWriteOptions};
+
+let options = EnvironmentWriteOptions::new()
+    .after("DB_PASSWORD")
+    .blank_lines(1);
+file.set_with_options("SMS_DRIVER", "log", &options)?;
+```
+
+使用 `before(key)`、`after(key)`、`at_start()` 或 `at_end()` 指定位置。`blank_lines(1)` 在前后各留一行空行；`blank_lines_before(n)`、`blank_lines_after(n)` 分别控制两侧。零表示没有额外空行，声明之间必要的换行仍然存在。未指定的间距保持原样；显式数量只整理紧邻的空白行，不删除注释。文件首尾也可显式保留指定数量的空行。继续保留 LF／CRLF 和 UTF-8 BOM。
+
+已有变量默认原位更新，显式空行设置仍然生效；需要重新定位时加上 `.move_existing(true)`。新增和显式移动才解析位置锚点：找不到锚点或锚点重复时拒绝修改，相对于自身定位也会报错。移动会保留声明的 `export` 和行尾注释，独立注释留在原位置。重复执行不会积累空行。移动声明可能影响变量引用的展开顺序。表达式使用 `set_expression_with_options`，多次编辑可放在同一文件编辑会话中，最后统一保存。
+
+Windows 已知替换窗口内的瞬态缺失会等待写入者，最长 100 ms；锁仍被占用则返回 `Busy`，真正缺失的文件仍报错。
+
+同一编辑引擎也可以脱离应用、容器和磁盘文件使用：
+
+```rust
+let mut document = EnvironmentDocument::parse("APP_NAME=Example\n")?;
+document.set_with_options(
+    "SMS_DRIVER", "log",
+    &EnvironmentWriteOptions::new().after("APP_NAME").blank_lines(1),
+)?;
+let output = document.content();
+```
+
+`EnvironmentDocument` 支持同样的读取、字面值／表达式写入、批量修改和删除，也可用 `new()` 创建空文档。它只修改自身文本；二次开发可将 `content()` 交给自己的存储适配器，并自行处理持久化与并发策略。需要内置文件锁和原子保存时使用 `EnvironmentFile::open(path)`。`for_application` 只是可选的快捷入口，不要求固定文件名 `.env`，也不要求应用容器。
+
 ## 配置缓存 {#configuration-caching}
 
 用 `config:cache` 保存应用重新启动后的配置，包括服务提供者设置的值。后续 HTTP 和 Artisan 启动会读取这份快照。更新配置后，用 `config:clear` 移除快照，再重启应用。

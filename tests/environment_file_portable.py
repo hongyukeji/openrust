@@ -15,10 +15,10 @@ def main():
     (stage / 'src/environment_file').mkdir(parents=True, exist_ok=True)
     (stage / 'tests').mkdir(exist_ok=True)
     # 直接编译交付源码；不替换文件锁、解析器或操作系统实现。
-    for name in ('environment_file.rs', 'environment_file/document.rs', 'environment_file/storage.rs'):
+    for name in ('environment_file.rs', 'environment_file/document.rs', 'environment_file/storage.rs', 'environment_file/options.rs'):
         shutil.copyfile(source / 'src/config' / name, stage / 'src' / name)
     shutil.copyfile(source / 'tests/environment_file.rs', stage / 'tests/environment_file.rs')
-    (stage / 'src/lib.rs').write_text('mod environment_file;\npub mod config { pub use crate::environment_file::{EnvironmentFile, EnvironmentEditor, EnvironmentFileError}; }\n')
+    (stage / 'src/lib.rs').write_text('mod environment_file;\npub mod config { pub use crate::environment_file::{EnvironmentFile, EnvironmentEditor, EnvironmentFileError, EnvironmentDocument, EnvironmentPosition, EnvironmentWriteOptions}; }\n')
     (stage / 'Cargo.toml').write_text('''[package]
 name = "environment-file-portable"
 version = "0.0.0"

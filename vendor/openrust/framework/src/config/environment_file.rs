@@ -1,13 +1,16 @@
 //! 保留原文格式的环境文件编辑；文件变更不隐式更新应用快照或运行中服务。
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fmt, io,
     path::{Path, PathBuf},
 };
 use zeroize::Zeroizing;
 
 mod document;
+mod options;
+pub use document::EnvironmentDocument;
+pub use options::{EnvironmentPosition, EnvironmentWriteOptions};
 mod storage;
 
 /// 文件编辑失败原因。Debug 和 Display 均不包含变量值或源文件内容。
@@ -28,6 +31,10 @@ pub enum EnvironmentFileError {
     },
     Conflict,
     Busy,
+    MissingAnchor {
+        key: String,
+    },
+    InvalidPosition,
     TooLarge,
     Io {
         operation: &'static str,
@@ -50,6 +57,8 @@ impl fmt::Display for EnvironmentFileError {
             Self::InvalidDocument => f.write_str("环境文件语法无效，未执行写入"),
             Self::DuplicateKey { key } => write!(f, "环境变量 {key} 存在重复定义，未执行写入"),
             Self::Conflict => f.write_str("环境文件已被其他操作修改，请重新读取后再保存"),
+            Self::MissingAnchor { key } => write!(f, "未找到环境变量定位锚点：{key}"),
+            Self::InvalidPosition => f.write_str("环境变量不能相对于自身定位"),
             Self::Busy => f.write_str("环境文件正由其他写入操作占用，请稍后重试"),
             Self::TooLarge => f.write_str("环境文件超过 8 MiB 编辑上限"),
             Self::Io { operation, kind } => write!(f, "环境文件{operation}失败：{kind}"),
@@ -120,7 +129,9 @@ impl EnvironmentFile {
         document::validate(&original)?;
         Ok(EnvironmentEditor {
             file: self.clone(),
-            text: original.clone(),
+            text: EnvironmentDocument {
+                text: original.clone(),
+            },
             restrictive: false,
             original,
         })
@@ -138,6 +149,29 @@ impl EnvironmentFile {
     pub fn set(&self, key: &str, value: impl AsRef<str>) -> Result<bool, EnvironmentFileError> {
         self.write(|editor| {
             editor.set(key, value)?;
+            Ok(())
+        })
+    }
+    /// 位置选项仅作用于新增变量；显式 move_existing 时才移动已有声明。
+    pub fn set_with_options(
+        &self,
+        key: &str,
+        value: impl AsRef<str>,
+        options: &EnvironmentWriteOptions,
+    ) -> Result<bool, EnvironmentFileError> {
+        self.write(|editor| {
+            editor.set_with_options(key, value, options)?;
+            Ok(())
+        })
+    }
+    pub fn set_expression_with_options(
+        &self,
+        key: &str,
+        value: impl AsRef<str>,
+        options: &EnvironmentWriteOptions,
+    ) -> Result<bool, EnvironmentFileError> {
+        self.write(|editor| {
+            editor.set_expression_with_options(key, value, options)?;
             Ok(())
         })
     }
@@ -172,7 +206,7 @@ impl EnvironmentFile {
 pub struct EnvironmentEditor {
     file: EnvironmentFile,
     original: Zeroizing<String>,
-    text: Zeroizing<String>,
+    text: EnvironmentDocument,
     restrictive: bool,
 }
 impl fmt::Debug for EnvironmentEditor {
@@ -185,31 +219,48 @@ impl fmt::Debug for EnvironmentEditor {
 }
 impl EnvironmentEditor {
     pub fn get(&self, key: &str) -> Result<Option<String>, EnvironmentFileError> {
-        document::unique(&self.text, key)?;
-        Ok(document::values(&self.text)?.remove(key))
+        self.text.get(key)
     }
     pub fn get_raw(&self, key: &str) -> Result<Option<String>, EnvironmentFileError> {
-        document::raw(&self.text, key)
+        self.text.get_raw(key)
     }
     pub fn contains(&self, key: &str) -> Result<bool, EnvironmentFileError> {
-        Ok(document::unique(&self.text, key)?.is_some())
+        self.text.contains(key)
     }
     pub fn all(&self) -> Result<BTreeMap<String, String>, EnvironmentFileError> {
-        document::values(&self.text)
+        self.text.all()
     }
     pub fn has_changes(&self) -> bool {
-        self.text.as_str() != self.original.as_str()
+        self.text.content() != self.original.as_str()
     }
     /// 显式取得待保存正文；正文可能含凭据，不应直接记录到日志。
     pub fn content(&self) -> &str {
-        &self.text
+        self.text.content()
     }
     pub fn set(
         &mut self,
         key: &str,
         value: impl AsRef<str>,
     ) -> Result<&mut Self, EnvironmentFileError> {
-        self.text = document::set(&self.text, key, value.as_ref(), false)?;
+        self.text.set(key, value)?;
+        Ok(self)
+    }
+    pub fn set_with_options(
+        &mut self,
+        key: &str,
+        value: impl AsRef<str>,
+        options: &EnvironmentWriteOptions,
+    ) -> Result<&mut Self, EnvironmentFileError> {
+        self.text.set_with_options(key, value, options)?;
+        Ok(self)
+    }
+    pub fn set_expression_with_options(
+        &mut self,
+        key: &str,
+        value: impl AsRef<str>,
+        options: &EnvironmentWriteOptions,
+    ) -> Result<&mut Self, EnvironmentFileError> {
+        self.text.set_expression_with_options(key, value, options)?;
         Ok(self)
     }
     /// 只启用现有加载器的变量展开，不执行 shell 命令。
@@ -218,27 +269,18 @@ impl EnvironmentEditor {
         key: &str,
         value: impl AsRef<str>,
     ) -> Result<&mut Self, EnvironmentFileError> {
-        self.text = document::set(&self.text, key, value.as_ref(), true)?;
+        self.text.set_expression(key, value)?;
         Ok(self)
     }
     pub fn set_many<K: AsRef<str>, V: AsRef<str>>(
         &mut self,
         values: impl IntoIterator<Item = (K, V)>,
     ) -> Result<&mut Self, EnvironmentFileError> {
-        let mut text = self.text.clone();
-        let mut keys = BTreeSet::new();
-        for (key, value) in values {
-            let key = key.as_ref();
-            if !keys.insert(key.to_owned()) {
-                return Err(EnvironmentFileError::DuplicateKey { key: key.into() });
-            }
-            text = document::set(&text, key, value.as_ref(), false)?;
-        }
-        self.text = text;
+        self.text.set_many(values)?;
         Ok(self)
     }
     pub fn remove(&mut self, key: &str) -> Result<&mut Self, EnvironmentFileError> {
-        self.text = document::remove(&self.text, key)?;
+        self.text.remove(key)?;
         Ok(self)
     }
     /// 原子保存当前会话。成功后可继续编辑；未改变内容时不更新文件修改时间。
@@ -251,23 +293,22 @@ impl EnvironmentEditor {
         if current.as_str() != self.original.as_str() {
             return Err(EnvironmentFileError::Conflict);
         }
-        document::validate(&self.text)?;
+        document::validate(self.text.content())?;
         if !self.has_changes() {
             return Ok(false);
         }
         storage::replace(
             &self.file.path,
             &self.original,
-            &self.text,
+            self.text.content(),
             self.restrictive,
         )?;
-        self.original = self.text.clone();
+        self.original = self.text.text.clone();
         Ok(true)
     }
     /// 命令消费者完成自身严格校验后，共用同一文件事务提交层。
     pub(crate) fn replace_content(&mut self, content: String) -> Result<(), EnvironmentFileError> {
-        document::validate(&content)?;
-        self.text = Zeroizing::new(content);
+        self.text = EnvironmentDocument::parse(content)?;
         Ok(())
     }
     pub(crate) fn restrict_permissions(&mut self) {

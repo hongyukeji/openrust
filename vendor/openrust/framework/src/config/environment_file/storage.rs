@@ -47,6 +47,40 @@ fn regular(path: &Path) -> Result<fs::Metadata, Error> {
     Ok(meta)
 }
 pub(super) fn read(path: &Path) -> Result<Zeroizing<String>, Error> {
+    #[cfg(not(windows))]
+    {
+        read_once(path)
+    }
+    #[cfg(windows)]
+    {
+        // ReplaceFileW 的多步骤替换可能暂时隐藏目标路径；只有已知协作锁存在时
+        // 才等待写入者，并在取得同一锁后重新读取。真正缺失的文件仍立即报错。
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(100);
+        loop {
+            let result = read_once(path);
+            if !matches!(
+                &result,
+                Err(Error::Io {
+                    kind: std::io::ErrorKind::NotFound,
+                    ..
+                })
+            ) || !lock_path(path)?
+                .try_exists()
+                .map_err(|e| io_error("锁检查", e))?
+            {
+                return result;
+            }
+            match lock(path) {
+                Ok(_guard) => return read_once(path),
+                Err(Error::Busy) if std::time::Instant::now() < deadline => {
+                    std::thread::sleep(std::time::Duration::from_millis(1))
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+}
+fn read_once(path: &Path) -> Result<Zeroizing<String>, Error> {
     let meta = regular(path)?;
     if meta.len() > 8 * 1024 * 1024 {
         return Err(Error::TooLarge);
@@ -78,12 +112,13 @@ impl Drop for Lock {
     }
 }
 
+fn lock_path(path: &Path) -> Result<PathBuf, Error> {
+    let mut name = path.file_name().ok_or(Error::InvalidPath)?.to_os_string();
+    name.push(".lock");
+    Ok(path.with_file_name(name))
+}
 pub(super) fn lock(path: &Path) -> Result<Lock, Error> {
-    let name = path
-        .file_name()
-        .ok_or(Error::InvalidPath)?
-        .to_string_lossy();
-    let path = path.with_file_name(format!("{name}.lock"));
+    let path = lock_path(path)?;
     let file = options()
         .read(true)
         .write(true)
