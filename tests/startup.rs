@@ -1198,7 +1198,7 @@ fn artisan_generates_event_and_listener_variants() {
             "QueueOrder",
             "queue_order",
             &["--queued"],
-            "listenQueued::<E>",
+            "listen_queued::<E>",
         ),
         (
             "NotifyOrder",
@@ -1207,7 +1207,7 @@ fn artisan_generates_event_and_listener_variants() {
                 "--queued",
                 "--event=crate::app::events::order_placed::OrderPlaced",
             ],
-            "listenQueued::<crate::app::events::order_placed::OrderPlaced>",
+            "listen_queued::<crate::app::events::order_placed::OrderPlaced>",
         ),
     ] {
         let mut args = vec!["make:listener", name];
@@ -1280,7 +1280,7 @@ fn artisan_generates_observers_with_reference_options() {
     let path = root.0.join("app/observers/travel/flight_observer.rs");
     let source = fs::read_to_string(&path).unwrap();
     assert!(source.contains("crate::app::r#models::r#travel::r#flight::Flight as ObservedModel"));
-    for method in ["created", "updated", "deleted", "restored", "forceDeleted"] {
+    for method in ["created", "updated", "deleted", "restored", "force_deleted"] {
         assert!(source.contains(&format!("fn {method}<'a>")), "{method}");
     }
     assert_eq!(run(&args).status.code(), Some(1));
@@ -1367,7 +1367,7 @@ fn artisan_generates_jobs_and_job_middleware() {
     let batched_file = root.0.join("app/jobs/batch_report.rs");
     let batched_source = fs::read_to_string(&batched_file).unwrap();
     assert!(batched_source.contains("SkipIfBatchCancelled"));
-    assert!(batched_source.contains("payload.batchId()"));
+    assert!(batched_source.contains("payload.batch_id()"));
     assert!(batched_source.contains("job.failed(context, error).await"));
     assert!(batched_source.contains("job.retry_until(payload.options().retry_until)"));
     assert!(

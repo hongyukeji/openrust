@@ -24,10 +24,10 @@ impl ServiceProvider for TelescopeServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let telescope = app.make::<Telescope>().await?;
-            let isLocal = app.config()?.get("app.env") == Some("local".into());
-            if !isLocal {
-                telescope.hideRequestParameters(&["_token"]);
-                telescope.hideRequestHeaders(&[
+            let is_local = app.config()?.get("app.env") == Some("local".into());
+            if !is_local {
+                telescope.hide_request_parameters(&["_token"]);
+                telescope.hide_request_headers(&[
                     "cookie",
                     "set-cookie",
                     "x-csrf-token",
@@ -35,12 +35,12 @@ impl ServiceProvider for TelescopeServiceProvider {
                 ]);
             }
             telescope.filter(move |entry| {
-                isLocal
-                    || entry.isReportableException()
-                    || entry.isFailedRequest()
-                    || entry.isFailedJob()
-                    || entry.isScheduledTask()
-                    || entry.hasMonitoredTag()
+                is_local
+                    || entry.is_reportable_exception()
+                    || entry.is_failed_request()
+                    || entry.is_failed_job()
+                    || entry.is_scheduled_task()
+                    || entry.has_monitored_tag()
             });
             telescope.auth(authorize);
             Ok(())

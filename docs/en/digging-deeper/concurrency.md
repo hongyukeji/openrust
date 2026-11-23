@@ -4,7 +4,7 @@
 
 Use `Concurrency` from `openrust::support::facades` inside an application. Register typed handlers in an application provider and send tasks with `Task::new(name, input)`. The default `process` driver starts the application executable through a hidden Artisan command for each task. Register the same provider in the entry point that serves HTTP and Artisan.
 
-`run` returns results in submission order. `runNamed` takes an `IndexMap` and keeps its keys and order. The process driver accepts an optional `Duration` timeout for each child. Task errors are returned after the children are collected. Dropping an in-flight process run cancels its children. The `sync` driver runs tasks sequentially in the current process. Set `CONCURRENCY_DRIVER` or the `default` value in `config/concurrency.rs` to select the default driver. Process tasks use the application root and the environment file selected by Artisan's `--env` option. OpenRust uses managed processes for parallel execution.
+`run` returns results in submission order. `run_named` takes an `IndexMap` and keeps its keys and order. The process driver accepts an optional `Duration` timeout for each child. Task errors are returned after the children are collected. Dropping an in-flight process run cancels its children. The `sync` driver runs tasks sequentially in the current process. Set `CONCURRENCY_DRIVER` or the `default` value in `config/concurrency.rs` to select the default driver. Process tasks use the application root and the environment file selected by Artisan's `--env` option. OpenRust uses managed processes for parallel execution.
 
 ```rust
 use openrust::{

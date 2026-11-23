@@ -6,19 +6,19 @@ async fn record(
     authenticated_user_id: &str,
     request_id: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let logger = ActivityRepository::new(connection.clone()).withRedaction(
+    let logger = ActivityRepository::new(connection.clone()).with_redaction(
         Redaction::new()
-            .logProperties(&["module"])
-            .logOnly(&["name", "enabled"]),
+            .log_properties(&["module"])
+            .log_only(&["name", "enabled"]),
     );
     let activity = Activity::new("settings.updated")
-        .useLog("settings")
+        .use_log("settings")
         .event("updated")
-        .performedOn(Subject::new("settings", "1")?)
-        .causedBy(Subject::new("user", authenticated_user_id)?)
-        .withRequestId(request_id)
-        .withProperties(json!({"module":"site"}))
-        .withChanges(json!({"enabled":false}), json!({"enabled":true}));
+        .performed_on(Subject::new("settings", "1")?)
+        .caused_by(Subject::new("user", authenticated_user_id)?)
+        .with_request_id(request_id)
+        .with_properties(json!({"module":"site"}))
+        .with_changes(json!({"enabled":false}), json!({"enabled":true}));
     let prepared = logger.prepare(activity)?;
     connection
         .transaction(
@@ -26,7 +26,7 @@ async fn record(
                 let prepared = prepared.clone();
                 Box::pin(async move {
                     if let Some(record) = prepared {
-                        record.logIn(tx).await?;
+                        record.log_in(tx).await?;
                     }
                     Ok(())
                 })
@@ -36,8 +36,8 @@ async fn record(
         .await?;
     let page = logger
         .query()
-        .inLog("settings")
-        .forSubject(&Subject::new("settings", "1")?)
+        .in_log("settings")
+        .for_subject(&Subject::new("settings", "1")?)
         .limit(50)
         .get()
         .await?;

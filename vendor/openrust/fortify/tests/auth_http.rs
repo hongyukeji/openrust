@@ -535,7 +535,7 @@ async fn successful_login_clears_failed_attempts_and_web_lockout_flashes_errors(
 async fn authentication_and_password_confirmation_callbacks_are_application_scoped() {
     let server = start(json!({"features":[],"views":false}), |app| {
         let fortify = app.container().make::<Fortify>().unwrap();
-        fortify.authenticateUsing(Arc::new(|request| {
+        fortify.authenticate_using(Arc::new(|request| {
             Box::pin(async move {
                 let accepted = request
                     .input(Some("password"))
@@ -550,7 +550,7 @@ async fn authentication_and_password_confirmation_callbacks_are_application_scop
                 }))
             })
         }));
-        fortify.confirmPasswordsUsing(Arc::new(|user, password| {
+        fortify.confirm_passwords_using(Arc::new(|user, password| {
             Box::pin(async move {
                 Ok(user.get_auth_identifier() == AuthIdentifier::from("001")
                     && password == Some("custom-confirm"))
@@ -609,7 +609,7 @@ async fn callback_pipeline_precedes_configured_stages_and_can_short_circuit() {
             app.container()
                 .make::<Fortify>()
                 .unwrap()
-                .authenticateThrough(Arc::new(|_| Ok(vec![Box::new(custom_pipeline)])));
+                .authenticate_through(Arc::new(|_| Ok(vec![Box::new(custom_pipeline)])));
         },
     )
     .await;
@@ -818,12 +818,12 @@ async fn view_callbacks_and_container_response_replacements_are_application_owne
     use openrust_fortify::http::responses::SimpleViewResponse;
     let server = start(json!({"features":[],"views":true,"guard":null}), |app| {
         let fortify = app.container().make::<Fortify>().unwrap();
-        fortify.loginView(SimpleViewResponse::callback(Arc::new(|request| {
+        fortify.login_view(SimpleViewResponse::callback(Arc::new(|request| {
             Box::pin(
                 async move { Response::json(StatusCode::OK, json!({"login_view":request.path()})) },
             )
         })));
-        fortify.confirmPasswordView(SimpleViewResponse::callback(Arc::new(|_| {
+        fortify.confirm_password_view(SimpleViewResponse::callback(Arc::new(|_| {
             Box::pin(async { Response::json(StatusCode::OK, json!({"confirm_view":true})) })
         })));
         app.container()
@@ -871,7 +871,7 @@ async fn named_blade_view_uses_native_request_session_context() {
         app.container()
             .make::<Fortify>()
             .unwrap()
-            .loginView("login");
+            .login_view("login");
     })
     .await;
     let mut client = Client::new(&server);
@@ -964,7 +964,7 @@ async fn callback_failed_and_lockout_events_borrow_original_payloads() {
         app.container()
             .make::<Fortify>()
             .unwrap()
-            .authenticateUsing(Arc::new(|_| Box::pin(async { Ok(None) })));
+            .authenticate_using(Arc::new(|_| Box::pin(async { Ok(None) })));
         let dispatcher = app
             .container()
             .make::<openrust::events::Dispatcher>()

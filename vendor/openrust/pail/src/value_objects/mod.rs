@@ -11,16 +11,14 @@ pub use origin::Origin;
 
 /// A parsed capture record, separate from the framework's live log event.
 #[derive(Clone, Debug, Deserialize)]
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct MessageLogged {
     message: String,
     datetime: String,
     #[serde(rename = "level_name")]
-    levelName: String,
+    level_name: String,
     context: LogContext,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MessageLogged {
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
@@ -43,13 +41,13 @@ impl MessageLogged {
         let offset = pieces.to_numeric_offset().unwrap_or(Offset::UTC);
         Ok(timestamp.to_zoned(offset.to_time_zone()))
     }
-    pub fn classOrType(&self) -> Cow<'_, str> {
+    pub fn class_or_type(&self) -> Cow<'_, str> {
         self.exception("class")
             .map(Cow::Borrowed)
-            .unwrap_or_else(|| Cow::Owned(self.levelName.to_ascii_uppercase()))
+            .unwrap_or_else(|| Cow::Owned(self.level_name.to_ascii_uppercase()))
     }
     pub fn color(&self) -> &'static str {
-        match self.levelName.as_str() {
+        match self.level_name.as_str() {
             "INFO" => "blue",
             "NOTICE" | "WARNING" => "yellow",
             "ERROR" | "CRITICAL" | "ALERT" | "EMERGENCY" => "red",
@@ -57,12 +55,12 @@ impl MessageLogged {
         }
     }
     pub fn level(&self) -> &str {
-        &self.levelName
+        &self.level_name
     }
     pub fn file(&self) -> Option<&str> {
         self.exception("file")
     }
-    pub fn authId(&self) -> Option<String> {
+    pub fn auth_id(&self) -> Option<String> {
         let value = self.raw_origin().get("auth_id")?;
         match value {
             Value::String(value) => Some(value.clone()),
@@ -72,7 +70,7 @@ impl MessageLogged {
         }
     }
     pub fn origin(&self) -> Result<Origin, serde_json::Error> {
-        Origin::fromArray(self.raw_origin())
+        Origin::from_array(self.raw_origin())
     }
     pub fn trace(&self) -> Option<&[Value]> {
         self.raw_origin()
@@ -105,7 +103,7 @@ impl fmt::Display for MessageLogged {
         formatter.write_str(",\"datetime\":")?;
         json::string(formatter, &self.datetime)?;
         formatter.write_str(",\"level_name\":")?;
-        json::string(formatter, &self.levelName)?;
+        json::string(formatter, &self.level_name)?;
         formatter.write_str(",\"context\":")?;
         json::object(formatter, &self.context)?;
         formatter.write_str("}")

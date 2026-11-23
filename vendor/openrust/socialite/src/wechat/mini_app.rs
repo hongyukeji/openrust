@@ -49,11 +49,11 @@ impl MiniApp {
         })
     }
     /// Explicit override for controlled protocol services, as with OAuth providers.
-    pub fn withEndpoint(mut self, endpoint: impl Into<String>) -> Self {
+    pub fn with_endpoint(mut self, endpoint: impl Into<String>) -> Self {
         self.endpoint = endpoint.into();
         self
     }
-    pub async fn codeToSession(&self, code: &str) -> Result<Session> {
+    pub async fn code_to_session(&self, code: &str) -> Result<Session> {
         if code.trim().is_empty() {
             return Err(Error::MissingCode);
         }

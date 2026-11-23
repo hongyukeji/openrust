@@ -31,8 +31,8 @@ impl ServiceProvider for Definitions {
                     Box::pin(async move { Ok(json!(value)) })
                 }),
             )?;
-            store.defineValue("off", json!(false))?;
-            store.defineValue("zero", json!(0))?;
+            store.define_value("off", json!(false))?;
+            store.define_value("zero", json!(0))?;
             Ok(())
         })
     }
@@ -44,7 +44,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
         ("/allowed", EnsureFeaturesAreActive::using(["zero"])),
         (
             "/custom",
-            EnsureFeaturesAreActive::using(["off"]).whenInactive(|_, _| {
+            EnsureFeaturesAreActive::using(["off"]).when_inactive(|_, _| {
                 Box::pin(async { Ok(Response::empty(StatusCode::NOT_FOUND)) })
             }),
         ),

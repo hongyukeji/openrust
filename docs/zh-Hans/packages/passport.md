@@ -57,12 +57,12 @@ use openrust_passport::Passport;
 
 pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let passport = app.make::<Passport>().await?;
-    passport.loadKeysFrom(passport.keyPath("keys"));
+    passport.load_keys_from(passport.key_path("keys"));
     Ok(())
 }
 ```
 
-生成前目录须已存在且可写。Rust 使用应用持有的 `Passport` 实例，替代 PHP 的进程全局可变设置，保留 `keyPath`、`loadKeysFrom` 名称。两个密钥独立延迟加载；仅配置成功不表示两者已经配对。Unix 文件权限不属于 0400、0440、0600、0640、0660 时校验失败。应用可显式调用 `passport.validateKeyPermissions.store(false, std::sync::atomic::Ordering::Relaxed)` 关闭该检查，不影响其他应用。内联密钥和 Windows 不检查 Unix 权限位。
+生成前目录须已存在且可写。Rust 使用应用持有的 `Passport` 实例，替代 PHP 的进程全局可变设置，保留 `key_path`、`load_keys_from` 名称。两个密钥独立延迟加载；仅配置成功不表示两者已经配对。Unix 文件权限不属于 0400、0440、0600、0640、0660 时校验失败。应用可显式调用 `passport.validate_key_permissions.store(false, std::sync::atomic::Ordering::Relaxed)` 关闭该检查，不影响其他应用。内联密钥和 Windows 不检查 Unix 权限位。
 
 默认及标准长度使用现有原生 AWS-LC 生成，其余受支持长度使用独立生成器。RustCrypto 只用于生成与 PEM 解析，不用于在线 RSA 解密或签名；无需安装 PHP 或 OpenSSL 命令行工具。
 
@@ -70,7 +70,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 客户端仓储支持查询、创建、更新、秘密轮换、所有权筛选和撤销，操作真实 Eloquent 模型。`passport:client` 可创建六类客户端。授权码、设备端点及资源令牌认证已提供。
 
-在请求或 Artisan 生命周期内解析 `ClientRepository`，容器为每个生命周期提供新仓储。同一参数的重复 `find` 共享实际模型，并缓存未命中；数据库错误传播，允许再次尝试。`findActive` 还检查当前模型的 `revoked` 属性。不要把此作用域服务保存在应用单例中。显式管理的操作可以通过 `Passport::clientRepository()` 创建独立拥有缓存的仓储。
+在请求或 Artisan 生命周期内解析 `ClientRepository`，容器为每个生命周期提供新仓储。同一参数的重复 `find` 共享实际模型，并缓存未命中；数据库错误传播，允许再次尝试。`find_active` 还检查当前模型的 `revoked` 属性。不要把此作用域服务保存在应用单例中。显式管理的操作可以通过 `Passport::client_repository()` 创建独立拥有缓存的仓储。
 
 发布并执行客户端迁移后，在上述生命周期内调用以下辅助函数：
 
@@ -84,7 +84,7 @@ pub async fn create_client(
 ) -> Result<ClientRecord, Box<dyn std::error::Error + Send + Sync>> {
     let clients = app.make::<ClientRepository>().await?;
     Ok(clients
-        .createAuthorizationCodeGrantClient(
+        .create_authorization_code_grant_client(
             "My application",
             &["https://example.com/callback".to_owned()],
             true,
@@ -97,29 +97,29 @@ pub async fn create_client(
 
 参数顺序保留框架原意。Rust 显式传递默认参数：`true` 创建机密客户端，`owner` 可空，最后的 `false` 不额外启用设备授权。使用 `ClientOwner::for_user(&user)` 从编译注册的 `Model + Authenticatable` 创建所有者，取模型主键和多态类型，不取可能不同的认证标识。公开客户端将机密参数设为 `false`。
 
-`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 选择对应授权类型。创建记录不会启用可选的 Password 或 Implicit 协议；设备端点遵循应用设备开关。`update` 修改名称和重定向地址，`regenerateSecret` 生成新秘密；两者经 Eloquent 保存并返回其布尔结果。`findForUser` 和 `for_user` 排除已撤销客户端，后者按名称排序。`personalAccessClient(provider)` 选择对应用户提供者的最新有效个人客户端，仅当提供者等于 `auth.guards.api.provider` 时也接受空提供者，找不到时返回错误。
+`create_personal_access_grant_client`、`create_password_grant_client`、`create_client_credentials_grant_client`、`create_implicit_grant_client` 和 `create_device_authorization_grant_client` 选择对应授权类型。创建记录不会启用可选的 Password 或 Implicit 协议；设备端点遵循应用设备开关。`update` 修改名称和重定向地址，`regenerate_secret` 生成新秘密；两者经 Eloquent 保存并返回其布尔结果。`find_for_user` 和 `for_user` 排除已撤销客户端，后者按名称排序。`personal_access_client(provider)` 选择对应用户提供者的最新有效个人客户端，仅当提供者等于 `auth.guards.api.provider` 时也接受空提供者，找不到时返回错误。
 
-机密客户端复用应用已有的 Eloquent 异步哈希服务。创建或轮换的 `Client` 在 `plainSecret` 临时保留 setter 输入，重新读库不会恢复明文。默认 JSON 隐藏 `secret`，不追加明文。只在向所有者交付时复制新生成的秘密，不要记录日志。`record.model::<M>()` 返回的 `Arc<tokio::sync::Mutex<M>>` 指向实际选定模型；`sameInstance` 检查共享对象身份，不代表两行模型的主键相等。
+机密客户端复用应用已有的 Eloquent 异步哈希服务。创建或轮换的 `Client` 在 `plain_secret` 临时保留 setter 输入，重新读库不会恢复明文。默认 JSON 隐藏 `secret`，不追加明文。只在向所有者交付时复制新生成的秘密，不要记录日志。`record.model::<M>()` 返回的 `Arc<tokio::sync::Mutex<M>>` 指向实际选定模型；`same_instance` 检查共享对象身份，不代表两行模型的主键相等。
 
 `client.append(&["plain_secret"])` 显式追加该实例的临时明文；重新读库的模型追加后得到 null。追加仍遵守 `make_hidden` 和 `set_visible`。
 
-`ClientModel::hasScope` 和 `ClientRecord::hasScope` 在未设置 `scopes` 或其原始值为 null 时允许所有 scope；已设置时按数组内容检查，成员判断沿用 PHP 非严格比较。默认不开启父 scope 继承。若在当前应用上调用 `passport.withInheritedScopes.store(true, std::sync::atomic::Ordering::Relaxed)`，`orders` 也允许 `orders:read` 等后代。`*` 在这里是普通 scope 名称。开关保存在各应用自己的实例中，调用须位于所属应用的请求或 Artisan 生命周期。
+`ClientModel::has_scope` 和 `ClientRecord::has_scope` 在未设置 `scopes` 或其原始值为 null 时允许所有 scope；已设置时按数组内容检查，成员判断沿用 PHP 非严格比较。默认不开启父 scope 继承。若在当前应用上调用 `passport.with_inherited_scopes.store(true, std::sync::atomic::Ordering::Relaxed)`，`orders` 也允许 `orders:read` 等后代。`*` 在这里是普通 scope 名称。开关保存在各应用自己的实例中，调用须位于所属应用的请求或 Artisan 生命周期。
 
-在应用装配时、解析仓储前调用 `passport.useClientModel::<CustomClient>()`。编译期类型实现 `ClientModel` 和 Eloquent `Model`，保留唯一标识校验、全局作用域、事件及转换。格式错误的 UUID／ULID 在解析连接前直接未命中。仓储查询和未绑定实例的 `Client::query()`／`save()` 优先使用模型显式连接，然后是 `passport.connection`，最后是数据库默认连接。创建和读出的模型保留实际连接；随后更改配置也不会把该模型的保存转到其他连接。`Client::query_on(&connection)` 显式选择连接。事务写入检查模型的有效连接，拒绝不同连接的事务。Rust 的 `resolve_connection_name()` 返回可拥有的名称，以读取应用配置；`get_connection()` 返回实际连接。秘密赋值使用 PHP 标量字符串转换。哈希失败保留原有哈希，并在 `plainSecret` 中保留本次 setter 输入。批量赋值沿用 Rust 既有的属性键顺序；后续 setter 失败时保留之前成功的赋值。
+在应用装配时、解析仓储前调用 `passport.use_client_model::<CustomClient>()`。编译期类型实现 `ClientModel` 和 Eloquent `Model`，保留唯一标识校验、全局作用域、事件及转换。格式错误的 UUID／ULID 在解析连接前直接未命中。仓储查询和未绑定实例的 `Client::query()`／`save()` 优先使用模型显式连接，然后是 `passport.connection`，最后是数据库默认连接。创建和读出的模型保留实际连接；随后更改配置也不会把该模型的保存转到其他连接。`Client::query_on(&connection)` 显式选择连接。事务写入检查模型的有效连接，拒绝不同连接的事务。Rust 的 `resolve_connection_name()` 返回可拥有的名称，以读取应用配置；`get_connection()` 返回实际连接。秘密赋值使用 PHP 标量字符串转换。哈希失败保留原有哈希，并在 `plain_secret` 中保留本次 setter 输入。批量赋值沿用 Rust 既有的属性键顺序；后续 setter 失败时保留之前成功的赋值。
 
 ## 客户端工厂
 
-`Client::factory()?` 创建 `database::factories::ClientFactory<Client>`。可调用 `asPublic`、`asPasswordClient`、`asPersonalAccessTokenClient`、`asImplicitClient`、`asClientCredentials` 或 `asDeviceCodeClient` 应用相应授权状态。后续状态覆盖先前属性。默认生成机密授权码客户端，包含随机 40 字符秘密和一个生成的重定向 URI；所有者为空，revoked 为 false。
+`Client::factory()?` 创建 `database::factories::ClientFactory<Client>`。可调用 `as_public`、`as_password_client`、`as_personal_access_token_client`、`as_implicit_client`、`as_client_credentials` 或 `as_device_code_client` 应用相应授权状态。后续状态覆盖先前属性。默认生成机密授权码客户端，包含随机 40 字符秘密和一个生成的重定向 URI；所有者为空，revoked 为 false。
 
-`make().await?` 返回未保存模型，`create().await?` 持久化模型。赋值执行模型的异步修改器和转换：新 Client 保留 `plainSecret`，重新读库只包含哈希。`state` 添加应用属性；`intoFactory()` 返回现有 Eloquent 工厂 Builder，以使用数量、关系与回调。
+`make().await?` 返回未保存模型，`create().await?` 持久化模型。赋值执行模型的异步修改器和转换：新 Client 保留 `plain_secret`，重新读库只包含哈希。`state` 添加应用属性；`into_factory()` 返回现有 Eloquent 工厂 Builder，以使用数量、关系与回调。
 
-Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。当前提供授权码、刷新与设备协议。
+Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `use_client_model`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。当前提供授权码、刷新与设备协议。
 
 ## 客户端命令与撤销
 
 执行迁移后，用 `./artisan passport:client` 创建客户端。`--personal`、`--password`、`--client`、`--implicit`、`--device` 选择授权类型；不传这些选项时创建授权码客户端。多个选项同时存在时按上述顺序优先。`--name`、`--provider`、`--redirect_uri` 提供交互值，多个重定向地址用逗号分隔。`--public` 为密码、设备和授权码客户端省略秘密。隐式客户端始终公开；个人和客户端凭据客户端始终保密。
 
-使用 `--no-interaction` 时，名称默认取 `app.name`，回调默认取应用 URL 加 `/auth/callback`，附加设备流程默认关闭。交互创建授权码客户端时，若 `deviceCodeGrantEnabled` 为 true（默认值），会询问是否启用设备流程。命令输出客户端 ID；保密客户端还输出临时秘密和保存提醒。个人客户端创建只输出成功消息。
+使用 `--no-interaction` 时，名称默认取 `app.name`，回调默认取应用 URL 加 `/auth/callback`，附加设备流程默认关闭。交互创建授权码客户端时，若 `device_code_grant_enabled` 为 true（默认值），会询问是否启用设备流程。命令输出客户端 ID；保密客户端还输出临时秘密和保存提醒。个人客户端创建只输出成功消息。
 
 `clients.delete(&client).await?` 按每批 1000 个加载客户端的访问令牌，逐个先撤销刷新令牌、再撤销访问令牌，最后撤销客户端。保存经过 Eloquent 转换和事件；错误向上传递，之前的保存保留。事件取消保存返回 false，不中止撤销链，与 Passport 一致。授权码不变。`TokenModel::revoke`、`RefreshTokenModel::revoke` 也可单独撤销实例。
 
@@ -127,29 +127,29 @@ Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFact
 
 `Token`、`RefreshToken`、`AuthCode` 使用非自增字符串主键、布尔 `revoked`、日期时间 `expires_at` 转换，以及 Passport 连接回退。只有 `Token` 使用时间戳，其 scopes 为数组。`Token::can` 拒绝空 scope 列表，支持 PHP 非严格比较的 `*` 通配符，并读取当前应用的继承设置；`cant` 返回相反结果。
 
-`ClientModel` 提供 `tokens`、`authCodes`、`owner` 和已弃用的 `user::<U>()`；`Token` 提供 `client`、`refreshToken` 和已弃用的 `user::<U>("认证标识列")`；`RefreshToken` 提供 `accessToken`；`AuthCode` 提供 `client`。Token 的用户键须与编译 provider 模型的 `Authenticatable` 标识列一致，Client 的用户关系使用主键。多态所有者通过既有 `owner().target::<U>(别名, 主键)` Builder 绑定。
+`ClientModel` 提供 `tokens`、`auth_codes`、`owner` 和已弃用的 `user::<U>()`；`Token` 提供 `client`、`refresh_token` 和已弃用的 `user::<U>("认证标识列")`；`RefreshToken` 提供 `access_token`；`AuthCode` 提供 `client`。Token 的用户键须与编译 provider 模型的 `Authenticatable` 标识列一致，Client 的用户关系使用主键。多态所有者通过既有 `owner().target::<U>(别名, 主键)` Builder 绑定。
 
-Rust 在编译时绑定关系返回类型。默认辅助方法返回默认具体模型；自定义模型使用 `tokensFor::<T>`、`clientFor::<C>`、`refreshTokenFor::<R>`、`accessTokenFor::<T>`。`passport.useTokenModel::<T>()` 和 `useRefreshTokenModel::<R>()` 选择仓储撤销时使用的实际模型，保留其连接和事件；共享注册也作用于已解析的仓储。用户 provider 由调用方选择编译模型，替代 PHP 的运行时类名。
+Rust 在编译时绑定关系返回类型。默认辅助方法返回默认具体模型；自定义模型使用 `tokens_for::<T>`、`client_for::<C>`、`refresh_token_for::<R>`、`access_token_for::<T>`。`passport.use_token_model::<T>()` 和 `use_refresh_token_model::<R>()` 选择仓储撤销时使用的实际模型，保留其连接和事件；共享注册也作用于已解析的仓储。用户 provider 由调用方选择编译模型，替代 PHP 的运行时类名。
 
-`clientUuids` 默认 true。已有数字自增客户端表时，在构造模型前调用 `passport.clientUuids.store(false, std::sync::atomic::Ordering::Relaxed)`。每个实例保留构造时选定的策略。开关不会修改已有表结构；发布的客户端迁移仍创建 UUID 主键。
+`client_uuids` 默认 true。已有数字自增客户端表时，在构造模型前调用 `passport.client_uuids.store(false, std::sync::atomic::Ordering::Relaxed)`。每个实例保留构造时选定的策略。开关不会修改已有表结构；发布的客户端迁移仍创建 UUID 主键。
 
 ## Scope JSON
 
-`Scope::to_json()` 保留 `id`、`description` 字段顺序，以及 PHP 默认的 Unicode 和斜杠转义。`toJsonWithOptions(ScopeJsonOptions)` 支持 `JSON_HEX_TAG`、`JSON_HEX_AMP`、`JSON_HEX_APOS`、`JSON_HEX_QUOT`、`JSON_NUMERIC_CHECK`、`JSON_UNESCAPED_SLASHES`、`JSON_PRETTY_PRINT`、`JSON_UNESCAPED_UNICODE`、`JSON_PRESERVE_ZERO_FRACTION`、`JSON_UNESCAPED_LINE_TERMINATORS`。用 `|` 组合常量，`fromBits` 可传入 PHP 选项位。Rust 字符串始终是有效 UTF-8，因此非法 UTF-8 相关标志不会改变结果。
+`Scope::to_json()` 保留 `id`、`description` 字段顺序，以及 PHP 默认的 Unicode 和斜杠转义。`to_json_with_options(ScopeJsonOptions)` 支持 `JSON_HEX_TAG`、`JSON_HEX_AMP`、`JSON_HEX_APOS`、`JSON_HEX_QUOT`、`JSON_NUMERIC_CHECK`、`JSON_UNESCAPED_SLASHES`、`JSON_PRETTY_PRINT`、`JSON_UNESCAPED_UNICODE`、`JSON_PRESERVE_ZERO_FRACTION`、`JSON_UNESCAPED_LINE_TERMINATORS`。用 `|` 组合常量，`from_bits` 可传入 PHP 选项位。Rust 字符串始终是有效 UTF-8，因此非法 UTF-8 相关标志不会改变结果。
 
 ```rust
 use openrust_passport::{Scope, ScopeJsonOptions};
 let scope = Scope::new("orders/read", "读取订单");
-let json = scope.toJsonWithOptions(
+let json = scope.to_json_with_options(
     ScopeJsonOptions::JSON_UNESCAPED_UNICODE | ScopeJsonOptions::JSON_UNESCAPED_SLASHES,
 )?;
 ```
 
 ## 授权码授权 {#authorization-code-grant}
 
-Provider 注册 GET、POST、DELETE `/oauth/authorize`，使用 `web` 中间件和 Session 锁；POST `/oauth/token` 使用限流。`passport.path` 修改默认 `oauth` 前缀，`passport.middleware` 为这些路由添加中间件。在包启动前调用 `passport.ignoreRoutes()` 可自行注册路由。浏览器认证使用 `passport.guard`，默认为 `web`；配置应用自身的登录路由和 SessionGuard 用户提供者，并先发布执行迁移、设置 `APP_KEY`、生成 RSA 密钥。
+Provider 注册 GET、POST、DELETE `/oauth/authorize`，使用 `web` 中间件和 Session 锁；POST `/oauth/token` 使用限流。`passport.path` 修改默认 `oauth` 前缀，`passport.middleware` 为这些路由添加中间件。在包启动前调用 `passport.ignore_routes()` 可自行注册路由。浏览器认证使用 `passport.guard`，默认为 `web`；配置应用自身的登录路由和 SessionGuard 用户提供者，并先发布执行迁移、设置 `APP_KEY`、生成 RSA 密钥。
 
-在应用装配时解析 `Passport`，调用 `passport.tokensCan(BTreeMap::from([("read".to_owned(), "Read data".to_owned())]))` 注册 scope，按需调用 `passport.setDefaultScope(vec!["read".to_owned()])`，并设置 `passport.authorizationView(consent)`。这些设置属于当前应用。下面的回调为应用界面返回同意数据；界面负责显示客户端、权限和批准／拒绝控件：
+在应用装配时解析 `Passport`，调用 `passport.tokens_can(BTreeMap::from([("read".to_owned(), "Read data".to_owned())]))` 注册 scope，按需调用 `passport.set_default_scope(vec!["read".to_owned()])`，并设置 `passport.authorization_view(consent)`。这些设置属于当前应用。下面的回调为应用界面返回同意数据；界面负责显示客户端、权限和批准／拒绝控件：
 
 ```rust
 use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
@@ -199,11 +199,11 @@ Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图
 
 ## 设备授权 {#device-authorization-grant}
 
-用 `./artisan passport:client --device --public` 创建公开设备客户端，机密设备客户端省略 `--public`。设备授权默认开启。若要关闭端点，在 Passport 装配路由之前的 Provider boot 阶段设置 `passport.deviceCodeGrantEnabled.store(false, std::sync::atomic::Ordering::Relaxed)`；应用启动后修改开关不会移除已注册路由。
+用 `./artisan passport:client --device --public` 创建公开设备客户端，机密设备客户端省略 `--public`。设备授权默认开启。若要关闭端点，在 Passport 装配路由之前的 Provider boot 阶段设置 `passport.device_code_grant_enabled.store(false, std::sync::atomic::Ordering::Relaxed)`；应用启动后修改开关不会移除已注册路由。
 
 向 POST `/oauth/device/code` 提交 `client_id` 和可选的空格分隔 `scope`。响应包含 `device_code`、`user_code`、`verification_uri`、`verification_uri_complete`、`expires_in`（600 秒）和 `interval`（5 秒）。创建步骤只识别客户端，不验证秘密。设备保存 `device_code`，向用户显示验证 URI 和用户码，或在浏览器打开完整 URI。响应带 `no-store` 和 `no-cache`。
 
-在应用装配时配置 `passport.deviceUserCodeView(code_view)` 与 `passport.deviceAuthorizationView(consent)`。`code_view` 的签名为 `fn(&mut Request) -> HttpFuture<'_, Result<Response, HttpError>>`，同意回调复用上文 `authorizationView` 的 `AuthorizationViewParameters` 签名。应用负责渲染 HTML，并转义客户端及 scope 显示值。GET `/oauth/device` 展示输入页，GET 表单将 `user_code` 提交回该地址。输入码仅移除连字符，保留大小写。`verification_uri_complete` 跳过输入，重定向到 GET `/oauth/device/authorize`，该端点要求配置的 Session 用户登录并展示同意页。
+在应用装配时配置 `passport.device_user_code_view(code_view)` 与 `passport.device_authorization_view(consent)`。`code_view` 的签名为 `fn(&mut Request) -> HttpFuture<'_, Result<Response, HttpError>>`，同意回调复用上文 `authorization_view` 的 `AuthorizationViewParameters` 签名。应用负责渲染 HTML，并转义客户端及 scope 显示值。GET `/oauth/device` 展示输入页，GET 表单将 `user_code` 提交回该地址。输入码仅移除连字符，保留大小写。`verification_uri_complete` 跳过输入，重定向到 GET `/oauth/device/authorize`，该端点要求配置的 Session 用户登录并展示同意页。
 
 同意表单携带保存的 `auth_token` 与 Session CSRF `_token`，提交至 POST `/oauth/device/authorize` 批准，或 DELETE 拒绝。浏览器保留 Session Cookie。服务器将请求绑定到实际登录用户，仅消费一次 nonce，已决定的设备码不能被竞争浏览器重新绑定。完成后重定向到 `/oauth/device`，Session `status` 为 `authorization-approved` 或 `authorization-denied`。错误用户码返回输入页，带旧 `user_code` 输入及验证错误；缺少视图回调会明确失败。
 
@@ -219,9 +219,9 @@ Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图
 
 ```rust
 use openrust_passport::GrantLifetime;
-passport.tokensExpireIn(Some(GrantLifetime::Seconds(3600)));
-passport.refreshTokensExpireIn(Some(GrantLifetime::CalendarYears(1)));
-let current = passport.tokensExpireIn(None);
+passport.tokens_expire_in(Some(GrantLifetime::Seconds(3600)));
+passport.refresh_tokens_expire_in(Some(GrantLifetime::CalendarYears(1)));
+let current = passport.tokens_expire_in(None);
 ```
 
 ## 撤销令牌 {#revoking-tokens}
@@ -236,27 +236,27 @@ let current = passport.tokensExpireIn(None);
 
 在 `config/auth.rs` 将守卫配置为 `{"driver":"passport","provider":"users"}`，为受保护路由添加 `auth:api`。Provider 须解析应用编译后的用户模型。每个请求验证 RS256 签名、可选 JWT 时间声明和选定访问存储的撤销状态。客户端失效、provider 不匹配或用户不存在时视为未认证；用户查询异常也视为未认证，权威令牌存储故障则令请求失败。
 
-通过 `Auth::user(request).await?` 读取真实用户。Rust 将轻量访问令牌按守卫名附到请求，保留原编译用户对象；通过 `openrust_passport::guards::TokenGuard::token(request, "api")` 读取，使用 `can`、`cant`、`transient` 检查 scope。`ResourceServer::validateAuthenticatedRequest` 还插入类型化 `AccessToken` 请求属性。守卫解析仅在本请求内缓存，按守卫及应用隔离。Cookie 认证和 scope 中间件见下文。
+通过 `Auth::user(request).await?` 读取真实用户。Rust 将轻量访问令牌按守卫名附到请求，保留原编译用户对象；通过 `openrust_passport::guards::TokenGuard::token(request, "api")` 读取，使用 `can`、`cant`、`transient` 检查 scope。`ResourceServer::validate_authenticated_request` 还插入类型化 `AccessToken` 请求属性。守卫解析仅在本请求内缓存，按守卫及应用隔离。Cookie 认证和 scope 中间件见下文。
 
 ## 客户端凭据授权 {#client-credentials-grant}
 
 通过 `artisan passport:client --client` 创建机密机器客户端，向 `POST /oauth/token` 发送 `grant_type=client_credentials`、`client_id`、`client_secret` 和可选的空格分隔 `scope`；也支持 HTTP Basic 凭据。响应包含 `access_token`、`token_type`、`expires_in` 和 `Cache-Control: no-store`，没有刷新令牌。公开客户端被拒绝。JWT subject 为客户端 ID，数据库 user ID 为空。
 
-机器资源使用 `EnsureClientIsResourceOwner::shared(["read"])` 验证令牌和 scope，不要求用户 provider；用户守卫仍要求真实用户。通过 `passport.clientCredentialsTokensExpireIn(Some(GrantLifetime::Seconds(300)))` 设置机器期限，未单独配置时沿用 `tokensExpireIn`。
+机器资源使用 `EnsureClientIsResourceOwner::shared(["read"])` 验证令牌和 scope，不要求用户 provider；用户守卫仍要求真实用户。通过 `passport.client_credentials_tokens_expire_in(Some(GrantLifetime::Seconds(300)))` 设置机器期限，未单独配置时沿用 `tokens_expire_in`。
 
 ## 个人访问令牌 {#personal-access-tokens}
 
 使用 `artisan passport:client --personal --provider=users` 创建个人客户端。在应用上下文调用 `PersonalAccessTokenFactory::make(user_id, "Automation", &["read".into()], "users").await?`。个人授权走专用服务器，公网令牌端点不接受它。按 provider 选择客户端；无 provider 的客户端仅能作为已配置 API provider 的回退。
 
-编译用户模型可以实现 `HasApiTokens`，在 `getProviderName` 明确返回其配置 provider，再调用 `user.create_token("Automation", &["read".into()]).await?`。Rust 要求显式声明，不推断 PHP 模型类名。令牌保存用户、名称和 scope，无刷新令牌。`personalAccessTokensExpireIn` 默认独立为一个日历年。
+编译用户模型可以实现 `HasApiTokens`，在 `get_provider_name` 明确返回其配置 provider，再调用 `user.create_token("Automation", &["read".into()]).await?`。Rust 要求显式声明，不推断 PHP 模型类名。令牌保存用户、名称和 scope，无刷新令牌。`personal_access_tokens_expire_in` 默认独立为一个日历年。
 
-`PersonalAccessTokenResult` 的序列化、`to_array`、`to_json` 提供 `accessTokenId`、`accessToken`、`tokenType`、`expiresIn`。`getToken().await?` 加载并缓存真实默认 `Token`，返回 `Option<PersonalToken<Token>>`，即 `Arc<tokio::sync::Mutex<Token>>`；重复读取共享同一模型。编译自定义模型使用 `getTokenFor::<CustomToken>()`。锁定模型后通过 `TokenModel` 撤销。Debug 输出隐藏 Bearer。
+`PersonalAccessTokenResult` 的序列化、`to_array`、`to_json` 提供 `access_token_id`、`access_token`、`token_type`、`expires_in`。`get_token().await?` 加载并缓存真实默认 `Token`，返回 `Option<PersonalToken<Token>>`，即 `Arc<tokio::sync::Mutex<Token>>`；重复读取共享同一模型。编译自定义模型使用 `get_token_for::<CustomToken>()`。锁定模型后通过 `TokenModel` 撤销。Debug 输出隐藏 Bearer。
 
 ## 令牌作用域 {#token-scopes}
 
-使用 `tokensCan(BTreeMap::from([("read".into(), "读取数据".into())]))` 注册 scope 描述；`setDefaultScope(vec!["read".into()])` 设置省略 `scope` 时的默认值。显式未知 scope 被拒绝，签名前应用客户端 scope 限制；机器令牌可以保留 `*`。`defaultScopes(None)` 读取，`defaultScopes(Some(scopes))` 更新，协议层规范化空格分隔字符串。
+使用 `tokens_can(BTreeMap::from([("read".into(), "读取数据".into())]))` 注册 scope 描述；`set_default_scope(vec!["read".into()])` 设置省略 `scope` 时的默认值。显式未知 scope 被拒绝，签名前应用客户端 scope 限制；机器令牌可以保留 `*`。`default_scopes(None)` 读取，`default_scopes(Some(scopes))` 更新，协议层规范化空格分隔字符串。
 
-`scopeIds`、`hasScope`、`validScopes` 和 `scopesFor` 查询配置。`validScopes` 按输入顺序过滤并去重，`scopesFor` 保留重复并过滤未知 ID。`hasScope("*")` 为真，但 `validScopes` 仅在显式配置时保留 `*`。
+`scope_ids`、`has_scope`、`valid_scopes` 和 `scopes_for` 查询配置。`valid_scopes` 按输入顺序过滤并去重，`scopes_for` 保留重复并过滤未知 ID。`has_scope("*")` 为真，但 `valid_scopes` 仅在显式配置时保留 `*`。
 
 ```rust
 use openrust_passport::http::middleware::{CheckToken, CheckTokenForAnyScope};
@@ -264,15 +264,15 @@ route.middleware(CheckToken::shared(["read", "write"]));
 route.middleware(CheckTokenForAnyScope::shared(["read", "write"]));
 ```
 
-原生中间件值替代 PHP 中间件字符串。`CheckToken` 要求全部 scope，`CheckTokenForAnyScope` 要求至少一个；空的全部列表通过，空的任一列表拒绝。未认证返回 401，scope 不足返回 403、`Invalid scope(s) provided.`。原生错误类型位于 `exceptions::MissingScopeException`。`TokenGuard::currentToken(request)` 读取选定守卫的令牌，第一方瞬态令牌允许全部 scope。
+原生中间件值替代 PHP 中间件字符串。`CheckToken` 要求全部 scope，`CheckTokenForAnyScope` 要求至少一个；空的全部列表通过，空的任一列表拒绝。未认证返回 401，scope 不足返回 403、`Invalid scope(s) provided.`。原生错误类型位于 `exceptions::MissingScopeException`。`TokenGuard::current_token(request)` 读取选定守卫的令牌，第一方瞬态令牌允许全部 scope。
 
 ## SPA 认证 {#spa-authentication}
 
 将共享的 `CreateFreshApiToken::using(Some("web"))` 放入 web 栈，位于 Session 和 Cookie 中间件之后。已认证 GET 响应追加加密 HttpOnly `openrust_token` Cookie，已有同名响应 Cookie 时保留原值。内部签名 JWT 包含真实用户标识、CSRF 和期限，期限及 Cookie 属性沿用 Session 配置。`passport.cookie(Some("custom_name"))` 修改名称。
 
-API 资源使用 Passport 守卫。API 栈通常不含 web `EncryptCookies`，由 Passport 自行解密；如果应用已经提前解密，应显式调用 `withoutCookieEncryption`。`withCookieEncryption`、`withCookieSerialization`、`withoutCookieSerialization`、`encryptTokensUsing` 和 `tokenEncryptionKey` 配置生产与消费一致的格式和密钥。设置归属应用实例；相同密钥和格式的应用可能互读 Cookie。
+API 资源使用 Passport 守卫。API 栈通常不含 web `EncryptCookies`，由 Passport 自行解密；如果应用已经提前解密，应显式调用 `without_cookie_encryption`。`with_cookie_encryption`、`with_cookie_serialization`、`without_cookie_serialization`、`encrypt_tokens_using` 和 `token_encryption_key` 配置生产与消费一致的格式和密钥。设置归属应用实例；相同密钥和格式的应用可能互读 Cookie。
 
-通过 `X-CSRF-TOKEN` 发送 Session CSRF，或用 `X-XSRF-TOKEN` 发送加密 XSRF Cookie，即使 Cookie API 请求为 GET 也要求匹配。错误签名、过期、CSRF 或用户不存在均未认证。显式 Bearer 优先，失败时不回退 Cookie。`ignoreCsrfToken(true)` 为显式绕过，默认关闭。
+通过 `X-CSRF-TOKEN` 发送 Session CSRF，或用 `X-XSRF-TOKEN` 发送加密 XSRF Cookie，即使 Cookie API 请求为 GET 也要求匹配。错误签名、过期、CSRF 或用户不存在均未认证。显式 Bearer 优先，失败时不回退 Cookie。`ignore_csrf_token(true)` 为显式绕过，默认关闭。
 
 `POST /oauth/token/refresh` 经过 web Session 和 CSRF，返回 200 `Refreshed.` 并刷新 Cookie。Cookie 认证生成请求内瞬态令牌，不保存数据库访问令牌。web 登出路由也须安装 `CreateFreshApiToken`，通过前后身份变化清除此 Cookie；这是替代 PHP 全局请求登出监听器的原生适配，未安装的路由不会自动清除。
 
@@ -282,39 +282,39 @@ API 资源使用 Passport 守卫。API 栈通常不含 web `EncryptCookies`，�
 
 ## 测试 {#testing}
 
-在应用上下文用 `passport.actingAs(&mut request, Box::new(user), &["read".into()], "api", None).await?` 设置用户，或用 `passport.actingAsClient(&mut request, &client, &["read".into()], "api").await?` 设置机器。这些辅助方法选定守卫并将带 scope 的令牌附到显式请求，不签发、不落库，也不影响后续请求。`actingAsClient` 要求请求没有缓存用户，从用户身份切换时创建新请求。真实协议测试仍须获取并提交签名令牌。
+在应用上下文用 `passport.acting_as(&mut request, Box::new(user), &["read".into()], "api", None).await?` 设置用户，或用 `passport.acting_as_client(&mut request, &client, &["read".into()], "api").await?` 设置机器。这些辅助方法选定守卫并将带 scope 的令牌附到显式请求，不签发、不落库，也不影响后续请求。`acting_as_client` 要求请求没有缓存用户，从用户身份切换时创建新请求。真实协议测试仍须获取并提交签名令牌。
 
 ## 密码授权 {#password-grant}
 
-Password 和 Implicit 默认关闭，创建对应客户端记录不会启用协议。明确需要 Password 的集成，在解析授权服务器前调用应用实例的 `passport.enablePasswordGrant()`；`passwordGrantEnabled` 属于应用实例，设为 false 后拒绝后续请求。浏览器常规流程仍使用授权码及 PKCE。
+Password 和 Implicit 默认关闭，创建对应客户端记录不会启用协议。明确需要 Password 的集成，在解析授权服务器前调用应用实例的 `passport.enable_password_grant()`；`password_grant_enabled` 属于应用实例，设为 false 后拒绝后续请求。浏览器常规流程仍使用授权码及 PKCE。
 
 通过 `artisan passport:client --password --provider=users` 创建客户端（`--public` 创建公开客户端）。向 `POST /oauth/token` 发送 `grant_type=password`、`client_id`、`username`、`password` 和可选 `scope`；机密客户端还提供 `client_secret` 或 HTTP Basic。成功返回签名访问令牌，客户端支持时也签发刷新令牌，沿用普通访问／刷新期限。错误用户凭据返回 400 `invalid_grant`、`The user credentials were incorrect.`；缺字段、错误客户端和未知 scope 保留 OAuth 错误响应。
 
-`bridge::UserRepository::getUserEntityByUserCredentials` 选择客户端 provider，空值回退到 `auth.guards.api.provider`。默认编译 Eloquent provider 查询 `email` 并验证真实密码哈希。框架自定义 `UserProvider` 通过 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等价职责，不启动 Session、不重新哈希密码。
+`bridge::UserRepository::get_user_entity_by_user_credentials` 选择客户端 provider，空值回退到 `auth.guards.api.provider`。默认编译 Eloquent provider 查询 `email` 并验证真实密码哈希。框架自定义 `UserProvider` 通过 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等价职责，不启动 Session、不重新哈希密码。
 
-组合模型钩子 `findAndValidateForPassport` 使用 `passport.findAndValidateForPassportUsing("users", resolver)` 注册。原生 `bridge::PasswordGrantResolver` 是接收借用用户名、密码和 `ClientRecord` 的编译函数，返回 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它优先处理该 provider，须执行应用真实查询及验证。显式注册替代 PHP 运行时方法发现。异常返回脱敏 500，不冒充密码错误。
+组合模型钩子 `findAndValidateForPassport` 使用 `passport.find_and_validate_for_passport_using("users", resolver)` 注册。原生 `bridge::PasswordGrantResolver` 是接收借用用户名、密码和 `ClientRecord` 的编译函数，返回 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它优先处理该 provider，须执行应用真实查询及验证。显式注册替代 PHP 运行时方法发现。异常返回脱敏 500，不冒充密码错误。
 
 ## 隐式授权 {#implicit-grant}
 
-仅在集成明确要求时调用 `passport.enableImplicitGrant()`，再通过 `artisan passport:client --implicit --redirect_uri=https://client.example/callback` 创建公开客户端。向 `GET /oauth/authorize` 发送 `response_type=token`、`client_id` 及可选 `redirect_uri`、`scope`、`state`、`prompt`，沿用 web Session、CSRF、授权视图、用户绑定和一次性同意 nonce。此可选旧流程不替代上文 PKCE 示例。
+仅在集成明确要求时调用 `passport.enable_implicit_grant()`，再通过 `artisan passport:client --implicit --redirect_uri=https://client.example/callback` 创建公开客户端。向 `GET /oauth/authorize` 发送 `response_type=token`、`client_id` 及可选 `redirect_uri`、`scope`、`state`、`prompt`，沿用 web Session、CSRF、授权视图、用户绑定和一次性同意 nonce。此可选旧流程不替代上文 PKCE 示例。
 
 批准后 302 回到已校验的回调，fragment 包含 `access_token`、`token_type`、`expires_in` 和已提供的 `state`，不创建授权码或刷新令牌。未知 scope、需要登录／同意及拒绝也使用 fragment，错误客户端或不可信回调在本地失败，保留既有回调查询。Implicit 和设备授权的 scope 最终处理移除 `*`；Password、PAT 和客户端凭据保留它，客户端 scope 限制仍参与。
 
-`implicitGrantEnabled` 属于应用实例，设为 false 也拒绝尚未完成的 Implicit 同意请求。原生实现提交前复查有效客户端及注册地址，模型／监听器失败回滚事务。同意 POST 不能修改已保存的客户端、用户、scope 或响应类型。令牌端点始终不接受 `grant_type=implicit`。
+`implicit_grant_enabled` 属于应用实例，设为 false 也拒绝尚未完成的 Implicit 同意请求。原生实现提交前复查有效客户端及注册地址，模型／监听器失败回滚事务。同意 POST 不能修改已保存的客户端、用户、scope 或响应类型。令牌端点始终不接受 `grant_type=implicit`。
 
 ## 覆写默认模型 {#overriding-default-models}
 
-在接收请求前，通过应用的 `Passport` 实例调用 `useClientModel::<C>()`、`useTokenModel::<T>()`、`useRefreshTokenModel::<R>()`、`useAuthCodeModel::<A>()` 和 `useDeviceCodeModel::<D>()`。对应的 `clientModel`、`tokenModel`、`refreshTokenModel`、`authCodeModel`、`deviceCodeModel` 返回所选编译类型名称，注册属于各应用。协议持久化、资源验证、撤销和 `passport:purge` 使用真实选定的 Eloquent 模型，不把记录复制到默认表。
+在接收请求前，通过应用的 `Passport` 实例调用 `use_client_model::<C>()`、`use_token_model::<T>()`、`use_refresh_token_model::<R>()`、`use_auth_code_model::<A>()` 和 `use_device_code_model::<D>()`。对应的 `client_model`、`token_model`、`refresh_token_model`、`auth_code_model`、`device_code_model` 返回所选编译类型名称，注册属于各应用。协议持久化、资源验证、撤销和 `passport:purge` 使用真实选定的 Eloquent 模型，不把记录复制到默认表。
 
 客户端、访问和刷新模型分别在 `Model` 之外实现 `ClientModel`、`TokenModel`、`RefreshTokenModel`；授权码和设备码模型实现 `Model`。元数据保留默认模型的 casts、主键行为、guarded／hidden 和时间戳，并提供自己的表结构。例如自定义客户端仍应隐藏 `secret`，注册模型不会修补其序列化策略。模型观察者和取消保存仍生效，授权及令牌消费失败回滚事务；缺表或存储故障正常报错，修正装配后可重试。
 
-自定义关系目标使用 `client.authCodesFor::<A>()`、`client.tokensFor::<T>()`、`code.clientFor::<C>()`、`token.clientFor::<C>()`、`token.refreshTokenFor::<R>()`、`refresh.accessTokenFor::<T>()`。默认辅助方法保留具体默认返回类型。PAT 结果使用 `getTokenFor::<T>()`，工厂通过 `ClientFactory::<C>::new()` 选择类型。
+自定义关系目标使用 `client.auth_codes_for::<A>()`、`client.tokens_for::<T>()`、`code.client_for::<C>()`、`token.client_for::<C>()`、`token.refresh_token_for::<R>()`、`refresh.access_token_for::<T>()`。默认辅助方法保留具体默认返回类型。PAT 结果使用 `get_token_for::<T>()`，工厂通过 `ClientFactory::<C>::new()` 选择类型。
 
 显式模型连接优先于 `passport.connection`，再回退到协议的父连接。同一次签发／消费事务的 OAuth 写入必须共享真实连接；跨连接身份会报错并回滚，即使两个别名指向同一数据库。为 OAuth 表统一设置 `PASSPORT_CONNECTION`。用户 provider 可独立查询另一用户存储。通过 `AuthManager::register_model` 或自定义 `UserProvider` 注册编译用户模型，配置 guard 的 provider，并保留模型主键与认证标识的区别。Password 的 provider 钩子见前文。
 
 ## 覆写路由 {#overriding-routes}
 
-通过 `passport.path` 设置多级 OAuth 前缀，通过 `passport.middleware` 添加共同中间件。需要替换包路由时，在应用装配阶段、载入路由前调用 `passport.ignoreRoutes()`，然后注册公开控制器。例如仅提供令牌端点：
+通过 `passport.path` 设置多级 OAuth 前缀，通过 `passport.middleware` 添加共同中间件。需要替换包路由时，在应用装配阶段、载入路由前调用 `passport.ignore_routes()`，然后注册公开控制器。例如仅提供令牌端点：
 
 ```rust
 use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route};
@@ -322,7 +322,7 @@ use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route};
 pub fn oauth_routes() -> Result<(), RoutingError> {
     Route::group(RouteGroup::new().prefix("integrations"), |router| {
         router.post("/token",
-            openrust_passport::http::controllers::AccessTokenController::issueToken)?
+            openrust_passport::http::controllers::AccessTokenController::issue_token)?
             .name("passport.token")
             .without_middleware("web")
             .middleware_name("throttle");
@@ -344,4 +344,4 @@ let personal = openrust::sanctum::HasApiTokens::create_token(
 ).await?;
 ```
 
-除普通用户 provider 注册外，还通过 `AuthManager::register_sanctum_model` 注册 Sanctum 用户。OAuth JWT 与 Sanctum 个人 Bearer 令牌使用独立表和 guard，不能互换；撤销一种凭据不影响另一包的有效凭据。浏览器 Session 认证单独配置。测试章节的请求内 `actingAs`／`actingAsClient` 仍是指定请求／guard 的显式替身，不安装客户端、不生成持久数据库令牌。
+除普通用户 provider 注册外，还通过 `AuthManager::register_sanctum_model` 注册 Sanctum 用户。OAuth JWT 与 Sanctum 个人 Bearer 令牌使用独立表和 guard，不能互换；撤销一种凭据不影响另一包的有效凭据。浏览器 Session 认证单独配置。测试章节的请求内 `acting_as`／`acting_as_client` 仍是指定请求／guard 的显式替身，不安装客户端、不生成持久数据库令牌。

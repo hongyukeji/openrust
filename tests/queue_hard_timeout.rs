@@ -146,7 +146,7 @@ mod acceptance {
                         std::error::Error::source(error)
                             .is_some_and(|source| source.to_string() == "hard throttle terminal")
                     })
-                    .failWhen(|_| true),
+                    .fail_when(|_| true),
             )]
         }
 
@@ -612,7 +612,7 @@ mod acceptance {
                     Arc::new(BusyObserver(self.0.clone())),
                     Delivery::Sync,
                 )?;
-                Queue::popUsing(
+                Queue::pop_using(
                     "probe",
                     Some(Arc::new(|pop, queues| {
                         Box::pin(async move {
@@ -621,7 +621,7 @@ mod acceptance {
                         })
                     })),
                 )?;
-                Queue::popUsing(
+                Queue::pop_using(
                     "priority-worker",
                     Some(Arc::new(|pop, queues| {
                         Box::pin(async move {
@@ -631,7 +631,7 @@ mod acceptance {
                     })),
                 )?;
                 if std::env::var_os("QUEUE_REMOVE_POP_CALLBACK").is_some() {
-                    Queue::popUsing("priority-worker", None)?;
+                    Queue::pop_using("priority-worker", None)?;
                 }
                 Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
                 Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
@@ -708,15 +708,18 @@ mod acceptance {
     fn bus_probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
             let payload = |kind| Payload::new("hard-timeout-probe", kind);
-            assert!(Bus::hasCommandHandler("hard-timeout-probe")?);
-            assert!(!Bus::hasCommandHandler("unregistered")?);
-            Bus::dispatchNow(payload("bus-now")?).await?;
+            assert!(Bus::has_command_handler("hard-timeout-probe")?);
+            assert!(!Bus::has_command_handler("unregistered")?);
+            Bus::dispatch_now(payload("bus-now")?).await?;
             assert_eq!(
-                Bus::dispatchSync(payload("bus-sync")?, DispatchOptions::default(), None).await?,
+                Bus::dispatch_sync(payload("bus-sync")?, DispatchOptions::default(), None).await?,
                 DispatchResult::Completed,
             );
-            Bus::dispatchAfterResponse(payload("bus-after-response")?, DispatchOptions::default())
-                .await?;
+            Bus::dispatch_after_response(
+                payload("bus-after-response")?,
+                DispatchOptions::default(),
+            )
+            .await?;
             let options = || DispatchOptions {
                 queue: Some("bus-probe".into()),
                 ..Default::default()
@@ -1439,7 +1442,7 @@ mod acceptance {
                     ..Default::default()
                 });
             let payload = if discard {
-                payload.deleteWhenMissingModels()
+                payload.delete_when_missing_models()
             } else {
                 payload
             };
@@ -2094,7 +2097,7 @@ mod acceptance {
             .container()
             .make::<QueueManager>()
             .unwrap()
-            .popUsing("priority-worker", None);
+            .pop_using("priority-worker", None);
         let command: Vec<_> = std::iter::once("queue:work")
             .chain(args)
             .map(std::ffi::OsString::from)
@@ -2880,8 +2883,8 @@ mod acceptance {
             let dedup = if value == "second" { "second" } else { "first" };
             let payload = Payload::new("hard-timeout-probe", value)
                 .unwrap()
-                .onGroup("ordered")
-                .withDeduplicationId(dedup);
+                .on_group("ordered")
+                .with_deduplication_id(dedup);
             queue.push(&payload, Some(&fifo)).await.unwrap();
         }
         let mut job = queue.pop_now(Some(&fifo)).await.unwrap().unwrap();

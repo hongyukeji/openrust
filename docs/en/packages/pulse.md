@@ -36,7 +36,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 }));
 ```
 
-The dashboard uses native HTML, JavaScript and JSON. Publish its template with `./artisan vendor:publish --tag=pulse-dashboard`. Keep `<!-- PULSE_STYLES -->` and `<!-- PULSE_SCRIPTS -->` in a custom template to inject package assets. `Pulse::withCss` appends trusted application CSS paths or HTML, removing duplicates; `css` and `js` return asset HTML. Rust expresses the upstream overloaded CSS setter as `withCss`.
+The dashboard uses native HTML, JavaScript and JSON. Publish its template with `./artisan vendor:publish --tag=pulse-dashboard`. Keep `<!-- PULSE_STYLES -->` and `<!-- PULSE_SCRIPTS -->` in a custom template to inject package assets. `Pulse::with_css` appends trusted application CSS paths or HTML, removing duplicates; `css` and `js` return asset HTML. Rust expresses the upstream overloaded CSS setter as `with_css`.
 
 ## Recorders {#recorders}
 
@@ -46,7 +46,7 @@ Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `
 
 Slow query `location` attempts to resolve application source locations; builds without debug symbols may return an empty location. `Exceptions` handles native typed exception logs, job failures and `Pulse::report`. Plain JSON log context is not treated as an exception. Rust errors do not necessarily contain a trace; provide an explicit location when needed.
 
-`Servers` samples each instance at most once every 15 seconds, retaining CPU, memory and disk snapshots. `PULSE_SERVER_NAME` and `PULSE_SERVER_DIRECTORIES` customize the name and colon-separated directories. Override detectors with `Servers::detectCpuUsing` and `detectMemoryUsing`.
+`Servers` samples each instance at most once every 15 seconds, retaining CPU, memory and disk snapshots. `PULSE_SERVER_NAME` and `PULSE_SERVER_DIRECTORIES` customize the name and colon-separated directories. Override detectors with `Servers::detect_cpu_using` and `detect_memory_using`.
 
 ## Custom Metrics {#custom-metrics}
 
@@ -59,20 +59,20 @@ Pulse::record("orders", "completed", Some(120), None).await?
     .count().sum().max().avg();
 Pulse::set("deployment", "version", "v1", None).await?;
 Pulse::ingest().await?;
-let totals = Pulse::aggregateTotal(&["orders".into()], "sum", 3600).await?;
+let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 ```
 
-`record` returns an Entry supporting `count`, `min`, `max`, `sum` and `avg`; `onlyBuckets` writes only aggregates. Returned entries share aggregation flags with buffered items. Other fields follow Rust value ownership: modifying a copy does not update buffered data. `set` retains the last supplied value for each type/key pair. The four windows are one hour, six hours, 24 hours and seven days; graphs fill 60 points.
+`record` returns an Entry supporting `count`, `min`, `max`, `sum` and `avg`; `only_buckets` writes only aggregates. Returned entries share aggregation flags with buffered items. Other fields follow Rust value ownership: modifying a copy does not update buffered data. `set` retains the last supplied value for each type/key pair. The four windows are one hour, six hours, 24 hours and seven days; graphs fill 60 points.
 
-`filter` selects items before ingestion. `ignore(future)` temporarily suppresses collection and restores it on cancellation. `lazy` defers metric creation; `handleExceptionsUsing` receives recorder and ingestion errors. `flush` discards the buffer; `ingest` submits it immediately. Query methods include `values`, `graph`, `aggregate`, `aggregateTypes` and `aggregateTotal`. The latter accepts a slice of types and returns per-type results, using `None` for empty aggregates.
+`filter` selects items before ingestion. `ignore(future)` temporarily suppresses collection and restores it on cancellation. `lazy` defers metric creation; `handle_exceptions_using` receives recorder and ingestion errors. `flush` discards the buffer; `ingest` submits it immediately. Query methods include `values`, `graph`, `aggregate`, `aggregate_types` and `aggregate_total`. The latter accepts a slice of types and returns per-type results, using `None` for empty aggregates.
 
 Implement `recorders::Recorder` with `name`, `listens` and asynchronous `record`, then call `pulse.register(vec![recorder])` in an application Provider after package boot to listen for native events. Inspect registered instances using `recorders()`. Compiled types and explicit event names replace PHP class reflection. Use a published template for custom HTML cards.
 
 ## Users {#users}
 
-Usage metrics read identities already resolved by native authentication. Run authentication middleware or call `Auth::user(request).await?` first. Use `rememberUser` to explicitly associate an actor when dispatching jobs. The default dashboard loads names, email addresses and avatars through the authentication Provider, falling back to the ID. Customize fields with `Pulse::user`, or bind `ResolvesUsers` before package boot to control identifiers and loading. The generic default authentication Provider retrieves users individually; implement the contract for optimized bulk loading.
+Usage metrics read identities already resolved by native authentication. Run authentication middleware or call `Auth::user(request).await?` first. Use `remember_user` to explicitly associate an actor when dispatching jobs. The default dashboard loads names, email addresses and avatars through the authentication Provider, falling back to the ID. Customize fields with `Pulse::user`, or bind `ResolvesUsers` before package boot to control identifiers and loading. The generic default authentication Provider retrieves users individually; implement the contract for optimized bulk loading.
 
-`report(class, location).await` dispatches a native `ExceptionReported` event. `rescue(future)` returns `None` on an error and invokes the configured handler; the default handler is silent. The deprecated `users` bulk callback receives an identifier slice and returns a map keyed by identifier; new code should use `user` or `ResolvesUsers`. Native application scopes select the container automatically, so there is no `setContainer` operation.
+`report(class, location).await` dispatches a native `ExceptionReported` event. `rescue(future)` returns `None` on an error and invokes the configured handler; the default handler is silent. The deprecated `users` bulk callback receives an identifier slice and returns a map keyed by identifier; new code should use `user` or `ResolvesUsers`. Native application scopes select the container automatically, so there is no `set_container` operation.
 
 ## Commands {#commands}
 

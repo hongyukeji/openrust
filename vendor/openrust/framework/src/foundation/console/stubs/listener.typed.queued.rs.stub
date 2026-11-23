@@ -20,7 +20,7 @@ impl Listener for {{class}} {
 }
 
 pub fn register(registry: &mut ListenerRegistry, name: &str) -> EventResult<()> {
-    registry.listenQueued::<{{event}}>(
+    registry.listen_queued::<{{event}}>(
         name,
         Arc::new({{class}}),
         openrust::events::QueuedListenerOptions {

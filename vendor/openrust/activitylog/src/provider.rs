@@ -86,9 +86,9 @@ impl ServiceProvider for ActivitylogServiceProvider {
                         v.iter().map(String::as_str).collect()
                     }
                     let policy = Redaction::new()
-                        .logProperties(&refs(&properties))
-                        .logOnly(&refs(&attributes))
-                        .logExcept(&refs(&except));
+                        .log_properties(&refs(&properties))
+                        .log_only(&refs(&attributes))
+                        .log_except(&refs(&except));
                     let model_name = config
                         .get("activitylog.activity_model")
                         .and_then(|v| v.as_str().map(str::to_owned))
@@ -101,22 +101,22 @@ impl ServiceProvider for ActivitylogServiceProvider {
                         .map_err(|_| binding())?;
                     let mut repository = ActivityRepository::new(connection)
                         .enabled(enabled)
-                        .withModel(model);
+                        .with_model(model);
                     if config
                         .get("activitylog.redaction.enabled")
                         .and_then(|value| value.as_bool())
                         .unwrap_or(false)
                     {
-                        repository = repository.withRedaction(policy);
+                        repository = repository.with_redaction(policy);
                     }
-                    let logName = match config.get("activitylog.default_log_name") {
+                    let log_name = match config.get("activitylog.default_log_name") {
                         None | Some(serde_json::Value::Null) => None,
                         Some(serde_json::Value::String(name)) => Some(name),
                         _ => return Err(binding()),
                     };
                     repository = repository
-                        .withDefaultLogName(logName)
-                        .withDefaultExceptAttributes(keys(
+                        .with_default_log_name(log_name)
+                        .with_default_except_attributes(keys(
                             "activitylog.default_except_attributes",
                         )?);
                     Ok(Arc::new(repository))
@@ -124,7 +124,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
             app.container()
                 .scoped::<ActivityLogStatus, _>(|container| {
                     let repository = container.make::<ActivityRepository>()?;
-                    Ok(Arc::new(ActivityLogStatus::new(repository.isEnabled())))
+                    Ok(Arc::new(ActivityLogStatus::new(repository.is_enabled())))
                 })?;
             app.container().scoped::<CauserResolver, _>(|container| {
                 let config =
@@ -135,20 +135,20 @@ impl ServiceProvider for ActivitylogServiceProvider {
                     _ => return Err(binding()),
                 };
                 let auth = container.make::<openrust::auth::AuthManager>()?;
-                let defaultAuth = auth.clone();
-                let defaultDriver = driver.clone();
-                let idAuth = auth.clone();
-                let idDriver = driver.clone();
-                let idConfig = config.clone();
+                let default_auth = auth.clone();
+                let default_driver = driver.clone();
+                let id_auth = auth.clone();
+                let id_driver = driver.clone();
+                let id_config = config.clone();
                 Ok(Arc::new(
                     CauserResolver::default()
-                        .withIdentityResolvers(
+                        .with_identity_resolvers(
                             Arc::new(move |id| {
-                                let auth = idAuth.clone();
-                                let driver = idDriver
+                                let auth = id_auth.clone();
+                                let driver = id_driver
                                     .clone()
                                     .unwrap_or_else(|| auth.get_default_driver());
-                                let config = idConfig.clone();
+                                let config = id_config.clone();
                                 Box::pin(async move {
                                     let provider = config
                                         .get(&format!("auth.guards.{driver}.provider"))
@@ -179,26 +179,26 @@ impl ServiceProvider for ActivitylogServiceProvider {
                             }),
                             Arc::new(move |subject| {
                                 let Some(user) =
-                                    defaultAuth.resolved_user(defaultDriver.as_deref())
+                                    default_auth.resolved_user(default_driver.as_deref())
                                 else {
                                     return Ok(serde_json::json!({}));
                                 };
                                 if user.get_auth_identifier().to_string() != subject.id {
                                     return Ok(serde_json::json!({}));
                                 }
-                                let kind = defaultAuth
+                                let kind = default_auth
                                     .user_morph_class(user.as_ref())
                                     .map_err(|_| crate::Error::InvalidActivity)?;
                                 if kind != Some(subject.kind.as_str()) {
                                     return Ok(serde_json::json!({}));
                                 }
-                                defaultAuth
+                                default_auth
                                     .user_attributes(user.as_ref())
                                     .map(Into::into)
                                     .map_err(|_| crate::Error::InvalidActivity)
                             }),
                         )
-                        .withDefaultResolver(move || {
+                        .with_default_resolver(move || {
                             let Some(user) = auth.resolved_user(driver.as_deref()) else {
                                 return Ok(None);
                             };
@@ -247,7 +247,7 @@ impl ServiceProvider for ActivitylogServiceProvider {
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false)
                     {
-                        context = context.withBuffer(container.make::<ActivityBuffer>()?);
+                        context = context.with_buffer(container.make::<ActivityBuffer>()?);
                     }
                     Ok(Arc::new(context))
                 })?;

@@ -8,7 +8,7 @@ pub struct XProvider {
 }
 impl Default for XProvider {
     fn default() -> Self {
-        Self::withEndpoints(ProviderEndpoints::new(
+        Self::with_endpoints(ProviderEndpoints::new(
             "https://x.com/i/oauth2/authorize",
             "https://api.x.com/2/oauth2/token",
             "https://api.x.com/2/users/me",
@@ -16,38 +16,38 @@ impl Default for XProvider {
     }
 }
 impl XProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints) -> Self {
         Self {
-            inner: TwitterProvider::withEndpoints(endpoints),
+            inner: TwitterProvider::with_endpoints(endpoints),
         }
     }
 }
 impl ProviderDefinition for XProvider {
-    fn getAuthUrl(&self) -> &str {
-        self.inner.getAuthUrl()
+    fn get_auth_url(&self) -> &str {
+        self.inner.get_auth_url()
     }
-    fn getTokenUrl(&self) -> &str {
-        self.inner.getTokenUrl()
+    fn get_token_url(&self) -> &str {
+        self.inner.get_token_url()
     }
     fn scopes(&self) -> &[&str] {
         self.inner.scopes()
     }
-    fn scopeSeparator(&self) -> &str {
-        self.inner.scopeSeparator()
+    fn scope_separator(&self) -> &str {
+        self.inner.scope_separator()
     }
-    fn usesPKCE(&self) -> bool {
-        self.inner.usesPKCE()
+    fn uses_pkce(&self) -> bool {
+        self.inner.uses_pkce()
     }
-    fn usesRFC3986(&self) -> bool {
-        self.inner.usesRFC3986()
+    fn uses_rfc3986(&self) -> bool {
+        self.inner.uses_rfc3986()
     }
-    fn tokenBasicAuth(&self) -> bool {
-        self.inner.tokenBasicAuth()
+    fn token_basic_auth(&self) -> bool {
+        self.inner.token_basic_auth()
     }
-    fn refreshTokenIncludesSecret(&self) -> bool {
-        self.inner.refreshTokenIncludesSecret()
+    fn refresh_token_includes_secret(&self) -> bool {
+        self.inner.refresh_token_includes_secret()
     }
-    fn customizeCodeFields(
+    fn customize_code_fields(
         &self,
         fields: &mut Map<String, Value>,
         scopes: &[String],
@@ -55,17 +55,17 @@ impl ProviderDefinition for XProvider {
         stateless: bool,
     ) {
         self.inner
-            .customizeCodeFields(fields, scopes, bot, stateless);
+            .customize_code_fields(fields, scopes, bot, stateless);
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
         scopes: &'a [String],
     ) -> ProviderFuture<'a, Value> {
-        self.inner.getUserByToken(http, token, scopes)
+        self.inner.get_user_by_token(http, token, scopes)
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
-        self.inner.mapUserToObject(user)
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
+        self.inner.map_user_to_object(user)
     }
 }

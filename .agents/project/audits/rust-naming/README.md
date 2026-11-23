@@ -8,7 +8,7 @@
 | N-02 | 验收通过 | 177 个基础方法族及跨 crate 消费者；20 项应用、59 项框架、独立生成测试、实际 HTTP／CLI、workspace 与可选 feature 严格 Clippy |
 | N-03 | 验收通过 | HTTP／路由／认证／命令及同名调度接口完成命名迁移；隔离构建、实际HTTP/CLI、MySQL、Redis调度、生成器与三语消费验证通过 |
 | N-04 | 验收通过 | 数据/基础服务1814组拼写、真实MySQL58项与Artisan/Redis、生成源码、组合Request、三语及workspace/可选features严格Clippy |
-| N-05 | 待实施 | 异步服务、协议和全部扩展 |
+| N-05 | 验收通过 | 1114组拼写、17项Serde保留、真实Worker/调度、17个扩展、MySQL/Redis、Passport生成项目及最终30项HTTP组合 |
 | N-06 | 待实施 | 全仓复核、三语、Rustdoc、CI、防回归及最终真实消费者 |
 
 ## N-01：盘点与边界
@@ -124,3 +124,24 @@ HTTP代码生成曾触32GB停线，守卫安全终止且持锁清理全部项目
 - Request门面在另一已授权单元开发，其未提交新文件/功能不属于本单元；候选对共享文件只应用命名差异，保持原有两份许可删除暂存及用户WIP。其功能已独立提交225699817，本单元基于该HEAD重新组合共享源文件，只应用本批标识符；组合Request28项与命名4项、Faker116项通过，MySQL/Redis/Artisan再次全过。
 
 证据：target/tmp/rust-naming/N-04/，其中accepted-groups.json、data-tests-*.log、mysql-framework.log、migrations-mysql.log、seeding-mysql.log、redis-consumer-*.log、docs-build.log、docs-browser.log保留实际结果。最终workspace/all-targets严格Clippy通过24.22s，新增周期/时区测试后复核0.55s；根全部兼容features严格Clippy通过41.63s。实际make:model/model:fields在临时MySQL生成、保留自定义get_table、幂等检查与生成源码严格编译通过；通知迁移生成器及生成源码严格编译通过。8个时区宏通过Faker116项及新增周期边界/时区消费覆盖，根具名日期/限定日期测试另2项通过。候选源码、Rust模板、脚本与测试均逐项匹配隔离快照SHA，Git核定范围排除并行功能和用户在途差异，本地提交另记实际哈希，不推送。
+
+## N-05：异步与扩展
+
+本批核对并迁移1114组Rust拼写，涉及Bus、事件、广播、队列、调度、邮件、通知、短信、文件存储及全部workspace扩展。类型使用OauthError/OauthParameters；extend_oauth1按缩略词整体处理。机制、默认值与外部格式不变。
+
+### 碰撞及格式边界
+
+- Fortify、Passport的私有视图读取与公开配置方法参数/职责不同，采用独立私有response入口；Passport同义has_scope包装直接合并。Filesystem内部S3适配构建器和事件广播内部监听注册辅助方法保持职责区分，不新增重复公开API。
+- 审核127个受影响字段，17个Serde字段显式保持原wire键：Horizon SupervisorOptions十项、Passport PersonalAccessTokenResult四项、Telescope EntryUpdate两项和ProcessPendingUpdates一项。新增实际序列化测试核对旧载荷往返、tries既有别名及deny_unknown拒绝新Rust字段作为载荷。
+- 149处字符串线索逐项裁决：事件、配置、队列JSON、验证错误包、Blade、动态历史分发及外部OAuth/Google prettyPrint协议保留；明确生成的Rust源码、Debug标签、格式捕获和开发者Rust提示同步。三语文档中Google参数恢复准确prettyPrint，避免旧脚本文本匹配误改协议。
+- 所有Rust模板及明确嵌入Python/原始字符串的Rust消费者同步。Passport实际安装夹具支持复用项目内编译缓存，并保留独立初始CLI产物，避免被生成项目产物覆盖。Fortify隐藏字段常量接线修复已独立验收并提交e10a554c0，不重复夹带。
+
+### 验收与证据边界
+
+- 独立命名源码workspace all-targets严格Clippy、根兼容features严格Clippy及格式通过。三语站点构建及13份受影响包浏览器脚本通过，Rustdoc导出归N-06整体复核。
+- 真实临时MySQL 8.4.13与Redis8：事件/队列/调度/投递/存储消费者、实际job_batches与实际二进制硬超时Worker通过。全部17个扩展测试均执行；语言数据库按MySQL显式驱动9项通过，包含真实HTTP资源与升级SQL事务/幂等/冲突。
+- OIDC首轮缺少浏览器Node入口导致SSO失败；提供已安装Node/Chromium后真实MySQL双RP浏览器SSO通过。Fortify安装夹具首轮未识别已生效的字段常量隐藏列表，最小修复后全套通过。语言数据库首轮默认pgsql无隔离环境失败，不计通过；MySQL隔离复验通过。
+- 测试中的ignore、未设置供应商环境而早退、额外数据库、RedisCluster及跨平台不计本批真实外部服务验收；未声称所有供应商/发布矩阵已经闭合。Pail固定打印向量、实际HTTP/CLI，Reverb传输、Scout/Passkeys消费者及支付本地HTTP签名/回调均按各自日志记录。
+- 磁盘守卫曾触及32GB，持锁清理本项目编译profile释放71,158,349,824字节；保留源码、证据、数据和原索引，首次中断不计通过，恢复后Clippy成功。所有临时服务均由隔离wrapper清理，不使用用户数据卷。
+
+证据：target/tmp/rust-naming/N-05/下symbols、collision-decisions、serde-bridges、string-decisions、runtime-counts、各extension/core日志、translation-mysql、docs-browser-accepted及编译门禁日志。真实默认CLI生成项目验收通过（184.97s）：Passport安装重建、重试、保留迁移/密钥、真实终端交互、真实MySQL迁移、与Sanctum共存的HTTP认证/独立撤销及嵌套API前缀；首轮误把根API当作已存在的夹具改动已撤回，仍按安装前不存在检查。独立缓存复用和初始CLI副本仅改变验收资源管理，不改变产品行为。基于42dd7aff9重新三方组合，保留期间独立提交的Request输入及App/Response/Session功能；最终workspace all-targets严格Clippy54.64s、全workspace格式以及共享HTTP真实消费者30项全部通过。仅命名范围入库，原许可删除与用户/并行在途文件保持不变。

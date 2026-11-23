@@ -4,11 +4,11 @@
 
 `file()` retains the original uploaded file after rendering, cloning, further transformations, format changes, and driver selection.
 
-In an application, import `Image` from `openrust::support::facades`. Use `request.image("avatar").await?` to create an image from a multipart field, or call `Image::fromUpload` with an existing upload. `Image::fromStorage` and `Storage::disk(Some("public"))?.image(path)` use configured disks. Other inputs include bytes, Base64, paths, HTTP URLs, and asynchronous streams. Streams are read at construction. Other sources are loaded when rendering or inspecting the image.
+In an application, import `Image` from `openrust::support::facades`. Use `request.image("avatar").await?` to create an image from a multipart field, or call `Image::from_upload` with an existing upload. `Image::from_storage` and `Storage::disk(Some("public"))?.image(path)` use configured disks. Other inputs include bytes, Base64, paths, HTTP URLs, and asynchronous streams. Streams are read at construction. Other sources are loaded when rendering or inspecting the image.
 
 ## Manipulating and encoding images {#manipulating-images}
 
-Transformations run in the order they are added. `resize` takes optional width and height. `scale` preserves aspect ratio without enlarging the image. `cover` crops to fill, while `contain` preserves the whole image and fills empty space. Other operations include crop, EXIF orientation, rotation, blur, grayscale, sharpen, and flips. Clone the pipeline to branch it. Use `toBytes().await?`, `to_base64().await?`, or `toDataUri().await?` to retrieve the result.
+Transformations run in the order they are added. `resize` takes optional width and height. `scale` preserves aspect ratio without enlarging the image. `cover` crops to fill, while `contain` preserves the whole image and fills empty space. Other operations include crop, EXIF orientation, rotation, blur, grayscale, sharpen, and flips. Clone the pipeline to branch it. Use `to_bytes().await?`, `to_base64().await?`, or `to_data_uri().await?` to retrieve the result.
 
 `flip()` flips vertically; `flop()` flips horizontally. `resize(width, height)` and `scale(width, height)` return `Result<Image>` and reject two missing dimensions immediately. Supplied zero dimensions become 1. Blur and sharpen amounts are capped at 100 before reaching a driver handler.
 
@@ -21,7 +21,7 @@ let manager = ImageManager::new(Limits::default());
 let source = manager.from_base64(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
 );
-let thumbnail = source.cover(4, 4).toWebp();
+let thumbnail = source.cover(4, 4).to_webp();
 assert_eq!(thumbnail.dimensions().await?, (4, 4));
 assert_eq!(thumbnail.mime_type().await?, "image/webp");
 ```
@@ -30,7 +30,7 @@ assert_eq!(thumbnail.mime_type().await?, "image/webp");
 
 GIF, animated PNG (APNG), WebP, AVIF, HEIC, and JPEG XL can preserve displayed frames, frame order, and play count through transformations and conversions. GIF stores delays in 10 ms units. WebP, AVIF, HEIC, and JPEG XL output uses 1 ms units. APNG can store fractional delays. JPEG XL rounds a zero delay up to 1 ms so the frame remains visible.
 
-An unchanged animation returns its original bytes after frame validation. JPEG and BMP output and `dominantColor()` use the first displayed frame. HEIF inputs use a single primary timed track and can include an auxiliary alpha track. HEIC can carry coded padding with a clean aperture that describes the displayed size.
+An unchanged animation returns its original bytes after frame validation. JPEG and BMP output and `dominant_color()` use the first displayed frame. HEIF inputs use a single primary timed track and can include an auxiliary alpha track. HEIC can carry coded padding with a clean aperture that describes the displayed size.
 
 The driver bounds animated inputs and outputs to 1,024 frames and 96 million total pixels. A custom pixel limit can lower the total to four times the per-image limit. Each frame must also fit within the per-image limits.
 
@@ -48,28 +48,28 @@ Transforms and conversions between AVIF and HEIC sequences keep each displayed f
 
 ## Inspecting images {#inspecting-images}
 
-Use `mime_type`, `extension`, `dimensions`, `width`, and `height` to inspect the processed result. `dominantColor` returns the alpha-weighted average RGB color as a hexadecimal string.
+Use `mime_type`, `extension`, `dimensions`, `width`, and `height` to inspect the processed result. `dominant_color` returns the alpha-weighted average RGB color as a hexadecimal string.
 
 ## Image drivers {#image-drivers}
 
 The application uses the `image` driver by default. `IMAGE_DRIVER` selects a registered driver. Use `using` to choose a driver for an image. The default limits are 32 MiB per input, 16,384 pixels per side, and 24 million pixels per image.
 
-The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `toAvif()`, `toHeic()`, `toJxl()`, or `toFormat("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, HEIC, and JPEG XL use the requested quality. WebP and JPEG XL use lossless encoding at quality 100. These codecs run in Rust.
+The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `to_avif()`, `to_heic()`, `to_jxl()`, or `to_format("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, HEIC, and JPEG XL use the requested quality. WebP and JPEG XL use lossless encoding at quality 100. These codecs run in Rust.
 
-Register custom drivers with `Image::extend("custom", creator)`; the callback returns `Result<Arc<dyn Driver>>`. The creator runs on the first `driver` call, receives the manager, and can use `get_container()` to resolve application services. Resolved drivers stay cached when their creator is replaced. `forget_drivers()` clears those instances and preserves creators and transformation handlers. `setContainer(container)` changes the container used by future creators and unloaded storage or URL sources; it preserves the configuration repository and resolved drivers. The container must remain owned by the application. A standalone manager returns `None` from `get_container()`.
+Register custom drivers with `Image::extend("custom", creator)`; the callback returns `Result<Arc<dyn Driver>>`. The creator runs on the first `driver` call, receives the manager, and can use `get_container()` to resolve application services. Resolved drivers stay cached when their creator is replaced. `forget_drivers()` clears those instances and preserves creators and transformation handlers. `set_container(container)` changes the container used by future creators and unloaded storage or URL sources; it preserves the configuration repository and resolved drivers. The container must remain owned by the application. A standalone manager returns `None` from `get_container()`.
 
-Implement `ensureRequirementsAreMet` in the `Driver` trait when a backend needs a dependency check. The default implementation succeeds. The manager calls it after creation and before transformation handlers or caching; an error is returned without caching the failed driver, so a later resolution can retry.
+Implement `ensure_requirements_are_met` in the `Driver` trait when a backend needs a dependency check. The default implementation succeeds. The manager calls it after creation and before transformation handlers or caching; an error is returned without caching the failed driver, so a later resolution can retry.
 
 ### Custom transformation handlers {#custom-transformation-handlers}
 
-Use `Image::transformUsing(driver, name, callback)?` or the same method on `ImageManager` to register a handler for one driver. Registration also works before an application registers that driver with `extend`; manager `extend` returns a `Result`. The driver contract exposes `transformUsing` and `dimensions`. Drivers without handler support return `UnsupportedTransformationHandler`. `Image::driver(None)?`, `get_default_driver()` and `get_drivers()` expose the configured driver and registered instances.
+Use `Image::transform_using(driver, name, callback)?` or the same method on `ImageManager` to register a handler for one driver. Registration also works before an application registers that driver with `extend`; manager `extend` returns a `Result`. The driver contract exposes `transform_using` and `dimensions`. Drivers without handler support return `UnsupportedTransformationHandler`. `Image::driver(None)?`, `get_default_driver()` and `get_drivers()` expose the configured driver and registered instances.
 
 ```rust
 use std::sync::Arc;
 use openrust::image::{Error, NativeImage, Transformation};
 use openrust::support::facades::Image;
 
-Image::transformUsing(
+Image::transform_using(
     "image",
     "app::Invert",
     Arc::new(|native, _transformation| {
@@ -79,14 +79,14 @@ Image::transformUsing(
         Ok(())
     }),
 )?;
-let output = Image::fromBytes(bytes)?
+let output = Image::from_bytes(bytes)?
     .transform(Transformation::Custom {
         name: "app::Invert".into(),
         options: serde_json::Value::Null,
     })
-    .toBytes().await?;
+    .to_bytes().await?;
 ```
 
 Built-in handlers use the transformation variant's exact name, such as `Resize` or `Grayscale`, and override that built-in operation. Custom transformations use their supplied name; use an application namespace to avoid collisions. The callback receives the actual driver object as `&mut dyn Any`; the built-in driver uses `NativeImage`. An error stops the pipeline. Native animation callbacks run on each processed frame, and modified frames must still satisfy the configured limits.
 
-`usingGd()` and `usingImagick()` select application-registered `gd` and `imagick` drivers. The framework ships the native `image` backend; selecting an unavailable backend returns `UnknownDriver` when a transformation needs it. Reading unchanged bytes does not resolve the selected backend.
+`using_gd()` and `using_imagick()` select application-registered `gd` and `imagick` drivers. The framework ships the native `image` backend; selecting an unavailable backend returns `UnknownDriver` when a transformation needs it. Reading unchanged bytes does not resolve the selected backend.

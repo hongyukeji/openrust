@@ -8,7 +8,7 @@ async fn stripe_checkout_trials_discounts_sca_refunds_and_customer_portal_use_of
     let server = Server::new(Provider::Stripe).await;
     let db = Db::new(false).await;
     let b = db.billable(server.client()).await;
-    let checkout=b.newSubscription("default",vec![Price::new("price_basic",2).unwrap()]).unwrap().trialDays(14).unwrap().withCoupon("coupon_1").unwrap().checkout(json!({"success_url":"https://shop.test/success?session_id={CHECKOUT_SESSION_ID}","cancel_url":"https://shop.test/cancel"}),"checkout:1").await.unwrap();
+    let checkout=b.new_subscription("default",vec![Price::new("price_basic",2).unwrap()]).unwrap().trial_days(14).unwrap().with_coupon("coupon_1").unwrap().checkout(json!({"success_url":"https://shop.test/success?session_id={CHECKOUT_SESSION_ID}","cancel_url":"https://shop.test/cancel"}),"checkout:1").await.unwrap();
     assert_eq!(checkout["id"], "cs_1");
     let r = server.requests();
     let c = r
@@ -49,13 +49,13 @@ async fn stripe_checkout_trials_discounts_sca_refunds_and_customer_portal_use_of
         .unwrap();
     assert_eq!(payment["status"], "requires_action");
     assert_eq!(payment["client_secret"], "pi_client_secret_fixture");
-    b.confirmPayment("pi_1", json!({}), "confirm:1")
+    b.confirm_payment("pi_1", json!({}), "confirm:1")
         .await
         .unwrap();
     b.refund("pi_1", json!({"amount":200}), "refund:1")
         .await
         .unwrap();
-    b.billingPortal("https://shop.test/account", "portal:1")
+    b.billing_portal("https://shop.test/account", "portal:1")
         .await
         .unwrap();
     let r = server.requests();
@@ -82,23 +82,23 @@ async fn stripe_subscription_items_proration_trial_cancel_resume_and_immediate_c
     let db = Db::new(false).await;
     let b = db.billable(server.client()).await;
     let s = b
-        .newSubscription("default", vec![Price::new("price_basic", 1).unwrap()])
+        .new_subscription("default", vec![Price::new("price_basic", 1).unwrap()])
         .unwrap()
         .create(Some("pm_1"), "subscribe:1")
         .await
         .unwrap();
     assert_eq!(
-        s.asStripeSubscription(json!({})).await.unwrap()["id"],
+        s.as_stripe_subscription(json!({})).await.unwrap()["id"],
         "sub_1"
     );
     assert!(matches!(
-        s.asPaddleSubscription(json!({})).await,
+        s.as_paddle_subscription(json!({})).await,
         Err(Error::Unsupported)
     ));
     assert!(s.active());
     assert!(b.subscribed("default").await.unwrap());
     let s = s
-        .updateQuantity(3, None, Proration::Invoice, "quantity:1")
+        .update_quantity(3, None, Proration::Invoice, "quantity:1")
         .await
         .unwrap();
     assert_eq!(s.items[0].quantity, Some(3));
@@ -124,17 +124,17 @@ async fn stripe_subscription_items_proration_trial_cancel_resume_and_immediate_c
     assert_eq!(swap.params["items[1][id]"], "si_1");
     assert_eq!(swap.params["items[1][deleted]"], "true");
     let s = s.cancel("cancel:1").await.unwrap();
-    assert!(s.canceled() && s.onGracePeriod());
+    assert!(s.canceled() && s.on_grace_period());
     let s = s.resume("resume:1").await.unwrap();
     assert!(!s.canceled());
-    s.extendTrial(jiff::Timestamp::now().as_second() + 86400, "trial:1")
+    s.extend_trial(jiff::Timestamp::now().as_second() + 86400, "trial:1")
         .await
         .unwrap();
-    s.pauseCollection("void", "pause-collection:1")
+    s.pause_collection("void", "pause-collection:1")
         .await
         .unwrap();
-    s.resumeCollection("resume-collection:1").await.unwrap();
-    let s = s.cancelNow("cancel-now:1").await.unwrap();
+    s.resume_collection("resume-collection:1").await.unwrap();
+    let s = s.cancel_now("cancel-now:1").await.unwrap();
     assert!(!s.valid());
     assert!(matches!(
         s.resume("invalid").await,
@@ -146,28 +146,28 @@ async fn stripe_payment_methods_invoices_tax_balance_metered_usage_and_customer_
     let server = Server::new(Provider::Stripe).await;
     let db = Db::new(false).await;
     let b = db.billable(server.client()).await;
-    b.createOrGetCustomer(json!({"email":"ignored@existing.test"}), "existing")
+    b.create_or_get_customer(json!({"email":"ignored@existing.test"}), "existing")
         .await
         .unwrap();
     assert!(!server.requests().iter().any(|r| r.path == "/v1/customers"));
-    b.updateCustomer(json!({"name":"用户"}), "update")
+    b.update_customer(json!({"name":"用户"}), "update")
         .await
         .unwrap();
-    b.createSetupIntent(json!({}), "setup").await.unwrap();
-    b.paymentMethods("card").await.unwrap();
-    b.addPaymentMethod("pm_1", "attach").await.unwrap();
-    b.updateDefaultPaymentMethod("pm_1", "default")
+    b.create_setup_intent(json!({}), "setup").await.unwrap();
+    b.payment_methods("card").await.unwrap();
+    b.add_payment_method("pm_1", "attach").await.unwrap();
+    b.update_default_payment_method("pm_1", "default")
         .await
         .unwrap();
-    assert!(b.defaultPaymentMethod().await.unwrap().is_some());
-    b.deletePaymentMethod("pm_1", "detach").await.unwrap();
+    assert!(b.default_payment_method().await.unwrap().is_some());
+    b.delete_payment_method("pm_1", "detach").await.unwrap();
     let n = server.requests().len();
     assert!(matches!(
-        b.deletePaymentMethod("pm_other", "no").await,
+        b.delete_payment_method("pm_other", "no").await,
         Err(Error::Ownership)
     ));
     assert_eq!(server.requests().len(), n + 1);
-    b.invoiceItem(
+    b.invoice_item(
         200,
         "JPY",
         json!({"description":"zero-decimal currency"}),
@@ -175,31 +175,33 @@ async fn stripe_payment_methods_invoices_tax_balance_metered_usage_and_customer_
     )
     .await
     .unwrap();
-    b.createInvoice(json!({"automatic_tax":{"enabled":true}}), "invoice")
+    b.create_invoice(json!({"automatic_tax":{"enabled":true}}), "invoice")
         .await
         .unwrap();
-    b.previewInvoice(json!({}), "preview").await.unwrap();
-    b.finalizeInvoice("in_1", "finalize").await.unwrap();
-    b.payInvoice("in_1", json!({}), "pay-invoice")
+    b.preview_invoice(json!({}), "preview").await.unwrap();
+    b.finalize_invoice("in_1", "finalize").await.unwrap();
+    b.pay_invoice("in_1", json!({}), "pay-invoice")
         .await
         .unwrap();
-    b.voidInvoice("in_1", "void").await.unwrap();
+    b.void_invoice("in_1", "void").await.unwrap();
     b.invoices(json!({"limit":2,"starting_after":"in_previous"}))
         .await
         .unwrap();
     assert_eq!(
-        b.invoiceDocument("in_1").await.unwrap()["invoice_pdf"],
+        b.invoice_document("in_1").await.unwrap()["invoice_pdf"],
         "https://files.stripe.com/invoice.pdf"
     );
-    b.taxIds().await.unwrap();
-    b.createTaxId("eu_vat", "DE123456789", "tax").await.unwrap();
-    b.deleteTaxId("txi_1", "del-tax").await.unwrap();
-    assert_eq!(b.balance().await.unwrap(), -300);
-    b.balanceTransactions(json!({"limit":2})).await.unwrap();
-    b.applyBalance(-200, "USD", "credit", "credit")
+    b.tax_ids().await.unwrap();
+    b.create_tax_id("eu_vat", "DE123456789", "tax")
         .await
         .unwrap();
-    b.reportUsage("tokens", 42, "usage_unique", None, "usage")
+    b.delete_tax_id("txi_1", "del-tax").await.unwrap();
+    assert_eq!(b.balance().await.unwrap(), -300);
+    b.balance_transactions(json!({"limit":2})).await.unwrap();
+    b.apply_balance(-200, "USD", "credit", "credit")
+        .await
+        .unwrap();
+    b.report_usage("tokens", 42, "usage_unique", None, "usage")
         .await
         .unwrap();
     let r = server.requests();
@@ -239,9 +241,9 @@ async fn paddle_hosted_checkout_pause_resume_proration_refund_documents_and_dura
     let client = server.client();
     let b = db.billable(client.clone()).await;
     let checkout = b
-        .newSubscription("default", vec![Price::new("price_basic", 2).unwrap()])
+        .new_subscription("default", vec![Price::new("price_basic", 2).unwrap()])
         .unwrap()
-        .withCoupon("dsc_1")
+        .with_coupon("dsc_1")
         .unwrap()
         .checkout(json!({}), "checkout:1")
         .await
@@ -272,9 +274,9 @@ async fn paddle_hosted_checkout_pause_resume_proration_refund_documents_and_dura
             .count(),
         1
     );
-    let s = b.syncSubscription("sub_1").await.unwrap();
+    let s = b.sync_subscription("sub_1").await.unwrap();
     let s = s
-        .updateQuantity(4, None, Proration::Invoice, "quantity")
+        .update_quantity(4, None, Proration::Invoice, "quantity")
         .await
         .unwrap();
     assert_eq!(s.items[0].quantity, Some(4));
@@ -283,7 +285,7 @@ async fn paddle_hosted_checkout_pause_resume_proration_refund_documents_and_dura
     let s = s.resume("resume").await.unwrap();
     assert!(s.active());
     let s = s.cancel("cancel").await.unwrap();
-    assert!(s.onGracePeriod());
+    assert!(s.on_grace_period());
     let s = s.resume("resume-cancel").await.unwrap();
     assert!(!s.canceled());
     s.preview(json!({"items":[{"price_id":"price_basic","quantity":2}],"proration_billing_mode":"prorated_immediately"}),"preview").await.unwrap();
@@ -291,33 +293,33 @@ async fn paddle_hosted_checkout_pause_resume_proration_refund_documents_and_dura
         .await
         .unwrap();
     s.activate("activate").await.unwrap();
-    s.cancelNow("cancel-now").await.unwrap();
-    b.billingPortal("https://shop.test/account", "portal")
+    s.cancel_now("cancel-now").await.unwrap();
+    b.billing_portal("https://shop.test/account", "portal")
         .await
         .unwrap();
     b.refund("txn_1",json!({"type":"partial","reason":"customer request","items":[{"item_id":"txnitm_1","type":"partial","amount":"200"}]}),"refund").await.unwrap();
     b.invoices(json!({"per_page":2})).await.unwrap();
-    b.invoiceDocument("txn_1").await.unwrap();
+    b.invoice_document("txn_1").await.unwrap();
     b.addresses().await.unwrap();
-    b.createAddress(
+    b.create_address(
         json!({"country_code":"US","postal_code":"10001"}),
         "address",
     )
     .await
     .unwrap();
     assert!(matches!(
-        b.createSetupIntent(json!({}), "unsupported").await,
+        b.create_setup_intent(json!({}), "unsupported").await,
         Err(Error::Unsupported)
     ));
     assert!(matches!(
-        b.newSubscription("x", vec![Price::new("pri_1", 1).unwrap()])
+        b.new_subscription("x", vec![Price::new("pri_1", 1).unwrap()])
             .unwrap()
-            .trialDays(14),
+            .trial_days(14),
         Err(Error::Unsupported)
     ));
     assert_eq!(
         db.store
-            .operationStatus(&client, "checkout:1")
+            .operation_status(&client, "checkout:1")
             .await
             .unwrap()
             .as_deref(),
@@ -351,7 +353,7 @@ async fn failures_do_not_retry_or_expose_secrets_and_paddle_unknown_keys_never_r
             assert_eq!(server.requests().len(), count);
             assert_eq!(
                 db.store
-                    .operationStatus(&client, "unknown")
+                    .operation_status(&client, "unknown")
                     .await
                     .unwrap()
                     .as_deref(),
@@ -447,31 +449,31 @@ async fn stripe_original_customer_and_portal_names_enforce_provider_semantics() 
     let stripe = Server::new(Provider::Stripe).await;
     let b = openrust_cashier::Billable::new(stripe.client(), db.store.clone(), "original-customer")
         .unwrap();
-    assert!(!b.hasStripeId().await.unwrap());
+    assert!(!b.has_stripe_id().await.unwrap());
     assert_eq!(
-        b.createAsStripeCustomer(json!({"name":"Agent"}), "create-original")
+        b.create_as_stripe_customer(json!({"name":"Agent"}), "create-original")
             .await
             .unwrap()["id"],
         "cus_1"
     );
-    assert!(b.hasStripeId().await.unwrap());
+    assert!(b.has_stripe_id().await.unwrap());
     assert!(matches!(
-        b.createAsStripeCustomer(json!({}), "duplicate").await,
+        b.create_as_stripe_customer(json!({}), "duplicate").await,
         Err(Error::CustomerAlreadyCreated)
     ));
-    b.createOrGetStripeCustomer(json!({"expand":["tax"]}), "read-existing")
+    b.create_or_get_stripe_customer(json!({"expand":["tax"]}), "read-existing")
         .await
         .unwrap();
     assert_eq!(stripe.requests().last().unwrap().params["expand[0]"], "tax");
-    b.updateStripeCustomer(json!({"name":"Updated"}), "update-original")
+    b.update_stripe_customer(json!({"name":"Updated"}), "update-original")
         .await
         .unwrap();
-    b.updateOrCreateStripeCustomer(json!({"email":"user@example.test"}), "upsert-original")
+    b.update_or_create_stripe_customer(json!({"email":"user@example.test"}), "upsert-original")
         .await
         .unwrap();
-    assert_eq!(b.asStripeCustomer(&[]).await.unwrap()["id"], "cus_1");
+    assert_eq!(b.as_stripe_customer(&[]).await.unwrap()["id"], "cus_1");
     assert_eq!(
-        b.billingPortalUrl(
+        b.billing_portal_url(
             "https://shop.test/account",
             json!({"locale":"en"}),
             "url-original"
@@ -481,7 +483,7 @@ async fn stripe_original_customer_and_portal_names_enforce_provider_semantics() 
         "https://billing.example/portal"
     );
     let response = b
-        .redirectToBillingPortal("https://shop.test/account", json!({}), "redirect-original")
+        .redirect_to_billing_portal("https://shop.test/account", json!({}), "redirect-original")
         .await
         .unwrap();
     assert_eq!(response.status(), http::StatusCode::FOUND);
@@ -491,37 +493,38 @@ async fn stripe_original_customer_and_portal_names_enforce_provider_semantics() 
     );
     stripe.state.lock().unwrap().failure = Some(401);
     assert!(matches!(
-        b.updateStripeCustomer(json!({}), "rejected-original").await,
+        b.update_stripe_customer(json!({}), "rejected-original")
+            .await,
         Err(Error::Rejected(401))
     ));
     let paddle = Server::new(Provider::Paddle).await;
     let p = openrust_cashier::Billable::new(paddle.client(), db.store.clone(), "paddle-original")
         .unwrap();
     assert!(matches!(
-        p.createOrGetStripeCustomer(json!({}), "wrong-provider")
+        p.create_or_get_stripe_customer(json!({}), "wrong-provider")
             .await,
         Err(Error::Unsupported)
     ));
     assert!(matches!(
-        p.billingPortalUrl("https://shop.test/account", json!({}), "wrong-portal")
+        p.billing_portal_url("https://shop.test/account", json!({}), "wrong-portal")
             .await,
         Err(Error::Unsupported)
     ));
     assert!(paddle.requests().is_empty());
     assert!(matches!(
-        p.createAsCustomer(json!({}), "missing-email").await,
+        p.create_as_customer(json!({}), "missing-email").await,
         Err(Error::InvalidInput(_))
     ));
     assert!(paddle.requests().is_empty());
     assert!(matches!(
-        b.createAsCustomer(json!({}), "wrong-provider").await,
+        b.create_as_customer(json!({}), "wrong-provider").await,
         Err(Error::Unsupported)
     ));
-    p.createAsCustomer(json!({"email":"paddle@example.test"}), "paddle-create")
+    p.create_as_customer(json!({"email":"paddle@example.test"}), "paddle-create")
         .await
         .unwrap();
     assert_eq!(
-        p.createAsCustomer(json!({}), "paddle-existing")
+        p.create_as_customer(json!({}), "paddle-existing")
             .await
             .unwrap()["id"],
         "cus_1"

@@ -19,7 +19,7 @@ async fn main() {
         let connection = manager.connection(None).unwrap();
         let repository = Arc::new(
             DatabaseSettingsRepository::new(connection.clone())
-                .withTable(input["table"].as_str().unwrap())
+                .with_table(input["table"].as_str().unwrap())
                 .unwrap(),
         );
         let settings = Settings::<Site>::load(repository, &config, None)

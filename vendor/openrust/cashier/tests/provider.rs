@@ -45,7 +45,7 @@ async fn provider_discovery_is_lazy_preserves_custom_profiles_and_facade_uses_ap
         .await;
     assert_eq!(response.status(), http::StatusCode::OK);
     assert_eq!(server.requests().len(), 1);
-    assert!(Cashier::defaultDriver().is_err());
+    assert!(Cashier::default_driver().is_err());
     let mut other = Application::configure(std::env::temp_dir())
         .with_config(|_, _| Ok(BTreeMap::new()))
         .with_providers(vec![Box::new(CashierServiceProvider)])
@@ -66,7 +66,7 @@ fn customer(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async move {
         let client =
-            Cashier::defaultDriver().map_err(|_| openrust::http::HttpError::InvalidRequest)?;
+            Cashier::default_driver().map_err(|_| openrust::http::HttpError::InvalidRequest)?;
         client
             .retrieve("customers", "cus_1")
             .await

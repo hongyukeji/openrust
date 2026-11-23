@@ -3,27 +3,25 @@ use openrust::console::{ConsoleError, Input};
 use crate::value_objects::MessageLogged;
 
 /// Filters applied together to each captured message, following Pail's options.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Options {
     timeout: i64,
-    authId: Option<String>,
+    auth_id: Option<String>,
     level: Option<String>,
     filter: Option<String>,
     message: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Options {
     pub fn new(
         timeout: i64,
-        authId: Option<String>,
+        auth_id: Option<String>,
         level: Option<String>,
         filter: Option<String>,
         message: Option<String>,
     ) -> Self {
         Self {
             timeout,
-            authId,
+            auth_id,
             level,
             filter,
             message,
@@ -31,7 +29,7 @@ impl Options {
     }
 
     /// Rust separates the parsed input from the command implementation.
-    pub fn fromCommand(input: &Input) -> Result<Self, ConsoleError> {
+    pub fn from_command(input: &Input) -> Result<Self, ConsoleError> {
         let option = |name| {
             input
                 .matches()
@@ -39,44 +37,44 @@ impl Options {
                 .map(|value| value.cloned())
                 .map_err(|error| ConsoleError::new(error.to_string()))
         };
-        let authId = match option("auth")? {
+        let auth_id = match option("auth")? {
             Some(value) => Some(value),
             None => option("user")?,
         };
         Ok(Self::new(
             integer(option("timeout")?.as_deref().unwrap_or("3600")),
-            authId,
+            auth_id,
             option("level")?,
             option("filter")?,
             option("message")?,
         ))
     }
 
-    pub fn accepts(&self, messageLogged: &MessageLogged) -> bool {
+    pub fn accepts(&self, message_logged: &MessageLogged) -> bool {
         if self
-            .authId
+            .auth_id
             .as_ref()
-            .is_some_and(|id| messageLogged.authId().as_ref() != Some(id))
+            .is_some_and(|id| message_logged.auth_id().as_ref() != Some(id))
         {
             return false;
         }
         if self
             .level
             .as_ref()
-            .is_some_and(|level| !level.eq_ignore_ascii_case(messageLogged.level()))
+            .is_some_and(|level| !level.eq_ignore_ascii_case(message_logged.level()))
         {
             return false;
         }
         if self
             .filter
             .as_ref()
-            .is_some_and(|filter| !contains(&messageLogged.to_string(), filter))
+            .is_some_and(|filter| !contains(&message_logged.to_string(), filter))
         {
             return false;
         }
         self.message
             .as_ref()
-            .is_none_or(|filter| contains(messageLogged.message(), filter))
+            .is_none_or(|filter| contains(message_logged.message(), filter))
     }
 
     pub fn timeout(&self) -> i64 {

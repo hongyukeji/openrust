@@ -48,8 +48,7 @@ impl Passkey {
     pub fn credential(&self) -> PasskeyResult<StoredCredential> {
         <Self as PasskeyModel>::credential(self)
     }
-    #[allow(non_snake_case, reason = "Eloquent relation adapter")]
-    pub fn userFor<T: crate::contracts::PasskeyUser>(
+    pub fn user_for<T: crate::contracts::PasskeyUser>(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, T> {
         openrust::database::eloquent::relations::BelongsTo::new(
@@ -73,14 +72,13 @@ fn display_value(values: &Attributes, theme: Option<&str>) -> Value {
         return Value::Null;
     };
     match theme {
-        Some(theme) => crate::Aaguids::iconFor(id, theme).ok().flatten(),
-        None => crate::Aaguids::labelFor(id),
+        Some(theme) => crate::Aaguids::icon_for(id, theme).ok().flatten(),
+        None => crate::Aaguids::label_for(id),
     }
     .map_or(Value::Null, Value::Text)
 }
 
 /// Rust counterpart of extending the native Passkey Eloquent model.
-#[allow(non_snake_case, reason = "Matches Passkeys Eloquent model operations")]
 pub trait PasskeyModel: Model + Clone {
     fn credential(&self) -> PasskeyResult<StoredCredential> {
         credential_value(
@@ -88,7 +86,7 @@ pub trait PasskeyModel: Model + Clone {
                 .map_err(|_| crate::PasskeyError::Format)?,
         )
     }
-    fn userFor<T: crate::contracts::PasskeyUser>(
+    fn user_for<T: crate::contracts::PasskeyUser>(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, T> {
         openrust::database::eloquent::relations::BelongsTo::new(

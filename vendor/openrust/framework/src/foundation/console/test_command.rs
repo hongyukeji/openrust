@@ -72,7 +72,7 @@ impl Command for TestCommand {
                     .flatten()
                     .copied()
                     .unwrap_or(false);
-                let run = process.runWithOutput(move |stream, bytes| {
+                let run = process.run_with_output(move |stream, bytes| {
                     if silent {
                         return;
                     }
@@ -97,7 +97,7 @@ impl Command for TestCommand {
                 .push_str(&String::from_utf8_lossy(result.output()));
             output
                 .stderr
-                .push_str(&String::from_utf8_lossy(result.errorOutput()));
+                .push_str(&String::from_utf8_lossy(result.error_output()));
             Ok(result.exit_code())
         })
     }

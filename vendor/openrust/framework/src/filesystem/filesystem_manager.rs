@@ -33,7 +33,6 @@ pub struct LocalDiskConfig {
     pub report: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl FilesystemManager {
     pub fn new(config: Arc<dyn Repository>, base_path: PathBuf) -> Self {
         Self {
@@ -81,7 +80,7 @@ impl FilesystemManager {
                     url,
                 )?
             }
-            Some("s3") => self.build_s3(
+            Some("s3") => self.build_s3_adapter(
                 serde_json::from_value(config)
                     .map_err(|_| FilesystemError::InvalidConfiguration)?,
                 url,
@@ -109,7 +108,7 @@ impl FilesystemManager {
         }
     }
 
-    pub fn getDefaultCloudDriver(&self) -> FilesystemResult<String> {
+    pub fn get_default_cloud_driver(&self) -> FilesystemResult<String> {
         match self.config.get("filesystems.cloud") {
             None | Some(serde_json::Value::Null) => Ok("s3".into()),
             Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
@@ -121,7 +120,7 @@ impl FilesystemManager {
         self.build_local(config, LocalPermissions::default(), None)
     }
 
-    pub fn buildWithPermissions(
+    pub fn build_with_permissions(
         &self,
         config: LocalDiskConfig,
         permissions: LocalPermissions,
@@ -153,11 +152,11 @@ impl FilesystemManager {
         )))
     }
 
-    pub fn buildS3(&self, config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        self.build_s3(config, None)
+    pub fn build_s3(&self, config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        self.build_s3_adapter(config, None)
     }
 
-    fn build_s3(
+    fn build_s3_adapter(
         &self,
         config: S3DiskConfig,
         url: Option<String>,
@@ -168,7 +167,7 @@ impl FilesystemManager {
         Ok(Arc::new(FilesystemAdapter::s3(driver, throw, report, url)))
     }
 
-    pub fn forgetDisk(&self, name: &str) {
+    pub fn forget_disk(&self, name: &str) {
         self.disks
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

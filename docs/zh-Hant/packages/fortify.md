@@ -30,13 +30,13 @@ Fortify 管理註冊、Session 登入與憑證變更。[Sanctum](sanctum.md) 的
 
 安裝預設使用 `web` 守衛、`users` 密碼代理、`email` 使用者名稱與郵件欄位、名稱小寫轉換、空前綴與 `/home` 首頁。這些是應用模板預設值，與套件內預設設定不同。透過 `fortify.features` 選擇功能，透過 `fortify-options.two-factor-authentication` 設定 `{"confirm":true,"confirmPassword":true}`；安裝器會載入這個獨立的 Rust 選項群組。
 
-`fortify.views=false` 移除介面路由，保留已啟用的動作端點；Session Cookie 與 CSRF 仍有效。須提供名為 `password.reset` 的前端路由，或設定原生重設通知的 URL 產生方式，才能建立重設郵件。視圖回呼包含 `loginView`、`registerView`、`requestPasswordResetLinkView`、`resetPasswordView`、`verifyEmailView`、`confirmPasswordView` 與 `twoFactorChallengeView`。
+`fortify.views=false` 移除介面路由，保留已啟用的動作端點；Session Cookie 與 CSRF 仍有效。須提供名為 `password.reset` 的前端路由，或設定原生重設通知的 URL 產生方式，才能建立重設郵件。視圖回呼包含 `login_view`、`register_view`、`request_password_reset_link_view`、`reset_password_view`、`verify_email_view`、`confirm_password_view` 與 `two_factor_challenge_view`。
 
 ## 認證
 
 `POST /login` 接收設定的使用者名稱、`password` 與選用的 `remember`。一般 JSON 登入成功回傳 `200` 與 `two_factor:false`，需要雙因素挑戰時回傳 `two_factor:true`。認證成功會輪替 Session。`POST /logout` 使其失效並重新產生 CSRF 權杖。瀏覽器變更請求須攜帶工作階段 Cookie 與 CSRF 標頭。JSON 驗證失敗回傳 `422`，具名限流回傳 `429`。
 
-透過 `Fortify::authenticateUsing` 自訂身分查詢，`confirmPasswordsUsing` 自訂密碼確認，`authenticateThrough` 替換登入管線。預設管線處理限流、名稱正規化、雙因素導向、認證與工作階段準備。Web 回應可透過 `fortify.redirects` 設定導向。
+透過 `Fortify::authenticate_using` 自訂身分查詢，`confirm_passwords_using` 自訂密碼確認，`authenticate_through` 替換登入管線。預設管線處理限流、名稱正規化、雙因素導向、認證與工作階段準備。Web 回應可透過 `fortify.redirects` 設定導向。
 
 安裝的 `login` 限流器依轉寫後的小寫名稱與 IP 每分鐘允許五次請求，透過 `RateLimiter::for_async` 讀取真實請求輸入。設定具名限流後會替換 Fortify 內建的失敗計數限流。具名策略可回傳 `Limit`、多個配額、`Unlimited` 或回應。
 
@@ -52,9 +52,9 @@ Fortify 管理註冊、Session 登入與憑證變更。[Sanctum](sanctum.md) 的
 
 `POST /register` 呼叫 `CreatesNewUsers`。安裝的 `CreateNewUser` 驗證姓名與郵件地址，透過 User 模型檢查郵件唯一性，驗證預設密碼規則與確認欄位，雜湊密碼並儲存帳戶。JSON 成功回傳 `201`。
 
-`PUT /user/profile-information` 呼叫 `UpdatesUserProfileInformation`；郵件地址變更會清除驗證狀態並寄送新的原生通知。`PUT /user/password` 呼叫 `UpdatesUserPasswords`，驗證 `current_password:web`、雜湊新密碼、刪除重設權杖並發出更新事件。安裝的 `updateFromRequest` 獨立讀取真實 `web` 守衛，與待更新使用者區分。直接呼叫預設動作而未提供請求時會明確失敗；既有自訂動作仍可實作原本的 `update` 方法。
+`PUT /user/profile-information` 呼叫 `UpdatesUserProfileInformation`；郵件地址變更會清除驗證狀態並寄送新的原生通知。`PUT /user/password` 呼叫 `UpdatesUserPasswords`，驗證 `current_password:web`、雜湊新密碼、刪除重設權杖並發出更新事件。安裝的 `update_from_request` 獨立讀取真實 `web` 守衛，與待更新使用者區分。直接呼叫預設動作而未提供請求時會明確失敗；既有自訂動作仍可實作原本的 `update` 方法。
 
-可在應用的 Fortify 執行個體上透過 `createUsersUsing`、`updateUserProfileInformationUsing`、`updateUserPasswordsUsing` 與 `resetUserPasswordsUsing` 替換動作。安裝的密碼規則為 `required`、`string`、`Password::default()` 與 `confirmed`。資料與密碼的 Web 驗證使用具名錯誤包。
+可在應用的 Fortify 執行個體上透過 `create_users_using`、`update_user_profile_information_using`、`update_user_passwords_using` 與 `reset_user_passwords_using` 替換動作。安裝的密碼規則為 `required`、`string`、`Password::default()` 與 `confirmed`。資料與密碼的 Web 驗證使用具名錯誤包。
 
 ## 密碼重設
 
@@ -72,7 +72,7 @@ JSON 重設結果包含翻譯後的訊息，失敗使用驗證錯誤；Web 結�
 
 ## Passkeys
 
-Passkeys API 搭配 `@laravel/passkeys` 0.4.1 用戶端使用。`fortify:install` 發佈 `passkeys` 資料表遷移，為預設 User 加入 `PasskeyAuthenticatable`，並在產生的 Provider 註冊 `Passkeys::useUserModel::<User>()`。保留 `fortify.features` 中的 `passkeys`，重新建置並執行遷移。自訂 User 實作 `openrust_fortify::passkeys::PasskeyAuthenticatable`，並在應用 Provider 明確註冊。
+Passkeys API 搭配 `@laravel/passkeys` 0.4.1 用戶端使用。`fortify:install` 發佈 `passkeys` 資料表遷移，為預設 User 加入 `PasskeyAuthenticatable`，並在產生的 Provider 註冊 `Passkeys::use_user_model::<User>()`。保留 `fortify.features` 中的 `passkeys`，重新建置並執行遷移。自訂 User 實作 `openrust_fortify::passkeys::PasskeyAuthenticatable`，並在應用 Provider 明確註冊。
 
 設定 `fortify.passkeys.relying_party_id`、`allowed_origins`、`user_handle_secret` 與 `timeout`。預設由 `APP_URL` 推導 RP ID 與精確 Origin，密鑰讀取 `PASSKEYS_USER_HANDLE_SECRET` 並退回 `APP_KEY`，逾時為 60000 毫秒。正式環境使用 HTTPS；開發支援 HTTP localhost。Origin 包含連接埠，不包含尾端斜線或路徑。輪替應用密鑰時保持使用者控制代碼密鑰穩定：控制代碼為模型資料表名稱與主鍵衍生的 64 位元組十六進位 HMAC-SHA256；更換密鑰會改變新註冊的控制代碼。
 
@@ -99,13 +99,13 @@ await Passkeys.verify({ routes: {
 } });
 ```
 
-頁面須提供 `csrf-token` meta 標籤並攜帶 Session Cookie；設定前綴時覆寫用戶端路徑。註冊 JSON 包含 `status`、`id`、`name`，驗證 JSON 包含 `redirect`。Web 請求重新導向並快閃儲存註冊／刪除狀態。透過原生容器替換 `passkeys::contracts` 的四種回應契約。`Passkeys::authorizeLoginUsing` 提供應用內非同步授權回呼，在密碼學驗證後執行。原生 `PasskeyRegistered`、`PasskeyVerified`、`PasskeyDeleted` 事件攜帶使用者與已持久化模型的上下文。
+頁面須提供 `csrf-token` meta 標籤並攜帶 Session Cookie；設定前綴時覆寫用戶端路徑。註冊 JSON 包含 `status`、`id`、`name`，驗證 JSON 包含 `redirect`。Web 請求重新導向並快閃儲存註冊／刪除狀態。透過原生容器替換 `passkeys::contracts` 的四種回應契約。`Passkeys::authorize_login_using` 提供應用內非同步授權回呼，在密碼學驗證後執行。原生 `PasskeyRegistered`、`PasskeyVerified`、`PasskeyDeleted` 事件攜帶使用者與已持久化模型的上下文。
 
 註冊要求常駐憑證與使用者驗證，支援 ES256／RS256，證明類型為 none。伺服器端 Session 將挑戰綁定到操作與帳戶，並強制執行截止時間；原子快取宣告拒絕並行重用，MySQL 資料列鎖保護獨立挑戰間的計數器更新與回退檢查。多程序部署必須共用 Session 儲存與支援原子 `add` 的快取；array 驅動涵蓋單一程序。可探索憑證登入也會檢查已儲存的使用者控制代碼。伺服器端狀態遺失後須重新發起操作。
 
-在應用 Provider 中呼叫 `Passkeys::usePasskeyModel::<CustomPasskey>()` 選擇實際 Eloquent 模型。為實作 `Model + Clone` 且具備憑證轉換及必要欄位的型別實作 `PasskeyModel`；查詢、插入、資料列鎖驗證及刪除均使用其資料表、主鍵、存取器和觀察者。`Passkeys::passkeyModel()` 與 `userModel()` 傳回所選型別名稱。Rust 使用 `PasskeyRelation` 提供 `get_results`、`exists` 與 `create`，傳回 `PasskeyRecord`。記錄的 `get_key`、`get_attribute_value` 和 `to_array` 為非同步方法；`record.model::<CustomPasskey>()` 傳回非同步互斥鎖中的實際共用模型。呼叫其他記錄方法前先釋放該鎖。事件的 `passkey::<CustomPasskey>(context)` 讀取型別化快照，事件的 `passkey` 記錄保留實際共用模型。
+在應用 Provider 中呼叫 `Passkeys::use_passkey_model::<CustomPasskey>()` 選擇實際 Eloquent 模型。為實作 `Model + Clone` 且具備憑證轉換及必要欄位的型別實作 `PasskeyModel`；查詢、插入、資料列鎖驗證及刪除均使用其資料表、主鍵、存取器和觀察者。`Passkeys::passkey_model()` 與 `user_model()` 傳回所選型別名稱。Rust 使用 `PasskeyRelation` 提供 `get_results`、`exists` 與 `create`，傳回 `PasskeyRecord`。記錄的 `get_key`、`get_attribute_value` 和 `to_array` 為非同步方法；`record.model::<CustomPasskey>()` 傳回非同步互斥鎖中的實際共用模型。呼叫其他記錄方法前先釋放該鎖。事件的 `passkey::<CustomPasskey>(context)` 讀取型別化快照，事件的 `passkey` 記錄保留實際共用模型。
 
-預設模型附加 `authenticator`，依註冊 AAGUID 查詢名稱。`Aaguids::labelFor`、`iconFor(id, "light")`、`all` 與 `flush` 使用固定上游資源。需要圖示時，在模型 appends 中明確加入 `authenticator_icon_light` 與 `authenticator_icon_dark`。未知或缺少 AAGUID 傳回 null，舊儲存憑證缺少此欄位仍可使用。none 證明模式下，名稱和圖示僅展示所回報的 AAGUID，不認證製造商身分。
+預設模型附加 `authenticator`，依註冊 AAGUID 查詢名稱。`Aaguids::label_for`、`icon_for(id, "light")`、`all` 與 `flush` 使用固定上游資源。需要圖示時，在模型 appends 中明確加入 `authenticator_icon_light` 與 `authenticator_icon_dark`。未知或缺少 AAGUID 傳回 null，舊儲存憑證缺少此欄位仍可使用。none 證明模式下，名稱和圖示僅展示所回報的 AAGUID，不認證製造商身分。
 
 獨立發佈資源時，在 Provider 清單中明確註冊 `openrust_passkeys` 的 `PasskeysResourcesServiceProvider` 並重新建置，然後執行：
 

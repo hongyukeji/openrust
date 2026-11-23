@@ -20,7 +20,6 @@ pub struct ClientOwner {
     id: Value,
     morph_class: &'static str,
 }
-#[allow(non_snake_case)]
 impl ClientOwner {
     pub fn for_user<U: Model + openrust::contracts::auth::Authenticatable>(
         user: &U,
@@ -79,7 +78,6 @@ pub struct ClientRepository {
     tokens: Arc<crate::token_store::TokenModels>,
     cache: Mutex<HashMap<String, CachedClient>>,
 }
-#[allow(non_snake_case)]
 impl ClientRepository {
     pub(crate) fn new(
         store: Arc<dyn ClientStore>,
@@ -91,7 +89,7 @@ impl ClientRepository {
             cache: Mutex::default(),
         }
     }
-    pub async fn createPersonalAccessGrantClient(
+    pub async fn create_personal_access_grant_client(
         &self,
         name: &str,
         provider: Option<&str>,
@@ -99,7 +97,7 @@ impl ClientRepository {
         self.create(name, vec!["personal_access"], &[], provider, true, None)
             .await
     }
-    pub async fn createPasswordGrantClient(
+    pub async fn create_password_grant_client(
         &self,
         name: &str,
         provider: Option<&str>,
@@ -115,22 +113,22 @@ impl ClientRepository {
         )
         .await
     }
-    pub async fn createClientCredentialsGrantClient(
+    pub async fn create_client_credentials_grant_client(
         &self,
         name: &str,
     ) -> DatabaseResult<ClientRecord> {
         self.create(name, vec!["client_credentials"], &[], None, true, None)
             .await
     }
-    pub async fn createImplicitGrantClient(
+    pub async fn create_implicit_grant_client(
         &self,
         name: &str,
-        redirectUris: &[String],
+        redirect_uris: &[String],
     ) -> DatabaseResult<ClientRecord> {
-        self.create(name, vec!["implicit"], redirectUris, None, false, None)
+        self.create(name, vec!["implicit"], redirect_uris, None, false, None)
             .await
     }
-    pub async fn createDeviceAuthorizationGrantClient(
+    pub async fn create_device_authorization_grant_client(
         &self,
         name: &str,
         confidential: bool,
@@ -149,19 +147,19 @@ impl ClientRepository {
         )
         .await
     }
-    pub async fn createAuthorizationCodeGrantClient(
+    pub async fn create_authorization_code_grant_client(
         &self,
         name: &str,
-        redirectUris: &[String],
+        redirect_uris: &[String],
         confidential: bool,
         user: Option<&ClientOwner>,
-        enableDeviceFlow: bool,
+        enable_device_flow: bool,
     ) -> DatabaseResult<ClientRecord> {
         let mut grants = vec!["authorization_code", "refresh_token"];
-        if enableDeviceFlow {
+        if enable_device_flow {
             grants.push("urn:ietf:params:oauth:grant-type:device_code");
         }
-        self.create(name, grants, redirectUris, None, confidential, user)
+        self.create(name, grants, redirect_uris, None, confidential, user)
             .await
     }
     async fn create(
@@ -188,16 +186,16 @@ impl ClientRepository {
         &self,
         client: &ClientRecord,
         name: &str,
-        redirectUris: &[String],
+        redirect_uris: &[String],
     ) -> DatabaseResult<bool> {
         let columns = client.columns().await?;
         let redirects = if columns.iter().any(|column| column == "redirect_uris") {
             (
                 "redirect_uris",
-                Value::Json(serde_json::json!(redirectUris)),
+                Value::Json(serde_json::json!(redirect_uris)),
             )
         } else {
-            ("redirect", Value::Text(redirectUris.join(",")))
+            ("redirect", Value::Text(redirect_uris.join(",")))
         };
         client
             .assign_and_save(Attributes::from([
@@ -213,7 +211,7 @@ impl ClientRepository {
             .await?;
         Ok(())
     }
-    pub async fn regenerateSecret(&self, client: &ClientRecord) -> DatabaseResult<bool> {
+    pub async fn regenerate_secret(&self, client: &ClientRecord) -> DatabaseResult<bool> {
         client
             .assign_and_save(Attributes::from([(
                 "secret".into(),
@@ -221,14 +219,14 @@ impl ClientRepository {
             )]))
             .await
     }
-    pub async fn findForUser(
+    pub async fn find_for_user(
         &self,
-        clientId: impl Into<Value>,
+        client_id: impl Into<Value>,
         user: &ClientOwner,
     ) -> DatabaseResult<Option<ClientRecord>> {
         Ok(self
             .store
-            .for_user(user.clone(), Some(clientId.into()))
+            .for_user(user.clone(), Some(client_id.into()))
             .await?
             .into_iter()
             .next())
@@ -242,7 +240,7 @@ impl ClientRepository {
             .await
             .map(|models| models.into_iter().collect())
     }
-    pub async fn personalAccessClient(
+    pub async fn personal_access_client(
         &self,
         provider: &str,
     ) -> Result<ClientRecord, ClientRepositoryError> {
@@ -266,7 +264,7 @@ impl ClientRepository {
             .clone();
         cell.get_or_try_init(|| self.store.find(id)).await.cloned()
     }
-    pub async fn findActive(&self, id: impl Into<Value>) -> DatabaseResult<Option<ClientRecord>> {
+    pub async fn find_active(&self, id: impl Into<Value>) -> DatabaseResult<Option<ClientRecord>> {
         let Some(client) = self.find(id).await? else {
             return Ok(None);
         };
@@ -333,7 +331,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                 .await?;
             let legacy = columns.iter().any(|column| column == "user_id");
             let owner_key = if legacy { "user_id" } else { "owner_id" };
-            let mut query = M::newQuery(&connection);
+            let mut query = M::new_query(&connection);
             query
                 .r#where("revoked", "=", false)
                 .r#where(owner_key, "=", user.id)
@@ -374,7 +372,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                 .get_created_at_column()
                 .unwrap_or("created_at")
                 .to_owned();
-            let mut query = M::newQuery(&connection);
+            let mut query = M::new_query(&connection);
             query
                 .r#where("revoked", "=", false)
                 .where_nested(|conditions| {
@@ -386,7 +384,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
                     conditions.or_where("provider", "=", provider)
                 });
             for model in query.order_by(&created, "desc").get().await? {
-                if model.hasGrantType("personal_access")? {
+                if model.has_grant_type("personal_access")? {
                     return Ok(Some(ClientRecord::new(model, connection)));
                 }
             }
@@ -397,7 +395,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
     fn create(&self, client: NewClient) -> DatabaseFuture<'_, DatabaseResult<ClientRecord>> {
         Box::pin(async move {
             let connection = self.connection()?;
-            let mut model = M::newQuery(&connection)
+            let mut model = M::new_query(&connection)
                 .make_async(Attributes::new())
                 .await?;
             let columns = connection
@@ -465,7 +463,7 @@ impl<M: ClientModel> ClientStore for EloquentClientStore<M> {
     fn find(&self, id: Value) -> DatabaseFuture<'_, DatabaseResult<Option<ClientRecord>>> {
         Box::pin(async move {
             let connection = self.connection()?;
-            M::newQuery(&connection)
+            M::new_query(&connection)
                 .find(id)
                 .await
                 .map(|model| model.map(|model| ClientRecord::new(model, connection)))

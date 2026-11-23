@@ -100,7 +100,7 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 
 #### 模型缺失 {#ignoring-missing-models}
 
-任務依賴特定模型時，呼叫 `ModelIdentifier::restore_for_job().await?`。模型缺失時預設立即將任務標記為失敗。派送時呼叫 `Payload::deleteWhenMissingModels()` 可靜默確認該任務。兩種情況都會釋放唯一任務鎖。靜默確認會將該成員記為批次成功，並停止其任務鏈。其他資料庫錯誤沿用既有處理。
+任務依賴特定模型時，呼叫 `ModelIdentifier::restore_for_job().await?`。模型缺失時預設立即將任務標記為失敗。派送時呼叫 `Payload::delete_when_missing_models()` 可靜默確認該任務。兩種情況都會釋放唯一任務鎖。靜默確認會將該成員記為批次成功，並停止其任務鏈。其他資料庫錯誤沿用既有處理。
 
 ```rust
 use openrust::{
@@ -109,7 +109,7 @@ use openrust::{
 };
 
 pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
-    Ok(Payload::new("reports.generate", id)?.deleteWhenMissingModels())
+    Ok(Payload::new("reports.generate", id)?.delete_when_missing_models())
 }
 
 pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
@@ -136,9 +136,9 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 ## Bus 派送 {#bus-dispatch}
 
-用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipe_through` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。
+用 `Bus::dispatch(payload, options, transaction)` 或 `dispatch_to_queue` 派送已登錄的佇列工作。`dispatch_sync` 使用同步佇列，保留工作中介軟體和事件。`dispatch_now` 在目前程序經應用程式的 `pipe_through` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `has_command_handler` 或 `get_command_handler` 查詢。
 
-在 HTTP 請求內等待 `Bus::dispatchAfterResponse(payload, options)` 完成登錄，工作在終止階段同步執行。可在應用程式組裝時用 `withoutDispatchingAfterResponses` 切換為立即執行。持久佇列的 Worker 依已登錄名稱解析編譯後的處理常式，並解碼 JSON 承載資料。
+在 HTTP 請求內等待 `Bus::dispatch_after_response(payload, options)` 完成登錄，工作在終止階段同步執行。可在應用程式組裝時用 `without_dispatching_after_responses` 切換為立即執行。持久佇列的 Worker 依已登錄名稱解析編譯後的處理常式，並解碼 JSON 承載資料。
 
 ## 唯一工作 {#unique-jobs}
 
@@ -180,7 +180,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 設定 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 與 `AWS_DEFAULT_REGION`，也可直接提供完整佇列 URL。`SQS_SUFFIX` 只套用於佇列名稱，放在 `.fifo` 之前。憑證可由 AWS 憑證鏈提供，也可設定存取金鑰、祕密金鑰及選用的工作階段權杖。`SQS_ENDPOINT` 指定自訂服務端點。建立佇列後執行 `./artisan queue:work sqs`。
 
-FIFO 可使用 `Payload::onGroup` 和 `withDeduplicationId` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。
+FIFO 可使用 `Payload::on_group` 和 `with_deduplication_id` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。
 
 設定 `SQS_OVERFLOW_ENABLED=true` 後，序列化大小達到 1 MiB 的承載資料存入快取，SQS 訊息攜帶指標。透過 `SQS_OVERFLOW_STORE` 讓生產者與 Worker 使用同一個共用快取。設定 `SQS_OVERFLOW_ALWAYS=true` 後，小型工作也使用指標。工作釋放後保留承載資料，成功確認後預設刪除。可設定 `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` 保留。
 
@@ -221,7 +221,7 @@ use std::sync::Arc;
 use openrust::{queue::QueueResult, support::facades::Queue};
 
 fn register_priority_worker() -> QueueResult<()> {
-    Queue::popUsing("priority", Some(Arc::new(|pop, _queues| {
+    Queue::pop_using("priority", Some(Arc::new(|pop, _queues| {
         Box::pin(async move { pop.pop_now(Some("critical")).await })
     })))
 }
@@ -231,7 +231,7 @@ fn register_priority_worker() -> QueueResult<()> {
 ./artisan queue:work database --name=priority --once
 ```
 
-傳回 `None` 代表本輪沒有工作。佇列選擇和暫停檢查由回呼控制。呼叫 `Queue::popUsing("priority", None)` 可恢復該名稱的預設取件策略。
+傳回 `None` 代表本輪沒有工作。佇列選擇和暫停檢查由回呼控制。呼叫 `Queue::pop_using("priority", None)` 可恢復該名稱的預設取件策略。
 
 #### 維護期間執行 Worker {#workers-during-maintenance}
 
@@ -282,7 +282,7 @@ fn register_queue_callbacks() -> QueueResult<()> {
 }
 ```
 
-回呼透過應用程式事件分派器接收對應型別的事件。`looping` 回呼可傳回 `Some(ListenerResponse::Value(Box::new(false)))` 略過本輪輪詢。傳回 `Ok(None)` 可繼續呼叫後續回呼。用 `Queue::whenJobRunsLongerThan` 和 `Duration` 監聽耗時超過閾值的嘗試，回呼接收工作快照和耗時。
+回呼透過應用程式事件分派器接收對應型別的事件。`looping` 回呼可傳回 `Some(ListenerResponse::Value(Box::new(false)))` 略過本輪輪詢。傳回 `Ok(None)` 可繼續呼叫後續回呼。用 `Queue::when_job_runs_longer_than` 和 `Duration` 監聽耗時超過閾值的嘗試，回呼接收工作快照和耗時。
 
 #### 同步工作事件 {#synchronous-job-events}
 
@@ -518,7 +518,7 @@ impl JobHandler for ProcessPodcast {
 ./artisan queue:resume --all
 ```
 
-Worker 在工作之間及閒置時檢查共用快取。`--sleep` 控制閒置輪詢間隔。若要對某個應用程式關閉重啟和暫停輪詢，請在服務提供者的 `boot` 方法中呼叫 `Queue::withoutInterruptionPolling()?`。 Redis Worker 設定了 `block_for` 時，會在阻塞取工作返回後再次檢查。若要讓閒置 Worker 及時回應控制訊號，請設定有限的阻塞時間。
+Worker 在工作之間及閒置時檢查共用快取。`--sleep` 控制閒置輪詢間隔。若要對某個應用程式關閉重啟和暫停輪詢，請在服務提供者的 `boot` 方法中呼叫 `Queue::without_interruption_polling()?`。 Redis Worker 設定了 `block_for` 時，會在阻塞取工作返回後再次檢查。若要讓閒置 Worker 及時回應控制訊號，請設定有限的阻塞時間。
 
 #### 在應用程式碼中暫停佇列 {#pausing-queues-in-code}
 
@@ -530,9 +530,9 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
     let name = connection.get_connection_name();
-    Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
-    assert!(Queue::isPaused(name, "default").await?);
-    assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
+    Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::is_paused(name, "default").await?);
+    assert_eq!(Queue::get_paused_queues(name, &["low", "default"]).await?, ["default"]);
     Ok(())
 }
 ```
@@ -557,7 +557,7 @@ fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> Pendin
 
 使用 `on_connection` 和 `on_queue` 選擇工作鏈的派送位置。`delay` 作用於第一個工作。派送前可用建構器的 `prepend` 和 `append` 調整順序。
 
-在服務提供者的 `boot` 方法中以 `Bus::registerChainCallback` 按名稱註冊失敗回呼，再以 `catch("reports.failed")` 關聯。Worker 在自己的應用程式內解析回呼，並傳入失敗的工作承載資料和佇列錯誤。工作應確保副作用具冪等性，因為 Worker 遺失預約後可能再次執行工作。工作鏈回呼沒有獨立的重試紀錄。
+在服務提供者的 `boot` 方法中以 `Bus::register_chain_callback` 按名稱註冊失敗回呼，再以 `catch("reports.failed")` 關聯。Worker 在自己的應用程式內解析回呼，並傳入失敗的工作承載資料和佇列錯誤。工作應確保副作用具冪等性，因為 Worker 遺失預約後可能再次執行工作。工作鏈回呼沒有獨立的重試紀錄。
 
 ### 工作鏈連線和佇列 {#chain-connection-queue}
 
@@ -577,14 +577,14 @@ Worker 使用承載資料儲存的連線、佇列和延遲派送後繼工作。�
 
 ### 向目前工作鏈加入工作 {#adding-jobs-to-the-chain}
 
-在工作處理器內，使用 `JobContext::prependToChain` 讓新工作緊接目前工作執行，使用 `appendToChain` 將新工作放到現有鏈尾。處理器成功後變更生效。失敗或釋放會捨棄本次嘗試的變更。
+在工作處理器內，使用 `JobContext::prepend_to_chain` 讓新工作緊接目前工作執行，使用 `append_to_chain` 將新工作放到現有鏈尾。處理器成功後變更生效。失敗或釋放會捨棄本次嘗試的變更。
 
 ```rust
 use openrust::queue::{JobContext, Payload, QueueResult};
 
 fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
-    context.prependToChain(before)?;
-    context.appendToChain(after)
+    context.prepend_to_chain(before)?;
+    context.append_to_chain(after)
 }
 ```
 
@@ -592,7 +592,7 @@ fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> 
 
 ### 依條件派送工作鏈 {#conditional-chain-dispatch}
 
-條件為真時可用 `dispatchIf` 派送，條件為假時可用 `dispatchUnless` 派送。兩者都接受布林值或回傳布林值的閉包。等待派送 Future 時，閉包只執行一次。
+條件為真時可用 `dispatch_if` 派送，條件為假時可用 `dispatch_unless` 派送。兩者都接受布林值或回傳布林值的閉包。等待派送 Future 時，閉包只執行一次。
 
 ```rust
 use openrust::{
@@ -604,7 +604,7 @@ async fn dispatch_chain_if(
     chain: PendingChain,
     enabled: bool,
 ) -> QueueResult<Option<DispatchResult>> {
-    chain.dispatchIf(enabled).await
+    chain.dispatch_if(enabled).await
 }
 ```
 
@@ -635,27 +635,27 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 }
 ```
 
-執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::findBatch(&id)` 讀取目前狀態，用 `Bus::cancelBatch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allowFailures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
+執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::find_batch(&id)` 讀取目前狀態，用 `Bus::cancel_batch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allow_failures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
 
 資料庫佇列與批次儲存庫須使用相同 SQL 連線，批次和入列操作在同一交易提交。派送到 Redis 時，在 `dispatch()` 前呼叫 `on_connection("redis")`。
 
 ### 批次中的工作鏈 {#chains-and-batches}
 
-在待派送批次上使用 `addChain` 加入一組依序執行的工作。它對應框架`Bus::batch` 裡的巢狀陣列。所有成員共用批次 ID、連線和佇列。批次統計每個成員，首次入列只放入各鏈的第一個工作。多個 Worker 可以平行處理不同的工作鏈。
+在待派送批次上使用 `add_chain` 加入一組依序執行的工作。它對應框架`Bus::batch` 裡的巢狀陣列。所有成員共用批次 ID、連線和佇列。批次統計每個成員，首次入列只放入各鏈的第一個工作。多個 Worker 可以平行處理不同的工作鏈。
 
 ```rust
 use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};
 
 fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
-    Bus::batch([]).addChain(left).addChain(right)
+    Bus::batch([]).add_chain(left).add_chain(right)
 }
 ```
 
-在建構器上呼叫 `dispatch().await` 派送。批次派送後，可用 `Batch::addChain(...).await` 加入工作鏈。工作最終失敗會停止所在的鏈。即使批次允許失敗，鏈中尚未執行的工作仍維持待處理狀態。重試失敗的工作可恢復該鏈。
+在建構器上呼叫 `dispatch().await` 派送。批次派送後，可用 `Batch::add_chain(...).await` 加入工作鏈。工作最終失敗會停止所在的鏈。即使批次允許失敗，鏈中尚未執行的工作仍維持待處理狀態。重試失敗的工作可恢復該鏈。
 
 ### 工作鏈中的批次 {#batches-within-chains}
 
-使用 `appendBatch` 或 `prependBatch` 將待派送批次加入工作鏈。Worker 執行到該步驟時派送批次。批次預設繼承工作鏈的連線和佇列，也可以個別設定。兩個階段都支援 Redis 及與批次儲存庫共用連線的資料庫佇列。
+使用 `append_batch` 或 `prepend_batch` 將待派送批次加入工作鏈。Worker 執行到該步驟時派送批次。批次預設繼承工作鏈的連線和佇列，也可以個別設定。兩個階段都支援 Redis 及與批次儲存庫共用連線的資料庫佇列。
 
 ```rust
 use openrust::{
@@ -665,7 +665,7 @@ use openrust::{
 };
 
 fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueResult<PendingChain> {
-    Ok(Bus::chain([first]).appendBatch(batch)?.append(last))
+    Ok(Bus::chain([first]).append_batch(batch)?.append(last))
 }
 ```
 
@@ -685,7 +685,7 @@ use openrust::{
 };
 
 async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
-    let Some(batch) = Bus::findBatch(id).await? else {
+    let Some(batch) = Bus::find_batch(id).await? else {
         return Ok(None);
     };
     batch.add([Payload::new("reports.generate", report)?]).await
@@ -733,7 +733,7 @@ fn report_complete<'a>(batch: &'a Batch, _: Option<&'a str>) -> QueueFuture<'a, 
 }
 
 fn register_batch_callbacks() -> QueueResult<()> {
-    Bus::registerBatchCallback("reports.completed", report_complete)
+    Bus::register_batch_callback("reports.completed", report_complete)
 }
 
 async fn dispatch_with_callbacks() -> QueueResult<Batch> {
@@ -848,11 +848,11 @@ fn job_rate_limit() -> RateLimited {
 }
 ```
 
-達到限額後，工作預設在剩餘視窗再加三秒後可重新預約。使用 `release_after` 可覆寫延遲，使用 `dontRelease` 則略過處理器並確認該工作。釋放仍會消耗一次嘗試。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 連線上原子套用限額。
+達到限額後，工作預設在剩餘視窗再加三秒後可重新預約。使用 `release_after` 可覆寫延遲，使用 `dont_release` 則略過處理器並確認該工作。釋放仍會消耗一次嘗試。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 連線上原子套用限額。
 
 ### 防止工作重疊 {#preventing-job-overlaps}
 
-用 `WithoutOverlapping` 讓修改同一資源的工作循序執行。預設只有註冊名稱和鎖鍵相同的工作競爭同一把鎖。用 `shared()` 讓不同工作共用鎖鍵，用 `withPrefix` 區分鎖的命名空間。
+用 `WithoutOverlapping` 讓修改同一資源的工作循序執行。預設只有註冊名稱和鎖鍵相同的工作競爭同一把鎖。用 `shared()` 讓不同工作共用鎖鍵，用 `with_prefix` 區分鎖的命名空間。
 
 ```rust
 use std::time::Duration;
@@ -860,14 +860,14 @@ use openrust::queue::middleware::WithoutOverlapping;
 
 fn account_lock(account_id: u64) -> WithoutOverlapping {
     WithoutOverlapping::new(account_id.to_string())
-        .withPrefix("account-update:")
+        .with_prefix("account-update:")
         .shared()
         .release_after(Duration::from_secs(15))
-        .expireAfter(Duration::from_secs(120))
+        .expire_after(Duration::from_secs(120))
 }
 ```
 
-發生競爭時預設立即釋放工作。用 `release_after` 指定相對延遲或絕對時間，或用 `dontRelease` 確認工作並略過處理器。預設鎖租約由快取驅動程式決定。可設定 `expireAfter`，讓原 Worker 在釋放鎖前停止時，其他 Worker 能在租約到期後取得鎖。
+發生競爭時預設立即釋放工作。用 `release_after` 指定相對延遲或絕對時間，或用 `dont_release` 確認工作並略過處理器。預設鎖租約由快取驅動程式決定。可設定 `expire_after`，讓原 Worker 在釋放鎖前停止時，其他 Worker 能在租約到期後取得鎖。
 
 ### 例外節流 {#throttling-exceptions}
 
@@ -884,9 +884,9 @@ fn job_exception_throttle() -> ThrottlesExceptions {
 }
 ```
 
-用 `by` 讓多種工作共用失敗額度，或用 `byJob` 依工作 UUID 分別計數。`backoff` 設定達到門檻前的退避分鐘數，`backoffWhen` 可依例外計算。`when` 選擇參與節流的例外，`reportWhen` 透過應用程式的例外處理器回報。`deleteWhen` 確認並刪除工作，`failWhen` 記錄終態失敗。兩個條件都符合時優先刪除。
+用 `by` 讓多種工作共用失敗額度，或用 `by_job` 依工作 UUID 分別計數。`backoff` 設定達到門檻前的退避分鐘數，`backoff_when` 可依例外計算。`when` 選擇參與節流的例外，`report_when` 透過應用程式的例外處理器回報。`delete_when` 確認並刪除工作，`fail_when` 記錄終態失敗。兩個條件都符合時優先刪除。
 
-用 `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` 選擇 Redis 連線。`when` 和 `reportWhen` 的第二個參數是 `ExceptionThrottleLimiter`，提供快取服務，或 Redis 視窗的剩餘額度與到期時間戳記。
+用 `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` 選擇 Redis 連線。`when` 和 `report_when` 的第二個參數是 `ExceptionThrottleLimiter`，提供快取服務，或 Redis 視窗的剩餘額度與到期時間戳記。
 
 ### 依例外判定工作失敗 {#fail-on-exception}
 
@@ -991,7 +991,7 @@ impl ProcessUpload {
 
 #### 依群組重試已儲存的失敗記錄 {#retrying-a-group-of-stored-failures}
 
-自訂失敗工作驅動程式可以覆寫 `findForRetry`，將指令 ID 解析成串流。未知 ID 傳回 `None`，存在但已無失敗記錄的群組傳回空串流。
+自訂失敗工作驅動程式可以覆寫 `find_for_retry`，將指令 ID 解析成串流。未知 ID 傳回 `None`，存在但已無失敗記錄的群組傳回空串流。
 
 ```rust
 use openrust::queue::{QueueResult, failed::{FailedJob, FailedJobRetryStream}};
@@ -1039,4 +1039,4 @@ fn retry_entries<'a>(
 
 ## 佇列監聽器
 
-透過 `ListenerRegistry::listenQueued::<YourEvent>` 登記可序列化的事件與穩定的監聽器 ID。Worker 在其應用程式內解析監聽器。監聽器的 `after_commit` 可將加入佇列的動作延後至交易提交後。
+透過 `ListenerRegistry::listen_queued::<YourEvent>` 登記可序列化的事件與穩定的監聽器 ID。Worker 在其應用程式內解析監聽器。監聽器的 `after_commit` 可將加入佇列的動作延後至交易提交後。

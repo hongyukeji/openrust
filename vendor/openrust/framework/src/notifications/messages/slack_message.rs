@@ -11,7 +11,6 @@ pub struct SlackMessage {
     color: Option<&'static str>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackMessage {
     pub fn new() -> Self {
         Self::default()
@@ -70,15 +69,15 @@ impl SlackMessage {
         self.color
     }
 
-    pub fn linkNames(self) -> Self {
+    pub fn link_names(self) -> Self {
         self.field("link_names", 1)
     }
 
-    pub fn unfurlLinks(self, enable: bool) -> Self {
+    pub fn unfurl_links(self, enable: bool) -> Self {
         self.field("unfurl_links", enable)
     }
 
-    pub fn unfurlMedia(self, enable: bool) -> Self {
+    pub fn unfurl_media(self, enable: bool) -> Self {
         self.field("unfurl_media", enable)
     }
 

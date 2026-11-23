@@ -160,7 +160,7 @@ impl Fixture {
         );
         let repository = Arc::new(
             DatabaseSettingsRepository::new(connection.clone())
-                .withTable(&table)
+                .with_table(&table)
                 .unwrap(),
         );
         Self {

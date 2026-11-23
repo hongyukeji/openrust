@@ -18,7 +18,6 @@ pub struct DatabaseBatchRepository {
     table: String,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseBatchRepository {
     pub fn new(connection: Connection, table: impl Into<String>) -> QueueResult<Self> {
         let table = table.into();
@@ -163,14 +162,14 @@ impl DatabaseBatchRepository {
                             if !batch.failed_job_ids.contains(&job) {
                                 batch.failed_job_ids.push(job.clone());
                             }
-                            if batch.allowsFailures() {
+                            if batch.allows_failures() {
                                 phases.extend([BatchPhase::Progress, BatchPhase::Failure]);
                             }
                             if batch.failed_jobs == 1 {
                                 phases.push(BatchPhase::Catch);
                             }
                             started = first.then(|| batch.clone());
-                            if !batch.allowsFailures() && !batch.cancelled() {
+                            if !batch.allows_failures() && !batch.cancelled() {
                                 canceled = true;
                                 let now = now();
                                 batch.cancelled_at = Some(now);
@@ -249,7 +248,7 @@ impl DatabaseBatchRepository {
             .map_err(backend)
     }
 
-    pub async fn incrementTotalJobs(&self, id: &str, amount: u32) -> QueueResult<Option<Batch>> {
+    pub async fn increment_total_jobs(&self, id: &str, amount: u32) -> QueueResult<Option<Batch>> {
         self.update(id, move |batch| {
             batch.total_jobs = increment(batch.total_jobs, amount)?;
             batch.pending_jobs = increment(batch.pending_jobs, amount)?;
@@ -259,7 +258,11 @@ impl DatabaseBatchRepository {
         .await
     }
 
-    pub async fn decrementPendingJobs(&self, id: &str, job_id: &str) -> QueueResult<Option<Batch>> {
+    pub async fn decrement_pending_jobs(
+        &self,
+        id: &str,
+        job_id: &str,
+    ) -> QueueResult<Option<Batch>> {
         let job_id = job_id.to_owned();
         self.update(id, move |batch| {
             batch.pending_jobs = batch.pending_jobs.checked_sub(1).ok_or(invalid())?;
@@ -269,7 +272,11 @@ impl DatabaseBatchRepository {
         .await
     }
 
-    pub async fn incrementFailedJobs(&self, id: &str, job_id: &str) -> QueueResult<Option<Batch>> {
+    pub async fn increment_failed_jobs(
+        &self,
+        id: &str,
+        job_id: &str,
+    ) -> QueueResult<Option<Batch>> {
         let job_id = job_id.to_owned();
         self.update(id, move |batch| {
             batch.failed_jobs = increment(batch.failed_jobs, 1)?;
@@ -281,7 +288,7 @@ impl DatabaseBatchRepository {
         .await
     }
 
-    pub async fn markAsFinished(&self, id: &str) -> QueueResult<Option<Batch>> {
+    pub async fn mark_as_finished(&self, id: &str) -> QueueResult<Option<Batch>> {
         self.update(id, |batch| {
             batch.finished_at = Some(now());
             Ok(())
@@ -352,7 +359,7 @@ impl DatabaseBatchRepository {
         .await
     }
 
-    pub async fn pruneUnfinished(&self, before: Timestamp) -> QueueResult<u64> {
+    pub async fn prune_unfinished(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
             query.where_null("finished_at").r#where(
                 "created_at",
@@ -363,7 +370,7 @@ impl DatabaseBatchRepository {
         .await
     }
 
-    pub async fn pruneCancelled(&self, before: Timestamp) -> QueueResult<u64> {
+    pub async fn prune_cancelled(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
             query.where_not_null("cancelled_at").r#where(
                 "created_at",

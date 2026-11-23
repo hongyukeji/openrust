@@ -496,7 +496,7 @@ fn collection_preserves_direct_data_path_errors() {
 async fn image_path_failure_keeps_io_domain_and_http_source() {
     let root = tempfile::tempdir().unwrap();
     let image = openrust::image::ImageManager::new(Default::default())
-        .fromPath(root.path().join("missing.png"));
+        .from_path(root.path().join("missing.png"));
     let source = image.dimensions().await.unwrap_err();
     assert!(matches!(source, openrust::image::Error::Io(_)));
     assert_eq!(

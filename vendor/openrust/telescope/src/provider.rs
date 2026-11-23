@@ -83,7 +83,7 @@ impl ServiceProvider for TelescopeServiceProvider {
                     .get("telescope.enabled")
                     .and_then(|value| value.as_bool())
                     .ok_or_else(binding)?;
-                let telescope = Arc::new(crate::Telescope::withOptions(
+                let telescope = Arc::new(crate::Telescope::with_options(
                     container.make::<dyn crate::contracts::EntriesRepository>()?,
                     enabled,
                     container.make::<crate::telescope::Options>()?,
@@ -93,7 +93,7 @@ impl ServiceProvider for TelescopeServiceProvider {
                     async move {
                         let result = pending.store().await;
                         // 诊断存储自身的错误不再进入本次采集，避免报告时递归写入。
-                        pending.stopRecording();
+                        pending.stop_recording();
                         let failed = result?;
                         if !failed.is_empty() {
                             crate::jobs::ProcessPendingUpdates::new(failed, 0)
@@ -107,7 +107,7 @@ impl ServiceProvider for TelescopeServiceProvider {
                     true,
                 ) {
                     Ok(_) => telescope
-                        .automaticRecording
+                        .automatic_recording
                         .store(true, std::sync::atomic::Ordering::Release),
                     Err(openrust::concurrency::Error::OutsideRequest) => {}
                     Err(_) => return Err(binding()),
@@ -144,7 +144,7 @@ impl ServiceProvider for TelescopeServiceProvider {
                     crate::jobs::ProcessPendingUpdates::NAME,
                     Arc::new(crate::jobs::Handler),
                 )?;
-            crate::watchers::registerAll(app).await?;
+            crate::watchers::register_all(app).await?;
             let redis = app.make::<openrust::redis::RedisManager>().await?;
             redis.set_event_dispatcher(app.make::<openrust::events::Dispatcher>().await?);
             redis.enable_events();

@@ -42,7 +42,7 @@ impl TagRepository {
             .await?;
         Ok(())
     }
-    pub async fn stopMonitoring(&self, tag: &str) -> Result<()> {
+    pub async fn stop_monitoring(&self, tag: &str) -> Result<()> {
         self.key(tag)?;
         self.0
             .command("SREM", &[self.0.key("monitoring"), tag.into()])
@@ -50,13 +50,13 @@ impl TagRepository {
         Ok(())
     }
     pub async fn add(&self, id: &str, tags: &[String]) -> Result<()> {
-        self.addWithExpiry(id, tags, None).await
+        self.add_with_expiry(id, tags, None).await
     }
-    pub async fn addTemporary(&self, minutes: u32, id: &str, tags: &[String]) -> Result<()> {
-        self.addWithExpiry(id, tags, Some(minutes.saturating_mul(60)))
+    pub async fn add_temporary(&self, minutes: u32, id: &str, tags: &[String]) -> Result<()> {
+        self.add_with_expiry(id, tags, Some(minutes.saturating_mul(60)))
             .await
     }
-    async fn addWithExpiry(&self, id: &str, tags: &[String], expiry: Option<u32>) -> Result<()> {
+    async fn add_with_expiry(&self, id: &str, tags: &[String], expiry: Option<u32>) -> Result<()> {
         if !crate::label(id) {
             return Err(Error::InvalidRecord);
         }
@@ -97,7 +97,7 @@ impl TagRepository {
                 .await?,
         )
     }
-    pub async fn forgetJobs(&self, tags: &[String], ids: &[String]) -> Result<()> {
+    pub async fn forget_jobs(&self, tags: &[String], ids: &[String]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }

@@ -45,7 +45,6 @@ pub struct Image {
     dominant_color: OnceCell<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Image {
     pub(super) fn new(manager: ImageManager, source: Source) -> Self {
         let file = match &source {
@@ -70,13 +69,13 @@ impl Image {
     }
 
     pub fn using(mut self, driver: impl Into<String>) -> Self {
-        self.newClone();
+        self.new_clone();
         self.driver = Some(driver.into());
         self
     }
 
     pub fn transform(mut self, transformation: Transformation) -> Self {
-        self.newClone();
+        self.new_clone();
         self.pipeline.transformations.push(transformation);
         self
     }
@@ -142,29 +141,29 @@ impl Image {
         self.transform(Transformation::Grayscale)
     }
 
-    pub fn flipHorizontally(self) -> Self {
+    pub fn flip_horizontally(self) -> Self {
         self.transform(Transformation::FlipHorizontally)
     }
 
-    pub fn flipVertically(self) -> Self {
+    pub fn flip_vertically(self) -> Self {
         self.transform(Transformation::FlipVertically)
     }
 
     pub fn flip(self) -> Self {
-        self.flipVertically()
+        self.flip_vertically()
     }
 
     pub fn flop(self) -> Self {
-        self.flipHorizontally()
+        self.flip_horizontally()
     }
 
     /// 选择应用已注册的 GD 驱动；未注册时在处理图片时返回 UnknownDriver。
-    pub fn usingGd(self) -> Self {
+    pub fn using_gd(self) -> Self {
         self.using("gd")
     }
 
     /// 选择应用已注册的 Imagick 驱动；未注册时在处理图片时返回 UnknownDriver。
-    pub fn usingImagick(self) -> Self {
+    pub fn using_imagick(self) -> Self {
         self.using("imagick")
     }
 
@@ -177,45 +176,45 @@ impl Image {
     }
 
     pub fn encode(mut self, format: Format) -> Self {
-        self.newClone();
+        self.new_clone();
         self.pipeline.format = Some(format);
         self
     }
 
-    pub fn toFormat(self, format: &str) -> Result<Self> {
+    pub fn to_format(self, format: &str) -> Result<Self> {
         Ok(self.encode(format.parse()?))
     }
 
-    pub fn toJpeg(self) -> Self {
+    pub fn to_jpeg(self) -> Self {
         self.encode(Format::Jpeg)
     }
-    pub fn toJpg(self) -> Self {
-        self.toJpeg()
+    pub fn to_jpg(self) -> Self {
+        self.to_jpeg()
     }
-    pub fn toPng(self) -> Self {
+    pub fn to_png(self) -> Self {
         self.encode(Format::Png)
     }
-    pub fn toGif(self) -> Self {
+    pub fn to_gif(self) -> Self {
         self.encode(Format::Gif)
     }
-    pub fn toWebp(self) -> Self {
+    pub fn to_webp(self) -> Self {
         self.encode(Format::Webp)
     }
-    pub fn toAvif(self) -> Self {
+    pub fn to_avif(self) -> Self {
         self.encode(Format::Avif)
     }
-    pub fn toHeic(self) -> Self {
+    pub fn to_heic(self) -> Self {
         self.encode(Format::Heic)
     }
-    pub fn toJxl(self) -> Self {
+    pub fn to_jxl(self) -> Self {
         self.encode(Format::Jxl)
     }
-    pub fn toBmp(self) -> Self {
+    pub fn to_bmp(self) -> Self {
         self.encode(Format::Bmp)
     }
 
     pub fn quality(mut self, quality: u8) -> Self {
-        self.newClone();
+        self.new_clone();
         self.pipeline.quality = Some(quality.clamp(1, 100));
         self
     }
@@ -225,15 +224,15 @@ impl Image {
             .quality(quality.unwrap_or(70))
     }
 
-    pub async fn toBytes(&self) -> Result<Bytes> {
+    pub async fn to_bytes(&self) -> Result<Bytes> {
         Ok(self.render().await?.bytes.clone())
     }
 
     pub async fn to_base64(&self) -> Result<String> {
-        Ok(STANDARD.encode(self.toBytes().await?))
+        Ok(STANDARD.encode(self.to_bytes().await?))
     }
 
-    pub async fn toDataUri(&self) -> Result<String> {
+    pub async fn to_data_uri(&self) -> Result<String> {
         let rendered = self.render().await?;
         Ok(format!(
             "data:{};base64,{}",
@@ -262,7 +261,7 @@ impl Image {
         Ok(self.dimensions().await?.1)
     }
 
-    pub async fn dominantColor(&self) -> Result<String> {
+    pub async fn dominant_color(&self) -> Result<String> {
         self.dominant_color
             .get_or_try_init(|| async {
                 let rendered = self.rendered.get();
@@ -287,7 +286,7 @@ impl Image {
                         } else {
                             driver.process(contents, &pipeline, limits)?.bytes
                         };
-                        driver.dominantColor(contents, &ImagePipeline::default(), limits)
+                        driver.dominant_color(contents, &ImagePipeline::default(), limits)
                     })
                     .await
             })
@@ -308,7 +307,7 @@ impl Image {
     }
 
     pub async fn to_string(&self) -> Result<String> {
-        self.toDataUri().await
+        self.to_data_uri().await
     }
 
     pub async fn to_response(&self, _: &mut crate::http::Request) -> Result<crate::http::Response> {
@@ -322,7 +321,7 @@ impl Image {
         ))
     }
 
-    fn newClone(&mut self) {
+    fn new_clone(&mut self) {
         if let Some(rendered) = self.rendered.get() {
             self.source = Source::Bytes(rendered.bytes.clone());
             self.loaded = Arc::default();
@@ -390,7 +389,7 @@ impl Image {
         };
         let path = format!("{directory}/{name}").trim_matches('/').to_owned();
         let written = disk
-            .putWithOptions(&path, &rendered.bytes, WriteOptions { visibility })
+            .put_with_options(&path, &rendered.bytes, WriteOptions { visibility })
             .await
             .map_err(Error::Filesystem)?;
         Ok(written.then_some(path))
@@ -443,7 +442,7 @@ impl Image {
             Source::Path(path) => read_bounded(tokio::fs::File::open(path).await?, limits).await?,
             Source::Storage(disk, path) => {
                 read_bounded(
-                    disk.readStream(path)
+                    disk.read_stream(path)
                         .await
                         .map_err(Error::Filesystem)?
                         .ok_or(Error::Missing)?,
@@ -454,7 +453,7 @@ impl Image {
             Source::ConfiguredStorage(disk, path) => {
                 let disk = self.manager.storage(disk.as_deref())?;
                 read_bounded(
-                    disk.readStream(path)
+                    disk.read_stream(path)
                         .await
                         .map_err(Error::Filesystem)?
                         .ok_or(Error::Missing)?,
@@ -496,7 +495,6 @@ pub(super) async fn read_bounded(reader: impl AsyncRead, limits: Limits) -> Resu
     Ok(buffer.into())
 }
 
-#[allow(non_snake_case)]
 impl crate::contracts::support::Responsable for Image {
     async fn to_response(
         self,

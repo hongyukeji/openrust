@@ -26,12 +26,12 @@ try {
                     for (const command of ["queue:restart", "queue:work --json --stop-when-empty", "queue:work --json --once --tries=2", "queue:work --json --rest=1 --stop-when-empty-for=2", "queue:pause database:default", "queue:continue database:default", "queue:pause --all", "queue:resume --all"]) {
                         assert.ok(body.includes(`./artisan ${command}`), `${locale}: ${command}`);
                     }
-                    assert.ok(body.includes("Queue::pauseFor"));
+                    assert.ok(body.includes("Queue::pause_for"));
                     assert.ok(body.includes("WorkerQueueResumed"));
                     assert.ok(body.includes("restart_signal"));
                     assert.ok(body.includes("empty_for"));
                     assert.ok(body.includes("WorkerIdle"));
-                    assert.ok(body.includes("Queue::popUsing"));
+                    assert.ok(body.includes("Queue::pop_using"));
                     assert.ok(body.includes("./artisan queue:work database --once --force"));
                     assert.ok(body.includes("./artisan queue:listen database --queue=default --timeout=60"));
                     assert.ok(body.includes("Looping"));
@@ -46,16 +46,16 @@ try {
                     assert.ok(body.includes("WorkerInterrupted"));
                     assert.ok(body.includes("max_exceptions: Some(3)"));
                     assert.ok(body.includes("count_crashes_as_exceptions: true"));
-                    assert.ok(body.includes("dontRetryWhen"));
+                    assert.ok(body.includes("dont_retry_when"));
                     assert.ok(body.includes("./artisan queue:clear database --queue=emails,reports"));
                     assert.ok(body.includes("./artisan queue:prune-failed --hours=48"));
                     assert.ok(body.includes("JobHandler::failed"));
                     assert.ok(body.includes("Queue::failing"));
-                    assert.ok(body.includes("Queue::whenJobRunsLongerThan"));
+                    assert.ok(body.includes("Queue::when_job_runs_longer_than"));
                     assert.ok(body.includes("register_sync_observer"));
                     assert.ok(body.includes("./artisan queue:retry --queue=emails"));
                     assert.ok(body.includes("JobRetryRequested"));
-                    assert.ok(body.includes("fn retryUntil"));
+                    assert.ok(body.includes("fn retry_until"));
                     assert.ok(body.includes("FailedJobRetryStream"));
                     assert.ok(body.includes("ClearCommand::prohibit(true)"));
                     assert.ok(body.includes("./artisan queue:monitor database:emails,reports --max=100 --json"));
@@ -81,13 +81,13 @@ try {
                     for (const term of ["hard_timeout: true", "--timeout=60 --tries=2", "Windows Job Object"]) {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
-                    for (const term of ["RateLimiter::forJob", "RateLimitedWithRedis", "dontRelease", "releaseAfter"]) {
+                    for (const term of ["RateLimiter::for_job", "RateLimitedWithRedis", "dont_release", "release_after"]) {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
-                    for (const term of ["WithoutOverlapping", "shared()", "withPrefix", "expireAfter"]) {
+                    for (const term of ["WithoutOverlapping", "shared()", "with_prefix", "expire_after"]) {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
-                    for (const term of ["ThrottlesExceptions", "ThrottlesExceptionsWithRedis", "ExceptionThrottleLimiter", "deleteWhen", "failWhen"]) {
+                    for (const term of ["ThrottlesExceptions", "ThrottlesExceptionsWithRedis", "ExceptionThrottleLimiter", "delete_when", "fail_when"]) {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
                     for (const term of ["Release::when", "Release::unless", "Duration::ZERO", "Skip::when", "Skip::unless"]) {

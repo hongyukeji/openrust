@@ -11,7 +11,7 @@ pub struct TwitterProvider {
 }
 impl Default for TwitterProvider {
     fn default() -> Self {
-        Self::withEndpoints(ProviderEndpoints::new(
+        Self::with_endpoints(ProviderEndpoints::new(
             "https://twitter.com/i/oauth2/authorize",
             "https://api.twitter.com/2/oauth2/token",
             "https://api.twitter.com/2/users/me",
@@ -19,36 +19,36 @@ impl Default for TwitterProvider {
     }
 }
 impl TwitterProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints) -> Self {
         Self { endpoints }
     }
 }
 impl ProviderDefinition for TwitterProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["users.read", "users.email", "tweet.read"]
     }
-    fn scopeSeparator(&self) -> &str {
+    fn scope_separator(&self) -> &str {
         " "
     }
-    fn usesPKCE(&self) -> bool {
+    fn uses_pkce(&self) -> bool {
         true
     }
-    fn usesRFC3986(&self) -> bool {
+    fn uses_rfc3986(&self) -> bool {
         true
     }
-    fn tokenBasicAuth(&self) -> bool {
+    fn token_basic_auth(&self) -> bool {
         true
     }
-    fn refreshTokenIncludesSecret(&self) -> bool {
+    fn refresh_token_includes_secret(&self) -> bool {
         false
     }
-    fn customizeCodeFields(
+    fn customize_code_fields(
         &self,
         fields: &mut Map<String, Value>,
         _: &[String],
@@ -59,7 +59,7 @@ impl ProviderDefinition for TwitterProvider {
             fields.insert("state".into(), "state".into());
         }
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -85,7 +85,7 @@ impl ProviderDefinition for TwitterProvider {
                 .ok_or(Error::InvalidResponse)
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let fields = [
             ("id", user["id"].clone()),
             ("nickname", user["username"].clone()),

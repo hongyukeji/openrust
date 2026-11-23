@@ -58,7 +58,7 @@ impl QueueManager {
 
     /// Calls the listener after a measured attempt takes strictly longer than the threshold.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn whenJobRunsLongerThan(
+    pub fn when_job_runs_longer_than(
         &self,
         threshold: Duration,
         callback: impl for<'a> Fn(
@@ -84,7 +84,7 @@ impl QueueManager {
 impl QueueFacade {
     /// Calls the listener after a measured attempt takes strictly longer than the threshold.
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn whenJobRunsLongerThan(
+    pub fn when_job_runs_longer_than(
         threshold: Duration,
         callback: impl for<'a> Fn(
             &'a JobSnapshot,
@@ -94,7 +94,7 @@ impl QueueFacade {
         + Sync
         + 'static,
     ) -> QueueResult<()> {
-        Self::manager()?.whenJobRunsLongerThan(threshold, callback)
+        Self::manager()?.when_job_runs_longer_than(threshold, callback)
     }
 }
 

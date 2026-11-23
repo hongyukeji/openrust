@@ -45,7 +45,7 @@ impl ServiceProvider for NotificationServiceProvider {
             let container = app.container_handle();
             container
                 .make::<EventDispatcher>()?
-                .registerBroadcast::<BroadcastNotificationCreated>();
+                .register_broadcast::<BroadcastNotificationCreated>();
             container.make::<QueueManager>()?.register(
                 SendQueuedNotifications::NAME,
                 Arc::new(SendQueuedNotifications),

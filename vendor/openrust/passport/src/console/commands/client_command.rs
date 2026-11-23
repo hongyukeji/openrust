@@ -76,7 +76,7 @@ impl Command for ClientCommand {
             let client: Option<ClientRecord> = if matches.get_flag("personal") {
                 let provider = provider(input, &prompt, config.as_ref())?;
                 clients
-                    .createPersonalAccessGrantClient(&name, provider.as_deref())
+                    .create_personal_access_grant_client(&name, provider.as_deref())
                     .await
                     .map_err(error)?;
                 None
@@ -84,14 +84,14 @@ impl Command for ClientCommand {
                 let provider = provider(input, &prompt, config.as_ref())?;
                 Some(
                     clients
-                        .createPasswordGrantClient(&name, provider.as_deref(), confidential)
+                        .create_password_grant_client(&name, provider.as_deref(), confidential)
                         .await
                         .map_err(error)?,
                 )
             } else if matches.get_flag("client") {
                 Some(
                     clients
-                        .createClientCredentialsGrantClient(&name)
+                        .create_client_credentials_grant_client(&name)
                         .await
                         .map_err(error)?,
                 )
@@ -99,28 +99,28 @@ impl Command for ClientCommand {
                 let redirects = redirects(input, &prompt)?;
                 Some(
                     clients
-                        .createImplicitGrantClient(&name, &redirects)
+                        .create_implicit_grant_client(&name, &redirects)
                         .await
                         .map_err(error)?,
                 )
             } else if matches.get_flag("device") {
                 Some(
                     clients
-                        .createDeviceAuthorizationGrantClient(&name, confidential, None)
+                        .create_device_authorization_grant_client(&name, confidential, None)
                         .await
                         .map_err(error)?,
                 )
             } else {
                 let redirects = redirects(input, &prompt)?;
                 let passport = app.make::<Passport>().await.map_err(error)?;
-                let device = passport.deviceCodeGrantEnabled.load(Ordering::Relaxed)
+                let device = passport.device_code_grant_enabled.load(Ordering::Relaxed)
                     && prompt.confirm(
                         "Would you like to enable the device authorization flow for this client?",
                         false,
                     )?;
                 Some(
                     clients
-                        .createAuthorizationCodeGrantClient(
+                        .create_authorization_code_grant_client(
                             &name,
                             &redirects,
                             confidential,

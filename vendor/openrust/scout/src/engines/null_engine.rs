@@ -18,10 +18,10 @@ impl<M: Searchable> Engine<M> for NullEngine {
     fn flush<'a>(&'a self, _: &'a M) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn createIndex<'a>(&'a self, _: &'a str, _: &'a serde_json::Value) -> ScoutFuture<'a, ()> {
+    fn create_index<'a>(&'a self, _: &'a str, _: &'a serde_json::Value) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn deleteIndex<'a>(&'a self, _: &'a str) -> ScoutFuture<'a, ()> {
+    fn delete_index<'a>(&'a self, _: &'a str) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
 }

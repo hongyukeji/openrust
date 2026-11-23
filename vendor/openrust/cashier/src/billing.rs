@@ -28,7 +28,7 @@ impl Billable {
     pub fn client(&self) -> &Client {
         &self.client
     }
-    pub async fn customerId(&self) -> Result<String> {
+    pub async fn customer_id(&self) -> Result<String> {
         self.store
             .customer(&self.client, &self.owner)
             .await?
@@ -36,7 +36,7 @@ impl Billable {
     }
     /// Explicitly associate a pre-existing provider customer with this trusted owner.
     /// The caller must verify account ownership before calling; email matching is not authentication.
-    pub async fn attachCustomer(&self, id: &str) -> Result<()> {
+    pub async fn attach_customer(&self, id: &str) -> Result<()> {
         identifier(id)?;
         let remote = self.client.retrieve("customers", id).await?;
         if remote["id"] != id || remote["deleted"] == true {
@@ -45,23 +45,23 @@ impl Billable {
         self.store.attach(&self.client, &self.owner, id).await
     }
     /// Stripe's persisted customer identifier; Paddle accounts reject Stripe-only APIs.
-    pub async fn stripeId(&self) -> Result<Option<String>> {
+    pub async fn stripe_id(&self) -> Result<Option<String>> {
         self.stripe()?;
         self.store.customer(&self.client, &self.owner).await
     }
-    pub async fn hasStripeId(&self) -> Result<bool> {
-        Ok(self.stripeId().await?.is_some())
+    pub async fn has_stripe_id(&self) -> Result<bool> {
+        Ok(self.stripe_id().await?.is_some())
     }
-    pub async fn createAsStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn create_as_stripe_customer(&self, options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
-        if self.hasStripeId().await? {
+        if self.has_stripe_id().await? {
             return Err(Error::CustomerAlreadyCreated);
         }
-        self.createOrGetCustomer(options, key).await
+        self.create_or_get_customer(options, key).await
     }
-    pub async fn asStripeCustomer(&self, expand: &[&str]) -> Result<Value> {
+    pub async fn as_stripe_customer(&self, expand: &[&str]) -> Result<Value> {
         self.stripe()?;
-        let id = self.customerId().await?;
+        let id = self.customer_id().await?;
         self.client
             .call(
                 Method::GET,
@@ -71,10 +71,10 @@ impl Billable {
             )
             .await
     }
-    pub async fn createOrGetStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn create_or_get_stripe_customer(&self, options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
         object(&options)?;
-        if self.hasStripeId().await? {
+        if self.has_stripe_id().await? {
             let expand = match options.get("expand") {
                 None => Vec::new(),
                 Some(value) => value
@@ -84,24 +84,28 @@ impl Billable {
                     .map(|v| v.as_str().ok_or(Error::InvalidInput("expand")))
                     .collect::<Result<Vec<_>>>()?,
             };
-            return self.asStripeCustomer(&expand).await;
+            return self.as_stripe_customer(&expand).await;
         }
-        self.createAsStripeCustomer(options, key).await
+        self.create_as_stripe_customer(options, key).await
     }
-    pub async fn updateStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn update_stripe_customer(&self, options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
-        self.updateCustomer(options, key).await
+        self.update_customer(options, key).await
     }
-    pub async fn updateOrCreateStripeCustomer(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn update_or_create_stripe_customer(
+        &self,
+        options: Value,
+        key: &str,
+    ) -> Result<Value> {
         self.stripe()?;
-        if self.hasStripeId().await? {
-            self.updateStripeCustomer(options, key).await
+        if self.has_stripe_id().await? {
+            self.update_stripe_customer(options, key).await
         } else {
-            self.createAsStripeCustomer(options, key).await
+            self.create_as_stripe_customer(options, key).await
         }
     }
     /// Paddle returns a provider payload; its PHP morphOne customer relationship is not emulated.
-    pub async fn createAsCustomer(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn create_as_customer(&self, options: Value, key: &str) -> Result<Value> {
         self.paddle()?;
         if self
             .store
@@ -115,19 +119,19 @@ impl Billable {
                 .filter(|s| !s.is_empty())
                 .ok_or(Error::InvalidInput("Paddle customer email"))?;
         }
-        self.createOrGetCustomer(options, key).await
+        self.create_or_get_customer(options, key).await
     }
-    pub async fn billingPortalUrl(
+    pub async fn billing_portal_url(
         &self,
-        returnUrl: &str,
+        return_url: &str,
         mut options: Value,
         key: &str,
     ) -> Result<String> {
         self.stripe()?;
-        https(returnUrl)?;
+        https(return_url)?;
         object(&options)?;
-        options["customer"] = json!(self.customerId().await?);
-        options["return_url"] = json!(returnUrl);
+        options["customer"] = json!(self.customer_id().await?);
+        options["return_url"] = json!(return_url);
         let session = self
             .mutate(
                 Method::POST,
@@ -142,13 +146,13 @@ impl Billable {
         https(&url)?;
         Ok(url)
     }
-    pub async fn redirectToBillingPortal(
+    pub async fn redirect_to_billing_portal(
         &self,
-        returnUrl: &str,
+        return_url: &str,
         options: Value,
         key: &str,
     ) -> Result<openrust::http::Response> {
-        let url = self.billingPortalUrl(returnUrl, options, key).await?;
+        let url = self.billing_portal_url(return_url, options, key).await?;
         Ok(
             openrust::http::Response::empty(http::StatusCode::FOUND).header(
                 http::header::LOCATION,
@@ -156,7 +160,7 @@ impl Billable {
             ),
         )
     }
-    pub async fn createOrGetCustomer(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn create_or_get_customer(&self, options: Value, key: &str) -> Result<Value> {
         if let Some(id) = self.store.customer(&self.client, &self.owner).await? {
             return self.client.retrieve("customers", &id).await;
         }
@@ -168,8 +172,8 @@ impl Billable {
         self.store.attach(&self.client, &self.owner, &id).await?;
         Ok(value)
     }
-    pub async fn updateCustomer(&self, options: Value, key: &str) -> Result<Value> {
-        let id = self.customerId().await?;
+    pub async fn update_customer(&self, options: Value, key: &str) -> Result<Value> {
+        let id = self.customer_id().await?;
         self.mutate(
             self.update_method(),
             "customers",
@@ -180,9 +184,9 @@ impl Billable {
         )
         .await
     }
-    pub async fn billingPortal(&self, return_url: &str, key: &str) -> Result<Value> {
+    pub async fn billing_portal(&self, return_url: &str, key: &str) -> Result<Value> {
         https(return_url)?;
-        let customer = self.customerId().await?;
+        let customer = self.customer_id().await?;
         if self.client.provider() == Provider::Stripe {
             self.mutate(
                 Method::POST,
@@ -205,7 +209,7 @@ impl Billable {
             .await
         }
     }
-    pub fn newSubscription(&self, name: &str, prices: Vec<Price>) -> Result<SubscriptionBuilder> {
+    pub fn new_subscription(&self, name: &str, prices: Vec<Price>) -> Result<SubscriptionBuilder> {
         identifier(name)?;
         validate_prices(&prices)?;
         Ok(SubscriptionBuilder {
@@ -225,11 +229,11 @@ impl Billable {
                 data,
             }))
     }
-    pub async fn subscriptionById(&self, id: &str) -> Result<SubscriptionHandle> {
+    pub async fn subscription_by_id(&self, id: &str) -> Result<SubscriptionHandle> {
         identifier(id)?;
         let data = self
             .store
-            .subscriptionById(&self.client, &self.owner, id)
+            .subscription_by_id(&self.client, &self.owner, id)
             .await?
             .ok_or(Error::NotFound)?;
         Ok(SubscriptionHandle {
@@ -237,11 +241,11 @@ impl Billable {
             data,
         })
     }
-    pub async fn syncSubscription(&self, id: &str) -> Result<SubscriptionHandle> {
+    pub async fn sync_subscription(&self, id: &str) -> Result<SubscriptionHandle> {
         identifier(id)?;
         let data = self
             .store
-            .syncSubscription(&self.client, &self.owner, id)
+            .sync_subscription(&self.client, &self.owner, id)
             .await?;
         Ok(SubscriptionHandle {
             billable: self.clone(),
@@ -264,7 +268,7 @@ impl Billable {
     ) -> Result<Value> {
         object(&options)?;
         validate_prices(&prices)?;
-        let customer = self.customerId().await?;
+        let customer = self.customer_id().await?;
         if self.client.provider() == Provider::Stripe {
             for k in ["success_url", "cancel_url"] {
                 if let Some(v) = options.get(k) {
@@ -287,27 +291,27 @@ impl Billable {
                 .await
         }
     }
-    pub async fn createSetupIntent(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn create_setup_intent(&self, options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
         let mut options = options;
         object(&options)?;
-        options["customer"] = json!(self.customerId().await?);
+        options["customer"] = json!(self.customer_id().await?);
         self.mutate(Method::POST, "setup_intents", None, None, options, key)
             .await
     }
-    pub async fn paymentMethods(&self, kind: &str) -> Result<Value> {
+    pub async fn payment_methods(&self, kind: &str) -> Result<Value> {
         self.stripe()?;
         identifier(kind)?;
         self.client
             .call(
                 Method::GET,
                 "/v1/payment_methods",
-                &json!({"customer":self.customerId().await?,"type":kind}),
+                &json!({"customer":self.customer_id().await?,"type":kind}),
                 None,
             )
             .await
     }
-    pub async fn addPaymentMethod(&self, id: &str, key: &str) -> Result<Value> {
+    pub async fn add_payment_method(&self, id: &str, key: &str) -> Result<Value> {
         self.stripe()?;
         identifier(id)?;
         self.mutate(
@@ -315,21 +319,21 @@ impl Billable {
             "payment_methods",
             Some(id),
             Some("attach"),
-            json!({"customer":self.customerId().await?}),
+            json!({"customer":self.customer_id().await?}),
             key,
         )
         .await
     }
-    pub async fn updateDefaultPaymentMethod(&self, id: &str, key: &str) -> Result<Value> {
+    pub async fn update_default_payment_method(&self, id: &str, key: &str) -> Result<Value> {
         self.stripe()?;
         self.owned("payment_methods", id).await?;
-        self.updateCustomer(
+        self.update_customer(
             json!({"invoice_settings":{"default_payment_method":id}}),
             key,
         )
         .await
     }
-    pub async fn deletePaymentMethod(&self, id: &str, key: &str) -> Result<Value> {
+    pub async fn delete_payment_method(&self, id: &str, key: &str) -> Result<Value> {
         self.stripe()?;
         self.owned("payment_methods", id).await?;
         self.mutate(
@@ -342,11 +346,11 @@ impl Billable {
         )
         .await
     }
-    pub async fn defaultPaymentMethod(&self) -> Result<Option<Value>> {
+    pub async fn default_payment_method(&self) -> Result<Option<Value>> {
         self.stripe()?;
         let c = self
             .client
-            .retrieve("customers", &self.customerId().await?)
+            .retrieve("customers", &self.customer_id().await?)
             .await?;
         match crate::types::object_id(&c["invoice_settings"]["default_payment_method"]) {
             Ok(id) => Ok(Some(self.owned("payment_methods", &id).await?)),
@@ -366,7 +370,7 @@ impl Billable {
         object(&options)?;
         options["amount"] = json!(amount);
         options["currency"] = json!(currency.to_ascii_lowercase());
-        options["customer"] = json!(self.customerId().await?);
+        options["customer"] = json!(self.customer_id().await?);
         self.mutate(Method::POST, "payment_intents", None, None, options, key)
             .await
     }
@@ -387,7 +391,7 @@ impl Billable {
         )
         .await
     }
-    pub async fn confirmPayment(&self, id: &str, options: Value, key: &str) -> Result<Value> {
+    pub async fn confirm_payment(&self, id: &str, options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
         self.owned("payment_intents", id).await?;
         self.mutate(
@@ -420,10 +424,10 @@ impl Billable {
         object(&parameters)?;
         let mut parameters = parameters;
         let resource = if self.client.provider() == Provider::Stripe {
-            parameters["customer"] = json!(self.customerId().await?);
+            parameters["customer"] = json!(self.customer_id().await?);
             "invoices"
         } else {
-            parameters["customer_id"] = json!(self.customerId().await?);
+            parameters["customer_id"] = json!(self.customer_id().await?);
             "transactions"
         };
         self.client
@@ -439,14 +443,14 @@ impl Billable {
         self.paddle()?;
         self.invoices(parameters).await
     }
-    pub async fn findTransaction(&self, id: &str) -> Result<Value> {
+    pub async fn find_transaction(&self, id: &str) -> Result<Value> {
         self.paddle()?;
         self.owned("transactions", id).await
     }
-    pub async fn localInvoices(&self) -> Result<Vec<Invoice>> {
+    pub async fn local_invoices(&self) -> Result<Vec<Invoice>> {
         self.store.invoices(&self.client, &self.owner).await
     }
-    pub async fn findInvoice(&self, id: &str) -> Result<Value> {
+    pub async fn find_invoice(&self, id: &str) -> Result<Value> {
         self.owned(
             if self.client.provider() == Provider::Stripe {
                 "invoices"
@@ -458,8 +462,8 @@ impl Billable {
         .await
     }
     /// Provider-hosted invoice URL/document. Invoice rendering stays with Stripe/Paddle.
-    pub async fn invoiceDocument(&self, id: &str) -> Result<Value> {
-        let invoice = self.findInvoice(id).await?;
+    pub async fn invoice_document(&self, id: &str) -> Result<Value> {
+        let invoice = self.find_invoice(id).await?;
         if self.client.provider() == Provider::Stripe {
             Ok(
                 json!({"invoice_pdf":invoice["invoice_pdf"],"hosted_invoice_url":invoice["hosted_invoice_url"]}),
@@ -475,10 +479,10 @@ impl Billable {
                 .await
         }
     }
-    pub async fn previewInvoice(&self, mut options: Value, key: &str) -> Result<Value> {
+    pub async fn preview_invoice(&self, mut options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
         object(&options)?;
-        options["customer"] = json!(self.customerId().await?);
+        options["customer"] = json!(self.customer_id().await?);
         self.mutate(
             Method::POST,
             "invoices/create_preview",
@@ -489,14 +493,14 @@ impl Billable {
         )
         .await
     }
-    pub async fn createInvoice(&self, mut options: Value, key: &str) -> Result<Value> {
+    pub async fn create_invoice(&self, mut options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
         object(&options)?;
-        options["customer"] = json!(self.customerId().await?);
+        options["customer"] = json!(self.customer_id().await?);
         self.mutate(Method::POST, "invoices", None, None, options, key)
             .await
     }
-    pub async fn invoiceItem(
+    pub async fn invoice_item(
         &self,
         amount: i64,
         currency: &str,
@@ -508,11 +512,11 @@ impl Billable {
         object(&options)?;
         options["amount"] = json!(amount);
         options["currency"] = json!(currency.to_ascii_lowercase());
-        options["customer"] = json!(self.customerId().await?);
+        options["customer"] = json!(self.customer_id().await?);
         self.mutate(Method::POST, "invoiceitems", None, None, options, key)
             .await
     }
-    pub async fn payInvoice(&self, id: &str, options: Value, key: &str) -> Result<Value> {
+    pub async fn pay_invoice(&self, id: &str, options: Value, key: &str) -> Result<Value> {
         self.stripe()?;
         self.owned("invoices", id).await?;
         self.mutate(
@@ -525,7 +529,7 @@ impl Billable {
         )
         .await
     }
-    pub async fn finalizeInvoice(&self, id: &str, key: &str) -> Result<Value> {
+    pub async fn finalize_invoice(&self, id: &str, key: &str) -> Result<Value> {
         self.stripe()?;
         self.owned("invoices", id).await?;
         self.mutate(
@@ -538,7 +542,7 @@ impl Billable {
         )
         .await
     }
-    pub async fn voidInvoice(&self, id: &str, key: &str) -> Result<Value> {
+    pub async fn void_invoice(&self, id: &str, key: &str) -> Result<Value> {
         self.stripe()?;
         self.owned("invoices", id).await?;
         self.mutate(
@@ -551,13 +555,13 @@ impl Billable {
         )
         .await
     }
-    pub async fn taxIds(&self) -> Result<Value> {
+    pub async fn tax_ids(&self) -> Result<Value> {
         self.stripe()?;
         self.customer_list("tax_ids", json!({})).await
     }
-    pub async fn createTaxId(&self, kind: &str, value: &str, key: &str) -> Result<Value> {
+    pub async fn create_tax_id(&self, kind: &str, value: &str, key: &str) -> Result<Value> {
         self.stripe()?;
-        let id = self.customerId().await?;
+        let id = self.customer_id().await?;
         self.mutate(
             Method::POST,
             "customers",
@@ -568,10 +572,10 @@ impl Billable {
         )
         .await
     }
-    pub async fn deleteTaxId(&self, id: &str, key: &str) -> Result<Value> {
+    pub async fn delete_tax_id(&self, id: &str, key: &str) -> Result<Value> {
         self.stripe()?;
         identifier(id)?;
-        let customer = self.customerId().await?;
+        let customer = self.customer_id().await?;
         self.mutate(
             Method::DELETE,
             "customers",
@@ -583,23 +587,23 @@ impl Billable {
         .await
     }
     /// The unformatted customer balance in the account currency's minor unit.
-    pub async fn rawBalance(&self) -> Result<i64> {
+    pub async fn raw_balance(&self) -> Result<i64> {
         self.balance().await
     }
     pub async fn balance(&self) -> Result<i64> {
         self.stripe()?;
         let c = self
             .client
-            .retrieve("customers", &self.customerId().await?)
+            .retrieve("customers", &self.customer_id().await?)
             .await?;
         c["balance"].as_i64().ok_or(Error::OutcomeUnknown)
     }
-    pub async fn balanceTransactions(&self, parameters: Value) -> Result<Value> {
+    pub async fn balance_transactions(&self, parameters: Value) -> Result<Value> {
         self.stripe()?;
         object(&parameters)?;
         self.customer_list("balance_transactions", parameters).await
     }
-    pub async fn applyBalance(
+    pub async fn apply_balance(
         &self,
         amount: i64,
         currency: &str,
@@ -611,10 +615,10 @@ impl Billable {
             return Err(Error::InvalidInput("balance"));
         }
         money(amount.abs(), currency)?;
-        let id = self.customerId().await?;
+        let id = self.customer_id().await?;
         self.mutate(Method::POST,"customers",Some(&id),Some("balance_transactions"),json!({"amount":amount,"currency":currency.to_ascii_lowercase(),"description":description}),key).await
     }
-    pub async fn reportUsage(
+    pub async fn report_usage(
         &self,
         event_name: &str,
         value: u64,
@@ -627,7 +631,7 @@ impl Billable {
         if event_name.is_empty() {
             return Err(Error::InvalidInput("meter event"));
         }
-        let mut params = json!({"event_name":event_name,"identifier":identifier,"payload":{"stripe_customer_id":self.customerId().await?,"value":value.to_string()}});
+        let mut params = json!({"event_name":event_name,"identifier":identifier,"payload":{"stripe_customer_id":self.customer_id().await?,"value":value.to_string()}});
         if let Some(t) = timestamp {
             params["timestamp"] = json!(t);
         }
@@ -645,9 +649,9 @@ impl Billable {
         self.paddle()?;
         self.customer_list("addresses", json!({})).await
     }
-    pub async fn createAddress(&self, options: Value, key: &str) -> Result<Value> {
+    pub async fn create_address(&self, options: Value, key: &str) -> Result<Value> {
         self.paddle()?;
-        let id = self.customerId().await?;
+        let id = self.customer_id().await?;
         self.mutate(
             Method::POST,
             "customers",
@@ -659,7 +663,7 @@ impl Billable {
         .await
     }
     async fn customer_list(&self, suffix: &str, params: Value) -> Result<Value> {
-        let id = self.customerId().await?;
+        let id = self.customer_id().await?;
         self.client
             .api(
                 Method::GET,
@@ -677,7 +681,7 @@ impl Billable {
         } else {
             crate::types::text(&value, "customer_id")?
         };
-        if value["id"] != id || customer != self.customerId().await? {
+        if value["id"] != id || customer != self.customer_id().await? {
             return Err(Error::Ownership);
         }
         Ok(value)
@@ -734,7 +738,7 @@ pub struct SubscriptionBuilder {
     options: Value,
 }
 impl SubscriptionBuilder {
-    pub fn trialDays(mut self, days: u32) -> Result<Self> {
+    pub fn trial_days(mut self, days: u32) -> Result<Self> {
         if days == 0 || days > 730 {
             return Err(Error::InvalidInput("trial days"));
         }
@@ -748,7 +752,7 @@ impl SubscriptionBuilder {
         self.options["trial_period_days"] = json!(days);
         Ok(self)
     }
-    pub fn trialUntil(mut self, until: i64) -> Result<Self> {
+    pub fn trial_until(mut self, until: i64) -> Result<Self> {
         if until <= jiff::Timestamp::now().as_second() {
             return Err(Error::InvalidInput("trial end"));
         }
@@ -760,7 +764,7 @@ impl SubscriptionBuilder {
         self.options["trial_end"] = json!(until);
         Ok(self)
     }
-    pub fn skipTrial(mut self) -> Result<Self> {
+    pub fn skip_trial(mut self) -> Result<Self> {
         self.billable.stripe()?;
         self.options
             .as_object_mut()
@@ -769,7 +773,7 @@ impl SubscriptionBuilder {
         self.options["trial_end"] = json!("now");
         Ok(self)
     }
-    pub fn anchorBillingCycleOn(mut self, at: i64) -> Result<Self> {
+    pub fn anchor_billing_cycle_on(mut self, at: i64) -> Result<Self> {
         self.billable.stripe()?;
         if at <= jiff::Timestamp::now().as_second() {
             return Err(Error::InvalidInput("billing anchor"));
@@ -777,7 +781,7 @@ impl SubscriptionBuilder {
         self.options["billing_cycle_anchor"] = json!(at);
         Ok(self)
     }
-    pub fn withMetadata(mut self, data: Value) -> Result<Self> {
+    pub fn with_metadata(mut self, data: Value) -> Result<Self> {
         object(&data)?;
         self.options[if self.billable.client.provider() == Provider::Stripe {
             "metadata"
@@ -803,14 +807,14 @@ impl SubscriptionBuilder {
         item.quantity = Some(quantity);
         Ok(self)
     }
-    pub fn withOptions(mut self, options: Value) -> Result<Self> {
+    pub fn with_options(mut self, options: Value) -> Result<Self> {
         object(&options)?;
         for (k, v) in options.as_object().expect("validated") {
             self.options[k] = v.clone();
         }
         Ok(self)
     }
-    pub fn withCoupon(mut self, id: &str) -> Result<Self> {
+    pub fn with_coupon(mut self, id: &str) -> Result<Self> {
         identifier(id)?;
         if self.billable.client.provider() == Provider::Stripe {
             self.options["discounts"] = json!([{"coupon":id}]);
@@ -826,7 +830,7 @@ impl SubscriptionBuilder {
     ) -> Result<SubscriptionHandle> {
         self.billable.stripe()?;
         let mut options = self.options;
-        let customer = self.billable.customerId().await?;
+        let customer = self.billable.customer_id().await?;
         options["customer"] = json!(customer);
         options["items"] = items(&self.prices, Provider::Stripe);
         metadata(&mut options, "metadata", &self.name)?;
@@ -841,7 +845,7 @@ impl SubscriptionBuilder {
             .mutate(Method::POST, "subscriptions", None, None, options, key)
             .await?;
         let id = crate::types::text(&value, "id")?;
-        self.billable.syncSubscription(&id).await
+        self.billable.sync_subscription(&id).await
     }
     pub async fn checkout(self, mut options: Value, key: &str) -> Result<Value> {
         object(&options)?;
@@ -875,15 +879,15 @@ impl std::ops::Deref for SubscriptionHandle {
     }
 }
 impl SubscriptionHandle {
-    pub async fn asStripeSubscription(&self, parameters: Value) -> Result<Value> {
+    pub async fn as_stripe_subscription(&self, parameters: Value) -> Result<Value> {
         self.billable.stripe()?;
-        self.asProviderSubscription(parameters).await
+        self.as_provider_subscription(parameters).await
     }
-    pub async fn asPaddleSubscription(&self, parameters: Value) -> Result<Value> {
+    pub async fn as_paddle_subscription(&self, parameters: Value) -> Result<Value> {
         self.billable.paddle()?;
-        self.asProviderSubscription(parameters).await
+        self.as_provider_subscription(parameters).await
     }
-    pub async fn asProviderSubscription(&self, parameters: Value) -> Result<Value> {
+    pub async fn as_provider_subscription(&self, parameters: Value) -> Result<Value> {
         object(&parameters)?;
         let value = self
             .billable
@@ -900,12 +904,12 @@ impl SubscriptionHandle {
         } else {
             crate::types::text(&value, "customer_id")?
         };
-        if customer != self.billable.customerId().await? {
+        if customer != self.billable.customer_id().await? {
             return Err(Error::Ownership);
         }
         Ok(value)
     }
-    pub async fn paymentMethodUpdateTransaction(&self) -> Result<Value> {
+    pub async fn payment_method_update_transaction(&self) -> Result<Value> {
         self.billable.paddle()?;
         self.billable.owned("subscriptions", &self.id).await?;
         self.billable
@@ -922,12 +926,12 @@ impl SubscriptionHandle {
             .await
     }
     pub async fn refresh(&self) -> Result<Self> {
-        self.billable.syncSubscription(&self.id).await
+        self.billable.sync_subscription(&self.id).await
     }
     pub async fn cancel(&self, key: &str) -> Result<Self> {
         self.cancel_at(false, key).await
     }
-    pub async fn cancelNow(&self, key: &str) -> Result<Self> {
+    pub async fn cancel_now(&self, key: &str) -> Result<Self> {
         self.cancel_at(true, key).await
     }
     async fn cancel_at(&self, now: bool, key: &str) -> Result<Self> {
@@ -955,7 +959,7 @@ impl SubscriptionHandle {
                 .await
             }
             Provider::Stripe => {
-                if !current.onGracePeriod() {
+                if !current.on_grace_period() {
                     return Err(Error::InvalidInput("subscription is not on a grace period"));
                 }
                 self.change(
@@ -975,7 +979,7 @@ impl SubscriptionHandle {
                 )
                 .await
             }
-            Provider::Paddle if current.onGracePeriod() || current.paused_at.is_some() => {
+            Provider::Paddle if current.on_grace_period() || current.paused_at.is_some() => {
                 self.change(Method::PATCH, None, json!({"scheduled_change":null}), key)
                     .await
             }
@@ -1000,7 +1004,7 @@ impl SubscriptionHandle {
         self.billable.owned("subscriptions", &self.id).await?;
         self.billable.mutate(Method::POST,"subscriptions",Some(&self.id),Some("charge"),json!({"items":items(&prices,Provider::Paddle),"effective_from":"immediately","on_payment_failure":"prevent_change"}),key).await
     }
-    pub async fn pauseCollection(&self, behavior: &str, key: &str) -> Result<Self> {
+    pub async fn pause_collection(&self, behavior: &str, key: &str) -> Result<Self> {
         self.billable.stripe()?;
         if !matches!(behavior, "keep_as_draft" | "mark_uncollectible" | "void") {
             return Err(Error::InvalidInput("pause collection behavior"));
@@ -1013,7 +1017,7 @@ impl SubscriptionHandle {
         )
         .await
     }
-    pub async fn resumeCollection(&self, key: &str) -> Result<Self> {
+    pub async fn resume_collection(&self, key: &str) -> Result<Self> {
         self.billable.stripe()?;
         self.change(Method::POST, None, json!({"pause_collection":null}), key)
             .await
@@ -1023,7 +1027,7 @@ impl SubscriptionHandle {
         self.change(Method::POST, Some("activate"), json!({}), key)
             .await
     }
-    pub async fn extendTrial(&self, until: i64, key: &str) -> Result<Self> {
+    pub async fn extend_trial(&self, until: i64, key: &str) -> Result<Self> {
         self.billable.stripe()?;
         if until <= jiff::Timestamp::now().as_second() {
             return Err(Error::InvalidInput("trial end"));
@@ -1058,7 +1062,7 @@ impl SubscriptionHandle {
         self.change(self.billable.update_method(), None, options, key)
             .await
     }
-    pub async fn updateQuantity(
+    pub async fn update_quantity(
         &self,
         quantity: u64,
         price: Option<&str>,
@@ -1074,7 +1078,7 @@ impl SubscriptionHandle {
             None if current.items.len() == 1 => &current.items[0].price,
             _ => return Err(Error::InvalidInput("specify the price for multiple items")),
         };
-        if !current.hasPrice(target) {
+        if !current.has_price(target) {
             return Err(Error::NotFound);
         }
         let prices = current
@@ -1097,7 +1101,7 @@ impl SubscriptionHandle {
         self.billable.owned("subscriptions", &self.id).await?;
         if self.billable.client.provider() == Provider::Stripe {
             options["subscription"] = json!(self.id);
-            self.billable.previewInvoice(options, key).await
+            self.billable.preview_invoice(options, key).await
         } else {
             self.billable
                 .mutate(

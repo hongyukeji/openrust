@@ -17,11 +17,11 @@
 
 ## 定义特性 {#defining-features}
 
-在 Pennant 启动后的应用 Provider 中登记定义。解析器接收拥有所有权的 `Scope`，返回 JSON 值；`defineValue` 定义常量。定义在应用内共享，解析值归属于当前 HTTP 请求、Artisan 调用或队列任务。
+在 Pennant 启动后的应用 Provider 中登记定义。解析器接收拥有所有权的 `Scope`，返回 JSON 值；`define_value` 定义常量。定义在应用内共享，解析值归属于当前 HTTP 请求、Artisan 调用或队列任务。
 
 ```rust
 let store = app.make::<openrust_pennant::FeatureManager>().await?.store(None)?;
-store.defineValue("new-api", serde_json::json!(true))?;
+store.define_value("new-api", serde_json::json!(true))?;
 store.define("theme", std::sync::Arc::new(|scope| Box::pin(async move {
     Ok(serde_json::json!(if scope == openrust_pennant::Scope::Null { "default" } else { "blue" }))
 })))?;
@@ -29,25 +29,25 @@ store.define("theme", std::sync::Arc::new(|scope| Box::pin(async move {
 
 ## 判断特性 {#checking-features}
 
-只有 JSON `false` 表示关闭。`null`、零、空字符串和数组均为开启。未知特性返回 false 并发出 `UnknownFeatureResolved`，不会持久化此回退值。`allAreActive` 要求每个作用域的全部特性开启；`someAreActive` 要求每个作用域至少有一个匹配特性。
+只有 JSON `false` 表示关闭。`null`、零、空字符串和数组均为开启。未知特性返回 false 并发出 `UnknownFeatureResolved`，不会持久化此回退值。`all_are_active` 要求每个作用域的全部特性开启；`some_are_active` 要求每个作用域至少有一个匹配特性。
 
 ```rust
 let user = store.r#for("user-42");
 let enabled = user.active("new-api").await?;
 let theme = user.value("theme").await?;
 user.load_missing(&["new-api", "theme"]).await?;
-let both = user.allAreActive(&["new-api", "theme"]).await?;
+let both = user.all_are_active(&["new-api", "theme"]).await?;
 ```
 
 ## 作用域 {#scopes}
 
-使用 `for` 显式选择作用域，`Scope::from_model` 转换 Eloquent 模型，`globally` 选择单一全局作用域。全局与匿名作用域彼此独立。模型默认以具体 Rust 类和主键标识；`useMorphMap(true)` 将类部分切换为配置的 morph 别名。`FeatureScopeSerializeable` 配合 `Scope::fromSerializable` 自定义序列化；`FeatureScopeable` 配合 `forScopeable` 按所选 store 转换标识。
+使用 `for` 显式选择作用域，`Scope::from_model` 转换 Eloquent 模型，`globally` 选择单一全局作用域。全局与匿名作用域彼此独立。模型默认以具体 Rust 类和主键标识；`use_morph_map(true)` 将类部分切换为配置的 morph 别名。`FeatureScopeSerializeable` 配合 `Scope::from_serializable` 自定义序列化；`FeatureScopeable` 配合 `for_scopeable` 按所选 store 转换标识。
 
-默认作用域读取原生认证已解析的身份。使用懒加载 guard 时，先调用 `Feature::for_request(request).await?` 再判断，或先运行认证中间件。`EnsureFeaturesAreActive` 会主动解析默认 guard。非 HTTP 场景请显式指定作用域，或配置 `FeatureManager::resolveScopeUsing`。
+默认作用域读取原生认证已解析的身份。使用懒加载 guard 时，先调用 `Feature::for_request(request).await?` 再判断，或先运行认证中间件。`EnsureFeaturesAreActive` 会主动解析默认 guard。非 HTTP 场景请显式指定作用域，或配置 `FeatureManager::resolve_scope_using`。
 
 ## 类式特性 {#feature-classes}
 
-实现 `FeatureDefinition`，用 `defineClass` 登记异步工厂。工厂可以解析容器依赖。`name` 指定自定义名称；`acceptsNullScope` 显式替代 PHP 参数反射。`before` 返回非空结果时覆盖已存储值，但不会持久化覆盖值。已有缓存优先；`flushCache` 后重新运行钩子。`before` 返回 `None` 时交由驱动处理。
+实现 `FeatureDefinition`，用 `define_class` 登记异步工厂。工厂可以解析容器依赖。`name` 指定自定义名称；`accepts_null_scope` 显式替代 PHP 参数反射。`before` 返回非空结果时覆盖已存储值，但不会持久化覆盖值。已有缓存优先；`flush_cache` 后重新运行钩子。`before` 返回 `None` 时交由驱动处理。
 
 ```rust
 use openrust_pennant::{FeatureDefinition, FeatureFuture, Scope};
@@ -62,28 +62,28 @@ impl FeatureDefinition for NewApi {
     }
 }
 // Application Provider:
-store.defineClass(|| Box::pin(async { Ok(Arc::new(NewApi)) }))?;
+store.define_class(|| Box::pin(async { Ok(Arc::new(NewApi)) }))?;
 ```
 
 Rust 模块和工厂在编译时注册，不提供 PHP 运行时类扫描、反射和宏。枚举通过明确的字符串表示传入。工厂延迟执行，定义特性不会解析依赖。
 
-`store.discover` 接收编译后的注册函数。通过 `store.instance::<NewApi>().await?` 取得类型明确的类实例，调用应用自定义方法。`isValidForScope` 控制 `all` 与 `loadAll` 包含哪些定义。Eloquent 模型导入 `openrust_pennant::concerns::HasFeatures` 后可调用 `features(store)`。`defineLottery` 复用原生 `Lottery`，与其他定义一样保存首次解析结果。
+`store.discover` 接收编译后的注册函数。通过 `store.instance::<NewApi>().await?` 取得类型明确的类实例，调用应用自定义方法。`is_valid_for_scope` 控制 `all` 与 `load_all` 包含哪些定义。Eloquent 模型导入 `openrust_pennant::concerns::HasFeatures` 后可调用 `features(store)`。`define_lottery` 复用原生 `Lottery`，与其他定义一样保存首次解析结果。
 
 ## 修改状态 {#updating-values}
 
-激活操作写入所选作用域。`activateForEveryone` 更新已存储作用域；首次遇到的新作用域仍使用解析器。`forget` 删除状态，使其重新解析。`flushCache` 会清除 array 驱动已解析状态，数据库驱动保留持久值。
+激活操作写入所选作用域。`activate_for_everyone` 更新已存储作用域；首次遇到的新作用域仍使用解析器。`forget` 删除状态，使其重新解析。`flush_cache` 会清除 array 驱动已解析状态，数据库驱动保留持久值。
 
 ```rust
 user.activate("new-api").await?;
-user.activateWithValue(&["theme"], serde_json::json!("green")).await?;
+user.activate_with_value(&["theme"], serde_json::json!("green")).await?;
 user.deactivate("new-api").await?;
 user.forget(&["theme"]).await?;
-store.activateForEveryone("new-api", serde_json::json!(true)).await?;
+store.activate_for_everyone("new-api", serde_json::json!(true)).await?;
 ```
 
 ## 中间件 {#middleware}
 
-在原生路由组中用 `Arc::new(...)` 添加 `EnsureFeaturesAreActive::using(["new-api"])`。特性关闭时返回 HTTP 400。`whenInactive` 接收当前中间件实例的异步响应回调。按路由需要配置认证／会话中间件。
+在原生路由组中用 `Arc::new(...)` 添加 `EnsureFeaturesAreActive::using(["new-api"])`。特性关闭时返回 HTTP 400。`when_inactive` 接收当前中间件实例的异步响应回调。按路由需要配置认证／会话中间件。
 
 ## 命令 {#commands}
 
@@ -99,4 +99,4 @@ store.activateForEveryone("new-api", serde_json::json!(true)).await?;
 
 ## 自定义驱动与事件 {#drivers-and-events}
 
-通过 `FeatureManager::extend` 为配置驱动登记创建器，实现包含批量读取的原生 `Driver` 契约。`stored` 是可选能力，默认报告不支持；提供批量写入实现后才启用 `supportsSetAll`，否则逐项写入并在每项后发出事件。创建器不得递归解析自身 store。事件使用原生 Dispatcher：`FeatureResolved`、`FeatureRetrieved`、`UnknownFeatureResolved`、`UnexpectedNullScopeEncountered`、`FeatureUpdated`、`FeatureUpdatedForAllScopes`、`FeatureDeleted`、`FeaturesPurged` 和 `AllFeaturesPurged`。缓存命中同样发出读取事件；监听失败向调用方传播。
+通过 `FeatureManager::extend` 为配置驱动登记创建器，实现包含批量读取的原生 `Driver` 契约。`stored` 是可选能力，默认报告不支持；提供批量写入实现后才启用 `supports_set_all`，否则逐项写入并在每项后发出事件。创建器不得递归解析自身 store。事件使用原生 Dispatcher：`FeatureResolved`、`FeatureRetrieved`、`UnknownFeatureResolved`、`UnexpectedNullScopeEncountered`、`FeatureUpdated`、`FeatureUpdatedForAllScopes`、`FeatureDeleted`、`FeaturesPurged` 和 `AllFeaturesPurged`。缓存命中同样发出读取事件；监听失败向调用方传播。

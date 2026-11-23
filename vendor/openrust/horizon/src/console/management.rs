@@ -100,12 +100,13 @@ impl Command for Management {
                         .matches()
                         .get_one::<String>("environment")
                         .expect("default");
-                    let timeout = SupervisorOptions::fromConfigForEnvironment(config.as_ref(), env)
-                        .map_err(error)?
-                        .values()
-                        .map(|options| options.timeout)
-                        .max()
-                        .unwrap_or(60);
+                    let timeout =
+                        SupervisorOptions::from_config_for_environment(config.as_ref(), env)
+                            .map_err(error)?
+                            .values()
+                            .map(|options| options.timeout)
+                            .max()
+                            .unwrap_or(60);
                     output.info(&format!(
                         "Maximum timeout for {env} environment: {timeout} seconds."
                     ));
@@ -214,15 +215,15 @@ impl Command for Management {
                             selected["status"].as_str().unwrap_or_default()
                         ));
                     } else if self.1 == "horizon:pause-supervisor" {
-                        repository.pauseSupervisor(name).await.map_err(error)?;
-                        signalSupervisor(&selected, "USR2").await?;
+                        repository.pause_supervisor(name).await.map_err(error)?;
+                        signal_supervisor(&selected, "USR2").await?;
                         output.info(&format!(
                             "Sending USR2 signal to process: {}",
                             selected["pid"]
                         ));
                     } else {
-                        repository.continueSupervisor(name).await.map_err(error)?;
-                        signalSupervisor(&selected, "CONT").await?;
+                        repository.continue_supervisor(name).await.map_err(error)?;
+                        signal_supervisor(&selected, "CONT").await?;
                         output.info(&format!(
                             "Sending CONT signal to process: {}",
                             selected["pid"]
@@ -231,13 +232,13 @@ impl Command for Management {
                 }
                 "horizon:snapshot" => {
                     if repository
-                        .metricsRepository()
-                        .acquireSnapshotLock()
+                        .metrics_repository()
+                        .acquire_snapshot_lock()
                         .await
                         .map_err(error)?
                     {
                         repository
-                            .metricsRepository()
+                            .metrics_repository()
                             .snapshot()
                             .await
                             .map_err(error)?;
@@ -246,7 +247,7 @@ impl Command for Management {
                 }
                 "horizon:clear-metrics" => {
                     repository
-                        .metricsRepository()
+                        .metrics_repository()
                         .clear()
                         .await
                         .map_err(error)?;
@@ -319,12 +320,12 @@ pub(super) async fn forget(
     if input.matches().get_flag("all") {
         let mut total = 0;
         loop {
-            let jobs = repository.jobs().getFailed(None).await.map_err(error)?;
+            let jobs = repository.jobs().get_failed(None).await.map_err(error)?;
             if jobs.is_empty() {
                 break;
             }
             for job in jobs {
-                forgetJob(repository, failer.as_ref(), &job).await?;
+                forget_job(repository, failer.as_ref(), &job).await?;
                 total += 1;
             }
         }
@@ -339,23 +340,23 @@ pub(super) async fn forget(
         output.error("No failed job ID provided.");
         return Ok(1);
     };
-    let Some(job) = repository.jobs().findFailed(id).await.map_err(error)? else {
+    let Some(job) = repository.jobs().find_failed(id).await.map_err(error)? else {
         output.error("No failed job matches the given ID.");
         return Ok(1);
     };
-    forgetJob(repository, failer.as_ref(), &job).await?;
+    forget_job(repository, failer.as_ref(), &job).await?;
     output.info("Failed job deleted successfully!");
     Ok(0)
 }
-async fn forgetJob(
+async fn forget_job(
     repository: &Repository,
     failer: &dyn openrust::queue::failed::FailedJobProviderInterface,
     job: &crate::JobDetails,
 ) -> Result<(), ConsoleError> {
-    let uuid = job.payloadUuid().map_err(error)?;
+    let uuid = job.payload_uuid().map_err(error)?;
     let current = repository
         .jobs()
-        .findFailedByUuid(uuid)
+        .find_failed_by_uuid(uuid)
         .await
         .map_err(error)?
         .is_some_and(|current| current.record.id == job.record.id);
@@ -373,13 +374,13 @@ async fn forgetJob(
     }
     repository
         .jobs()
-        .deleteFailed(&job.record.id)
+        .delete_failed(&job.record.id)
         .await
         .map_err(error)?;
     Ok(())
 }
 
-async fn signalSupervisor(selected: &serde_json::Value, signal: &str) -> Result<(), ConsoleError> {
+async fn signal_supervisor(selected: &serde_json::Value, signal: &str) -> Result<(), ConsoleError> {
     #[cfg(unix)]
     {
         let pid = selected["pid"]

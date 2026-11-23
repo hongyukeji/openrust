@@ -35,7 +35,7 @@ pub struct Metrics {
     pub runtime_ms: f64,
 }
 impl Metrics {
-    pub fn runtimeForQueue(&self) -> f64 {
+    pub fn runtime_for_queue(&self) -> f64 {
         if self.completed == 0 {
             0.
         } else {
@@ -150,7 +150,7 @@ impl Repository {
                 })?;
         Ok(self)
     }
-    fn retentionFor(&self, kind: &str) -> u32 {
+    fn retention_for(&self, kind: &str) -> u32 {
         let kind = if kind == "silenced" {
             "completed"
         } else {
@@ -192,11 +192,11 @@ impl Repository {
     }
     /// Stores the fixed attempt metadata projection; use recordPayload for authorized job details.
     pub async fn record(&self, record: JobRecord, phase: &str, exception: bool) -> Result<()> {
-        self.recordAccepted(record, phase, exception)
+        self.record_accepted(record, phase, exception)
             .await
             .map(|_| ())
     }
-    async fn recordAccepted(
+    async fn record_accepted(
         &self,
         mut record: JobRecord,
         phase: &str,
@@ -223,7 +223,7 @@ impl Repository {
         let keys = vec![
             self.key(&format!("job:{id}")),
             self.key("recent"),
-            self.metricKey(&record.connection, &record.queue, now / 60000),
+            self.metric_key(&record.connection, &record.queue, now / 60000),
             self.key("measured:job"),
             self.key(&format!("metric:job:{}", encode(&record.name))),
             self.key("measured:queue"),
@@ -252,7 +252,7 @@ impl Repository {
             text(&accepted).map(Some)
         }
     }
-    fn metricKey(&self, connection: &str, queue: &str, minute: u64) -> String {
+    fn metric_key(&self, connection: &str, queue: &str, minute: u64) -> String {
         self.key(&format!(
             "metrics:{}:{}:{minute}",
             encode(connection),
@@ -266,7 +266,7 @@ impl Repository {
         }
         let minute = self.now().await? / 60000;
         let keys = (0..60)
-            .map(|n| self.metricKey(connection, queue, minute.saturating_sub(n)))
+            .map(|n| self.metric_key(connection, queue, minute.saturating_sub(n)))
             .collect();
         let value=self.eval(r#"
 local total={attempts=0,completed=0,failed=0,released=0,retrying=0,runtime_ms=0}
@@ -315,7 +315,7 @@ return cjson.encode(total)
         }
         Ok(records)
     }
-    pub async fn notificationLock(&self, signature: &str) -> Result<bool> {
+    pub async fn notification_lock(&self, signature: &str) -> Result<bool> {
         if signature.is_empty() || signature.len() > 1024 {
             return Err(Error::InvalidRecord);
         }
@@ -346,9 +346,9 @@ return cjson.encode(total)
         Ok(self.command("GET", &[self.key("paused")]).await? != Value::Nil)
     }
     pub async fn terminate(&self) -> Result<()> {
-        self.terminateWithWait(false).await
+        self.terminate_with_wait(false).await
     }
-    pub async fn terminateWithWait(&self, wait: bool) -> Result<()> {
+    pub async fn terminate_with_wait(&self, wait: bool) -> Result<()> {
         self.eval(
             "redis.call('SET',KEYS[1],ARGV[1]);redis.call('SET',KEYS[2],ARGV[2]);return 1",
             vec![self.key("terminate-wait"), self.key("terminate")],
@@ -360,7 +360,7 @@ return cjson.encode(total)
         .await?;
         Ok(())
     }
-    pub async fn terminationWait(&self) -> Result<bool> {
+    pub async fn termination_wait(&self) -> Result<bool> {
         Ok(self.command("GET", &[self.key("terminate-wait")]).await?
             == Value::BulkString(b"1".to_vec()))
     }
@@ -381,7 +381,7 @@ return cjson.encode(total)
             vec![self.key(&format!("master:{id}")),self.key("masters")],vec![status.to_string(),now.to_string(),id.into(),now.saturating_sub(15000).to_string()]).await?;
         Ok(())
     }
-    pub(crate) async fn forgetMaster(&self, id: &str) -> Result<()> {
+    pub(crate) async fn forget_master(&self, id: &str) -> Result<()> {
         self.eval(
             "redis.call('DEL',KEYS[1]); redis.call('ZREM',KEYS[2],ARGV[1]); return 1",
             vec![self.key(&format!("master:{id}")), self.key("masters")],

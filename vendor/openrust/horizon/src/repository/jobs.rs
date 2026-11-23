@@ -21,7 +21,7 @@ pub struct JobDetails {
 }
 impl JobDetails {
     /// Native failed-job storage uses the payload UUID, separately from transport IDs.
-    pub fn payloadUuid(&self) -> Result<&str> {
+    pub fn payload_uuid(&self) -> Result<&str> {
         self.payload
             .get("uuid")
             .and_then(Json::as_str)
@@ -39,7 +39,7 @@ impl Repository {
         clippy::too_many_arguments,
         reason = "Preserves the queue event payload, lifecycle and monitoring inputs"
     )]
-    pub async fn recordPayload(
+    pub async fn record_payload(
         &self,
         record: JobRecord,
         phase: &str,
@@ -49,7 +49,7 @@ impl Repository {
         exception: Option<&str>,
     ) -> Result<()> {
         let Some(status) = self
-            .recordAccepted(record.clone(), phase, exception.is_some())
+            .record_accepted(record.clone(), phase, exception.is_some())
             .await?
         else {
             return Ok(());
@@ -72,7 +72,7 @@ impl JobRepository {
     fn index(&self, kind: &str) -> String {
         self.0.key(&format!("jobs:{kind}"))
     }
-    pub fn nextJobId(&self) -> String {
+    pub fn next_job_id(&self) -> String {
         uuid::Uuid::now_v7().to_string()
     }
     pub async fn find(&self, id: &str) -> Result<Option<JobDetails>> {
@@ -101,11 +101,11 @@ impl JobRepository {
             Ok(Some(job))
         }
     }
-    pub async fn getJobs(&self, ids: &[String], indexFrom: usize) -> Result<Vec<JobDetails>> {
+    pub async fn get_jobs(&self, ids: &[String], index_from: usize) -> Result<Vec<JobDetails>> {
         let mut jobs = Vec::new();
         for id in ids {
             if let Some(mut job) = self.find(id).await? {
-                job.index = Some(indexFrom + jobs.len());
+                job.index = Some(index_from + jobs.len());
                 jobs.push(job)
             }
         }
@@ -133,45 +133,45 @@ impl JobRepository {
                 )
                 .await?,
         )?;
-        self.getJobs(&ids, start).await
+        self.get_jobs(&ids, start).await
     }
-    pub async fn totalRecent(&self) -> Result<u64> {
-        self.countRecent().await
+    pub async fn total_recent(&self) -> Result<u64> {
+        self.count_recent().await
     }
-    pub async fn totalFailed(&self) -> Result<u64> {
-        self.countFailed().await
+    pub async fn total_failed(&self) -> Result<u64> {
+        self.count_failed().await
     }
-    pub async fn countRecent(&self) -> Result<u64> {
+    pub async fn count_recent(&self) -> Result<u64> {
         self.count("recent").await
     }
-    pub async fn countFailed(&self) -> Result<u64> {
+    pub async fn count_failed(&self) -> Result<u64> {
         self.count("failed").await
     }
-    pub async fn countPending(&self) -> Result<u64> {
+    pub async fn count_pending(&self) -> Result<u64> {
         self.count("pending").await
     }
-    pub async fn countCompleted(&self) -> Result<u64> {
+    pub async fn count_completed(&self) -> Result<u64> {
         self.count("completed").await
     }
-    pub async fn countSilenced(&self) -> Result<u64> {
+    pub async fn count_silenced(&self) -> Result<u64> {
         self.count("silenced").await
     }
-    pub async fn countRecentlyFailed(&self) -> Result<u64> {
+    pub async fn count_recently_failed(&self) -> Result<u64> {
         self.count("recent_failed").await
     }
-    pub async fn getRecent(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
+    pub async fn get_recent(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
         self.list("recent", after).await
     }
-    pub async fn getFailed(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
+    pub async fn get_failed(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
         self.list("failed", after).await
     }
-    pub async fn getPending(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
+    pub async fn get_pending(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
         self.list("pending", after).await
     }
-    pub async fn getCompleted(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
+    pub async fn get_completed(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
         self.list("completed", after).await
     }
-    pub async fn getSilenced(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
+    pub async fn get_silenced(&self, after: Option<usize>) -> Result<Vec<JobDetails>> {
         self.list("silenced", after).await
     }
     async fn trim(&self, kind: &str) -> Result<()> {
@@ -179,7 +179,7 @@ impl JobRepository {
             .0
             .now()
             .await?
-            .saturating_sub(u64::from(self.0.retentionFor(kind)) * 1000);
+            .saturating_sub(u64::from(self.0.retention_for(kind)) * 1000);
         self.0
             .command(
                 "ZREMRANGEBYSCORE",
@@ -188,7 +188,7 @@ impl JobRepository {
             .await?;
         Ok(())
     }
-    pub async fn trimRecentJobs(&self) -> Result<()> {
+    pub async fn trim_recent_jobs(&self) -> Result<()> {
         for kind in [
             "recent",
             "pending",
@@ -200,10 +200,10 @@ impl JobRepository {
         }
         Ok(())
     }
-    pub async fn trimFailedJobs(&self) -> Result<()> {
+    pub async fn trim_failed_jobs(&self) -> Result<()> {
         self.trim("failed").await
     }
-    pub async fn trimMonitoredJobs(&self) -> Result<()> {
+    pub async fn trim_monitored_jobs(&self) -> Result<()> {
         self.trim("monitored").await
     }
     pub async fn pushed(
@@ -368,7 +368,7 @@ impl JobRepository {
         self.0
             .command(
                 "EXPIRE",
-                &[self.key(id)?, self.0.retentionFor("monitored").to_string()],
+                &[self.key(id)?, self.0.retention_for("monitored").to_string()],
             )
             .await?;
         Ok(())
@@ -451,7 +451,7 @@ impl JobRepository {
         } else {
             "pending"
         };
-        self.0.eval("redis.call('SET',KEYS[1],ARGV[1],'EX',ARGV[4]);redis.call('ZADD',KEYS[2],ARGV[2],ARGV[3]);for i=4,7 do redis.call('ZREM',KEYS[i],ARGV[3]) end;redis.call('ZADD',KEYS[3],ARGV[2],ARGV[3]);if ARGV[5]=='failed' then redis.call('ZADD',KEYS[8],ARGV[2],ARGV[3]) end;return 1",vec![self.key(&record.id)?,self.index("recent"),self.index(index),self.index("pending"),self.index("completed"),self.index("silenced"),self.index("failed"),self.index("recent_failed")],vec![serde_json::to_string(&details).map_err(|_|Error::InvalidRecord)?,now.to_string(),record.id.clone(),self.0.retentionFor(if status=="failed"{"failed"}else if status=="completed"{"completed"}else{"pending"}).max(if monitored{self.0.retentionFor("monitored")}else{0}).to_string(),status.into()]).await?;
+        self.0.eval("redis.call('SET',KEYS[1],ARGV[1],'EX',ARGV[4]);redis.call('ZADD',KEYS[2],ARGV[2],ARGV[3]);for i=4,7 do redis.call('ZREM',KEYS[i],ARGV[3]) end;redis.call('ZADD',KEYS[3],ARGV[2],ARGV[3]);if ARGV[5]=='failed' then redis.call('ZADD',KEYS[8],ARGV[2],ARGV[3]) end;return 1",vec![self.key(&record.id)?,self.index("recent"),self.index(index),self.index("pending"),self.index("completed"),self.index("silenced"),self.index("failed"),self.index("recent_failed")],vec![serde_json::to_string(&details).map_err(|_|Error::InvalidRecord)?,now.to_string(),record.id.clone(),self.0.retention_for(if status=="failed"{"failed"}else if status=="completed"{"completed"}else{"pending"}).max(if monitored{self.0.retention_for("monitored")}else{0}).to_string(),status.into()]).await?;
         // Retry relationships live separately from JSON details so empty arrays
         // keep their representation when Redis updates one retry atomically.
         self.0
@@ -460,7 +460,7 @@ impl JobRepository {
                 &[
                     format!("{}:retries", self.key(&record.id)?),
                     self.0
-                        .retentionFor(if status == "failed" {
+                        .retention_for(if status == "failed" {
                             "failed"
                         } else if status == "completed" {
                             "completed"
@@ -468,7 +468,7 @@ impl JobRepository {
                             "pending"
                         })
                         .max(if monitored {
-                            self.0.retentionFor("monitored")
+                            self.0.retention_for("monitored")
                         } else {
                             0
                         })
@@ -496,8 +496,8 @@ return 1
                 )
                 .await?;
         }
-        let monitoredTags = self.0.tags().monitored(tags).await?;
-        self.0.tags().add(&record.id, &monitoredTags).await?;
+        let monitored_tags = self.0.tags().monitored(tags).await?;
+        self.0.tags().add(&record.id, &monitored_tags).await?;
         if status == "failed" {
             self.0
                 .command(
@@ -507,15 +507,15 @@ return 1
                             .key(&format!("failed-uuid:{}", encode(payload.uuid()))),
                         record.id.clone(),
                         "EX".into(),
-                        self.0.retentionFor("failed").to_string(),
+                        self.0.retention_for("failed").to_string(),
                     ],
                 )
                 .await?;
             let failed: Vec<_> = tags.iter().map(|tag| format!("failed:{tag}")).collect();
             self.0
                 .tags()
-                .addTemporary(
-                    self.0.retentionFor("failed").div_ceil(60),
+                .add_temporary(
+                    self.0.retention_for("failed").div_ceil(60),
                     &record.id,
                     &failed,
                 )
@@ -531,7 +531,7 @@ return 1
         }
         Ok(())
     }
-    pub async fn findFailedByUuid(&self, uuid: &str) -> Result<Option<JobDetails>> {
+    pub async fn find_failed_by_uuid(&self, uuid: &str) -> Result<Option<JobDetails>> {
         if !crate::label(uuid) {
             return Err(Error::InvalidRecord);
         }
@@ -545,16 +545,16 @@ return 1
         if value == Value::Nil {
             return Ok(None);
         }
-        self.findFailed(&text(&value)?).await
+        self.find_failed(&text(&value)?).await
     }
-    pub async fn findFailed(&self, id: &str) -> Result<Option<JobDetails>> {
+    pub async fn find_failed(&self, id: &str) -> Result<Option<JobDetails>> {
         Ok(self
             .find(id)
             .await?
             .filter(|job| job.record.status == "failed"))
     }
-    pub async fn storeRetryReference(&self, id: &str, retryId: &str) -> Result<()> {
-        if !crate::label(retryId) {
+    pub async fn store_retry_reference(&self, id: &str, retry_id: &str) -> Result<()> {
+        if !crate::label(retry_id) {
             return Err(Error::InvalidRecord);
         }
         let now = self.0.now().await?;
@@ -580,16 +580,16 @@ return 1
                 vec![
                     self.key(id)?,
                     format!("{}:retries", self.key(id)?),
-                    self.key(retryId)?,
-                    format!("{}:parents", self.key(retryId)?),
+                    self.key(retry_id)?,
+                    format!("{}:parents", self.key(retry_id)?),
                 ],
-                vec![json!({"id":retryId,"status":"pending","retried_at":now}).to_string()],
+                vec![json!({"id":retry_id,"status":"pending","retried_at":now}).to_string()],
             )
             .await?;
         Ok(())
     }
-    pub async fn deleteFailed(&self, id: &str) -> Result<bool> {
-        let Some(job) = self.findFailed(id).await? else {
+    pub async fn delete_failed(&self, id: &str) -> Result<bool> {
+        let Some(job) = self.find_failed(id).await? else {
             return Ok(false);
         };
         self.delete(&job.record).await?;
@@ -598,14 +598,14 @@ return 1
                 "if redis.call('GET',KEYS[1])==ARGV[1] then redis.call('DEL',KEYS[1]) end;return 1",
                 vec![
                     self.0
-                        .key(&format!("failed-uuid:{}", encode(job.payloadUuid()?))),
+                        .key(&format!("failed-uuid:{}", encode(job.payload_uuid()?))),
                 ],
                 vec![id.into()],
             )
             .await?;
         let mut tags = job.tags.clone();
         tags.extend(job.tags.iter().map(|tag| format!("failed:{tag}")));
-        self.0.tags().forgetJobs(&tags, &[id.into()]).await?;
+        self.0.tags().forget_jobs(&tags, &[id.into()]).await?;
         Ok(true)
     }
     async fn delete(&self, record: &JobRecord) -> Result<()> {
@@ -631,7 +631,7 @@ return 1
         self.0.eval("redis.call('DEL',KEYS[1],KEYS[1]..':retries',KEYS[1]..':parents',KEYS[9]);for i=2,8 do redis.call('ZREM',KEYS[i],ARGV[1]) end;redis.call('ZREM',KEYS[10],ARGV[2]);return 1",keys,vec![id.clone(),legacy]).await?;
         Ok(())
     }
-    pub async fn deleteMonitored(&self, ids: &[String]) -> Result<()> {
+    pub async fn delete_monitored(&self, ids: &[String]) -> Result<()> {
         if ids.is_empty() {
             return Ok(());
         }

@@ -11,21 +11,21 @@ pub struct SupervisorRepository(Repository);
 #[derive(Clone)]
 pub struct ProcessRepository(Repository);
 
-fn supervisorName(name: &str) -> bool {
+fn supervisor_name(name: &str) -> bool {
     !name.is_empty() && name.len() <= 1024 && !name.chars().any(char::is_control)
 }
 impl Repository {
-    pub fn masterSupervisors(&self) -> MasterSupervisorRepository {
+    pub fn master_supervisors(&self) -> MasterSupervisorRepository {
         MasterSupervisorRepository(self.clone())
     }
-    pub fn supervisorRepository(&self) -> SupervisorRepository {
+    pub fn supervisor_repository(&self) -> SupervisorRepository {
         SupervisorRepository(self.clone())
     }
     pub fn processes(&self) -> ProcessRepository {
         ProcessRepository(self.clone())
     }
-    pub async fn heartbeatSupervisor(&self, name: &str, status: &Json) -> Result<()> {
-        if !supervisorName(name) || !status.is_object() {
+    pub async fn heartbeat_supervisor(&self, name: &str, status: &Json) -> Result<()> {
+        if !supervisor_name(name) || !status.is_object() {
             return Err(Error::InvalidRecord);
         }
         let mut status = status.clone();
@@ -34,8 +34,8 @@ impl Repository {
         self.eval("redis.call('SET',KEYS[1],ARGV[1],'EX',30);redis.call('ZADD',KEYS[2],ARGV[2],ARGV[3]);return 1", vec![self.key(&format!("supervisor:{}", super::encode(name))),self.key("supervisors")], vec![status.to_string(),now.to_string(),name.into()]).await?;
         Ok(())
     }
-    pub async fn forgetSupervisor(&self, name: &str) -> Result<()> {
-        if !supervisorName(name) {
+    pub async fn forget_supervisor(&self, name: &str) -> Result<()> {
+        if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
         self.eval(
@@ -52,13 +52,13 @@ impl Repository {
         Ok(())
     }
     pub async fn supervisors(&self) -> Result<Vec<Json>> {
-        self.supervisorRepository().all().await
+        self.supervisor_repository().all().await
     }
     pub async fn supervisor(&self, name: &str) -> Result<Option<Json>> {
-        self.supervisorRepository().find(name).await
+        self.supervisor_repository().find(name).await
     }
-    pub async fn pauseSupervisor(&self, name: &str) -> Result<()> {
-        if !supervisorName(name) {
+    pub async fn pause_supervisor(&self, name: &str) -> Result<()> {
+        if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
         self.command(
@@ -71,8 +71,8 @@ impl Repository {
         .await?;
         Ok(())
     }
-    pub async fn continueSupervisor(&self, name: &str) -> Result<()> {
-        if !supervisorName(name) {
+    pub async fn continue_supervisor(&self, name: &str) -> Result<()> {
+        if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
         self.command(
@@ -82,8 +82,8 @@ impl Repository {
         .await?;
         Ok(())
     }
-    pub async fn supervisorPaused(&self, name: &str) -> Result<bool> {
-        if !supervisorName(name) {
+    pub async fn supervisor_paused(&self, name: &str) -> Result<bool> {
+        if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
         Ok(self
@@ -94,8 +94,8 @@ impl Repository {
             .await?
             == Value::Int(1))
     }
-    pub async fn pushCommand(&self, name: &str, command: &str) -> Result<()> {
-        if !supervisorName(name)
+    pub async fn push_command(&self, name: &str, command: &str) -> Result<()> {
+        if !supervisor_name(name)
             || command.is_empty()
             || command.len() > 8192
             || command.chars().any(char::is_control)
@@ -110,8 +110,8 @@ impl Repository {
         .await?;
         Ok(())
     }
-    pub async fn popCommands(&self, name: &str) -> Result<Vec<String>> {
-        if !supervisorName(name) {
+    pub async fn pop_commands(&self, name: &str) -> Result<Vec<String>> {
+        if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
         let value = self
@@ -182,12 +182,12 @@ impl MasterSupervisorRepository {
             && let Some(supervisors) = master.get("supervisors").and_then(Json::as_array)
         {
             for supervisor in supervisors.iter().filter_map(Json::as_str) {
-                self.0.forgetSupervisor(supervisor).await?;
+                self.0.forget_supervisor(supervisor).await?;
             }
         }
-        self.0.forgetMaster(name).await
+        self.0.forget_master(name).await
     }
-    pub async fn flushExpired(&self) -> Result<()> {
+    pub async fn flush_expired(&self) -> Result<()> {
         let now = self.0.now().await?;
         self.0
             .command(
@@ -218,7 +218,7 @@ impl SupervisorRepository {
     pub async fn get(&self, names: &[String]) -> Result<Vec<Json>> {
         let mut result = Vec::new();
         for name in names {
-            if !supervisorName(name) {
+            if !supervisor_name(name) {
                 return Err(Error::InvalidRecord);
             }
             let value = self
@@ -235,15 +235,15 @@ impl SupervisorRepository {
         Ok(result)
     }
     pub async fn update(&self, name: &str, status: &Json) -> Result<()> {
-        self.0.heartbeatSupervisor(name, status).await
+        self.0.heartbeat_supervisor(name, status).await
     }
     pub async fn forget(&self, names: &[String]) -> Result<()> {
         for name in names {
-            self.0.forgetSupervisor(name).await?;
+            self.0.forget_supervisor(name).await?;
         }
         Ok(())
     }
-    pub async fn longestActiveTimeout(&self) -> Result<u64> {
+    pub async fn longest_active_timeout(&self) -> Result<u64> {
         Ok(self
             .all()
             .await?
@@ -252,7 +252,7 @@ impl SupervisorRepository {
             .max()
             .unwrap_or(0))
     }
-    pub async fn flushExpired(&self) -> Result<()> {
+    pub async fn flush_expired(&self) -> Result<()> {
         let now = self.0.now().await?;
         self.0
             .command(
@@ -277,7 +277,7 @@ impl ProcessRepository {
         }
         Ok(self.0.key(&format!("orphans:{}", super::encode(master))))
     }
-    pub async fn allOrphans(&self, master: &str) -> Result<BTreeMap<u32, u64>> {
+    pub async fn all_orphans(&self, master: &str) -> Result<BTreeMap<u32, u64>> {
         let values = string_list(self.0.command("HGETALL", &[self.key(master)?]).await?)?;
         if values.len() % 2 != 0 {
             return Err(Error::Redis);
@@ -301,21 +301,21 @@ impl ProcessRepository {
         self.0.eval("local wanted={};for i=2,#ARGV do wanted[ARGV[i]]=true end;for _,pid in ipairs(redis.call('HKEYS',KEYS[1])) do if not wanted[pid] then redis.call('HDEL',KEYS[1],pid) end end;for i=2,#ARGV do redis.call('HSETNX',KEYS[1],ARGV[i],ARGV[1]) end;return 1",vec![self.key(master)?],args).await?;
         Ok(())
     }
-    pub async fn orphanedFor(&self, master: &str, seconds: u64) -> Result<Vec<u32>> {
+    pub async fn orphaned_for(&self, master: &str, seconds: u64) -> Result<Vec<u32>> {
         let cutoff = self
             .0
             .now()
             .await?
             .saturating_sub(seconds.saturating_mul(1000));
         Ok(self
-            .allOrphans(master)
+            .all_orphans(master)
             .await?
             .into_iter()
             .filter(|(_, time)| *time < cutoff)
             .map(|(pid, _)| pid)
             .collect())
     }
-    pub async fn forgetOrphans(&self, master: &str, pids: &[u32]) -> Result<()> {
+    pub async fn forget_orphans(&self, master: &str, pids: &[u32]) -> Result<()> {
         if pids.is_empty() {
             return Ok(());
         }

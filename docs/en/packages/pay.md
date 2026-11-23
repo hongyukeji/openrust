@@ -29,7 +29,7 @@ Other applications may depend on `openrust-pay` and register `PayServiceProvider
 
 ## Create a payment {#create-payment}
 
-Amounts use integer CNY fen. `Amount::fromYuan("12.34")` is also exact; negative values, zero, exponents and more than two decimal places are rejected. Keep the merchant order number stable across queries and retries. Numbers use 1–32 ASCII letters, digits, underscores or hyphens. Notify and optional return URLs must use HTTPS.
+Amounts use integer CNY fen. `Amount::from_yuan("12.34")` is also exact; negative values, zero, exponents and more than two decimal places are rejected. Keep the merchant order number stable across queries and retries. Numbers use 1–32 ASCII letters, digits, underscores or hyphens. Notify and optional return URLs must use HTTPS.
 
 ```rust
 use openrust_pay::{Amount, Order, Scene, facades::Pay};
@@ -37,7 +37,7 @@ use openrust_pay::{Amount, Order, Scene, facades::Pay};
 let order = Order::new(
     "order_001",
     "Coffee",
-    Amount::fromFen(1234)?,
+    Amount::from_fen(1234)?,
     "https://shop.example/pay/notify",
 );
 let payment = Pay::driver("wechat")?.pay(Scene::Scan, &order).await?;
@@ -57,7 +57,7 @@ An Alipay web payment may set `order.return_url`. Obtain the payer's OpenID thro
 
 ## Query, close and refund {#query-and-refund}
 
-Use `gateway.find(out_trade_no)`, `gateway.close(out_trade_no)`, `gateway.refund(&Refund)` and `gateway.findRefund(out_trade_no, out_refund_no)`. They return signature-verified provider JSON; inspect the provider's trade/refund state before deciding that payment or refund completed. `Refund` contains the original order number, a stable merchant refund number, the original `total`, the refund `amount` and optional `reason`. Refund amount cannot exceed total; partial refunds are supported.
+Use `gateway.find(out_trade_no)`, `gateway.close(out_trade_no)`, `gateway.refund(&Refund)` and `gateway.find_refund(out_trade_no, out_refund_no)`. They return signature-verified provider JSON; inspect the provider's trade/refund state before deciding that payment or refund completed. `Refund` contains the original order number, a stable merchant refund number, the original `total`, the refund `amount` and optional `reason`. Refund amount cannot exceed total; partial refunds are supported.
 
 Requests are not automatically retried. `Error::OutcomeUnknown` means that acceptance could not be established, including a lost response or invalid response signature. Query with the original order/refund number before retrying. Do not manufacture a new number to retry an uncertain request. Signed provider rejections return `Error::Rejected`; raw provider messages and bodies are excluded from errors and HTTP observations. Request/response bodies and authorization headers are redacted; successful JSON returned to application code still contains business data and requires deliberate logging/serialization.
 
@@ -79,7 +79,7 @@ DatabaseNotifications::new(connection)
     .process(&notification, &expected, |tx, notice| Box::pin(async move {
         // Validate the business state and update it using this transaction.
         tx.table("orders")
-            .r#where("number", "=", notice.outTradeNo())
+            .r#where("number", "=", notice.out_trade_no())
             .r#where("status", "=", "pending")
             .update([("status".into(), "paid".into())].into_iter().collect())
             .await?;
@@ -97,6 +97,6 @@ Without the helper, call `notification.validate(&expected)` and implement equiva
 
 ## Gateway lifecycle {#gateway-lifecycle}
 
-`PayManager::driver(name)` lazily resolves and reuses a merchant configuration and key snapshot. `get_default_driver` reads the current default; `Pay::defaultDriver()` resolves it. `forget_drivers` applies new configuration to future resolutions, while held `Gateway` clones retain their original snapshot. Managers are application-local. Refresh the relevant instances when rotating keys; never obtain a verification key from an untrusted callback.
+`PayManager::driver(name)` lazily resolves and reuses a merchant configuration and key snapshot. `get_default_driver` reads the current default; `Pay::default_driver()` resolves it. `forget_drivers` applies new configuration to future resolutions, while held `Gateway` clones retain their original snapshot. Managers are application-local. Refresh the relevant instances when rotating keys; never obtain a verification key from an untrusted callback.
 
 Real merchant onboarding, enabled product permissions, public HTTPS callbacks and provider end-to-end verification remain deployment responsibilities. Protocol tests do not establish that a merchant account can move real funds.

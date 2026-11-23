@@ -37,7 +37,6 @@ pub struct StaticSelectElement {
     initial_option: Option<SelectOption>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl StaticSelectElement {
     pub(super) fn new(placeholder: impl Into<String>) -> Self {
         let mut menu = Self {
@@ -65,7 +64,7 @@ impl StaticSelectElement {
         self
     }
 
-    pub fn addOption(&mut self, text: impl Into<String>, value: impl Into<String>) -> &mut Self {
+    pub fn add_option(&mut self, text: impl Into<String>, value: impl Into<String>) -> &mut Self {
         let value = value.into();
         let option = SelectOption {
             text: TextObject::with_limit(text, 75),
@@ -79,7 +78,7 @@ impl StaticSelectElement {
         self
     }
 
-    pub fn initialOption(&mut self, value: &str) -> NotificationResult<&mut Self> {
+    pub fn initial_option(&mut self, value: &str) -> NotificationResult<&mut Self> {
         self.initial_option = Some(
             self.options
                 .get(value)
@@ -101,7 +100,6 @@ pub struct UsersSelectElement {
     initial_user: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl UsersSelectElement {
     pub(super) fn new(placeholder: impl Into<String>) -> Self {
         let mut menu = Self {
@@ -128,7 +126,7 @@ impl UsersSelectElement {
         self
     }
 
-    pub fn initialUser(&mut self, value: impl Into<String>) -> &mut Self {
+    pub fn initial_user(&mut self, value: impl Into<String>) -> &mut Self {
         self.initial_user = Some(value.into());
         self
     }

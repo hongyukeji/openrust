@@ -51,7 +51,7 @@ impl Command for PailCommand {
         Box::pin(async move {
             banner(output)?;
             let session = Session::create(&app.storage_path("pail")).map_err(error)?;
-            let options = Options::fromCommand(input)?;
+            let options = Options::from_command(input)?;
             let result = ProcessFactory::default()
                 .with_shutdown(input.shutdown().cloned())
                 .run(&session.0, output, app.base_path(), &options)

@@ -25,8 +25,8 @@ mod parameters;
 mod pkce;
 mod redirect_uri;
 pub use authorization_response::{AuthorizationFailure, AuthorizationRedirect};
-pub use error::OAuthError;
-pub use parameters::OAuthParameters;
+pub use error::OauthError;
+pub use parameters::OauthParameters;
 pub use pkce::{CodeChallenge, CodeChallengeMethod, PkceError, verify_optional_challenge};
 pub use redirect_uri::{
     RedirectUriError, ValidatedRedirectUri, matches_registered_redirect_uri,
@@ -96,7 +96,7 @@ impl ServiceProvider for PassportServiceProvider {
             })?;
             app.container().scoped::<ClientRepository, _>(|container| {
                 let passport = container.make::<Passport>()?;
-                Ok(Arc::new(passport.clientRepository()))
+                Ok(Arc::new(passport.client_repository()))
             })?;
             app.container()
                 .scoped::<AuthorizationServer, _>(|container| {

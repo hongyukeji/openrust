@@ -139,11 +139,11 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 ## Pipeline {#pipeline}
 
-`Pipeline::send` starts a typed async pipeline. `through` replaces the stages and `pipe` appends a stage. Call `next.run` to continue or return a result to short-circuit. Use `then` for a final projection, `thenReturn` to return the carried value, and `finally` for a callback that sees the original input.
+`Pipeline::send` starts a typed async pipeline. `through` replaces the stages and `pipe` appends a stage. Call `next.run` to continue or return a result to short-circuit. Use `then` for a final projection, `then_return` to return the carried value, and `finally` for a callback that sees the original input.
 
 For database work, use `Pipeline<T, DatabaseError, R, Transaction>` and `within_transaction`. Stages use `next.context()` to query the same transaction. Return an error to roll it back. Pass typed callables or resolve services explicitly.
 
-Use `.within_transaction(None)` for the default connection or `.within_transaction(Some("audit"))` for a named connection. This only configures the pipeline; `.then(...)` or `.thenReturn()` opens the transaction and executes it. The destination receives `(value, &mut Transaction)`. `finally` runs once after commit or rollback, and also when execution panics or is cancelled.
+Use `.within_transaction(None)` for the default connection or `.within_transaction(Some("audit"))` for a named connection. This only configures the pipeline; `.then(...)` or `.then_return()` opens the transaction and executes it. The destination receives `(value, &mut Transaction)`. `finally` runs once after commit or rollback, and also when execution panics or is cancelled.
 
 ```rust
 use openrust::support::facades::Pipeline;
@@ -152,7 +152,7 @@ use std::convert::Infallible;
 let result = Pipeline::<_, Infallible>::send(20)
     .pipe(|value, next| Box::pin(async move { next.run(value + 1).await }))
     .pipe(|value, next| Box::pin(async move { next.run(value * 2).await }))
-    .thenReturn()
+    .then_return()
     .await?;
 assert_eq!(result, 42);
 ```
@@ -207,14 +207,14 @@ let factory = JsonSchemaTypeFactory;
 let schema = factory.object([
     ("name", factory.string().min(1).required(true).into()),
     ("active", factory.boolean().default(true).into()),
-]).withoutAdditionalProperties();
+]).without_additional_properties();
 let encoded = schema.to_array()?;
-let restored = JsonSchema::fromArray(encoded.clone())?;
+let restored = JsonSchema::from_array(encoded.clone())?;
 assert_eq!(restored.to_array()?, encoded);
-assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
+assert!(JsonSchema::from_array(json!({"type": "unknown"})).is_err());
 ```
 
-Serialization returns a `Result`: non-finite numbers fail. `fromArray` supports local `$ref` pointers, required properties, nullable unions and anyOf compositions. Remote and circular references, boolean schemas, tuple items, ambiguous types, type-specific constraints on multi-type unions and null defaults fail. Unknown metadata outside the supported subset is omitted; this API constructs schemas and does not validate application data. Expansion is limited to 20,000 fragments and 128 nesting or reference levels.
+Serialization returns a `Result`: non-finite numbers fail. `from_array` supports local `$ref` pointers, required properties, nullable unions and anyOf compositions. Remote and circular references, boolean schemas, tuple items, ambiguous types, type-specific constraints on multi-type unions and null defaults fail. Unknown metadata outside the supported subset is omitted; this API constructs schemas and does not validate application data. Expansion is limited to 20,000 fragments and 128 nesting or reference levels.
 
 
 ## Probability callbacks

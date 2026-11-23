@@ -4,10 +4,10 @@ use zeroize::Zeroizing;
 #[derive(Clone)]
 pub struct Token {
     pub token: Zeroizing<String>,
-    pub tokenSecret: Option<Zeroizing<String>>,
-    pub refreshToken: Option<Zeroizing<String>>,
-    pub expiresIn: Option<u64>,
-    pub approvedScopes: Vec<String>,
+    pub token_secret: Option<Zeroizing<String>>,
+    pub refresh_token: Option<Zeroizing<String>>,
+    pub expires_in: Option<u64>,
+    pub approved_scopes: Vec<String>,
 }
 #[derive(Clone)]
 pub struct User {
@@ -24,22 +24,22 @@ impl User {
     pub fn get_id(&self) -> &Value {
         &self.id
     }
-    pub fn getNickname(&self) -> Option<&str> {
+    pub fn get_nickname(&self) -> Option<&str> {
         self.nickname.as_deref()
     }
     pub fn get_name(&self) -> Option<&str> {
         self.name.as_deref()
     }
-    pub fn getEmail(&self) -> Option<&str> {
+    pub fn get_email(&self) -> Option<&str> {
         self.email.as_deref()
     }
-    pub fn getAvatar(&self) -> Option<&str> {
+    pub fn get_avatar(&self) -> Option<&str> {
         self.avatar.as_deref()
     }
-    pub fn getRaw(&self) -> &Value {
+    pub fn get_raw(&self) -> &Value {
         &self.user
     }
-    pub fn setRaw(mut self, user: Value) -> Self {
+    pub fn set_raw(mut self, user: Value) -> Self {
         self.user = user;
         self
     }

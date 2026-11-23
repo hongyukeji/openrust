@@ -1010,7 +1010,7 @@ async fn mysql_database_migrations_closes_an_interrupted_test_after_rollback()
     })
     .await?;
     drop(pending);
-    events.assertDispatchedTimes(MigrationsEnded::NAME, 1);
+    events.assert_dispatched_times(MigrationsEnded::NAME, 1);
     test.close().await?;
     let methods: Vec<_> = events
         .dispatched(MigrationsEnded::NAME)
@@ -1171,7 +1171,7 @@ async fn mysql_counts_queries_through_teardown_on_the_selected_connections()
             .is_err()
     );
     isolated.database().await?.select("SELECT 3", &[]).await?;
-    events.assertDispatchedTimes(QueryExecuted::NAME, 4);
+    events.assert_dispatched_times(QueryExecuted::NAME, 4);
     app.close().await?;
     isolated.close().await
 }

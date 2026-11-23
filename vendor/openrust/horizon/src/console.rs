@@ -14,7 +14,7 @@ mod purge;
 mod supervisor_command;
 mod work_command;
 pub use work_command::WorkCommand;
-pub(crate) use work_command::{isWorker, supervisorName};
+pub(crate) use work_command::{is_worker, supervisor_name};
 struct HorizonCommand(CommandDefinition, &'static str);
 pub(crate) fn register() -> std::result::Result<(), ConsoleError> {
     Artisan::add(Box::new(WorkCommand::new()))?;
@@ -97,9 +97,11 @@ impl Command for HorizonCommand {
                                 .and_then(|v| v.as_str().map(str::to_owned))
                         })
                         .ok_or_else(|| error(Error::InvalidConfiguration))?;
-                    let options =
-                        SupervisorOptions::fromConfigForEnvironment(config.as_ref(), &environment)
-                            .map_err(error)?;
+                    let options = SupervisorOptions::from_config_for_environment(
+                        config.as_ref(),
+                        &environment,
+                    )
+                    .map_err(error)?;
                     let queues = app
                         .make::<openrust::queue::QueueManager>()
                         .await
@@ -113,7 +115,7 @@ impl Command for HorizonCommand {
                         environment,
                     )
                     .map_err(error)?
-                    .fastTermination(
+                    .fast_termination(
                         config
                             .get("horizon.fast_termination")
                             .and_then(|value| value.as_bool())
@@ -149,7 +151,7 @@ impl Command for HorizonCommand {
                 }
                 "horizon:terminate" => {
                     repository
-                        .terminateWithWait(input.matches().get_flag("wait"))
+                        .terminate_with_wait(input.matches().get_flag("wait"))
                         .await
                         .map_err(error)?;
                     output.info("Horizon termination requested.");
@@ -208,14 +210,14 @@ impl Command for HorizonCommand {
                         .map_err(error)?;
                     let monitored = repository
                         .jobs()
-                        .findFailed(&id)
+                        .find_failed(&id)
                         .await
                         .map_err(error)?
                         .ok_or_else(|| error(Error::InvalidRecord))?;
-                    let failureId = monitored.payloadUuid().map_err(error)?;
+                    let failure_id = monitored.payload_uuid().map_err(error)?;
                     if repository
                         .jobs()
-                        .findFailedByUuid(failureId)
+                        .find_failed_by_uuid(failure_id)
                         .await
                         .map_err(error)?
                         .is_none_or(|current| current.record.id != id)
@@ -223,7 +225,7 @@ impl Command for HorizonCommand {
                         return Err(error(Error::InvalidRecord));
                     }
                     let record = provider
-                        .find(failureId)
+                        .find(failure_id)
                         .await
                         .map_err(error)?
                         .ok_or_else(|| error(Error::InvalidRecord))?;
@@ -247,14 +249,14 @@ impl Command for HorizonCommand {
                         .make::<openrust::queue::QueueManager>()
                         .await
                         .map_err(error)?;
-                    if let Some(retryId) = manager
-                        .retry_failed_with_id(provider.as_ref(), failureId, &record)
+                    if let Some(retry_id) = manager
+                        .retry_failed_with_id(provider.as_ref(), failure_id, &record)
                         .await
                         .map_err(error)?
                     {
                         repository
                             .jobs()
-                            .storeRetryReference(&id, &retryId)
+                            .store_retry_reference(&id, &retry_id)
                             .await
                             .map_err(error)?;
                         output.info("The failed job has been pushed back onto the queue!");

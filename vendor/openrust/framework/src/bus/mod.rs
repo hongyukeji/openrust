@@ -29,7 +29,6 @@ use crate::{
 /// The application-scoped job bus.
 pub struct Bus;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Bus {
     /// Dispatches a queueable payload through the application's queue manager.
     pub async fn dispatch(
@@ -40,7 +39,7 @@ impl Bus {
         Queue::dispatch(payload, options, transaction).await
     }
 
-    pub async fn dispatchToQueue(
+    pub async fn dispatch_to_queue(
         payload: Payload,
         options: DispatchOptions,
         transaction: Option<&mut Transaction>,
@@ -49,7 +48,7 @@ impl Bus {
     }
 
     /// Executes through the sync queue, including job middleware and queue events.
-    pub async fn dispatchSync(
+    pub async fn dispatch_sync(
         payload: Payload,
         mut options: DispatchOptions,
         transaction: Option<&mut Transaction>,
@@ -60,7 +59,7 @@ impl Bus {
     }
 
     /// Calls the registered handler directly in the current process.
-    pub async fn dispatchNow(payload: Payload) -> QueueResult<()> {
+    pub async fn dispatch_now(payload: Payload) -> QueueResult<()> {
         Queue::manager()?.dispatch_now(&payload).await
     }
 
@@ -77,13 +76,15 @@ impl Bus {
     }
 
     /// Runs the job on the sync queue during HTTP termination.
-    pub async fn dispatchAfterResponse(
+    pub async fn dispatch_after_response(
         payload: Payload,
         options: DispatchOptions,
     ) -> QueueResult<()> {
         let manager = Queue::manager()?;
         if !manager.bus_after_response() {
-            return Self::dispatchSync(payload, options, None).await.map(|_| ());
+            return Self::dispatch_sync(payload, options, None)
+                .await
+                .map(|_| ());
         }
         let mut options = options;
         options.connection = Some("sync".into());
@@ -99,12 +100,12 @@ impl Bus {
         Ok(())
     }
 
-    pub fn withDispatchingAfterResponses() -> QueueResult<()> {
+    pub fn with_dispatching_after_responses() -> QueueResult<()> {
         Queue::manager()?.set_bus_after_response(true);
         Ok(())
     }
 
-    pub fn withoutDispatchingAfterResponses() -> QueueResult<()> {
+    pub fn without_dispatching_after_responses() -> QueueResult<()> {
         Queue::manager()?.set_bus_after_response(false);
         Ok(())
     }
@@ -116,11 +117,11 @@ impl Bus {
         Ok(())
     }
 
-    pub fn hasCommandHandler(name: &str) -> QueueResult<bool> {
-        Ok(Self::getCommandHandler(name)?.is_some())
+    pub fn has_command_handler(name: &str) -> QueueResult<bool> {
+        Ok(Self::get_command_handler(name)?.is_some())
     }
 
-    pub fn getCommandHandler(
+    pub fn get_command_handler(
         name: &str,
     ) -> QueueResult<Option<std::sync::Arc<dyn crate::contracts::queue::JobHandler>>> {
         Ok(Queue::manager()?.command_handler(name))
@@ -145,7 +146,7 @@ impl Bus {
         PendingChain::new(jobs)
     }
 
-    pub fn registerChainCallback(
+    pub fn register_chain_callback(
         name: impl Into<String>,
         callback: ChainCallback,
     ) -> QueueResult<()> {
@@ -156,18 +157,18 @@ impl Bus {
         PendingBatch::new(jobs)
     }
 
-    pub fn registerBatchCallback(
+    pub fn register_batch_callback(
         name: impl Into<String>,
         callback: BatchCallback,
     ) -> QueueResult<()> {
         Queue::manager()?.register_batch_callback(name.into(), callback)
     }
 
-    pub async fn findBatch(id: &str) -> QueueResult<Option<Batch>> {
+    pub async fn find_batch(id: &str) -> QueueResult<Option<Batch>> {
         Queue::manager()?.batch_repository()?.find(id).await
     }
 
-    pub async fn cancelBatch(id: &str) -> QueueResult<Option<Batch>> {
+    pub async fn cancel_batch(id: &str) -> QueueResult<Option<Batch>> {
         let (batch, changed) = Queue::manager()?
             .batch_repository()?
             .cancel_once(id)

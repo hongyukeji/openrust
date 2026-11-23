@@ -90,7 +90,7 @@ async fn manager(base: &str) -> (Application, Arc<SocialiteManager>) {
     let manager = app.make::<SocialiteManager>().await.unwrap();
     manager.extend(
         "github",
-        Arc::new(GithubProvider::withEndpoints(
+        Arc::new(GithubProvider::with_endpoints(
             format!("{base}/authorize"),
             format!("{base}/token"),
             format!("{base}/user"),
@@ -119,29 +119,29 @@ async fn github_real_http_maps_verified_email_exchanges_refreshes_and_caches_onl
         .oauth2()
         .unwrap();
     provider.stateless();
-    assert_eq!(provider.getScopes(), ["user:email", "read"]);
-    let url = url::Url::parse(&provider.authorizationUrl().unwrap()).unwrap();
+    assert_eq!(provider.get_scopes(), ["user:email", "read"]);
+    let url = url::Url::parse(&provider.authorization_url().unwrap()).unwrap();
     let params = url.query_pairs().collect::<BTreeMap<_, _>>();
     assert_eq!(params["redirect_uri"], "https://rp.test/base/callback");
     assert!(!params.contains_key("state"));
     let user = provider.user().await.unwrap();
     assert_eq!(user.get_id(), &json!(42));
-    assert_eq!(user.getNickname(), Some("alice"));
-    assert_eq!(user.getEmail(), Some("alice@test"));
+    assert_eq!(user.get_nickname(), Some("alice"));
+    assert_eq!(user.get_email(), Some("alice@test"));
     assert_eq!(user.attributes["nodeId"], "node-42");
-    assert_eq!(user.getRaw()["email"], "alice@test");
+    assert_eq!(user.get_raw()["email"], "alice@test");
     assert_eq!(
-        json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes}),
+        json!({"id":user.get_id(),"nickname":user.get_nickname(),"name":user.get_name(),"email":user.get_email(),"avatar":user.get_avatar(),"raw":user.get_raw(),"attributes":user.attributes}),
         oracle()["user"]
     );
     assert_eq!(provider.user().await.unwrap().get_id(), &json!(42));
     assert_eq!(remote.requests.lock().unwrap().len(), 2);
     let tokens = user.credentials.unwrap();
     assert_eq!(tokens.token.as_str(), "secret-access");
-    assert_eq!(tokens.refreshToken.unwrap().as_str(), "secret-refresh");
-    assert_eq!(tokens.expiresIn, Some(3600));
-    assert_eq!(tokens.approvedScopes, ["read", "user:email"]);
-    let refreshed = provider.refreshToken("refresh-once").await.unwrap();
+    assert_eq!(tokens.refresh_token.unwrap().as_str(), "secret-refresh");
+    assert_eq!(tokens.expires_in, Some(3600));
+    assert_eq!(tokens.approved_scopes, ["read", "user:email"]);
+    let refreshed = provider.refresh_token("refresh-once").await.unwrap();
     assert_eq!(refreshed.token.as_str(), "secret-access");
     {
         let records = remote.requests.lock().unwrap();
@@ -202,10 +202,10 @@ async fn github_http_errors_bad_json_and_email_failures_preserve_protocol_bounda
     assert!(matches!(provider.user().await, Err(Error::MissingCode)));
     assert_eq!(
         provider
-            .userFromToken("secret-access")
+            .user_from_token("secret-access")
             .await
             .unwrap()
-            .getEmail(),
+            .get_email(),
         None
     );
     assert!(matches!(
@@ -226,7 +226,7 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .unwrap()
             .oauth2()
             .unwrap();
-        provider.enablePKCE();
+        provider.enable_pkce();
         Ok(provider.redirect().unwrap().into())
     })
 }
@@ -238,12 +238,12 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let pkce = request.session()?.get("code_verifier").is_some();
         let mut provider = manager.driver("github", request).unwrap().oauth2().unwrap();
         if pkce {
-            provider.enablePKCE();
+            provider.enable_pkce();
         }
         match provider.user().await {
             Ok(user) => Response::json(
                 StatusCode::OK,
-                json!({"id":user.get_id(),"email":user.getEmail()}),
+                json!({"id":user.get_id(),"email":user.get_email()}),
             ),
             Err(Error::InvalidState) => {
                 Response::json(StatusCode::BAD_REQUEST, json!({"error":"state"}))
@@ -259,7 +259,7 @@ async fn rp(base: &str) -> (String, tokio::task::JoinHandle<()>) {
     app.boot().await.unwrap();
     app.make::<SocialiteManager>().await.unwrap().extend(
         "github",
-        Arc::new(GithubProvider::withEndpoints(
+        Arc::new(GithubProvider::with_endpoints(
             format!("{base}/authorize"),
             format!("{base}/token"),
             format!("{base}/user"),
@@ -462,7 +462,7 @@ async fn github_fixed_php_scope_and_parameter_fields_match() {
     );
     p.stateless();
     fn fields(p: &mut AbstractProvider<'_>) -> Value {
-        url::Url::parse(&p.authorizationUrl().unwrap())
+        url::Url::parse(&p.authorization_url().unwrap())
             .unwrap()
             .query_pairs()
             .map(|(k, v)| (k.to_string(), Value::String(v.to_string())))
@@ -475,7 +475,7 @@ async fn github_fixed_php_scope_and_parameter_fields_match() {
                 p.scopes(["read".into(), "user:email".into(), "read".into()]);
             }
             "set" => {
-                p.setScopes(vec!["profile".into(), "profile".into(), "email".into()]);
+                p.set_scopes(vec!["profile".into(), "profile".into(), "email".into()]);
             }
             "parameters" => {
                 p.with(serde_json::from_value(json!({"prompt":"select account","login_hint":"中文 & +","scope":"override"})).unwrap());
@@ -574,7 +574,7 @@ async fn manager_configuration_and_custom_provider_registrations_are_application
     let mut req = request("");
     let mut p = first.driver("custom", &mut req).unwrap().oauth2().unwrap();
     p.stateless();
-    let uri = url::Url::parse(&p.authorizationUrl().unwrap()).unwrap();
+    let uri = url::Url::parse(&p.authorization_url().unwrap()).unwrap();
     assert!(uri.as_str().starts_with("https://github.com/"));
     assert_eq!(
         uri.query_pairs().find(|(k, _)| k == "client_id").unwrap().1,

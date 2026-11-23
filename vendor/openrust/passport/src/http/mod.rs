@@ -41,7 +41,7 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
         .make::<crate::Passport>()
         .map_err(|_| openrust::routing::RoutingError::InvalidAction)?;
     if !passport
-        .registersRoutes
+        .registers_routes
         .load(std::sync::atomic::Ordering::Relaxed)
     {
         return Ok(());
@@ -64,11 +64,11 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
         }
     }
     let device_enabled = passport
-        .deviceCodeGrantEnabled
+        .device_code_grant_enabled
         .load(std::sync::atomic::Ordering::Relaxed);
     Route::group(group, |router| {
         router
-            .post("/token", controllers::AccessTokenController::issueToken)?
+            .post("/token", controllers::AccessTokenController::issue_token)?
             .name("token")
             .middleware_name("throttle");
         if device_enabled {

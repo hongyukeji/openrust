@@ -35,8 +35,8 @@ async fn user_routes_use_named_connections_request_identity_signatures_and_sessi
     ].into())).with_providers(vec![Box::new(openrust_reverb::ReverbServiceProvider)])
     .with_routing(Routing::default().web(|| {
         Route::get("/seed",seed)?;Route::get("/peek",peek)?;
-        Broadcast::userRoutes(None,None)?;
-        Broadcast::userRoutes(Some(RouteGroup::new().prefix("custom").middleware_name("web")),Some("two"))
+        Broadcast::user_routes(None,None)?;
+        Broadcast::user_routes(Some(RouteGroup::new().prefix("custom").middleware_name("web")),Some("two"))
     })) ).unwrap();
     app.boot().await.unwrap();
     app.app()

@@ -6,7 +6,6 @@ use openrust::database::{
 
 #[derive(Default)]
 pub struct RefreshToken(ModelState);
-#[allow(non_snake_case)]
 impl Model for RefreshToken {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("oauth_refresh_tokens")
@@ -44,7 +43,6 @@ impl Model for RefreshToken {
         .map(|name| name.map(std::borrow::Cow::Owned))
     }
 }
-#[allow(non_snake_case)]
 pub trait RefreshTokenModel: Model {
     fn revoke(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         async {
@@ -55,14 +53,13 @@ pub trait RefreshTokenModel: Model {
     }
 }
 impl RefreshTokenModel for RefreshToken {}
-#[allow(non_snake_case)]
 impl RefreshToken {
-    pub fn accessToken(
+    pub fn access_token(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, crate::Token> {
-        self.accessTokenFor::<crate::Token>()
+        self.access_token_for::<crate::Token>()
     }
-    pub fn accessTokenFor<T: crate::TokenModel>(
+    pub fn access_token_for<T: crate::TokenModel>(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, T> {
         openrust::database::eloquent::relations::BelongsTo::new(

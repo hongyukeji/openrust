@@ -2,43 +2,43 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct EntryQueryOptions {
-    pub batchId: Option<Uuid>,
+    pub batch_id: Option<Uuid>,
     pub tag: Option<String>,
-    pub familyHash: Option<String>,
-    pub beforeSequence: Option<i64>,
+    pub family_hash: Option<String>,
+    pub before_sequence: Option<i64>,
     pub uuids: Option<Vec<Uuid>>,
     pub limit: u64,
 }
 impl Default for EntryQueryOptions {
     fn default() -> Self {
         Self {
-            batchId: None,
+            batch_id: None,
             tag: None,
-            familyHash: None,
-            beforeSequence: None,
+            family_hash: None,
+            before_sequence: None,
             uuids: None,
             limit: 50,
         }
     }
 }
 impl EntryQueryOptions {
-    pub fn forBatchId(id: Option<Uuid>) -> Self {
-        Self::default().batchId(id)
+    pub fn for_batch_id(id: Option<Uuid>) -> Self {
+        Self::default().batch_id(id)
     }
-    pub fn batchId(mut self, id: Option<Uuid>) -> Self {
-        self.batchId = id;
+    pub fn batch_id(mut self, id: Option<Uuid>) -> Self {
+        self.batch_id = id;
         self
     }
     pub fn tag(mut self, tag: Option<String>) -> Self {
         self.tag = tag;
         self
     }
-    pub fn familyHash(mut self, hash: Option<String>) -> Self {
-        self.familyHash = hash;
+    pub fn family_hash(mut self, hash: Option<String>) -> Self {
+        self.family_hash = hash;
         self
     }
-    pub fn beforeSequence(mut self, sequence: Option<i64>) -> Self {
-        self.beforeSequence = sequence;
+    pub fn before_sequence(mut self, sequence: Option<i64>) -> Self {
+        self.before_sequence = sequence;
         self
     }
     pub fn uuids(mut self, uuids: Option<Vec<Uuid>>) -> Self {

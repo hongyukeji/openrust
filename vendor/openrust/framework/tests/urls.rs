@@ -753,34 +753,34 @@ fn local_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let expiration = SystemTime::now() + Duration::from_secs(60);
         let name = "nested/report + 100%?#.txt";
         assert!(matches!(
-            disk.temporaryDownloadRequest(name, expiration, |_| panic!(
+            disk.temporary_download_request(name, expiration, |_| panic!(
                 "local disk must not invoke SDK configuration"
             ))
             .await,
             Err(openrust::filesystem::FilesystemError::UnsupportedOperation)
         ));
-        let download = disk.temporaryUrl(name, expiration).await?;
-        let upload = disk.temporaryUploadUrl(name, expiration).await?;
+        let download = disk.temporary_url(name, expiration).await?;
+        let upload = disk.temporary_upload_url(name, expiration).await?;
         let custom = openrust::support::facades::Storage::disk(Some("custom"))?;
-        assert!(!custom.providesTemporaryUrls());
-        assert!(!custom.providesTemporaryUploadUrls());
-        custom.buildTemporaryUrlsUsing(|path, expiration, options| {
+        assert!(!custom.provides_temporary_urls());
+        assert!(!custom.provides_temporary_upload_urls());
+        custom.build_temporary_urls_using(|path, expiration, options| {
             Box::pin(async move {
                 assert_eq!(options.response_content_type.as_deref(), Some("text/plain"));
-                openrust::support::facades::Storage::temporaryUrl(path, expiration).await
+                openrust::support::facades::Storage::temporary_url(path, expiration).await
             })
         });
-        custom.buildTemporaryUploadUrlsUsing(|path, expiration, options| {
+        custom.build_temporary_upload_urls_using(|path, expiration, options| {
             Box::pin(async move {
                 assert_eq!(options.content_type.as_deref(), Some("text/plain"));
-                openrust::support::facades::Storage::temporaryUploadUrl(path, expiration).await
+                openrust::support::facades::Storage::temporary_upload_url(path, expiration).await
             })
         });
-        assert!(custom.providesTemporaryUrls());
-        assert!(custom.providesTemporaryUploadUrls());
+        assert!(custom.provides_temporary_urls());
+        assert!(custom.provides_temporary_upload_urls());
         assert_eq!(
             custom
-                .temporaryUrlWith(
+                .temporary_url_with(
                     name,
                     expiration,
                     openrust::filesystem::TemporaryUrlOptions {
@@ -793,7 +793,7 @@ fn local_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         );
         assert_eq!(
             custom
-                .temporaryUploadUrlWith(
+                .temporary_upload_url_with(
                     name,
                     expiration,
                     openrust::filesystem::TemporaryUploadUrlOptions {
@@ -806,7 +806,7 @@ fn local_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             upload.url
         );
         let expired = disk
-            .temporaryUrl(name, SystemTime::now() - Duration::from_secs(5))
+            .temporary_url(name, SystemTime::now() - Duration::from_secs(5))
             .await?;
         Response::json(
             StatusCode::OK,

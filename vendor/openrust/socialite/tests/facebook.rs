@@ -110,7 +110,7 @@ async fn remote() -> (String, Arc<Remote>, tokio::task::JoinHandle<()>) {
     (base, r, task)
 }
 fn definition(base: &str) -> FacebookProvider {
-    FacebookProvider::withEndpoints(
+    FacebookProvider::with_endpoints(
         ProviderEndpoints::new(
             format!("{base}/v23.0/dialog/oauth"),
             format!("{base}/v23.0/token"),
@@ -123,7 +123,7 @@ fn provider<'a>(request: &'a mut Request, base: &str, secret: &str) -> AbstractP
     AbstractProvider::new(request,ProviderConfig::from_config(&json!({"client_id":"client","client_secret":secret,"redirect":"https://rp.test/callback"})).unwrap(),Arc::new(Factory::new().unwrap()),Arc::new(definition(base)))
 }
 fn mapped(user: &openrust_socialite::two::User) -> Value {
-    json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
+    json!({"id":user.get_id(),"nickname":user.get_nickname(),"name":user.get_name(),"email":user.get_email(),"avatar":user.get_avatar(),"raw":user.get_raw(),"attributes":user.attributes})
 }
 #[tokio::test]
 async fn facebook_graph_fields_version_popup_proof_mapping_and_expiry_match_fixed_php() {
@@ -137,11 +137,11 @@ async fn facebook_graph_fields_version_popup_proof_mapping_and_expiry_match_fixe
                 .unwrap()
                 .clone(),
         )
-        .asPopup()
-        .reRequest()
-        .usingGraphVersion("v99.0")
+        .as_popup()
+        .re_request()
+        .using_graph_version("v99.0")
         .fields(vec!["id".into(), "name".into(), "email".into()]);
-    let url = url::Url::parse(&p.authorizationUrl().unwrap()).unwrap();
+    let url = url::Url::parse(&p.authorization_url().unwrap()).unwrap();
     assert_eq!(url.path(), "/v99.0/dialog/oauth");
     assert_eq!(
         Value::Object(
@@ -161,13 +161,13 @@ async fn facebook_graph_fields_version_popup_proof_mapping_and_expiry_match_fixe
     {
         *r.response.lock().unwrap() = response;
         assert_eq!(
-            p.getAccessTokenResponse("fixed-code").await.unwrap(),
+            p.get_access_token_response("fixed-code").await.unwrap(),
             fixture()["expires"][i]
         );
     }
-    let user = p.userFromToken("access").await.unwrap();
+    let user = p.user_from_token("access").await.unwrap();
     assert_eq!(mapped(&user), fixture()["user"]);
-    assert_eq!(p.lastToken(), Some("access"));
+    assert_eq!(p.last_token(), Some("access"));
     let calls = r.calls.lock().unwrap();
     assert_eq!(calls.len(), 4);
     for call in &calls[..3] {
@@ -190,17 +190,17 @@ async fn facebook_limited_login_jwt_matrix_matches_real_php_with_no_graph_fallba
         let mut p = provider(&mut request, &base, "secret");
         p.with(case["parameters"].as_object().cloned().unwrap_or_default());
         if let Some(nonce) = case["expected_nonce"].as_str() {
-            p.withNonce(nonce);
+            p.with_nonce(nonce);
         }
         let token = case["token"].as_str().unwrap();
-        let result = p.userFromToken(token).await;
+        let result = p.user_from_token(token).await;
         assert_eq!(
             result.is_ok(),
             case["accepted"].as_bool().unwrap(),
             "{name}"
         );
         if let Ok(user) = result {
-            assert_eq!(user.getRaw(), &case["raw"], "{name}");
+            assert_eq!(user.get_raw(), &case["raw"], "{name}");
             assert_eq!(user.get_id(), &json!("user-42"));
         } else {
             assert_eq!(
@@ -209,7 +209,7 @@ async fn facebook_limited_login_jwt_matrix_matches_real_php_with_no_graph_fallba
                 "{name}"
             );
         }
-        assert_eq!(p.lastToken(), Some(token));
+        assert_eq!(p.last_token(), Some(token));
         assert!(
             !r.calls
                 .lock()
@@ -227,7 +227,7 @@ async fn facebook_default_fields_secret_empty_rules_and_request_options_are_isol
     for secret in ["", "0", "secret"] {
         let mut request = request();
         let mut p = provider(&mut request, &base, secret);
-        p.userFromToken("access").await.unwrap();
+        p.user_from_token("access").await.unwrap();
         let fields = r.calls.lock().unwrap().last().unwrap()["fields"].clone();
         assert_eq!(
             fields,
@@ -236,15 +236,18 @@ async fn facebook_default_fields_secret_empty_rules_and_request_options_are_isol
     }
     let mut request = request();
     let mut changed = provider(&mut request, &base, "secret");
-    changed.fields(vec![]).usingGraphVersion("v99.0").asPopup();
-    changed.userFromToken("access").await.unwrap();
+    changed
+        .fields(vec![])
+        .using_graph_version("v99.0")
+        .as_popup();
+    changed.user_from_token("access").await.unwrap();
     let mut other_request = crate::request();
     let mut other = provider(&mut other_request, &base, "secret");
     other.stateless();
-    let url = other.authorizationUrl().unwrap();
+    let url = other.authorization_url().unwrap();
     assert!(url.contains("/v23.0/dialog/oauth?"));
     assert!(!url.contains("display="));
-    other.userFromToken("access").await.unwrap();
+    other.user_from_token("access").await.unwrap();
     assert_eq!(r.calls.lock().unwrap().last().unwrap()["version"], "v23.0");
     assert_eq!(
         r.calls.lock().unwrap().last().unwrap()["fields"]["fields"],
@@ -258,18 +261,18 @@ async fn facebook_code_exchange_limited_login_and_jwks_rotation_enforce_nonce_an
     *r.mode.lock().unwrap() = "jwt".into();
     let mut request = request();
     let mut p = provider(&mut request, &base, "secret");
-    p.stateless().withNonce("fixed-nonce");
+    p.stateless().with_nonce("fixed-nonce");
     let user = p.user().await.unwrap();
     assert_eq!(user.get_id(), &json!("user-42"));
-    assert_eq!(user.credentials.unwrap().expiresIn, Some(3600));
+    assert_eq!(user.credentials.unwrap().expires_in, Some(3600));
     *r.keys.lock().unwrap() = fixture()["jwt"]["rotation"]["keys"].clone();
     let rotated = fixture()["jwt"]["rotation"]["token"]
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(p.userFromToken(&rotated).await.is_ok());
+    assert!(p.user_from_token(&rotated).await.is_ok());
     assert!(matches!(
-        p.userFromToken(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
+        p.user_from_token(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
             .await,
         Err(Error::InvalidIdentityToken)
     ));
@@ -296,9 +299,9 @@ async fn facebook_remote_errors_revocation_and_malformed_identity_never_leak_pri
         *r.mode.lock().unwrap() = mode.into();
         let mut request = request();
         let mut p = provider(&mut request, &base, "secret");
-        p.stateless().withNonce("fixed-nonce");
+        p.stateless().with_nonce("fixed-nonce");
         let error = if mode.starts_with("jwks") {
-            p.userFromToken(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
+            p.user_from_token(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
                 .await
                 .err()
                 .unwrap()
@@ -311,10 +314,10 @@ async fn facebook_remote_errors_revocation_and_malformed_identity_never_leak_pri
     r.calls.lock().unwrap().clear();
     let mut request = request();
     let mut p = provider(&mut request, &base, "secret");
-    p.withNonce("fixed-nonce");
+    p.with_nonce("fixed-nonce");
     let malformed = "eyJraWQiOiJ0ZXN0LWtleSJ9.invalid.signature";
     assert!(matches!(
-        p.userFromToken(malformed).await,
+        p.user_from_token(malformed).await,
         Err(Error::InvalidIdentityToken)
     ));
     assert!(
@@ -343,7 +346,7 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
             .unwrap();
         p.stateless();
         assert!(
-            p.authorizationUrl()
+            p.authorization_url()
                 .unwrap()
                 .starts_with("https://www.facebook.com/v23.0/dialog/oauth?")
         );
@@ -354,7 +357,7 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
         .unwrap()
         .oauth2()
         .unwrap();
-    p.userFromToken("access").await.unwrap();
+    p.user_from_token("access").await.unwrap();
     assert_eq!(
         r.calls.lock().unwrap().last().unwrap()["fields"]["access_token"],
         "access"
@@ -372,7 +375,7 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
         .unwrap();
     p.stateless();
     assert!(
-        p.authorizationUrl()
+        p.authorization_url()
             .unwrap()
             .starts_with("https://www.facebook.com/")
     );

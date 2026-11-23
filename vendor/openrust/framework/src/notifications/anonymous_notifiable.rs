@@ -30,8 +30,7 @@ impl AnonymousNotifiable {
 }
 
 impl Notifiable for AnonymousNotifiable {
-    #[allow(non_snake_case, reason = "Matches the notifiable diagnostic API")]
-    fn notificationTag(&self) -> String {
+    fn notification_tag(&self) -> String {
         let routes = self
             .routes
             .values()

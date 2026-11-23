@@ -10,12 +10,11 @@ pub struct LoginRateLimiter {
     limiter: Arc<RateLimiter>,
     fortify: Arc<Fortify>,
 }
-#[allow(non_snake_case, reason = "Matches Fortify's LoginRateLimiter API")]
 impl LoginRateLimiter {
     pub fn new(limiter: Arc<RateLimiter>, fortify: Arc<Fortify>) -> Self {
         Self { limiter, fortify }
     }
-    pub async fn throttleKey(&self, request: &mut Request) -> Result<String, HttpError> {
+    pub async fn throttle_key(&self, request: &mut Request) -> Result<String, HttpError> {
         let username = request
             .input(self.fortify.username().as_str())
             .await?
@@ -30,18 +29,18 @@ impl LoginRateLimiter {
     pub async fn attempts(&self, request: &mut Request) -> Result<u64, HttpError> {
         Ok(self
             .limiter
-            .attempts(&self.throttleKey(request).await?)
+            .attempts(&self.throttle_key(request).await?)
             .await?)
     }
     pub async fn too_many_attempts(&self, request: &mut Request) -> Result<bool, HttpError> {
         Ok(self
             .limiter
-            .too_many_attempts(&self.throttleKey(request).await?, 5)
+            .too_many_attempts(&self.throttle_key(request).await?, 5)
             .await?)
     }
     pub async fn increment(&self, request: &mut Request) -> Result<(), HttpError> {
         self.limiter
-            .hit(&self.throttleKey(request).await?, 60)
+            .hit(&self.throttle_key(request).await?, 60)
             .await
             .map_err(internal)?;
         Ok(())
@@ -49,13 +48,13 @@ impl LoginRateLimiter {
     pub async fn available_in(&self, request: &mut Request) -> Result<u64, HttpError> {
         Ok(self
             .limiter
-            .available_in(&self.throttleKey(request).await?)
+            .available_in(&self.throttle_key(request).await?)
             .await?)
     }
     pub async fn clear(&self, request: &mut Request) -> Result<(), HttpError> {
         Ok(self
             .limiter
-            .clear(&self.throttleKey(request).await?)
+            .clear(&self.throttle_key(request).await?)
             .await?)
     }
 }

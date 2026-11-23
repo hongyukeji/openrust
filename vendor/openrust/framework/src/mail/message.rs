@@ -40,14 +40,12 @@ impl Message {
     }
 
     /// The composed HTML body before MIME encoding.
-    #[allow(non_snake_case, reason = "Matches Symfony's message accessor")]
-    pub fn getHtmlBody(&self) -> Option<&str> {
+    pub fn get_html_body(&self) -> Option<&str> {
         self.1.html.as_deref()
     }
 
     /// The composed plain text body before MIME encoding.
-    #[allow(non_snake_case, reason = "Matches Symfony's message accessor")]
-    pub fn getTextBody(&self) -> Option<&str> {
+    pub fn get_text_body(&self) -> Option<&str> {
         self.1.text.as_deref()
     }
 

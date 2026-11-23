@@ -140,7 +140,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
     );
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let counts = storage
-        .aggregateTotal(
+        .aggregate_total(
             &["processed", "failed", "processing"].map(str::to_owned),
             "count",
             3600,

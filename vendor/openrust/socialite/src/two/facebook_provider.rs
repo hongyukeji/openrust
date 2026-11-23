@@ -15,7 +15,7 @@ pub struct FacebookProvider {
 }
 impl Default for FacebookProvider {
     fn default() -> Self {
-        Self::withEndpoints(
+        Self::with_endpoints(
             ProviderEndpoints::new(
                 "https://www.facebook.com/v23.0/dialog/oauth",
                 "https://graph.facebook.com/v23.0/oauth/access_token",
@@ -26,14 +26,14 @@ impl Default for FacebookProvider {
     }
 }
 impl FacebookProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints, jwks: impl Into<String>) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints, jwks: impl Into<String>) -> Self {
         Self {
             endpoints,
             jwks: jwks.into(),
         }
     }
     fn versioned(url: &str, options: &ProviderOptions) -> String {
-        match &options.graphVersion {
+        match &options.graph_version {
             Some(version) => url.replacen("/v23.0/", &format!("/{version}/"), 1),
             None => url.into(),
         }
@@ -46,7 +46,7 @@ impl FacebookProvider {
             _ => None,
         }
     }
-    fn hasKid(token: &str) -> bool {
+    fn has_kid(token: &str) -> bool {
         use base64::Engine as _;
         let head = token.split('.').next().unwrap_or("");
         [
@@ -61,25 +61,25 @@ impl FacebookProvider {
     }
 }
 impl ProviderDefinition for FacebookProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["email"]
     }
-    fn authorizationEndpoint(&self, options: &ProviderOptions) -> String {
+    fn authorization_endpoint(&self, options: &ProviderOptions) -> String {
         Self::versioned(&self.endpoints.authorize, options)
     }
-    fn tokenEndpoint(&self, options: &ProviderOptions) -> String {
+    fn token_endpoint(&self, options: &ProviderOptions) -> String {
         Self::versioned(&self.endpoints.token, options)
     }
-    fn tokenAcceptsJson(&self) -> bool {
+    fn token_accepts_json(&self) -> bool {
         false
     }
-    fn customizeCodeFieldsWithOptions(
+    fn customize_code_fields_with_options(
         &self,
         fields: &mut Map<String, Value>,
         _: &[String],
@@ -90,11 +90,11 @@ impl ProviderDefinition for FacebookProvider {
         if options.popup {
             fields.insert("display".into(), "popup".into());
         }
-        if options.reRequest {
+        if options.re_request {
             fields.insert("auth_type".into(), "rerequest".into());
         }
     }
-    fn normalizeTokenResponse(&self, mut response: Value, _: bool) -> Result<Value> {
+    fn normalize_token_response(&self, mut response: Value, _: bool) -> Result<Value> {
         let object = response.as_object_mut().ok_or(Error::InvalidResponse)?;
         // PHP evaluates the Arr::add first argument before Arr::pull mutates the local array.
         let expires = object.get("expires").cloned().unwrap_or(Value::Null);
@@ -103,7 +103,7 @@ impl ProviderDefinition for FacebookProvider {
         }
         Ok(response)
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         _: &'a Factory,
         _: &'a str,
@@ -111,7 +111,7 @@ impl ProviderDefinition for FacebookProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async { Err(Error::Configuration("client_secret")) })
     }
-    fn getUserByTokenWithOptions<'a>(
+    fn get_user_by_token_with_options<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -121,7 +121,7 @@ impl ProviderDefinition for FacebookProvider {
         parameters: &'a Map<String, Value>,
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
-            if Self::hasKid(token) {
+            if Self::has_kid(token) {
                 let mut claims = identity_token::verify(
                     http,
                     &self.jwks,
@@ -130,12 +130,12 @@ impl ProviderDefinition for FacebookProvider {
                         issuer: "https://www.facebook.com",
                         audience: &config.client_id,
                         algorithm: Some(jsonwebtoken::Algorithm::RS256),
-                        firstKey: true,
+                        first_key: true,
                     },
                 )
                 .await?;
                 let expected = options
-                    .expectedNonce
+                    .expected_nonce
                     .clone()
                     .or_else(|| {
                         parameters
@@ -206,7 +206,7 @@ impl ProviderDefinition for FacebookProvider {
             )
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let avatar = value(&user, &["picture", "data", "url"]);
         let fields = [
             ("id", user["id"].clone()),

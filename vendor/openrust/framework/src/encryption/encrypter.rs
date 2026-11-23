@@ -11,7 +11,6 @@ pub struct Encrypter {
     previous_keys: Zeroizing<Vec<Vec<u8>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Encrypter {
     pub fn new(key: impl AsRef<[u8]>, cipher: Cipher) -> Result<Self, EncryptException> {
         let key = key.as_ref();
@@ -29,13 +28,13 @@ impl Encrypter {
         key.len() == cipher.key_length()
     }
 
-    pub fn generateKey(cipher: Cipher) -> Result<Vec<u8>, EncryptException> {
+    pub fn generate_key(cipher: Cipher) -> Result<Vec<u8>, EncryptException> {
         let mut key = vec![0; cipher.key_length()];
         aws_lc_rs::rand::fill(&mut key).map_err(|_| EncryptException::EncryptionFailed)?;
         Ok(key)
     }
 
-    pub fn previousKeys(mut self, keys: Vec<Vec<u8>>) -> Result<Self, EncryptException> {
+    pub fn previous_keys(mut self, keys: Vec<Vec<u8>>) -> Result<Self, EncryptException> {
         let keys = Zeroizing::new(keys);
         if keys.iter().any(|key| !Self::supported(key, self.cipher)) {
             return Err(EncryptException::InvalidKey);
@@ -89,7 +88,7 @@ impl Encrypter {
         payload::decrypt(self.cipher, self.keys(), encrypted)
     }
 
-    pub fn appearsEncrypted(value: &str) -> bool {
+    pub fn appears_encrypted(value: &str) -> bool {
         payload::appears_encrypted(value)
     }
 
@@ -98,7 +97,6 @@ impl Encrypter {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl crate::contracts::encryption::Encrypter for Encrypter {
     fn encrypt(&self, value: &[u8], serialize: bool) -> Result<String, EncryptException> {
         self.encrypt(value, serialize)

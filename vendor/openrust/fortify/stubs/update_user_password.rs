@@ -14,12 +14,11 @@ impl UpdatesUserPasswords for UpdateUserPassword {
     ) -> HttpFuture<'a, Result<Box<dyn User>, HttpError>> {
         Box::pin(async {
             Err(HttpError::from(std::io::Error::other(
-                "UpdateUserPassword requires updateFromRequest to resolve current_password:web",
+                "UpdateUserPassword requires update_from_request to resolve current_password:web",
             )))
         })
     }
-    #[allow(non_snake_case, reason = "Request-aware Fortify action adapter")]
-    fn updateFromRequest<'a>(
+    fn update_from_request<'a>(
         &'a self,
         request: &'a mut Request,
         user: &'a dyn Authenticatable,

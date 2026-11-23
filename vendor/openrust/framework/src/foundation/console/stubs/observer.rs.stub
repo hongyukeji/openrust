@@ -51,7 +51,7 @@ impl Observer<ObservedModel> for {{class}} {
         Box::pin(async { Ok(ModelEventResponse::Continue) })
     }
 
-    fn forceDeleted<'a>(
+    fn force_deleted<'a>(
         &'a self,
         _model: &'a mut ObservedModel,
         _connection: &'a Connection,

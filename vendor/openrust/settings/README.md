@@ -39,7 +39,7 @@ or connection skips this default migration: register the corresponding
 `CreateSettingsTable` yourself and run it on the intended connection.
 
 Declare business settings in the consuming application and call
-`registerSettings::<T>(app)` in its provider after package registration. The default
+`register_settings::<T>(app)` in its provider after package registration. The default
 application does not pre-register example groups. The container resolves `Settings<T>`
 asynchronously once per existing scope; do not inject it into a permanent singleton.
 Registration and boot need neither a settings table nor an encryption key for
@@ -60,7 +60,7 @@ the anchor. No history table, polling loop or extra cache is required. All write
 use this repository. Conflicts return `SettingsError::Conflict`; refresh and resolve
 the edit deliberately. Older group schemas preserve unknown persisted properties.
 
-`saveIn` uses a savepoint in the supplied database transaction. The caller must select
+`save_in` uses a savepoint in the supplied database transaction. The caller must select
 the correct database/table and commit the outer transaction. It leaves the settings
 instance unchanged as a database snapshot; refresh after commit. In-memory pending
 edits remain visible through `get`, but no global cache or consumer is published.
@@ -71,7 +71,7 @@ be encrypted; no nested-key encryption syntax is inferred. Supply the existing
 application encrypter. `get` returns trusted internal data; settings wrappers cannot
 be serialized and Debug output omits values. Never send the declared data struct
 directly to clients or queue payloads. Build an explicit public/masked projection.
-With previous keys installed, `reEncrypt` rewrites only existing unlocked encrypted
+With previous keys installed, `re_encrypt` rewrites only existing unlocked encrypted
 overrides under the current key. Keep old keys until rewriting and restore checks
 complete. Missing keys and damaged ciphertext fail instead of falling back.
 

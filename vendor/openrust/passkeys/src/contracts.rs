@@ -7,22 +7,21 @@ use openrust::{
 };
 
 /// Explicit compiled counterpart of PasskeyUser plus PasskeyAuthenticatable defaults.
-#[allow(non_snake_case, reason = "Matches Passkeys model contract")]
 pub trait PasskeyUser: Authenticatable + Model {
     fn passkeys(&self) -> crate::PasskeyRelation<Self> {
         crate::PasskeyRelation::new()
     }
-    fn hasPasskeysEnabled(&self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+    fn has_passkeys_enabled(&self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         async move { self.passkeys().exists(self).await }
     }
-    fn getPasskeyUserHandle(&self, secret: &str) -> PasskeyResult<String> {
+    fn get_passkey_user_handle(&self, secret: &str) -> PasskeyResult<String> {
         let key = self.get_key().ok_or(crate::PasskeyError::Format)?;
         let text = scalar(key).ok_or(crate::PasskeyError::Format)?;
         let key = aws_lc_rs::hmac::Key::new(aws_lc_rs::hmac::HMAC_SHA256, secret.as_bytes());
         let digest = aws_lc_rs::hmac::sign(&key, format!("{}|{text}", self.get_table()).as_bytes());
         Ok(digest.as_ref().iter().map(|b| format!("{b:02x}")).collect())
     }
-    fn getPasskeyDisplayName(&self) -> PasskeyResult<String> {
+    fn get_passkey_display_name(&self) -> PasskeyResult<String> {
         for name in ["name", "email"] {
             if let Some(value) = self.get_attribute(name).filter(|v| **v != Value::Null) {
                 return scalar(value).ok_or(crate::PasskeyError::Format);
@@ -30,7 +29,7 @@ pub trait PasskeyUser: Authenticatable + Model {
         }
         Ok(self.get_auth_identifier().to_string())
     }
-    fn getPasskeyUsername(&self) -> PasskeyResult<String> {
+    fn get_passkey_username(&self) -> PasskeyResult<String> {
         if let Some(value) = self.get_attribute("email").filter(|v| **v != Value::Null) {
             return scalar(value).ok_or(crate::PasskeyError::Format);
         }
@@ -46,7 +45,6 @@ pub(crate) fn scalar(value: &Value) -> Option<String> {
     }
 }
 
-#[allow(non_snake_case, reason = "Passkeys response contracts")]
 pub trait Response: Send + Sync {
     fn to_response<'a>(
         &'a self,

@@ -38,7 +38,7 @@ impl ServiceProvider for BroadcastServiceProvider {
         Box::pin(async move {
             app.make::<Dispatcher>()
                 .await?
-                .registerBroadcast::<super::AnonymousEvent>();
+                .register_broadcast::<super::AnonymousEvent>();
             let queue = app.make::<QueueManager>().await?;
             let factory = app.make::<dyn Factory>().await?;
             queue.register(

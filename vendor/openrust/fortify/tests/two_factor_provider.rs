@@ -115,7 +115,7 @@ async fn fixed_php_provider_decisions_and_cache_trace() {
         let next = case["next"].as_i64().unwrap();
         let provider = TwoFactorAuthenticationProvider::new(binding)
             .with_config(config)
-            .withClock(move || {
+            .with_clock(move || {
                 Ok(if count.fetch_add(1, Ordering::Relaxed) == 0 {
                     seconds
                 } else {
@@ -152,7 +152,7 @@ async fn fixed_php_provider_decisions_and_cache_trace() {
             "cache {index}"
         );
         assert_eq!(
-            json!(provider.getWindow()),
+            json!(provider.get_window()),
             case["window_after"],
             "window {index}"
         );
@@ -165,7 +165,7 @@ fn fixed_php_secret_lengths_and_qr_urls() {
     for case in oracle["qr"].as_array().unwrap() {
         let input = case["input"].as_array().unwrap();
         assert_eq!(
-            provider.qrCodeUrl(
+            provider.qr_code_url(
                 input[0].as_str().unwrap(),
                 input[1].as_str().unwrap(),
                 input[2].as_str().unwrap()
@@ -174,7 +174,7 @@ fn fixed_php_secret_lengths_and_qr_urls() {
         );
     }
     for case in oracle["lengths"].as_array().unwrap() {
-        match provider.generateSecretKey(case["input"].as_u64().unwrap() as usize) {
+        match provider.generate_secret_key(case["input"].as_u64().unwrap() as usize) {
             Ok(secret) => {
                 assert_eq!(json!(secret.len()), case["length"]);
                 assert!(
@@ -193,14 +193,14 @@ async fn replay_and_dynamic_window_use_real_cache() {
     let config = Arc::new(config::Repository::new(Default::default()));
     let provider = TwoFactorAuthenticationProvider::new(Some(cache))
         .with_config(config.clone())
-        .withClock(|| Ok(1_234_567_890));
+        .with_clock(|| Ok(1_234_567_890));
     assert!(provider.verify("JBSWY3DPEHPK3PXP", "742275").await.unwrap());
     assert!(!provider.verify("JBSWY3DPEHPK3PXP", "742275").await.unwrap());
     config
         .set("fortify-options.two-factor-authentication.window", json!(2))
         .unwrap();
     assert!(!provider.verify("JBSWY3DPEHPK3PXP", "bad").await.unwrap());
-    assert_eq!(provider.getWindow(), 2);
+    assert_eq!(provider.get_window(), 2);
     config
         .set(
             "fortify-options.two-factor-authentication.window",
@@ -208,20 +208,20 @@ async fn replay_and_dynamic_window_use_real_cache() {
         )
         .unwrap();
     assert!(!provider.verify("JBSWY3DPEHPK3PXP", "bad").await.unwrap());
-    assert_eq!(provider.getWindow(), 2);
+    assert_eq!(provider.get_window(), 2);
 }
 #[tokio::test]
 async fn malformed_cache_and_clock_overflow_fail_closed() {
     let cache = Arc::new(RecordingCache::new(json!("invalid"), ""));
     let provider = TwoFactorAuthenticationProvider::new(Some(cache))
-        .withClock(|| panic!("cache precedes clock"));
+        .with_clock(|| panic!("cache precedes clock"));
     assert!(matches!(
         provider.verify("invalid", "123456").await,
         Err(FortifyError::InvalidCacheTimestamp)
     ));
     let provider = TwoFactorAuthenticationProvider::new(None)
-        .withWindow(i64::MAX)
-        .withClock(|| Ok(60));
+        .with_window(i64::MAX)
+        .with_clock(|| Ok(60));
     assert!(matches!(
         provider.verify("invalid", "123456").await,
         Err(FortifyError::InvalidTime)

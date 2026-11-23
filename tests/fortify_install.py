@@ -262,7 +262,7 @@ def run():
             modules = generated / "app/models/mod.rs"
             modules.write_text(modules.read_text() + '\n#[cfg(feature="fortify")]\npub(crate) mod custom_passkey;\n')
             provider = generated / "app/providers/fortify_service_provider.rs"
-            provider.write_text(provider.read_text().replace('.useUserModel::<User>();', '.useUserModel::<User>();\n            app.make::<openrust_fortify::passkeys::Passkeys>().await?.usePasskeyModel::<crate::app::models::custom_passkey::CustomPasskey>();\n            crate::app::models::custom_passkey::observe::<User>(app).await?;'))
+            provider.write_text(provider.read_text().replace('.use_user_model::<User>();', '.use_user_model::<User>();\n            app.make::<openrust_fortify::passkeys::Passkeys>().await?.use_passkey_model::<crate::app::models::custom_passkey::CustomPasskey>();\n            crate::app::models::custom_passkey::observe::<User>(app).await?;'))
             migration = next(generated.glob("database/migrations/*create_passkeys_table.rs"))
             migration_source = migration.read_text()
             assert migration_source.count(".id()") == 1, "Expected one passkey primary key declaration"
@@ -395,7 +395,7 @@ fn passkeys_acceptance_list(request: &mut openrust::http::Request) -> openrust::
         use openrust_fortify::passkeys::PasskeyAuthenticatable as _;
         let user=(user.as_ref() as &dyn std::any::Any).downcast_ref::<crate::app::models::User>().unwrap();
         let records=user.passkeys().get_results(user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
-        assert_eq!(user.hasPasskeysEnabled().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?,!records.is_empty());
+        assert_eq!(user.has_passkeys_enabled().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?,!records.is_empty());
         let mut values=Vec::new();
         for record in records {
             let mut value=record.to_array().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;

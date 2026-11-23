@@ -43,7 +43,6 @@ pub struct AnonymousEvent {
     immediate: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl AnonymousEvent {
     pub const NAME: &'static str = "AnonymousEvent";
 
@@ -75,13 +74,13 @@ impl AnonymousEvent {
     }
 
     /// Excludes the originating socket from the delivery.
-    pub fn toOthers(mut self, request: &Request) -> Self {
+    pub fn to_others(mut self, request: &Request) -> Self {
         self.socket = super::request_socket(request);
         self
     }
 
     pub async fn send(self) -> EventResult<DispatchResult> {
-        self.sendWithContext(&mut EventContext::new()).await
+        self.send_with_context(&mut EventContext::new()).await
     }
 
     pub async fn send_now(mut self) -> EventResult<DispatchResult> {
@@ -90,7 +89,7 @@ impl AnonymousEvent {
     }
 
     /// Sends through the event dispatcher with an explicit transaction scope.
-    pub async fn sendWithContext(
+    pub async fn send_with_context(
         self,
         context: &mut EventContext<'_>,
     ) -> EventResult<DispatchResult> {

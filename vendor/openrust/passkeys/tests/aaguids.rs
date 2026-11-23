@@ -10,12 +10,12 @@ fn pinned_php_labels_icons_unknown_theme_and_flush_match() {
     for case in expected["cases"].as_array().unwrap() {
         let id = case["id"].as_str().unwrap();
         assert_eq!(
-            serde_json::to_value(Aaguids::labelFor(id)).unwrap(),
+            serde_json::to_value(Aaguids::label_for(id)).unwrap(),
             case["label"],
             "{id}"
         );
         for (index, theme) in ["light", "dark"].iter().enumerate() {
-            let icon = Aaguids::iconFor(id, theme).unwrap();
+            let icon = Aaguids::icon_for(id, theme).unwrap();
             let digest = icon.as_ref().map(|icon| {
                 aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, icon.as_bytes())
                     .as_ref()
@@ -31,7 +31,7 @@ fn pinned_php_labels_icons_unknown_theme_and_flush_match() {
         }
     }
     assert_eq!(
-        Aaguids::iconFor("", "invalid").unwrap_err().to_string(),
+        Aaguids::icon_for("", "invalid").unwrap_err().to_string(),
         expected["invalid_theme"]
     );
     let borrowed = Aaguids::all();
@@ -59,7 +59,7 @@ fn model_appends_label_but_icons_require_explicit_opt_in() {
         let array = passkey.to_array().unwrap();
         assert_eq!(
             array.get("authenticator"),
-            Some(&json!(Aaguids::labelFor(id)))
+            Some(&json!(Aaguids::label_for(id)))
         );
         assert!(!array.contains_key("authenticator_icon_light"));
         assert!(!array.contains_key("authenticator_icon_dark"));
@@ -67,11 +67,11 @@ fn model_appends_label_but_icons_require_explicit_opt_in() {
         let array = passkey.to_array().unwrap();
         assert_eq!(
             array["authenticator_icon_light"],
-            json!(Aaguids::iconFor(id, "light").unwrap())
+            json!(Aaguids::icon_for(id, "light").unwrap())
         );
         assert_eq!(
             array["authenticator_icon_dark"],
-            json!(Aaguids::iconFor(id, "dark").unwrap())
+            json!(Aaguids::icon_for(id, "dark").unwrap())
         );
     }
     let absent = Passkey::default().to_array().unwrap();

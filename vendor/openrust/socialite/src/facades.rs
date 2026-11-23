@@ -9,8 +9,8 @@ impl Facade for Socialite {
     }
 }
 impl Socialite {
-    pub fn miniApp() -> Result<crate::wechat::MiniApp> {
-        Self::get_facade_root()?.miniApp()
+    pub fn mini_app() -> Result<crate::wechat::MiniApp> {
+        Self::get_facade_root()?.mini_app()
     }
     pub fn driver<'a>(name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
         Self::get_facade_root()?.driver(name, request)

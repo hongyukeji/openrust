@@ -532,7 +532,7 @@ impl<'a> SessionGuard<'a> {
         let previous = fingerprint(user.as_ref()).ok_or(AuthError::InvalidIdentity)?;
         let refresh_cookie = self.request.cookie_is_protected(&self.recaller)
             && (self.request.cookie(Some(&self.recaller))?.is_some()
-                || Cookie::hasQueued(&self.recaller, None)?);
+                || Cookie::has_queued(&self.recaller, None)?);
         self.provider
             .rehash_password_if_required(user.as_mut(), &credentials, true)
             .await?;

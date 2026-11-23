@@ -22,20 +22,19 @@ impl Default for FakeProcessDescription {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl FakeProcessDescription {
     pub fn id(mut self, id: u32) -> Self {
         self.id = id;
         self
     }
 
-    pub fn runsFor(mut self, iterations: usize) -> Self {
+    pub fn runs_for(mut self, iterations: usize) -> Self {
         self.iterations = iterations;
         self
     }
 
     pub fn iterations(self, iterations: usize) -> Self {
-        self.runsFor(iterations)
+        self.runs_for(iterations)
     }
 
     pub fn exit_code(mut self, code: i32) -> Self {
@@ -48,17 +47,17 @@ impl FakeProcessDescription {
         self
     }
 
-    pub fn errorOutput(mut self, line: impl AsRef<[u8]>) -> Self {
+    pub fn error_output(mut self, line: impl AsRef<[u8]>) -> Self {
         self.push(OutputStream::Stderr, line.as_ref());
         self
     }
 
-    pub fn replaceOutput(mut self, output: impl AsRef<[u8]>) -> Self {
+    pub fn replace_output(mut self, output: impl AsRef<[u8]>) -> Self {
         self.replace(OutputStream::Stdout, output.as_ref());
         self
     }
 
-    pub fn replaceErrorOutput(mut self, output: impl AsRef<[u8]>) -> Self {
+    pub fn replace_error_output(mut self, output: impl AsRef<[u8]>) -> Self {
         self.replace(OutputStream::Stderr, output.as_ref());
         self
     }

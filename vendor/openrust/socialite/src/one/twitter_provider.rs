@@ -24,7 +24,7 @@ pub struct TwitterProvider {
 }
 impl Default for TwitterProvider {
     fn default() -> Self {
-        Self::withEndpoints(
+        Self::with_endpoints(
             "https://api.twitter.com/oauth/request_token",
             "https://api.twitter.com/oauth/authenticate",
             "https://api.twitter.com/oauth/access_token",
@@ -33,7 +33,7 @@ impl Default for TwitterProvider {
     }
 }
 impl TwitterProvider {
-    pub fn withEndpoints(
+    pub fn with_endpoints(
         temporary: impl Into<String>,
         authorization: impl Into<String>,
         token: impl Into<String>,
@@ -77,7 +77,7 @@ impl<'a> AbstractProvider<'a> {
         self.scope = Some(scope.into());
         self
     }
-    pub fn redirectUrl(&mut self, url: impl Into<String>) -> &mut Self {
+    pub fn redirect_url(&mut self, url: impl Into<String>) -> &mut Self {
         self.config.redirect = url.into();
         self
     }
@@ -188,7 +188,7 @@ impl<'a> AbstractProvider<'a> {
         let (token, secret) = credentials(&form(response)?)?;
         self.profile(&token, &secret, true).await
     }
-    pub async fn userFromTokenAndSecret(&mut self, token: &str, secret: &str) -> Result<User> {
+    pub async fn user_from_token_and_secret(&mut self, token: &str, secret: &str) -> Result<User> {
         self.profile(token, secret, false).await
     }
     async fn profile(&mut self, token: &str, secret: &str, callback: bool) -> Result<User> {
@@ -224,13 +224,13 @@ impl<'a> AbstractProvider<'a> {
             ));
             raw
         };
-        let mut user = mapUser(raw, callback)?;
+        let mut user = map_user(raw, callback)?;
         user.credentials = Some(Token {
             token: Zeroizing::new(token.into()),
-            tokenSecret: Some(Zeroizing::new(secret.into())),
-            refreshToken: None,
-            expiresIn: None,
-            approvedScopes: vec![],
+            token_secret: Some(Zeroizing::new(secret.into())),
+            refresh_token: None,
+            expires_in: None,
+            approved_scopes: vec![],
         });
         Ok(user)
     }
@@ -316,7 +316,7 @@ fn credentials(data: &BTreeMap<String, String>) -> Result<(Zeroizing<String>, Ze
     ))
 }
 /// Twitter's callback adds URL/location details; direct credentials retain League's extra only.
-pub fn mapUser(raw: Value, callback: bool) -> Result<User> {
+pub fn map_user(raw: Value, callback: bool) -> Result<User> {
     let object = raw.as_object().ok_or(Error::InvalidResponse)?;
     let mut extra = object.clone();
     for key in [

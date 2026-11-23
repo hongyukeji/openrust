@@ -94,7 +94,6 @@ pub struct Dispatcher {
     pushed: Arc<PushedEvents>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Dispatcher {
     pub fn new() -> Self {
         Self::default()
@@ -193,29 +192,29 @@ impl Dispatcher {
         self.register(|registry| registry.listen_class::<L>(event, delivery))
     }
 
-    pub fn markAfterCommit<E: ShouldDispatchAfterCommit>(&self) {
+    pub fn mark_after_commit<E: ShouldDispatchAfterCommit>(&self) {
         self.write().deferred_types.insert(TypeId::of::<E>());
     }
 
     /// Registers the broadcast contract for this compiled event type.
-    pub fn registerBroadcast<E: ShouldBroadcast>(&self) {
-        self.register_broadcast::<E>(false, None);
+    pub fn register_broadcast<E: ShouldBroadcast>(&self) {
+        self.register_broadcast_listener::<E>(false, None);
     }
 
     /// Registers the synchronous broadcast contract for this compiled event type.
-    pub fn registerBroadcastNow<E: ShouldBroadcastNow>(&self) {
-        self.register_broadcast::<E>(true, None);
+    pub fn register_broadcast_now<E: ShouldBroadcastNow>(&self) {
+        self.register_broadcast_listener::<E>(true, None);
     }
 
     /// Registers a broadcast event whose queued deliveries acquire a uniqueness lock.
-    pub fn registerUniqueBroadcast<E: ShouldBeUnique>(&self) {
-        self.register_broadcast::<E>(
+    pub fn register_unique_broadcast<E: ShouldBeUnique>(&self) {
+        self.register_broadcast_listener::<E>(
             false,
             Some(|event| event.downcast_ref::<E>().map(UniqueBroadcast::for_event)),
         );
     }
 
-    fn register_broadcast<E: ShouldBroadcast>(
+    fn register_broadcast_listener<E: ShouldBroadcast>(
         &self,
         immediate: bool,
         unique: Option<BroadcastUnique>,
@@ -277,7 +276,7 @@ impl Dispatcher {
     }
 
     /// Returns matching listeners in delivery order with their actual queue contracts.
-    pub fn getListeners(&self, event: &str) -> Vec<(&'static str, bool)> {
+    pub fn get_listeners(&self, event: &str) -> Vec<(&'static str, bool)> {
         self.read()
             .listeners
             .selected(event, &[])
@@ -292,7 +291,7 @@ impl Dispatcher {
     }
 
     /// Whether the compiled event has a registered broadcast contract.
-    pub fn isBroadcasting(&self, event: &dyn Event) -> bool {
+    pub fn is_broadcasting(&self, event: &dyn Event) -> bool {
         self.read().broadcasts.contains_key(&event.type_id())
     }
 

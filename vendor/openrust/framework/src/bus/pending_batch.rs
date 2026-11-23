@@ -53,7 +53,6 @@ pub struct PendingBatch {
     pub(crate) options: Map<String, Value>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingBatch {
     pub(super) fn new(jobs: impl IntoIterator<Item = Payload>) -> Self {
         Self {
@@ -75,12 +74,12 @@ impl PendingBatch {
     }
 
     /// Appends a sequence whose members run one at a time in this batch.
-    pub fn addChain(mut self, jobs: impl IntoIterator<Item = Payload>) -> Self {
+    pub fn add_chain(mut self, jobs: impl IntoIterator<Item = Payload>) -> Self {
         self.jobs.push(BatchJob::Chain(jobs.into_iter().collect()));
         self
     }
 
-    pub fn allowFailures(mut self) -> Self {
+    pub fn allow_failures(mut self) -> Self {
         self.options.insert("allowFailures".into(), true.into());
         self
     }
@@ -107,7 +106,7 @@ impl PendingBatch {
 
     /// Allows failures and registers a callback for each terminal job failure.
     pub fn on_failure(self, callback: impl Into<String>) -> Self {
-        self.allowFailures()
+        self.allow_failures()
             .callback(BatchPhase::Failure, callback.into())
     }
 

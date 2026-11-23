@@ -178,7 +178,7 @@ async fn worker_flushes_each_attempt_after_event_with_original_scope_and_failure
             .await
             .unwrap();
         let result = worker
-            .runNextJob(
+            .run_next_job(
                 connection.as_ref(),
                 None,
                 &WorkerOptions {

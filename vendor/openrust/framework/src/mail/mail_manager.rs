@@ -126,8 +126,7 @@ impl MailManager {
             .insert(name.into(), Arc::new(creator));
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn globalAddress(&self, key: &str) -> Option<Address> {
+    fn global_address(&self, key: &str) -> Option<Address> {
         let value = self.config.get(&format!("mail.{key}"))?;
         Some(Address {
             address: value["address"].as_str()?.to_owned(),
@@ -173,10 +172,10 @@ impl MailManager {
             from,
             defaults: Mutex::new(super::address_defaults::Defaults {
                 from: None,
-                to: self.globalAddress("to"),
-                reply_to: self.globalAddress("reply_to"),
+                to: self.global_address("to"),
+                reply_to: self.global_address("reply_to"),
                 return_path: self
-                    .globalAddress("return_path")
+                    .global_address("return_path")
                     .map(|address| address.address),
             }),
             owner: self.owner.clone(),
@@ -201,8 +200,7 @@ impl MailManager {
     }
 
     /// Registers a named message callback in this application's mail manager.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn registerMessageCustomizer(
+    pub fn register_message_customizer(
         &self,
         name: impl Into<String>,
         callback: impl Fn(&mut MessageDraft, &serde_json::Value) -> MailResult<()>
@@ -441,8 +439,7 @@ impl MailManager {
     }
 
     /// 清除所有已解析邮件实例，下一次访问按配置重新解析。
-    #[allow(non_snake_case)]
-    pub fn forgetMailers(&self) -> &Self {
+    pub fn forget_mailers(&self) -> &Self {
         self.mailers.lock().expect("邮件实例缓存锁已损坏").clear();
         self
     }

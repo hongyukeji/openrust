@@ -52,7 +52,7 @@ pub trait FormRequest: Send + Sync {
                     error
                 })?;
             if request.is_precognitive() {
-                (crate::foundation::Precognition::afterValidationHook(request))(&validator)?;
+                (crate::foundation::Precognition::after_validation_hook(request))(&validator)?;
             }
             self.passed_validation(request, &validated)?;
             Ok(validated)

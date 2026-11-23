@@ -40,8 +40,8 @@ impl WorkloadRepository {
                 length += ready;
                 let runtime = self
                     .0
-                    .metricsRepository()
-                    .runtimeForQueue(&format!("{connection}:{name}"))
+                    .metrics_repository()
+                    .runtime_for_queue(&format!("{connection}:{name}"))
                     .await?;
                 wait += ready as f64 * runtime / workers.max(1) as f64 / 1000.;
                 split.push(json!({"name":name,"length":ready,"wait":wait.round()}));

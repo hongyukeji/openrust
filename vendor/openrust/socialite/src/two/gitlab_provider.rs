@@ -14,15 +14,15 @@ impl Default for GitlabProvider {
         let mut p = Self {
             endpoints: ProviderEndpoints::new("", "", ""),
         };
-        p.setHost("https://gitlab.com");
+        p.set_host("https://gitlab.com");
         p
     }
 }
 impl GitlabProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints) -> Self {
         Self { endpoints }
     }
-    pub fn setHost(&mut self, host: &str) -> &mut Self {
+    pub fn set_host(&mut self, host: &str) -> &mut Self {
         if !host.is_empty() && host != "0" {
             let host = host.trim_end_matches('/');
             self.endpoints = ProviderEndpoints::new(
@@ -35,19 +35,19 @@ impl GitlabProvider {
     }
 }
 impl ProviderDefinition for GitlabProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["read_user"]
     }
-    fn scopeSeparator(&self) -> &str {
+    fn scope_separator(&self) -> &str {
         " "
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -64,7 +64,7 @@ impl ProviderDefinition for GitlabProvider {
             )
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let fields = [
             ("id", user["id"].clone()),
             ("nickname", user["username"].clone()),

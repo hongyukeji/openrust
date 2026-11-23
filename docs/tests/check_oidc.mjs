@@ -13,7 +13,7 @@ try {
     const page=await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}${base}${lang}/packages/oidc.html`);
     const article=await page.locator('.vp-doc').innerText();
-    for(const term of ['OidcManager','Oidc','OIDC_ISSUER','OIDC_CLIENT_ID','OIDC_REPLAY_STORE','PKCE','maxAge','VerifiedIdentity','issuer','subject','login_bound_user','login_using_id','VARBINARY','allowed_origins','RS256','auth_time','API-O02','OIDC_POST_LOGOUT_REDIRECT_URI','LogoutHint','rememberLogout','takeLogoutHint','logout_and_invalidate','logoutUrl','completeLogout','end_session_endpoint','RP-Initiated Logout']) assert(article.includes(term),`${lang}: missing ${term}`);
+    for(const term of ['OidcManager','Oidc','OIDC_ISSUER','OIDC_CLIENT_ID','OIDC_REPLAY_STORE','PKCE','max_age','VerifiedIdentity','issuer','subject','login_bound_user','login_using_id','VARBINARY','allowed_origins','RS256','auth_time','OIDC_POST_LOGOUT_REDIRECT_URI','LogoutHint','remember_logout','take_logout_hint','logout_and_invalidate','logout_url','complete_logout','end_session_endpoint','RP-Initiated Logout']) assert(article.includes(term),`${lang}: missing ${term}`);
     assert.equal(await page.locator('.vp-doc h2').count(),8);
     console.log(base,lang,'OIDC documentation PASS');
     await page.close();

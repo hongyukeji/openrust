@@ -61,14 +61,14 @@ pub fn order() -> Order {
     Order::new(
         "order_001",
         "测试订单 & coffee",
-        Amount::fromFen(1234).unwrap(),
+        Amount::from_fen(1234).unwrap(),
         "https://shop.example/pay/notify",
     )
 }
 pub fn expected() -> openrust_pay::ExpectedPayment {
     openrust_pay::ExpectedPayment {
         out_trade_no: "order_001".into(),
-        amount: Amount::fromFen(1234).unwrap(),
+        amount: Amount::from_fen(1234).unwrap(),
     }
 }
 pub fn signed_headers(body: &[u8], offset: i64) -> http::HeaderMap {

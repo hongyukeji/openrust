@@ -27,7 +27,7 @@ impl DatabaseSettingsRepository {
         }
     }
 
-    pub fn withTable(mut self, table: impl Into<String>) -> SettingsResult<Self> {
+    pub fn with_table(mut self, table: impl Into<String>) -> SettingsResult<Self> {
         let table = table.into();
         if !identifier(&table) {
             return Err(Error::InvalidDefinition);
@@ -200,7 +200,7 @@ impl SettingsRepository for DatabaseSettingsRepository {
             }
         })
     }
-    fn saveIn<'a>(
+    fn save_in<'a>(
         &'a self,
         tx: &'a mut Transaction,
         group: &'a str,

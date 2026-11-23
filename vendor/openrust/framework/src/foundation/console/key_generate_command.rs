@@ -36,7 +36,7 @@ impl Command for KeyGenerateCommand {
                 .configuration_repository()
                 .map_err(console_error)?;
             let cipher = configured_cipher(config.as_ref()).map_err(console_error)?;
-            let key = Zeroizing::new(Encrypter::generateKey(cipher).map_err(console_error)?);
+            let key = Zeroizing::new(Encrypter::generate_key(cipher).map_err(console_error)?);
             let encoded = Zeroizing::new(STANDARD.encode(&*key));
             let key = Zeroizing::new(format!("base64:{}", encoded.as_str()));
             let matches = input.matches();

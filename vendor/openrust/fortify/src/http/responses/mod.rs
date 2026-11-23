@@ -346,7 +346,7 @@ impl contracts::Response for RegisterViewResponse {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-            let view = fortify.register_view().ok_or_else(|| {
+            let view = fortify.registration_view_response().ok_or_else(|| {
                 internal(std::io::Error::other(
                     "Fortify register view has not been configured",
                 ))
@@ -367,7 +367,7 @@ impl contracts::Response for VerifyEmailViewResponse {
         Box::pin(async move {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             fortify
-                .verify_email_view()
+                .verification_view_response()
                 .ok_or_else(|| {
                     internal(std::io::Error::other(
                         "Fortify email verification view has not been configured",

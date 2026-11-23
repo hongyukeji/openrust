@@ -318,7 +318,7 @@ impl Wechat {
             identity: format!("wechat:{}:{}:{transaction_id}", self.mch_id, self.app_id),
             out_trade_no,
             transaction_id,
-            amount: Amount::fromFen(
+            amount: Amount::from_fen(
                 transaction["amount"]["total"]
                     .as_i64()
                     .ok_or(Error::Protocol)?,

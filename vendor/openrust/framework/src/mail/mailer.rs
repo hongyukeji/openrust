@@ -35,9 +35,8 @@ pub struct Mailer {
     pub(super) customizers: Arc<MessageCustomizers>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Mailer {
-    fn changeAddress(
+    fn change_address(
         &self,
         change: impl FnOnce(&mut super::address_defaults::Defaults),
     ) -> MailResult<()> {
@@ -65,17 +64,17 @@ impl Mailer {
         Ok(())
     }
 
-    pub fn alwaysFrom(&self, address: impl Into<Address>) -> MailResult<()> {
-        self.changeAddress(|defaults| defaults.from = Some(address.into()))
+    pub fn always_from(&self, address: impl Into<Address>) -> MailResult<()> {
+        self.change_address(|defaults| defaults.from = Some(address.into()))
     }
-    pub fn alwaysTo(&self, address: impl Into<Address>) -> MailResult<()> {
-        self.changeAddress(|defaults| defaults.to = Some(address.into()))
+    pub fn always_to(&self, address: impl Into<Address>) -> MailResult<()> {
+        self.change_address(|defaults| defaults.to = Some(address.into()))
     }
-    pub fn alwaysReplyTo(&self, address: impl Into<Address>) -> MailResult<()> {
-        self.changeAddress(|defaults| defaults.reply_to = Some(address.into()))
+    pub fn always_reply_to(&self, address: impl Into<Address>) -> MailResult<()> {
+        self.change_address(|defaults| defaults.reply_to = Some(address.into()))
     }
-    pub fn alwaysReturnPath(&self, address: impl Into<String>) -> MailResult<()> {
-        self.changeAddress(|defaults| defaults.return_path = Some(address.into()))
+    pub fn always_return_path(&self, address: impl Into<String>) -> MailResult<()> {
+        self.change_address(|defaults| defaults.return_path = Some(address.into()))
     }
 
     fn addresses(&self) -> super::address_defaults::Defaults {

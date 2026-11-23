@@ -83,7 +83,7 @@ async fn finally_runs_once_when_execution_panics_or_is_cancelled() {
                 assert_eq!(value, 7);
                 copy.fetch_add(1, Ordering::SeqCst);
             });
-        let future = std::panic::AssertUnwindSafe(pipeline.thenReturn()).catch_unwind();
+        let future = std::panic::AssertUnwindSafe(pipeline.then_return()).catch_unwind();
         let result = tokio::time::timeout(std::time::Duration::from_millis(5), future).await;
         if panic {
             assert!(result.unwrap().is_err());

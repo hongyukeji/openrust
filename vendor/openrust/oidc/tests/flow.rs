@@ -273,7 +273,7 @@ fn callback(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 }
                 Response::json(
                     StatusCode::OK,
-                    json!({"issuer":a.identity.issuer(),"subject":a.identity.subject(),"email":a.identity.email(),"verified":a.identity.emailVerified(),"refresh":a.tokens.refresh_token.is_some()}),
+                    json!({"issuer":a.identity.issuer(),"subject":a.identity.subject(),"email":a.identity.email(),"verified":a.identity.email_verified(),"refresh":a.tokens.refresh_token.is_some()}),
                 )
             }
             Err(e) => Response::json(StatusCode::BAD_REQUEST, json!({"error":e.to_string()})),

@@ -28,7 +28,7 @@ impl Fixture {
         let path = root.path().join("test.sqlite");
         std::fs::File::create(&path).unwrap();
         let mut app = openrust::foundation::Application::configure(root.path().into())
-            .with_config(fixtureConfig)
+            .with_config(fixture_config)
             .with_providers(vec![Box::new(ActivitylogServiceProvider)])
             .create()
             .unwrap();
@@ -108,18 +108,18 @@ impl Fixture {
     }
 }
 fn logger(connection: Connection) -> ActivityRepository {
-    ActivityRepository::new(connection).withRedaction(
+    ActivityRepository::new(connection).with_redaction(
         Redaction::new()
-            .logProperties(&["context", "password", "note"])
-            .logOnly(&["name", "password", "nested"]),
+            .log_properties(&["context", "password", "note"])
+            .log_only(&["name", "password", "nested"]),
     )
 }
 fn activity(id: &str) -> Activity {
-    Activity::new("account.updated").event("updated").useLog("accounts")
-        .performedOn(Subject::new("account",id).unwrap()).causedBy(Subject::new("user","42").unwrap())
-        .withRequestId("request-123")
-        .withProperties(json!({"context":{"api_key":"secret-api","nested":[{"Authorization":"Bearer secret-token"}]},"password":"secret-pass","ignored":"secret-ignore"}))
-        .withChanges(json!({"name":"old","password":"old-pass"}),json!({"name":"new","password":"new-pass","email":"ignored@example.org"}))
+    Activity::new("account.updated").event("updated").use_log("accounts")
+        .performed_on(Subject::new("account",id).unwrap()).caused_by(Subject::new("user","42").unwrap())
+        .with_request_id("request-123")
+        .with_properties(json!({"context":{"api_key":"secret-api","nested":[{"Authorization":"Bearer secret-token"}]},"password":"secret-pass","ignored":"secret-ignore"}))
+        .with_changes(json!({"name":"old","password":"old-pass"}),json!({"name":"new","password":"new-pass","email":"ignored@example.org"}))
 }
 
 #[tokio::test]
@@ -141,7 +141,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert_eq!(
         logger
             .query()
-            .forSubject(&Subject::new("account", "accounta").unwrap())
+            .for_subject(&Subject::new("account", "accounta").unwrap())
             .get()
             .await
             .unwrap()
@@ -151,10 +151,10 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert_eq!(
         logger
             .query()
-            .forSubject(&Subject::new("account", "AccountA").unwrap())
-            .inLog("accounts")
-            .forEvent("updated")
-            .causedBy(&Subject::new("user", "42").unwrap())
+            .for_subject(&Subject::new("account", "AccountA").unwrap())
+            .in_log("accounts")
+            .for_event("updated")
+            .caused_by(&Subject::new("user", "42").unwrap())
             .for_request("request-123")
             .get()
             .await
@@ -165,7 +165,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert!(
         logger
             .query()
-            .inLog("accounts' OR 1=1 --")
+            .in_log("accounts' OR 1=1 --")
             .get()
             .await
             .unwrap()
@@ -174,7 +174,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert_eq!(
         logger
             .query()
-            .inLogs(["missing", "accounts"])
+            .in_logs(["missing", "accounts"])
             .get()
             .await
             .unwrap()
@@ -184,7 +184,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert!(
         logger
             .query()
-            .inLogs(Vec::<String>::new())
+            .in_logs(Vec::<String>::new())
             .get()
             .await
             .unwrap()
@@ -193,8 +193,8 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert!(
         logger
             .query()
-            .inLogs(["missing", "accounts"])
-            .inLog("other")
+            .in_logs(["missing", "accounts"])
+            .in_log("other")
             .get()
             .await
             .unwrap()
@@ -215,7 +215,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
                             .into_iter()
                             .collect()])
                             .await?;
-                        logger.logIn(tx, activity("rollback")).await?;
+                        logger.log_in(tx, activity("rollback")).await?;
                         Err::<(), _>(openrust::database::DatabaseError::InvalidConfiguration(
                             "forced rollback",
                         ))
@@ -239,7 +239,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
                     let logger = cancelled.clone();
                     let ready = ready.clone();
                     Box::pin(async move {
-                        logger.logIn(tx, activity("cancelled")).await?;
+                        logger.log_in(tx, activity("cancelled")).await?;
                         ready.notify_one();
                         std::future::pending::<()>().await;
                         Ok(())
@@ -257,7 +257,7 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
     assert!(
         logger
             .query()
-            .forSubject(&Subject::new("account", "cancelled").unwrap())
+            .for_subject(&Subject::new("account", "cancelled").unwrap())
             .get()
             .await
             .unwrap()
@@ -299,10 +299,10 @@ async fn persistence_atomicity_identity_concurrency_pagination_and_retention() {
         )]))
         .await
         .unwrap();
-    assert_eq!(logger.cleanBefore(2000, 1).await.unwrap(), 1);
-    assert_eq!(logger.cleanBefore(2000, 1).await.unwrap(), 0);
-    assert!(logger.cleanBefore(i64::MAX, 10).await.is_err());
-    assert!(logger.cleanBefore(2000, 0).await.is_err());
+    assert_eq!(logger.clean_before(2000, 1).await.unwrap(), 1);
+    assert_eq!(logger.clean_before(2000, 1).await.unwrap(), 0);
+    assert!(logger.clean_before(i64::MAX, 10).await.is_err());
+    assert!(logger.clean_before(2000, 0).await.is_err());
     assert_eq!(logger.query().get().await.unwrap().len(), 8);
     assert!(
         f.migrator
@@ -329,25 +329,25 @@ async fn explicit_redaction_limits_disabled_and_debug_redaction() {
     assert_eq!(prepared.record().properties, activity("42").properties);
     assert_eq!(prepared.record().attribute_changes, activity("42").changes);
     let secret =
-        Activity::new("sensitive description").withProperties(json!({"secret":"top-secret"}));
+        Activity::new("sensitive description").with_properties(json!({"secret":"top-secret"}));
     assert!(!format!("{secret:?}").contains("top-secret"));
     let mut subject = Subject::new("user", "42").unwrap();
     subject.id.clear();
     assert!(
         logger
-            .prepare(Activity::new("operation").performedOn(subject))
+            .prepare(Activity::new("operation").performed_on(subject))
             .is_err()
     );
     assert!(logger.prepare(Activity::new("\nvalid text")).is_ok());
     assert!(
         logger
-            .prepare(Activity::new("operation").withProperties(json!([1, 2])))
+            .prepare(Activity::new("operation").with_properties(json!([1, 2])))
             .is_err()
     );
-    let logger = logger.withRedaction(Redaction::new().logProperties(&["note"]));
+    let logger = logger.with_redaction(Redaction::new().log_properties(&["note"]));
     assert!(
         logger
-            .prepare(Activity::new("operation").withProperties(json!({"note":"x".repeat(17000)})))
+            .prepare(Activity::new("operation").with_properties(json!({"note":"x".repeat(17000)})))
             .is_err()
     );
     let mut nested = json!({"v":0});
@@ -356,7 +356,7 @@ async fn explicit_redaction_limits_disabled_and_debug_redaction() {
     }
     assert!(
         logger
-            .prepare(Activity::new("operation").withProperties(json!({"note":nested})))
+            .prepare(Activity::new("operation").with_properties(json!({"note":nested})))
             .is_err()
     );
     assert!(
@@ -377,15 +377,15 @@ async fn fluent_entries_reset_causers_anonymous_status_and_explicit_timestamp() 
     let status = ActivityLogStatus::default();
     let mut logger = ActivityLogger::new(f.connection.clone());
     logger
-        .setLogStatus(status.clone())
-        .setCauserResolver(CauserResolver::new(Some(actor.clone())));
+        .set_log_status(status.clone())
+        .set_causer_resolver(CauserResolver::new(Some(actor.clone())));
     let first = logger
         .on(Subject::new("account", "24").unwrap())
-        .setEvent("created")
-        .inLog("business")
-        .withProperty("password", "explicit-value")
-        .withChanges(json!({"attributes":{"name":"new"}}))
-        .createdAt(jiff::Timestamp::from_millisecond(1234).unwrap())
+        .set_event("created")
+        .in_log("business")
+        .with_property("password", "explicit-value")
+        .with_changes(json!({"attributes":{"name":"new"}}))
+        .created_at(jiff::Timestamp::from_millisecond(1234).unwrap())
         .log("created account")
         .await
         .unwrap()
@@ -399,7 +399,7 @@ async fn fluent_entries_reset_causers_anonymous_status_and_explicit_timestamp() 
         json!({"attributes":{"name":"new"}})
     );
     let anonymous = logger
-        .byAnonymous()
+        .by_anonymous()
         .log("anonymous")
         .await
         .unwrap()
@@ -419,10 +419,10 @@ async fn fluent_entries_reset_causers_anonymous_status_and_explicit_timestamp() 
     assert_eq!(again.causer, Some(actor));
     let mut entry = logger.activity();
     status
-        .withoutLogging(|| async {
+        .without_logging(|| async {
             assert!(entry.log("suppressed").await.unwrap().is_none());
             status
-                .withoutLogging(|| async {
+                .without_logging(|| async {
                     assert!(status.disabled());
                 })
                 .await;
@@ -439,7 +439,7 @@ async fn fluent_entries_reset_causers_anonymous_status_and_explicit_timestamp() 
 }
 
 #[allow(non_snake_case)]
-fn fixtureConfig(
+fn fixture_config(
     root: &std::path::Path,
     _: &openrust::config::Environment,
 ) -> std::result::Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
@@ -495,18 +495,18 @@ impl openrust::database::eloquent::Model for Business {
     }
 }
 impl openrust_activitylog::models::concerns::LogsActivity for Business {
-    fn activitylogState(&self) -> &openrust_activitylog::models::LoggingState {
+    fn activitylog_state(&self) -> &openrust_activitylog::models::LoggingState {
         &self.1
     }
 
-    fn getActivitylogOptions(&self) -> openrust_activitylog::LogOptions {
+    fn get_activitylog_options(&self) -> openrust_activitylog::LogOptions {
         openrust_activitylog::LogOptions::defaults()
-            .logFillable()
-            .logExcept(&["id"])
-            .logOnlyDirty()
-            .dontLogEmptyChanges()
-            .useLogName("business")
-            .setDescriptionForEvent(|event| format!("business {event}: :subject.value"))
+            .log_fillable()
+            .log_except(&["id"])
+            .log_only_dirty()
+            .dont_log_empty_changes()
+            .use_log_name("business")
+            .set_description_for_event(|event| format!("business {event}: :subject.value"))
     }
 }
 
@@ -516,9 +516,9 @@ async fn eloquent_events_select_changes_preserve_transaction_rollback_and_scope_
     use openrust_activitylog::{ActivityLogger, CauserResolver, models::concerns::LogsActivity};
     let f = Fixture::new().await;
     let repository = f.app.make::<ActivityRepository>().await.unwrap();
-    Business::bootLogsActivity(&f.app, repository.clone()).unwrap();
-    let mut logger = ActivityLogger::fromRepository(repository.clone());
-    logger.setCauserResolver(CauserResolver::new(Some(
+    Business::boot_logs_activity(&f.app, repository.clone()).unwrap();
+    let mut logger = ActivityLogger::from_repository(repository.clone());
+    logger.set_causer_resolver(CauserResolver::new(Some(
         Subject::new("user", "actor").unwrap(),
     )));
     logger
@@ -588,7 +588,7 @@ async fn eloquent_events_select_changes_preserve_transaction_rollback_and_scope_
             )
             .unwrap();
             logger
-                .withoutLogging(|| async {
+                .without_logging(|| async {
                     suppressed.save().await.unwrap();
                 })
                 .await;
@@ -614,7 +614,7 @@ async fn tap_actions_placeholders_null_log_name_and_ordinary_large_properties() 
     let action = LogActivityAction::default();
     let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let values = observed.clone();
-    action.beforeLogging(move |activity| {
+    action.before_logging(move |activity| {
         values
             .lock()
             .unwrap()
@@ -622,7 +622,7 @@ async fn tap_actions_placeholders_null_log_name_and_ordinary_large_properties() 
         activity.properties["hook"] = json!(true);
         Ok(())
     });
-    logger.setLogActivityAction(action.clone());
+    logger.set_log_activity_action(action.clone());
     logger
         .tap(
             |activity, event| {
@@ -634,9 +634,9 @@ async fn tap_actions_placeholders_null_log_name_and_ordinary_large_properties() 
         )
         .unwrap();
     let record = logger
-        .inLog(None::<String>)
-        .withProperty("name", "Alice")
-        .withProperty("large", "x".repeat(20_000))
+        .in_log(None::<String>)
+        .with_property("name", "Alice")
+        .with_property("large", "x".repeat(20_000))
         .log("ignored fallback")
         .await
         .unwrap()
@@ -648,7 +648,7 @@ async fn tap_actions_placeholders_null_log_name_and_ordinary_large_properties() 
     assert_eq!(record.log_name, None);
     assert_eq!(record.properties["hook"], true);
     assert_eq!(observed.lock().unwrap()[0], record.description);
-    action.clearBeforeLoggingCallbacks();
+    action.clear_before_logging_callbacks();
     assert!(
         logger
             .log("")
@@ -667,12 +667,12 @@ async fn buffer_retries_failed_flush_and_serializes_concurrent_flushes() {
     let f = Fixture::new().await;
     let repository = Arc::new(ActivityRepository::new(f.connection.clone()));
     let buffer = Arc::new(ActivityBuffer::new(repository.clone()));
-    let mut logger = ActivityLogger::fromRepository(repository.clone());
-    logger.withBuffer(buffer.clone());
+    let mut logger = ActivityLogger::from_repository(repository.clone());
+    logger.with_buffer(buffer.clone());
     assert_eq!(logger.log("first").await.unwrap().unwrap().id, None);
     logger.log("second").await.unwrap();
     assert_eq!(buffer.count(), 2);
-    assert!(buffer.hasPending());
+    assert!(buffer.has_pending());
     assert!(repository.query().get().await.unwrap().is_empty());
     f.connection
         .get_schema_builder()
@@ -688,7 +688,7 @@ async fn buffer_retries_failed_flush_and_serializes_concurrent_flushes() {
         .unwrap();
     let (first, second) = tokio::join!(buffer.flush(), buffer.flush());
     assert_eq!(first.unwrap() + second.unwrap(), 2);
-    assert!(!buffer.hasPending());
+    assert!(!buffer.has_pending());
     let records = repository.query().get().await.unwrap();
     assert_eq!(records.len(), 2);
     assert!(
@@ -736,16 +736,16 @@ impl openrust::database::eloquent::Model for SoftBusiness {
     }
 }
 impl openrust_activitylog::models::concerns::LogsActivity for SoftBusiness {
-    fn activitylogState(&self) -> &openrust_activitylog::models::LoggingState {
+    fn activitylog_state(&self) -> &openrust_activitylog::models::LoggingState {
         &self.1
     }
 
-    fn getActivitylogOptions(&self) -> openrust_activitylog::LogOptions {
+    fn get_activitylog_options(&self) -> openrust_activitylog::LogOptions {
         openrust_activitylog::LogOptions::defaults()
-            .logOnly(&["value", "data->nested->name", "flag"])
-            .useAttributeRawValues(&["flag"])
-            .logOnlyDirty()
-            .dontLogEmptyChanges()
+            .log_only(&["value", "data->nested->name", "flag"])
+            .use_attribute_raw_values(&["flag"])
+            .log_only_dirty()
+            .dont_log_empty_changes()
     }
 }
 
@@ -755,7 +755,7 @@ async fn model_json_raw_casts_and_custom_soft_delete_column_restore() {
     use openrust_activitylog::models::concerns::LogsActivity;
     let f = Fixture::new().await;
     let repository = f.app.make::<ActivityRepository>().await.unwrap();
-    SoftBusiness::bootLogsActivity(&f.app, repository.clone()).unwrap();
+    SoftBusiness::boot_logs_activity(&f.app, repository.clone()).unwrap();
     let mut model = SoftBusiness::new_instance_on(
         &f.connection,
         BTreeMap::from([
@@ -838,13 +838,13 @@ impl openrust::database::eloquent::Model for RelatedBusiness {
     }
 }
 impl openrust_activitylog::models::concerns::LogsActivity for RelatedBusiness {
-    fn activitylogState(&self) -> &openrust_activitylog::models::LoggingState {
+    fn activitylog_state(&self) -> &openrust_activitylog::models::LoggingState {
         &self.1
     }
-    fn getActivitylogOptions(&self) -> openrust_activitylog::LogOptions {
+    fn get_activitylog_options(&self) -> openrust_activitylog::LogOptions {
         openrust_activitylog::LogOptions::defaults()
-            .logOnly(&["owner.name"])
-            .logOnlyDirty()
+            .log_only(&["owner.name"])
+            .log_only_dirty()
     }
 }
 #[tokio::test]
@@ -875,7 +875,7 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
         .await
         .unwrap();
     let repository = Arc::new(ActivityRepository::new(f.connection.clone()));
-    RelatedBusiness::bootLogsActivity(&f.app, repository.clone()).unwrap();
+    RelatedBusiness::boot_logs_activity(&f.app, repository.clone()).unwrap();
     let mut model = RelatedBusiness::new_instance_on(&f.connection, Default::default()).unwrap();
     model.set_attribute("id", "related");
     model.set_attribute("value", "value");
@@ -890,15 +890,17 @@ async fn lazy_related_attributes_keep_old_foreign_key_and_instance_logging_switc
     let changes = &repository.query().get().await.unwrap()[0].attribute_changes;
     assert_eq!(changes["old"]["owner.name"], "first owner");
     assert_eq!(changes["attributes"]["owner.name"], "second owner");
-    model.disableLogging();
+    model.disable_logging();
     let mut other = model.clone();
-    other.enableLogging();
-    assert!(!model.enableLoggingModelsEvents());
-    assert!(other.enableLoggingModelsEvents());
+    other.enable_logging();
+    assert!(!model.enable_logging_models_events());
+    assert!(other.enable_logging_models_events());
     model.set_attribute("owner_id", 1_i64);
     model.save().await.unwrap();
     assert_eq!(repository.query().get().await.unwrap().len(), 2);
-    model.enableLogging().set_attribute("owner_id", Value::Null);
+    model
+        .enable_logging()
+        .set_attribute("owner_id", Value::Null);
     model.save().await.unwrap();
     let records = repository.query().get().await.unwrap();
     assert_eq!(records.len(), 3);
@@ -956,11 +958,11 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
     subject.save().await.unwrap();
     let mut logger = ActivityLogger::new(f.connection.clone());
     let record = logger
-        .onModel(&subject)
+        .on_model(&subject)
         .unwrap()
-        .byModel(&subject)
+        .by_model(&subject)
         .unwrap()
-        .withProperties(json!({"nested":{"items":["value"]}}))
+        .with_properties(json!({"nested":{"items":["value"]}}))
         .log("subject :subject.value")
         .await
         .unwrap()
@@ -971,14 +973,14 @@ async fn native_activity_model_casts_and_soft_deleted_subject_configuration() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        entry.getProperty("nested.items.0", json!(null)).unwrap(),
+        entry.get_property("nested.items.0", json!(null)).unwrap(),
         "value"
     );
     assert_eq!(
-        entry.getProperty("missing", json!("default")).unwrap(),
+        entry.get_property("missing", json!("default")).unwrap(),
         "default"
     );
-    assert_eq!(record.getProperty("nested.items.0", json!(null)), "value");
+    assert_eq!(record.get_property("nested.items.0", json!(null)), "value");
     assert_eq!(record.description, "subject value");
     f.app
         .call(
@@ -1050,10 +1052,10 @@ async fn buffered_model_events_wait_for_commit_and_discard_rolled_back_savepoint
     use openrust_activitylog::{ActivityBuffer, ActivityLogger, models::concerns::LogsActivity};
     let f = Fixture::new().await;
     let repository = f.app.make::<ActivityRepository>().await.unwrap();
-    Business::bootLogsActivity(&f.app, repository.clone()).unwrap();
+    Business::boot_logs_activity(&f.app, repository.clone()).unwrap();
     let buffer = Arc::new(ActivityBuffer::new(repository.clone()));
-    let mut logger = ActivityLogger::fromRepository(repository.clone());
-    logger.withBuffer(buffer.clone());
+    let mut logger = ActivityLogger::from_repository(repository.clone());
+    logger.with_buffer(buffer.clone());
     logger
         .scope(async {
             for commit in [false, true] {

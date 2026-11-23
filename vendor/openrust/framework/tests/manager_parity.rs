@@ -23,13 +23,13 @@ async fn forgetting_mailers_releases_resolved_instances_and_recreates_all_names(
     drop(first);
     drop(second);
     assert!(weak_first.upgrade().is_some());
-    assert!(std::ptr::eq(manager.as_ref(), manager.forgetMailers()));
+    assert!(std::ptr::eq(manager.as_ref(), manager.forget_mailers()));
     assert!(weak_first.upgrade().is_none());
     assert!(weak_second.upgrade().is_none());
     let first = manager.mailer(None).unwrap();
     let second = manager.mailer(Some("second")).unwrap();
     assert!(!Arc::ptr_eq(&first, &second));
-    manager.forgetMailers();
+    manager.forget_mailers();
     assert!(!Arc::ptr_eq(&first, &manager.mailer(None).unwrap()));
     // 外部持有的 Arc 不因缓存清除而失效。
     assert!(Arc::strong_count(&first) >= 1);

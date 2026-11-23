@@ -88,6 +88,6 @@ macro_rules! password_view {
 }
 password_view!(
     RequestPasswordResetLinkViewResponse,
-    request_password_reset_link_view
+    password_reset_link_view_response
 );
-password_view!(ResetPasswordViewResponse, reset_password_view);
+password_view!(ResetPasswordViewResponse, password_reset_view_response);

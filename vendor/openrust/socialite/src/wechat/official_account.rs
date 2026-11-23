@@ -27,7 +27,7 @@ impl Default for WeixinProvider {
     }
 }
 impl WeixinProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints, refresh: impl Into<String>) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints, refresh: impl Into<String>) -> Self {
         Self {
             endpoints,
             refresh: refresh.into(),
@@ -46,10 +46,10 @@ impl WeixinProvider {
     }
 }
 impl ProviderDefinition for WeixinProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
@@ -59,12 +59,18 @@ impl ProviderDefinition for WeixinProvider {
             &["snsapi_userinfo"]
         }
     }
-    fn customizeCodeFields(&self, fields: &mut Map<String, Value>, _: &[String], _: bool, _: bool) {
+    fn customize_code_fields(
+        &self,
+        fields: &mut Map<String, Value>,
+        _: &[String],
+        _: bool,
+        _: bool,
+    ) {
         if let Some(id) = fields.remove("client_id") {
             fields.insert("appid".into(), id);
         }
     }
-    fn getAccessTokenResponse<'a>(
+    fn get_access_token_response<'a>(
         &'a self,
         http: &'a Factory,
         config: &'a ProviderConfig,
@@ -90,19 +96,19 @@ impl ProviderDefinition for WeixinProvider {
             Ok(response)
         }))
     }
-    fn configureTokenResponse(
+    fn configure_token_response(
         &self,
         response: &Value,
         options: &mut ProviderOptions,
     ) -> Result<()> {
-        options.openId = Some(identifier(response, "openid")?.into());
+        options.open_id = Some(identifier(response, "openid")?.into());
         Ok(())
     }
-    fn refreshTokenResponse<'a>(
+    fn refresh_token_response<'a>(
         &'a self,
         http: &'a Factory,
         config: &'a ProviderConfig,
-        refreshToken: &'a str,
+        refresh_token: &'a str,
     ) -> Option<ProviderFuture<'a, Value>> {
         Some(Box::pin(async move {
             let response = checked(
@@ -112,7 +118,7 @@ impl ProviderDefinition for WeixinProvider {
                     .with_query_parameters([
                         ("appid".into(), config.client_id.clone()),
                         ("grant_type".into(), "refresh_token".into()),
-                        ("refresh_token".into(), refreshToken.into()),
+                        ("refresh_token".into(), refresh_token.into()),
                     ])
                     .get(&self.refresh)
                     .await?,
@@ -121,7 +127,7 @@ impl ProviderDefinition for WeixinProvider {
             Ok(response)
         }))
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         _: &'a Factory,
         _: &'a str,
@@ -129,7 +135,7 @@ impl ProviderDefinition for WeixinProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async { Err(Error::Configuration("openid")) })
     }
-    fn getUserByTokenWithOptions<'a>(
+    fn get_user_by_token_with_options<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -140,7 +146,7 @@ impl ProviderDefinition for WeixinProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
             let id = options
-                .openId
+                .open_id
                 .as_deref()
                 .filter(|s| !s.is_empty())
                 .ok_or(Error::Configuration("openid"))?;
@@ -165,7 +171,7 @@ impl ProviderDefinition for WeixinProvider {
             Ok(user)
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         identifier(&user, "openid")?;
         let fields = [
             ("id", user["openid"].clone()),

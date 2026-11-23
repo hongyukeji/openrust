@@ -21,7 +21,7 @@ impl FeatureDefinition for Campaign {
     fn name() -> &'static str {
         "campaign"
     }
-    fn acceptsNullScope() -> bool {
+    fn accepts_null_scope() -> bool {
         false
     }
     fn before<'a>(&'a self, scope: &'a Scope) -> FeatureFuture<'a, Option<Value>> {
@@ -52,7 +52,7 @@ async fn feature_classes_override_stored_values_without_persisting_and_handle_nu
     let overrides = override_value.clone();
     let instances = factories.clone();
     store
-        .defineClass(move || {
+        .define_class(move || {
             instances.fetch_add(1, Ordering::SeqCst);
             let feature = Arc::new(Campaign {
                 override_value: overrides.clone(),
@@ -65,23 +65,23 @@ async fn feature_classes_override_stored_values_without_persisting_and_handle_nu
     let class = std::any::type_name::<Campaign>();
     assert_eq!(store.name(class).unwrap(), "campaign");
     assert!(
-        matches!(store.nameMap().unwrap()["campaign"], openrust_pennant::FeatureImplementation::Class(name) if name == class)
+        matches!(store.name_map().unwrap()["campaign"], openrust_pennant::FeatureImplementation::Class(name) if name == class)
     );
     assert_eq!(
         store.r#for("alice").value(class).await.unwrap(),
         json!("normal")
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
-    fake.assertDispatchedTimes(FeatureResolved::NAME, 1);
+    fake.assert_dispatched_times(FeatureResolved::NAME, 1);
     override_value.store(true, Ordering::SeqCst);
     // Cached values take precedence over the hook, exactly as the pinned Decorator.
     assert_eq!(
         store.r#for("alice").value(class).await.unwrap(),
         json!("normal")
     );
-    store.flushCache().unwrap();
+    store.flush_cache().unwrap();
     store
-        .getDriver()
+        .get_driver()
         .set("campaign", &Scope::from("alice"), json!("normal"))
         .await
         .unwrap();
@@ -91,14 +91,14 @@ async fn feature_classes_override_stored_values_without_persisting_and_handle_nu
     );
     assert_eq!(
         store
-            .getDriver()
+            .get_driver()
             .get("campaign", &Scope::from("alice"))
             .await
             .unwrap(),
         json!("normal")
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
-    fake.assertDispatchedTimes(FeatureResolved::NAME, 1);
+    fake.assert_dispatched_times(FeatureResolved::NAME, 1);
     // The bulk hook overrides stored values for all scopes without driver writes.
     let loaded = store
         .r#for("alice")
@@ -112,14 +112,14 @@ async fn feature_classes_override_stored_values_without_persisting_and_handle_nu
         json!(false)
     );
     assert_eq!(calls.load(Ordering::SeqCst), 1);
-    fake.assertDispatchedTimes(UnexpectedNullScopeEncountered::NAME, 1);
-    fake.assertDispatchedTimes(FeatureResolved::NAME, 2);
+    fake.assert_dispatched_times(UnexpectedNullScopeEncountered::NAME, 1);
+    fake.assert_dispatched_times(FeatureResolved::NAME, 2);
     assert!(Arc::ptr_eq(
         &store.instance::<Campaign>().await.unwrap().calls,
         &calls
     ));
     // Redefining a class name using a literal removes its former before hook.
-    store.defineValue("campaign", json!(true)).unwrap();
+    store.define_value("campaign", json!(true)).unwrap();
     store.r#for("alice").forget(&[class]).await.unwrap();
     assert_eq!(
         store.r#for("alice").value(class).await.unwrap(),
@@ -132,20 +132,20 @@ async fn native_events_follow_cache_and_short_circuit_semantics() {
     let fake = app.fake_events(&[]).await.unwrap();
     let manager = app.app().make::<FeatureManager>().await.unwrap();
     let store = manager.store(None).unwrap();
-    store.defineValue("a", json!(false)).unwrap();
-    store.defineValue("b", json!(true)).unwrap();
+    store.define_value("a", json!(false)).unwrap();
+    store.define_value("b", json!(true)).unwrap();
     let scopes = store.r#for("alice").r#for("bob");
-    assert!(!scopes.allAreActive(&["a", "b"]).await.unwrap());
-    fake.assertDispatchedTimes(FeatureResolved::NAME, 4);
-    fake.assertDispatchedTimes(FeatureRetrieved::NAME, 1);
-    assert!(scopes.someAreActive(&["b", "a"]).await.unwrap());
-    fake.assertDispatchedTimes(FeatureRetrieved::NAME, 3);
+    assert!(!scopes.all_are_active(&["a", "b"]).await.unwrap());
+    fake.assert_dispatched_times(FeatureResolved::NAME, 4);
+    fake.assert_dispatched_times(FeatureRetrieved::NAME, 1);
+    assert!(scopes.some_are_active(&["b", "a"]).await.unwrap());
+    fake.assert_dispatched_times(FeatureRetrieved::NAME, 3);
     scopes.activate("a").await.unwrap();
-    fake.assertDispatchedTimes(FeatureUpdated::NAME, 2);
+    fake.assert_dispatched_times(FeatureUpdated::NAME, 2);
     scopes.forget(&["a"]).await.unwrap();
-    fake.assertDispatchedTimes(FeatureDeleted::NAME, 2);
-    store.deactivateForEveryone("b").await.unwrap();
-    fake.assertDispatchedTimes(FeatureUpdatedForAllScopes::NAME, 1);
+    fake.assert_dispatched_times(FeatureDeleted::NAME, 2);
+    store.deactivate_for_everyone("b").await.unwrap();
+    fake.assert_dispatched_times(FeatureUpdatedForAllScopes::NAME, 1);
     assert_eq!(
         store.r#for("guest").value("unknown").await.unwrap(),
         json!(false)
@@ -154,18 +154,18 @@ async fn native_events_follow_cache_and_short_circuit_semantics() {
         store.r#for("guest").value("unknown").await.unwrap(),
         json!(false)
     );
-    fake.assertDispatchedTimes(UnknownFeatureResolved::NAME, 1);
+    fake.assert_dispatched_times(UnknownFeatureResolved::NAME, 1);
     store.purge(Some(&["a".into()])).await.unwrap();
     store.purge(None).await.unwrap();
-    fake.assertDispatchedTimes(FeaturesPurged::NAME, 1);
-    fake.assertDispatchedTimes(AllFeaturesPurged::NAME, 1);
+    fake.assert_dispatched_times(FeaturesPurged::NAME, 1);
+    fake.assert_dispatched_times(AllFeaturesPurged::NAME, 1);
     manager
         .extend("custom", |_, _| {
             Ok(Arc::new(openrust_pennant::drivers::ArrayDriver::new()))
         })
         .unwrap();
     let custom = manager.store(Some("custom")).unwrap();
-    custom.defineValue("flag", json!(0)).unwrap();
+    custom.define_value("flag", json!(0)).unwrap();
     assert!(custom.r#for("alice").active("flag").await.unwrap());
 }
 
@@ -203,7 +203,7 @@ async fn listener_failures_keep_native_resolution_and_mutation_boundaries() {
         .unwrap()
         .store(None)
         .unwrap();
-    store.defineValue("flag", json!(true)).unwrap();
+    store.define_value("flag", json!(true)).unwrap();
     dispatcher
         .listen(
             FeatureResolved::NAME,
@@ -273,8 +273,8 @@ async fn definitions_bulk_values_and_events_preserve_requested_order() {
         .unwrap()
         .store(None)
         .unwrap();
-    store.defineValue("z", json!(true)).unwrap();
-    store.defineValue("a", json!(false)).unwrap();
+    store.define_value("z", json!(true)).unwrap();
+    store.define_value("a", json!(false)).unwrap();
     assert_eq!(store.defined().unwrap(), ["z", "a"]);
     let values = store.r#for("alice").values(&["z", "a"]).await.unwrap();
     assert_eq!(
@@ -283,10 +283,10 @@ async fn definitions_bulk_values_and_events_preserve_requested_order() {
     );
     assert_eq!(*seen.lock().unwrap(), ["z", "a"]);
     store
-        .defineLottery("always", openrust::support::Lottery::odds(1, 1).unwrap())
+        .define_lottery("always", openrust::support::Lottery::odds(1, 1).unwrap())
         .unwrap();
     store
-        .defineLottery("never", openrust::support::Lottery::odds(0, 1).unwrap())
+        .define_lottery("never", openrust::support::Lottery::odds(0, 1).unwrap())
         .unwrap();
     assert!(store.r#for("alice").active("always").await.unwrap());
     assert!(store.r#for("alice").inactive("never").await.unwrap());
@@ -310,9 +310,9 @@ async fn all_filters_incompatible_scope_definitions_without_resolving_them() {
         .unwrap()
         .store(None)
         .unwrap();
-    store.defineValue("public", json!(true)).unwrap();
+    store.define_value("public", json!(true)).unwrap();
     store
-        .defineWithScope(
+        .define_with_scope(
             "private",
             Arc::new(|_| Box::pin(async { Ok(json!(true)) })),
             false,
@@ -329,10 +329,10 @@ async fn all_filters_incompatible_scope_definitions_without_resolving_them() {
             .collect::<Vec<_>>(),
         ["public"]
     );
-    fake.assertNotDispatched(UnexpectedNullScopeEncountered::NAME);
+    fake.assert_not_dispatched(UnexpectedNullScopeEncountered::NAME);
     assert_eq!(store.r#for("alice").all().await.unwrap().len(), 2);
     assert!(!store.r#for(Scope::Null).active("private").await.unwrap());
-    fake.assertDispatchedTimes(UnexpectedNullScopeEncountered::NAME, 1);
+    fake.assert_dispatched_times(UnexpectedNullScopeEncountered::NAME, 1);
     assert!(
         store
             .r#for(Scope::Null)
@@ -358,17 +358,17 @@ impl openrust_pennant::Driver for CoreDriver {
     fn get<'a>(&'a self, name: &'a str, scope: &'a Scope) -> FeatureFuture<'a, Value> {
         self.0.get(name, scope)
     }
-    fn getAll<'a>(
+    fn get_all<'a>(
         &'a self,
         features: &'a openrust_pennant::FeatureScopes,
     ) -> FeatureFuture<'a, openrust_pennant::FeatureValues> {
-        self.0.getAll(features)
+        self.0.get_all(features)
     }
     fn set<'a>(&'a self, name: &'a str, scope: &'a Scope, value: Value) -> FeatureFuture<'a, ()> {
         self.0.set(name, scope, value)
     }
-    fn setForAllScopes<'a>(&'a self, name: &'a str, value: Value) -> FeatureFuture<'a, ()> {
-        self.0.setForAllScopes(name, value)
+    fn set_for_all_scopes<'a>(&'a self, name: &'a str, value: Value) -> FeatureFuture<'a, ()> {
+        self.0.set_for_all_scopes(name, value)
     }
     fn delete<'a>(&'a self, name: &'a str, scope: &'a Scope) -> FeatureFuture<'a, ()> {
         self.0.delete(name, scope)
@@ -391,8 +391,8 @@ async fn optional_driver_capabilities_preserve_per_item_event_failure_boundaries
         })
         .unwrap();
     let store = manager.store(Some("custom")).unwrap();
-    store.defineValue("first", json!(false)).unwrap();
-    store.defineValue("second", json!(false)).unwrap();
+    store.define_value("first", json!(false)).unwrap();
+    store.define_value("second", json!(false)).unwrap();
     assert!(matches!(
         store.stored().await,
         Err(openrust_pennant::Error::Unsupported(_))
@@ -410,7 +410,7 @@ async fn optional_driver_capabilities_preserve_per_item_event_failure_boundaries
     assert!(
         store
             .r#for("alice")
-            .activateWithValue(&["first", "second"], json!(true))
+            .activate_with_value(&["first", "second"], json!(true))
             .await
             .is_err()
     );

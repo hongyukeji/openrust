@@ -9,13 +9,11 @@ use crate::{
 };
 
 /// Pail's CLI presentation, rendered directly without a PHP HTML/DOM runtime.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CliPrinter<'a> {
     output: &'a mut Output,
     base_path: PathBuf,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> CliPrinter<'a> {
     pub fn new(output: &'a mut Output, base_path: impl Into<PathBuf>) -> Self {
         Self {
@@ -38,13 +36,13 @@ impl<'a> CliPrinter<'a> {
         file.replace(&format!("{base}/"), "")
     }
 
-    fn truncateClassOrType(&self, classOrType: &str) -> String {
+    fn truncate_class_or_type(&self, class_or_type: &str) -> String {
         if self.output.is_verbose() {
-            return classOrType.into();
+            return class_or_type.into();
         }
         abbreviate(
-            classOrType,
-            if classOrType.contains('\\') {
+            class_or_type,
+            if class_or_type.contains('\\') {
                 "\\"
             } else {
                 "::"
@@ -52,18 +50,21 @@ impl<'a> CliPrinter<'a> {
         )
     }
 
-    fn truncateMessage(&self, message: &str) -> String {
+    fn truncate_message(&self, message: &str) -> String {
         if self.output.is_verbose() {
             return message.into();
         }
         substring(message, self.width().saturating_sub(5).min(145))
     }
 
-    fn file(&self, message: &MessageLogged, classOrType: &str) -> Option<String> {
+    fn file(&self, message: &MessageLogged, class_or_type: &str) -> Option<String> {
         let mut file = self.relative(message.file()?);
         if !self.output.is_verbose() {
             file = abbreviate(&file, "/");
-            let size = self.width().saturating_sub(classOrType.len() + 16).min(145);
+            let size = self
+                .width()
+                .saturating_sub(class_or_type.len() + 16)
+                .min(145);
             file = substring(&file, size);
         }
         (file != "…").then(|| file.replace("……", "…"))
@@ -81,12 +82,12 @@ impl<'a> CliPrinter<'a> {
                     format!("/{}", origin.path)
                 };
                 let auth = origin
-                    .authId
+                    .auth_id
                     .as_deref()
                     .filter(|id| truthy(id))
                     .map_or_else(
                         || "guest".into(),
-                        |id| match origin.authEmail.as_deref().filter(|mail| truthy(mail)) {
+                        |id| match origin.auth_email.as_deref().filter(|mail| truthy(mail)) {
                             Some(email) => format!("{id} ({email})"),
                             None => id.to_owned(),
                         },
@@ -141,7 +142,7 @@ impl<'a> CliPrinter<'a> {
             .collect())
     }
 
-    pub fn optionsHtml(&self, message: &MessageLogged) -> Result<String, ConsoleError> {
+    pub fn options_html(&self, message: &MessageLogged) -> Result<String, ConsoleError> {
         Ok(self
             .options(message)?
             .into_iter()
@@ -171,7 +172,7 @@ impl<'a> CliPrinter<'a> {
             .collect()
     }
 
-    pub fn traceHtml(&self, message: &MessageLogged) -> String {
+    pub fn trace_html(&self, message: &MessageLogged) -> String {
         self.trace(message).into_iter().map(|frame| format!(
             "    <div class=\"flex text-gray\">\n        <span>\n            <span class=\"mr-1 text-gray\">│</span>\n            <span>{frame} </span>\n        </span>\n    </div>"
         )).collect()
@@ -199,7 +200,7 @@ impl Printer for CliPrinter<'_> {
     fn print(&mut self, message: &MessageLogged) -> Result<(), ConsoleError> {
         let verbose = self.output.is_verbose();
         let width = self.width().min(150);
-        let class = self.truncateClassOrType(&message.classOrType());
+        let class = self.truncate_class_or_type(&message.class_or_type());
         let date = if verbose {
             message.date()
         } else {
@@ -218,7 +219,7 @@ impl Printer for CliPrinter<'_> {
         frame.push_str(&self.style(&class, message.color(), true));
         frame.push_str(&self.style(&format!(" {bars}{file}{ending}"), "gray", false));
         frame.push('\n');
-        let text = self.truncateMessage(message.message());
+        let text = self.truncate_message(message.message());
         let empty = !truthy(&text);
         let text = if empty {
             "No message.".into()

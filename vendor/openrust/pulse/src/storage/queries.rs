@@ -25,7 +25,7 @@ impl DatabaseStorage {
         let oldest = now.div_euclid(period) * period - interval + period;
         Ok((period, now - interval + 1, oldest))
     }
-    fn aggregateSql(&self, aggregate: &str, column: &str) -> String {
+    fn aggregate_sql(&self, aggregate: &str, column: &str) -> String {
         format!(
             "{}({})",
             if aggregate == "count" {
@@ -54,7 +54,7 @@ impl DatabaseStorage {
             .await?;
         let mut padding = IndexMap::new();
         for i in 0..60 {
-            padding.insert(bucketLabel(first + i * period)?, None);
+            padding.insert(bucket_label(first + i * period)?, None);
         }
         let structure: IndexMap<_, _> =
             types.iter().map(|t| (t.clone(), padding.clone())).collect();
@@ -71,11 +71,15 @@ impl DatabaseStorage {
                 .or_insert_with(|| structure.clone())
                 .entry(r#type)
                 .or_insert_with(|| padding.clone())
-                .insert(bucketLabel(bucket)?, row.get("value").and_then(number));
+                .insert(bucket_label(bucket)?, row.get("value").and_then(number));
         }
         Ok(graph)
     }
-    fn mapKeys(&self, mut query: Builder<'static>, columns: &[String]) -> Result<Builder<'static>> {
+    fn map_keys(
+        &self,
+        mut query: Builder<'static>,
+        columns: &[String],
+    ) -> Result<Builder<'static>> {
         let mut keys = self
             .connection
             .table("pulse_entries as keys")
@@ -130,7 +134,7 @@ impl DatabaseStorage {
                 .select(["key_hash"]);
             for a in aggregates {
                 let expression = if a == current {
-                    self.aggregateSql(a, "value")
+                    self.aggregate_sql(a, "value")
                 } else {
                     "null".into()
                 };
@@ -151,7 +155,7 @@ impl DatabaseStorage {
             .from_sub(&mut tail, "results")?;
         for a in aggregates {
             grouped = grouped.select_raw(
-                &format!("{} as {}", self.aggregateSql(a, a), self.wrap(a)),
+                &format!("{} as {}", self.aggregate_sql(a, a), self.wrap(a)),
                 vec![],
             );
         }
@@ -159,9 +163,9 @@ impl DatabaseStorage {
             .group_by(&["key_hash"])
             .order_by(order, direction)
             .limit(limit);
-        Ok(self.mapKeys(grouped, aggregates)?.get().await?)
+        Ok(self.map_keys(grouped, aggregates)?.get().await?)
     }
-    pub async fn aggregateTypes(
+    pub async fn aggregate_types(
         &self,
         types: &[String],
         aggregate: &str,
@@ -237,7 +241,7 @@ impl DatabaseStorage {
             .from_sub(&mut tail, "results")?;
         for t in types {
             grouped = grouped.select_raw(
-                &format!("{} as {}", self.aggregateSql(aggregate, t), self.wrap(t)),
+                &format!("{} as {}", self.aggregate_sql(aggregate, t), self.wrap(t)),
                 vec![],
             );
         }
@@ -245,9 +249,9 @@ impl DatabaseStorage {
             .group_by(&["key_hash"])
             .order_by(order, direction)
             .limit(limit);
-        Ok(self.mapKeys(grouped, types)?.get().await?)
+        Ok(self.map_keys(grouped, types)?.get().await?)
     }
-    pub async fn aggregateTotal(
+    pub async fn aggregate_total(
         &self,
         types: &[String],
         aggregate: &str,
@@ -255,7 +259,7 @@ impl DatabaseStorage {
     ) -> Result<IndexMap<String, Option<f64>>> {
         validate(aggregate)?;
         let (period, window, oldest) = self.interval(interval)?;
-        let tailSql = if aggregate == "count" {
+        let tail_sql = if aggregate == "count" {
             "count(*)".into()
         } else {
             format!("{aggregate}({})", self.wrap("value"))
@@ -264,7 +268,7 @@ impl DatabaseStorage {
             .connection
             .table("pulse_entries")
             .select(["type"])
-            .select_raw(&format!("{tailSql} as {}", self.wrap(aggregate)), vec![])
+            .select_raw(&format!("{tail_sql} as {}", self.wrap(aggregate)), vec![])
             .where_in("type", types.iter().cloned().map(Sql::Text).collect())
             .r#where("timestamp", ">=", window)
             .r#where("timestamp", "<=", oldest - 1)
@@ -276,7 +280,7 @@ impl DatabaseStorage {
             .select_raw(
                 &format!(
                     "{} as {}",
-                    self.aggregateSql(aggregate, "value"),
+                    self.aggregate_sql(aggregate, "value"),
                     self.wrap(aggregate)
                 ),
                 vec![],
@@ -294,7 +298,7 @@ impl DatabaseStorage {
             .select_raw(
                 &format!(
                     "{} as {}",
-                    self.aggregateSql(aggregate, aggregate),
+                    self.aggregate_sql(aggregate, aggregate),
                     self.wrap(aggregate)
                 ),
                 vec![],
@@ -314,7 +318,7 @@ fn text(row: &Row, column: &str) -> Result<String> {
         _ => Err(Error::StateUnavailable),
     }
 }
-fn bucketLabel(timestamp: i64) -> Result<String> {
+fn bucket_label(timestamp: i64) -> Result<String> {
     Ok(jiff::Timestamp::from_second(timestamp)
         .map_err(|_| Error::StateUnavailable)?
         .to_zoned(jiff::tz::TimeZone::UTC)

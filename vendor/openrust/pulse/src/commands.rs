@@ -180,7 +180,7 @@ impl Command for PulseCommand {
                                 .await
                                 .map_err(error)?;
                             pulse.ingest().await;
-                            collectTelescope(app).await?;
+                            collect_telescope(app).await?;
                             if vapor || input.matches().get_flag("once") {
                                 break;
                             }
@@ -190,7 +190,7 @@ impl Command for PulseCommand {
                                 pulse.trim().await.map_err(error)?;
                                 trimmed = now;
                             }
-                            collectTelescope(app).await?;
+                            collect_telescope(app).await?;
                             if input.matches().get_flag("stop-when-empty") {
                                 break;
                             }
@@ -207,7 +207,7 @@ impl Command for PulseCommand {
     }
 }
 
-async fn collectTelescope(_app: &Application) -> Result<(), ConsoleError> {
+async fn collect_telescope(_app: &Application) -> Result<(), ConsoleError> {
     #[cfg(feature = "telescope")]
     {
         use openrust::contracts::container::Container as _;

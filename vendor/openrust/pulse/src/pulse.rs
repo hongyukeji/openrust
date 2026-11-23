@@ -13,36 +13,36 @@ pub(crate) type Handler = Arc<dyn Fn(&Error) + Send + Sync>;
 pub struct Options {
     pub(crate) recorders: RwLock<Vec<Arc<dyn crate::recorders::Recorder>>>,
     css: RwLock<Vec<crate::Css>>,
-    legacyUsers: RwLock<Option<Arc<crate::LegacyUserResolver>>>,
-    pub(crate) registersRoutes: AtomicBool,
+    legacy_users: RwLock<Option<Arc<crate::LegacyUserResolver>>>,
+    pub(crate) registers_routes: AtomicBool,
     filters: RwLock<Vec<Filter>>,
     handler: RwLock<Option<Handler>>,
-    pub(crate) userFields: Arc<RwLock<Option<Arc<crate::users::FieldResolver>>>>,
+    pub(crate) user_fields: Arc<RwLock<Option<Arc<crate::users::FieldResolver>>>>,
 }
 impl Default for Options {
     fn default() -> Self {
         Self {
             recorders: RwLock::default(),
             css: RwLock::default(),
-            legacyUsers: RwLock::default(),
-            registersRoutes: AtomicBool::new(true),
+            legacy_users: RwLock::default(),
+            registers_routes: AtomicBool::new(true),
             filters: RwLock::default(),
             handler: RwLock::default(),
-            userFields: Arc::default(),
+            user_fields: Arc::default(),
         }
     }
 }
 pub struct Pulse {
     pub storage: Arc<dyn Storage>,
     users: Arc<dyn crate::ResolvesUsers>,
-    pub(crate) automaticRecording: AtomicBool,
+    pub(crate) automatic_recording: AtomicBool,
     ingest: Arc<dyn Ingest>,
     entries: Mutex<Vec<Item>>,
-    rememberedUserId: RwLock<Option<String>>,
+    remembered_user_id: RwLock<Option<String>>,
     lazy: Mutex<Vec<Lazy>>,
-    shouldRecord: AtomicBool,
+    should_record: AtomicBool,
     ignoring: AtomicUsize,
-    evaluatingBuffer: AtomicBool,
+    evaluating_buffer: AtomicBool,
     buffer: usize,
     options: Arc<Options>,
     lottery: openrust::support::Lottery,
@@ -62,13 +62,13 @@ impl Pulse {
             storage,
             ingest,
             users: Arc::new(crate::Users::default()),
-            automaticRecording: AtomicBool::new(false),
+            automatic_recording: AtomicBool::new(false),
             entries: Mutex::default(),
-            rememberedUserId: RwLock::default(),
+            remembered_user_id: RwLock::default(),
             lazy: Mutex::default(),
-            shouldRecord: AtomicBool::new(true),
+            should_record: AtomicBool::new(true),
             ignoring: AtomicUsize::new(0),
-            evaluatingBuffer: AtomicBool::new(false),
+            evaluating_buffer: AtomicBool::new(false),
             buffer: 5000,
             options: Arc::default(),
             lottery: openrust::support::Lottery::odds(1, 1000).expect("valid default odds"),
@@ -78,7 +78,7 @@ impl Pulse {
         use openrust::support::facades::{Event, Facade};
         let dispatcher = Event::get_facade_root()?;
         for recorder in recorders {
-            crate::recorders::registerRecorder(&dispatcher, recorder, self.options.clone())?;
+            crate::recorders::register_recorder(&dispatcher, recorder, self.options.clone())?;
         }
         Ok(self)
     }
@@ -90,7 +90,7 @@ impl Pulse {
             .clone()
     }
     /// Adds trusted application CSS paths or HTML, retaining the first occurrence.
-    pub fn withCss(&self, css: impl IntoIterator<Item = crate::Css>) -> &Self {
+    pub fn with_css(&self, css: impl IntoIterator<Item = crate::Css>) -> &Self {
         let mut registered = self.options.css.write().unwrap_or_else(|e| e.into_inner());
         for css in css {
             if !registered.contains(&css) {
@@ -132,12 +132,12 @@ impl Pulse {
             include_str!("../resources/js/pulse.js")
         )
     }
-    pub fn withUserResolver(mut self, resolver: Arc<dyn crate::ResolvesUsers>) -> Self {
+    pub fn with_user_resolver(mut self, resolver: Arc<dyn crate::ResolvesUsers>) -> Self {
         self.users = resolver;
         self
     }
-    pub async fn resolveUsers(&self, keys: &[String]) -> Result<Arc<dyn crate::ResolvesUsers>> {
-        let users = self.userResolver();
+    pub async fn resolve_users(&self, keys: &[String]) -> Result<Arc<dyn crate::ResolvesUsers>> {
+        let users = self.user_resolver();
         self.ignore(users.load(keys)).await?;
         Ok(users)
     }
@@ -148,12 +148,13 @@ impl Pulse {
         + Sync
         + 'static,
     ) -> Result<&Self> {
-        self.userResolver().setFieldResolver(Arc::new(resolver))?;
+        self.user_resolver()
+            .set_field_resolver(Arc::new(resolver))?;
         Ok(self)
     }
-    fn userResolver(&self) -> Arc<dyn crate::ResolvesUsers> {
+    fn user_resolver(&self) -> Arc<dyn crate::ResolvesUsers> {
         self.options
-            .legacyUsers
+            .legacy_users
             .read()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
@@ -172,24 +173,24 @@ impl Pulse {
     ) -> &Self {
         *self
             .options
-            .legacyUsers
+            .legacy_users
             .write()
             .unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(resolver));
         self
     }
-    pub fn withOptions(mut self, options: Arc<Options>) -> Self {
+    pub fn with_options(mut self, options: Arc<Options>) -> Self {
         self.options = options;
         self
     }
-    pub fn withTrimLottery(mut self, lottery: openrust::support::Lottery) -> Self {
+    pub fn with_trim_lottery(mut self, lottery: openrust::support::Lottery) -> Self {
         self.lottery = lottery;
         self
     }
-    pub fn withBuffer(mut self, buffer: usize) -> Self {
+    pub fn with_buffer(mut self, buffer: usize) -> Self {
         self.buffer = buffer;
         self
     }
-    pub fn defaultVendorCacheKeys() -> Vec<String> {
+    pub fn default_vendor_cache_keys() -> Vec<String> {
         vec![
             r"/(^laravel_vapor_job_attemp(t?)s:)/",
             r"/^.+@.+\|(?:(?:\d+\.\d+\.\d+\.\d+)|[0-9a-fA-F:]+)(?::timer)?$/",
@@ -205,27 +206,29 @@ impl Pulse {
         .map(str::to_owned)
         .collect()
     }
-    pub fn ignoreRoutes(&self) {
-        self.options.registersRoutes.store(false, Ordering::Relaxed);
+    pub fn ignore_routes(&self) {
+        self.options
+            .registers_routes
+            .store(false, Ordering::Relaxed);
     }
-    pub fn registersRoutes(&self) -> bool {
-        self.options.registersRoutes.load(Ordering::Relaxed)
+    pub fn registers_routes(&self) -> bool {
+        self.options.registers_routes.load(Ordering::Relaxed)
     }
-    pub fn startRecording(&self) {
-        self.shouldRecord.store(true, Ordering::Relaxed);
+    pub fn start_recording(&self) {
+        self.should_record.store(true, Ordering::Relaxed);
     }
-    pub fn stopRecording(&self) {
-        self.shouldRecord.store(false, Ordering::Relaxed);
+    pub fn stop_recording(&self) {
+        self.should_record.store(false, Ordering::Relaxed);
     }
-    pub(crate) fn isIgnoring(options: &Arc<Options>) -> bool {
+    pub(crate) fn is_ignoring(options: &Arc<Options>) -> bool {
         IGNORED
             .try_with(|ignored| ignored.iter().any(|owner| Arc::ptr_eq(owner, options)))
             .unwrap_or(false)
     }
-    pub fn isRecording(&self) -> bool {
-        self.shouldRecord.load(Ordering::Relaxed)
+    pub fn is_recording(&self) -> bool {
+        self.should_record.load(Ordering::Relaxed)
             && self.ignoring.load(Ordering::Relaxed) == 0
-            && !Self::isIgnoring(&self.options)
+            && !Self::is_ignoring(&self.options)
     }
     pub async fn ignore<T>(&self, callback: impl Future<Output = T>) -> T {
         self.ignoring.fetch_add(1, Ordering::Relaxed);
@@ -236,14 +239,14 @@ impl Pulse {
         ignored.push(self.options.clone());
         IGNORED.scope(ignored, callback).await
     }
-    pub fn handleExceptionsUsing(&self, callback: impl Fn(&Error) + Send + Sync + 'static) {
+    pub fn handle_exceptions_using(&self, callback: impl Fn(&Error) + Send + Sync + 'static) {
         *self
             .options
             .handler
             .write()
             .unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(callback));
     }
-    pub(crate) fn reportError(&self, error: &Error) {
+    pub(crate) fn report_error(&self, error: &Error) {
         let handler = self
             .options
             .handler
@@ -258,7 +261,7 @@ impl Pulse {
         match callback.await {
             Ok(value) => Some(value),
             Err(error) => {
-                self.reportError(&error);
+                self.report_error(&error);
                 None
             }
         }
@@ -284,12 +287,12 @@ impl Pulse {
         timestamp: Option<i64>,
     ) -> Entry {
         let entry = Entry::new(timestamp.unwrap_or_else(Self::now), r#type, key, value);
-        if self.isRecording() {
+        if self.is_recording() {
             self.entries
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .push(entry.clone().into());
-            self.ingestWhenOverBufferSize().await;
+            self.ingest_when_over_buffer_size().await;
         }
         entry
     }
@@ -301,12 +304,12 @@ impl Pulse {
         timestamp: Option<i64>,
     ) -> Value {
         let value = Value::new(timestamp.unwrap_or_else(Self::now), r#type, key, value);
-        if self.isRecording() {
+        if self.is_recording() {
             self.entries
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .push(value.clone().into());
-            self.ingestWhenOverBufferSize().await;
+            self.ingest_when_over_buffer_size().await;
         }
         value
     }
@@ -314,50 +317,53 @@ impl Pulse {
         &self,
         callback: impl for<'a> FnOnce(&'a Pulse) -> PulseFuture<'a, ()> + Send + 'static,
     ) {
-        if self.isRecording() {
+        if self.is_recording() {
             self.lazy
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .push(Box::new(callback));
-            self.ingestWhenOverBufferSize().await;
+            self.ingest_when_over_buffer_size().await;
         }
     }
     pub(crate) fn defer(
         &self,
         callback: impl for<'a> FnOnce(&'a Pulse) -> PulseFuture<'a, ()> + Send + 'static,
     ) {
-        if self.isRecording() {
+        if self.is_recording() {
             self.lazy
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .push(Box::new(callback));
         }
     }
-    pub fn rememberUser(&self, user: &dyn openrust::contracts::auth::Authenticatable) -> &Self {
+    pub fn remember_user(&self, user: &dyn openrust::contracts::auth::Authenticatable) -> &Self {
         *self
-            .rememberedUserId
+            .remembered_user_id
             .write()
-            .unwrap_or_else(|e| e.into_inner()) = self.userResolver().key(user);
+            .unwrap_or_else(|e| e.into_inner()) = self.user_resolver().key(user);
         self
     }
-    pub fn authenticatedUserIdResolver(
+    pub fn authenticated_user_id_resolver(
         &self,
     ) -> impl Fn(&Pulse) -> Option<String> + Send + Sync + use<> {
         use openrust::support::facades::Auth;
         let key = Auth::manager()
             .ok()
             .and_then(|auth| auth.resolved_user(None))
-            .and_then(|user| self.userResolver().key(user.as_ref()));
-        move |pulse| key.clone().or_else(|| pulse.resolveAuthenticatedUserId())
+            .and_then(|user| self.user_resolver().key(user.as_ref()));
+        move |pulse| {
+            key.clone()
+                .or_else(|| pulse.resolve_authenticated_user_id())
+        }
     }
-    pub fn resolveAuthenticatedUserId(&self) -> Option<String> {
+    pub fn resolve_authenticated_user_id(&self) -> Option<String> {
         use openrust::support::facades::Auth;
         Auth::manager()
             .ok()
             .and_then(|a| a.resolved_user(None))
-            .and_then(|u| self.userResolver().key(u.as_ref()))
+            .and_then(|u| self.user_resolver().key(u.as_ref()))
             .or_else(|| {
-                self.rememberedUserId
+                self.remembered_user_id
                     .read()
                     .unwrap_or_else(|e| e.into_inner())
                     .clone()
@@ -383,7 +389,7 @@ impl Pulse {
         .await;
         self
     }
-    pub fn wantsIngesting(&self) -> bool {
+    pub fn wants_ingesting(&self) -> bool {
         !self
             .entries
             .lock()
@@ -397,7 +403,7 @@ impl Pulse {
     }
     pub fn flush(&self) {
         *self
-            .rememberedUserId
+            .remembered_user_id
             .write()
             .unwrap_or_else(|e| e.into_inner()) = None;
         self.entries
@@ -406,19 +412,21 @@ impl Pulse {
             .clear();
         self.lazy.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
-    async fn resolveLazyEntries(&self) {
+    async fn resolve_lazy_entries(&self) {
         let lazy = std::mem::take(&mut *self.lazy.lock().unwrap_or_else(|e| e.into_inner()));
         for callback in lazy {
             if let Err(e) = callback(self).await {
-                self.reportError(&e);
+                self.report_error(&e);
                 break;
             }
         }
         self.lazy.lock().unwrap_or_else(|e| e.into_inner()).clear();
     }
-    fn ingestWhenOverBufferSize(&self) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send + '_>> {
+    fn ingest_when_over_buffer_size(
+        &self,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
-            if self.evaluatingBuffer.swap(true, Ordering::Relaxed) {
+            if self.evaluating_buffer.swap(true, Ordering::Relaxed) {
                 return;
             }
             struct Reset<'a>(&'a AtomicBool);
@@ -427,11 +435,11 @@ impl Pulse {
                     self.0.store(false, Ordering::Relaxed);
                 }
             }
-            let _guard = Reset(&self.evaluatingBuffer);
+            let _guard = Reset(&self.evaluating_buffer);
             let entries = self.entries.lock().unwrap_or_else(|e| e.into_inner()).len();
             let lazy = self.lazy.lock().unwrap_or_else(|e| e.into_inner()).len();
             if entries.saturating_add(lazy) > self.buffer {
-                self.resolveLazyEntries().await;
+                self.resolve_lazy_entries().await;
             }
             if self.entries.lock().unwrap_or_else(|e| e.into_inner()).len() > self.buffer {
                 self.ingest().await;
@@ -440,7 +448,7 @@ impl Pulse {
     }
     pub fn ingest(&self) -> std::pin::Pin<Box<dyn Future<Output = usize> + Send + '_>> {
         Box::pin(async move {
-            self.resolveLazyEntries().await;
+            self.resolve_lazy_entries().await;
             self.ignore(async {
                 let entries =
                     std::mem::take(&mut *self.entries.lock().unwrap_or_else(|e| e.into_inner()));
@@ -461,7 +469,7 @@ impl Pulse {
                                 break;
                             }
                             Err(e) => {
-                                self.reportError(&e);
+                                self.report_error(&e);
                                 self.flush();
                                 return 0;
                             }
@@ -478,14 +486,14 @@ impl Pulse {
                 let count = match self.ingest.ingest(&accepted).await {
                     Ok(()) => accepted.len(),
                     Err(e) => {
-                        self.reportError(&e);
+                        self.report_error(&e);
                         0
                     }
                 };
                 if self.lottery.choose()
                     && let Err(e) = self.ingest.trim().await
                 {
-                    self.reportError(&e);
+                    self.report_error(&e);
                 }
                 self.flush();
                 count
@@ -524,7 +532,7 @@ impl Pulse {
         )
         .await
     }
-    pub async fn aggregateTypes(
+    pub async fn aggregate_types(
         &self,
         types: &[String],
         aggregate: &str,
@@ -535,17 +543,17 @@ impl Pulse {
     ) -> Result<Vec<openrust::database::Row>> {
         self.ignore(
             self.storage
-                .aggregateTypes(types, aggregate, interval, order_by, direction, limit),
+                .aggregate_types(types, aggregate, interval, order_by, direction, limit),
         )
         .await
     }
-    pub async fn aggregateTotal(
+    pub async fn aggregate_total(
         &self,
         types: &[String],
         aggregate: &str,
         interval: i64,
     ) -> Result<indexmap::IndexMap<String, Option<f64>>> {
-        self.ignore(self.storage.aggregateTotal(types, aggregate, interval))
+        self.ignore(self.storage.aggregate_total(types, aggregate, interval))
             .await
     }
     pub async fn trim(&self) -> Result<()> {

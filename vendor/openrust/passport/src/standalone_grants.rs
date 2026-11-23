@@ -3,11 +3,11 @@ use super::*;
 impl AuthorizationServer {
     pub(super) async fn exchange_client_credentials(
         &self,
-        parameters: &OAuthParameters,
+        parameters: &OauthParameters,
         client: ClientRecord,
         connection: openrust::database::Connection,
         mut transaction: openrust::database::Transaction,
-    ) -> Result<TokenResponse, OAuthError> {
+    ) -> Result<TokenResponse, OauthError> {
         let scopes = self
             .standalone_scopes(parameters, &client, "client_credentials")
             .await?;
@@ -19,7 +19,7 @@ impl AuthorizationServer {
                 None,
                 scopes,
                 None,
-                self.passport.clientCredentialsTokensExpireIn(None),
+                self.passport.client_credentials_tokens_expire_in(None),
             )
             .await?;
         transaction.commit().await.map_err(internal)?;
@@ -27,10 +27,10 @@ impl AuthorizationServer {
     }
     pub(super) async fn standalone_scopes(
         &self,
-        parameters: &OAuthParameters,
+        parameters: &OauthParameters,
         client: &ClientRecord,
         grant: &str,
-    ) -> Result<Vec<String>, OAuthError> {
+    ) -> Result<Vec<String>, OauthError> {
         let requested = parameters
             .parameter("scope", None)?
             .map(|v| {
@@ -39,7 +39,7 @@ impl AuthorizationServer {
                     .map(str::to_owned)
                     .collect()
             })
-            .unwrap_or_else(|| self.passport.default_scopes());
+            .unwrap_or_else(|| self.passport.configured_default_scopes());
         self.finalize_scopes(client, requested, grant).await
     }
     #[allow(clippy::too_many_arguments)]
@@ -52,11 +52,11 @@ impl AuthorizationServer {
         scopes: Vec<String>,
         name: Option<String>,
         lifetime: crate::GrantLifetime,
-    ) -> Result<(TokenResponse, String), OAuthError> {
+    ) -> Result<(TokenResponse, String), OauthError> {
         let client_id = client
             .get_key()
             .await
-            .ok_or_else(|| OAuthError::invalid_client(None))?;
+            .ok_or_else(|| OauthError::invalid_client(None))?;
         let client_id = AuthIdentifier::try_from(&client_id)
             .map_err(internal)?
             .to_string();
@@ -84,7 +84,7 @@ impl AuthorizationServer {
                         client
                             .get_key()
                             .await
-                            .ok_or_else(|| OAuthError::invalid_client(None))?,
+                            .ok_or_else(|| OauthError::invalid_client(None))?,
                     ),
                     ("name".into(), name.map(Value::from).unwrap_or(Value::Null)),
                     ("scopes".into(), Value::Json(serde_json::json!(scopes))),
@@ -111,16 +111,16 @@ impl AuthorizationServer {
         name: &str,
         scopes: &[String],
         provider: &str,
-    ) -> Result<crate::PersonalAccessTokenResult, OAuthError> {
+    ) -> Result<crate::PersonalAccessTokenResult, OauthError> {
         if user.to_string().is_empty() || user.to_string() == "0" {
-            return Err(OAuthError::invalid_request("user_id", None));
+            return Err(OauthError::invalid_request("user_id", None));
         }
         if provider.is_empty() || provider == "0" {
-            return Err(OAuthError::invalid_request("provider", None));
+            return Err(OauthError::invalid_request("provider", None));
         }
         let client = self
             .clients
-            .personalAccessClient(provider)
+            .personal_access_client(provider)
             .await
             .map_err(internal)?;
         let connection = client.connection().await.map_err(internal)?;
@@ -131,7 +131,7 @@ impl AuthorizationServer {
             .map_err(internal)?;
         self.check_client_for_grant(&client, None, "personal_access")
             .await?;
-        let parameters = OAuthParameters::new(serde_json::Map::from_iter([(
+        let parameters = OauthParameters::new(serde_json::Map::from_iter([(
             "scope".into(),
             serde_json::json!(scopes.join(" ")),
         )]));
@@ -146,7 +146,7 @@ impl AuthorizationServer {
                 Some(user),
                 scopes,
                 Some(name.into()),
-                self.passport.personalAccessTokensExpireIn(None),
+                self.passport.personal_access_tokens_expire_in(None),
             )
             .await?;
         transaction.commit().await.map_err(internal)?;

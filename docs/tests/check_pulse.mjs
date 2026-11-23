@@ -19,7 +19,7 @@ try {
                     assert.equal(response.status(), 200);
                     await page.locator("#configuration").waitFor();
                     const body = await page.locator("main").innerText();
-                    for (const text of ["PulseServiceProvider", "pulse:check", "pulse:work", "pulse:restart", "Pulse::ingest", "aggregateTotal", "ResolvesUsers", "viewPulse"]) {
+                    for (const text of ["PulseServiceProvider", "pulse:check", "pulse:work", "pulse:restart", "Pulse::ingest", "aggregate_total", "ResolvesUsers", "viewPulse"]) {
                         assert(body.includes(text), `${language}: missing ${text}`);
                     }
                     for (const anchor of ["installation", "configuration", "dashboard", "recorders", "custom-metrics", "users", "commands"]) {

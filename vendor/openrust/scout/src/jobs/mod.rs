@@ -5,7 +5,7 @@ use openrust::{
     queue::{JobContext, Payload, QueueFuture, QueueResult},
 };
 use std::{marker::PhantomData, sync::Arc};
-pub(crate) fn jobName<M: Searchable>(delete: bool) -> String {
+pub(crate) fn job_name<M: Searchable>(delete: bool) -> String {
     format!(
         "openrust_scout::jobs::{}<{}>",
         if delete {
@@ -16,7 +16,7 @@ pub(crate) fn jobName<M: Searchable>(delete: bool) -> String {
         std::any::type_name::<M>()
     )
 }
-pub(crate) fn keyToJson(key: Value) -> Result<serde_json::Value> {
+pub(crate) fn key_to_json(key: Value) -> Result<serde_json::Value> {
     match key {
         Value::Integer(n) => Ok(n.into()),
         Value::Unsigned(n) => Ok(n.into()),
@@ -26,7 +26,7 @@ pub(crate) fn keyToJson(key: Value) -> Result<serde_json::Value> {
         )),
     }
 }
-fn keyFromJson(value: &serde_json::Value) -> Result<Value> {
+fn key_from_json(value: &serde_json::Value) -> Result<Value> {
     match value {
         serde_json::Value::String(s) => Ok(s.clone().into()),
         serde_json::Value::Number(n) => n
@@ -75,7 +75,7 @@ async fn restore<M: Searchable>(
         .as_array()
         .ok_or_else(|| Error::InvalidConfiguration("Scout job keys must be an array".into()))?
         .iter()
-        .map(keyFromJson)
+        .map(key_from_json)
         .collect::<Result<Vec<_>>>()?;
     if keys.is_empty() {
         return Ok(Vec::new());
@@ -87,7 +87,7 @@ async fn restore<M: Searchable>(
             .into_iter()
             .map(|key| {
                 let mut tombstone = M::new_instance_on(&connection, Default::default())?;
-                tombstone.force_fill([(model.getScoutKeyName(), key)].into())?;
+                tombstone.force_fill([(model.get_scout_key_name(), key)].into())?;
                 Ok(tombstone)
             })
             .collect();
@@ -96,7 +96,7 @@ async fn restore<M: Searchable>(
     if manager.boolean("soft_delete") {
         query = query.with_trashed();
     }
-    query.where_in(&model.getScoutKeyName(), keys);
+    query.where_in(&model.get_scout_key_name(), keys);
     Ok(query.get().await?.into_iter().collect())
 }
 fn failed(e: Error) -> openrust::queue::QueueError {

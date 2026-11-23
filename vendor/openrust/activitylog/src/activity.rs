@@ -48,8 +48,8 @@ pub struct Activity {
     pub request_id: Option<String>,
     pub description: Option<String>,
     pub created_at: Option<i64>,
-    pub subjectAttributes: Value,
-    pub causerAttributes: Value,
+    pub subject_attributes: Value,
+    pub causer_attributes: Value,
 }
 impl Activity {
     pub fn new(description: impl Into<String>) -> Self {
@@ -63,40 +63,40 @@ impl Activity {
             request_id: None,
             description: Some(description.into()),
             created_at: None,
-            subjectAttributes: serde_json::json!({}),
-            causerAttributes: serde_json::json!({}),
+            subject_attributes: serde_json::json!({}),
+            causer_attributes: serde_json::json!({}),
         }
     }
-    pub fn useLog(mut self, name: impl IntoLogName) -> Self {
-        self.log_name = name.intoLogName();
+    pub fn use_log(mut self, name: impl IntoLogName) -> Self {
+        self.log_name = name.into_log_name();
         self
     }
     pub fn event(mut self, event: impl Into<String>) -> Self {
         self.event = Some(event.into());
         self
     }
-    pub fn performedOn(mut self, subject: Subject) -> Self {
+    pub fn performed_on(mut self, subject: Subject) -> Self {
         self.subject = Some(subject);
         self
     }
-    pub fn causedBy(mut self, causer: Subject) -> Self {
+    pub fn caused_by(mut self, causer: Subject) -> Self {
         self.causer = Some(causer);
         self
     }
-    pub fn causedByAnonymous(mut self) -> Self {
+    pub fn caused_by_anonymous(mut self) -> Self {
         self.causer = None;
         self
     }
-    pub fn withProperties(mut self, properties: Value) -> Self {
+    pub fn with_properties(mut self, properties: Value) -> Self {
         self.properties = properties;
         self
     }
     /// Attribute changes are stored as {"old": ..., "attributes": ...}.
-    pub fn withChanges(mut self, old: Value, attributes: Value) -> Self {
+    pub fn with_changes(mut self, old: Value, attributes: Value) -> Self {
         self.changes = serde_json::json!({"old":old,"attributes":attributes});
         self
     }
-    pub fn withRequestId(mut self, request_id: impl Into<String>) -> Self {
+    pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
         self.request_id = Some(request_id.into());
         self
     }
@@ -139,7 +139,7 @@ pub struct ActivityRecord {
     pub created_at: i64,
 }
 impl ActivityRecord {
-    pub fn getProperty(&self, path: &str, default: Value) -> Value {
+    pub fn get_property(&self, path: &str, default: Value) -> Value {
         crate::models::property(&self.properties, path)
             .cloned()
             .unwrap_or(default)
@@ -156,20 +156,20 @@ impl std::fmt::Debug for ActivityRecord {
 
 /// Accepts a name or an explicit null log name, as in the upstream API.
 pub trait IntoLogName {
-    fn intoLogName(self) -> Option<String>;
+    fn into_log_name(self) -> Option<String>;
 }
 impl IntoLogName for String {
-    fn intoLogName(self) -> Option<String> {
+    fn into_log_name(self) -> Option<String> {
         Some(self)
     }
 }
 impl IntoLogName for &str {
-    fn intoLogName(self) -> Option<String> {
+    fn into_log_name(self) -> Option<String> {
         Some(self.into())
     }
 }
 impl IntoLogName for Option<String> {
-    fn intoLogName(self) -> Option<String> {
+    fn into_log_name(self) -> Option<String> {
         self
     }
 }

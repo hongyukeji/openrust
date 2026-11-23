@@ -214,7 +214,7 @@ impl PasskeyRegistrationController {
                 .ok_or(HttpError::NotFound)?
                 .to_owned();
             let passkey = service
-                .passkeyStore()
+                .passkey_store()
                 .find(key.into())
                 .await
                 .map_err(internal)?
@@ -281,7 +281,7 @@ impl PasskeyLoginController {
                 .await?
                 .ok_or_else(|| invalid("Unable to sign in with this account."))?;
             if !service
-                .allowsLogin(request, owner.as_ref(), &passkey)
+                .allows_login(request, owner.as_ref(), &passkey)
                 .await?
             {
                 return Err(invalid("Unable to sign in with this account."));

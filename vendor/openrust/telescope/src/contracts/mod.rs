@@ -10,7 +10,7 @@ pub trait PrunableRepository: Send + Sync {
     fn prune(
         &self,
         before: jiff::Timestamp,
-        keepExceptions: bool,
+        keep_exceptions: bool,
     ) -> TelescopeFuture<'_, Result<u64>>;
 }
 /// A scoped storage backend. Monitoring snapshots are loaded before recording starts.
@@ -27,10 +27,10 @@ pub trait EntriesRepository: ClearableRepository + PrunableRepository {
         updates: &'a [EntryUpdate],
     ) -> TelescopeFuture<'a, Result<Vec<EntryUpdate>>>;
     fn monitoring(&self) -> TelescopeFuture<'_, Result<Vec<String>>>;
-    fn loadMonitoredTags(&self) -> TelescopeFuture<'_, ()>;
-    fn hasMonitoredTag(&self, tags: &[String]) -> bool;
-    fn isMonitoring<'a>(&'a self, tags: &'a [String]) -> TelescopeFuture<'a, bool>;
+    fn load_monitored_tags(&self) -> TelescopeFuture<'_, ()>;
+    fn has_monitored_tag(&self, tags: &[String]) -> bool;
+    fn is_monitoring<'a>(&'a self, tags: &'a [String]) -> TelescopeFuture<'a, bool>;
     fn monitor<'a>(&'a self, tags: &'a [String]) -> TelescopeFuture<'a, Result<()>>;
-    fn stopMonitoring<'a>(&'a self, tags: &'a [String]) -> TelescopeFuture<'a, Result<()>>;
+    fn stop_monitoring<'a>(&'a self, tags: &'a [String]) -> TelescopeFuture<'a, Result<()>>;
     fn terminate(&self);
 }

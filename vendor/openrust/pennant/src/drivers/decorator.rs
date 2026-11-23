@@ -13,7 +13,7 @@ use std::{
 
 pub struct Decorator {
     name: String,
-    pub(crate) useMorphMap: Arc<AtomicBool>,
+    pub(crate) use_morph_map: Arc<AtomicBool>,
     pub(crate) events: Option<Arc<openrust::events::Dispatcher>>,
     driver: Arc<dyn Driver>,
     pub(crate) classes: Arc<crate::contracts::FeatureClasses>,
@@ -23,14 +23,14 @@ impl Decorator {
     pub fn new(name: impl Into<String>, driver: Arc<dyn Driver>) -> Self {
         Self {
             name: name.into(),
-            useMorphMap: Arc::new(AtomicBool::new(false)),
+            use_morph_map: Arc::new(AtomicBool::new(false)),
             events: None,
             driver,
             classes: Arc::default(),
             cache: RwLock::new(BTreeMap::new()),
         }
     }
-    pub fn getDriver(&self) -> Arc<dyn Driver> {
+    pub fn get_driver(&self) -> Arc<dyn Driver> {
         self.driver.clone()
     }
     pub fn store_name(&self) -> &str {
@@ -47,14 +47,14 @@ impl Decorator {
             .write()
             .map_err(|_| Error::StateUnavailable)?
             .remove(feature);
-        self.defineResolver(feature, resolver, true)
+        self.define_resolver(feature, resolver, true)
     }
     /// Explicit nullability replaces PHP parameter reflection.
-    pub fn defineWithScope(
+    pub fn define_with_scope(
         &self,
         feature: &str,
         resolver: Resolver,
-        acceptsNullScope: bool,
+        accepts_null_scope: bool,
     ) -> Result<()> {
         self.classes
             .factories
@@ -66,13 +66,13 @@ impl Decorator {
             .write()
             .map_err(|_| Error::StateUnavailable)?
             .remove(feature);
-        self.defineResolver(feature, resolver, acceptsNullScope)
+        self.define_resolver(feature, resolver, accepts_null_scope)
     }
-    fn defineResolver(
+    fn define_resolver(
         &self,
         feature: &str,
         resolver: Resolver,
-        acceptsNullScope: bool,
+        accepts_null_scope: bool,
     ) -> Result<()> {
         self.classes
             .valid
@@ -80,7 +80,7 @@ impl Decorator {
             .map_err(|_| Error::StateUnavailable)?
             .insert(
                 feature.into(),
-                Arc::new(move |scope| acceptsNullScope || scope != &Scope::Null),
+                Arc::new(move |scope| accepts_null_scope || scope != &Scope::Null),
             );
         self.classes
             .implementations
@@ -99,7 +99,7 @@ impl Decorator {
                 let feature = name.clone();
                 let events = events.clone();
                 Box::pin(async move {
-                    let value = if scope == Scope::Null && !acceptsNullScope {
+                    let value = if scope == Scope::Null && !accepts_null_scope {
                         crate::events::dispatch(
                             events.as_ref(),
                             crate::events::UnexpectedNullScopeEncountered {
@@ -125,7 +125,7 @@ impl Decorator {
             }),
         )
     }
-    pub fn defineClass<F: crate::FeatureDefinition>(
+    pub fn define_class<F: crate::FeatureDefinition>(
         &self,
         factory: impl Fn() -> crate::FeatureFuture<'static, Arc<F>> + Send + Sync + 'static,
     ) -> Result<()> {
@@ -139,14 +139,14 @@ impl Decorator {
                 F::name().into(),
                 Arc::new(crate::contracts::ClassFactory(factory.clone())),
             );
-        let resolverFactory = factory.clone();
-        self.defineResolver(
+        let resolver_factory = factory.clone();
+        self.define_resolver(
             F::name(),
             Arc::new(move |scope| {
-                let factory = resolverFactory.clone();
+                let factory = resolver_factory.clone();
                 Box::pin(async move { factory().await?.resolve(&scope).await })
             }),
-            F::acceptsNullScope(),
+            F::accepts_null_scope(),
         )?;
         let events = self.events.clone();
         self.classes
@@ -159,7 +159,7 @@ impl Decorator {
                     let factory = factory.clone();
                     let events = events.clone();
                     Box::pin(async move {
-                        if scope == Scope::Null && !F::beforeAcceptsNullScope() {
+                        if scope == Scope::Null && !F::before_accepts_null_scope() {
                             crate::events::dispatch(
                                 events.as_ref(),
                                 crate::events::UnexpectedNullScopeEncountered {
@@ -185,7 +185,7 @@ impl Decorator {
             .valid
             .write()
             .map_err(|_| Error::StateUnavailable)?
-            .insert(F::name().into(), Arc::new(F::isValidForScope));
+            .insert(F::name().into(), Arc::new(F::is_valid_for_scope));
         self.classes
             .names
             .write()
@@ -218,7 +218,7 @@ impl Decorator {
             .cloned()
             .unwrap_or_else(|| feature.into()))
     }
-    pub fn nameMap(&self) -> Result<indexmap::IndexMap<String, crate::FeatureImplementation>> {
+    pub fn name_map(&self) -> Result<indexmap::IndexMap<String, crate::FeatureImplementation>> {
         Ok(self
             .classes
             .implementations
@@ -227,15 +227,15 @@ impl Decorator {
             .clone())
     }
     pub fn implementation(&self, feature: &str) -> Result<crate::FeatureImplementation> {
-        self.nameMap()?
+        self.name_map()?
             .shift_remove(&self.name(feature)?)
             .ok_or(Error::InvalidValue)
     }
-    pub fn forScopeable(
+    pub fn for_scopeable(
         self: &Arc<Self>,
         scope: &impl crate::FeatureScopeable,
     ) -> PendingScopedFeatureInteraction {
-        self.r#for(scope.toFeatureIdentifier(&self.name))
+        self.r#for(scope.to_feature_identifier(&self.name))
     }
     async fn before(&self, feature: &str, scope: &Scope) -> Result<Option<Value>> {
         let hook = self
@@ -260,7 +260,7 @@ impl Decorator {
         }
         Ok(())
     }
-    pub fn isResolverValidForScope(&self, feature: &str, scope: &Scope) -> Result<bool> {
+    pub fn is_resolver_valid_for_scope(&self, feature: &str, scope: &Scope) -> Result<bool> {
         let feature = self.name(feature)?;
         let valid = self
             .classes
@@ -271,20 +271,22 @@ impl Decorator {
             .cloned();
         Ok(valid.is_none_or(|valid| valid(scope)))
     }
-    pub fn definedFeaturesForScope(&self, scope: &Scope) -> Result<Vec<String>> {
-        if let Some(features) = self.driver.definedFeaturesForScope(scope)? {
+    pub fn defined_features_for_scope(&self, scope: &Scope) -> Result<Vec<String>> {
+        if let Some(features) = self.driver.defined_features_for_scope(scope)? {
             return Ok(features);
         }
         self.defined()?
             .into_iter()
-            .filter_map(|name| match self.isResolverValidForScope(&name, scope) {
-                Ok(true) => Some(Ok(name)),
-                Ok(false) => None,
-                Err(error) => Some(Err(error)),
-            })
+            .filter_map(
+                |name| match self.is_resolver_valid_for_scope(&name, scope) {
+                    Ok(true) => Some(Ok(name)),
+                    Ok(false) => None,
+                    Err(error) => Some(Err(error)),
+                },
+            )
             .collect()
     }
-    pub fn defineLottery(&self, feature: &str, lottery: openrust::support::Lottery) -> Result<()> {
+    pub fn define_lottery(&self, feature: &str, lottery: openrust::support::Lottery) -> Result<()> {
         self.define(
             feature,
             Arc::new(move |_| Box::pin(async move { Ok(Value::Bool(lottery.choose())) })),
@@ -299,7 +301,7 @@ impl Decorator {
             );
         Ok(())
     }
-    pub fn defineValue(&self, feature: &str, value: Value) -> Result<()> {
+    pub fn define_value(&self, feature: &str, value: Value) -> Result<()> {
         let literal = value.clone();
         self.define(
             feature,
@@ -328,11 +330,11 @@ impl Decorator {
         self.r#for(Scope::Global)
     }
     pub async fn get(&self, feature: &str, scope: &Scope) -> Result<Value> {
-        let featureName = self.name(feature)?;
-        let feature = featureName.as_str();
+        let feature_name = self.name(feature)?;
+        let feature = feature_name.as_str();
         let key = (
             feature.into(),
-            scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+            scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
         );
         let cached = self
             .cache
@@ -364,7 +366,7 @@ impl Decorator {
         .await?;
         Ok(value)
     }
-    pub async fn getAll(&self, features: &FeatureScopes) -> Result<FeatureValues> {
+    pub async fn get_all(&self, features: &FeatureScopes) -> Result<FeatureValues> {
         let normalized = features
             .iter()
             .map(|(feature, scopes)| Ok((self.name(feature)?, scopes.clone())))
@@ -374,24 +376,24 @@ impl Decorator {
         let mut missing = FeatureScopes::new();
         let mut indexes = BTreeMap::<String, Vec<usize>>::new();
         for (feature, scopes) in features {
-            let featureName = self.name(feature)?;
+            let feature_name = self.name(feature)?;
             let mut resolved = Vec::with_capacity(scopes.len());
             for (index, scope) in scopes.iter().enumerate() {
-                if let Some(value) = self.before(&featureName, scope).await? {
+                if let Some(value) = self.before(&feature_name, scope).await? {
                     resolved.push(value);
                 } else {
                     missing
-                        .entry(featureName.clone())
+                        .entry(feature_name.clone())
                         .or_default()
                         .push(scope.clone());
-                    indexes.entry(featureName.clone()).or_default().push(index);
+                    indexes.entry(feature_name.clone()).or_default().push(index);
                     resolved.push(Value::Null);
                 }
             }
-            values.insert(featureName, resolved);
+            values.insert(feature_name, resolved);
         }
         if !missing.is_empty() {
-            let loaded = self.driver.getAll(&missing).await?;
+            let loaded = self.driver.get_all(&missing).await?;
             for (feature, indexes) in indexes {
                 for (index, value) in indexes
                     .into_iter()
@@ -410,7 +412,7 @@ impl Decorator {
                 cache.insert(
                     (
                         feature.clone(),
-                        scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                        scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                     ),
                     value.clone(),
                 );
@@ -418,7 +420,7 @@ impl Decorator {
         }
         Ok(values)
     }
-    pub async fn getAllMissing(&self, features: &FeatureScopes) -> Result<FeatureValues> {
+    pub async fn get_all_missing(&self, features: &FeatureScopes) -> Result<FeatureValues> {
         let normalized = features
             .iter()
             .map(|(feature, scopes)| Ok((self.name(feature)?, scopes.clone())))
@@ -434,7 +436,7 @@ impl Decorator {
                         .filter(|scope| {
                             !cache.contains_key(&(
                                 feature.clone(),
-                                scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                                scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                             ))
                         })
                         .cloned()
@@ -443,12 +445,12 @@ impl Decorator {
                 })
                 .collect()
         };
-        self.getAll(&missing).await
+        self.get_all(&missing).await
     }
 
     pub async fn set(&self, feature: &str, scope: &Scope, value: Value) -> Result<()> {
-        let featureName = self.name(feature)?;
-        let feature = featureName.as_str();
+        let feature_name = self.name(feature)?;
+        let feature = feature_name.as_str();
         self.driver.set(feature, scope, value.clone()).await?;
         self.cache
             .write()
@@ -456,7 +458,7 @@ impl Decorator {
             .insert(
                 (
                     feature.into(),
-                    scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                    scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                 ),
                 value.clone(),
             );
@@ -471,7 +473,7 @@ impl Decorator {
         .await?;
         Ok(())
     }
-    pub async fn setAll(&self, features: &[FeatureValue]) -> Result<()> {
+    pub async fn set_all(&self, features: &[FeatureValue]) -> Result<()> {
         let normalized = features
             .iter()
             .map(|value| {
@@ -483,14 +485,14 @@ impl Decorator {
             })
             .collect::<Result<Vec<_>>>()?;
         let features = normalized.as_slice();
-        if !self.driver.supportsSetAll() {
+        if !self.driver.supports_set_all() {
             for feature in features {
                 self.set(&feature.feature, &feature.scope, feature.value.clone())
                     .await?;
             }
             return Ok(());
         }
-        self.driver.setAll(features).await?;
+        self.driver.set_all(features).await?;
         {
             let mut cache = self.cache.write().map_err(|_| Error::StateUnavailable)?;
             for feature in features {
@@ -499,7 +501,7 @@ impl Decorator {
                         feature.feature.clone(),
                         feature
                             .scope
-                            .serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                            .serialize(self.use_morph_map.load(Ordering::Relaxed)),
                     ),
                     feature.value.clone(),
                 );
@@ -518,10 +520,12 @@ impl Decorator {
         }
         Ok(())
     }
-    pub async fn setForAllScopes(&self, feature: &str, value: Value) -> Result<()> {
-        let featureName = self.name(feature)?;
-        let feature = featureName.as_str();
-        self.driver.setForAllScopes(feature, value.clone()).await?;
+    pub async fn set_for_all_scopes(&self, feature: &str, value: Value) -> Result<()> {
+        let feature_name = self.name(feature)?;
+        let feature = feature_name.as_str();
+        self.driver
+            .set_for_all_scopes(feature, value.clone())
+            .await?;
         self.cache
             .write()
             .map_err(|_| Error::StateUnavailable)?
@@ -536,22 +540,22 @@ impl Decorator {
         .await?;
         Ok(())
     }
-    pub async fn activateForEveryone(&self, feature: &str, value: Value) -> Result<()> {
-        self.setForAllScopes(feature, value).await
+    pub async fn activate_for_everyone(&self, feature: &str, value: Value) -> Result<()> {
+        self.set_for_all_scopes(feature, value).await
     }
-    pub async fn deactivateForEveryone(&self, feature: &str) -> Result<()> {
-        self.setForAllScopes(feature, Value::Bool(false)).await
+    pub async fn deactivate_for_everyone(&self, feature: &str) -> Result<()> {
+        self.set_for_all_scopes(feature, Value::Bool(false)).await
     }
     pub async fn delete(&self, feature: &str, scope: &Scope) -> Result<()> {
-        let featureName = self.name(feature)?;
-        let feature = featureName.as_str();
+        let feature_name = self.name(feature)?;
+        let feature = feature_name.as_str();
         self.driver.delete(feature, scope).await?;
         self.cache
             .write()
             .map_err(|_| Error::StateUnavailable)?
             .remove(&(
                 feature.into(),
-                scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
             ));
         crate::events::dispatch(
             self.events.as_ref(),
@@ -595,11 +599,11 @@ impl Decorator {
         }
         Ok(())
     }
-    pub fn flushCache(&self) -> Result<()> {
+    pub fn flush_cache(&self) -> Result<()> {
         self.cache
             .write()
             .map_err(|_| Error::StateUnavailable)?
             .clear();
-        self.driver.flushCache()
+        self.driver.flush_cache()
     }
 }

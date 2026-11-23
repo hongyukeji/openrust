@@ -73,7 +73,7 @@ pub(crate) async fn drain(
     .map_err(|_| Error::Process)
 }
 
-pub(crate) fn adjustNice(increment: i32) -> Result<()> {
+pub(crate) fn adjust_nice(increment: i32) -> Result<()> {
     if increment == 0 {
         return Ok(());
     }

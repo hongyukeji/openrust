@@ -45,7 +45,7 @@ pub async fn send_order() -> MailResult<()> {
 
 ### 附件 {#attachments}
 
-從 `Mailable::attachment_sources` 回傳附件來源。用 `Attachment::fromPath` 讀取本機檔案，`fromStorage` 讀取預設磁碟，`fromStorageDisk` 讀取指定磁碟，`fromData` 接收產生的位元組。使用 `r#as` 設定顯示名稱，並用 `withMime` 覆寫 MIME 類型。
+從 `Mailable::attachment_sources` 回傳附件來源。用 `Attachment::from_path` 讀取本機檔案，`from_storage` 讀取預設磁碟，`from_storage_disk` 讀取指定磁碟，`from_data` 接收產生的位元組。使用 `r#as` 設定顯示名稱，並用 `with_mime` 覆寫 MIME 類型。
 
 ```rust
 use openrust::mail::{
@@ -55,22 +55,22 @@ use openrust::mail::{
 
 fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
     Ok(vec![
-        Attachment::fromPath(&self.local_report),
-        Attachment::fromStorage("reports/monthly.csv"),
-        Attachment::fromStorageDisk("s3", "reports/annual.pdf")
+        Attachment::from_path(&self.local_report),
+        Attachment::from_storage("reports/monthly.csv"),
+        Attachment::from_storage_disk("s3", "reports/annual.pdf")
             .r#as("annual-report.pdf")
-            .withMime("application/pdf"),
-        Attachment::fromData(self.generated_report.clone(), "summary.csv")
-            .withMime("text/csv"),
+            .with_mime("application/pdf"),
+        Attachment::from_data(self.generated_report.clone(), "summary.csv")
+            .with_mime("text/csv"),
     ])
 }
 ```
 
 檔案及磁碟附件預設使用檔名。S3 優先採用物件的內容類型。本機檔案會先偵測類型，再依副檔名回退。產生的位元組預設為 `application/octet-stream`。傳送時才讀取檔案或磁碟，佇列中的郵件由 Worker 讀取，因此路徑或磁碟必須可由 Worker 存取。產生的位元組會隨佇列承載資料保存。
 
-用 `Attachment::fromUploadedFile(&file)` 附加 HTTP 請求中的上傳檔案。預設使用用戶端提供的檔名和偵測到的 MIME 類型，無法辨識時採用用戶端宣告的類型。上傳位元組會隨佇列郵件保存。用 `Attachment::fromCloudStorage(path)?` 選取 `filesystems.cloud` 設定的磁碟，預設為 `s3`。
+用 `Attachment::from_uploaded_file(&file)` 附加 HTTP 請求中的上傳檔案。預設使用用戶端提供的檔名和偵測到的 MIME 類型，無法辨識時採用用戶端宣告的類型。上傳位元組會隨佇列郵件保存。用 `Attachment::from_cloud_storage(path)?` 選取 `filesystems.cloud` 設定的磁碟，預設為 `s3`。
 
-用 `Attachment::fromUrl(url)?` 附加絕對 HTTP 或 HTTPS URL。郵件器在傳送時下載附件，佇列郵件由 Worker 下載。URL 路徑提供預設檔名，回應可提供 MIME 類型。用 `r#as` 重新命名，用 `withMime` 覆寫類型。
+用 `Attachment::from_url(url)?` 附加絕對 HTTP 或 HTTPS URL。郵件器在傳送時下載附件，佇列郵件由 Worker 下載。URL 路徑提供預設檔名，回應可提供 MIME 類型。用 `r#as` 重新命名，用 `with_mime` 覆寫類型。
 
 ### 內嵌附件 {#inline-attachments}
 
@@ -102,7 +102,7 @@ struct Report(String);
 impl Attachable for Report {
     #[allow(non_snake_case)]
     fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
-        Ok(Attachment::fromUrl(&self.0)?.r#as("report.pdf"))
+        Ok(Attachment::from_url(&self.0)?.r#as("report.pdf"))
     }
 }
 ```
@@ -129,7 +129,7 @@ fn envelope(&self) -> MailResult<Envelope> {
 在服務提供者啟動時向應用程式的 `MailManager` 註冊郵件自訂回呼，並在 `Envelope::using` 依執行順序列出。回呼會收到 `MessageDraft`，其中包含信封、郵件標頭及已轉譯的文字和 HTML。回呼會在讀取宣告的附件及觸發投遞事件之前執行，也可以在草稿中加入附件。
 
 ```rust
-manager.registerMessageCustomizer("shipment.tracking", |draft, data| {
+manager.register_message_customizer("shipment.tracking", |draft, data| {
     if let Some(code) = data["code"].as_str() {
         draft.headers.text.insert("X-Tracking-Code".into(), code.into());
     }
@@ -331,17 +331,17 @@ receipt
 ```rust
 let mail = Mail::fake()?;
 Mail::to("ops@example.test")?.send_now(&receipt).await?;
-mail.assertSentMatching(receipt.kind(), |entry| {
+mail.assert_sent_matching(receipt.kind(), |entry| {
     entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
 });
-mail.assertNothingQueued();
+mail.assert_nothing_queued();
 ```
 
 ## 預設地址與取消
 
-`Mailer::alwaysTo`、`alwaysFrom`、`alwaysReplyTo`、`alwaysReturnPath` 設定目前郵件器。啟動時設定的地址作為應用程式預設值；請求與佇列作用域內的覆寫僅影響目前執行。`alwaysTo` 在郵件自訂完成後取代收件人並清空副本、密件副本。設定支援 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消時 `send`、`send_now` 與 `PendingMail` 都回傳 `Ok(None)`，不呼叫傳輸、不派發 `MessageSent`；舊呼叫端應明確處理 `Option<SentMessage>`。
+`Mailer::always_to`、`always_from`、`always_reply_to`、`always_return_path` 設定目前郵件器。啟動時設定的地址作為應用程式預設值；請求與佇列作用域內的覆寫僅影響目前執行。`always_to` 在郵件自訂完成後取代收件人並清空副本、密件副本。設定支援 `mail.to`、`mail.from`、`mail.reply_to`、`mail.return_path`。取消時 `send`、`send_now` 與 `PendingMail` 都回傳 `Ok(None)`，不呼叫傳輸、不派發 `MessageSent`；舊呼叫端應明確處理 `Option<SentMessage>`。
 
 
 ## 清除已解析的郵件實例
 
-`MailManager::forgetMailers()` 清除全部已解析的郵件實例並傳回管理器。下次呼叫 `mailer(...)` 時，按原有設定和工廠重新建立實例。呼叫端已持有的 `Arc` 控制代碼仍可使用，直到持有者釋放。
+`MailManager::forget_mailers()` 清除全部已解析的郵件實例並傳回管理器。下次呼叫 `mailer(...)` 時，按原有設定和工廠重新建立實例。呼叫端已持有的 `Arc` 控制代碼仍可使用，直到持有者釋放。

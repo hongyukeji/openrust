@@ -61,7 +61,7 @@ fn defaults(config: &dyn Repository) -> Result<CookieJar, ConfigError> {
         _ => return Err(invalid("session.same_site", "lax, strict, none or null")),
     };
     let mut jar = CookieJar::new();
-    jar.setDefaultPathAndDomain(
+    jar.set_default_path_and_domain(
         path.as_deref().unwrap_or("/"),
         domain.as_deref(),
         secure,

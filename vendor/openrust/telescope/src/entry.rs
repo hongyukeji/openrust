@@ -86,13 +86,13 @@ impl std::str::FromStr for EntryType {
 #[derive(Clone)]
 pub struct IncomingEntry {
     pub uuid: Uuid,
-    pub batchId: Option<Uuid>,
+    pub batch_id: Option<Uuid>,
     pub r#type: Option<EntryType>,
-    pub familyHash: Option<String>,
+    pub family_hash: Option<String>,
     pub content: Map<String, Value>,
     pub tags: Vec<String>,
-    pub recordedAt: jiff::Timestamp,
-    pub(crate) exceptionReportable: Option<bool>,
+    pub recorded_at: jiff::Timestamp,
+    pub(crate) exception_reportable: Option<bool>,
     pub(crate) dump: bool,
     pub(crate) monitored: bool,
 }
@@ -108,27 +108,27 @@ impl IncomingEntry {
         );
         Ok(Self {
             uuid,
-            batchId: None,
+            batch_id: None,
             r#type: None,
-            familyHash: None,
+            family_hash: None,
             content,
             tags: Vec::new(),
-            recordedAt: jiff::Timestamp::now(),
-            exceptionReportable: None,
+            recorded_at: jiff::Timestamp::now(),
+            exception_reportable: None,
             dump: false,
             monitored: false,
         })
     }
-    pub fn batchId(mut self, id: Uuid) -> Self {
-        self.batchId = Some(id);
+    pub fn batch_id(mut self, id: Uuid) -> Self {
+        self.batch_id = Some(id);
         self
     }
     pub fn r#type(mut self, kind: EntryType) -> Self {
         self.r#type = Some(kind);
         self
     }
-    pub fn withFamilyHash(mut self, hash: Option<String>) -> Self {
-        self.familyHash = hash;
+    pub fn with_family_hash(mut self, hash: Option<String>) -> Self {
+        self.family_hash = hash;
         self
     }
     pub fn tags(mut self, tags: impl IntoIterator<Item = impl Into<String>>) -> Self {
@@ -151,14 +151,14 @@ impl IncomingEntry {
         );
         self.tags([format!("Auth:{tag}")])
     }
-    pub fn hasMonitoredTag(&self) -> bool {
+    pub fn has_monitored_tag(&self) -> bool {
         self.monitored
     }
-    pub fn isRequest(&self) -> bool {
+    pub fn is_request(&self) -> bool {
         self.r#type == Some(EntryType::Request)
     }
-    pub fn isFailedRequest(&self) -> bool {
-        self.isRequest()
+    pub fn is_failed_request(&self) -> bool {
+        self.is_request()
             && self
                 .content
                 .get("response_status")
@@ -166,46 +166,46 @@ impl IncomingEntry {
                 .unwrap_or(200)
                 >= 500
     }
-    pub fn isQuery(&self) -> bool {
+    pub fn is_query(&self) -> bool {
         self.r#type == Some(EntryType::Query)
     }
-    pub fn isSlowQuery(&self) -> bool {
-        self.isQuery()
+    pub fn is_slow_query(&self) -> bool {
+        self.is_query()
             && self
                 .content
                 .get("slow")
                 .and_then(Value::as_bool)
                 .unwrap_or(false)
     }
-    pub fn isEvent(&self) -> bool {
+    pub fn is_event(&self) -> bool {
         self.r#type == Some(EntryType::Event)
     }
-    pub fn isCache(&self) -> bool {
+    pub fn is_cache(&self) -> bool {
         self.r#type == Some(EntryType::Cache)
     }
-    pub fn isGate(&self) -> bool {
+    pub fn is_gate(&self) -> bool {
         self.r#type == Some(EntryType::Gate)
     }
-    pub fn isFailedJob(&self) -> bool {
+    pub fn is_failed_job(&self) -> bool {
         self.r#type == Some(EntryType::Job)
             && self.content.get("status").and_then(Value::as_str) == Some("failed")
     }
-    pub fn isException(&self) -> bool {
-        self.exceptionReportable.is_some()
+    pub fn is_exception(&self) -> bool {
+        self.exception_reportable.is_some()
     }
-    pub fn isReportableException(&self) -> bool {
-        self.exceptionReportable == Some(true)
+    pub fn is_reportable_exception(&self) -> bool {
+        self.exception_reportable == Some(true)
     }
-    pub fn isDump(&self) -> bool {
+    pub fn is_dump(&self) -> bool {
         self.dump
     }
-    pub fn isLog(&self) -> bool {
+    pub fn is_log(&self) -> bool {
         self.r#type == Some(EntryType::Log)
     }
-    pub fn isScheduledTask(&self) -> bool {
+    pub fn is_scheduled_task(&self) -> bool {
         self.r#type == Some(EntryType::ScheduledTask)
     }
-    pub fn isClientRequest(&self) -> bool {
+    pub fn is_client_request(&self) -> bool {
         self.r#type == Some(EntryType::ClientRequest)
     }
 }
@@ -215,7 +215,7 @@ pub struct IncomingExceptionEntry(pub IncomingEntry);
 impl IncomingExceptionEntry {
     /// Converts a native reported error snapshot. Rust errors without source metadata
     /// retain null file/line and a distinct family; no origin or trace is fabricated.
-    pub fn fromReport(mut content: Map<String, Value>) -> Result<Self> {
+    pub fn from_report(mut content: Map<String, Value>) -> Result<Self> {
         if content.get("file").and_then(Value::as_str).is_some()
             && content.get("line").and_then(Value::as_u64).is_some()
         {
@@ -224,11 +224,11 @@ impl IncomingExceptionEntry {
         content.insert("file".into(), Value::Null);
         content.insert("line".into(), Value::Null);
         let mut entry = IncomingEntry::make(content)?.r#type(EntryType::Exception);
-        entry.familyHash = Some(format!(
+        entry.family_hash = Some(format!(
             "{:x}",
             md5::compute(format!("unlocated:{}", entry.uuid))
         ));
-        entry.exceptionReportable = Some(true);
+        entry.exception_reportable = Some(true);
         Ok(Self(entry))
     }
     /// `reportable` is the native exception handler's `shouldReport` decision.
@@ -244,8 +244,8 @@ impl IncomingExceptionEntry {
         let hash = format!("{:x}", md5::compute(format!("{file}{line}")));
         let mut entry = IncomingEntry::make(content)?
             .r#type(EntryType::Exception)
-            .withFamilyHash(Some(hash));
-        entry.exceptionReportable = Some(reportable);
+            .with_family_hash(Some(hash));
+        entry.exception_reportable = Some(reportable);
         Ok(Self(entry))
     }
 }
@@ -269,7 +269,7 @@ impl IncomingDumpEntry {
         entry.dump = true;
         Ok(Self(entry))
     }
-    pub fn assignEntryPointFromBatch(&mut self, batch: &[IncomingEntry]) {
+    pub fn assign_entry_point_from_batch(&mut self, batch: &[IncomingEntry]) {
         let Some(entry) = batch.iter().find(|entry| {
             matches!(
                 entry.r#type,
@@ -333,8 +333,10 @@ pub struct EntryUpdate {
     pub uuid: Uuid,
     pub r#type: EntryType,
     pub changes: Map<String, Value>,
-    pub addedTags: Vec<String>,
-    pub removedTags: Vec<String>,
+    #[serde(rename = "addedTags")]
+    pub added_tags: Vec<String>,
+    #[serde(rename = "removedTags")]
+    pub removed_tags: Vec<String>,
 }
 impl EntryUpdate {
     pub fn make(uuid: Uuid, kind: EntryType, changes: Map<String, Value>) -> Self {
@@ -342,28 +344,28 @@ impl EntryUpdate {
             uuid,
             r#type: kind,
             changes,
-            addedTags: Vec::new(),
-            removedTags: Vec::new(),
+            added_tags: Vec::new(),
+            removed_tags: Vec::new(),
         }
     }
     pub fn change(mut self, changes: Map<String, Value>) -> Self {
         self.changes.extend(changes);
         self
     }
-    pub fn addTags(mut self, tags: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_tags(mut self, tags: impl IntoIterator<Item = impl Into<String>>) -> Self {
         for tag in tags {
             let tag = tag.into();
-            if !self.addedTags.contains(&tag) {
-                self.addedTags.push(tag);
+            if !self.added_tags.contains(&tag) {
+                self.added_tags.push(tag);
             }
         }
         self
     }
-    pub fn removeTags(mut self, tags: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn remove_tags(mut self, tags: impl IntoIterator<Item = impl Into<String>>) -> Self {
         for tag in tags {
             let tag = tag.into();
-            if !self.removedTags.contains(&tag) {
-                self.removedTags.push(tag);
+            if !self.removed_tags.contains(&tag) {
+                self.removed_tags.push(tag);
             }
         }
         self
@@ -375,12 +377,12 @@ pub struct EntryResult {
     pub id: Uuid,
     pub sequence: Option<i64>,
     #[serde(rename = "batch_id")]
-    pub batchId: Uuid,
+    pub batch_id: Uuid,
     pub r#type: EntryType,
     #[serde(rename = "family_hash")]
-    pub familyHash: Option<String>,
+    pub family_hash: Option<String>,
     pub content: Value,
     #[serde(rename = "created_at")]
-    pub createdAt: String,
+    pub created_at: String,
     pub tags: Vec<String>,
 }

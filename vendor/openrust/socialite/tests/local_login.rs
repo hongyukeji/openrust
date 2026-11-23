@@ -276,7 +276,7 @@ async fn app(remote: &str, url: &str, letter: &str) -> App {
     for provider in ["github", "work"] {
         manager.extend(
             provider,
-            Arc::new(GithubProvider::withEndpoints(
+            Arc::new(GithubProvider::with_endpoints(
                 format!("{remote}/authorize"),
                 format!("{remote}/token"),
                 format!("{remote}/user"),

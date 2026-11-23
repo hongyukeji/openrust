@@ -39,7 +39,7 @@ impl RegisteredUserController {
             };
             let user = creator.create(&input).await?;
             let snapshot: Arc<dyn openrust::contracts::auth::Authenticatable> =
-                user.cloneUser().into();
+                user.clone_user().into();
             crate::actions::emit(Registered { user: snapshot }, &[]).await?;
             let remember = request.boolean("remember").await?;
             Auth::session_guard(request, fortify.guard().as_deref())?

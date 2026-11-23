@@ -89,7 +89,7 @@ impl Fixture {
     }
     fn loader(&self) -> DatabaseLoader {
         DatabaseLoader::new(self.connection.clone())
-            .withTable(&self.table)
+            .with_table(&self.table)
             .unwrap()
     }
     async fn put(&self, locale: &str, group: &str, _namespace: &str, key: &str, value: Json) {
@@ -215,7 +215,7 @@ async fn database_file_overlay_preserves_nested_lists_empty_strings_and_locale_f
     f.put("fr", "messages", "", "empty", json!("")).await;
     let loader = f
         .loader()
-        .withFallback(Arc::new(FileLoader::new(directory.path().into())));
+        .with_fallback(Arc::new(FileLoader::new(directory.path().into())));
     assert_eq!(
         loader.load("fr", "*", None).await.unwrap()["Phrase"],
         Line::Text("database".into())
@@ -297,7 +297,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     f.put("en", "messages", "", "second", json!("two")).await;
     assert_eq!(
         f.loader()
-            .withMaxRows(2)
+            .with_max_rows(2)
             .unwrap()
             .load("en", "messages", None)
             .await
@@ -307,7 +307,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     );
     assert!(matches!(
         f.loader()
-            .withMaxRows(1)
+            .with_max_rows(1)
             .unwrap()
             .load("en", "messages", None)
             .await,
@@ -394,9 +394,9 @@ async fn database_connections_tables_and_published_applications_do_not_share_cat
     assert_eq!(get(&b, "messages.title", None), "second");
     first.close().await;
     let failed = DatabaseLoader::new(second.connection.clone())
-        .withTable("missing_translation_table")
+        .with_table("missing_translation_table")
         .unwrap()
-        .withFallback(Arc::new(FileLoader::new(directory.path().into())));
+        .with_fallback(Arc::new(FileLoader::new(directory.path().into())));
     let error = a
         .load_from(&failed, &[resource("en", "messages", None)])
         .await
@@ -424,14 +424,14 @@ async fn invalid_configuration_and_resource_names_are_rejected_before_sql() {
     ] {
         assert!(
             DatabaseLoader::new(connection.clone())
-                .withTable(name)
+                .with_table(name)
                 .is_err()
         );
     }
     for limit in [0, u64::MAX] {
         assert!(
             DatabaseLoader::new(connection.clone())
-                .withMaxRows(limit)
+                .with_max_rows(limit)
                 .is_err()
         );
     }
@@ -601,7 +601,7 @@ async fn database_spatie_schema_native_json_and_default_table_work() {
     );
     // A package lookup must not query SQL, including when the table is absent.
     let missing = DatabaseLoader::new(f.connection.clone())
-        .withTable("absent_lines")
+        .with_table("absent_lines")
         .unwrap();
     assert!(
         missing
@@ -619,7 +619,7 @@ async fn database_spatie_schema_native_json_and_default_table_work() {
     .unwrap();
     let mut files = FileLoader::new(directory.path().join("application"));
     files.add_namespace("shop", directory.path().to_path_buf());
-    let namespaced = missing.withFallback(Arc::new(files));
+    let namespaced = missing.with_fallback(Arc::new(files));
     assert_eq!(
         namespaced
             .load("en", "messages", Some("shop"))

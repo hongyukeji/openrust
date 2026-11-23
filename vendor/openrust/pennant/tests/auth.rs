@@ -100,7 +100,7 @@ fn identity(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async move {
         let _features = Feature::for_request(request).await?;
         let manager = Feature::manager()?;
-        let value = manager.serializeScope(&manager.defaultScope("array")?);
+        let value = manager.serialize_scope(&manager.default_scope("array")?);
         Ok(Response::new(StatusCode::OK, Body::from(value)))
     })
 }
@@ -120,7 +120,7 @@ async fn lazy_native_guard_concrete_class_morph_and_guest_scopes_are_request_loc
         b"__laravel_null"
     );
     let manager = app.app().make::<FeatureManager>().await.unwrap();
-    manager.useMorphMap(true);
+    manager.use_morph_map(true);
     assert_eq!(
         app.get("/api/protected").await.unwrap().assert_ok().body(),
         b"staff|7"

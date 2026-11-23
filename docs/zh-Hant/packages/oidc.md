@@ -47,7 +47,7 @@ let identity = &authentication.identity;
 
 ## 已驗證身分 {#identity}
 
-`Authentication.identity` 是經過簽章及宣告校驗後才能建構的 `VerifiedIdentity`。`issuer()` 與 `subject()` 組成穩定身分對，另提供 `email()`、`emailVerified()`、`claims()` 和 `user_info()`。UserInfo 的 subject 必須精確等於已驗證 subject。信箱改變時不繼承 ID Token 的驗證標記，須由本次 UserInfo 自己給出布林 `email_verified: true`。`Authentication.tokens` 明確暴露零化的 access／ID／可選 refresh token 與可選到期秒數，不實作 Debug／Serialize。refresh-token grant 不屬於此 RP 用戶端 API。
+`Authentication.identity` 是經過簽章及宣告校驗後才能建構的 `VerifiedIdentity`。`issuer()` 與 `subject()` 組成穩定身分對，另提供 `email()`、`email_verified()`、`claims()` 和 `user_info()`。UserInfo 的 subject 必須精確等於已驗證 subject。信箱改變時不繼承 ID Token 的驗證標記，須由本次 UserInfo 自己給出布林 `email_verified: true`。`Authentication.tokens` 明確暴露零化的 access／ID／可選 refresh token 與可選到期秒數，不實作 Debug／Serialize。refresh-token grant 不屬於此 RP 用戶端 API。
 
 ## 本機帳戶綁定 {#local-binding}
 
@@ -121,7 +121,7 @@ Discovery 端點預設限於 issuer 同源。確需跨源時在 `allowed_origins
 
 為每個 RP 分別設定用戶端 ID、應用金鑰、資料庫和本地使用者綁定。首次在 OP 登入後，第二個 RP 可藉助既有 OP 瀏覽器 Session 授權；每個 RP 仍擁有獨立本地 Session，並分別解析 `(issuer, subject)`。`prompt("login")` 請求 OP 重新認證，`max_age` 另外檢查傳回的 `auth_time`。
 
-RP 發起登出遵循 OpenID Connect RP-Initiated Logout 1.0（2022-09-12）。將 `OIDC_POST_LOGOUT_REDIRECT_URI`（`post_logout_redirect`）設為 OP 已登記的固定回呼。在 `user()` 及本地帳戶綁定成功後，呼叫 `Oidc::provider("work", request)?.rememberLogout(&authentication)?`，明確將已驗證的 ID Token 儲存到伺服器端 Session。`LogoutHint` 是不透明型別，修改公開 token 欄位無法替換擷取的已驗證提示。Session 儲存和送出的登出 URL 均視為敏感資料。
+RP 發起登出遵循 OpenID Connect RP-Initiated Logout 1.0（2022-09-12）。將 `OIDC_POST_LOGOUT_REDIRECT_URI`（`post_logout_redirect`）設為 OP 已登記的固定回呼。在 `user()` 及本地帳戶綁定成功後，呼叫 `Oidc::provider("work", request)?.remember_logout(&authentication)?`，明確將已驗證的 ID Token 儲存到伺服器端 Session。`LogoutHint` 是不透明型別，修改公開 token 欄位無法替換擷取的已驗證提示。Session 儲存和送出的登出 URL 均視為敏感資料。
 
 將以下動作放入應用，並註冊為原生 web 群組中受 CSRF 保護的 POST 路由。傳入 `false` 僅本地登出，`true` 嘗試 OP 登出：
 
@@ -143,7 +143,7 @@ fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError 
 pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, HttpError> {
     let hint = Oidc::provider("work", request)
         .map_err(internal)?
-        .takeLogoutHint()
+        .take_logout_hint()
         .ok();
     Auth::session_guard(request, Some("web"))
         .map_err(internal)?
@@ -154,7 +154,7 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
         && let Some(hint) = hint
         && let Ok(url) = Oidc::provider("work", request)
             .map_err(internal)?
-            .logoutUrl(&hint)
+            .logout_url(&hint)
             .await
     {
         return Ok(
@@ -167,9 +167,9 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
 }
 ```
 
-`takeLogoutHint()` 先消耗提示，原生 `logout_and_invalidate()` 再清空本地 Session 並更新 CSRF。`logoutUrl(&hint)` 探索並校驗獲准的 `end_session_endpoint`，附加 ID Token 提示、用戶端 ID、固定傳回位址和一次性 state，將狀態儲存到新的匿名 Session。此動作在 OP 不支援、Discovery 無法使用或中繼資料無效時仍完成本地登出。不得從請求參數讀取提示或傳回目標。
+`take_logout_hint()` 先消耗提示，原生 `logout_and_invalidate()` 再清空本地 Session 並更新 CSRF。`logout_url(&hint)` 探索並校驗獲准的 `end_session_endpoint`，附加 ID Token 提示、用戶端 ID、固定傳回位址和一次性 state，將狀態儲存到新的匿名 Session。此動作在 OP 不支援、Discovery 無法使用或中繼資料無效時仍完成本地登出。不得從請求參數讀取提示或傳回目標。
 
-固定傳回處理器呼叫 `Oidc::provider("work", request)?.completeLogout().await?`，再傳回本地已登出頁面。完成時校驗 Session 綁定、設定、目標、期限與共用原子重放宣告；失敗同樣消耗本次嘗試，且不會登入任何使用者。此結果確認傳回狀態，不證明全部遠端憑證均已撤銷。
+固定傳回處理器呼叫 `Oidc::provider("work", request)?.complete_logout().await?`，再傳回本地已登出頁面。完成時校驗 Session 綁定、設定、目標、期限與共用原子重放宣告；失敗同樣消耗本次嘗試，且不會登入任何使用者。此結果確認傳回狀態，不證明全部遠端憑證均已撤銷。
 
 OP 瀏覽器 Session 結束後，另一個 RP 的既有本地 Session 仍有效。既有 access／refresh token 遵循 OP 獨立的撤銷策略。本實作不提供 front-channel／back-channel 登出通知及全域單點登出。
 

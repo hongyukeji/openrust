@@ -12,7 +12,6 @@ pub struct ProcessResult {
     pub(super) description: Option<Arc<FakeProcessDescription>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ProcessResult {
     pub fn command(&self) -> &Command {
         &self.command
@@ -34,16 +33,16 @@ impl ProcessResult {
         &self.stdout
     }
 
-    pub fn errorOutput(&self) -> &[u8] {
+    pub fn error_output(&self) -> &[u8] {
         &self.stderr
     }
 
-    pub fn seeInOutput(&self, needle: &str) -> bool {
+    pub fn see_in_output(&self, needle: &str) -> bool {
         String::from_utf8_lossy(self.output()).contains(needle)
     }
 
-    pub fn seeInErrorOutput(&self, needle: &str) -> bool {
-        String::from_utf8_lossy(self.errorOutput()).contains(needle)
+    pub fn see_in_error_output(&self, needle: &str) -> bool {
+        String::from_utf8_lossy(self.error_output()).contains(needle)
     }
 
     pub fn throw(self) -> Result<Self> {

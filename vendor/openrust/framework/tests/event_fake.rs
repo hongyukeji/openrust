@@ -80,7 +80,7 @@ fn fake_inside_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 .await?
                 .is_none()
         );
-        fake.assertDispatched("greeting.done");
+        fake.assert_dispatched("greeting.done");
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -120,7 +120,7 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
     }
 
     let fake = first.fake_events(&["greeting.sent"]).await?;
-    fake.assertNothingDispatched();
+    fake.assert_nothing_dispatched();
     let (first_response, second_response) =
         tokio::join!(first.get("/greeting"), second.get("/greeting"));
     first_response?.assert_ok().assert_content(r#""fake""#);
@@ -136,9 +136,9 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
     );
     assert_eq!(first_count.load(Ordering::Relaxed), 1);
     assert_eq!(second_count.load(Ordering::Relaxed), 2);
-    fake.assertDispatched("greeting.sent")
-        .assertDispatchedTimes("greeting.sent", 1)
-        .assertNotDispatched("greeting.done");
+    fake.assert_dispatched("greeting.sent")
+        .assert_dispatched_times("greeting.sent", 1)
+        .assert_not_dispatched("greeting.done");
     assert_eq!(
         fake.dispatched("greeting.sent")[0]
             .downcast_ref::<NamedEvent<u64>>()
@@ -149,9 +149,9 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
     let all = first.fake_events(&[]).await?;
     all.except(&["greeting.sent"]);
     first.get("/greeting").await?.assert_ok();
-    all.assertDispatchedTimes("greeting.done", 1)
-        .assertNotDispatched("greeting.sent");
-    fake.assertDispatchedTimes("greeting.sent", 1);
+    all.assert_dispatched_times("greeting.done", 1)
+        .assert_not_dispatched("greeting.sent");
+    fake.assert_dispatched_times("greeting.sent", 1);
     assert_eq!(first_count.load(Ordering::Relaxed), 2);
     first
         .get("/fake")
@@ -187,7 +187,7 @@ fn fake_for_request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
                 let local = Event::fake(&["scope.replaced"])?;
                 Event::dispatch(NamedEvent::new("scope.replaced", ())).await?;
-                local.assertDispatchedTimes("scope.replaced", 1);
+                local.assert_dispatched_times("scope.replaced", 1);
                 Ok(42)
             },
             &["scope.selected"],
@@ -212,9 +212,9 @@ fn fake_for_request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
         Event::dispatch(NamedEvent::new("scope.replaced", ())).await?;
         Event::dispatch(NamedEvent::new("scope.base", ())).await?;
         global
-            .assertDispatchedTimes("scope.base", 1)
-            .assertNotDispatched("scope.selected")
-            .assertNotDispatched("scope.replaced");
+            .assert_dispatched_times("scope.base", 1)
+            .assert_not_dispatched("scope.selected")
+            .assert_not_dispatched("scope.replaced");
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -263,7 +263,7 @@ fn fake_matching_events(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
                 name => name == TransactionBeginning::NAME,
             }
         })?;
-        fake.except(&["filter.excluded"]).exceptWhen(|event| {
+        fake.except(&["filter.excluded"]).except_when(|event| {
             event.name() == "filter.numeric" && numeric_payload(event) == Some(3)
         });
 
@@ -283,21 +283,21 @@ fn fake_matching_events(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
             .roll_back(None)
             .await
             .map_err(EventError::Transaction)?;
-        fake.assertDispatchedOnce(TransactionBeginning::NAME)
-            .assertNotDispatched(TransactionRolledBack::NAME)
-            .assertNotDispatched("greeting.saved")
-            .assertDispatchedOnce("filter.exact")
-            .assertNotDispatched("filter.excluded");
+        fake.assert_dispatched_once(TransactionBeginning::NAME)
+            .assert_not_dispatched(TransactionRolledBack::NAME)
+            .assert_not_dispatched("greeting.saved")
+            .assert_dispatched_once("filter.exact")
+            .assert_not_dispatched("filter.excluded");
         let mut transaction = Db::begin_transaction()
             .await
             .map_err(EventError::Transaction)?;
         Event::dispatch_after_commit(Saved, &mut transaction).await?;
-        fake.assertNotDispatched("greeting.saved");
+        fake.assert_not_dispatched("greeting.saved");
         transaction
             .commit()
             .await
             .map_err(EventError::Transaction)?;
-        fake.assertDispatchedOnce("greeting.saved");
+        fake.assert_dispatched_once("greeting.saved");
 
         Event::fake_for_when(
             async {
@@ -311,15 +311,15 @@ fn fake_matching_events(_: &mut Request) -> HttpFuture<'_, Result<Response, Http
         .await?;
         Event::dispatch(NamedEvent::new("filter.numeric", 2_u64)).await?;
 
-        fake.assertDispatchedWhere("filter.numeric", |event| {
-            fake.assertDispatchedTimes("filter.numeric", 3);
+        fake.assert_dispatched_where("filter.numeric", |event| {
+            fake.assert_dispatched_times("filter.numeric", 3);
             numeric_payload(event) == Some(4)
         })
-        .assertNotDispatchedWhere("filter.numeric", |event| {
+        .assert_not_dispatched_where("filter.numeric", |event| {
             matches!(numeric_payload(event), Some(1 | 3))
         });
         let recorded: Vec<_> = fake
-            .dispatchedWhere("filter.numeric", |event| numeric_payload(event).is_some())
+            .dispatched_where("filter.numeric", |event| numeric_payload(event).is_some())
             .iter()
             .filter_map(|event| numeric_payload(event.as_ref()))
             .collect();
@@ -392,7 +392,7 @@ async fn event_fake_respects_mysql_commit_and_rollback() -> TestResult {
 async fn verify_commit(mut app: TestApp) -> TestResult {
     let connection = app.database().await?;
     let dispatcher = app.app().make::<Dispatcher>().await?;
-    dispatcher.markAfterCommit::<Saved>();
+    dispatcher.mark_after_commit::<Saved>();
     let count = Arc::new(AtomicUsize::new(0));
     dispatcher.listen(
         "greeting.saved",
@@ -406,16 +406,16 @@ async fn verify_commit(mut app: TestApp) -> TestResult {
         .dispatch(Arc::new(Saved), &mut EventContext::in_transaction(&mut tx))
         .await?;
     assert!(matches!(result, DispatchResult::Deferred));
-    fake.assertDispatchedTimes(TransactionBeginning::NAME, 1)
-        .assertNotDispatched("greeting.saved");
+    fake.assert_dispatched_times(TransactionBeginning::NAME, 1)
+        .assert_not_dispatched("greeting.saved");
 
     let replacement = app.fake_events(&[]).await?;
     tx.commit().await?;
-    fake.assertDispatchedTimes("greeting.saved", 1);
+    fake.assert_dispatched_times("greeting.saved", 1);
     replacement
-        .assertDispatchedTimes(TransactionCommitting::NAME, 1)
-        .assertDispatchedTimes(TransactionCommitted::NAME, 1)
-        .assertNotDispatched("greeting.saved");
+        .assert_dispatched_times(TransactionCommitting::NAME, 1)
+        .assert_dispatched_times(TransactionCommitted::NAME, 1)
+        .assert_not_dispatched("greeting.saved");
 
     let mut tx = connection.begin_transaction().await?;
     assert!(matches!(
@@ -426,10 +426,10 @@ async fn verify_commit(mut app: TestApp) -> TestResult {
     ));
     tx.roll_back(None).await?;
     replacement
-        .assertDispatchedTimes(TransactionBeginning::NAME, 1)
-        .assertDispatchedTimes(TransactionRolledBack::NAME, 1)
-        .assertNotDispatched("greeting.saved");
-    fake.assertDispatchedTimes("greeting.saved", 1);
+        .assert_dispatched_times(TransactionBeginning::NAME, 1)
+        .assert_dispatched_times(TransactionRolledBack::NAME, 1)
+        .assert_not_dispatched("greeting.saved");
+    fake.assert_dispatched_times("greeting.saved", 1);
     assert_eq!(count.load(Ordering::Relaxed), 0);
     Ok(())
 }

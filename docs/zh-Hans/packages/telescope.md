@@ -22,15 +22,15 @@ Telescope 将应用诊断信息写入独立数据库表，并提供需要授权�
 
 访问 `/telescope` 或自定义路径。安装的应用 Provider 默认允许本地环境，其他环境在自定义授权回调前拒绝访问。回调应使用应用已认证身份和权限。面板及所有 API 路由保留 `web` 和 Telescope `Authorize` 中间件；写操作使用框架请求伪造防护，接受同源 Fetch 元数据或有效会话 CSRF 令牌。
 
-安装的 Provider 在本地记录全部诊断，其他环境默认保留可报告异常、失败请求和任务、定时任务，以及包含监控标签的记录。在应用 Provider 中使用 `Telescope::filter`、`filterBatch`、`tag` 定制策略。回调配置跨执行作用域共享；待写记录按 HTTP 请求、Artisan 命令和队列尝试隔离。`withoutRecording(future).await` 抑制嵌套记录，并在正常完成或取消后恢复原状态。
+安装的 Provider 在本地记录全部诊断，其他环境默认保留可报告异常、失败请求和任务、定时任务，以及包含监控标签的记录。在应用 Provider 中使用 `Telescope::filter`、`filter_batch`、`tag` 定制策略。回调配置跨执行作用域共享；待写记录按 HTTP 请求、Artisan 命令和队列尝试隔离。`without_recording(future).await` 抑制嵌套记录，并在正常完成或取消后恢复原状态。
 
-请求密码与授权头默认脱敏；安装的 Provider 在非本地环境额外隐藏 CSRF 与 Cookie。`hideRequestParameters`、`hideRequestHeaders`、`hideResponseParameters` 可增加名称，嵌套参数使用点路径。启用敏感业务采集前，应审查事件载荷、邮件和日志的内容。
+请求密码与授权头默认脱敏；安装的 Provider 在非本地环境额外隐藏 CSRF 与 Cookie。`hide_request_parameters`、`hide_request_headers`、`hide_response_parameters` 可增加名称，嵌套参数使用点路径。启用敏感业务采集前，应审查事件载荷、邮件和日志的内容。
 
 ## Watcher 与记录 {#watchers}
 
 Watcher 覆盖请求、查询、异常、日志、任务、批次、缓存、HTTP 客户端、命令、定时任务、邮件、通知、模型、事件、Gate、视图、Redis 命令及 Dump。原生生命周期事件提供实际数据，待写记录通过框架延迟回调持久化；进程被强制终止时无法保证写入。
 
-`openrust_telescope::watchers` 下的 18 类公开结构均实现 `Watcher`。应用 Provider 可使用 `new(options)` 构造并调用 `register(app).await?`；独立注册前先关闭对应默认配置项，避免重复监听。包 Provider 也使用同一入口。`QueryWatcher` 支持 `slow`，`EventWatcher` 支持 `ignore` 模式。默认忽略框架事件；在解析的服务上调用 `telescope.ignoreFrameworkEvents.store(false, std::sync::atomic::Ordering::Release)` 可开启，设置仅在当前应用内共享。
+`openrust_telescope::watchers` 下的 18 类公开结构均实现 `Watcher`。应用 Provider 可使用 `new(options)` 构造并调用 `register(app).await?`；独立注册前先关闭对应默认配置项，避免重复监听。包 Provider 也使用同一入口。`QueryWatcher` 支持 `slow`，`EventWatcher` 支持 `ignore` 模式。默认忽略框架事件；在解析的服务上调用 `telescope.ignore_framework_events.store(false, std::sync::atomic::Ordering::Release)` 可开启，设置仅在当前应用内共享。
 
 应用事件实现 `Event::properties()` 提供 JSON 诊断快照；Rust 不会反射任意结构体字段。监听器名称来自实际调度器注册。模型水合计数来自原生 Eloquent 生命周期。邮件保留原始 mailable 类型和排队标记；预览使用浏览器沙箱，下载包含捕获的 MIME 邮件。
 

@@ -69,10 +69,9 @@ pub struct EncodedImage {
     pub dimensions: (u32, u32),
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Driver: Send + Sync + 'static {
     /// 创建后、登记转换处理器及缓存前检查后端依赖；默认无需额外检查。
-    fn ensureRequirementsAreMet(&self) -> Result<()> {
+    fn ensure_requirements_are_met(&self) -> Result<()> {
         Ok(())
     }
 
@@ -89,7 +88,7 @@ pub trait Driver: Send + Sync + 'static {
     }
 
     /// 按转换名称注册驱动处理器；没有可扩展后端的驱动须明确拒绝。
-    fn transformUsing(
+    fn transform_using(
         &self,
         _transformation: &str,
         _callback: TransformationHandler,
@@ -97,7 +96,7 @@ pub trait Driver: Send + Sync + 'static {
         Err(Error::UnsupportedTransformationHandler)
     }
 
-    fn dominantColor(
+    fn dominant_color(
         &self,
         contents: Bytes,
         pipeline: &ImagePipeline,

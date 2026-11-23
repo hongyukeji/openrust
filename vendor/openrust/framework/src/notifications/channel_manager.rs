@@ -53,7 +53,6 @@ impl Default for ChannelManager {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ChannelManager {
     pub fn fake(&self) -> Arc<NotificationFake> {
         let fake = Arc::new(NotificationFake::default());
@@ -69,7 +68,7 @@ impl ChannelManager {
     }
 
     /// Registers a delivery decision in applications that dispatch or work notification queues.
-    pub fn extendQueueGuard(
+    pub fn extend_queue_guard(
         &self,
         name: impl Into<String>,
         handler: impl for<'a> Fn(
@@ -121,10 +120,11 @@ impl ChannelManager {
         recipients: &[&dyn Notifiable],
         notification: &dyn Notification,
     ) -> NotificationResult<()> {
-        self.sendInTransaction(recipients, notification, None).await
+        self.send_in_transaction(recipients, notification, None)
+            .await
     }
 
-    pub async fn sendInTransaction(
+    pub async fn send_in_transaction(
         &self,
         recipients: &[&dyn Notifiable],
         notification: &dyn Notification,

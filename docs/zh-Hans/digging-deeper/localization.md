@@ -39,7 +39,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`App::get_locale` 是 `current_locale` 的同义入口；`get_fallback_locale`、`set_fallback_locale` 读写回退语言。`set_locale` 同步更新 `app.locale` 和译器，并发送 `foundation::events::LocaleUpdated`；事件包含 `locale` 和 `previousLocale`。Rust 的事件监听器可以异步执行，因此此方法需要 `.await`，失败通过 `Result` 返回。请求和队列任务内的修改互相隔离；启动阶段设置则作为该应用的默认值。
+`App::get_locale` 是 `current_locale` 的同义入口；`get_fallback_locale`、`set_fallback_locale` 读写回退语言。`set_locale` 同步更新 `app.locale` 和译器，并发送 `foundation::events::LocaleUpdated`；事件包含 `locale` 和 `previous_locale`。Rust 的事件监听器可以异步执行，因此此方法需要 `.await`，失败通过 `Result` 返回。请求和队列任务内的修改互相隔离；启动阶段设置则作为该应用的默认值。
 
 服务错误在实际调用步骤传播：先写配置，再更新译器，最后分发事件。常驻译器首次解析时分别读取应用默认值和当前作用域配置，避免把请求语言保存为应用默认值。监听器失败不会回滚本次已更新的配置和译器，错误保留原始来源；当前生命周期结束后仍按作用域恢复。重复设置相同语言也会分发事件，修改回退语言不分发该事件。
 
@@ -362,9 +362,9 @@ pub async fn load_database_translations(
     language_directory: PathBuf,
 ) -> TranslationResult<()> {
     let source = DatabaseLoader::new(connection)
-        .withTable("language_lines")?
-        .withMaxRows(10_000)?
-        .withFallback(Arc::new(FileLoader::new(language_directory)));
+        .with_table("language_lines")?
+        .with_max_rows(10_000)?
+        .with_fallback(Arc::new(FileLoader::new(language_directory)));
     Lang::load_from(
         &source,
         &[
@@ -377,7 +377,7 @@ pub async fn load_database_translations(
 
 表名采用所选连接的表前缀，只接受不带 schema 的标识符。默认表名为 `language_lines`，每个组默认最多读取 10,000 行；超过配置上限会报错，不截断结果。
 
-`withFallback` 从文件来源加载相同语言、组和命名空间，再用数据库词条覆盖。组和列表索引递归合并，字面 JSON 值整体替换。数据库空字符串仍为有效覆盖；删除一行后，显式重新加载该资源即可恢复文件值。语言回退继续使用译器配置；需要数据库回退词条时，同时加载所选语言和回退语言资源。
+`with_fallback` 从文件来源加载相同语言、组和命名空间，再用数据库词条覆盖。组和列表索引递归合并，字面 JSON 值整体替换。数据库空字符串仍为有效覆盖；删除一行后，显式重新加载该资源即可恢复文件值。语言回退继续使用译器配置；需要数据库回退词条时，同时加载所选语言和回退语言资源。
 
 `Lang::load_from` 一次发布全部请求组。数据库、文件或解析错误会返回失败，并保留先前发布的目录；没有词条的资源提供空数据库覆盖。数据库按组读取，发布原子性不提供横跨所有读取的数据库事务快照。重新加载由应用显式触发。写入、迁移和刷新时机由应用管理，包不会自动选择来源或启动后台任务。
 

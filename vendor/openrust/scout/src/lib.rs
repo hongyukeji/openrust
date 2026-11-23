@@ -86,7 +86,7 @@ pub fn openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>> 
     vec![Box::new(ScoutServiceProvider)]
 }
 
-pub(crate) fn databaseError(source: Error) -> openrust::database::DatabaseError {
+pub(crate) fn database_error(source: Error) -> openrust::database::DatabaseError {
     openrust::database::DatabaseError::ModelEvent(Box::new(
         openrust::events::EventError::Listener {
             source: Box::new(source),

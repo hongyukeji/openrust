@@ -21,22 +21,22 @@ fn entry_type_names_tags_identity_and_exception_family_match_upstream() {
         id,
     )
     .unwrap()
-    .batchId(batch)
+    .batch_id(batch)
     .r#type(EntryType::Request)
     .tags(["first", "first", "other"])
     .user(json!(42), json!(null), json!("user@example.org"));
     assert_eq!(entry.uuid, id);
-    assert_eq!(entry.batchId, Some(batch));
+    assert_eq!(entry.batch_id, Some(batch));
     assert_eq!(entry.tags, ["first", "other", "Auth:42"]);
-    assert!(entry.isFailedRequest());
+    assert!(entry.is_failed_request());
     assert_ne!(entry.content["hostname"], "untrusted");
     let content = json!({"file":"app/service.rs","line":123,"class":"Failure","message":"one"});
     let exception =
         IncomingExceptionEntry::make(content.as_object().unwrap().clone(), false).unwrap();
-    assert!(exception.isException());
-    assert!(!exception.isReportableException());
+    assert!(exception.is_exception());
+    assert!(!exception.is_reportable_exception());
     assert_eq!(
-        exception.familyHash.as_deref(),
+        exception.family_hash.as_deref(),
         Some(format!("{:x}", md5::compute("app/service.rs123")).as_str())
     );
     let mut different = content.as_object().unwrap().clone();
@@ -44,15 +44,15 @@ fn entry_type_names_tags_identity_and_exception_family_match_upstream() {
     assert_eq!(
         IncomingExceptionEntry::make(different, true)
             .unwrap()
-            .familyHash,
-        exception.familyHash
+            .family_hash,
+        exception.family_hash
     );
     // The exception specialization carries the handler decision; assigning a type is insufficient.
     assert!(
         !IncomingEntry::make(content.as_object().unwrap().clone())
             .unwrap()
             .r#type(EntryType::Exception)
-            .isException()
+            .is_exception()
     );
     assert!(IncomingExceptionEntry::make(Default::default(), true).is_err());
 }
@@ -74,11 +74,11 @@ fn updates_merge_shallowly_and_deduplicate_tags() {
             .unwrap()
             .clone(),
     )
-    .addTags(["one", "one"])
-    .removeTags(["one", "two", "one"]);
+    .add_tags(["one", "one"])
+    .remove_tags(["one", "two", "one"]);
     assert_eq!(update.changes["nested"], json!({"second":true}));
-    assert_eq!(update.addedTags, ["one"]);
-    assert_eq!(update.removedTags, ["one", "two"]);
+    assert_eq!(update.added_tags, ["one"]);
+    assert_eq!(update.removed_tags, ["one", "two"]);
 }
 
 #[test]
@@ -86,14 +86,14 @@ fn dump_specialization_assigns_the_first_real_batch_entry_point() {
     use openrust_telescope::IncomingDumpEntry;
     let mut dump =
         IncomingDumpEntry::make(json!({"dump":"example"}).as_object().unwrap().clone()).unwrap();
-    assert!(dump.isDump());
+    assert!(dump.is_dump());
     assert!(
         !IncomingEntry::make(Default::default())
             .unwrap()
             .r#type(EntryType::Dump)
-            .isDump()
+            .is_dump()
     );
-    dump.assignEntryPointFromBatch(&[]);
+    dump.assign_entry_point_from_batch(&[]);
     assert!(!dump.content.contains_key("entry_point_uuid"));
     let request = IncomingEntry::make(
         json!({"method":"POST","uri":"/orders"})
@@ -106,7 +106,7 @@ fn dump_specialization_assigns_the_first_real_batch_entry_point() {
     let job = IncomingEntry::make(json!({"name":"SendInvoice"}).as_object().unwrap().clone())
         .unwrap()
         .r#type(EntryType::Job);
-    dump.assignEntryPointFromBatch(&[request.clone(), job]);
+    dump.assign_entry_point_from_batch(&[request.clone(), job]);
     assert_eq!(dump.content["entry_point_type"], "request");
     assert_eq!(dump.content["entry_point_uuid"], request.uuid.to_string());
     assert_eq!(dump.content["entry_point_description"], "POST /orders");

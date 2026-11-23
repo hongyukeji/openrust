@@ -17,9 +17,8 @@ pub(super) struct NativeDriver {
     handlers: RwLock<Handlers>,
 }
 
-#[allow(non_snake_case)]
 impl Driver for NativeDriver {
-    fn transformUsing(&self, transformation: &str, callback: TransformationHandler) -> Result<()> {
+    fn transform_using(&self, transformation: &str, callback: TransformationHandler) -> Result<()> {
         self.handlers
             .write()
             .map_err(|_| Error::Io(std::io::Error::other("图片转换处理器锁中毒")))?
@@ -97,7 +96,7 @@ impl Driver for NativeDriver {
         })
     }
 
-    fn dominantColor(
+    fn dominant_color(
         &self,
         contents: Bytes,
         pipeline: &ImagePipeline,

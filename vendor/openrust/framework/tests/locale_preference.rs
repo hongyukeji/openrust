@@ -70,7 +70,7 @@ impl Root {
                     Encrypter::new([key; 32], Cipher::Aes256Cbc).unwrap(),
                 ));
                 if exempt {
-                    encrypt.disableFor(["locale"]);
+                    encrypt.disable_for(["locale"]);
                 }
                 // 有意不装配 Session，验证偏好只依赖安全 Cookie 管线。
                 middleware.group(

@@ -17,7 +17,7 @@ pub struct DatabaseDriver {
     table: String,
     timezone: openrust::support::DateTimezone,
     pub(crate) resolvers: crate::contracts::Definitions,
-    pub(crate) useMorphMap: Arc<AtomicBool>,
+    pub(crate) use_morph_map: Arc<AtomicBool>,
     pub(crate) events: Option<Arc<openrust::events::Dispatcher>>,
 }
 impl DatabaseDriver {
@@ -27,11 +27,11 @@ impl DatabaseDriver {
             table: "features".into(),
             timezone: openrust::support::DateTimezone::UTC,
             resolvers: Arc::default(),
-            useMorphMap: Arc::new(AtomicBool::new(false)),
+            use_morph_map: Arc::new(AtomicBool::new(false)),
             events: None,
         }
     }
-    pub fn withTable(mut self, table: impl Into<String>) -> Result<Self> {
+    pub fn with_table(mut self, table: impl Into<String>) -> Result<Self> {
         let table = table.into();
         if table.is_empty() {
             return Err(Error::InvalidConfiguration);
@@ -39,7 +39,7 @@ impl DatabaseDriver {
         self.table = table;
         Ok(self)
     }
-    pub fn withTimezone(mut self, timezone: &str) -> Result<Self> {
+    pub fn with_timezone(mut self, timezone: &str) -> Result<Self> {
         self.timezone =
             openrust::support::Date::timezone(timezone).map_err(|_| Error::InvalidConfiguration)?;
         Ok(self)
@@ -51,7 +51,7 @@ impl DatabaseDriver {
             .r#where(
                 "scope",
                 "=",
-                scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
             )
             .first()
             .await?
@@ -68,7 +68,7 @@ impl DatabaseDriver {
     }
 }
 impl Driver for DatabaseDriver {
-    fn supportsSetAll(&self) -> bool {
+    fn supports_set_all(&self) -> bool {
         true
     }
     fn define(&self, feature: &str, resolver: Resolver) -> Result<()> {
@@ -127,7 +127,7 @@ impl Driver for DatabaseDriver {
                         feature,
                         scope,
                         &value,
-                        self.useMorphMap.load(Ordering::Relaxed),
+                        self.use_morph_map.load(Ordering::Relaxed),
                         &self.timezone,
                     )?])
                     .await
@@ -140,7 +140,7 @@ impl Driver for DatabaseDriver {
             Err(Error::InvalidValue)
         })
     }
-    fn getAll<'a>(&'a self, features: &'a FeatureScopes) -> FeatureFuture<'a, FeatureValues> {
+    fn get_all<'a>(&'a self, features: &'a FeatureScopes) -> FeatureFuture<'a, FeatureValues> {
         Box::pin(async move {
             if features.values().all(Vec::is_empty) {
                 return Ok(features.keys().map(|name| (name.clone(), vec![])).collect());
@@ -153,7 +153,7 @@ impl Driver for DatabaseDriver {
                             query.r#where("name", "=", feature.as_str()).r#where(
                                 "scope",
                                 "=",
-                                scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                                scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                             )
                         });
                     }
@@ -175,7 +175,7 @@ impl Driver for DatabaseDriver {
                     for scope in scopes {
                         let key = (
                             feature.clone(),
-                            scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                            scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                         );
                         let value = if let Some(value) = records.get(&key) {
                             value.clone()
@@ -187,7 +187,7 @@ impl Driver for DatabaseDriver {
                                 feature,
                                 scope,
                                 &value,
-                                self.useMorphMap.load(Ordering::Relaxed),
+                                self.use_morph_map.load(Ordering::Relaxed),
                                 &self.timezone,
                             )?);
                             value
@@ -229,7 +229,7 @@ impl Driver for DatabaseDriver {
                         feature,
                         scope,
                         &value,
-                        self.useMorphMap.load(Ordering::Relaxed),
+                        self.use_morph_map.load(Ordering::Relaxed),
                         &self.timezone,
                     )?],
                     &["name", "scope"],
@@ -239,7 +239,7 @@ impl Driver for DatabaseDriver {
             Ok(())
         })
     }
-    fn setAll<'a>(&'a self, features: &'a [FeatureValue]) -> FeatureFuture<'a, ()> {
+    fn set_all<'a>(&'a self, features: &'a [FeatureValue]) -> FeatureFuture<'a, ()> {
         Box::pin(async move {
             let rows = features
                 .iter()
@@ -248,7 +248,7 @@ impl Driver for DatabaseDriver {
                         &feature.feature,
                         &feature.scope,
                         &feature.value,
-                        self.useMorphMap.load(Ordering::Relaxed),
+                        self.use_morph_map.load(Ordering::Relaxed),
                         &self.timezone,
                     )
                 })
@@ -260,7 +260,7 @@ impl Driver for DatabaseDriver {
             Ok(())
         })
     }
-    fn setForAllScopes<'a>(&'a self, feature: &'a str, value: Value) -> FeatureFuture<'a, ()> {
+    fn set_for_all_scopes<'a>(&'a self, feature: &'a str, value: Value) -> FeatureFuture<'a, ()> {
         Box::pin(async move {
             self.connection
                 .table(&self.table)
@@ -281,7 +281,7 @@ impl Driver for DatabaseDriver {
                 .r#where(
                     "scope",
                     "=",
-                    scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                    scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                 )
                 .delete()
                 .await?;
@@ -310,13 +310,13 @@ fn record(
     feature: &str,
     scope: &Scope,
     value: &Value,
-    useMorphMap: bool,
+    use_morph_map: bool,
     timezone: &openrust::support::DateTimezone,
 ) -> Result<Record> {
     let now = timestamp(timezone)?;
     Ok(BTreeMap::from([
         ("name".into(), feature.into()),
-        ("scope".into(), scope.serialize(useMorphMap).into()),
+        ("scope".into(), scope.serialize(use_morph_map).into()),
         ("value".into(), value.to_string().into()),
         ("created_at".into(), now.clone()),
         ("updated_at".into(), now),

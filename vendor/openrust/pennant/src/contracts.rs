@@ -22,17 +22,17 @@ pub trait Driver: Send + Sync {
     fn stored(&self) -> FeatureFuture<'_, Vec<String>> {
         Box::pin(async { Err(crate::Error::Unsupported("listing stored features")) })
     }
-    fn definedFeaturesForScope(&self, _scope: &Scope) -> Result<Option<Vec<String>>> {
+    fn defined_features_for_scope(&self, _scope: &Scope) -> Result<Option<Vec<String>>> {
         Ok(None)
     }
-    fn supportsSetAll(&self) -> bool {
+    fn supports_set_all(&self) -> bool {
         false
     }
     fn get<'a>(&'a self, feature: &'a str, scope: &'a Scope) -> FeatureFuture<'a, Value>;
-    fn getAll<'a>(&'a self, features: &'a FeatureScopes) -> FeatureFuture<'a, FeatureValues>;
+    fn get_all<'a>(&'a self, features: &'a FeatureScopes) -> FeatureFuture<'a, FeatureValues>;
     fn set<'a>(&'a self, feature: &'a str, scope: &'a Scope, value: Value)
     -> FeatureFuture<'a, ()>;
-    fn setAll<'a>(&'a self, features: &'a [FeatureValue]) -> FeatureFuture<'a, ()> {
+    fn set_all<'a>(&'a self, features: &'a [FeatureValue]) -> FeatureFuture<'a, ()> {
         Box::pin(async move {
             for feature in features {
                 self.set(&feature.feature, &feature.scope, feature.value.clone())
@@ -41,27 +41,27 @@ pub trait Driver: Send + Sync {
             Ok(())
         })
     }
-    fn setForAllScopes<'a>(&'a self, feature: &'a str, value: Value) -> FeatureFuture<'a, ()>;
+    fn set_for_all_scopes<'a>(&'a self, feature: &'a str, value: Value) -> FeatureFuture<'a, ()>;
     fn delete<'a>(&'a self, feature: &'a str, scope: &'a Scope) -> FeatureFuture<'a, ()>;
     fn purge<'a>(&'a self, features: Option<&'a [String]>) -> FeatureFuture<'a, ()>;
-    fn flushCache(&self) -> Result<()> {
+    fn flush_cache(&self) -> Result<()> {
         Ok(())
     }
 }
 
-/// A compiled feature class. The factory passed to `defineClass` may resolve dependencies
+/// A compiled feature class. The factory passed to `define_class` may resolve dependencies
 /// from the application's container; it is invoked only when a value or hook is needed.
 pub trait FeatureDefinition: Send + Sync + 'static {
     fn name() -> &'static str {
         std::any::type_name::<Self>()
     }
-    fn acceptsNullScope() -> bool {
+    fn accepts_null_scope() -> bool {
         true
     }
-    fn isValidForScope(scope: &Scope) -> bool {
-        Self::acceptsNullScope() || scope != &Scope::Null
+    fn is_valid_for_scope(scope: &Scope) -> bool {
+        Self::accepts_null_scope() || scope != &Scope::Null
     }
-    fn beforeAcceptsNullScope() -> bool {
+    fn before_accepts_null_scope() -> bool {
         true
     }
     fn before<'a>(&'a self, _scope: &'a Scope) -> FeatureFuture<'a, Option<Value>> {
@@ -82,7 +82,7 @@ pub(crate) struct FeatureClasses {
 
 /// Rust replacement for PHP's runtime `FeatureScopeable` conversion.
 pub trait FeatureScopeable {
-    fn toFeatureIdentifier(&self, driver: &str) -> Scope;
+    fn to_feature_identifier(&self, driver: &str) -> Scope;
 }
 
 pub(crate) type ScopeValidator = Arc<dyn Fn(&Scope) -> bool + Send + Sync>;

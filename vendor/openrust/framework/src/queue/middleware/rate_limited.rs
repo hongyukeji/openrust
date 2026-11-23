@@ -25,7 +25,6 @@ pub struct RateLimited {
     should_release: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl RateLimited {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -40,7 +39,7 @@ impl RateLimited {
         self
     }
 
-    pub fn dontRelease(mut self) -> Self {
+    pub fn dont_release(mut self) -> Self {
         self.should_release = false;
         self
     }
@@ -124,7 +123,6 @@ pub struct RateLimitedWithRedis {
     connection: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl RateLimitedWithRedis {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -143,8 +141,8 @@ impl RateLimitedWithRedis {
         self
     }
 
-    pub fn dontRelease(mut self) -> Self {
-        self.limiter = self.limiter.dontRelease();
+    pub fn dont_release(mut self) -> Self {
+        self.limiter = self.limiter.dont_release();
         self
     }
 }

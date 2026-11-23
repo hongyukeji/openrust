@@ -23,11 +23,11 @@ type ScopeResolver = Arc<dyn Fn(&str) -> Result<Scope> + Send + Sync>;
 #[derive(Default)]
 pub(crate) struct FeatureRegistry {
     definitions: RwLock<BTreeMap<String, Definitions>>,
-    defaultDriver: RwLock<Option<String>>,
-    customCreators: RwLock<BTreeMap<String, DriverCreator>>,
+    default_driver: RwLock<Option<String>>,
+    custom_creators: RwLock<BTreeMap<String, DriverCreator>>,
     classes: RwLock<BTreeMap<String, Arc<crate::contracts::FeatureClasses>>>,
-    scopeResolver: RwLock<Option<ScopeResolver>>,
-    useMorphMap: Arc<AtomicBool>,
+    scope_resolver: RwLock<Option<ScopeResolver>>,
+    use_morph_map: Arc<AtomicBool>,
 }
 pub struct FeatureManager {
     config: Arc<dyn openrust::contracts::config::Repository>,
@@ -57,7 +57,7 @@ impl FeatureManager {
     pub fn get_default_driver(&self) -> Result<String> {
         if let Some(name) = self
             .registry
-            .defaultDriver
+            .default_driver
             .read()
             .map_err(|_| Error::StateUnavailable)?
             .as_ref()
@@ -72,7 +72,7 @@ impl FeatureManager {
     pub fn set_default_driver(&self, name: &str) -> Result<()> {
         *self
             .registry
-            .defaultDriver
+            .default_driver
             .write()
             .map_err(|_| Error::StateUnavailable)? = Some(name.into());
         Ok(())
@@ -106,26 +106,26 @@ impl FeatureManager {
             .entry(name.clone())
             .or_default()
             .clone();
-        let driverName = config
+        let driver_name = config
             .get("driver")
             .and_then(serde_json::Value::as_str)
             .ok_or(Error::InvalidConfiguration)?;
         let creator = self
             .registry
-            .customCreators
+            .custom_creators
             .read()
             .map_err(|_| Error::StateUnavailable)?
-            .get(driverName)
+            .get(driver_name)
             .cloned();
         let driver: Arc<dyn crate::Driver> = if let Some(creator) = creator {
             creator(self, &config)?
         } else {
-            match Some(driverName) {
+            match Some(driver_name) {
                 Some("array") => {
                     let mut driver = ArrayDriver::new();
                     driver.resolvers = definitions;
                     driver.events = Some(self.events.clone());
-                    driver.useMorphMap = self.registry.useMorphMap.clone();
+                    driver.use_morph_map = self.registry.use_morph_map.clone();
                     Arc::new(driver)
                 }
                 Some("database") => {
@@ -140,14 +140,14 @@ impl FeatureManager {
                         Some(serde_json::Value::String(table)) => table.as_str(),
                         _ => return Err(Error::InvalidConfiguration),
                     };
-                    let mut driver = DatabaseDriver::new(connection).withTable(table)?;
+                    let mut driver = DatabaseDriver::new(connection).with_table(table)?;
                     if let Some(timezone) = self.config.get("app.timezone") {
                         driver = driver
-                            .withTimezone(timezone.as_str().ok_or(Error::InvalidConfiguration)?)?;
+                            .with_timezone(timezone.as_str().ok_or(Error::InvalidConfiguration)?)?;
                     }
                     driver.resolvers = definitions;
                     driver.events = Some(self.events.clone());
-                    driver.useMorphMap = self.registry.useMorphMap.clone();
+                    driver.use_morph_map = self.registry.use_morph_map.clone();
                     Arc::new(driver)
                 }
                 _ => return Err(Error::InvalidConfiguration),
@@ -163,7 +163,7 @@ impl FeatureManager {
             .or_default()
             .clone();
         decorator.events = Some(self.events.clone());
-        decorator.useMorphMap = self.registry.useMorphMap.clone();
+        decorator.use_morph_map = self.registry.use_morph_map.clone();
         let decorator = Arc::new(decorator);
         let mut stores = self.stores.0.write().map_err(|_| Error::StateUnavailable)?;
         Ok(stores.entry(name).or_insert(decorator).clone())
@@ -177,7 +177,7 @@ impl FeatureManager {
         + 'static,
     ) -> Result<()> {
         self.registry
-            .customCreators
+            .custom_creators
             .write()
             .map_err(|_| Error::StateUnavailable)?
             .insert(driver.into(), Arc::new(creator));
@@ -223,7 +223,7 @@ impl FeatureManager {
             .clear();
         Ok(())
     }
-    pub fn flushCache(&self) -> Result<()> {
+    pub fn flush_cache(&self) -> Result<()> {
         for store in self
             .stores
             .0
@@ -231,31 +231,31 @@ impl FeatureManager {
             .map_err(|_| Error::StateUnavailable)?
             .values()
         {
-            store.flushCache()?;
+            store.flush_cache()?;
         }
         Ok(())
     }
-    pub fn useMorphMap(&self, value: bool) {
-        self.registry.useMorphMap.store(value, Ordering::Relaxed);
+    pub fn use_morph_map(&self, value: bool) {
+        self.registry.use_morph_map.store(value, Ordering::Relaxed);
     }
-    pub fn serializeScope(&self, scope: &Scope) -> String {
-        scope.serialize(self.registry.useMorphMap.load(Ordering::Relaxed))
+    pub fn serialize_scope(&self, scope: &Scope) -> String {
+        scope.serialize(self.registry.use_morph_map.load(Ordering::Relaxed))
     }
-    pub fn resolveScopeUsing(
+    pub fn resolve_scope_using(
         &self,
         resolver: impl Fn(&str) -> Result<Scope> + Send + Sync + 'static,
     ) -> Result<()> {
         *self
             .registry
-            .scopeResolver
+            .scope_resolver
             .write()
             .map_err(|_| Error::StateUnavailable)? = Some(Arc::new(resolver));
         Ok(())
     }
-    pub fn defaultScope(&self, store: &str) -> Result<Scope> {
+    pub fn default_scope(&self, store: &str) -> Result<Scope> {
         let resolver = self
             .registry
-            .scopeResolver
+            .scope_resolver
             .read()
             .map_err(|_| Error::StateUnavailable)?
             .clone();
@@ -269,7 +269,7 @@ impl FeatureManager {
             .auth
             .user_class(user.as_ref())
             .ok_or(Error::InvalidScope)?;
-        let morph = if self.registry.useMorphMap.load(Ordering::Relaxed) {
+        let morph = if self.registry.use_morph_map.load(Ordering::Relaxed) {
             self.auth
                 .user_morph_class(user.as_ref())
                 .map_err(|_| Error::InvalidScope)?
@@ -291,14 +291,14 @@ impl FeatureManager {
         let store = self.store(None)?;
         let custom = self
             .registry
-            .scopeResolver
+            .scope_resolver
             .read()
             .map_err(|_| Error::StateUnavailable)?
             .is_some();
         if !custom {
             self.auth.user(request).await.map_err(Error::Auth)?;
         }
-        Ok(store.r#for(self.defaultScope(store.store_name())?))
+        Ok(store.r#for(self.default_scope(store.store_name())?))
     }
     pub fn r#for(&self, scope: impl Into<Scope>) -> Result<PendingScopedFeatureInteraction> {
         Ok(self.store(None)?.r#for(scope))
@@ -308,7 +308,7 @@ impl FeatureManager {
     }
     pub fn interaction(&self) -> Result<PendingScopedFeatureInteraction> {
         let store = self.store(None)?;
-        let scope = self.defaultScope(store.store_name())?;
+        let scope = self.default_scope(store.store_name())?;
         Ok(store.r#for(scope))
     }
 }

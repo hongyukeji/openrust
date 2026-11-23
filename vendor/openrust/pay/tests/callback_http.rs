@@ -39,7 +39,9 @@ async fn callback(
             let fail = fail.clone();
             Box::pin(async move {
                 tx.table("callback_business")
-                    .insert(&[[("id".into(), n.outTradeNo().into())].into_iter().collect()])
+                    .insert(&[[("id".into(), n.out_trade_no().into())]
+                        .into_iter()
+                        .collect()])
                     .await?;
                 if fail.swap(false, Ordering::SeqCst) {
                     return Err(DatabaseError::InvalidQuery("simulated business failure"));

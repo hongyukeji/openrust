@@ -36,7 +36,6 @@ impl serde::Serialize for PersonalAccessToken {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PersonalAccessToken {
     pub fn can(&self, ability: &str) -> bool {
         self.abilities
@@ -99,7 +98,6 @@ pub struct PersonalAccessTokens {
     model: Box<dyn ModelStore>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PersonalAccessTokens {
     pub fn new(connection: Connection, prefix: impl Into<String>) -> Self {
         Self::for_model::<super::DefaultPersonalAccessToken>(connection, prefix.into())
@@ -172,7 +170,7 @@ impl PersonalAccessTokens {
         })
     }
 
-    pub async fn findToken(&self, credential: &str) -> AuthResult<Option<PersonalAccessToken>> {
+    pub async fn find_token(&self, credential: &str) -> AuthResult<Option<PersonalAccessToken>> {
         Ok(self
             .find_for_authentication(credential)
             .await?
@@ -205,7 +203,7 @@ impl PersonalAccessTokens {
     }
 
     /// Revokes only a token belonging to the supplied owner.
-    pub async fn revokeToken(
+    pub async fn revoke_token(
         &self,
         tokenable_type: &str,
         tokenable_id: impl Into<AuthIdentifier>,

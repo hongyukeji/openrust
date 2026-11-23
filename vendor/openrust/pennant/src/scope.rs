@@ -16,11 +16,11 @@ pub enum Scope {
 }
 
 pub trait FeatureScopeSerializeable {
-    fn featureScopeSerialize(&self) -> String;
+    fn feature_scope_serialize(&self) -> String;
 }
 
 impl Scope {
-    pub fn serialize(&self, useMorphMap: bool) -> String {
+    pub fn serialize(&self, use_morph_map: bool) -> String {
         match self {
             Self::Null => "__laravel_null".into(),
             Self::Global => "__laravel_global".into(),
@@ -34,7 +34,7 @@ impl Scope {
             }
             Self::Model { class, key, morph } => format!(
                 "{}|{key}",
-                if useMorphMap {
+                if use_morph_map {
                     morph.as_ref().unwrap_or(class)
                 } else {
                     class
@@ -43,8 +43,8 @@ impl Scope {
         }
     }
 
-    pub fn fromSerializable(scope: &impl FeatureScopeSerializeable) -> Self {
-        Self::Custom(scope.featureScopeSerialize())
+    pub fn from_serializable(scope: &impl FeatureScopeSerializeable) -> Self {
+        Self::Custom(scope.feature_scope_serialize())
     }
 
     pub fn from_model<M: openrust::database::eloquent::Model>(model: &M) -> Result<Self> {

@@ -189,7 +189,7 @@ fn disabled(
         let error = || openrust::http::HttpError::InvalidRequest;
         let mut logger =
             openrust_activitylog::facades::Activitylog::logger().map_err(|_| error())?;
-        logger.disableLogging();
+        logger.disable_logging();
         assert!(
             logger
                 .log("suppressed")
@@ -221,7 +221,7 @@ async fn cleaner_selects_log_names_validates_days_and_reuses_production_confirma
         .assert_successful();
     let repository = app.app().make::<ActivityRepository>().await.unwrap();
     for name in ["accounts", "other"] {
-        let mut activity = Activity::new("expired").useLog(name);
+        let mut activity = Activity::new("expired").use_log(name);
         activity.created_at = Some(0);
         repository.log(activity).await.unwrap();
     }
@@ -328,12 +328,12 @@ fn authenticated_activity(
         }
         let mut entry = openrust_activitylog::activity().unwrap();
         if request.path().ends_with("anonymous") {
-            entry.byAnonymous();
+            entry.by_anonymous();
         }
         if request.path().ends_with("lookup") {
-            entry.byId(5_u64).await.unwrap();
+            entry.by_id(5_u64).await.unwrap();
         } else if request.path().ends_with("missing") {
-            assert!(entry.byId(999_u64).await.is_err());
+            assert!(entry.by_id(999_u64).await.is_err());
             return Ok(openrust::http::Response::from("missing rejected"));
         }
         entry.log("request :causer.name").await.unwrap();
@@ -561,7 +561,7 @@ async fn configured_model_and_actions_resolve_native_named_bindings() {
         )
         .unwrap();
     let action = LogActivityAction::default();
-    action.beforeLogging(|activity| {
+    action.before_logging(|activity| {
         activity.description = Some("custom action".into());
         Ok(())
     });

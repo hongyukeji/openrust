@@ -36,7 +36,7 @@ impl ServiceProvider for PasskeysServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             crate::resources::register(app)?;
-            if app.make::<Passkeys>().await?.shouldRegisterRoutes() {
+            if app.make::<Passkeys>().await?.should_register_routes() {
                 app.make::<Passkeys>().await?.webauthn()?;
                 self.load_routes_from(app, crate::routes::register)?;
             }

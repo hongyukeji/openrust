@@ -54,7 +54,7 @@ pub async fn store_report() -> FilesystemResult<Option<Vec<u8>>> {
 }
 ```
 
-`readStream` returns an async reader shared by local and S3 disks. S3 writes stream in 8 MiB parts and publish when multipart upload completes. The driver can upload up to 10,000 parts, about 78 GiB per object. Interrupted uploads are aborted when possible. If the server may have completed a write after the connection failed, `throw = true` exposes `PublishOutcomeUnknown`. Read the target to check its state before retrying.
+`read_stream` returns an async reader shared by local and S3 disks. S3 writes stream in 8 MiB parts and publish when multipart upload completes. The driver can upload up to 10,000 parts, about 78 GiB per object. Interrupted uploads are aborted when possible. If the server may have completed a write after the connection failed, `throw = true` exposes `PublishOutcomeUnknown`. Read the target to check its state before retrying.
 
 ## Obtaining Disk Instances
 
@@ -76,7 +76,7 @@ Use `Storage::build(LocalDiskConfig)` for an on-demand local disk. The named dis
 
 ## Retrieving Files
 
-`get` returns file contents. Use `readStream` for an asynchronous reader when reading large files. The default `throw = false` returns `None` for a failed read or `false` for a failed write. Set `throw = true` to return the error. Set `report = true` to log failures handled by the default policy. Invalid paths return an error in either mode.
+`get` returns file contents. Use `read_stream` for an asynchronous reader when reading large files. The default `throw = false` returns `None` for a failed read or `false` for a failed write. Set `throw = true` to return the error. Set `report = true` to log failures handled by the default policy. Invalid paths return an error in either mode.
 
 ### Downloading Files
 
@@ -101,7 +101,7 @@ pub async fn download_report() -> Result<Response, HttpError> {
 
 ### File Metadata {#file-metadata}
 
-Use `size` to get the byte count and `lastModified` to get a `SystemTime` for a file on a local disk. Both methods return errors when metadata is unavailable. The same methods on `Storage` use the default disk.
+Use `size` to get the byte count and `last_modified` to get a `SystemTime` for a file on a local disk. Both methods return errors when metadata is unavailable. The same methods on `Storage` use the default disk.
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
@@ -112,15 +112,15 @@ async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Opt
 }
 ```
 
-Use `mime_type` to check content signatures, with a filename extension or `application/octet-stream` as fallback. Use `checksum` for a streamed MD5 digest, or `checksumWith::<D>` to select a Rust digest. For these two operations, disk failures return `None` when `throw` is disabled. Invalid paths always return an error.
+Use `mime_type` to check content signatures, with a filename extension or `application/octet-stream` as fallback. Use `checksum` for a streamed MD5 digest, or `checksum_with::<D>` to select a Rust digest. For these two operations, disk failures return `None` when `throw` is disabled. Invalid paths always return an error.
 
 ## Storing Files
 
-`writeStream` copies from an asynchronous reader. The local driver writes a sibling temporary file and publishes it by rename after the stream completes. A source failure or cancellation before publication preserves an existing file. A cancellation after the rename has been dispatched can still publish the completed write.
+`write_stream` copies from an asynchronous reader. The local driver writes a sibling temporary file and publishes it by rename after the stream completes. A source failure or cancellation before publication preserves an existing file. A cancellation after the rename has been dispatched can still publish the completed write.
 
 ### File Uploads
 
-Get an upload from a multipart request with `Request::file`. Use `store` and `store_as` on the uploaded file, or `putFile` and `putFileAs` on the disk. `store_publicly` and `store_publicly_as` request public visibility. Generated names use 40 random characters and a content-derived extension when recognized. The client filename and media type are metadata. Apply your application’s upload validation before saving.
+Get an upload from a multipart request with `Request::file`. Use `store` and `store_as` on the uploaded file, or `put_file` and `put_file_as` on the disk. `store_publicly` and `store_publicly_as` request public visibility. Generated names use 40 random characters and a content-derived extension when recognized. The client filename and media type are metadata. Apply your application’s upload validation before saving.
 
 ```rust
 use openrust::{
@@ -141,7 +141,7 @@ pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpErr
 
 ### File Visibility
 
-On Unix, the public and private file modes are `0644` and `0600`. New subdirectories use the disk’s configured directory visibility. Override the visibility of a single write with `WriteOptions`. Use `getVisibility` and `setVisibility` on an existing file. Windows writes use the filesystem ACL. Explicit visibility changes are currently supported on Unix.
+On Unix, the public and private file modes are `0644` and `0600`. New subdirectories use the disk’s configured directory visibility. Override the visibility of a single write with `WriteOptions`. Use `get_visibility` and `set_visibility` on an existing file. Windows writes use the filesystem ACL. Explicit visibility changes are currently supported on Unix.
 
 S3 visibility uses object ACLs. If no visibility is specified, the write leaves access control to the bucket. An explicit visibility request requires an ACL-capable bucket, and confirmation requires reading the ACL back. Bucket policies and the provider’s ACL enforcement determine whether an object is actually accessible anonymously.
 
@@ -157,11 +157,11 @@ fn permissions() -> FilesystemResult<LocalPermissions> {
 }
 ```
 
-For an on-demand disk, give these permissions to `Storage::buildWithPermissions` along with its `LocalDiskConfig`. Modes apply to newly created files and directories. `setVisibility` applies the configured file mode. Public disk mounts also require Unix public-read and directory-traverse permissions and respect modes mapped to `private`. Custom Unix modes are supported on Unix.
+For an on-demand disk, give these permissions to `Storage::build_with_permissions` along with its `LocalDiskConfig`. Modes apply to newly created files and directories. `set_visibility` applies the configured file mode. Public disk mounts also require Unix public-read and directory-traverse permissions and respect modes mapped to `private`. Custom Unix modes are supported on Unix.
 
 ## Temporary file URLs
 
-Use `disk.temporaryUrl(path, expiration).await?` for a download or `disk.temporaryUploadUrl(path, expiration).await?` for an upload. Send the returned `headers` with the upload `url`. For a local disk, enable `serve` in the disk configuration. Its route uses the path in the disk's `url`, or `/storage` when no URL is set. The local upload link accepts PUT. The S3 adapter signs against the configured bucket endpoint. The client needs network access to that endpoint.
+Use `disk.temporary_url(path, expiration).await?` for a download or `disk.temporary_upload_url(path, expiration).await?` for an upload. Send the returned `headers` with the upload `url`. For a local disk, enable `serve` in the disk configuration. Its route uses the path in the disk's `url`, or `/storage` when no URL is set. The local upload link accepts PUT. The S3 adapter signs against the configured bucket endpoint. The client needs network access to that endpoint.
 
 ### S3 temporary URL origin {#s3-temporary-url-origin}
 
@@ -169,7 +169,7 @@ Set `temporary_url` on the S3 disk, or `AWS_TEMPORARY_URL` for the default S3 co
 
 ### S3 request options {#s3-request-parameters}
 
-Use `temporaryUrlWith` to sign download response headers or a version ID. Use `temporaryUploadUrlWith` to sign upload content headers and metadata. Send the returned headers with the PUT request. The disk supplies the bucket and object path.
+Use `temporary_url_with` to sign download response headers or a version ID. Use `temporary_upload_url_with` to sign upload content headers and metadata. Send the returned headers with the PUT request. The disk supplies the bucket and object path.
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -181,7 +181,7 @@ use openrust::{
 
 async fn report_url() -> FilesystemResult<String> {
     Storage::disk(Some("s3"))?
-        .temporaryUrlWith(
+        .temporary_url_with(
             "reports/current.csv",
             SystemTime::now() + Duration::from_secs(300),
             TemporaryUrlOptions {
@@ -194,7 +194,7 @@ async fn report_url() -> FilesystemResult<String> {
 }
 ```
 
-For advanced S3 options, call `temporaryDownloadRequest` or `temporaryUploadRequest` on the named disk and configure the AWS SDK request builder. Both methods return the URL and signed request headers. Send those headers with the request. The disk sets the bucket and prefixed key after applying the builder options.
+For advanced S3 options, call `temporary_download_request` or `temporary_upload_request` on the named disk and configure the AWS SDK request builder. Both methods return the URL and signed request headers. Send those headers with the request. The disk sets the bucket and prefixed key after applying the builder options.
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -206,7 +206,7 @@ use openrust::{
 
 async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
     Storage::disk(Some("s3"))?
-        .temporaryDownloadRequest(
+        .temporary_download_request(
             "reports/current.csv",
             SystemTime::now() + Duration::from_secs(300),
             |request| request.range("bytes=0-1023"),
@@ -217,25 +217,25 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 
 ### Custom local disk URL builders {#customizing-temporary-urls}
 
-Register `buildTemporaryUrlsUsing` or `buildTemporaryUploadUrlsUsing` on the local disk during provider boot. The callback receives the validated path, expiration and typed options. The upload callback returns a `TemporaryUploadUrl` with the URL and required headers.
+Register `build_temporary_urls_using` or `build_temporary_upload_urls_using` on the local disk during provider boot. The callback receives the validated path, expiration and typed options. The upload callback returns a `TemporaryUploadUrl` with the URL and required headers.
 
 ## Directories {#directories}
 
-Use `files` and `directories` to list direct children on a local disk. Use `all_files` and `allDirectories` to include descendants. Pass `None` for the disk root. Results are disk-relative paths with `/` separators. File lists are sorted by path, and a missing directory returns an empty list.
+Use `files` and `directories` to list direct children on a local disk. Use `all_files` and `all_directories` to include descendants. Pass `None` for the disk root. Results are disk-relative paths with `/` separators. File lists are sorted by path, and a missing directory returns an empty list.
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
-    disk.makeDirectory("reports/daily").await?;
+    disk.make_directory("reports/daily").await?;
     disk.all_files(Some("reports")).await
 }
 ```
 
-Use `makeDirectory` to create missing parents with the disk’s directory visibility, and `deleteDirectory` to remove a directory and its contents. Listing skips symbolic links and temporary writes. Directory creation and deletion require a named relative path. The same methods are available on `Storage` for the default disk.
+Use `make_directory` to create missing parents with the disk’s directory visibility, and `delete_directory` to remove a directory and its contents. Listing skips symbolic links and temporary writes. Directory creation and deletion require a named relative path. The same methods are available on `Storage` for the default disk.
 
 ## Contracts and common operations
 
-The container resolves `dyn contracts::filesystem::Factory`, the default `Filesystem`, and the configured `Cloud` through the existing manager and adapters. Contract stream methods are `read_stream` / `write_stream`; adapters and the Storage facade use `readStream` / `writeStream`. Use `copy`, `r#move`, `append`, `prepend`, and `json` on the selected disk. Missing files and invalid JSON return empty results; path traversal remains rejected. Resolving `Cloud` depends on `filesystems.cloud` and does not give a local disk S3 presigned upload capabilities.
+The container resolves `dyn contracts::filesystem::Factory`, the default `Filesystem`, and the configured `Cloud` through the existing manager and adapters. Contract stream methods are `read_stream` / `write_stream`; adapters and the Storage facade use `read_stream` / `write_stream`. Use `copy`, `r#move`, `append`, `prepend`, and `json` on the selected disk. Missing files and invalid JSON return empty results; path traversal remains rejected. Resolving `Cloud` depends on `filesystems.cloud` and does not give a local disk S3 presigned upload capabilities.
 
 Rust requires an explicit separator for `append(path, text, separator)` and `prepend(path, text, separator)`. Pass `"\n"` for a line break, or `"\r\n"` when Windows line endings are required. `r#move` uses Rust’s raw identifier syntax because `move` is reserved.

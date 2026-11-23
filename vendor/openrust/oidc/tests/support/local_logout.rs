@@ -15,7 +15,7 @@ fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError 
 pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, HttpError> {
     let hint = Oidc::provider("work", request)
         .map_err(internal)?
-        .takeLogoutHint()
+        .take_logout_hint()
         .ok();
     Auth::session_guard(request, Some("web"))
         .map_err(internal)?
@@ -26,7 +26,7 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
         && let Some(hint) = hint
         && let Ok(url) = Oidc::provider("work", request)
             .map_err(internal)?
-            .logoutUrl(&hint)
+            .logout_url(&hint)
             .await
     {
         return Ok(

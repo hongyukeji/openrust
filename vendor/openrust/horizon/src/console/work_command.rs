@@ -8,11 +8,11 @@ tokio::task_local! {
     static SUPERVISOR: Option<String>;
 }
 
-pub(crate) fn isWorker() -> bool {
+pub(crate) fn is_worker() -> bool {
     SUPERVISOR.try_with(|_| ()).is_ok()
 }
 
-pub(crate) fn supervisorName() -> Option<String> {
+pub(crate) fn supervisor_name() -> Option<String> {
     SUPERVISOR.try_with(Clone::clone).ok().flatten()
 }
 
@@ -91,7 +91,7 @@ impl Command for WorkCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let supervisor = input.matches().get_one::<String>("supervisor").cloned();
-            let scopedInput = input
+            let scoped_input = input
                 .shutdown()
                 .map(|shutdown| input.with_shutdown(shutdown.child_token()));
             #[cfg(unix)]
@@ -112,13 +112,13 @@ impl Command for WorkCommand {
             let work = SUPERVISOR.scope(
                 supervisor.clone(),
                 self.worker
-                    .handle(app, scopedInput.as_ref().unwrap_or(input), output),
+                    .handle(app, scoped_input.as_ref().unwrap_or(input), output),
             );
             tokio::pin!(work);
             tokio::select! {
                 result = &mut work => result,
                 () = watch => {
-                    if let Some(shutdown)=scopedInput.as_ref().and_then(Input::shutdown) { shutdown.cancel(); }
+                    if let Some(shutdown)=scoped_input.as_ref().and_then(Input::shutdown) { shutdown.cancel(); }
                     else {
                         #[cfg(unix)]
                         rustix::process::kill_process(rustix::process::getpid(),rustix::process::Signal::TERM).map_err(|_|ConsoleError::new("Unable to stop orphaned Horizon worker."))?;

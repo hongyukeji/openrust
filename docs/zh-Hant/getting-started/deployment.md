@@ -114,7 +114,7 @@ curl --fail http://127.0.0.1:8088/up
 
 Provider 透過 `ServiceProvider::runners` 提供 Runner，應用程式可用 `with_runners(|| vec![...])` 加入自訂 Runner，多次呼叫時以最後傳入的回呼為準。相同簽名以首次註冊為準，Provider 優先於自訂清單。應用程式先篩除停用的簽名，再呼叫 `should_run`。符合條件的 Runner 在應用程式程序內並行執行。
 
-Ctrl+C、Unix SIGTERM 或 Runner 執行失敗時，應用程式依 `shutdownPriority` 由小到大關閉，同組並行，預設優先級為零。`run` 可透過 `RunnerContext` 取消權杖完成處理中的工作，自訂 `shutdown` 可釋放其他資源。`run` 成功回傳後仍會執行關閉鉤子，以支援自行啟動背景工作的 Runner。
+Ctrl+C、Unix SIGTERM 或 Runner 執行失敗時，應用程式依 `shutdown_priority` 由小到大關閉，同組並行，預設優先級為零。`run` 可透過 `RunnerContext` 取消權杖完成處理中的工作，自訂 `shutdown` 可釋放其他資源。`run` 成功回傳後仍會執行關閉鉤子，以支援自行啟動背景工作的 Runner。
 
 框架新增的常駐服務在完成裝配與設定並符合啟動條件時，預設納入主應用程式啟動。各服務仍可停用或獨立執行。一次性 Artisan 指令由明確呼叫執行。
 

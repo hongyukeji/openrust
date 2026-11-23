@@ -30,7 +30,6 @@ pub struct MailMessage {
     pub mailer: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MailMessage {
     pub fn new() -> Self {
         Self::default()
@@ -108,7 +107,7 @@ impl MailMessage {
         self
     }
 
-    pub fn replyTo(mut self, address: impl Into<Address>) -> Self {
+    pub fn reply_to(mut self, address: impl Into<Address>) -> Self {
         self.envelope.reply_to.push(address.into());
         self
     }
@@ -129,37 +128,37 @@ impl MailMessage {
         self
     }
 
-    pub fn attachMany(mut self, sources: impl IntoIterator<Item = AttachmentSource>) -> Self {
+    pub fn attach_many(mut self, sources: impl IntoIterator<Item = AttachmentSource>) -> Self {
         self.attachment_sources.extend(sources);
         self
     }
 
-    pub fn attachData(
+    pub fn attach_data(
         self,
         data: impl Into<Vec<u8>>,
         name: impl Into<String>,
         mime: Option<&str>,
     ) -> Self {
-        self.attach(Attachment::fromData(data, name).with_metadata(None, mime))
+        self.attach(Attachment::from_data(data, name).with_metadata(None, mime))
     }
 
-    pub fn attachFromStorage(
+    pub fn attach_from_storage(
         self,
         path: impl Into<String>,
         name: Option<&str>,
         mime: Option<&str>,
     ) -> Self {
-        self.attach(Attachment::fromStorage(path).with_metadata(name, mime))
+        self.attach(Attachment::from_storage(path).with_metadata(name, mime))
     }
 
-    pub fn attachFromStorageDisk(
+    pub fn attach_from_storage_disk(
         self,
         disk: impl Into<String>,
         path: impl Into<String>,
         name: Option<&str>,
         mime: Option<&str>,
     ) -> Self {
-        self.attach(Attachment::fromStorageDisk(disk, path).with_metadata(name, mime))
+        self.attach(Attachment::from_storage_disk(disk, path).with_metadata(name, mime))
     }
 
     pub fn tag(mut self, value: impl Into<String>) -> Self {
@@ -173,7 +172,7 @@ impl MailMessage {
     }
 
     /// Runs a registered message customizer at delivery, including in a queue worker.
-    pub fn withMessage(mut self, customization: MessageCustomization) -> Self {
+    pub fn with_message(mut self, customization: MessageCustomization) -> Self {
         self.envelope.using.push(customization);
         self
     }
@@ -226,7 +225,7 @@ impl MailMessage {
         self
     }
 
-    pub fn lineIf(self, condition: bool, line: impl AsRef<str>) -> Self {
+    pub fn line_if(self, condition: bool, line: impl AsRef<str>) -> Self {
         if condition { self.line(line) } else { self }
     }
 
@@ -234,7 +233,7 @@ impl MailMessage {
         lines.into_iter().fold(self, Self::line)
     }
 
-    pub fn linesIf(
+    pub fn lines_if(
         self,
         condition: bool,
         lines: impl IntoIterator<Item = impl AsRef<str>>,

@@ -23,7 +23,6 @@ pub type RunningService = HttpFuture<'static, RuntimeResult<()>>;
 
 /// A long-running application service. A successful return from run can also
 /// mean that the runner started its own background work.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Runner: Send + Sync + 'static {
     fn signature(&self) -> &str;
 
@@ -37,7 +36,7 @@ pub trait Runner: Send + Sync + 'static {
         Box::pin(async { Ok(()) })
     }
 
-    fn shutdownPriority(&self) -> i32 {
+    fn shutdown_priority(&self) -> i32 {
         0
     }
 
@@ -158,7 +157,7 @@ impl RunnerSet {
         for (runner, context, service) in prepared {
             let active = ActiveRunner::start(runner, context, service, &self.failure);
             self.groups
-                .entry(active.runner.shutdownPriority())
+                .entry(active.runner.shutdown_priority())
                 .or_default()
                 .push(active);
         }

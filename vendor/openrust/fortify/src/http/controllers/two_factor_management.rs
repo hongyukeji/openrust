@@ -24,7 +24,7 @@ async fn mutate(request: &mut Request, mutation: Mutation<'_>) -> Result<(), Htt
     user.mutate(mutation).await?;
     if enabling
         && fortify
-            .confirmsTwoFactorAuthentication()
+            .confirms_two_factor_authentication()
             .map_err(internal)?
         && present(user.attribute("two_factor_secret").map_err(internal)?)
         && !present(
@@ -112,7 +112,7 @@ impl RecoveryCodeController {
             .ok_or_else(|| internal(FortifyError::InvalidAttribute("two_factor_recovery_codes")))?;
             let clear = Zeroizing::new(
                 fortify
-                    .currentEncrypter()
+                    .current_encrypter()
                     .map_err(internal)?
                     .decrypt(&encrypted, true)
                     .map_err(internal)?,
@@ -143,7 +143,7 @@ impl TwoFactorSecretKeyController {
                 })?;
             let clear = Zeroizing::new(
                 fortify
-                    .currentEncrypter()
+                    .current_encrypter()
                     .map_err(internal)?
                     .decrypt(&encrypted, true)
                     .map_err(internal)?,

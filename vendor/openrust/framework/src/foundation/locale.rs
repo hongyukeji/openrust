@@ -33,7 +33,7 @@ impl Application {
     pub async fn set_locale(&self, locale: &str) -> TranslationResult<()> {
         let locale = canonical_locale(locale)?;
         let config = self.container().get::<dyn Repository>("config")?;
-        let previousLocale = config
+        let previous_locale = config
             .get("app.locale")
             .and_then(|value| value.as_str().map(str::to_owned))
             .map(|locale| canonical_locale(&locale))
@@ -49,7 +49,7 @@ impl Application {
             .dispatch(
                 Arc::new(LocaleUpdated {
                     locale,
-                    previousLocale,
+                    previous_locale,
                 }),
                 &mut EventContext::new(),
             )

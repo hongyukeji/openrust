@@ -143,10 +143,10 @@ async fn start(key: u8, previous: Option<u8>) -> (SocketAddr, tokio::task::JoinH
         .with_middleware(move |middleware| {
             let encrypter = Encrypter::new([key; 32], Cipher::Aes256Cbc)
                 .unwrap()
-                .previousKeys(previous.into_iter().map(|byte| vec![byte; 32]).collect())
+                .previous_keys(previous.into_iter().map(|byte| vec![byte; 32]).collect())
                 .unwrap();
             let mut encrypt = EncryptCookies::new(Arc::new(encrypter));
-            encrypt.disableFor(["plain"]);
+            encrypt.disable_for(["plain"]);
             middleware.group(
                 "web",
                 [

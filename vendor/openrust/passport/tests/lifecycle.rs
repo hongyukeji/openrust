@@ -112,11 +112,11 @@ async fn command_keys_are_lazy_overwrite_is_explicit_and_native_pair_is_valid() 
     let app = console.get_application();
     let key = app.make::<PrivateKey>().await.unwrap();
     let pubkey = app.make::<PublicKey>().await.unwrap();
-    assert_eq!(key.getKeyContents(), private);
-    assert_eq!(pubkey.getKeyContents(), public);
+    assert_eq!(key.get_key_contents(), private);
+    assert_eq!(pubkey.get_key_contents(), public);
     assert_eq!(format!("{key:?}"), "PrivateKey(CryptKey([REDACTED]))");
     assert_eq!(
-        key.getKeyPath().unwrap(),
+        key.get_key_path().unwrap(),
         root.0.join("storage/oauth-private.key")
     );
     let (status, output) = run(&mut console, &["passport:keys"]).await;
@@ -211,13 +211,13 @@ async fn configured_key_directories_and_inline_pem_are_application_local() {
     let right = b.get_application().make::<Passport>().await.unwrap();
     let custom = first.0.join("custom");
     fs::create_dir(&custom).unwrap();
-    left.loadKeysFrom(&custom);
+    left.load_keys_from(&custom);
     assert_eq!(
-        left.keyPath("/\\oauth-private.key"),
+        left.key_path("/\\oauth-private.key"),
         custom.join("oauth-private.key")
     );
     assert_eq!(
-        right.keyPath("oauth-private.key"),
+        right.key_path("oauth-private.key"),
         second.0.join("storage/oauth-private.key")
     );
     assert_eq!(run(&mut a, &["passport:keys", "--length=1024"]).await.0, 0);
@@ -245,7 +245,7 @@ async fn configured_key_directories_and_inline_pem_are_application_local() {
             .make::<PrivateKey>()
             .await
             .unwrap()
-            .getKeyContents(),
+            .get_key_contents(),
         private
     );
     assert_eq!(
@@ -253,7 +253,7 @@ async fn configured_key_directories_and_inline_pem_are_application_local() {
             .make::<PublicKey>()
             .await
             .unwrap()
-            .getKeyContents(),
+            .get_key_contents(),
         public
     );
     assert!(!second.0.join("storage/oauth-private.key").exists());
@@ -262,10 +262,10 @@ async fn configured_key_directories_and_inline_pem_are_application_local() {
             .make::<PrivateKey>()
             .await
             .unwrap()
-            .getKeyContents(),
+            .get_key_contents(),
         private
     );
-    assert!(right.keyPath("oauth-private.key").starts_with(&second.0));
+    assert!(right.key_path("oauth-private.key").starts_with(&second.0));
 }
 
 #[tokio::test]
@@ -284,7 +284,7 @@ async fn invalid_lengths_and_unwritable_targets_fail_without_disclosing_key_mate
         .make::<Passport>()
         .await
         .unwrap()
-        .loadKeysFrom(root.0.join("missing/keys"));
+        .load_keys_from(root.0.join("missing/keys"));
     let (status, output) = run(&mut console, &["passport:keys", "--length=2048"]).await;
     assert_eq!(status, 1);
     assert!(!output.stderr.contains("BEGIN PRIVATE KEY"));
@@ -478,7 +478,7 @@ async fn key_permission_validation_can_be_disabled_per_application() {
     b.make::<Passport>()
         .await
         .unwrap()
-        .validateKeyPermissions
+        .validate_key_permissions
         .store(false, Ordering::Relaxed);
     assert!(b.make::<PrivateKey>().await.is_ok());
     assert!(a.make::<PrivateKey>().await.is_err());

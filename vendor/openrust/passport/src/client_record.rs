@@ -12,7 +12,6 @@ impl std::fmt::Debug for ClientRecord {
         f.write_str("ClientRecord([MODEL])")
     }
 }
-#[allow(non_snake_case)]
 impl ClientRecord {
     pub(crate) fn new<M: ClientModel>(model: M, connection: Connection) -> Self {
         Self(Arc::new(Loaded {
@@ -42,7 +41,7 @@ impl ClientRecord {
     pub(crate) async fn assign_and_save(&self, attributes: Attributes) -> DatabaseResult<bool> {
         self.0.assign_and_save(attributes).await
     }
-    pub fn sameInstance(&self, other: &Self) -> bool {
+    pub fn same_instance(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
     pub async fn get_attribute_value(&self, key: &str) -> DatabaseResult<Option<Value>> {
@@ -57,23 +56,23 @@ impl ClientRecord {
     pub async fn confidential(&self) -> bool {
         self.0.confidential().await
     }
-    pub async fn firstParty(&self) -> DatabaseResult<bool> {
+    pub async fn first_party(&self) -> DatabaseResult<bool> {
         self.0.first_party().await
     }
-    pub async fn skipsAuthorization(
+    pub async fn skips_authorization(
         &self,
         user: &dyn openrust::contracts::auth::Authenticatable,
         scopes: &[crate::Scope],
     ) -> DatabaseResult<bool> {
         self.0.skips_authorization(user, scopes).await
     }
-    pub async fn hasGrantType(&self, grantType: &str) -> DatabaseResult<bool> {
-        self.0.has_grant_type(grantType).await
+    pub async fn has_grant_type(&self, grant_type: &str) -> DatabaseResult<bool> {
+        self.0.has_grant_type(grant_type).await
     }
-    pub async fn hasScope(&self, scope: &str) -> DatabaseResult<bool> {
+    pub async fn has_scope(&self, scope: &str) -> DatabaseResult<bool> {
         self.0.has_scope(scope).await
     }
-    pub async fn redirectUris(&self) -> DatabaseResult<PhpArray> {
+    pub async fn redirect_uris(&self) -> DatabaseResult<PhpArray> {
         self.0.redirect_uris().await
     }
 }
@@ -128,10 +127,10 @@ impl<M: ClientModel> LoadedClient for Loaded<M> {
         user: &'a dyn openrust::contracts::auth::Authenticatable,
         scopes: &'a [crate::Scope],
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
-        Box::pin(async move { Ok(self.model.lock().await.skipsAuthorization(user, scopes)) })
+        Box::pin(async move { Ok(self.model.lock().await.skips_authorization(user, scopes)) })
     }
     fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {
-        Box::pin(async move { self.model.lock().await.hasScope(scope) })
+        Box::pin(async move { self.model.lock().await.has_scope(scope) })
     }
     fn columns(&self) -> DatabaseFuture<'_, DatabaseResult<Vec<String>>> {
         Box::pin(async move {
@@ -167,12 +166,12 @@ impl<M: ClientModel> LoadedClient for Loaded<M> {
         Box::pin(async move { self.model.lock().await.confidential() })
     }
     fn first_party(&self) -> DatabaseFuture<'_, DatabaseResult<bool>> {
-        Box::pin(async move { self.model.lock().await.firstParty() })
+        Box::pin(async move { self.model.lock().await.first_party() })
     }
     fn has_grant_type<'a>(&'a self, grant: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {
-        Box::pin(async move { self.model.lock().await.hasGrantType(grant) })
+        Box::pin(async move { self.model.lock().await.has_grant_type(grant) })
     }
     fn redirect_uris(&self) -> DatabaseFuture<'_, DatabaseResult<PhpArray>> {
-        Box::pin(async move { self.model.lock().await.redirectUris() })
+        Box::pin(async move { self.model.lock().await.redirect_uris() })
     }
 }

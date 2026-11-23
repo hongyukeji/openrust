@@ -1,7 +1,7 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use super::{AuthorizationViewParameters, PendingAuthorization};
-use crate::{AuthorizationServer, OAuthError, OAuthParameters, Passport};
+use crate::{AuthorizationServer, OauthError, OauthParameters, Passport};
 use axum::response::IntoResponse as _;
 use openrust::{
     contracts::{auth::StatefulGuard as _, container::Container as _, session::Session as _},
@@ -13,18 +13,17 @@ use std::sync::Arc;
 use subtle::ConstantTimeEq as _;
 
 pub struct AuthorizationController;
-#[allow(non_snake_case)]
 impl AuthorizationController {
     pub fn authorize(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let parameters = OAuthParameters::new(
+            let parameters = OauthParameters::new(
                 request
                     .query(None)?
                     .and_then(|v| v.as_object().cloned())
                     .unwrap_or_default(),
             );
             let server = AuthorizationServer::get_facade_root()?;
-            let validated = match server.validateAuthorizationRequest(&parameters).await {
+            let validated = match server.validate_authorization_request(&parameters).await {
                 Ok(value) => value,
                 Err(error) => return Ok(error.into_response().into()),
             };
@@ -48,7 +47,7 @@ impl AuthorizationController {
             let Some(user) = user else {
                 if none {
                     return Ok(validated
-                        .error_redirect(&OAuthError::login_required())
+                        .error_redirect(&OauthError::login_required())
                         .map_err(internal)?
                         .into_response()
                         .into());
@@ -61,8 +60,8 @@ impl AuthorizationController {
             request.session_mut()?.forget(&["promptedForLogin"]);
             let passport = passport()?;
             let client = passport
-                .clientRepository()
-                .findActive(validated.clientIdentifier())
+                .client_repository()
+                .find_active(validated.client_identifier())
                 .await
                 .map_err(internal)?
                 .ok_or(HttpError::NotFound)?;
@@ -74,16 +73,16 @@ impl AuthorizationController {
             let consent = !none && prompt.split(' ').any(|p| p == "consent");
             if !consent
                 && (client
-                    .skipsAuthorization(user.as_ref(), &scopes)
+                    .skips_authorization(user.as_ref(), &scopes)
                     .await
                     .map_err(internal)?
                     || server
-                        .hasGrantedScopes(&validated, &user.get_auth_identifier())
+                        .has_granted_scopes(&validated, &user.get_auth_identifier())
                         .await
                         .map_err(internal)?)
             {
                 return match server
-                    .completeAuthorizationRequest(validated, user.get_auth_identifier(), true)
+                    .complete_authorization_request(validated, user.get_auth_identifier(), true)
                     .await
                 {
                     Ok(value) => Ok(value.into_response().into()),
@@ -92,7 +91,7 @@ impl AuthorizationController {
             }
             if none {
                 return Ok(validated
-                    .error_redirect(&OAuthError::consent_required())
+                    .error_redirect(&OauthError::consent_required())
                     .map_err(internal)?
                     .into_response()
                     .into());
@@ -105,9 +104,9 @@ impl AuthorizationController {
             .map_err(internal)?;
             request.session_mut()?.put("authToken", json!(auth_token))?;
             request.session_mut()?.put("authRequest", pending)?;
-            let view = passport.authorization_view().ok_or_else(|| {
-                internal(OAuthError::server_error(
-                    "Configure Passport::authorizationView",
+            let view = passport.authorization_view_response().ok_or_else(|| {
+                internal(OauthError::server_error(
+                    "Configure Passport::authorization_view",
                 ))
             })?;
             view(
@@ -161,7 +160,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         let server = AuthorizationServer::get_facade_root()?;
         Ok(
             match server
-                .completeAuthorizationRequest(pending.request, pending.user, approved)
+                .complete_authorization_request(pending.request, pending.user, approved)
                 .await
             {
                 Ok(value) => value.into_response().into(),
@@ -171,9 +170,8 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
     })
 }
 pub struct AccessTokenController;
-#[allow(non_snake_case)]
 impl AccessTokenController {
-    pub fn issueToken(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    pub fn issue_token(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
             // Token requests read the body only; query parameters cannot override client credentials.
             let values = request
@@ -181,11 +179,11 @@ impl AccessTokenController {
                 .await?
                 .and_then(|v| v.as_object().cloned())
                 .unwrap_or_default();
-            let parameters = OAuthParameters::new(values);
+            let parameters = OauthParameters::new(values);
             let header = request.headers().get("authorization").map(|h| h.as_bytes());
             let server = AuthorizationServer::get_facade_root()?;
             let result = server
-                .respondToAccessTokenRequest(&parameters, header)
+                .respond_to_access_token_request(&parameters, header)
                 .await;
             let response = match result {
                 Ok(value) => Response::json(StatusCode::OK, value)?,

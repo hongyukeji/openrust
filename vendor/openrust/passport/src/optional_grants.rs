@@ -3,11 +3,11 @@ use super::*;
 impl AuthorizationServer {
     pub(super) async fn exchange_password(
         &self,
-        parameters: &OAuthParameters,
+        parameters: &OauthParameters,
         client: ClientRecord,
         connection: openrust::database::Connection,
         mut transaction: openrust::database::Transaction,
-    ) -> Result<TokenResponse, OAuthError> {
+    ) -> Result<TokenResponse, OauthError> {
         let requested: Vec<String> = parameters
             .parameter("scope", None)?
             .map(|value| {
@@ -17,31 +17,31 @@ impl AuthorizationServer {
                     .map(str::to_owned)
                     .collect()
             })
-            .unwrap_or_else(|| self.passport.default_scopes());
+            .unwrap_or_else(|| self.passport.configured_default_scopes());
         for scope in &requested {
             if !self.passport.has_scope(scope) {
-                return Err(OAuthError::invalid_scope_for(scope));
+                return Err(OauthError::invalid_scope_for(scope));
             }
         }
         let username = parameters
             .parameter("username", None)?
-            .ok_or_else(|| OAuthError::invalid_request("username", None))?;
+            .ok_or_else(|| OauthError::invalid_request("username", None))?;
         let password = Zeroizing::new(
             parameters
                 .parameter("password", None)?
-                .ok_or_else(|| OAuthError::invalid_request("password", None))?,
+                .ok_or_else(|| OauthError::invalid_request("password", None))?,
         );
-        let user = crate::bridge::UserRepository::getUserEntityByUserCredentials(
+        let user = crate::bridge::UserRepository::get_user_entity_by_user_credentials(
             &username, &password, "password", &client,
         )
         .await?
-        .ok_or_else(OAuthError::invalidCredentials)?;
+        .ok_or_else(OauthError::invalid_credentials)?;
         let scopes = self.finalize_scopes(&client, requested, "password").await?;
         let id = AuthIdentifier::try_from(
             &client
                 .get_key()
                 .await
-                .ok_or_else(|| OAuthError::invalid_client(None))?,
+                .ok_or_else(|| OauthError::invalid_client(None))?,
         )
         .map_err(internal)?
         .to_string();
@@ -66,13 +66,13 @@ impl AuthorizationServer {
         request: AuthorizationRequest,
         user: AuthIdentifier,
         approved: bool,
-    ) -> Result<AuthorizationRedirect, OAuthError> {
+    ) -> Result<AuthorizationRedirect, OauthError> {
         if !self
             .passport
-            .implicitGrantEnabled
+            .implicit_grant_enabled
             .load(std::sync::atomic::Ordering::Relaxed)
         {
-            return Err(OAuthError::unsupported_grant_type());
+            return Err(OauthError::unsupported_grant_type());
         }
         let redirect = request.redirect()?;
         if !approved {
@@ -83,10 +83,10 @@ impl AuthorizationServer {
         }
         let client = self
             .clients
-            .findActive(request.client_id.as_str())
+            .find_active(request.client_id.as_str())
             .await
             .map_err(internal)?
-            .ok_or_else(|| OAuthError::invalid_client(None))?;
+            .ok_or_else(|| OauthError::invalid_client(None))?;
         let connection = client.connection().await.map_err(internal)?;
         let mut transaction = connection.begin_transaction().await.map_err(internal)?;
         client
@@ -97,11 +97,11 @@ impl AuthorizationServer {
             .await?;
         let current = ValidatedRedirectUri::from_client_array(
             request.requested_redirect_uri.as_deref(),
-            &client.redirectUris().await.map_err(internal)?,
+            &client.redirect_uris().await.map_err(internal)?,
         )
         .map_err(redirect_error)?;
         if current.as_str() != request.redirect_uri {
-            return Err(OAuthError::invalid_client(None));
+            return Err(OauthError::invalid_client(None));
         }
         let scopes = self
             .finalize_scopes(&client, request.scopes, "implicit")
@@ -114,7 +114,7 @@ impl AuthorizationServer {
                 Some(user),
                 scopes,
                 None,
-                self.passport.tokensExpireIn(None),
+                self.passport.tokens_expire_in(None),
             )
             .await?;
         transaction.commit().await.map_err(internal)?;

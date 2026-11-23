@@ -18,7 +18,6 @@ impl Facade for Mail {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Mail {
     pub(crate) async fn render_for_assertions(
         mailable: &dyn Mailable,
@@ -93,17 +92,17 @@ impl Mail {
             .to(address))
     }
 
-    pub fn alwaysFrom(address: impl Into<Address>) -> MailResult<()> {
-        Self::mailer(None)?.alwaysFrom(address)
+    pub fn always_from(address: impl Into<Address>) -> MailResult<()> {
+        Self::mailer(None)?.always_from(address)
     }
-    pub fn alwaysTo(address: impl Into<Address>) -> MailResult<()> {
-        Self::mailer(None)?.alwaysTo(address)
+    pub fn always_to(address: impl Into<Address>) -> MailResult<()> {
+        Self::mailer(None)?.always_to(address)
     }
-    pub fn alwaysReplyTo(address: impl Into<Address>) -> MailResult<()> {
-        Self::mailer(None)?.alwaysReplyTo(address)
+    pub fn always_reply_to(address: impl Into<Address>) -> MailResult<()> {
+        Self::mailer(None)?.always_reply_to(address)
     }
-    pub fn alwaysReturnPath(address: impl Into<String>) -> MailResult<()> {
-        Self::mailer(None)?.alwaysReturnPath(address)
+    pub fn always_return_path(address: impl Into<String>) -> MailResult<()> {
+        Self::mailer(None)?.always_return_path(address)
     }
 
     pub async fn send(mailable: &dyn Mailable) -> MailResult<Option<SentMessage>> {

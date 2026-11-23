@@ -65,7 +65,7 @@ impl ServiceProvider for Provider {
             Queue::register("reports.generate", Arc::new(Probe))?;
             register_callbacks()?;
             Queue::register("chain.routing", Arc::new(ChainRoutingProbe))?;
-            Bus::registerChainCallback("chain.batch-failed", |job, error| {
+            Bus::register_chain_callback("chain.batch-failed", |job, error| {
                 Box::pin(async move {
                     assert!(matches!(error, QueueError::ChainedBatchFailed(_)));
                     let data = job.data().as_str().unwrap();
@@ -74,7 +74,7 @@ impl ServiceProvider for Provider {
                 })
             })?;
             Queue::register("chain.step", Arc::new(ChainProbe))?;
-            Bus::registerChainCallback("chain.failed", |job, error| {
+            Bus::register_chain_callback("chain.failed", |job, error| {
                 Box::pin(async move {
                     assert!(matches!(error, QueueError::InvalidPayload));
                     let data = job.data().as_str().unwrap();
@@ -112,7 +112,7 @@ impl Listener for BatchObserver {
                 }
                 BatchStarted::NAME => {
                     let value = event.downcast_ref::<BatchStarted>().unwrap();
-                    assert!(value.batch.processedJobs() != 0 || value.batch.has_failures());
+                    assert!(value.batch.processed_jobs() != 0 || value.batch.has_failures());
                     (&value.batch, None)
                 }
                 BatchFinished::NAME => {
@@ -132,7 +132,7 @@ impl Listener for BatchObserver {
                 }
                 _ => unreachable!(),
             };
-            assert!(Bus::findBatch(&batch.id).await.unwrap().is_some());
+            assert!(Bus::find_batch(&batch.id).await.unwrap().is_some());
             record_callback(batch, event.name(), cause).await.unwrap();
             Ok(None)
         })
@@ -140,25 +140,25 @@ impl Listener for BatchObserver {
 }
 
 fn register_callbacks() -> QueueResult<()> {
-    Bus::registerBatchCallback("reports.before", |batch, failure| {
+    Bus::register_batch_callback("reports.before", |batch, failure| {
         Box::pin(record_callback(batch, "before", failure))
     })?;
-    Bus::registerBatchCallback("reports.progress", |batch, failure| {
+    Bus::register_batch_callback("reports.progress", |batch, failure| {
         Box::pin(record_callback(batch, "progress", failure))
     })?;
-    Bus::registerBatchCallback("reports.then", |batch, failure| {
+    Bus::register_batch_callback("reports.then", |batch, failure| {
         Box::pin(record_callback(batch, "then", failure))
     })?;
-    Bus::registerBatchCallback("reports.catch", |batch, failure| {
+    Bus::register_batch_callback("reports.catch", |batch, failure| {
         Box::pin(record_callback(batch, "catch", failure))
     })?;
-    Bus::registerBatchCallback("reports.finally", |batch, failure| {
+    Bus::register_batch_callback("reports.finally", |batch, failure| {
         Box::pin(record_callback(batch, "finally", failure))
     })?;
-    Bus::registerBatchCallback("reports.failure", |batch, failure| {
+    Bus::register_batch_callback("reports.failure", |batch, failure| {
         Box::pin(record_callback(batch, "failure", failure))
     })?;
-    Bus::registerBatchCallback("reports.broken", |_, _| {
+    Bus::register_batch_callback("reports.broken", |_, _| {
         Box::pin(async { Err(QueueError::InvalidPayload) })
     })?;
     Ok(())
@@ -167,7 +167,7 @@ fn register_callbacks() -> QueueResult<()> {
 async fn record_callback(batch: &Batch, phase: &str, failure: Option<&str>) -> QueueResult<()> {
     if phase == "before" {
         assert_eq!(batch.total_jobs, 0);
-        assert!(Bus::findBatch(&batch.id).await?.is_none());
+        assert!(Bus::find_batch(&batch.id).await?.is_none());
     }
     Db::connection(None)
         .unwrap()
@@ -235,7 +235,7 @@ impl JobHandler for Probe {
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            assert!(payload.batchId().is_some());
+            assert!(payload.batch_id().is_some());
             let data = payload.data().as_str().unwrap_or_else(|| {
                 assert_eq!(payload.data()["body"].as_str().unwrap().len(), 180_000);
                 payload.data()["name"].as_str().unwrap()
@@ -246,10 +246,10 @@ impl JobHandler for Probe {
                 .unwrap();
             if data.ends_with(".edit-batched") {
                 let added = Payload::new("reports.generate", format!("{data}-added"))?;
-                context.prependToChain(added)?;
+                context.prepend_to_chain(added)?;
             }
             if data == "loader" {
-                let batch = Bus::findBatch(payload.batchId().unwrap()).await?.unwrap();
+                let batch = Bus::find_batch(payload.batch_id().unwrap()).await?.unwrap();
                 let loaded = Payload::new("reports.generate", "loaded")?;
                 batch.add([loaded.clone(), loaded]).await?;
             }
@@ -276,8 +276,8 @@ impl JobHandler for Probe {
 }
 
 fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
-    context.prependToChain(before)?;
-    context.appendToChain(after)
+    context.prepend_to_chain(before)?;
+    context.append_to_chain(after)
 }
 
 struct ChainProbe;
@@ -311,7 +311,7 @@ impl JobHandler for ChainProbe {
                 let batch = Bus::batch([report])
                     .name(format!("{connection}.edit-batch"))
                     .on_queue("inner-batch");
-                context.prependToChain(batch)?;
+                context.prepend_to_chain(batch)?;
             }
             match step {
                 "missing-model" => Err(QueueError::MissingModel("users".into())),
@@ -367,11 +367,11 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let kind = request.route("kind").unwrap();
         if kind == "missing-model" {
             let jobs = [
-                Payload::new("chain.step", "database.missing-model")?.deleteWhenMissingModels(),
+                Payload::new("chain.step", "database.missing-model")?.delete_when_missing_models(),
                 Payload::new("chain.step", "database.must-not-run")?,
             ];
             let batch = Bus::batch([])
-                .addChain(jobs)
+                .add_chain(jobs)
                 .on_queue("chain")
                 .dispatch()
                 .await?;
@@ -380,8 +380,8 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         if kind == "cancel-explicit" {
             let job = Payload::new("reports.generate", "skipped")?;
             let batch = Bus::batch([job]).on_queue("explicit").dispatch().await?;
-            Bus::cancelBatch(&batch.id).await?;
-            Bus::cancelBatch(&batch.id).await?;
+            Bus::cancel_batch(&batch.id).await?;
+            Bus::cancel_batch(&batch.id).await?;
             return Response::json(StatusCode::OK, &batch);
         }
         let jobs = |names: &[&str]| {
@@ -459,7 +459,7 @@ fn append_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     Box::pin(async move {
         let id = request.route("id").unwrap();
         let data = request.route("data").unwrap();
-        if let Some(batch) = Bus::findBatch(id).await?
+        if let Some(batch) = Bus::find_batch(id).await?
             && let Some(updated) = batch.add([Payload::new("reports.generate", data)?]).await?
         {
             return Response::json(StatusCode::OK, &updated);
@@ -469,7 +469,7 @@ fn append_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 }
 
 fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
-    Bus::batch([]).addChain(left).addChain(right)
+    Bus::batch([]).add_chain(left).add_chain(right)
 }
 
 fn batched_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -478,16 +478,16 @@ fn batched_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
         let kind = request.route("kind").unwrap();
         let step = |name| Payload::new("reports.generate", format!("{connection}.{name}"));
         let batch = match kind {
-            "empty" => Bus::batch([step("unused")?]).addChain([]),
+            "empty" => Bus::batch([step("unused")?]).add_chain([]),
             "duplicate" => {
                 let job = step("duplicate")?;
-                Bus::batch([job.clone()]).addChain([job])
+                Bus::batch([job.clone()]).add_chain([job])
             }
             "stop" => Bus::batch([])
-                .addChain([step("stop")?, step("blocked")?])
-                .allowFailures(),
-            "recover" => Bus::batch([]).addChain([step("recover-head")?, step("recover-tail")?]),
-            "edit" => Bus::batch([]).addChain([step("edit-batched")?, step("edit-batched-tail")?]),
+                .add_chain([step("stop")?, step("blocked")?])
+                .allow_failures(),
+            "recover" => Bus::batch([]).add_chain([step("recover-head")?, step("recover-tail")?]),
+            "edit" => Bus::batch([]).add_chain([step("edit-batched")?, step("edit-batched-tail")?]),
             _ => batched_chains(
                 [step("left-first")?, step("left-tail")?],
                 [step("right-first")?, step("right-tail")?],
@@ -505,19 +505,19 @@ fn batched_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
 fn append_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let id = request.route("id").unwrap();
-        let Some(batch) = Bus::findBatch(id).await? else {
+        let Some(batch) = Bus::find_batch(id).await? else {
             return Ok(Response::empty(StatusCode::NOT_FOUND));
         };
         let step = |name| Payload::new("reports.generate", name);
         let updated = batch
-            .addChain([step("added-first")?, step("added-tail")?])
+            .add_chain([step("added-first")?, step("added-tail")?])
             .await?;
         Response::json(StatusCode::OK, updated)
     })
 }
 
 fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueResult<PendingChain> {
-    Ok(Bus::chain([first]).appendBatch(batch)?.append(last))
+    Ok(Bus::chain([first]).append_batch(batch)?.append(last))
 }
 
 fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -538,7 +538,7 @@ fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
             .on_queue("inner-batch")
             .finally("reports.finally");
         if kind == "allow" {
-            batch = batch.allowFailures();
+            batch = batch.allow_failures();
         }
         if kind == "cross" {
             batch = batch.on_connection("database");
@@ -550,8 +550,8 @@ fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
                 .name(format!("{name}-second"))
                 .on_queue("inner-batch");
             Bus::chain([])
-                .prependBatch(batch)?
-                .appendBatch(second)?
+                .prepend_batch(batch)?
+                .append_batch(second)?
                 .append(last)
         } else {
             release_chain(first, batch, last)?
@@ -569,7 +569,7 @@ fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
 fn cancel_chained_batch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let id = request.route("id").unwrap();
-        let Some(batch) = Bus::cancelBatch(id).await? else {
+        let Some(batch) = Bus::cancel_batch(id).await? else {
             return Ok(Response::empty(StatusCode::NOT_FOUND));
         };
         Response::json(StatusCode::OK, batch)
@@ -580,7 +580,7 @@ async fn dispatch_chain_if(
     chain: PendingChain,
     enabled: bool,
 ) -> QueueResult<Option<DispatchResult>> {
-    chain.dispatchIf(enabled).await
+    chain.dispatch_if(enabled).await
 }
 
 struct ChainRoutingProbe;
@@ -668,10 +668,10 @@ fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
         let mut calls = 0;
         let result = match mode {
             "if" => dispatch_chain_if(chain, enabled).await?,
-            "unless" => chain.dispatchUnless(enabled).await?,
+            "unless" => chain.dispatch_unless(enabled).await?,
             "lazy-if" => {
                 chain
-                    .dispatchIf(|| {
+                    .dispatch_if(|| {
                         calls += 1;
                         enabled
                     })
@@ -679,7 +679,7 @@ fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
             }
             "lazy-unless" => {
                 chain
-                    .dispatchUnless(|| {
+                    .dispatch_unless(|| {
                         calls += 1;
                         enabled
                     })
@@ -689,7 +689,7 @@ fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
                 Bus::chain([])
                     .on_connection(connection)
                     .catch("unknown")
-                    .dispatchIf(enabled)
+                    .dispatch_if(enabled)
                     .await?
             }
             _ => return Ok(Response::empty(StatusCode::NOT_FOUND)),

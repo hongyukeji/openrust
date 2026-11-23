@@ -43,7 +43,6 @@ struct Probe {
     shutdown_group: Option<Arc<Barrier>>,
 }
 
-#[allow(non_snake_case, reason = "Implements the Runner contract")]
 impl Runner for Probe {
     fn signature(&self) -> &str {
         self.signature
@@ -89,7 +88,7 @@ impl Runner for Probe {
         })
     }
 
-    fn shutdownPriority(&self) -> i32 {
+    fn shutdown_priority(&self) -> i32 {
         self.priority
     }
 }

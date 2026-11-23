@@ -71,8 +71,8 @@ impl Broadcaster for Recorder {
             } else {
                 return Err(BroadcastException::AccessDenied);
             };
-            let registry = Broadcast::channelRegistry()?;
-            let result = registry.authorizeRequest(channel, request).await?;
+            let registry = Broadcast::channel_registry()?;
+            let result = registry.authorize_request(channel, request).await?;
             match (&result, presence) {
                 (ChannelAuthorization::Allowed, false)
                 | (ChannelAuthorization::Presence(_), true) => {
@@ -171,12 +171,12 @@ impl ServiceProvider for Register {
             });
             auth.via_request("empty", |_| Box::pin(async { Ok(None) }));
             let dispatcher = app.make::<Dispatcher>().await?;
-            dispatcher.registerBroadcastNow::<Notice<1>>();
-            dispatcher.markAfterCommit::<Notice<1>>();
-            dispatcher.registerBroadcast::<Notice<2>>();
-            dispatcher.registerUniqueBroadcast::<UniqueNotice<1>>();
-            dispatcher.registerUniqueBroadcast::<UniqueNotice<2>>();
-            dispatcher.registerUniqueBroadcast::<UniqueNotice<3>>();
+            dispatcher.register_broadcast_now::<Notice<1>>();
+            dispatcher.mark_after_commit::<Notice<1>>();
+            dispatcher.register_broadcast::<Notice<2>>();
+            dispatcher.register_unique_broadcast::<UniqueNotice<1>>();
+            dispatcher.register_unique_broadcast::<UniqueNotice<2>>();
+            dispatcher.register_unique_broadcast::<UniqueNotice<3>>();
             Ok(())
         })
     }
@@ -346,7 +346,7 @@ fn anonymous_now(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
         ])
         .r#as("anonymous.ready")
         .with(BroadcastPayload::from_iter([("ok".into(), json!(true))]))
-        .toOthers(request)
+        .to_others(request)
         .send_now()
         .await?;
         Broadcast::private("discarded")
@@ -399,7 +399,7 @@ fn channels() -> BroadcastResult<()> {
     let options = || ChannelOptions {
         guards: vec!["header".into()],
     };
-    Broadcast::channelWithOptions(
+    Broadcast::channel_with_options(
         "orders.{id}",
         |user: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(
@@ -412,7 +412,7 @@ fn channels() -> BroadcastResult<()> {
         },
         options(),
     )?;
-    Broadcast::channelWithOptions(
+    Broadcast::channel_with_options(
         "rooms.{id}",
         |_: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(ChannelAuthorization::Presence(BroadcastPayload::from_iter(
@@ -421,7 +421,7 @@ fn channels() -> BroadcastResult<()> {
         },
         options(),
     )?;
-    Broadcast::channelWithBindings(
+    Broadcast::channel_with_bindings(
         "models.{room}",
         RoomChannel,
         ChannelOptions {
@@ -429,13 +429,13 @@ fn channels() -> BroadcastResult<()> {
         },
         ChannelBindings::default().model::<Room>("room"),
     )?;
-    Broadcast::channelWithBindings(
+    Broadcast::channel_with_bindings(
         "explicit.{explicit}",
         RoomChannel,
         options(),
         ChannelBindings::default().model::<Room>("explicit"),
     )?;
-    Broadcast::channelWithOptions(
+    Broadcast::channel_with_options(
         "overlap.{room}",
         |_: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(if parameters["room"] == "deny" {
@@ -447,7 +447,7 @@ fn channels() -> BroadcastResult<()> {
         options(),
     )?;
     for pattern in ["overlap.allow", "overlap.deny"] {
-        Broadcast::channelWithOptions(
+        Broadcast::channel_with_options(
             pattern,
             |_: &dyn Authenticatable, _: &ChannelParameters| Ok(ChannelAuthorization::Allowed),
             options(),
@@ -657,7 +657,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
     assert!(recorder.delivered.lock().unwrap().is_empty());
 
     let mut transaction = db.begin_transaction().await.unwrap();
-    let mut context = EventContext::in_transaction(&mut transaction).toOthers(&request);
+    let mut context = EventContext::in_transaction(&mut transaction).to_others(&request);
     assert!(matches!(
         dispatcher
             .dispatch(Arc::new(Notice::<1>(true)), &mut context)
@@ -680,7 +680,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
         .unwrap();
     assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
     let mut transaction = db.begin_transaction().await.unwrap();
-    let mut context = EventContext::in_transaction(&mut transaction).toOthers(&request);
+    let mut context = EventContext::in_transaction(&mut transaction).to_others(&request);
     dispatcher
         .dispatch(Arc::new(Notice::<1>(true)), &mut context)
         .await

@@ -134,7 +134,7 @@ fn passport_install_probe(_: &mut openrust::http::Request) -> openrust::http::Ht
         let mut query=crate::app::models::User::query().unwrap();query.r#where("email","=","installed@test");
         let user=if let Some(user)=query.first().await.unwrap(){user}else{
             let mut user=crate::app::models::User::new_instance(Attributes::new()).unwrap();
-            user.forceFillAsync(Attributes::from([("name".into(),Value::Text("Installed".into())),("email".into(),Value::Text("installed@test".into())),("password".into(),Value::Text("password".into()))])).await.unwrap();
+            user.force_fill_async(Attributes::from([("name".into(),Value::Text("Installed".into())),("email".into(),Value::Text("installed@test".into())),("password".into(),Value::Text("password".into()))])).await.unwrap();
             assert!(user.save().await.unwrap());user
         };
         let token=user.create_token("Generated acceptance",&[]).await.unwrap();
@@ -159,12 +159,12 @@ fn sanctum_install_probe(_: &mut openrust::http::Request) -> openrust::http::Htt
 #[cfg(feature = "sanctum")]
 fn sanctum_install_revoke(request:&mut openrust::http::Request)->openrust::http::HttpFuture<'_,Result<openrust::http::Response,openrust::http::HttpError>> {
     Box::pin(async move {
-        let Some(openrust::sanctum::AccessToken::Personal(token)) = openrust::sanctum::AccessToken::currentAccessToken(request) else {panic!("Sanctum token expected")};
+        let Some(openrust::sanctum::AccessToken::Personal(token)) = openrust::sanctum::AccessToken::current_access_token(request) else {panic!("Sanctum token expected")};
         use openrust::contracts::container::Container as _;
         let app = openrust::container::Container::get_instance();
         let sanctum = app.make::<openrust::sanctum::Sanctum>().unwrap();
         let database = app.make::<openrust::database::DatabaseManager>().unwrap();
-        assert!(sanctum.personalAccessTokens(&database, "").unwrap().revokeToken(&token.tokenable_type, token.tokenable_id.clone(), token.id.clone()).await.unwrap());
+        assert!(sanctum.personal_access_tokens(&database, "").unwrap().revoke_token(&token.tokenable_type, token.tokenable_id.clone(), token.id.clone()).await.unwrap());
         openrust::http::Response::json(openrust::http::StatusCode::OK,true)
     })
 }
@@ -185,7 +185,10 @@ async fn mysql_passport_default_cli_installs_rebuilds_retries_and_authenticates_
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let stage = source.parent().unwrap();
     let root = stage.join("generated");
-    let target = stage.join("generated-target");
+    // 允许复用项目内已有缓存，避免完整框架重复编译占满磁盘。
+    let target = std::env::var_os("INSTALL_TEST_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| stage.join("generated-target"));
     assert!(
         !root.exists(),
         "Use a new owned generated fixture directory"
@@ -198,7 +201,14 @@ async fn mysql_passport_default_cli_installs_rebuilds_retries_and_authenticates_
         url: std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap(),
         prefix: "p09_".to_owned(),
     };
-    let initial = Path::new(env!("CARGO_BIN_EXE_main"));
+    // 子项目可复用缓存，但初始CLI必须保持独立，不能被其产物覆盖。
+    let initial_copy = stage.join(if cfg!(windows) {
+        "install-initial.exe"
+    } else {
+        "install-initial"
+    });
+    fs::copy(env!("CARGO_BIN_EXE_main"), &initial_copy).unwrap();
+    let initial = initial_copy.as_path();
     let help = fixture.run(initial, &["install:api", "--help"]);
     success(&help);
     assert!(String::from_utf8_lossy(&help.stdout).contains("--passport"));
@@ -444,13 +454,13 @@ finally:
     #[cfg(feature = "passport")]
     {
         openrust::support::facades::Route::get("/testing/pat",passport_install_probe)?;
-        openrust::support::facades::Route::getWith("/testing/revoke",passport_install_revoke,|route|{route.middleware_name("auth:api");Ok(())})?;
+        openrust::support::facades::Route::get_with("/testing/revoke",passport_install_revoke,|route|{route.middleware_name("auth:api");Ok(())})?;
     }
     #[cfg(feature = "sanctum")]
     {
         openrust::support::facades::Route::get("/testing/sanctum",sanctum_install_probe)?;
-        openrust::support::facades::Route::getWith("/sanctum-user",user,|route|{route.middleware_name("auth:sanctum");Ok(())})?;
-        openrust::support::facades::Route::getWith("/testing/sanctum-revoke",sanctum_install_revoke,|route|{route.middleware_name("auth:sanctum");Ok(())})?;
+        openrust::support::facades::Route::get_with("/sanctum-user",user,|route|{route.middleware_name("auth:sanctum");Ok(())})?;
+        openrust::support::facades::Route::get_with("/testing/sanctum-revoke",sanctum_install_revoke,|route|{route.middleware_name("auth:sanctum");Ok(())})?;
     }
     Ok(())"#,1)+PROBE;
     fs::write(&routes_path, source).unwrap();

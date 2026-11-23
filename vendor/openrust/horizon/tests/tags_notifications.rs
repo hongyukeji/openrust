@@ -23,7 +23,7 @@ fn second_tags(_: &Payload) -> Vec<String> {
 fn tags_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let payload = Payload::new("send-order", json!({"id":42})).unwrap();
-        Response::json(StatusCode::OK, Tags::forPayload(&payload).unwrap())
+        Response::json(StatusCode::OK, Tags::for_payload(&payload).unwrap())
     })
 }
 fn tagged_routes() -> Result<(), openrust::routing::RoutingError> {
@@ -66,7 +66,7 @@ async fn tag_callbacks_are_application_local_and_preserve_first_nonempty_occurre
         json!(["orders", "customer:42", "priority"])
     );
     assert!(Horizon::tag(first_tags).is_err());
-    assert!(Tags::forPayload(&Payload::new("outside", json!({})).unwrap()).is_err());
+    assert!(Tags::for_payload(&Payload::new("outside", json!({})).unwrap()).is_err());
 }
 
 struct Order(ModelState);
@@ -88,7 +88,7 @@ impl Model for Order {
 #[test]
 fn model_tags_require_a_supported_identifier_and_include_the_rust_model_type() {
     let mut order = Order::from_state(ModelState::default());
-    assert!(Tags::forModel(&order).is_err());
+    assert!(Tags::for_model(&order).is_err());
     for (value, key) in [
         (Value::Integer(42), "42"),
         (Value::Unsigned(43), "43"),
@@ -96,12 +96,12 @@ fn model_tags_require_a_supported_identifier_and_include_the_rust_model_type() {
     ] {
         order.state_mut().set_attribute("id", value);
         assert_eq!(
-            Tags::forModel(&order).unwrap(),
+            Tags::for_model(&order).unwrap(),
             format!("{}:{key}", std::any::type_name::<Order>())
         );
     }
     order.state_mut().set_attribute("id", Value::Bool(true));
-    assert!(Tags::forModel(&order).is_err());
+    assert!(Tags::for_model(&order).is_err());
 }
 
 fn notification() -> LongWaitDetected {
@@ -169,21 +169,21 @@ fn long_wait_notification_selects_explicit_routes_and_builds_channel_messages() 
 }
 fn notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Horizon::routeMailNotificationsTo("operator@example.test").unwrap();
-        Horizon::routeSlackNotificationsTo("https://example.test/webhook").unwrap();
-        Horizon::routeSmsNotificationsTo("+15555550100").unwrap();
+        Horizon::route_mail_notifications_to("operator@example.test").unwrap();
+        Horizon::route_slack_notifications_to("https://example.test/webhook").unwrap();
+        Horizon::route_sms_notifications_to("+15555550100").unwrap();
         let fake = Notifications::fake().unwrap();
         fake.assert_nothing_sent();
         let notification = notification();
         Notifications::send(&[&recipient()], &notification)
             .await
             .unwrap();
-        fake.assertSentOnDemandOnce(notification.kind())
-            .assertSentOnDemandMatching(notification.kind(), |entry| {
+        fake.assert_sent_on_demand_once(notification.kind())
+            .assert_sent_on_demand_matching(notification.kind(), |entry| {
                 entry.channels == ["mail", "slack", "sms"]
                     && entry.data == json!({"connection":"redis","queue":"orders","seconds":120})
             })
-            .assertCount(1);
+            .assert_count(1);
         Response::json(StatusCode::OK, json!({"recorded":true}))
     })
 }
@@ -198,7 +198,7 @@ async fn long_wait_notifications_use_the_native_notification_fake() {
     })
     .unwrap();
     app.get("/api/notification").await.unwrap().assert_ok();
-    assert!(Horizon::routeMailNotificationsTo("outside@example.test").is_err());
+    assert!(Horizon::route_mail_notifications_to("outside@example.test").is_err());
 }
 
 #[tokio::test]
@@ -223,15 +223,15 @@ async fn redis_long_wait_notification_and_snapshot_locks_are_atomic_expiring_and
         let repository = repository.clone();
         contenders.push(tokio::spawn(async move {
             (
-                repository.notificationLock("redis:orders").await.unwrap(),
+                repository.notification_lock("redis:orders").await.unwrap(),
                 repository
-                    .metricsRepository()
-                    .acquireWaitTimeMonitorLock()
+                    .metrics_repository()
+                    .acquire_wait_time_monitor_lock()
                     .await
                     .unwrap(),
                 repository
-                    .metricsRepository()
-                    .acquireSnapshotLock()
+                    .metrics_repository()
+                    .acquire_snapshot_lock()
                     .await
                     .unwrap(),
             )
@@ -245,20 +245,20 @@ async fn redis_long_wait_notification_and_snapshot_locks_are_atomic_expiring_and
         acquired[2] += usize::from(snapshot);
     }
     assert_eq!(acquired, [1, 1, 1]);
-    assert!(repository.notificationLock("redis:other").await.unwrap());
+    assert!(repository.notification_lock("redis:other").await.unwrap());
     let isolated = Repository::new(connection.clone(), "isolated:".into(), 60).unwrap();
-    assert!(isolated.notificationLock("redis:orders").await.unwrap());
+    assert!(isolated.notification_lock("redis:orders").await.unwrap());
     assert!(
         isolated
-            .metricsRepository()
-            .acquireWaitTimeMonitorLock()
+            .metrics_repository()
+            .acquire_wait_time_monitor_lock()
             .await
             .unwrap()
     );
     assert!(
         isolated
-            .metricsRepository()
-            .acquireSnapshotLock()
+            .metrics_repository()
+            .acquire_snapshot_lock()
             .await
             .unwrap()
     );
@@ -303,7 +303,7 @@ async fn redis_retry_references_follow_completion_failure_and_fast_retry_complet
     .await
     .unwrap();
     let completed = parent.clone();
-    jobs.storeRetryReference("original-transport", "completed-transport")
+    jobs.store_retry_reference("original-transport", "completed-transport")
         .await
         .unwrap();
     assert_eq!(
@@ -333,7 +333,7 @@ async fn redis_retry_references_follow_completion_failure_and_fast_retry_complet
         "completed"
     );
     let failed = parent.clone();
-    jobs.storeRetryReference("original-transport", "failed-transport")
+    jobs.store_retry_reference("original-transport", "failed-transport")
         .await
         .unwrap();
     jobs.failed(
@@ -355,7 +355,7 @@ async fn redis_retry_references_follow_completion_failure_and_fast_retry_complet
         "failed"
     );
     assert_eq!(
-        jobs.findFailedByUuid(parent.uuid())
+        jobs.find_failed_by_uuid(parent.uuid())
             .await
             .unwrap()
             .unwrap()
@@ -364,9 +364,9 @@ async fn redis_retry_references_follow_completion_failure_and_fast_retry_complet
         "failed-transport"
     );
     assert!(jobs.find(parent.uuid()).await.unwrap().is_none());
-    assert!(jobs.deleteFailed("failed-transport").await.unwrap());
+    assert!(jobs.delete_failed("failed-transport").await.unwrap());
     assert!(
-        jobs.findFailedByUuid(parent.uuid())
+        jobs.find_failed_by_uuid(parent.uuid())
             .await
             .unwrap()
             .is_none()
@@ -384,7 +384,7 @@ async fn redis_retry_references_follow_completion_failure_and_fast_retry_complet
     jobs.completed("fast-transport", "redis", "default", &fast, &[], true)
         .await
         .unwrap();
-    jobs.storeRetryReference("original-transport", "fast-transport")
+    jobs.store_retry_reference("original-transport", "fast-transport")
         .await
         .unwrap();
     let details = jobs.find("original-transport").await.unwrap().unwrap();

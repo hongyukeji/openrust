@@ -117,7 +117,7 @@ impl UploadedFile {
         disk: Option<&str>,
     ) -> FilesystemResult<Option<String>> {
         Storage::disk(disk)?
-            .putFileAs(directory, self, name, WriteOptions::default())
+            .put_file_as(directory, self, name, WriteOptions::default())
             .await
     }
 
@@ -137,7 +137,7 @@ impl UploadedFile {
         disk: Option<&str>,
     ) -> FilesystemResult<Option<String>> {
         Storage::disk(disk)?
-            .putFileAs(
+            .put_file_as(
                 directory,
                 self,
                 name,

@@ -36,7 +36,7 @@ impl ServiceProvider for Provider {
                         TwoFactorAuthenticationProvider::new(Some(Arc::new(Repository::new(
                             Arc::new(ArrayStore::new()),
                         ))))
-                        .withClock(|| Ok(1_234_567_890)),
+                        .with_clock(|| Ok(1_234_567_890)),
                     ))
                 })?;
             Ok(())

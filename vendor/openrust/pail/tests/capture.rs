@@ -256,12 +256,12 @@ impl Command for ConcurrentCommand {
                 assert_eq!(right?, 0);
             } else if name == "capture:parallel-jobs" {
                 let (left, right) = tokio::join!(
-                    Bus::dispatchSync(
+                    Bus::dispatch_sync(
                         Payload::new("capture-left", "success").unwrap(),
                         DispatchOptions::default(),
                         None
                     ),
-                    Bus::dispatchSync(
+                    Bus::dispatch_sync(
                         Payload::new("capture-right", "success").unwrap(),
                         DispatchOptions::default(),
                         None
@@ -294,7 +294,7 @@ impl Command for Inspect {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let options = Options::fromCommand(input)?;
+            let options = Options::from_command(input)?;
             let contents =
                 std::fs::read_to_string(app.base_path().join("storage/pail/one.pail")).unwrap();
             let selected: Vec<_> = contents
@@ -468,7 +468,7 @@ async fn run_acceptance() {
         assert_eq!(result["timeout"], 100);
         assert_eq!(result["selected"].as_array().unwrap().len(), 1);
         let message = MessageLogged::from_json(result["selected"][0].as_str().unwrap()).unwrap();
-        assert_eq!(message.authId().as_deref(), Some(id));
+        assert_eq!(message.auth_id().as_deref(), Some(id));
         assert_eq!(message.message(), "after identity");
     }
     for (root, id) in [(&left, "left"), (&right, "right")] {

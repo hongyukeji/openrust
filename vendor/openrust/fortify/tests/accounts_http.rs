@@ -133,7 +133,7 @@ async fn container_account_actions_web_intended_and_broker_failure_preserve_effe
     }
     let _serial = SERIAL.lock().await;
     let server = start(settings(), false, |_| {}).await;
-    server.fortify.registerView(
+    server.fortify.register_view(
         openrust_fortify::http::responses::SimpleViewResponse::callback(Arc::new(|_| {
             Box::pin(async { Response::json(StatusCode::OK, json!({"replacement_view":true})) })
         })),

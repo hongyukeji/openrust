@@ -130,13 +130,13 @@ impl Command for SupervisorCommand {
             if let Some(directory) = args.get_one::<std::path::PathBuf>("directory") {
                 values["directory"] = directory.to_string_lossy().to_string().into();
             }
-            let options = SupervisorOptions::fromArray(values).map_err(error)?;
+            let options = SupervisorOptions::from_array(values).map_err(error)?;
             let repository = app.make::<Repository>().await.map_err(error)?;
             if repository.supervisor(&name).await.map_err(error)?.is_some() {
                 output.error("A supervisor with this name is already running.");
                 return Ok(13);
             }
-            crate::signals::adjustNice(options.nice).map_err(error)?;
+            crate::signals::adjust_nice(options.nice).map_err(error)?;
             let supervisor = Supervisor::new(
                 repository,
                 app.make::<openrust::queue::QueueManager>()
@@ -152,7 +152,7 @@ impl Command for SupervisorCommand {
             )
             .map_err(error)?
             .paused(args.get_flag("paused"))
-            .fastTermination(
+            .fast_termination(
                 config
                     .get("horizon.fast_termination")
                     .and_then(|value| value.as_bool())

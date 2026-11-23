@@ -300,10 +300,8 @@ impl Registry {
 }
 
 /// Registers processes for the current application, typically from a service provider.
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct DevCommands;
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DevCommands {
     #[track_caller]
     pub fn register(command: &str, name: Option<&str>) -> Result<DevCommand, ConsoleError> {
@@ -331,7 +329,7 @@ impl DevCommands {
     }
 
     #[track_caller]
-    pub fn nodeExec(command: &str, name: Option<&str>) -> Result<DevCommand, ConsoleError> {
+    pub fn node_exec(command: &str, name: Option<&str>) -> Result<DevCommand, ConsoleError> {
         Self::register_node(command, name, true)
     }
 
@@ -377,11 +375,11 @@ impl DevCommands {
         })
     }
 
-    pub fn withoutVendorCommands() -> Result<(), ConsoleError> {
+    pub fn without_vendor_commands() -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.without_vendor = true)
     }
 
-    pub fn withoutDefaultCommands() -> Result<(), ConsoleError> {
+    pub fn without_default_commands() -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.without_default = true)
     }
 
@@ -389,11 +387,11 @@ impl DevCommands {
         Self::filter(|filters| filters.timestamps = true)
     }
 
-    pub fn disableAutoRestart() -> Result<(), ConsoleError> {
+    pub fn disable_auto_restart() -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.disable_restart = true)
     }
 
-    pub fn shouldIncludeTimestamps() -> Result<bool, ConsoleError> {
+    pub fn should_include_timestamps() -> Result<bool, ConsoleError> {
         Ok(active_registry()?
             .filters
             .lock()
@@ -401,7 +399,7 @@ impl DevCommands {
             .timestamps)
     }
 
-    pub fn shouldAutoRestart() -> Result<bool, ConsoleError> {
+    pub fn should_auto_restart() -> Result<bool, ConsoleError> {
         Ok(!active_registry()?
             .filters
             .lock()
@@ -425,19 +423,19 @@ impl DevCommands {
         Self::setting(|filters| filters.mode)
     }
 
-    pub fn bufferSize(lines: usize) -> Result<(), ConsoleError> {
+    pub fn buffer_size(lines: usize) -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.buffer_size = Some(lines))
     }
 
-    pub fn streamBufferSize(lines: usize) -> Result<(), ConsoleError> {
+    pub fn stream_buffer_size(lines: usize) -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.stream_buffer_size = Some(lines))
     }
 
-    pub fn getBufferSize() -> Result<Option<usize>, ConsoleError> {
+    pub fn get_buffer_size() -> Result<Option<usize>, ConsoleError> {
         Self::setting(|filters| filters.buffer_size)
     }
 
-    pub fn getStreamBufferSize() -> Result<Option<usize>, ConsoleError> {
+    pub fn get_stream_buffer_size() -> Result<Option<usize>, ConsoleError> {
         Self::setting(|filters| filters.stream_buffer_size)
     }
 

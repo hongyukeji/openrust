@@ -39,7 +39,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`App::get_locale` is an alias for `current_locale`; `get_fallback_locale` and `set_fallback_locale` read and update the fallback locale. `set_locale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previousLocale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
+`App::get_locale` is an alias for `current_locale`; `get_fallback_locale` and `set_fallback_locale` read and update the fallback locale. `set_locale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previous_locale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
 
 Service failures propagate at the step where they occur: configuration is written before the translator is updated, followed by event dispatch. On first resolution, the long-lived translator reads application defaults separately from the current scope configuration, so the first request cannot become the application default. A listener failure keeps the updated configuration and translator until the current lifecycle ends; the error retains its original source. Setting the same locale again still dispatches the event, while changing the fallback locale does not.
 
@@ -362,9 +362,9 @@ pub async fn load_database_translations(
     language_directory: PathBuf,
 ) -> TranslationResult<()> {
     let source = DatabaseLoader::new(connection)
-        .withTable("language_lines")?
-        .withMaxRows(10_000)?
-        .withFallback(Arc::new(FileLoader::new(language_directory)));
+        .with_table("language_lines")?
+        .with_max_rows(10_000)?
+        .with_fallback(Arc::new(FileLoader::new(language_directory)));
     Lang::load_from(
         &source,
         &[
@@ -377,7 +377,7 @@ pub async fn load_database_translations(
 
 The selected connection's table prefix applies. The table name is an unqualified identifier. The default table is `language_lines`, and the default maximum is 10,000 rows per group. Exceeding the configured limit fails the load without truncating the result.
 
-`withFallback` loads the same locale/group/namespace from the file source and overlays database entries. Groups and list indexes merge recursively; literal JSON values are replaced as a whole. Empty database strings remain valid overrides. After deleting a row, explicitly reload its resource to restore the file value. The translator retains its configured language fallback; load database resources for both the selected and fallback languages when needed.
+`with_fallback` loads the same locale/group/namespace from the file source and overlays database entries. Groups and list indexes merge recursively; literal JSON values are replaced as a whole. Empty database strings remain valid overrides. After deleting a row, explicitly reload its resource to restore the file value. The translator retains its configured language fallback; load database resources for both the selected and fallback languages when needed.
 
 `Lang::load_from` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
 

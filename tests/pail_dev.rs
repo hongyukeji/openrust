@@ -123,8 +123,8 @@ impl ServiceProvider for Configure {
     fn boot<'a>(&'a mut self, _: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
         Box::pin(async move {
             match self.0 {
-                "without-default" => DevCommands::withoutDefaultCommands()?,
-                "without-vendor" => DevCommands::withoutVendorCommands()?,
+                "without-default" => DevCommands::without_default_commands()?,
+                "without-vendor" => DevCommands::without_vendor_commands()?,
                 "except" => DevCommands::except(&["logs"])?,
                 "only" => DevCommands::only(&["logs"])?,
                 "order" => DevCommands::order(&["logs", "server"])?,

@@ -43,7 +43,6 @@ impl fmt::Debug for CryptKey {
         f.write_str("CryptKey([REDACTED])")
     }
 }
-#[allow(non_snake_case)]
 impl CryptKey {
     pub(crate) fn new(
         content: Zeroizing<String>,
@@ -66,10 +65,10 @@ impl CryptKey {
         }
         Ok(Self { content, path })
     }
-    pub fn getKeyContents(&self) -> &str {
+    pub fn get_key_contents(&self) -> &str {
         &self.content
     }
-    pub fn getKeyPath(&self) -> Option<&std::path::Path> {
+    pub fn get_key_path(&self) -> Option<&std::path::Path> {
         self.path.as_deref()
     }
 }

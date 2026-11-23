@@ -44,30 +44,30 @@ pub mod concerns {
     use serde_json::{Map, Value};
     use std::{collections::BTreeSet, sync::Arc};
 
-    /// Implement on a model, then register `bootLogsActivity` in the application's Provider.
+    /// Implement on a model, then register `boot_logs_activity` in the application's Provider.
     pub trait LogsActivity: Model + Clone {
-        fn activitylogState(&self) -> &super::LoggingState;
-        fn disableLogging(&mut self) -> &mut Self {
-            self.activitylogState()
+        fn activitylog_state(&self) -> &super::LoggingState;
+        fn disable_logging(&mut self) -> &mut Self {
+            self.activitylog_state()
                 .0
                 .store(false, std::sync::atomic::Ordering::Relaxed);
             self
         }
-        fn enableLogging(&mut self) -> &mut Self {
-            self.activitylogState()
+        fn enable_logging(&mut self) -> &mut Self {
+            self.activitylog_state()
                 .0
                 .store(true, std::sync::atomic::Ordering::Relaxed);
             self
         }
-        fn getActivitylogOptions(&self) -> LogOptions {
+        fn get_activitylog_options(&self) -> LogOptions {
             LogOptions::defaults()
         }
-        fn enableLoggingModelsEvents(&self) -> bool {
-            self.activitylogState()
+        fn enable_logging_models_events(&self) -> bool {
+            self.activitylog_state()
                 .0
                 .load(std::sync::atomic::Ordering::Relaxed)
         }
-        fn eventsToBeRecorded() -> &'static [ModelEvent] {
+        fn events_to_be_recorded() -> &'static [ModelEvent] {
             &[
                 ModelEvent::Created,
                 ModelEvent::Updated,
@@ -75,15 +75,15 @@ pub mod concerns {
                 ModelEvent::Restored,
             ]
         }
-        fn doNotRecordEvents() -> &'static [ModelEvent] {
+        fn do_not_record_events() -> &'static [ModelEvent] {
             &[]
         }
-        fn bootLogsActivity(
+        fn boot_logs_activity(
             app: &Application,
             repository: Arc<ActivityRepository>,
         ) -> DatabaseResult<()> {
-            for event in Self::eventsToBeRecorded() {
-                if !Self::doNotRecordEvents().contains(event) {
+            for event in Self::events_to_be_recorded() {
+                if !Self::do_not_record_events().contains(event) {
                     Self::register_model_event(
                         app,
                         *event,
@@ -95,16 +95,16 @@ pub mod concerns {
             }
             Ok(())
         }
-        fn attributesToBeLogged(&self) -> Vec<String> {
-            self.attributesToBeLoggedWith(&[])
+        fn attributes_to_be_logged(&self) -> Vec<String> {
+            self.attributes_to_be_logged_with(&[])
         }
-        fn attributesToBeLoggedWith(&self, defaults: &[String]) -> Vec<String> {
-            let options = self.getActivitylogOptions();
+        fn attributes_to_be_logged_with(&self, defaults: &[String]) -> Vec<String> {
+            let options = self.get_activitylog_options();
             let mut attributes = BTreeSet::new();
-            if options.logFillable {
+            if options.log_fillable {
                 attributes.extend(self.get_fillable().iter().map(|name| (*name).to_owned()));
             }
-            if options.logUnguarded {
+            if options.log_unguarded {
                 let guarded = self.get_guarded();
                 if Self::is_unguarded() || !guarded.contains(&"*") {
                     attributes.extend(
@@ -118,39 +118,39 @@ pub mod concerns {
                     );
                 }
             }
-            if options.logAttributes.iter().any(|name| name == "*") {
+            if options.log_attributes.iter().any(|name| name == "*") {
                 attributes.extend(self.state().get_attributes().keys().cloned());
             }
             attributes.extend(
                 options
-                    .logAttributes
+                    .log_attributes
                     .iter()
                     .filter(|name| name.as_str() != "*")
                     .cloned(),
             );
             attributes.retain(|name| {
-                !options.logExceptAttributes.contains(name) && !defaults.contains(name)
+                !options.log_except_attributes.contains(name) && !defaults.contains(name)
             });
             attributes.into_iter().collect()
         }
-        fn getDescriptionForEvent(&self, event: &str) -> String {
-            self.getActivitylogOptions()
-                .descriptionForEvent
+        fn get_description_for_event(&self, event: &str) -> String {
+            self.get_activitylog_options()
+                .description_for_event
                 .map_or_else(|| event.into(), |callback| callback(event))
         }
-        fn beforeActivityLogged(&self, _activity: &mut Activity, _event: &str) -> Result<()> {
+        fn before_activity_logged(&self, _activity: &mut Activity, _event: &str) -> Result<()> {
             Ok(())
         }
-        fn activitiesAsSubject(&self, repository: &ActivityRepository) -> Result<ActivityQuery> {
-            Ok(repository.query().forSubject(&super::identity(self)?))
+        fn activities_as_subject(&self, repository: &ActivityRepository) -> Result<ActivityQuery> {
+            Ok(repository.query().for_subject(&super::identity(self)?))
         }
-        fn extractChanges(&self) -> Result<Map<String, Value>> {
-            self.extractChangesWithDefaults(&[])
+        fn extract_changes(&self) -> Result<Map<String, Value>> {
+            self.extract_changes_with_defaults(&[])
         }
-        fn extractChangesWithDefaults(&self, defaults: &[String]) -> Result<Map<String, Value>> {
-            let options = self.getActivitylogOptions();
+        fn extract_changes_with_defaults(&self, defaults: &[String]) -> Result<Map<String, Value>> {
+            let options = self.get_activitylog_options();
             let mut values = Map::new();
-            for attribute in self.attributesToBeLoggedWith(defaults) {
+            for attribute in self.attributes_to_be_logged_with(defaults) {
                 if attribute.contains('.') {
                     let snapshot = Value::Object(self.to_array()?);
                     let mut value = &snapshot;
@@ -167,14 +167,14 @@ pub mod concerns {
                         .transpose()?
                         .unwrap_or(Value::Null);
                     let root = Map::from_iter([(base.into(), value)]);
-                    let value = ChangeDetector::resolveJsonAttribute(&root, &attribute);
+                    let value = ChangeDetector::resolve_json_attribute(&root, &attribute);
                     set_path(
                         &mut values,
                         &attribute.split("->").collect::<Vec<_>>(),
                         value,
                     );
                 } else {
-                    let raw = if options.attributeRawValues.contains(&attribute) {
+                    let raw = if options.attribute_raw_values.contains(&attribute) {
                         self.get_attribute(&attribute).cloned()
                     } else {
                         self.get_attribute_value(&attribute)?
@@ -204,7 +204,7 @@ pub mod concerns {
         }
         set_path(child.as_object_mut().unwrap(), &path[1..], value);
     }
-    fn eventName(event: ModelEvent) -> Option<&'static str> {
+    fn event_name(event: ModelEvent) -> Option<&'static str> {
         match event {
             ModelEvent::Created => Some("created"),
             ModelEvent::Updated => Some("updated"),
@@ -229,18 +229,18 @@ pub mod concerns {
         defaults: &[String],
         transaction: Option<&mut Transaction>,
     ) -> Result<Option<Activity>> {
-        let Some(name) = eventName(event) else {
+        let Some(name) = event_name(event) else {
             return Ok(None);
         };
-        if !model.enableLoggingModelsEvents() {
+        if !model.enable_logging_models_events() {
             return Ok(None);
         }
-        let options = model.getActivitylogOptions();
+        let options = model.get_activitylog_options();
         if matches!(event, ModelEvent::Created | ModelEvent::Updated) {
             let dirty = model.get_dirty()?;
             if !dirty
                 .keys()
-                .any(|name| !options.dontLogIfAttributesChangedOnly.contains(name))
+                .any(|name| !options.dont_log_if_attributes_changed_only.contains(name))
             {
                 return Ok(None);
             }
@@ -259,12 +259,12 @@ pub mod concerns {
                 return Ok(None);
             }
         }
-        let description = model.getDescriptionForEvent(name);
+        let description = model.get_description_for_event(name);
         if description.is_empty() {
             return Ok(None);
         }
-        let attributes = model.extractChangesWithDefaults(defaults)?;
-        let changes = if model.attributesToBeLoggedWith(defaults).is_empty() {
+        let attributes = model.extract_changes_with_defaults(defaults)?;
+        let changes = if model.attributes_to_be_logged_with(defaults).is_empty() {
             serde_json::json!({})
         } else if event == ModelEvent::Deleted {
             serde_json::json!({"old": attributes})
@@ -273,20 +273,20 @@ pub mod concerns {
             for (name, value) in model.state().get_original() {
                 old.state_mut().set_attribute(name, value.clone());
             }
-            loadRelated(&mut old, defaults, transaction).await?;
-            let mut old = old.extractChangesWithDefaults(defaults)?;
+            load_related(&mut old, defaults, transaction).await?;
+            let mut old = old.extract_changes_with_defaults(defaults)?;
             for name in attributes.keys() {
                 old.entry(name.clone()).or_insert(Value::Null);
             }
-            if options.logOnlyDirty {
-                ChangeDetector::filterDirty(&attributes, &old)
+            if options.log_only_dirty {
+                ChangeDetector::filter_dirty(&attributes, &old)
             } else {
                 serde_json::json!({"attributes":attributes,"old":old})
             }
         } else {
             serde_json::json!({"attributes":attributes})
         };
-        if !options.logEmptyChanges
+        if !options.log_empty_changes
             && ["old", "attributes"].iter().all(|key| {
                 changes
                     .get(key)
@@ -298,10 +298,10 @@ pub mod concerns {
         }
         let mut activity = Activity::new(description)
             .event(name)
-            .performedOn(super::identity(model)?);
-        activity.log_name = options.logName;
+            .performed_on(super::identity(model)?);
+        activity.log_name = options.log_name;
         activity.changes = changes;
-        activity.subjectAttributes = model
+        activity.subject_attributes = model
             .state()
             .get_attributes()
             .iter()
@@ -310,13 +310,13 @@ pub mod concerns {
             .into();
         Ok(Some(activity))
     }
-    async fn buildStored<M: LogsActivity>(
+    async fn build_stored<M: LogsActivity>(
         model: &M,
         event: ModelEvent,
         mut transaction: Option<&mut Transaction>,
         defaults: &[String],
     ) -> Result<Option<Activity>> {
-        if !model.enableLoggingModelsEvents() {
+        if !model.enable_logging_models_events() {
             return Ok(None);
         }
         let mut snapshot = model.clone();
@@ -346,16 +346,16 @@ pub mod concerns {
                 }
             }
         }
-        loadRelated(&mut snapshot, defaults, transaction.as_deref_mut()).await?;
+        load_related(&mut snapshot, defaults, transaction.as_deref_mut()).await?;
         build(&snapshot, event, defaults, transaction).await
     }
-    async fn loadRelated<M: LogsActivity>(
+    async fn load_related<M: LogsActivity>(
         model: &mut M,
         defaults: &[String],
         transaction: Option<&mut Transaction>,
     ) -> Result<()> {
         let paths: Vec<String> = model
-            .attributesToBeLoggedWith(defaults)
+            .attributes_to_be_logged_with(defaults)
             .iter()
             .filter_map(|attribute| attribute.rsplit_once('.').map(|(path, _)| path.to_owned()))
             .collect();
@@ -369,7 +369,7 @@ pub mod concerns {
         Ok(())
     }
     // Match the upstream current-savepoint marker plus outermost ordered save.
-    fn saveAfterCommit(
+    fn save_after_commit(
         transaction: &mut Transaction,
         prepared: crate::PreparedActivity,
         repository: Arc<ActivityRepository>,
@@ -390,7 +390,7 @@ pub mod concerns {
                     if let Some(buffer) = buffer {
                         buffer.add(prepared);
                     } else {
-                        repository.savePrepared(prepared).await.map_err(error)?;
+                        repository.save_prepared(prepared).await.map_err(error)?;
                     }
                 }
                 Ok(())
@@ -416,25 +416,31 @@ pub mod concerns {
             _: &'a Connection,
         ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
             Box::pin(async move {
-                if let Some(activity) =
-                    buildStored(model, event, None, &self.repository.defaultExceptAttributes)
-                        .await
-                        .map_err(error)?
+                if let Some(activity) = build_stored(
+                    model,
+                    event,
+                    None,
+                    &self.repository.default_except_attributes,
+                )
+                .await
+                .map_err(error)?
                 {
                     let mut logger = ActivityLogger::current()
                         .or_else(|| crate::facades::Activitylog::logger().ok())
-                        .unwrap_or_else(|| ActivityLogger::fromRepository(self.repository.clone()));
+                        .unwrap_or_else(|| {
+                            ActivityLogger::from_repository(self.repository.clone())
+                        });
                     if let Some(prepared) = logger
-                        .prepareModel(activity, |activity| {
-                            model.beforeActivityLogged(activity, eventName(event).unwrap_or(""))
+                        .prepare_model(activity, |activity| {
+                            model.before_activity_logged(activity, event_name(event).unwrap_or(""))
                         })
                         .map_err(error)?
                     {
-                        if logger.bufferPrepared(prepared.clone()).is_some() {
+                        if logger.buffer_prepared(prepared.clone()).is_some() {
                             return Ok(ModelEventResponse::Continue);
                         }
                         self.repository
-                            .savePrepared(prepared)
+                            .save_prepared(prepared)
                             .await
                             .map_err(error)?;
                     }
@@ -449,26 +455,28 @@ pub mod concerns {
             transaction: &'a mut Transaction,
         ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
             Box::pin(async move {
-                if let Some(activity) = buildStored(
+                if let Some(activity) = build_stored(
                     model,
                     event,
                     Some(&mut *transaction),
-                    &self.repository.defaultExceptAttributes,
+                    &self.repository.default_except_attributes,
                 )
                 .await
                 .map_err(error)?
                 {
                     let mut logger = ActivityLogger::current()
                         .or_else(|| crate::facades::Activitylog::logger().ok())
-                        .unwrap_or_else(|| ActivityLogger::fromRepository(self.repository.clone()));
+                        .unwrap_or_else(|| {
+                            ActivityLogger::from_repository(self.repository.clone())
+                        });
                     if let Some(prepared) = logger
-                        .prepareModel(activity, |activity| {
-                            model.beforeActivityLogged(activity, eventName(event).unwrap_or(""))
+                        .prepare_model(activity, |activity| {
+                            model.before_activity_logged(activity, event_name(event).unwrap_or(""))
                         })
                         .map_err(error)?
                     {
                         if let Some(buffer) = logger.buffer() {
-                            saveAfterCommit(
+                            save_after_commit(
                                 transaction,
                                 prepared,
                                 self.repository.clone(),
@@ -476,10 +484,15 @@ pub mod concerns {
                             )?;
                             return Ok(ModelEventResponse::Continue);
                         }
-                        if self.repository.usesConnection(&model.get_connection()?) {
-                            prepared.logIn(transaction).await?;
+                        if self.repository.uses_connection(&model.get_connection()?) {
+                            prepared.log_in(transaction).await?;
                         } else {
-                            saveAfterCommit(transaction, prepared, self.repository.clone(), None)?;
+                            save_after_commit(
+                                transaction,
+                                prepared,
+                                self.repository.clone(),
+                                None,
+                            )?;
                         }
                     }
                 }
@@ -551,7 +564,7 @@ impl Activity {
                 R::from_state(Default::default()).get_key_name(),
             )
     }
-    pub fn getProperty(
+    pub fn get_property(
         &self,
         path: &str,
         default: serde_json::Value,
@@ -578,7 +591,7 @@ pub struct ActivityModel {
         'a,
         openrust::database::DatabaseResult<crate::ActivityRecord>,
     >,
-    pub(crate) saveIn: for<'a> fn(
+    pub(crate) save_in: for<'a> fn(
         &'a crate::PreparedActivity,
         &'a mut openrust::database::Transaction,
     ) -> openrust::database::DatabaseFuture<
@@ -593,8 +606,8 @@ impl ActivityModel {
             connection: M::from_state(Default::default())
                 .get_connection_name()
                 .map(str::to_owned),
-            save: saveModel::<M>,
-            saveIn: saveModelIn::<M>,
+            save: save_model::<M>,
+            save_in: save_model_in::<M>,
         }
     }
 }
@@ -614,7 +627,7 @@ pub(crate) fn property<'a>(
     Some(value)
 }
 
-fn preparedModel<M: openrust::database::eloquent::Model>(
+fn prepared_model<M: openrust::database::eloquent::Model>(
     connection: &openrust::database::Connection,
     activity: &crate::PreparedActivity,
 ) -> openrust::database::DatabaseResult<M> {
@@ -624,28 +637,28 @@ fn preparedModel<M: openrust::database::eloquent::Model>(
     }
     Ok(model)
 }
-fn saveModel<'a, M: openrust::database::eloquent::Model>(
+fn save_model<'a, M: openrust::database::eloquent::Model>(
     connection: &'a openrust::database::Connection,
     activity: &'a crate::PreparedActivity,
 ) -> openrust::database::DatabaseFuture<'a, openrust::database::DatabaseResult<crate::ActivityRecord>>
 {
     Box::pin(async move {
-        let mut model = preparedModel::<M>(connection, activity)?;
+        let mut model = prepared_model::<M>(connection, activity)?;
         model.save().await?;
-        crate::repository::decodeAttributes(model.state().get_attributes()).map_err(|_| {
+        crate::repository::decode_attributes(model.state().get_attributes()).map_err(|_| {
             openrust::database::DatabaseError::InvalidQuery("Invalid activity model attributes")
         })
     })
 }
-fn saveModelIn<'a, M: openrust::database::eloquent::Model>(
+fn save_model_in<'a, M: openrust::database::eloquent::Model>(
     activity: &'a crate::PreparedActivity,
     tx: &'a mut openrust::database::Transaction,
 ) -> openrust::database::DatabaseFuture<'a, openrust::database::DatabaseResult<crate::ActivityRecord>>
 {
     Box::pin(async move {
-        let mut model = preparedModel::<M>(tx.get_connection(), activity)?;
+        let mut model = prepared_model::<M>(tx.get_connection(), activity)?;
         model.save_in_transaction(tx).await?;
-        crate::repository::decodeAttributes(model.state().get_attributes()).map_err(|_| {
+        crate::repository::decode_attributes(model.state().get_attributes()).map_err(|_| {
             openrust::database::DatabaseError::InvalidQuery("Invalid activity model attributes")
         })
     })

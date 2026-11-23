@@ -3,6 +3,6 @@ use openrust_passport::Passport;
 
 pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let passport = app.make::<Passport>().await?;
-    passport.loadKeysFrom(passport.keyPath("keys"));
+    passport.load_keys_from(passport.key_path("keys"));
     Ok(())
 }

@@ -65,7 +65,7 @@ impl ServiceProvider for SettingsServiceProvider {
                         .map_err(binding)?;
                     Ok(Arc::new(
                         DatabaseSettingsRepository::new(connection)
-                            .withTable(table)
+                            .with_table(table)
                             .map_err(binding)?,
                     ) as Arc<dyn SettingsRepository>)
                 })?;
@@ -100,7 +100,7 @@ impl ServiceProvider for SettingsServiceProvider {
 impl SettingsServiceProvider {
     /// Call from the application's provider after SettingsServiceProvider registers.
     /// Bindings are lazy scoped async factories, sharing the existing HTTP/job scope.
-    pub async fn registerSettings<T: SettingsGroup>(app: &Application) -> ProviderResult {
+    pub async fn register_settings<T: SettingsGroup>(app: &Application) -> ProviderResult {
         if !crate::database_settings_repository::identifier(T::group()) {
             return Err(SettingsError::InvalidDefinition.into());
         }

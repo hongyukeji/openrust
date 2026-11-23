@@ -25,8 +25,7 @@ impl DiscoverEvents {
     }
 
     /// Adds a listener registration gated by its discovery policy at application boot.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withListener<L: ShouldBeDiscovered>(mut self, register: Register) -> Self {
+    pub fn with_listener<L: ShouldBeDiscovered>(mut self, register: Register) -> Self {
         self.conditional
             .push((type_name::<L>(), L::should_be_discovered, register));
         self

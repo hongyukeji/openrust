@@ -195,7 +195,7 @@ async fn mysql_lookup_retries_errors_shares_models_and_isolates_request_caches()
             let (a, b) = tokio::join!(first.find(ID), same.find(ID));
             let a = a.unwrap().unwrap();
             let b = b.unwrap().unwrap();
-            assert!(a.sameInstance(&b));
+            assert!(a.same_instance(&b));
             assert_eq!(db.get_query_log().len(), 1);
             let model = a.model::<Client>().unwrap();
             model
@@ -203,7 +203,7 @@ async fn mysql_lookup_retries_errors_shares_models_and_isolates_request_caches()
                 .await
                 .set_attribute_value("revoked", true)
                 .unwrap();
-            assert!(first.findActive(ID).await.unwrap().is_none());
+            assert!(first.find_active(ID).await.unwrap().is_none());
             assert_eq!(db.get_query_log().len(), 1);
             assert!(first.find(MISSING).await.unwrap().is_none());
             insert(&db, MISSING, "created after miss", false).await;
@@ -216,7 +216,7 @@ async fn mysql_lookup_retries_errors_shares_models_and_isolates_request_caches()
         .scope(async {
             let fresh = app.make::<ClientRepository>().await.unwrap();
             assert!(
-                fresh.findActive(ID).await.unwrap().is_some(),
+                fresh.find_active(ID).await.unwrap().is_some(),
                 "unsaved mutation must stay in previous request"
             );
             assert!(
@@ -319,7 +319,7 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
             .unwrap();
     }
     let passport = app.make::<Passport>().await.unwrap();
-    passport.useClientModel::<CustomClient>();
+    passport.use_client_model::<CustomClient>();
     let observed = Arc::new(AtomicUsize::new(0));
     CustomClient::register_model_event(
         &app,
@@ -327,7 +327,7 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
         Retrieved(observed.clone()),
     )
     .unwrap();
-    assert!(passport.clientModel().ends_with("CustomClient"));
+    assert!(passport.client_model().ends_with("CustomClient"));
     db.enable_query_log();
     db.flush_query_log();
     app.container()
@@ -351,7 +351,7 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
                     .await
                     .unwrap()
                     .unwrap()
-                    .sameInstance(&visible)
+                    .same_instance(&visible)
             );
             assert_eq!(observed.load(Ordering::Relaxed), 1);
             assert!(visible.model::<Client>().is_none());
@@ -399,7 +399,7 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .unwrap();
         Response::json(
             StatusCode::OK,
-            json!({"client":a.to_array().await.map_err(|e|internal(Box::new(e)))?,"same":a.sameInstance(&b),"scope_allowed":a.hasScope("orders:read").await.map_err(|e|internal(Box::new(e)))?}),
+            json!({"client":a.to_array().await.map_err(|e|internal(Box::new(e)))?,"same":a.same_instance(&b),"scope_allowed":a.has_scope("orders:read").await.map_err(|e|internal(Box::new(e)))?}),
         )
     })
 }
@@ -538,8 +538,8 @@ impl openrust::database::eloquent::concerns::ModelEventListener<Client> for Crea
                 event,
                 openrust::database::eloquent::concerns::ModelEvent::Creating
             );
-            assert_eq!(model.plainSecret.is_some(), model.confidential());
-            if let Some(plain) = &model.plainSecret {
+            assert_eq!(model.plain_secret.is_some(), model.confidential());
+            if let Some(plain) = &model.plain_secret {
                 assert_eq!(plain.len(), 40);
                 assert!(
                     matches!(model.get_attribute("secret"),Some(Value::Text(hash)) if hash.starts_with("$2y$04$"))
@@ -584,7 +584,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 "https://other.test/callback".to_owned(),
             ];
             let created = repo
-                .createAuthorizationCodeGrantClient(
+                .create_authorization_code_grant_client(
                     "owned app",
                     &redirects,
                     true,
@@ -594,13 +594,13 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 .await
                 .unwrap();
             let model = created.model::<Client>().unwrap();
-            let secret = model.lock().await.plainSecret.clone().unwrap();
+            let secret = model.lock().await.plain_secret.clone().unwrap();
             assert_eq!(secret.len(), 40);
             assert!(created.confidential().await);
-            assert!(!created.firstParty().await.unwrap());
+            assert!(!created.first_party().await.unwrap());
             assert!(
                 created
-                    .hasGrantType("urn:ietf:params:oauth:grant-type:device_code")
+                    .has_grant_type("urn:ietf:params:oauth:grant-type:device_code")
                     .await
                     .unwrap()
             );
@@ -611,14 +611,14 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
             assert_eq!(json["owner_type"], user.get_morph_class().unwrap());
             assert!(json.get("secret").is_none());
             let loaded = repo.find(id.clone()).await.unwrap().unwrap();
-            assert!(!created.sameInstance(&loaded));
+            assert!(!created.same_instance(&loaded));
             assert!(
                 loaded
                     .model::<Client>()
                     .unwrap()
                     .lock()
                     .await
-                    .plainSecret
+                    .plain_secret
                     .is_none()
             );
             let Some(Value::Text(hash)) = loaded.get_attribute_value("secret").await.unwrap()
@@ -641,16 +641,16 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 Some("renamed app".into())
             );
             assert_eq!(
-                loaded.redirectUris().await.unwrap().as_value(),
+                loaded.redirect_uris().await.unwrap().as_value(),
                 &json!(["https://new.test/cb"])
             );
-            assert!(repo.regenerateSecret(&loaded).await.unwrap());
+            assert!(repo.regenerate_secret(&loaded).await.unwrap());
             let rotated = loaded
                 .model::<Client>()
                 .unwrap()
                 .lock()
                 .await
-                .plainSecret
+                .plain_secret
                 .clone()
                 .unwrap();
             assert!(rotated.as_str() != secret.as_str());
@@ -659,7 +659,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 .await
                 .unwrap()
                 .unwrap();
-            assert!(fresh.plainSecret.is_none());
+            assert!(fresh.plain_secret.is_none());
             let Some(Value::Text(new_hash)) = fresh.get_attribute("secret") else {
                 panic!("missing rotated hash")
             };
@@ -676,58 +676,64 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .unwrap()
             );
             let same = repo.find(id).await.unwrap().unwrap();
-            assert!(same.sameInstance(&loaded));
+            assert!(same.same_instance(&loaded));
             let public = repo
-                .createAuthorizationCodeGrantClient("public app", &redirects, false, None, false)
+                .create_authorization_code_grant_client(
+                    "public app",
+                    &redirects,
+                    false,
+                    None,
+                    false,
+                )
                 .await
                 .unwrap();
             assert!(!public.confidential().await);
             assert!(
                 !public
-                    .hasGrantType("urn:ietf:params:oauth:grant-type:device_code")
+                    .has_grant_type("urn:ietf:params:oauth:grant-type:device_code")
                     .await
                     .unwrap()
             );
             let device = repo
-                .createDeviceAuthorizationGrantClient("device", false, None)
+                .create_device_authorization_grant_client("device", false, None)
                 .await
                 .unwrap();
             assert!(!device.confidential().await);
-            assert!(device.hasGrantType("refresh_token").await.unwrap());
+            assert!(device.has_grant_type("refresh_token").await.unwrap());
             let implicit = repo
-                .createImplicitGrantClient("implicit", &redirects)
+                .create_implicit_grant_client("implicit", &redirects)
                 .await
                 .unwrap();
             assert!(!implicit.confidential().await);
-            assert!(implicit.hasGrantType("implicit").await.unwrap());
-            assert!(!implicit.hasGrantType("refresh_token").await.unwrap());
+            assert!(implicit.has_grant_type("implicit").await.unwrap());
+            assert!(!implicit.has_grant_type("refresh_token").await.unwrap());
             let password = repo
-                .createPasswordGrantClient("password", Some("users"), false)
+                .create_password_grant_client("password", Some("users"), false)
                 .await
                 .unwrap();
             assert!(!password.confidential().await);
-            assert!(password.hasGrantType("password").await.unwrap());
+            assert!(password.has_grant_type("password").await.unwrap());
             assert_eq!(
                 password.get_attribute_value("provider").await.unwrap(),
                 Some("users".into())
             );
             let personal = repo
-                .createPersonalAccessGrantClient("personal", Some("users"))
+                .create_personal_access_grant_client("personal", Some("users"))
                 .await
                 .unwrap();
             assert!(personal.confidential().await);
-            assert!(personal.hasGrantType("personal_access").await.unwrap());
+            assert!(personal.has_grant_type("personal_access").await.unwrap());
             let machine = repo
-                .createClientCredentialsGrantClient("machine")
+                .create_client_credentials_grant_client("machine")
                 .await
                 .unwrap();
             assert!(machine.confidential().await);
-            assert!(machine.hasGrantType("client_credentials").await.unwrap());
+            assert!(machine.has_grant_type("client_credentials").await.unwrap());
             assert!(Client::query_on(&db).get().await.unwrap().len() == 7);
             assert_eq!(creations.load(Ordering::Relaxed), 7);
             let own_id = loaded.get_key().await.unwrap();
             assert!(
-                repo.findForUser(own_id.clone(), &owner)
+                repo.find_for_user(own_id.clone(), &owner)
                     .await
                     .unwrap()
                     .is_some()
@@ -737,7 +743,7 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .unwrap();
             let other_owner = openrust_passport::ClientOwner::for_user(&other_user).unwrap();
             assert!(
-                repo.findForUser(own_id.clone(), &other_owner)
+                repo.find_for_user(own_id.clone(), &other_owner)
                     .await
                     .unwrap()
                     .is_none()
@@ -756,11 +762,11 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                 .set("auth.guards.api.provider", json!("users"))
                 .unwrap();
             let legacy_pat = repo
-                .createPersonalAccessGrantClient("default provider", None)
+                .create_personal_access_grant_client("default provider", None)
                 .await
                 .unwrap();
             let other_pat = repo
-                .createPersonalAccessGrantClient("other provider", Some("admins"))
+                .create_personal_access_grant_client("other provider", Some("admins"))
                 .await
                 .unwrap();
             for (record, created) in [
@@ -775,17 +781,17 @@ async fn mysql_creation_update_and_secret_rotation_keep_actual_eloquent_models()
                     .await
                     .unwrap();
             }
-            let selected = repo.personalAccessClient("users").await.unwrap();
+            let selected = repo.personal_access_client("users").await.unwrap();
             assert_eq!(selected.get_key().await, legacy_pat.get_key().await);
             assert_eq!(
-                repo.personalAccessClient("admins")
+                repo.personal_access_client("admins")
                     .await
                     .unwrap()
                     .get_key()
                     .await,
                 other_pat.get_key().await
             );
-            let missing = repo.personalAccessClient("missing").await.unwrap_err();
+            let missing = repo.personal_access_client("missing").await.unwrap_err();
             assert_eq!(
                 missing.to_string(),
                 "Personal access client not found for 'missing' user provider. Please create one."
@@ -863,11 +869,11 @@ async fn mysql_personal_client_selection_uses_the_selected_models_timestamp_colu
     app.make::<Passport>()
         .await
         .unwrap()
-        .useClientModel::<DatedClient>();
+        .use_client_model::<DatedClient>();
     app.container()
         .scope(async {
             let repo = app.make::<ClientRepository>().await.unwrap();
-            let client = repo.personalAccessClient("users").await.unwrap();
+            let client = repo.personal_access_client("users").await.unwrap();
             assert!(client.model::<DatedClient>().is_some());
             assert_eq!(client.get_key().await, Some(MISSING.into()));
         })
@@ -901,14 +907,14 @@ async fn mysql_documented_client_helper_runs_inside_its_application_lifecycle() 
         .scope(async {
             let record = documented::create_client(&app, None).await.unwrap();
             assert!(record.confidential().await);
-            assert!(record.firstParty().await.unwrap());
+            assert!(record.first_party().await.unwrap());
             assert_eq!(
-                record.redirectUris().await.unwrap().as_value(),
+                record.redirect_uris().await.unwrap().as_value(),
                 &json!(["https://example.com/callback"])
             );
             let repo = app.make::<ClientRepository>().await.unwrap();
             let loaded = repo
-                .findActive(record.get_key().await.unwrap())
+                .find_active(record.get_key().await.unwrap())
                 .await
                 .unwrap()
                 .unwrap();
@@ -922,7 +928,7 @@ async fn mysql_documented_client_helper_runs_inside_its_application_lifecycle() 
                     .unwrap()
                     .lock()
                     .await
-                    .plainSecret
+                    .plain_secret
                     .is_none()
             );
         })
@@ -965,7 +971,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
         .scope(async {
             let repo = app.make::<ClientRepository>().await.unwrap();
             let created = repo
-                .createAuthorizationCodeGrantClient(
+                .create_authorization_code_grant_client(
                     "legacy owner",
                     &["https://old.test/a".into(), "https://old.test/b".into()],
                     true,
@@ -978,10 +984,10 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
                 created.get_attribute_value("user_id").await.unwrap(),
                 Some(7_i64.into())
             );
-            assert!(!created.firstParty().await.unwrap());
-            assert!(created.hasGrantType("authorization_code").await.unwrap());
+            assert!(!created.first_party().await.unwrap());
+            assert!(created.has_grant_type("authorization_code").await.unwrap());
             assert_eq!(
-                created.redirectUris().await.unwrap().as_value(),
+                created.redirect_uris().await.unwrap().as_value(),
                 &json!(["https://old.test/a", "https://old.test/b"])
             );
             assert!(
@@ -995,7 +1001,7 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
                 .unwrap()
                 .unwrap();
             assert_eq!(
-                loaded.redirectUris().await.unwrap().as_value(),
+                loaded.redirect_uris().await.unwrap().as_value(),
                 &json!(["https://new.test/cb"])
             );
             assert!(
@@ -1004,21 +1010,21 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
                     .unwrap()
                     .lock()
                     .await
-                    .plainSecret
+                    .plain_secret
                     .is_none()
             );
             assert_eq!(repo.for_user(&owner).await.unwrap().count(), 1);
             let personal = repo
-                .createPersonalAccessGrantClient("legacy personal", None)
+                .create_personal_access_grant_client("legacy personal", None)
                 .await
                 .unwrap();
-            assert!(personal.hasGrantType("personal_access").await.unwrap());
+            assert!(personal.has_grant_type("personal_access").await.unwrap());
             let password = repo
-                .createPasswordGrantClient("legacy password", Some("users"), true)
+                .create_password_grant_client("legacy password", Some("users"), true)
                 .await
                 .unwrap();
-            assert!(password.hasGrantType("password").await.unwrap());
-            assert!(!password.hasGrantType("personal_access").await.unwrap());
+            assert!(password.has_grant_type("password").await.unwrap());
+            assert!(!password.has_grant_type("personal_access").await.unwrap());
         })
         .await;
     cleanup(&app).await;
@@ -1167,7 +1173,7 @@ fn scope_oracle(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let passport = openrust::container::Container::get_instance()
             .make::<Passport>()
             .unwrap();
-        let inherited = passport.withInheritedScopes.load(Ordering::Relaxed);
+        let inherited = passport.with_inherited_scopes.load(Ordering::Relaxed);
         let fixture: Json =
             serde_json::from_str(include_str!("fixtures/inherited_scopes.json")).unwrap();
         let mut results = Vec::new();
@@ -1178,13 +1184,13 @@ fn scope_oracle(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             let mut state = ModelState::default();
             state.set_attribute("scopes", Value::Json(case["scopes"].clone()));
             let client = Client::from_state(state);
-            results.push(client.hasScope(case["scope"].as_str().unwrap()).unwrap());
+            results.push(client.has_scope(case["scope"].as_str().unwrap()).unwrap());
         }
         let mut invalid = Client::default();
         invalid.state_mut().set_attribute("scopes", "null");
-        assert!(invalid.hasScope("orders").is_err());
+        assert!(invalid.has_scope("orders").is_err());
         invalid.state_mut().set_attribute("scopes", "12");
-        assert!(invalid.hasScope("orders").is_err());
+        assert!(invalid.has_scope("orders").is_err());
         Response::json(StatusCode::OK, json!(results))
     })
 }
@@ -1197,9 +1203,9 @@ async fn inherited_scope_php_oracle_runs_over_http_and_remains_application_local
     let second = second_root.application().await;
     let first_passport = first.make::<Passport>().await.unwrap();
     let second_passport = second.make::<Passport>().await.unwrap();
-    assert!(!first_passport.withInheritedScopes.load(Ordering::Relaxed));
+    assert!(!first_passport.with_inherited_scopes.load(Ordering::Relaxed));
     second_passport
-        .withInheritedScopes
+        .with_inherited_scopes
         .store(true, Ordering::Relaxed);
     let a = serve(first).await;
     let b = serve(second).await;
@@ -1232,8 +1238,12 @@ async fn inherited_scope_php_oracle_runs_over_http_and_remains_application_local
         task.abort();
         let _ = task.await;
     }
-    assert!(!first_passport.withInheritedScopes.load(Ordering::Relaxed));
-    assert!(second_passport.withInheritedScopes.load(Ordering::Relaxed));
+    assert!(!first_passport.with_inherited_scopes.load(Ordering::Relaxed));
+    assert!(
+        second_passport
+            .with_inherited_scopes
+            .load(Ordering::Relaxed)
+    );
 }
 
 fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -1262,37 +1272,37 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 false,
             ),
             (
-                Client::factory().unwrap().asPublic(),
+                Client::factory().unwrap().as_public(),
                 json!(["authorization_code", "refresh_token"]),
                 false,
                 true,
             ),
             (
-                Client::factory().unwrap().asPasswordClient(),
+                Client::factory().unwrap().as_password_client(),
                 json!(["password", "refresh_token"]),
                 true,
                 false,
             ),
             (
-                Client::factory().unwrap().asPersonalAccessTokenClient(),
+                Client::factory().unwrap().as_personal_access_token_client(),
                 json!(["personal_access"]),
                 true,
                 false,
             ),
             (
-                Client::factory().unwrap().asImplicitClient(),
+                Client::factory().unwrap().as_implicit_client(),
                 json!(["implicit"]),
                 false,
                 true,
             ),
             (
-                Client::factory().unwrap().asClientCredentials(),
+                Client::factory().unwrap().as_client_credentials(),
                 json!(["client_credentials"]),
                 true,
                 false,
             ),
             (
-                Client::factory().unwrap().asDeviceCodeClient(),
+                Client::factory().unwrap().as_device_code_client(),
                 json!([
                     "urn:ietf:params:oauth:grant-type:device_code",
                     "refresh_token"
@@ -1302,13 +1312,13 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             ),
         ] {
             let model = factory.make().await.unwrap();
-            assert_eq!(model.grantTypes().unwrap().as_value(), &grants);
-            assert_eq!(model.redirectUris().unwrap().is_empty(), empty);
+            assert_eq!(model.grant_types().unwrap().as_value(), &grants);
+            assert_eq!(model.redirect_uris().unwrap().is_empty(), empty);
             assert_eq!(model.confidential(), !public);
-            assert_eq!(model.plainSecret.is_none(), public);
+            assert_eq!(model.plain_secret.is_none(), public);
             assert!(!model.state().exists());
             if !public {
-                let plain = model.plainSecret.as_ref().unwrap();
+                let plain = model.plain_secret.as_ref().unwrap();
                 assert_eq!(plain.len(), 40);
                 assert_ne!(
                     model.state().get_attribute("secret"),
@@ -1318,8 +1328,8 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         }
         let model = Client::factory()
             .unwrap()
-            .asImplicitClient()
-            .asPasswordClient()
+            .as_implicit_client()
+            .as_password_client()
             .state(|_| Attributes::from([("name".into(), "overridden".into())]))
             .make()
             .await
@@ -1329,7 +1339,7 @@ fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             Some("overridden".into())
         );
         assert_eq!(
-            model.grantTypes().unwrap().as_value(),
+            model.grant_types().unwrap().as_value(),
             &json!(["password", "refresh_token"])
         );
         assert!(!model.confidential());
@@ -1345,18 +1355,18 @@ fn factory_create(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async move {
         let model = Client::factory()
             .unwrap()
-            .asClientCredentials()
+            .as_client_credentials()
             .create()
             .await
             .unwrap();
-        let plain = model.plainSecret.as_ref().unwrap();
+        let plain = model.plain_secret.as_ref().unwrap();
         let stored = Client::query()
             .unwrap()
             .find(model.get_key().unwrap().clone())
             .await
             .unwrap()
             .unwrap();
-        assert!(stored.plainSecret.is_none());
+        assert!(stored.plain_secret.is_none());
         let Some(Value::Text(hash)) = stored.get_attribute_value("secret").unwrap() else {
             panic!("hash")
         };
@@ -1370,7 +1380,7 @@ fn factory_create(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 .unwrap()
         );
         assert_eq!(
-            stored.grantTypes().unwrap().as_value(),
+            stored.grant_types().unwrap().as_value(),
             &json!(["client_credentials"])
         );
         Response::json(StatusCode::OK, json!({"passed":true}))

@@ -16,8 +16,8 @@ impl Facade for Options {
 }
 
 impl Pulse {
-    pub fn withCss(css: impl IntoIterator<Item = crate::Css>) -> crate::Result<()> {
-        Self::manager()?.withCss(css);
+    pub fn with_css(css: impl IntoIterator<Item = crate::Css>) -> crate::Result<()> {
+        Self::manager()?.with_css(css);
         Ok(())
     }
     pub fn css() -> crate::Result<String> {
@@ -62,46 +62,46 @@ impl Pulse {
         Self::manager()?.filter(callback);
         Ok(())
     }
-    pub fn handleExceptionsUsing(
+    pub fn handle_exceptions_using(
         callback: impl Fn(&crate::Error) + Send + Sync + 'static,
     ) -> crate::Result<()> {
-        Self::manager()?.handleExceptionsUsing(callback);
+        Self::manager()?.handle_exceptions_using(callback);
         Ok(())
     }
     pub async fn report(class: impl Into<String>, location: Option<String>) -> crate::Result<()> {
         Self::manager()?.report(class, location).await;
         Ok(())
     }
-    pub fn startRecording() -> crate::Result<()> {
-        Self::manager()?.startRecording();
+    pub fn start_recording() -> crate::Result<()> {
+        Self::manager()?.start_recording();
         Ok(())
     }
-    pub fn stopRecording() -> crate::Result<()> {
-        Self::manager()?.stopRecording();
+    pub fn stop_recording() -> crate::Result<()> {
+        Self::manager()?.stop_recording();
         Ok(())
     }
-    pub fn isRecording() -> crate::Result<bool> {
-        Ok(Self::manager()?.isRecording())
+    pub fn is_recording() -> crate::Result<bool> {
+        Ok(Self::manager()?.is_recording())
     }
-    pub fn ignoreRoutes() -> crate::Result<()> {
-        Self::manager()?.ignoreRoutes();
+    pub fn ignore_routes() -> crate::Result<()> {
+        Self::manager()?.ignore_routes();
         Ok(())
     }
-    pub fn registersRoutes() -> crate::Result<bool> {
-        Ok(Self::manager()?.registersRoutes())
+    pub fn registers_routes() -> crate::Result<bool> {
+        Ok(Self::manager()?.registers_routes())
     }
     pub fn flush() -> crate::Result<()> {
         Self::manager()?.flush();
         Ok(())
     }
-    pub fn rememberUser(
+    pub fn remember_user(
         user: &dyn openrust::contracts::auth::Authenticatable,
     ) -> crate::Result<()> {
-        Self::manager()?.rememberUser(user);
+        Self::manager()?.remember_user(user);
         Ok(())
     }
-    pub fn resolveAuthenticatedUserId() -> crate::Result<Option<String>> {
-        Ok(Self::manager()?.resolveAuthenticatedUserId())
+    pub fn resolve_authenticated_user_id() -> crate::Result<Option<String>> {
+        Ok(Self::manager()?.resolve_authenticated_user_id())
     }
     pub async fn ingest() -> crate::Result<usize> {
         Ok(Self::manager()?.ingest().await)
@@ -149,7 +149,7 @@ impl Pulse {
             .aggregate(r#type, aggregates, interval, order_by, direction, limit)
             .await
     }
-    pub async fn aggregateTypes(
+    pub async fn aggregate_types(
         types: &[String],
         aggregate: &str,
         interval: i64,
@@ -158,22 +158,22 @@ impl Pulse {
         limit: u64,
     ) -> crate::Result<Vec<openrust::database::Row>> {
         Self::manager()?
-            .aggregateTypes(types, aggregate, interval, order_by, direction, limit)
+            .aggregate_types(types, aggregate, interval, order_by, direction, limit)
             .await
     }
-    pub async fn aggregateTotal(
+    pub async fn aggregate_total(
         types: &[String],
         aggregate: &str,
         interval: i64,
     ) -> crate::Result<indexmap::IndexMap<String, Option<f64>>> {
         Self::manager()?
-            .aggregateTotal(types, aggregate, interval)
+            .aggregate_total(types, aggregate, interval)
             .await
     }
-    pub async fn resolveUsers(
+    pub async fn resolve_users(
         keys: &[String],
     ) -> crate::Result<std::sync::Arc<dyn crate::ResolvesUsers>> {
-        Self::manager()?.resolveUsers(keys).await
+        Self::manager()?.resolve_users(keys).await
     }
     pub fn users(
         callback: impl Fn(&[String]) -> crate::Result<std::collections::BTreeMap<String, crate::User>>
@@ -198,7 +198,7 @@ impl Pulse {
     ) -> crate::Result<Option<T>> {
         Ok(Self::manager()?.rescue(callback).await)
     }
-    pub fn defaultVendorCacheKeys() -> Vec<String> {
-        crate::Pulse::defaultVendorCacheKeys()
+    pub fn default_vendor_cache_keys() -> Vec<String> {
+        crate::Pulse::default_vendor_cache_keys()
     }
 }

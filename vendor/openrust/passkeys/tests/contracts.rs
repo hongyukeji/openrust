@@ -32,12 +32,12 @@ fn user_defaults_match_48_pinned_php_trait_vectors() {
             }
         }
         assert_eq!(
-            user.getPasskeyUserHandle(input["secret"].as_str().unwrap())
+            user.get_passkey_user_handle(input["secret"].as_str().unwrap())
                 .unwrap(),
             case["handle"]
         );
-        assert_eq!(user.getPasskeyDisplayName().unwrap(), case["display"]);
-        assert_eq!(user.getPasskeyUsername().unwrap(), case["username"]);
+        assert_eq!(user.get_passkey_display_name().unwrap(), case["display"]);
+        assert_eq!(user.get_passkey_username().unwrap(), case["username"]);
     }
 }
 
@@ -52,11 +52,11 @@ async fn login_authorization_and_route_configuration_are_application_local() {
     let passkey = openrust_passkeys::PasskeyRecord::new(Passkey::default());
     assert!(
         first
-            .allowsLogin(&mut request, &user, &passkey)
+            .allows_login(&mut request, &user, &passkey)
             .await
             .unwrap()
     );
-    first.authorizeLoginUsing(Some(Arc::new(|request, _, _| {
+    first.authorize_login_using(Some(Arc::new(|request, _, _| {
         Box::pin(async move {
             assert_eq!(request.method(), &openrust::http::Method::GET);
             Ok(false)
@@ -64,26 +64,26 @@ async fn login_authorization_and_route_configuration_are_application_local() {
     })));
     assert!(
         !first
-            .allowsLogin(&mut request, &user, &passkey)
+            .allows_login(&mut request, &user, &passkey)
             .await
             .unwrap()
     );
     assert!(
         second
-            .allowsLogin(&mut request, &user, &passkey)
+            .allows_login(&mut request, &user, &passkey)
             .await
             .unwrap()
     );
-    first.authorizeLoginUsing(None);
+    first.authorize_login_using(None);
     assert!(
         first
-            .allowsLogin(&mut request, &user, &passkey)
+            .allows_login(&mut request, &user, &passkey)
             .await
             .unwrap()
     );
-    first.ignoreRoutes();
-    assert!(!first.shouldRegisterRoutes());
-    assert!(second.shouldRegisterRoutes());
+    first.ignore_routes();
+    assert!(!first.should_register_routes());
+    assert!(second.should_register_routes());
 }
 
 #[test]
@@ -122,15 +122,15 @@ async fn selected_models_are_application_local_and_records_retain_the_actual_ins
     let config = Arc::new(openrust::config::Repository::new(Default::default()));
     let first = Passkeys::new(config.clone());
     let second = Passkeys::new(config);
-    first.usePasskeyModel::<SelectedPasskey>();
+    first.use_passkey_model::<SelectedPasskey>();
     assert_eq!(
-        first.passkeyModel(),
+        first.passkey_model(),
         std::any::type_name::<SelectedPasskey>()
     );
-    assert_eq!(second.passkeyModel(), std::any::type_name::<Passkey>());
+    assert_eq!(second.passkey_model(), std::any::type_name::<Passkey>());
     let record = openrust_passkeys::PasskeyRecord::new(SelectedPasskey::default());
     let shared = record.clone();
-    assert!(record.sameInstance(&shared));
+    assert!(record.same_instance(&shared));
     assert!(record.model::<Passkey>().is_none());
     let model = record.model::<SelectedPasskey>().unwrap();
     assert!(Arc::ptr_eq(
@@ -140,7 +140,7 @@ async fn selected_models_are_application_local_and_records_retain_the_actual_ins
     model.lock().await.set_attribute("pk", 42_i64);
     assert_eq!(shared.get_key().await, Some(42.into()));
     assert_eq!(shared.to_array().await.unwrap()["pk"], 42);
-    first.usePasskeyModel::<Passkey>();
-    assert_eq!(first.passkeyModel(), second.passkeyModel());
+    first.use_passkey_model::<Passkey>();
+    assert_eq!(first.passkey_model(), second.passkey_model());
     assert_eq!(record.get_key().await, Some(42.into()));
 }

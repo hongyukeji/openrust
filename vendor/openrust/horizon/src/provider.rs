@@ -90,7 +90,7 @@ impl ServiceProvider for HorizonServiceProvider {
                 "horizon-provider",
             )?;
             self.commands(app, crate::console::register);
-            self.load_routes_from(app, crate::dashboard::configuredRoutes)?;
+            self.load_routes_from(app, crate::dashboard::configured_routes)?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             let listener = Arc::new(JobListener);
             for name in [
@@ -116,7 +116,7 @@ impl Listener for JobListener {
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
             if event.downcast_ref::<Looping>().is_some() {
-                if !crate::console::isWorker() {
+                if !crate::console::is_worker() {
                     return Ok(None);
                 }
                 let repository = crate::dashboard::Store::get_facade_root()?;
@@ -124,8 +124,8 @@ impl Listener for JobListener {
                     if repository.paused().await? {
                         return Ok::<_, Error>(true);
                     }
-                    if let Some(name) = crate::console::supervisorName() {
-                        return repository.supervisorPaused(&name).await;
+                    if let Some(name) = crate::console::supervisor_name() {
+                        return repository.supervisor_paused(&name).await;
                     }
                     Ok(false)
                 }
@@ -150,10 +150,11 @@ impl Listener for JobListener {
                     return Ok(None);
                 }
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let tags =
-                    crate::Tags::forPayload(&event.job).map_err(|source| EventError::Listener {
+                let tags = crate::Tags::for_payload(&event.job).map_err(|source| {
+                    EventError::Listener {
                         source: Box::new(source),
-                    })?;
+                    }
+                })?;
                 repository
                     .jobs()
                     .pushed(
@@ -204,7 +205,7 @@ impl Listener for JobListener {
             }
             let repository = crate::dashboard::Store::get_facade_root()?;
             let tags =
-                crate::Tags::forPayload(&job.payload).map_err(|source| EventError::Listener {
+                crate::Tags::for_payload(&job.payload).map_err(|source| EventError::Listener {
                     source: Box::new(source),
                 })?;
             let silenced = config
@@ -229,7 +230,7 @@ impl Listener for JobListener {
                     })
                     .unwrap_or(false);
             repository
-                .recordPayload(
+                .record_payload(
                     JobRecord {
                         id: job.id.clone(),
                         name: job.payload.name().into(),

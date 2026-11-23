@@ -29,9 +29,8 @@ enum Source {
     Url(String),
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Attachment {
-    pub fn fromPath(path: impl Into<PathBuf>) -> AttachmentSource {
+    pub fn from_path(path: impl Into<PathBuf>) -> AttachmentSource {
         AttachmentSource {
             source: Source::Path(path.into()),
             name: None,
@@ -39,7 +38,7 @@ impl Attachment {
         }
     }
 
-    pub fn fromUrl(url: &str) -> MailResult<AttachmentSource> {
+    pub fn from_url(url: &str) -> MailResult<AttachmentSource> {
         Ok(AttachmentSource {
             source: Source::Url(parse_url(url)?.into()),
             name: None,
@@ -47,7 +46,7 @@ impl Attachment {
         })
     }
 
-    pub fn fromData(data: impl Into<Vec<u8>>, name: impl Into<String>) -> AttachmentSource {
+    pub fn from_data(data: impl Into<Vec<u8>>, name: impl Into<String>) -> AttachmentSource {
         AttachmentSource {
             source: Source::Data(data.into()),
             name: Some(name.into()),
@@ -55,25 +54,25 @@ impl Attachment {
         }
     }
 
-    pub fn fromStorage(path: impl Into<String>) -> AttachmentSource {
+    pub fn from_storage(path: impl Into<String>) -> AttachmentSource {
         AttachmentSource::disk(None, path.into())
     }
 
-    pub fn fromStorageDisk(disk: impl Into<String>, path: impl Into<String>) -> AttachmentSource {
+    pub fn from_storage_disk(disk: impl Into<String>, path: impl Into<String>) -> AttachmentSource {
         AttachmentSource::disk(Some(disk.into()), path.into())
     }
 
-    pub fn fromCloudStorage(path: impl Into<String>) -> MailResult<AttachmentSource> {
-        let disk = Storage::getDefaultCloudDriver().map_err(composition)?;
-        Ok(Self::fromStorageDisk(disk, path))
+    pub fn from_cloud_storage(path: impl Into<String>) -> MailResult<AttachmentSource> {
+        let disk = Storage::get_default_cloud_driver().map_err(composition)?;
+        Ok(Self::from_storage_disk(disk, path))
     }
 
-    pub fn fromUploadedFile(file: &UploadedFile) -> AttachmentSource {
+    pub fn from_uploaded_file(file: &UploadedFile) -> AttachmentSource {
         let mime = file
             .detected_type()
             .map(|(_, mime)| mime)
             .or_else(|| file.get_client_mime_type());
-        Self::fromData(file.get().to_vec(), file.get_client_original_name())
+        Self::from_data(file.get().to_vec(), file.get_client_original_name())
             .with_metadata(None, mime)
     }
 }
@@ -119,8 +118,7 @@ impl AttachmentSource {
         self
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withMime(mut self, mime: impl Into<String>) -> Self {
+    pub fn with_mime(mut self, mime: impl Into<String>) -> Self {
         self.mime = Some(mime.into());
         self
     }

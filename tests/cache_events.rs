@@ -157,7 +157,7 @@ async fn cache_event_payloads_follow_tags_opt_out_memo_and_failover() {
     let cache = manager.store(None).unwrap();
     let quiet = manager.store(Some("quiet")).unwrap();
     assert!(quiet.forever("private", &"secret".into()).await.unwrap());
-    events.assertNotDispatched(WritingKey::NAME);
+    events.assert_not_dispatched(WritingKey::NAME);
 
     let tags = cache.tags(&["reports", "reports", "daily"]).unwrap();
     assert!(
@@ -208,7 +208,7 @@ async fn cache_event_payloads_follow_tags_opt_out_memo_and_failover() {
     let mut other = TestApp::create(configure).unwrap();
     let other_events = other.fake_events(&[CacheMissed::NAME]).await.unwrap();
     assert_eq!(cache.get("private").await.unwrap(), None);
-    other_events.assertNothingDispatched();
+    other_events.assert_nothing_dispatched();
 }
 
 struct Reject;
@@ -257,7 +257,7 @@ async fn cache_listener_errors_preserve_mutation_order() {
     );
     let events = app.fake_events(&[CacheHit::NAME]).await.unwrap();
     let _ = cache.get("reports/latest").await.unwrap();
-    events.assertDispatched(CacheHit::NAME);
+    events.assert_dispatched(CacheHit::NAME);
 }
 
 #[tokio::test]
@@ -321,7 +321,7 @@ async fn repository_settings_survive_tagging_and_only_modify_owned_repositories(
     assert_eq!(write.store_name.as_deref(), Some("quiet"));
     assert_eq!(write.tags, ["reports", "daily"]);
     assert_eq!(write.seconds, Some(1));
-    app_events.assertNotDispatched(WritingKey::NAME);
+    app_events.assert_not_dispatched(WritingKey::NAME);
     tokio::time::sleep(Duration::from_millis(1100)).await;
     assert!(tagged.missing("latest").await.unwrap());
     assert_eq!(tagged.get("permanent").await.unwrap(), Some(3.into()));

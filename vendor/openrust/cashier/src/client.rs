@@ -111,7 +111,7 @@ impl Client {
     pub(crate) fn live(&self) -> bool {
         self.0.live
     }
-    pub fn verifyWebhook(&self, headers: &HeaderMap, body: &[u8]) -> Result<VerifiedEvent> {
+    pub fn verify_webhook(&self, headers: &HeaderMap, body: &[u8]) -> Result<VerifiedEvent> {
         crate::webhook::verify(self, headers, body)
     }
     /// Advanced server-side API access. Stripe mutation keys must be stable across retries.

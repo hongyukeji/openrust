@@ -99,10 +99,10 @@ async fn retry(
         ));
         for job_id in batch.failed_job_ids {
             let mut retried = false;
-            if let Some(mut jobs) = failures.findForRetry(&job_id).await.map_err(error)? {
+            if let Some(mut jobs) = failures.find_for_retry(&job_id).await.map_err(error)? {
                 while let Some(entry) = jobs.next().await {
                     let (key, job) = entry.map_err(error)?;
-                    if job.payload.batchId() == Some(id)
+                    if job.payload.batch_id() == Some(id)
                         && queue
                             .retry_failed(failures.as_ref(), &key, &job)
                             .await

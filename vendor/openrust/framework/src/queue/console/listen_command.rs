@@ -129,7 +129,7 @@ async fn listen(
 ) -> Result<i32, ConsoleError> {
     while !shutdown.is_cancelled() {
         let mut worker = if output.streams_to_terminal() {
-            process().startWithOutput(forward)
+            process().start_with_output(forward)
         } else {
             process().start()
         }
@@ -145,7 +145,7 @@ async fn listen(
                 .push_str(&String::from_utf8_lossy(result.output()));
             output
                 .stderr
-                .push_str(&String::from_utf8_lossy(result.errorOutput()));
+                .push_str(&String::from_utf8_lossy(result.error_output()));
         }
         if memory > 0 && current_memory().is_some_and(|resident| resident >= memory) {
             return Ok(0);

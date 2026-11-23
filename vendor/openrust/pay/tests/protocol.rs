@@ -6,7 +6,7 @@ use support::*;
 #[test]
 fn exact_amounts_identifiers_and_debug_do_not_expose_payloads() {
     for (yuan, fen) in [("12.34", 1234), ("12", 1200), ("0.01", 1), ("1.2", 120)] {
-        assert_eq!(Amount::fromYuan(yuan).unwrap().fen(), fen);
+        assert_eq!(Amount::from_yuan(yuan).unwrap().fen(), fen);
     }
     for invalid in [
         "0",
@@ -20,10 +20,10 @@ fn exact_amounts_identifiers_and_debug_do_not_expose_payloads() {
         "10000000000000000000",
         "+1",
     ] {
-        assert!(Amount::fromYuan(invalid).is_err(), "{invalid}");
+        assert!(Amount::from_yuan(invalid).is_err(), "{invalid}");
     }
     for invalid in [-1, 0, i64::MAX] {
-        assert!(Amount::fromFen(invalid).is_err());
+        assert!(Amount::from_fen(invalid).is_err());
     }
     assert_eq!(
         format!("{:?}", Payment::App("secret".into())),
@@ -86,11 +86,11 @@ async fn wechat_real_http_all_scenes_query_close_refund_and_client_signatures() 
         out_trade_no: "order_001".into(),
         out_refund_no: "refund_001".into(),
         total: o.amount,
-        amount: Amount::fromFen(100).unwrap(),
+        amount: Amount::from_fen(100).unwrap(),
         reason: Some("退款".into()),
     };
     driver.refund(&refund).await.unwrap();
-    driver.findRefund("order_001", "refund_001").await.unwrap();
+    driver.find_refund("order_001", "refund_001").await.unwrap();
     assert_eq!(server.calls(), 8);
     let requests = server.state.requests.lock().unwrap();
     assert_eq!(requests[0].1["amount"]["total"], 1234);
@@ -129,12 +129,12 @@ async fn alipay_real_http_all_scenes_raw_signed_json_and_refunds() {
             out_trade_no: "order_001".into(),
             out_refund_no: "refund_001".into(),
             total: o.amount,
-            amount: Amount::fromFen(100).unwrap(),
+            amount: Amount::from_fen(100).unwrap(),
             reason: None,
         })
         .await
         .unwrap();
-    driver.findRefund("order_001", "refund_001").await.unwrap();
+    driver.find_refund("order_001", "refund_001").await.unwrap();
     assert_eq!(server.calls(), 5);
 }
 #[tokio::test]
@@ -182,7 +182,7 @@ fn callbacks_verify_identity_signature_amount_currency_and_strict_form_decoding(
         );
         assert!(!format!("{n:?}").contains("order_001"));
         let mut wrong = expected();
-        wrong.amount = Amount::fromFen(1).unwrap();
+        wrong.amount = Amount::from_fen(1).unwrap();
         assert!(matches!(n.validate(&wrong), Err(Error::OrderMismatch)));
         let mut tampered = b.clone();
         tampered[0] ^= 1;
@@ -294,7 +294,7 @@ fn independent_php_openssl_signatures_and_gcm_ciphertext_match_the_rust_clients(
         )
         .unwrap();
     n.validate(&expected()).unwrap();
-    assert_eq!(n.transactionId(), "ali_reference");
+    assert_eq!(n.transaction_id(), "ali_reference");
     let (_, m) = manager("wechat", "https://example.test/");
     let gateway = m.driver("main").unwrap();
     let envelope=serde_json::to_vec(&json!({"id":"php-event","event_type":"TRANSACTION.SUCCESS","resource_type":"encrypt-resource","resource":fixture["wechat_resource"]})).unwrap();
@@ -302,7 +302,7 @@ fn independent_php_openssl_signatures_and_gcm_ciphertext_match_the_rust_clients(
         .callback(&signed_headers(&envelope, 0), &envelope)
         .unwrap();
     n.validate(&expected()).unwrap();
-    assert_eq!(n.transactionId(), "wx_reference");
+    assert_eq!(n.transaction_id(), "wx_reference");
 }
 
 fn payment_routes() -> Result<(), openrust::routing::RoutingError> {
@@ -314,7 +314,7 @@ fn verify_handler(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async move {
         let body = request.body_bytes().await?;
-        let notice = openrust_pay::facades::Pay::defaultDriver()
+        let notice = openrust_pay::facades::Pay::default_driver()
             .and_then(|g| g.callback(request.headers(), &body))
             .map_err(|_| openrust::http::HttpError::InvalidRequest)?;
         notice

@@ -141,7 +141,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
         router
             .post(
                 "/custom-token",
-                openrust_passport::http::controllers::AccessTokenController::issueToken,
+                openrust_passport::http::controllers::AccessTokenController::issue_token,
             )?
             .without_middleware("web")
             .middleware_name("throttle");
@@ -274,11 +274,11 @@ impl Fixture {
             .unwrap();
         app.boot().await.unwrap();
         let passport = app.make::<Passport>().await.unwrap();
-        passport.authorizationView(view);
-        passport.deviceAuthorizationView(view);
-        passport.deviceUserCodeView(device_authorization::code_view);
+        passport.authorization_view(view);
+        passport.device_authorization_view(view);
+        passport.device_user_code_view(device_authorization::code_view);
         passport
-            .deviceCodeGrantEnabled
+            .device_code_grant_enabled
             .store(enabled, Ordering::Relaxed);
         if let Some(prefix) = prefix {
             app.container()
@@ -287,7 +287,7 @@ impl Fixture {
                 .set("passport.path", json!(prefix))
                 .unwrap();
         }
-        passport.tokensCan(BTreeMap::from([
+        passport.tokens_can(BTreeMap::from([
             ("read".into(), "Read data".into()),
             ("write".into(), "Write data".into()),
         ]));
@@ -343,7 +343,7 @@ impl Fixture {
                         .make::<ClientRepository>()
                         .unwrap();
                     let public = repo
-                        .createAuthorizationCodeGrantClient(
+                        .create_authorization_code_grant_client(
                             "Public",
                             &[CALLBACK.into()],
                             false,
@@ -353,7 +353,7 @@ impl Fixture {
                         .await
                         .unwrap();
                     let private = repo
-                        .createAuthorizationCodeGrantClient(
+                        .create_authorization_code_grant_client(
                             "Confidential",
                             &[CALLBACK.into()],
                             true,
@@ -371,7 +371,7 @@ impl Fixture {
                         .unwrap()
                         .lock()
                         .await
-                        .plainSecret
+                        .plain_secret
                         .as_ref()
                         .unwrap()
                         .to_string();
@@ -720,7 +720,7 @@ async fn mysql_rejects_bad_redirect_pkce_consent_csrf_and_cross_session() {
             .contains("error=login_required")
     );
     let b = f.login("alice@test").await;
-    f.passport.setDefaultScope(vec!["read".into()]);
+    f.passport.set_default_scope(vec!["read".into()]);
     let bad=f.wire(reqwest::Method::GET,&format!("/oauth/authorize?response_type=code&client_id={}&redirect_uri=https%3A%2F%2Fevil.test&code_challenge={CHALLENGE}",f.public),&b.cookie,None).await;
     assert_eq!(bad.status(), 401);
     assert!(bad.headers().get("location").is_none());
@@ -1125,7 +1125,7 @@ async fn mysql_selected_token_model_event_veto_rolls_back_and_retry_uses_same_co
         return;
     }
     let f = Fixture::new().await;
-    f.passport.useTokenModel::<SelectedToken>();
+    f.passport.use_token_model::<SelectedToken>();
     f.veto.store(true, Ordering::Relaxed);
     let b = f.login("alice@test").await;
     let view = f.authorize(&b, &f.public, true).await;
@@ -1297,9 +1297,9 @@ async fn mysql_refresh_rotates_credentials_and_guard_uses_real_user_and_scopes()
     }
     let f = Fixture::new().await;
     f.passport
-        .tokensExpireIn(Some(openrust_passport::GrantLifetime::Seconds(60)));
+        .tokens_expire_in(Some(openrust_passport::GrantLifetime::Seconds(60)));
     f.passport
-        .refreshTokensExpireIn(Some(openrust_passport::GrantLifetime::Seconds(180)));
+        .refresh_tokens_expire_in(Some(openrust_passport::GrantLifetime::Seconds(180)));
     let data = f.issued().await;
     assert_eq!(data["expires_in"], 60);
     let old = data["access_token"].as_str().unwrap();
@@ -1375,7 +1375,7 @@ async fn mysql_refresh_competition_and_event_failure_leave_atomic_database_state
     let f = Fixture::new().await;
     let data = f.issued().await;
     let refresh = data["refresh_token"].as_str().unwrap();
-    f.passport.useTokenModel::<SelectedToken>();
+    f.passport.use_token_model::<SelectedToken>();
     f.veto.store(true, Ordering::Relaxed);
     assert_eq!(f.refresh(refresh, None).await.status(), 500);
     assert_eq!(
@@ -1771,7 +1771,7 @@ async fn mysql_purge_preserves_active_and_unbounded_refreshes_and_honors_flags()
         .await
         .unwrap();
     f.passport
-        .deviceCodeGrantEnabled
+        .device_code_grant_enabled
         .store(false, Ordering::Relaxed);
     let (status, output) = f.purge(&["--revoked"]).await;
     assert_eq!(status, 0, "{}", output.stderr);
@@ -1782,7 +1782,7 @@ async fn mysql_purge_preserves_active_and_unbounded_refreshes_and_honors_flags()
         1
     );
     f.passport
-        .deviceCodeGrantEnabled
+        .device_code_grant_enabled
         .store(true, Ordering::Relaxed);
     assert_eq!(
         f.db.table("oauth_access_tokens")
@@ -1874,14 +1874,14 @@ async fn mysql_expired_access_interval_does_not_expire_its_independent_refresh()
     let f = Fixture::new().await;
     let other = Fixture::new().await;
     f.passport
-        .tokensExpireIn(Some(openrust_passport::GrantLifetime::Interval(
+        .tokens_expire_in(Some(openrust_passport::GrantLifetime::Interval(
             openrust::support::DateInterval {
                 microseconds: -1_000_000,
                 ..Default::default()
             },
         )));
     assert_eq!(
-        other.passport.tokensExpireIn(None),
+        other.passport.tokens_expire_in(None),
         openrust_passport::GrantLifetime::CalendarYears(1)
     );
     let data = f.issued().await;
@@ -1893,7 +1893,7 @@ async fn mysql_expired_access_interval_does_not_expire_its_independent_refresh()
         401
     );
     f.passport
-        .tokensExpireIn(Some(openrust_passport::GrantLifetime::Seconds(60)));
+        .tokens_expire_in(Some(openrust_passport::GrantLifetime::Seconds(60)));
     let response = f
         .refresh(data["refresh_token"].as_str().unwrap(), None)
         .await;
@@ -1990,8 +1990,8 @@ async fn mysql_selected_tables_support_refresh_resource_and_purge_in_application
         .rename("oauth_refresh_tokens", "custom_refresh")
         .await
         .unwrap();
-    f.passport.useTokenModel::<AlternateAccess>();
-    f.passport.useRefreshTokenModel::<AlternateRefresh>();
+    f.passport.use_token_model::<AlternateAccess>();
+    f.passport.use_refresh_token_model::<AlternateRefresh>();
     let data = f.issued().await;
     let token = data["access_token"].as_str().unwrap();
     assert_eq!(f.resource_token("/resource", token).await.status(), 200);

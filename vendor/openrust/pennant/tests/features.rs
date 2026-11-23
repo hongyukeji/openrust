@@ -138,7 +138,7 @@ async fn behavior(store: Arc<Decorator>) {
         json!({}),
         json!(true),
     ] {
-        user.activateWithValue(&["rich"], value.clone())
+        user.activate_with_value(&["rich"], value.clone())
             .await
             .unwrap();
         assert!(user.active("rich").await.unwrap(), "{value}");
@@ -148,25 +148,25 @@ async fn behavior(store: Arc<Decorator>) {
     assert!(user.inactive("rich").await.unwrap());
     assert!(user.inactive("unknown").await.unwrap());
     assert!(!store.stored().await.unwrap().contains(&"unknown".into()));
-    store.defineValue("unknown", json!(true)).unwrap();
+    store.define_value("unknown", json!(true)).unwrap();
     // Unknown false is request cached; registering a resolver does not invalidate it.
     assert!(user.inactive("unknown").await.unwrap());
-    store.flushCache().unwrap();
+    store.flush_cache().unwrap();
     assert!(user.active("unknown").await.unwrap());
     let both = store.r#for("user-1").r#for("user-2");
     assert!(both.value("counter").await.is_err());
     both.activate("multi").await.unwrap();
-    assert!(both.allAreActive(&["multi"]).await.unwrap());
+    assert!(both.all_are_active(&["multi"]).await.unwrap());
     store.r#for("user-2").deactivate("multi").await.unwrap();
     assert!(!both.active("multi").await.unwrap());
     assert!(!both.inactive("multi").await.unwrap());
     both.activate("other").await.unwrap();
-    assert!(both.someAreActive(&["multi", "other"]).await.unwrap());
-    assert!(!both.someAreInactive(&["multi", "other"]).await.unwrap());
-    assert!(both.allAreActive(&[]).await.unwrap());
-    assert!(!both.someAreActive(&[]).await.unwrap());
+    assert!(both.some_are_active(&["multi", "other"]).await.unwrap());
+    assert!(!both.some_are_inactive(&["multi", "other"]).await.unwrap());
+    assert!(both.all_are_active(&[]).await.unwrap());
+    assert!(!both.some_are_active(&[]).await.unwrap());
     store
-        .activateForEveryone("multi", json!("enabled"))
+        .activate_for_everyone("multi", json!("enabled"))
         .await
         .unwrap();
     assert_eq!(
@@ -227,10 +227,10 @@ async fn database_driver_bulk_races_persistence_and_native_migration() {
         1
     );
     behavior(store.clone()).await;
-    store.defineValue("race", json!("winner")).unwrap();
+    store.define_value("race", json!("winner")).unwrap();
     let mut tasks = Vec::new();
     for _ in 0..12 {
-        let driver = store.getDriver();
+        let driver = store.get_driver();
         tasks.push(tokio::spawn(async move {
             driver.get("race", &Scope::from("same")).await.unwrap()
         }));
@@ -252,7 +252,7 @@ async fn database_driver_bulk_races_persistence_and_native_migration() {
         ("race".into(), vec![Scope::from("same"), Scope::from("new")]),
         ("missing".into(), vec![Scope::Null]),
     ]);
-    let values = store.getAll(&features).await.unwrap();
+    let values = store.get_all(&features).await.unwrap();
     assert_eq!(values["race"], vec![json!("winner"), json!("winner")]);
     assert_eq!(values["missing"], vec![json!(false)]);
     manager.forget_driver(None).unwrap();
@@ -295,10 +295,10 @@ async fn database_class_hooks_override_rows_without_persisting_bulk_results() {
         .store(None)
         .unwrap();
     store
-        .defineClass(|| Box::pin(async { Ok(Arc::new(Preview)) }))
+        .define_class(|| Box::pin(async { Ok(Arc::new(Preview)) }))
         .unwrap();
     store
-        .getDriver()
+        .get_driver()
         .set("preview", &Scope::from("alice"), json!("stored"))
         .await
         .unwrap();
@@ -314,7 +314,7 @@ async fn database_class_hooks_override_rows_without_persisting_bulk_results() {
     );
     assert_eq!(
         store
-            .getDriver()
+            .get_driver()
             .get("preview", &Scope::from("alice"))
             .await
             .unwrap(),
@@ -322,13 +322,13 @@ async fn database_class_hooks_override_rows_without_persisting_bulk_results() {
     );
     assert_eq!(
         store
-            .getDriver()
+            .get_driver()
             .get("preview", &Scope::from("bob"))
             .await
             .unwrap(),
         json!("resolved")
     );
-    store.flushCache().unwrap();
+    store.flush_cache().unwrap();
     assert_eq!(
         store.r#for("alice").value("preview").await.unwrap(),
         json!("temporary")
@@ -378,10 +378,10 @@ async fn multi_scope_aggregation_matches_unmodified_pennant_php() {
         let store = Arc::new(Decorator::new("array", driver));
         let pending = store.r#for("left").r#for("right");
         let actual = json!([
-            pending.allAreActive(&["one", "two"]).await.unwrap(),
-            pending.someAreActive(&["one", "two"]).await.unwrap(),
-            pending.allAreInactive(&["one", "two"]).await.unwrap(),
-            pending.someAreInactive(&["one", "two"]).await.unwrap(),
+            pending.all_are_active(&["one", "two"]).await.unwrap(),
+            pending.some_are_active(&["one", "two"]).await.unwrap(),
+            pending.all_are_inactive(&["one", "two"]).await.unwrap(),
+            pending.some_are_inactive(&["one", "two"]).await.unwrap(),
         ]);
         assert_eq!(actual, case["expected"], "{case}");
     }

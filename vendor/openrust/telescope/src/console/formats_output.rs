@@ -153,7 +153,7 @@ pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<En
                 .map(|value| single_line(value))
                 .collect::<Vec<_>>()
                 .join("\t"),
-            entry.createdAt
+            entry.created_at
         ));
     }
 }
@@ -165,7 +165,7 @@ pub(super) fn show(output: &mut Output, entry: &EntryResult, batch: &[EntryResul
     ));
     output.stdout.push_str(&format!(
         "UUID\t{}\nTime\t{}\nBatch\t{}\n",
-        entry.id, entry.createdAt, entry.batchId
+        entry.id, entry.created_at, entry.batch_id
     ));
     if !entry.tags.is_empty() {
         output

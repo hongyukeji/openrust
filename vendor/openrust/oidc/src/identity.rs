@@ -28,7 +28,7 @@ impl VerifiedIdentity {
     pub fn email(&self) -> Option<&str> {
         self.email.as_deref()
     }
-    pub fn emailVerified(&self) -> bool {
+    pub fn email_verified(&self) -> bool {
         self.email_verified
     }
     pub fn claims(&self) -> &Value {

@@ -51,7 +51,6 @@ pub struct Type {
     pub(super) nullable: bool,
 }
 
-#[allow(non_snake_case)]
 impl Type {
     pub(super) fn new(kind: Kind) -> Self {
         Self {
@@ -176,7 +175,6 @@ macro_rules! schema_type {
                 &self.0
             }
         }
-        #[allow(non_snake_case)]
         impl $name {
             pub fn required(mut self, required: bool) -> Self {
                 self.0.required = required;
@@ -254,7 +252,6 @@ impl StringType {
 }
 macro_rules! numeric_type {
     ($name:ident, $kind:ident, $value:ty) => {
-        #[allow(non_snake_case)]
         impl $name {
             pub fn new() -> Self {
                 Self(Type::new(Kind::$kind))
@@ -298,8 +295,7 @@ impl ObjectType {
                 .collect(),
         )))
     }
-    #[allow(non_snake_case)]
-    pub fn withoutAdditionalProperties(mut self) -> Self {
+    pub fn without_additional_properties(mut self) -> Self {
         self.0
             .attributes
             .insert("additionalProperties".into(), false.into());

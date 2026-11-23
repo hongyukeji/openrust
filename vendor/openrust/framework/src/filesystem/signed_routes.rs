@@ -139,7 +139,7 @@ impl Handler for SignedFile {
                         .into_data_stream()
                         .map_err(std::io::Error::other),
                 );
-                if !disk.writeStream(&path, &mut body).await? {
+                if !disk.write_stream(&path, &mut body).await? {
                     return Err(FilesystemError::from(std::io::Error::other(
                         "could not store uploaded file",
                     ))

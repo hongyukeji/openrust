@@ -12,7 +12,7 @@ cargo run --features settings -- artisan migrate
 
 套件本身提供預設設定，預設應用不包含 `config/settings.rs`。需要自訂時執行 `./artisan vendor:publish --tag=settings-config`，在 `config/mod.rs` 的模組宣告與設定映射中分別加入 `mod settings;` 與 `("settings".to_owned(), settings::load(env)?),`，然後重新建置。修改資料表或連線時保留自己的對應遷移。
 
-其他應用加入 `openrust-settings` 相依套件並使用 OpenRust 套件探索。宣告自己的設定型別，在套件註冊完成後，由該應用的 Provider 呼叫 `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?`。預設應用沒有預先註冊的 `SiteSettings` 業務群組。首次讀取前執行遷移；Provider 註冊與啟動不查詢設定表。
+其他應用加入 `openrust-settings` 相依套件並使用 OpenRust 套件探索。宣告自己的設定型別，在套件註冊完成後，由該應用的 Provider 呼叫 `SettingsServiceProvider::register_settings::<YourSettings>(app).await?`。預設應用沒有預先註冊的 `SiteSettings` 業務群組。首次讀取前執行遷移；Provider 註冊與啟動不查詢設定表。
 
 `settings.repository` 預設為 `database`；`settings.repositories.database.connection` 預設使用應用資料庫連線，`table` 預設為 `settings`。自訂連線或資料表時，登記對應的 `CreateSettingsTable` 遷移並在該連線執行，取代預設遷移。遷移仍使用既有紀錄及執行器。
 
@@ -35,7 +35,7 @@ settings.save().await?;
 
 `lock`／`unlock` 操作已持久化的屬性，呼叫前須儲存待提交編輯。修改鎖定屬性明確報錯，不會無聲成功。每組保留一筆內部 `__settings_version` 記錄，序列化寫入並偵測過期編輯，涵蓋首次建立與還原預設值；這是對 Spatie 資料表結構的明確擴充。發生 `Conflict` 後須重新讀取並處理衝突，不可盲目重試舊快照。舊版設定型別更新時保留新版新增的資料庫屬性。
 
-模組設定使用相同介面。將型別放在模組內，在設定 Provider 註冊之後，由模組 Provider 呼叫 `SettingsServiceProvider::registerSettings::<DeliverySettings>(app).await?`。該群組共用設定表，與 `site` 相互獨立，無需修改儲存庫。
+模組設定使用相同介面。將型別放在模組內，在設定 Provider 註冊之後，由模組 Provider 呼叫 `SettingsServiceProvider::register_settings::<DeliverySettings>(app).await?`。該群組共用設定表，與 `site` 相互獨立，無需修改儲存庫。
 
 ```rust
 use openrust::contracts::config::Repository;
@@ -54,7 +54,7 @@ impl SettingsGroup for DeliverySettings {
 
 ## 交易與生命週期
 
-`save()` 成功提交後才更新實例的持久快照。`saveIn(&mut transaction)` 在呼叫端交易內使用儲存點，不發布新的持久快照；傳入目標資料庫的交易，外層提交後呼叫 `refresh`。外層回滾後仍可重試待提交編輯。取消操作時，交易擁有者須回滾或釋放交易。
+`save()` 成功提交後才更新實例的持久快照。`save_in(&mut transaction)` 在呼叫端交易內使用儲存點，不發布新的持久快照；傳入目標資料庫的交易，外層提交後呼叫 `refresh`。外層回滾後仍可重試待提交編輯。取消操作時，交易擁有者須回滾或釋放交易。
 
 每組從寫入連線一次查詢，目前請求／工作內重用，下個作用域讀取資料庫新值。不要將設定實例保存在永久單例。長時間命令、排程輪次與串流連線須明確定義重新整理邊界；多個群組不保證全域相同快照。資料庫故障及損壞資料明確失敗，只有缺少的覆寫值回退至預設值。
 
@@ -62,7 +62,7 @@ impl SettingsGroup for DeliverySettings {
 
 ## 憑證與後台整合
 
-敏感屬性使用應用加密器及舊金鑰環；巢狀憑證可作為單一物件整體加密。`reEncrypt()` 用目前金鑰重寫已存在且未鎖定的加密屬性，完成重寫與復原驗證後再移除舊金鑰。備份復原同時需要資料庫資料及適用的部署金鑰；密文損壞不無聲回退預設值。
+敏感屬性使用應用加密器及舊金鑰環；巢狀憑證可作為單一物件整體加密。`re_encrypt()` 用目前金鑰重寫已存在且未鎖定的加密屬性，完成重寫與復原驗證後再移除舊金鑰。備份復原同時需要資料庫資料及適用的部署金鑰；密文損壞不無聲回退預設值。
 
 設定包裝物件不可序列化，偵錯輸出不包含屬性值。`get()` 回傳的型別化資料供受信任內部使用，HTTP、日誌與佇列載荷須使用明確的公開或遮罩投影。後台授權、驗證、保留未修改憑證的表單更新及持久稽核由應用提供。
 

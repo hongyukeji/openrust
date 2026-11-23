@@ -92,7 +92,6 @@ pub struct InvokedProcess {
     stderr_offset: usize,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl InvokedProcess {
     pub(super) fn spawn(command: Command, child: ChildGroup, options: Options) -> Self {
         let id = child.child.id();
@@ -183,17 +182,17 @@ impl InvokedProcess {
         self.read_output().stdout.clone()
     }
 
-    pub fn errorOutput(&self) -> Vec<u8> {
+    pub fn error_output(&self) -> Vec<u8> {
         self.read_output().stderr.clone()
     }
 
-    pub fn latestOutput(&mut self) -> Vec<u8> {
+    pub fn latest_output(&mut self) -> Vec<u8> {
         let latest = self.read_output().stdout[self.stdout_offset..].to_vec();
         self.stdout_offset += latest.len();
         latest
     }
 
-    pub fn latestErrorOutput(&mut self) -> Vec<u8> {
+    pub fn latest_error_output(&mut self) -> Vec<u8> {
         let latest = self.read_output().stderr[self.stderr_offset..].to_vec();
         self.stderr_offset += latest.len();
         latest
@@ -235,7 +234,7 @@ impl InvokedProcess {
         Ok(())
     }
 
-    pub fn hasReceivedSignal(&self, signal: Signal) -> bool {
+    pub fn has_received_signal(&self, signal: Signal) -> bool {
         self.playback()
             .is_some_and(|fake| fake.signals.contains(&signal))
     }
@@ -253,7 +252,7 @@ impl InvokedProcess {
         self.wait_ref().await
     }
 
-    pub async fn waitUntil(
+    pub async fn wait_until(
         &mut self,
         mut ready: impl FnMut(OutputStream, &[u8]) -> bool,
     ) -> Result<bool> {
@@ -289,7 +288,7 @@ impl InvokedProcess {
         }
     }
 
-    pub async fn ensureNotTimedOut(&mut self) -> Result<()> {
+    pub async fn ensure_not_timed_out(&mut self) -> Result<()> {
         if self.task.as_ref().is_some_and(JoinHandle::is_finished) || self.completion.is_some() {
             let status = match self.completion {
                 Some(status) => status,
@@ -302,11 +301,11 @@ impl InvokedProcess {
         Ok(())
     }
 
-    pub async fn waitWithOutput(
+    pub async fn wait_with_output(
         mut self,
         mut callback: impl FnMut(OutputStream, &[u8]),
     ) -> Result<ProcessResult> {
-        self.waitUntil(|stream, bytes| {
+        self.wait_until(|stream, bytes| {
             callback(stream, bytes);
             false
         })

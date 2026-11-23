@@ -14,7 +14,7 @@ impl GenerateRegistrationOptions {
         let account = self.0.account(user)?;
         let records = self
             .0
-            .passkeyStore()
+            .passkey_store()
             .records("user_id", account.key)
             .await
             .map_err(internal)?;
@@ -41,7 +41,7 @@ impl GenerateVerificationOptions {
     ) -> Result<AuthenticationOptions, HttpError> {
         let records = if let Some(user) = user {
             self.0
-                .passkeyStore()
+                .passkey_store()
                 .records("user_id", self.0.account(user)?.key)
                 .await
                 .map_err(internal)?
@@ -78,7 +78,7 @@ impl StorePasskey {
             return Err(invalid("Unable to register passkey. Please try again."));
         }
         let id = credential.credential_id();
-        let store = self.0.passkeyStore();
+        let store = self.0.passkey_store();
         if store
             .exists("credential_id", id.clone().into())
             .await
@@ -127,7 +127,7 @@ impl VerifyPasskey {
             .ok_or_else(|| invalid("Invalid credential format."))?;
         let passkey = self
             .0
-            .passkeyStore()
+            .passkey_store()
             .records("credential_id", id.into())
             .await
             .map_err(internal)?

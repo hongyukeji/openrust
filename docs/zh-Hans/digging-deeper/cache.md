@@ -391,7 +391,7 @@ use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
 
 let events = app.fake_events(&[CacheHit::NAME]).await?;
 let _ = cache.get("reports/latest").await?;
-events.assertDispatched(CacheHit::NAME);
+events.assert_dispatched(CacheHit::NAME);
 ```
 
 

@@ -5,7 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{OAuthError, ValidatedRedirectUri};
+use crate::{OauthError, ValidatedRedirectUri};
 
 /// 完成或拒绝授权后的回调；仅由服务器从已验证请求建立。
 pub struct AuthorizationRedirect {
@@ -36,14 +36,14 @@ impl AuthorizationRedirect {
         Self::protocol_error(
             target,
             state,
-            &OAuthError::access_denied(Some("The user denied the request")),
+            &OauthError::access_denied(Some("The user denied the request")),
             true,
         )
     }
     pub(crate) fn protocol_error(
         target: &ValidatedRedirectUri,
         state: Option<&str>,
-        error: &OAuthError,
+        error: &OauthError,
         fragment: bool,
     ) -> Self {
         if !fragment {
@@ -82,7 +82,7 @@ impl AuthorizationRedirect {
     pub(crate) fn invalid_scope(
         target: &ValidatedRedirectUri,
         state: Option<&str>,
-        error: &OAuthError,
+        error: &OauthError,
     ) -> Self {
         let parameters: Vec<_> = error.payload_pairs().collect();
         Self::error(target, state, &parameters)
@@ -117,7 +117,7 @@ impl std::fmt::Debug for AuthorizationRedirect {
 impl IntoResponse for AuthorizationRedirect {
     fn into_response(self) -> Response {
         let Ok(location) = HeaderValue::from_str(&self.target) else {
-            return OAuthError::server_error("Invalid registered redirect response")
+            return OauthError::server_error("Invalid registered redirect response")
                 .into_response();
         };
         let mut response = StatusCode::FOUND.into_response();
@@ -129,13 +129,13 @@ impl IntoResponse for AuthorizationRedirect {
 /// 授权请求的本地协议错误，或只指向已校验目标的协议重定向。
 pub enum AuthorizationFailure {
     /// 未建立可信回调目标，或该错误按固定上游只能返回本地JSON。
-    Local(OAuthError),
+    Local(OauthError),
     /// 已验证目标上的拒绝或scope错误。
     Redirect(AuthorizationRedirect),
 }
 
-impl From<OAuthError> for AuthorizationFailure {
-    fn from(error: OAuthError) -> Self {
+impl From<OauthError> for AuthorizationFailure {
+    fn from(error: OauthError) -> Self {
         Self::Local(error)
     }
 }

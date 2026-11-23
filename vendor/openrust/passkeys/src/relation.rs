@@ -25,13 +25,13 @@ impl<P: PasskeyUser> PasskeyRelation<P> {
     }
     pub async fn get_results(&self, parent: &P) -> DatabaseResult<Vec<PasskeyRecord>> {
         Self::service()?
-            .passkeyStore()
+            .passkey_store()
             .records("user_id", Self::key(parent)?)
             .await
     }
     pub async fn exists(&self, parent: &P) -> DatabaseResult<bool> {
         Self::service()?
-            .passkeyStore()
+            .passkey_store()
             .exists("user_id", Self::key(parent)?)
             .await
     }
@@ -41,7 +41,7 @@ impl<P: PasskeyUser> PasskeyRelation<P> {
         attributes: Attributes,
     ) -> DatabaseResult<PasskeyRecord> {
         Self::service()?
-            .passkeyStore()
+            .passkey_store()
             .create(attributes, Self::key(parent)?)
             .await
     }

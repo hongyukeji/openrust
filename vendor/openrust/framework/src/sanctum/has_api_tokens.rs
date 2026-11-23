@@ -20,7 +20,6 @@ use crate::{
 use super::{AccessToken, NewAccessToken, PersonalAccessToken, PersonalAccessTokens, Sanctum};
 
 /// The token relationship of a compiled Eloquent owner.
-#[allow(non_snake_case, reason = "Matches Sanctum's owner API")]
 pub trait HasApiTokens: Model + Authenticatable {
     fn tokens(&self, sanctum: &Sanctum, database: &DatabaseManager) -> AuthResult<TokenRelation> {
         let owner_id = match self.get_key() {
@@ -31,12 +30,12 @@ pub trait HasApiTokens: Model + Authenticatable {
         Ok(TokenRelation {
             owner_type: self.get_morph_class()?,
             owner_id,
-            store: sanctum.personalAccessTokens(database, "")?,
+            store: sanctum.personal_access_tokens(database, "")?,
         })
     }
 
     /// Typed relation for Eloquent eager loading and relationship existence queries.
-    fn tokensRelation<T: super::PersonalAccessTokenModel>(
+    fn tokens_relation<T: super::PersonalAccessTokenModel>(
         &self,
         sanctum: &Sanctum,
     ) -> AuthResult<MorphMany<Self, T>> {
@@ -49,7 +48,7 @@ pub trait HasApiTokens: Model + Authenticatable {
     }
 
     /// Starts a typed Eloquent query constrained to this owner.
-    fn tokensQuery<T: super::PersonalAccessTokenModel>(
+    fn tokens_query<T: super::PersonalAccessTokenModel>(
         &self,
         sanctum: &Sanctum,
         database: &DatabaseManager,
@@ -80,22 +79,22 @@ pub trait HasApiTokens: Model + Authenticatable {
                     name,
                     abilities,
                     expires_at,
-                    self.generateTokenString(sanctum)?,
+                    self.generate_token_string(sanctum)?,
                 )
                 .await
         }
     }
 
-    fn generateTokenString(&self, sanctum: &Sanctum) -> AuthResult<zeroize::Zeroizing<String>> {
+    fn generate_token_string(&self, sanctum: &Sanctum) -> AuthResult<zeroize::Zeroizing<String>> {
         super::personal_access_token::generate_secret(&sanctum.token_prefix()?)
     }
 
-    fn currentAccessToken<'a>(&self, request: &'a Request) -> Option<&'a AccessToken> {
+    fn current_access_token<'a>(&self, request: &'a Request) -> Option<&'a AccessToken> {
         self.access_token_guard(request)?;
-        AccessToken::currentAccessToken(request)
+        AccessToken::current_access_token(request)
     }
 
-    fn withAccessToken<'a>(
+    fn with_access_token<'a>(
         &'a self,
         request: &mut Request,
         token: AccessToken,
@@ -122,13 +121,13 @@ pub trait HasApiTokens: Model + Authenticatable {
         .then_some(guard)
     }
 
-    fn tokenCan(&self, request: &Request, ability: &str) -> bool {
-        self.currentAccessToken(request)
+    fn token_can(&self, request: &Request, ability: &str) -> bool {
+        self.current_access_token(request)
             .is_some_and(|token| token.can(ability))
     }
 
-    fn tokenCant(&self, request: &Request, ability: &str) -> bool {
-        !self.tokenCan(request, ability)
+    fn token_cant(&self, request: &Request, ability: &str) -> bool {
+        !self.token_can(request, ability)
     }
 }
 
@@ -139,7 +138,6 @@ pub struct TokenRelation {
     store: PersonalAccessTokens,
 }
 
-#[allow(non_snake_case, reason = "Matches Sanctum's owner API")]
 impl TokenRelation {
     pub async fn get(&self) -> AuthResult<Vec<PersonalAccessToken>> {
         self.store

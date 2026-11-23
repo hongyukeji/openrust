@@ -167,7 +167,7 @@ impl<'a> Provider<'a> {
     fn session_key(&self) -> String {
         format!("oidc.attempts.{}", self.name)
     }
-    pub async fn authorizationUrl(&mut self) -> Result<String> {
+    pub async fn authorization_url(&mut self) -> Result<String> {
         let metadata = self.metadata().await?;
         let state = random(32)?;
         let nonce = random(32)?;
@@ -204,7 +204,7 @@ impl<'a> Provider<'a> {
         Ok(url.into())
     }
     pub async fn redirect(&mut self) -> Result<openrust::http::RedirectResponse> {
-        let target = self.authorizationUrl().await?;
+        let target = self.authorization_url().await?;
         Ok(openrust::support::facades::Redirect::away(
             &target,
             Default::default(),
@@ -389,7 +389,7 @@ impl<'a> Provider<'a> {
         })
     }
     /// Explicitly retain only the verified ID Token for a later RP initiated logout.
-    pub fn rememberLogout(&mut self, authentication: &Authentication) -> Result<()> {
+    pub fn remember_logout(&mut self, authentication: &Authentication) -> Result<()> {
         let hint = &authentication.logout_hint;
         if hint.config != self.config.fingerprint() {
             return Err(Error::InvalidLogout);
@@ -402,7 +402,7 @@ impl<'a> Provider<'a> {
         Ok(())
     }
     /// Consume the application Session's hint before invalidating the local Session.
-    pub fn takeLogoutHint(&mut self) -> Result<LogoutHint> {
+    pub fn take_logout_hint(&mut self) -> Result<LogoutHint> {
         let key = format!("oidc.logout_hint.{}", self.name);
         let stored = self
             .request
@@ -424,7 +424,7 @@ impl<'a> Provider<'a> {
         })
     }
     /// Call after native local logout; state belongs to the new anonymous Session.
-    pub async fn logoutUrl(&mut self, hint: &LogoutHint) -> Result<String> {
+    pub async fn logout_url(&mut self, hint: &LogoutHint) -> Result<String> {
         if hint.config != self.config.fingerprint() {
             return Err(Error::InvalidLogout);
         }
@@ -462,7 +462,7 @@ impl<'a> Provider<'a> {
         Ok(url.into())
     }
     /// Verify and consume the OP return state; it never logs a local user in.
-    pub async fn completeLogout(&mut self) -> Result<()> {
+    pub async fn complete_logout(&mut self) -> Result<()> {
         let key = format!("oidc.logout.{}", self.name);
         let attempt = self
             .request

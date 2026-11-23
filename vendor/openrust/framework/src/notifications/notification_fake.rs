@@ -35,9 +35,8 @@ pub struct NotificationFake {
     records: Mutex<Vec<RecordedNotification>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl NotificationFake {
-    pub fn sentNotifications(&self) -> Vec<RecordedNotification> {
+    pub fn sent_notifications(&self) -> Vec<RecordedNotification> {
         self.matching(|_| true)
     }
 
@@ -45,11 +44,11 @@ impl NotificationFake {
         self.matching(|notice| &notice.target == target && notice.kind == kind)
     }
 
-    pub fn assertSentTo(&self, target: &NotificationTarget, kind: &str) -> &Self {
-        self.assertSentToMatching(target, kind, |_| true)
+    pub fn assert_sent_to(&self, target: &NotificationTarget, kind: &str) -> &Self {
+        self.assert_sent_to_matching(target, kind, |_| true)
     }
 
-    pub fn assertSentToMatching(
+    pub fn assert_sent_to_matching(
         &self,
         target: &NotificationTarget,
         kind: &str,
@@ -62,7 +61,7 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertSentToTimes(
+    pub fn assert_sent_to_times(
         &self,
         target: &NotificationTarget,
         kind: &str,
@@ -76,15 +75,15 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertSentToOnce(&self, target: &NotificationTarget, kind: &str) -> &Self {
-        self.assertSentToTimes(target, kind, 1)
+    pub fn assert_sent_to_once(&self, target: &NotificationTarget, kind: &str) -> &Self {
+        self.assert_sent_to_times(target, kind, 1)
     }
 
-    pub fn assertNotSentTo(&self, target: &NotificationTarget, kind: &str) -> &Self {
-        self.assertSentToTimes(target, kind, 0)
+    pub fn assert_not_sent_to(&self, target: &NotificationTarget, kind: &str) -> &Self {
+        self.assert_sent_to_times(target, kind, 0)
     }
 
-    pub fn assertNothingSentTo(&self, target: &NotificationTarget) -> &Self {
+    pub fn assert_nothing_sent_to(&self, target: &NotificationTarget) -> &Self {
         assert!(
             self.matching(|notice| &notice.target == target).is_empty(),
             "Unexpected notifications for the recipient."
@@ -92,11 +91,11 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertSentOnDemand(&self, kind: &str) -> &Self {
-        self.assertSentOnDemandMatching(kind, |_| true)
+    pub fn assert_sent_on_demand(&self, kind: &str) -> &Self {
+        self.assert_sent_on_demand_matching(kind, |_| true)
     }
 
-    pub fn assertSentOnDemandMatching(
+    pub fn assert_sent_on_demand_matching(
         &self,
         kind: &str,
         predicate: impl Fn(&RecordedNotification) -> bool,
@@ -108,7 +107,7 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertSentOnDemandTimes(&self, kind: &str, count: usize) -> &Self {
+    pub fn assert_sent_on_demand_times(&self, kind: &str, count: usize) -> &Self {
         assert_eq!(
             self.on_demand(kind).len(),
             count,
@@ -117,11 +116,11 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertSentOnDemandOnce(&self, kind: &str) -> &Self {
-        self.assertSentOnDemandTimes(kind, 1)
+    pub fn assert_sent_on_demand_once(&self, kind: &str) -> &Self {
+        self.assert_sent_on_demand_times(kind, 1)
     }
 
-    pub fn assertSentTimes(&self, kind: &str, count: usize) -> &Self {
+    pub fn assert_sent_times(&self, kind: &str, count: usize) -> &Self {
         assert_eq!(
             self.matching(|notice| notice.kind == kind).len(),
             count,
@@ -130,7 +129,7 @@ impl NotificationFake {
         self
     }
 
-    pub fn assertCount(&self, count: usize) -> &Self {
+    pub fn assert_count(&self, count: usize) -> &Self {
         assert_eq!(
             self.records
                 .lock()
@@ -143,7 +142,7 @@ impl NotificationFake {
     }
 
     pub fn assert_nothing_sent(&self) -> &Self {
-        self.assertCount(0)
+        self.assert_count(0)
     }
 
     pub(super) fn record(&self, notice: RecordedNotification) {

@@ -18,17 +18,17 @@ let result = processes.command(["/bin/sh", "-c", r#"printf '%s' "$MODE""#])
 assert_eq!(result.output(), b"test");
 ```
 
-Set the working directory with `path`, add or remove environment variables with `env` and `removeEnv`, and send bytes with `input`. The default timeout is 60 seconds. `idleTimeout` limits the time without output and `forever` removes the total deadline. Nonzero exit status is available through `exit_code`. Call `throw` to turn it into an error.
+Set the working directory with `path`, add or remove environment variables with `env` and `remove_env`, and send bytes with `input`. The default timeout is 60 seconds. `idle_timeout` limits the time without output and `forever` removes the total deadline. Nonzero exit status is available through `exit_code`. Call `throw` to turn it into an error.
 
 ## Running asynchronously {#running-asynchronously}
 
-Use `start` to get a live handle. Inspect `output` and `errorOutput`, or use `latestOutput` and `latestErrorOutput` for unread bytes. `startWithOutput` invokes a callback for each available stdout or stderr chunk. Use `wait` for the result, or `stop` to request termination and force it after the grace period. On macOS and Linux the process group is cleaned up on completion, timeout, or cancellation.
+Use `start` to get a live handle. Inspect `output` and `error_output`, or use `latest_output` and `latest_error_output` for unread bytes. `start_with_output` invokes a callback for each available stdout or stderr chunk. Use `wait` for the result, or `stop` to request termination and force it after the grace period. On macOS and Linux the process group is cleaned up on completion, timeout, or cancellation.
 
 Run named children together with `pool` and `concurrently`. `pipe` passes each successful child’s stdout as input to the next command and stops on failure.
 
 ### Waiting for output {#waiting-for-output}
 
-Call `waitUntil` on a captured process to receive stdout and stderr chunks until a predicate matches. It returns `true` on a match and `false` if the process exits first. A subsequent wait continues with unread chunks. Match using an accumulator when a marker can span chunks. Call `wait` to obtain the final exit code, or `waitWithOutput` to observe the remaining chunks. A timeout carries the captured result through `Error::result()`.
+Call `wait_until` on a captured process to receive stdout and stderr chunks until a predicate matches. It returns `true` on a match and `false` if the process exits first. A subsequent wait continues with unread chunks. Match using an accumulator when a marker can span chunks. Call `wait` to obtain the final exit code, or `wait_with_output` to observe the remaining chunks. A timeout carries the captured result through `Error::result()`.
 
 ```rust
 use openrust::{process::OutputStream, support::facades::Process};
@@ -38,7 +38,7 @@ let mut process = Process::command("printf 'ready\n' >&2; sleep 0.1; printf 'don
     .timeout(Duration::from_secs(3))
     .start()?;
 let mut diagnostic = Vec::new();
-let ready = process.waitUntil(|stream, chunk| {
+let ready = process.wait_until(|stream, chunk| {
     if stream == OutputStream::Stderr {
         diagnostic.extend_from_slice(chunk);
     }
@@ -79,7 +79,7 @@ let mut process = Process::command(
 )?
 .timeout(Duration::from_secs(4))
 .start()?;
-assert!(process.waitUntil(|_, bytes| bytes == b"ready").await?);
+assert!(process.wait_until(|_, bytes| bytes == b"ready").await?);
 process.signal(Signal::Raw(number)).await?;
 let result = process.wait().await?;
 assert_eq!(result.exit_code(), 6);
@@ -88,45 +88,45 @@ assert_eq!(result.output(), b"readycaught");
 
 ## Testing {#testing}
 
-Fakes and recorded invocations belong to a single factory. Use `preventStrayProcesses(true)` to fail unmatched calls before launching an executable.
+Fakes and recorded invocations belong to a single factory. Use `prevent_stray_processes(true)` to fail unmatched calls before launching an executable.
 
 ```rust
 use openrust::process::Factory;
 
 let processes = Factory::new();
-processes.fakeCommand("deploy *", Factory::result("deployed", "", 0));
-processes.preventStrayProcesses(true);
+processes.fake_command("deploy *", Factory::result("deployed", "", 0));
+processes.prevent_stray_processes(true);
 let result = processes.run(["deploy", "preview"]).await?;
 assert!(result.successful());
-processes.assertRan(|process, _| process.command == ["deploy", "preview"].into());
+processes.assert_ran(|process, _| process.command == ["deploy", "preview"].into());
 ```
 
 ### Scripted fake processes {#scripted-fakes}
 
-Build a scripted fake with `Factory::describe()`. Specify an ID, ordered output lines, the number of checks for which `running()` reports true, and an exit code. Register the built result with `fakeCommand` or a fake sequence. Waiting plays the ordered lines and records signals locally.
+Build a scripted fake with `Factory::describe()`. Specify an ID, ordered output lines, the number of checks for which `running()` reports true, and an exit code. Register the built result with `fake_command` or a fake sequence. Waiting plays the ordered lines and records signals locally.
 
 ```rust
 use openrust::process::{Factory, OutputStream, Signal};
 
 let processes = Factory::new();
-processes.fakeCommand("worker", Factory::describe()
+processes.fake_command("worker", Factory::describe()
     .id(321)
-    .runsFor(2)
-    .errorOutput("ready")
+    .runs_for(2)
+    .error_output("ready")
     .output("finished")
     .exit_code(0)
     .result());
-processes.preventStrayProcesses(true);
+processes.prevent_stray_processes(true);
 
 let mut worker = processes.start("worker")?;
 assert_eq!(worker.id(), Some(321));
-assert!(worker.waitUntil(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready\n").await?);
+assert!(worker.wait_until(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready\n").await?);
 worker.signal(Signal::Terminate).await?;
-assert!(worker.hasReceivedSignal(Signal::Terminate));
+assert!(worker.has_received_signal(Signal::Terminate));
 assert_eq!(worker.wait().await?.output(), b"finished\n");
 ```
 
 
 ## Ordered assertions
 
-Call `assertNothingRan()` before any simulated invocation to require an empty record. `assertNotRan(|process, result| ...)` rejects any matching record. `assertRanInOrder(&[&first, &second])` requires exactly that many records in that order; each predicate receives `&RecordedProcess` and `Option<&ProcessResult>`. A failed simulated operation may have no result. Each assertion panics when its expectation is violated; use the same methods on the `Process` facade inside an application scope.
+Call `assert_nothing_ran()` before any simulated invocation to require an empty record. `assert_not_ran(|process, result| ...)` rejects any matching record. `assert_ran_in_order(&[&first, &second])` requires exactly that many records in that order; each predicate receives `&RecordedProcess` and `Option<&ProcessResult>`. A failed simulated operation may have no result. Each assertion panics when its expectation is violated; use the same methods on the `Process` facade inside an application scope.

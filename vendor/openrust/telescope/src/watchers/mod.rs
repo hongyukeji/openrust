@@ -34,14 +34,14 @@ impl Listener for EventListener {
                 return Ok(None);
             };
             if !telescope
-                .automaticRecording
+                .automatic_recording
                 .load(std::sync::atomic::Ordering::Acquire)
-                || !telescope.hasStarted()
+                || !telescope.has_started()
             {
                 return Ok(None);
             }
             if telescope
-                .ignoreFrameworkEvents
+                .ignore_framework_events
                 .load(std::sync::atomic::Ordering::Acquire)
                 && (event.type_name().starts_with("openrust::")
                     || matches(
@@ -60,13 +60,13 @@ impl Listener for EventListener {
                 return Ok(None);
             }
             telescope.initialize().await;
-            if !telescope.isRecording() {
+            if !telescope.is_recording() {
                 return Ok(None);
             }
             let dispatcher = openrust::support::facades::Event::get_facade_root()
                 .map_err(openrust::events::EventError::Unavailable)?;
             let listeners = dispatcher
-                .getListeners(event.name())
+                .get_listeners(event.name())
                 .into_iter()
                 .filter(|(name, _)| !name.contains("openrust_telescope::"))
                 .map(|(name, queued)| json!({"name":name,"queued":queued}))
@@ -75,17 +75,17 @@ impl Listener for EventListener {
                 context.arguments_for(event).map(|arguments| {
                     arguments
                         .iter()
-                        .map(|argument| native::formatArgument(*argument))
+                        .map(|argument| native::format_argument(*argument))
                         .collect::<Vec<_>>()
                         .into()
                 })
             });
-            telescope.recordEvent(IncomingEntry::make(json!({"name":event.name(),"payload":payload,"listeners":listeners,"broadcast":dispatcher.isBroadcasting(event)}).as_object().unwrap().clone()).map_err(|source|openrust::events::EventError::Listener{source:Box::new(source)})?);
+            telescope.recordEvent(IncomingEntry::make(json!({"name":event.name(),"payload":payload,"listeners":listeners,"broadcast":dispatcher.is_broadcasting(event)}).as_object().unwrap().clone()).map_err(|source|openrust::events::EventError::Listener{source:Box::new(source)})?);
             Ok(None)
         })
     }
 }
-fn registerLogging(
+fn register_logging(
     manager: &openrust::log::LogManager,
     watcher: NativeWatcher,
 ) -> openrust::log::LogResult<()> {
@@ -94,10 +94,10 @@ fn registerLogging(
             return Ok(());
         };
         if telescope
-            .automaticRecording
+            .automatic_recording
             .load(std::sync::atomic::Ordering::Acquire)
-            && telescope.hasStarted()
-            && telescope.isRecording()
+            && telescope.has_started()
+            && telescope.is_recording()
         {
             watcher
                 .record(event, &telescope, None)
@@ -112,7 +112,7 @@ struct NativeWatcher {
     only: Option<(&'static str, Map<String, Value>)>,
 }
 
-fn registerViews(
+fn register_views(
     factory: &openrust::view::Factory,
     watcher: NativeWatcher,
     base: std::path::PathBuf,
@@ -124,9 +124,9 @@ fn registerViews(
         };
         if !watcher.enabled("ViewWatcher")
             || !telescope
-                .automaticRecording
+                .automatic_recording
                 .load(std::sync::atomic::Ordering::Acquire)
-            || !telescope.isRecording()
+            || !telescope.is_recording()
         {
             return Ok(());
         }
@@ -184,7 +184,7 @@ impl NativeWatcher {
     fn patterns(&self, watcher: &str, key: &str, value: &str) -> bool {
         matches(&self.option(watcher, key).unwrap_or(json!([])), value)
     }
-    fn cacheIgnored(&self, key: &str) -> bool {
+    fn cache_ignored(&self, key: &str) -> bool {
         self.patterns("CacheWatcher", "ignore", key)
             || matches(
                 &json!([
@@ -198,7 +198,7 @@ impl NativeWatcher {
                 key,
             )
     }
-    fn cacheValue(&self, key: &str, value: &openrust::cache::Value) -> Value {
+    fn cache_value(&self, key: &str, value: &openrust::cache::Value) -> Value {
         if self.patterns("CacheWatcher", "hidden", key) {
             return "********".into();
         }
@@ -209,7 +209,7 @@ impl NativeWatcher {
             }
         }
     }
-    fn approvedPath(&self, path: &str, host: Option<&str>) -> bool {
+    fn approved_path(&self, path: &str, host: Option<&str>) -> bool {
         if let Some(Value::String(domain)) = self.config.get("telescope.domain")
             && host == Some(domain.as_str())
         {
@@ -281,7 +281,7 @@ impl NativeWatcher {
             serde_json::from_slice::<Value>(bytes)
         {
             return if within {
-                telescope.responseParameters(value)
+                telescope.response_parameters(value)
             } else {
                 "Purged By Telescope".into()
             };
@@ -313,7 +313,7 @@ impl NativeWatcher {
         if let Some(event) =
             event.downcast_ref::<openrust::foundation::http::events::RequestReceived>()
         {
-            if !self.approvedPath(
+            if !self.approved_path(
                 event.request.uri.path(),
                 event
                     .request
@@ -321,8 +321,8 @@ impl NativeWatcher {
                     .get("host")
                     .and_then(|value| value.to_str().ok()),
             ) {
-                telescope.flushEntries();
-                telescope.stopRecording();
+                telescope.flush_entries();
+                telescope.stop_recording();
             }
         } else if let Some(event) =
             event.downcast_ref::<openrust::console::events::CommandStarting>()
@@ -354,8 +354,8 @@ impl NativeWatcher {
                     .unwrap_or(json!([])),
                 &event.command,
             ) {
-                telescope.flushEntries();
-                telescope.stopRecording();
+                telescope.flush_entries();
+                telescope.stop_recording();
             }
         } else if let Some(event) =
             event.downcast_ref::<openrust::console::events::CommandFinished>()
@@ -412,7 +412,7 @@ impl NativeWatcher {
         } else if let Some(event) =
             event.downcast_ref::<openrust::foundation::http::events::RequestHandled>()
         {
-            if !self.approvedPath(
+            if !self.approved_path(
                 event.request.uri.path(),
                 event
                     .request
@@ -420,8 +420,8 @@ impl NativeWatcher {
                     .get("host")
                     .and_then(|value| value.to_str().ok()),
             ) {
-                telescope.flushEntries();
-                telescope.stopRecording();
+                telescope.flush_entries();
+                telescope.stop_recording();
                 return Ok(());
             }
             if !self.enabled("RequestWatcher")
@@ -452,7 +452,7 @@ impl NativeWatcher {
                 &event.response,
                 event.response_content.as_deref(),
             );
-            let entry = IncomingEntry::make(json!({"method":event.request.method.as_str(),"uri":event.request.uri.path_and_query().map_or("/", |uri| uri.as_str()),"headers":telescope.headers(&event.request.headers),"response_status":event.response.status.as_u16(),"response_headers":telescope.headers(&event.response.headers),"duration":event.duration.as_secs_f64()*1000.0,"controller_action":route.map(|route|&route.action),"route_name":event.route_name,"payload":event.payload.clone().map(|payload|telescope.requestParameters(payload)),"middleware":route.map(|route|&route.middleware),"response":response}).as_object().unwrap().clone())?;
+            let entry = IncomingEntry::make(json!({"method":event.request.method.as_str(),"uri":event.request.uri.path_and_query().map_or("/", |uri| uri.as_str()),"headers":telescope.headers(&event.request.headers),"response_status":event.response.status.as_u16(),"response_headers":telescope.headers(&event.response.headers),"duration":event.duration.as_secs_f64()*1000.0,"controller_action":route.map(|route|&route.action),"route_name":event.route_name,"payload":event.payload.clone().map(|payload|telescope.request_parameters(payload)),"middleware":route.map(|route|&route.middleware),"response":response}).as_object().unwrap().clone())?;
             telescope.recordRequest(entry);
         } else if let Some(event) =
             event.downcast_ref::<openrust::database::events::QueryExecuted>()
@@ -498,16 +498,16 @@ impl NativeWatcher {
                     );
                     content.entry("trace").or_insert(json!([]));
                     content.entry("line_preview").or_insert(json!([]));
-                    let mut exception = crate::IncomingExceptionEntry::fromReport(content)?;
+                    let mut exception = crate::IncomingExceptionEntry::from_report(content)?;
                     exception.0 = exception.0.tags(tags);
-                    telescope.recordException(exception);
+                    telescope.record_exception(exception);
                 }
                 return Ok(());
             }
             if !self.enabled("LogWatcher") {
                 return Ok(());
             }
-            let level = logLevel(event.level);
+            let level = log_level(event.level);
             let minimum = self
                 .option("LogWatcher", "level")
                 .and_then(|v| v.as_str().map(str::to_owned))
@@ -537,11 +537,11 @@ impl NativeWatcher {
                 .tags(tags),
             );
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::CacheHit>() {
-            if self.enabled("CacheWatcher") && !self.cacheIgnored(&event.key) {
-                telescope.recordCache(IncomingEntry::make(json!({"type":"hit","key":event.key,"value":self.cacheValue(&event.key,&event.value)}).as_object().unwrap().clone())?);
+            if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
+                telescope.recordCache(IncomingEntry::make(json!({"type":"hit","key":event.key,"value":self.cache_value(&event.key,&event.value)}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::CacheMissed>() {
-            if self.enabled("CacheWatcher") && !self.cacheIgnored(&event.key) {
+            if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
                 telescope.recordCache(IncomingEntry::make(
                     json!({"type":"missed","key":event.key})
                         .as_object()
@@ -550,11 +550,11 @@ impl NativeWatcher {
                 )?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::KeyWritten>() {
-            if self.enabled("CacheWatcher") && !self.cacheIgnored(&event.key) {
-                telescope.recordCache(IncomingEntry::make(json!({"type":"set","key":event.key,"value":self.cacheValue(&event.key,&event.value),"expiration":event.seconds}).as_object().unwrap().clone())?);
+            if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
+                telescope.recordCache(IncomingEntry::make(json!({"type":"set","key":event.key,"value":self.cache_value(&event.key,&event.value),"expiration":event.seconds}).as_object().unwrap().clone())?);
             }
         } else if let Some(event) = event.downcast_ref::<openrust::cache::events::KeyForgotten>() {
-            if self.enabled("CacheWatcher") && !self.cacheIgnored(&event.key) {
+            if self.enabled("CacheWatcher") && !self.cache_ignored(&event.key) {
                 telescope.recordCache(IncomingEntry::make(
                     json!({"type":"forget","key":event.key})
                         .as_object()
@@ -579,7 +579,7 @@ impl NativeWatcher {
             {
                 return Ok(());
             }
-            let mut content = clientContent(telescope, &event.request);
+            let mut content = client_content(telescope, &event.request);
             content.insert(
                 "response_status".into(),
                 event.response.status().as_u16().into(),
@@ -603,7 +603,7 @@ impl NativeWatcher {
                 Err(_) => None,
             };
             let bytes = body.as_deref().unwrap_or_default();
-            let withinLimit =
+            let within_limit =
                 String::from_utf8_lossy(bytes).chars().count() as u64 <= limit.saturating_mul(1000);
             let response = {
                 match body
@@ -612,8 +612,8 @@ impl NativeWatcher {
                 {
                     None => "Stream Response".into(),
                     Some(Ok(value @ (Value::Array(_) | Value::Object(_)))) => {
-                        if withinLimit {
-                            telescope.responseParameters(value)
+                        if within_limit {
+                            telescope.response_parameters(value)
                         } else {
                             "Purged By Telescope".into()
                         }
@@ -624,7 +624,7 @@ impl NativeWatcher {
                         .and_then(|v| v.to_str().ok())
                         .is_some_and(|v| v.to_ascii_lowercase().starts_with("text/plain")) =>
                     {
-                        if withinLimit {
+                        if within_limit {
                             String::from_utf8_lossy(bytes).into_owned().into()
                         } else {
                             "Purged By Telescope".into()
@@ -663,11 +663,11 @@ impl NativeWatcher {
             && self.enabled("ClientRequestWatcher")
         {
             telescope.recordClientRequest(
-                IncomingEntry::make(clientContent(telescope, &event.request))?
+                IncomingEntry::make(client_content(telescope, &event.request))?
                     .tags(event.request.url.host_str()),
             );
         }
-        self.recordAdditional(event, telescope, context)?;
+        self.record_additional(event, telescope, context)?;
         Ok(())
     }
 }
@@ -683,7 +683,7 @@ impl Listener for NativeWatcher {
                 return Ok(None);
             };
             if !telescope
-                .automaticRecording
+                .automatic_recording
                 .load(std::sync::atomic::Ordering::Acquire)
             {
                 return Ok(None);
@@ -713,7 +713,7 @@ impl Listener for NativeWatcher {
             {
                 return Ok(None);
             }
-            if !starting && telescope.isRecording() {
+            if !starting && telescope.is_recording() {
                 self.record(event, &telescope, Some(context))
                     .map_err(|source| openrust::events::EventError::Listener {
                         source: Box::new(source),
@@ -732,7 +732,7 @@ fn matches(patterns: &Value, value: &str) -> bool {
     openrust::support::Str::is(&patterns, value, false)
 }
 
-fn logLevel(level: openrust::log::Level) -> &'static str {
+fn log_level(level: openrust::log::Level) -> &'static str {
     use openrust::log::Level::*;
     match level {
         Debug => "debug",
@@ -757,12 +757,12 @@ fn priority(level: &str) -> u16 {
         _ => 100,
     }
 }
-fn clientContent(
+fn client_content(
     telescope: &Telescope,
     request: &openrust::http::client::RecordedRequest,
 ) -> Map<String, Value> {
     let payload = request.data().unwrap_or(json!({}));
-    json!({"method":request.method.as_str(),"uri":request.url.as_str(),"headers":telescope.headers(&request.headers),"payload":telescope.requestParameters(payload)}).as_object().unwrap().clone()
+    json!({"method":request.method.as_str(),"uri":request.url.as_str(),"headers":telescope.headers(&request.headers),"payload":telescope.request_parameters(payload)}).as_object().unwrap().clone()
 }
 
 fn interpolate(message: &str, context: &Map<String, Value>) -> String {

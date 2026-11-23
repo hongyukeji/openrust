@@ -49,7 +49,7 @@ impl RedisIngest {
             keep: Retention::Seconds(604800),
         }
     }
-    pub fn withChunk(mut self, chunk: usize) -> Result<Self> {
+    pub fn with_chunk(mut self, chunk: usize) -> Result<Self> {
         if chunk == 0 {
             return Err(crate::Error::InvalidConfiguration(
                 "ingest.redis.chunk must be positive".into(),
@@ -58,7 +58,7 @@ impl RedisIngest {
         self.chunk = chunk;
         Ok(self)
     }
-    pub fn withKeep(mut self, keep: Retention) -> Self {
+    pub fn with_keep(mut self, keep: Retention) -> Self {
         self.keep = keep;
         self
     }

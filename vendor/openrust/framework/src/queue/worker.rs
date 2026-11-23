@@ -98,13 +98,12 @@ impl Worker {
     }
 
     /// Sets or removes a custom reservation callback in this worker's application.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn popUsing(&self, name: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
-        self.app.make::<QueueManager>()?.popUsing(name, callback);
+    pub fn pop_using(&self, name: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
+        self.app.make::<QueueManager>()?.pop_using(name, callback);
         Ok(())
     }
 
-    pub async fn runNextJob(
+    pub async fn run_next_job(
         &self,
         connection: &dyn Queue,
         queue: Option<&str>,
@@ -125,7 +124,7 @@ impl Worker {
             })
             .await?
         } else {
-            if manager.polls_interruptions() && manager.isPaused(name, queue_name).await? {
+            if manager.polls_interruptions() && manager.is_paused(name, queue_name).await? {
                 manager
                     .emit_control_event(WorkerQueuePaused {
                         connection: name.into(),
@@ -1143,7 +1142,7 @@ struct BatchCompletion {
 
 impl BatchCompletion {
     fn resolve(app: &Container, job: &dyn Job) -> QueueResult<Option<Self>> {
-        let Some(id) = job.payload().batchId() else {
+        let Some(id) = job.payload().batch_id() else {
             return Ok(None);
         };
         let queue = app.make::<QueueManager>()?;

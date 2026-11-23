@@ -21,7 +21,7 @@ impl ActivityBuffer {
         self.pending.lock().unwrap().push(activity);
         record
     }
-    pub fn hasPending(&self) -> bool {
+    pub fn has_pending(&self) -> bool {
         self.count() != 0
     }
     pub fn count(&self) -> usize {
@@ -34,7 +34,7 @@ impl ActivityBuffer {
             return Ok(0);
         }
         let count = records.len();
-        self.repository.insertBuffered(records).await?;
+        self.repository.insert_buffered(records).await?;
         // Additions while SQL was running remain pending for the next flush.
         self.pending.lock().unwrap().drain(..count);
         Ok(count)

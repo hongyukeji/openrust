@@ -42,11 +42,11 @@ fn definition(name: &str, base: Option<&str>) -> Arc<dyn ProviderDefinition> {
         )
     });
     if name == "x" {
-        Arc::new(endpoints.map(XProvider::withEndpoints).unwrap_or_default())
+        Arc::new(endpoints.map(XProvider::with_endpoints).unwrap_or_default())
     } else {
         Arc::new(
             endpoints
-                .map(TwitterProvider::withEndpoints)
+                .map(TwitterProvider::with_endpoints)
                 .unwrap_or_default(),
         )
     }
@@ -55,22 +55,22 @@ fn definition(name: &str, base: Option<&str>) -> Arc<dyn ProviderDefinition> {
 async fn twitter_and_x_mapping_and_endpoints_match_fixed_php() {
     for name in ["twitter", "x"] {
         let d = definition(name, None);
-        let u = d.mapUserToObject(raw()).unwrap();
+        let u = d.map_user_to_object(raw()).unwrap();
         assert_eq!(
-            json!({"id":u.get_id(),"nickname":u.getNickname(),"name":u.get_name(),"email":u.getEmail(),"avatar":u.getAvatar(),"raw":u.getRaw(),"attributes":u.attributes}),
+            json!({"id":u.get_id(),"nickname":u.get_nickname(),"name":u.get_name(),"email":u.get_email(),"avatar":u.get_avatar(),"raw":u.get_raw(),"attributes":u.attributes}),
             oracle()[name]["user"]
         );
         assert_eq!(
-            d.getAuthUrl(),
+            d.get_auth_url(),
             if name == "x" {
                 "https://x.com/i/oauth2/authorize"
             } else {
                 "https://twitter.com/i/oauth2/authorize"
             }
         );
-        assert_eq!(d.getTokenUrl(), oracle()[name]["http"][0][0]);
-        let u=d.mapUserToObject(json!({"id":"u","username":"u","name":"U","profile_image_url":"https://image.test"})).unwrap();
-        assert!(u.getEmail().is_none());
+        assert_eq!(d.get_token_url(), oracle()[name]["http"][0][0]);
+        let u=d.map_user_to_object(json!({"id":"u","username":"u","name":"U","profile_image_url":"https://image.test"})).unwrap();
+        assert!(u.get_email().is_none());
     }
 }
 #[derive(Default)]
@@ -179,15 +179,15 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         match p.user().await {
             Ok(user) => {
                 if refresh {
-                    let token = p.refreshToken("refresh-input").await.unwrap();
+                    let token = p.refresh_token("refresh-input").await.unwrap();
                     assert_eq!(
-                        token.approvedScopes,
+                        token.approved_scopes,
                         ["users.read", "users.email", "tweet.read"]
                     );
                 }
                 Response::json(
                     StatusCode::OK,
-                    json!({"id":user.get_id(),"email":user.getEmail()}),
+                    json!({"id":user.get_id(),"email":user.get_email()}),
                 )
             }
             Err(e) => Response::json(StatusCode::BAD_REQUEST, json!({"error":e.to_string()})),
@@ -358,13 +358,13 @@ async fn stateless_keeps_default_pkce_session_and_literal_state_and_rfc3986_para
         let mut request = req();
         let mut p=AbstractProvider::new(&mut request,ProviderConfig::from_config(&json!({"client_id":"client","client_secret":"secret","redirect":"https://rp.test/callback"})).unwrap(),Arc::new(Factory::new().unwrap()),definition(name,Some(&base)));
         p.stateless();
-        assert!(matches!(p.authorizationUrl(), Err(Error::Session(_))));
+        assert!(matches!(p.authorization_url(), Err(Error::Session(_))));
         assert!(matches!(
-            p.getAccessTokenResponse("code").await,
+            p.get_access_token_response("code").await,
             Err(Error::Session(_))
         ));
         assert_eq!(
-            p.userFromToken("access").await.unwrap().get_id(),
+            p.user_from_token("access").await.unwrap().get_id(),
             &json!("user-42")
         );
     }
@@ -416,8 +416,8 @@ async fn manager_alias_fallback_requires_integer_oauth_two_and_isolates_registra
         .unwrap()
         .oauth2()
         .unwrap();
-    assert!(p.getScopes().contains(&"primary-scope".to_owned()));
-    assert!(p.authorizationUrl().is_err());
+    assert!(p.get_scopes().contains(&"primary-scope".to_owned()));
+    assert!(p.authorization_url().is_err());
     drop(p);
     manager.extend("custom", definition("x", None));
     config.set("services.custom", value).unwrap();

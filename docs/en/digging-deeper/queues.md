@@ -100,7 +100,7 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 
 #### Missing models {#ignoring-missing-models}
 
-Call `ModelIdentifier::restore_for_job().await?` when the model is required by a queued job. A missing model normally fails the job immediately. Call `Payload::deleteWhenMissingModels()` when dispatching to acknowledge it quietly instead. The worker releases a unique lock in either case. Quiet acknowledgement records success for the affected batch member and stops that member’s chain. Other database errors keep their normal handling.
+Call `ModelIdentifier::restore_for_job().await?` when the model is required by a queued job. A missing model normally fails the job immediately. Call `Payload::delete_when_missing_models()` when dispatching to acknowledge it quietly instead. The worker releases a unique lock in either case. Quiet acknowledgement records success for the affected batch member and stops that member’s chain. Other database errors keep their normal handling.
 
 ```rust
 use openrust::{
@@ -109,7 +109,7 @@ use openrust::{
 };
 
 pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
-    Ok(Payload::new("reports.generate", id)?.deleteWhenMissingModels())
+    Ok(Payload::new("reports.generate", id)?.delete_when_missing_models())
 }
 
 pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
@@ -136,9 +136,9 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 ## Bus dispatch {#bus-dispatch}
 
-Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipe_through` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.
+Use `Bus::dispatch(payload, options, transaction)` or `dispatch_to_queue` for a registered queue job. `dispatch_sync` selects the sync queue and keeps its middleware and events. `dispatch_now` calls the registered handler in the current process through the application’s `pipe_through` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `has_command_handler` or `get_command_handler` to look them up.
 
-Await `Bus::dispatchAfterResponse(payload, options)` within an HTTP request to register sync execution during termination. Use `withoutDispatchingAfterResponses` during application setup to execute inline instead. Durable workers resolve compiled handlers from the registered name and decode the JSON payload.
+Await `Bus::dispatch_after_response(payload, options)` within an HTTP request to register sync execution during termination. Use `without_dispatching_after_responses` during application setup to execute inline instead. Durable workers resolve compiled handlers from the registered name and decode the JSON payload.
 
 ## Unique jobs {#unique-jobs}
 
@@ -180,7 +180,7 @@ Across queue connections, the source worker dispatches the successor directly us
 
 Set `QUEUE_CONNECTION=sqs`, `SQS_PREFIX`, `SQS_QUEUE` and `AWS_DEFAULT_REGION`. You may provide a complete queue URL. `SQS_SUFFIX` applies to names and precedes the `.fifo` extension. Use the AWS credential chain or configure the access key, secret and optional session token. `SQS_ENDPOINT` selects a custom service endpoint. Run `./artisan queue:work sqs` after provisioning the queue.
 
-For FIFO, use `Payload::onGroup` and `withDeduplicationId` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period.
+For FIFO, use `Payload::on_group` and `with_deduplication_id` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period.
 
 Set `SQS_OVERFLOW_ENABLED=true` to store serialized payloads of 1 MiB or more in a cache and send a pointer through SQS. Select the same shared cache on producers and workers with `SQS_OVERFLOW_STORE`. Set `SQS_OVERFLOW_ALWAYS=true` to use pointers for smaller jobs too. Releasing a job keeps its payload. A successful acknowledgement removes it by default. Set `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` to retain it.
 
@@ -221,7 +221,7 @@ use std::sync::Arc;
 use openrust::{queue::QueueResult, support::facades::Queue};
 
 fn register_priority_worker() -> QueueResult<()> {
-    Queue::popUsing("priority", Some(Arc::new(|pop, _queues| {
+    Queue::pop_using("priority", Some(Arc::new(|pop, _queues| {
         Box::pin(async move { pop.pop_now(Some("critical")).await })
     })))
 }
@@ -231,7 +231,7 @@ fn register_priority_worker() -> QueueResult<()> {
 ./artisan queue:work database --name=priority --once
 ```
 
-Returning `None` marks the poll as empty. The callback controls queue selection, including whether to check paused queues. Call `Queue::popUsing("priority", None)` to restore the default strategy for that name.
+Returning `None` marks the poll as empty. The callback controls queue selection, including whether to check paused queues. Call `Queue::pop_using("priority", None)` to restore the default strategy for that name.
 
 #### Workers during maintenance {#workers-during-maintenance}
 
@@ -282,7 +282,7 @@ fn register_queue_callbacks() -> QueueResult<()> {
 }
 ```
 
-Callbacks receive the typed event and use the application event dispatcher. A `looping` callback may return `Some(ListenerResponse::Value(Box::new(false)))` to skip polling that iteration. Return `Ok(None)` to let subsequent callbacks run. Use `Queue::whenJobRunsLongerThan` with a `Duration` to observe attempts that exceeded the threshold. The callback receives the job snapshot and elapsed time.
+Callbacks receive the typed event and use the application event dispatcher. A `looping` callback may return `Some(ListenerResponse::Value(Box::new(false)))` to skip polling that iteration. Return `Ok(None)` to let subsequent callbacks run. Use `Queue::when_job_runs_longer_than` with a `Duration` to observe attempts that exceeded the threshold. The callback receives the job snapshot and elapsed time.
 
 #### Synchronous job events {#synchronous-job-events}
 
@@ -518,7 +518,7 @@ Pause or resume every queue with `--all`. Resuming all queues preserves individu
 ./artisan queue:resume --all
 ```
 
-Workers check the shared cache between jobs and while idle. The `--sleep` option controls the idle polling interval. To disable restart and pause polling for an application, call `Queue::withoutInterruptionPolling()?` in a service provider’s `boot` method. Redis workers with `block_for` check again after the blocking pop returns. Use a finite block duration if idle workers need to pick up control signals promptly.
+Workers check the shared cache between jobs and while idle. The `--sleep` option controls the idle polling interval. To disable restart and pause polling for an application, call `Queue::without_interruption_polling()?` in a service provider’s `boot` method. Redis workers with `block_for` check again after the blocking pop returns. Use a finite block duration if idle workers need to pick up control signals promptly.
 
 #### Pausing a queue from application code {#pausing-queues-in-code}
 
@@ -530,9 +530,9 @@ use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
 async fn pause_default_queue() -> QueueResult<()> {
     let connection = Queue::connection(None)?;
     let name = connection.get_connection_name();
-    Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
-    assert!(Queue::isPaused(name, "default").await?);
-    assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
+    Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::is_paused(name, "default").await?);
+    assert_eq!(Queue::get_paused_queues(name, &["low", "default"]).await?, ["default"]);
     Ok(())
 }
 ```
@@ -557,7 +557,7 @@ fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> Pendin
 
 Use `on_connection` and `on_queue` to select the destination for the chain. `delay` applies to the first job. Use `prepend` and `append` on the builder to change the sequence before dispatch.
 
-Register a failure callback by name in your provider’s `boot` method with `Bus::registerChainCallback`. Attach it with `catch("reports.failed")`. The worker resolves the callback in its application and passes the failed payload and queue error. Make job side effects idempotent because the worker can execute a job again after losing its reservation. Chain callbacks have no separate retry record.
+Register a failure callback by name in your provider’s `boot` method with `Bus::register_chain_callback`. Attach it with `catch("reports.failed")`. The worker resolves the callback in its application and passes the failed payload and queue error. Make job side effects idempotent because the worker can execute a job again after losing its reservation. Chain callbacks have no separate retry record.
 
 ### Chain connection and queue {#chain-connection-queue}
 
@@ -577,14 +577,14 @@ A successor assigned to `sync` runs in the source worker process as the precedin
 
 ### Adding jobs to the chain {#adding-jobs-to-the-chain}
 
-Inside a job handler, use `JobContext::prependToChain` to run a job immediately after the current job. Use `appendToChain` to place it after the existing chain. Edits take effect when the handler succeeds. A failed or released attempt discards its edits.
+Inside a job handler, use `JobContext::prepend_to_chain` to run a job immediately after the current job. Use `append_to_chain` to place it after the existing chain. Edits take effect when the handler succeeds. A failed or released attempt discards its edits.
 
 ```rust
 use openrust::queue::{JobContext, Payload, QueueResult};
 
 fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
-    context.prependToChain(before)?;
-    context.appendToChain(after)
+    context.prepend_to_chain(before)?;
+    context.append_to_chain(after)
 }
 ```
 
@@ -592,7 +592,7 @@ Each call accepts a job payload or a pending batch. An inserted batch follows th
 
 ### Conditional chain dispatch {#conditional-chain-dispatch}
 
-Use `dispatchIf` to dispatch a chain when the condition is true, or `dispatchUnless` when it is false. Both accept a boolean or a closure returning a boolean. The closure runs once when the dispatch future is awaited.
+Use `dispatch_if` to dispatch a chain when the condition is true, or `dispatch_unless` when it is false. Both accept a boolean or a closure returning a boolean. The closure runs once when the dispatch future is awaited.
 
 ```rust
 use openrust::{
@@ -604,7 +604,7 @@ async fn dispatch_chain_if(
     chain: PendingChain,
     enabled: bool,
 ) -> QueueResult<Option<DispatchResult>> {
-    chain.dispatchIf(enabled).await
+    chain.dispatch_if(enabled).await
 }
 ```
 
@@ -635,27 +635,27 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 }
 ```
 
-Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::findBatch(&id)` and cancel it explicitly with `Bus::cancelBatch(&id)`. By default, a terminal job failure cancels the batch. Add `allowFailures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
+Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::find_batch(&id)` and cancel it explicitly with `Bus::cancel_batch(&id)`. By default, a terminal job failure cancels the batch. Add `allow_failures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
 
 A database queue and its batch repository must use the same SQL connection. Their batch and queue writes commit together. To publish a batch to Redis, select `on_connection("redis")` before `dispatch()`.
 
 ### Chains within batches {#chains-and-batches}
 
-Use `addChain` on a pending batch to add an ordered sequence of jobs. It represents a nested array in `Bus::batch`. All members share the batch ID, connection, and queue. The batch counts every member, and initially enqueues only the first job of each chain. Multiple workers can process different chains in parallel.
+Use `add_chain` on a pending batch to add an ordered sequence of jobs. It represents a nested array in `Bus::batch`. All members share the batch ID, connection, and queue. The batch counts every member, and initially enqueues only the first job of each chain. Multiple workers can process different chains in parallel.
 
 ```rust
 use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};
 
 fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
-    Bus::batch([]).addChain(left).addChain(right)
+    Bus::batch([]).add_chain(left).add_chain(right)
 }
 ```
 
-Call `dispatch().await` on the builder. To append a sequence after dispatch, call `Batch::addChain(...).await`. A permanent failure stops the affected chain. Its unrun members remain pending, even when the batch allows failures. Retrying the failed job can resume that chain.
+Call `dispatch().await` on the builder. To append a sequence after dispatch, call `Batch::add_chain(...).await`. A permanent failure stops the affected chain. Its unrun members remain pending, even when the batch allows failures. Retrying the failed job can resume that chain.
 
 ### Batches within chains {#batches-within-chains}
 
-Use `appendBatch` or `prependBatch` to add a pending batch to a chain. The worker dispatches the batch when it reaches that step. The batch inherits the chain connection and queue unless it configures its own. Both stages support Redis and database queues on the batch repository connection.
+Use `append_batch` or `prepend_batch` to add a pending batch to a chain. The worker dispatches the batch when it reaches that step. The batch inherits the chain connection and queue unless it configures its own. Both stages support Redis and database queues on the batch repository connection.
 
 ```rust
 use openrust::{
@@ -665,7 +665,7 @@ use openrust::{
 };
 
 fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueResult<PendingChain> {
-    Ok(Bus::chain([first]).appendBatch(batch)?.append(last))
+    Ok(Bus::chain([first]).append_batch(batch)?.append(last))
 }
 ```
 
@@ -685,7 +685,7 @@ use openrust::{
 };
 
 async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
-    let Some(batch) = Bus::findBatch(id).await? else {
+    let Some(batch) = Bus::find_batch(id).await? else {
         return Ok(None);
     };
     batch.add([Payload::new("reports.generate", report)?]).await
@@ -733,7 +733,7 @@ fn report_complete<'a>(batch: &'a Batch, _: Option<&'a str>) -> QueueFuture<'a, 
 }
 
 fn register_batch_callbacks() -> QueueResult<()> {
-    Bus::registerBatchCallback("reports.completed", report_complete)
+    Bus::register_batch_callback("reports.completed", report_complete)
 }
 
 async fn dispatch_with_callbacks() -> QueueResult<Batch> {
@@ -848,11 +848,11 @@ fn job_rate_limit() -> RateLimited {
 }
 ```
 
-A denied job is released after the remaining window plus three seconds. Use `release_after` to override the delay or `dontRelease` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
+A denied job is released after the remaining window plus three seconds. Use `release_after` to override the delay or `dont_release` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
 
 ### Preventing job overlaps {#preventing-job-overlaps}
 
-Use `WithoutOverlapping` to serialize jobs that modify the same resource. By default, only jobs with the same registered name and key compete for the lock. Use `shared()` to let different jobs compete for the same key, and `withPrefix` to separate lock namespaces.
+Use `WithoutOverlapping` to serialize jobs that modify the same resource. By default, only jobs with the same registered name and key compete for the lock. Use `shared()` to let different jobs compete for the same key, and `with_prefix` to separate lock namespaces.
 
 ```rust
 use std::time::Duration;
@@ -860,14 +860,14 @@ use openrust::queue::middleware::WithoutOverlapping;
 
 fn account_lock(account_id: u64) -> WithoutOverlapping {
     WithoutOverlapping::new(account_id.to_string())
-        .withPrefix("account-update:")
+        .with_prefix("account-update:")
         .shared()
         .release_after(Duration::from_secs(15))
-        .expireAfter(Duration::from_secs(120))
+        .expire_after(Duration::from_secs(120))
 }
 ```
 
-On contention, the job is released immediately by default. Use `release_after` with a duration or an absolute time to defer it, or `dontRelease` to acknowledge it without executing the handler. The cache driver provides the default lock lease. Set `expireAfter` so another worker can acquire the lock if the original worker stops before releasing it.
+On contention, the job is released immediately by default. Use `release_after` with a duration or an absolute time to defer it, or `dont_release` to acknowledge it without executing the handler. The cache driver provides the default lock lease. Set `expire_after` so another worker can acquire the lock if the original worker stops before releasing it.
 
 ### Throttling exceptions {#throttling-exceptions}
 
@@ -884,9 +884,9 @@ fn job_exception_throttle() -> ThrottlesExceptions {
 }
 ```
 
-Use `by` to share a budget across job types and `byJob` for a budget per job UUID. `backoff` sets the delay in minutes before the threshold is reached. `backoffWhen` calculates it from the error. Use `when` to select errors and `reportWhen` to report them through the application's exception handler. `deleteWhen` acknowledges the job, while `failWhen` records a terminal failure. Deletion takes priority if both predicates match.
+Use `by` to share a budget across job types and `by_job` for a budget per job UUID. `backoff` sets the delay in minutes before the threshold is reached. `backoff_when` calculates it from the error. Use `when` to select errors and `report_when` to report them through the application's exception handler. `delete_when` acknowledges the job, while `fail_when` records a terminal failure. Deletion takes priority if both predicates match.
 
-Use `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` for a named Redis connection. The second argument to `when` and `reportWhen` is an `ExceptionThrottleLimiter` with the cache service or the Redis window's remaining budget and expiration timestamp.
+Use `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` for a named Redis connection. The second argument to `when` and `report_when` is an `ExceptionThrottleLimiter` with the cache service or the Redis window's remaining budget and expiration timestamp.
 
 ### Failing jobs on exceptions {#fail-on-exception}
 
@@ -991,7 +991,7 @@ The previous deadline is available during a manual retry. Return it to keep the 
 
 #### Retrying a group of stored failures {#retrying-a-group-of-stored-failures}
 
-A custom failed-job provider may override `findForRetry` to resolve a command ID to a stream. Return `None` for an unknown ID or an empty stream for a known group with no remaining failures.
+A custom failed-job provider may override `find_for_retry` to resolve a command ID to a stream. Return `None` for an unknown ID or an empty stream for a known group with no remaining failures.
 
 ```rust
 use openrust::queue::{QueueResult, failed::{FailedJob, FailedJobRetryStream}};
@@ -1039,4 +1039,4 @@ The command reports total, pending, delayed, and reserved jobs, and the oldest p
 
 ## Queued listeners
 
-Use `ListenerRegistry::listenQueued::<YourEvent>` with a stable listener ID and a serializable event. The worker resolves the registered listener from its application. The listener's `after_commit` option can defer enqueueing until the transaction commits.
+Use `ListenerRegistry::listen_queued::<YourEvent>` with a stable listener ID and a serializable event. The worker resolves the registered listener from its application. The listener's `after_commit` option can defer enqueueing until the transaction commits.

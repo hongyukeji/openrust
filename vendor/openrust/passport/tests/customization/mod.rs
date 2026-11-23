@@ -101,11 +101,11 @@ async fn select(f: &Fixture) {
     for (old, new) in TABLES {
         f.db.get_schema_builder().rename(old, new).await.unwrap();
     }
-    f.passport.useClientModel::<CustomClient>();
-    f.passport.useTokenModel::<AlternateAccess>();
-    f.passport.useRefreshTokenModel::<AlternateRefresh>();
-    f.passport.useAuthCodeModel::<CustomCode>();
-    f.passport.useDeviceCodeModel::<CustomDevice>();
+    f.passport.use_client_model::<CustomClient>();
+    f.passport.use_token_model::<AlternateAccess>();
+    f.passport.use_refresh_token_model::<AlternateRefresh>();
+    f.passport.use_auth_code_model::<CustomCode>();
+    f.passport.use_device_code_model::<CustomDevice>();
 }
 async fn restore(f: &Fixture) {
     for (old, new) in TABLES.iter().rev() {
@@ -122,14 +122,14 @@ async fn mysql_all_five_selected_models_issue_refresh_revoke_purge_and_stay_appl
     let other = Fixture::new().await;
     let device = f.device_client(false).await;
     select(&f).await;
-    assert!(f.passport.authCodeModel().ends_with("CustomCode"));
-    assert!(f.passport.deviceCodeModel().ends_with("CustomDevice"));
+    assert!(f.passport.auth_code_model().ends_with("CustomCode"));
+    assert!(f.passport.device_code_model().ends_with("CustomDevice"));
     assert_eq!(
-        other.passport.authCodeModel(),
+        other.passport.auth_code_model(),
         std::any::type_name::<openrust_passport::AuthCode>()
     );
     assert_eq!(
-        other.passport.deviceCodeModel(),
+        other.passport.device_code_model(),
         std::any::type_name::<openrust_passport::DeviceCode>()
     );
     f.kernel
@@ -139,9 +139,9 @@ async fn mysql_all_five_selected_models_issue_refresh_revoke_purge_and_stay_appl
                 let clients = openrust::container::Container::get_instance()
                     .make::<Passport>()
                     .unwrap()
-                    .clientRepository();
+                    .client_repository();
                 let client = clients
-                    .createAuthorizationCodeGrantClient(
+                    .create_authorization_code_grant_client(
                         "Compiled custom client",
                         &[CALLBACK.to_owned()],
                         false,
@@ -179,7 +179,7 @@ async fn mysql_all_five_selected_models_issue_refresh_revoke_purge_and_stay_appl
                     .unwrap();
                 assert_eq!(
                     client
-                        .authCodesFor::<CustomCode>()
+                        .auth_codes_for::<CustomCode>()
                         .get_results(&client)
                         .await
                         .unwrap()
@@ -347,7 +347,7 @@ async fn mysql_custom_token_route_and_provider_keep_default_routes_suppressed() 
         return;
     }
     let f = Fixture::with_device_routes(true, Some("disabled/oauth"), false).await;
-    f.passport.enablePasswordGrant();
+    f.passport.enable_password_grant();
     let id = f
         .kernel
         .get_application()
@@ -357,7 +357,7 @@ async fn mysql_custom_token_route_and_provider_keep_default_routes_suppressed() 
                     .make::<ClientRepository>()
                     .unwrap();
                 let client = clients
-                    .createPasswordGrantClient("Custom route", Some("users"), false)
+                    .create_password_grant_client("Custom route", Some("users"), false)
                     .await
                     .unwrap();
                 Ok(AuthIdentifier::try_from(&client.get_key().await.unwrap())
@@ -440,8 +440,8 @@ async fn mysql_custom_grant_storage_failure_and_cross_connection_transaction_are
     }
     let f = Fixture::new().await;
     let device = f.device_client(false).await;
-    f.passport.useAuthCodeModel::<CustomCode>();
-    f.passport.useDeviceCodeModel::<CustomDevice>();
+    f.passport.use_auth_code_model::<CustomCode>();
+    f.passport.use_device_code_model::<CustomDevice>();
     let b = f.login("alice@test").await;
     let view = f.authorize(&b, &f.public, true).await;
     assert_eq!(
@@ -486,7 +486,7 @@ async fn mysql_custom_grant_storage_failure_and_cross_connection_transaction_are
         })
         .await
         .unwrap();
-    f.passport.useAuthCodeModel::<ForeignCode>();
+    f.passport.use_auth_code_model::<ForeignCode>();
     let view = f.authorize(&b, &f.public, true).await;
     assert_eq!(
         f.wire(
@@ -505,9 +505,10 @@ async fn mysql_custom_grant_storage_failure_and_cross_connection_transaction_are
         f.db.table("oauth_access_tokens").count("*").await.unwrap(),
         0
     );
-    f.passport.useAuthCodeModel::<openrust_passport::AuthCode>();
     f.passport
-        .useDeviceCodeModel::<openrust_passport::DeviceCode>();
+        .use_auth_code_model::<openrust_passport::AuthCode>();
+    f.passport
+        .use_device_code_model::<openrust_passport::DeviceCode>();
     assert!(f.issued().await["access_token"].is_string());
     assert!(f.device_code(&device, "read").await["device_code"].is_string());
     foreign

@@ -207,9 +207,9 @@ async fn password_reset_views_web_responses_prefixes_and_csrf_follow_routes() {
             },
         ));
         if is_reset {
-            server.fortify.resetPasswordView(response);
+            server.fortify.reset_password_view(response);
         } else {
-            server.fortify.requestPasswordResetLinkView(response);
+            server.fortify.request_password_reset_link_view(response);
         }
     }
     let mut user = Client::new(&server);
@@ -338,7 +338,7 @@ async fn fixed_php_password_reset_responses_and_completion_match_mysql_http() {
         if case["action_error"] == true {
             server
                 .fortify
-                .resetUserPasswordsUsing(Arc::new(RejectReset));
+                .reset_user_passwords_using(Arc::new(RejectReset));
         }
         server.events.lock().unwrap().clear();
         guest.html = !case["json"].as_bool().unwrap();

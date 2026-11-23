@@ -24,7 +24,6 @@ impl Facade for Process {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Process {
     pub fn command(command: impl Into<Command>) -> Result<PendingProcess> {
         Ok(Self::get_facade_root()?.command(command))
@@ -71,53 +70,53 @@ impl Process {
         Ok(())
     }
 
-    pub fn preventStrayProcesses(prevent: bool) -> Result<()> {
-        Self::get_facade_root()?.preventStrayProcesses(prevent);
+    pub fn prevent_stray_processes(prevent: bool) -> Result<()> {
+        Self::get_facade_root()?.prevent_stray_processes(prevent);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertRan(
+    pub fn assert_ran(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::get_facade_root()?.assertRan(predicate);
+        Self::get_facade_root()?.assert_ran(predicate);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertRanTimes(
+    pub fn assert_ran_times(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
         expected: usize,
     ) -> Result<()> {
-        Self::get_facade_root()?.assertRanTimes(predicate, expected);
+        Self::get_facade_root()?.assert_ran_times(predicate, expected);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertNotRan(
+    pub fn assert_not_ran(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::get_facade_root()?.assertNotRan(predicate);
+        Self::get_facade_root()?.assert_not_ran(predicate);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertNothingRan() -> Result<()> {
-        Self::get_facade_root()?.assertNothingRan();
+    pub fn assert_nothing_ran() -> Result<()> {
+        Self::get_facade_root()?.assert_nothing_ran();
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertRanInOrder(callbacks: &[&super::ProcessAssertion<'_>]) -> Result<()> {
-        Self::get_facade_root()?.assertRanInOrder(callbacks);
+    pub fn assert_ran_in_order(callbacks: &[&super::ProcessAssertion<'_>]) -> Result<()> {
+        Self::get_facade_root()?.assert_ran_in_order(callbacks);
         Ok(())
     }
 
     #[track_caller]
-    pub fn assertDidntRun(
+    pub fn assert_didnt_run(
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> Result<()> {
-        Self::get_facade_root()?.assertDidntRun(predicate);
+        Self::get_facade_root()?.assert_didnt_run(predicate);
         Ok(())
     }
 }

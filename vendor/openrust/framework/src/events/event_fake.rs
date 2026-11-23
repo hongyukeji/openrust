@@ -21,7 +21,6 @@ pub struct EventFake {
     recorded: Mutex<RecordedEvents>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl EventFake {
     pub(crate) fn new(events: &[&str], except: &[&str]) -> Arc<Self> {
         Arc::new(Self {
@@ -54,7 +53,7 @@ impl EventFake {
     }
 
     /// Lets events that match the predicate reach their normal listeners.
-    pub fn exceptWhen(
+    pub fn except_when(
         &self,
         predicate: impl Fn(&dyn Event) -> bool + Send + Sync + 'static,
     ) -> &Self {
@@ -74,7 +73,7 @@ impl EventFake {
     }
 
     /// Filters recorded payloads for the given name, retaining dispatch order.
-    pub fn dispatchedWhere(
+    pub fn dispatched_where(
         &self,
         event: &str,
         mut predicate: impl FnMut(&dyn Event) -> bool,
@@ -86,55 +85,55 @@ impl EventFake {
     }
 
     /// Asserts that the event was dispatched at least once.
-    pub fn assertDispatched(&self, event: &str) -> &Self {
+    pub fn assert_dispatched(&self, event: &str) -> &Self {
         assert!(self.count(event) > 0, "Event [{event}] was not dispatched.");
         self
     }
 
     /// Asserts that at least one recorded payload satisfies the predicate.
-    pub fn assertDispatchedWhere(
+    pub fn assert_dispatched_where(
         &self,
         event: &str,
         predicate: impl FnMut(&dyn Event) -> bool,
     ) -> &Self {
         assert!(
-            !self.dispatchedWhere(event, predicate).is_empty(),
+            !self.dispatched_where(event, predicate).is_empty(),
             "Event [{event}] was not dispatched with a matching payload."
         );
         self
     }
 
     /// Asserts that the event was dispatched exactly once.
-    pub fn assertDispatchedOnce(&self, event: &str) -> &Self {
-        self.assertDispatchedTimes(event, 1)
+    pub fn assert_dispatched_once(&self, event: &str) -> &Self {
+        self.assert_dispatched_times(event, 1)
     }
 
     /// Asserts that the event was dispatched exactly the given number of times.
-    pub fn assertDispatchedTimes(&self, event: &str, times: usize) -> &Self {
+    pub fn assert_dispatched_times(&self, event: &str, times: usize) -> &Self {
         assert_eq!(self.count(event), times, "Dispatch count for [{event}].");
         self
     }
 
     /// Asserts that the event was never dispatched.
-    pub fn assertNotDispatched(&self, event: &str) -> &Self {
-        self.assertDispatchedTimes(event, 0)
+    pub fn assert_not_dispatched(&self, event: &str) -> &Self {
+        self.assert_dispatched_times(event, 0)
     }
 
     /// Asserts that no recorded payload satisfies the predicate.
-    pub fn assertNotDispatchedWhere(
+    pub fn assert_not_dispatched_where(
         &self,
         event: &str,
         predicate: impl FnMut(&dyn Event) -> bool,
     ) -> &Self {
         assert!(
-            self.dispatchedWhere(event, predicate).is_empty(),
+            self.dispatched_where(event, predicate).is_empty(),
             "Event [{event}] was dispatched with a matching payload."
         );
         self
     }
 
     /// Asserts that no faked events were dispatched.
-    pub fn assertNothingDispatched(&self) -> &Self {
+    pub fn assert_nothing_dispatched(&self) -> &Self {
         let count: usize = self.recorded().events.values().map(Vec::len).sum();
         assert_eq!(count, 0, "Unexpected faked events were dispatched.");
         self

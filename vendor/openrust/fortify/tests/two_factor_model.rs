@@ -111,12 +111,12 @@ struct Engine {
     generated: Mutex<Vec<usize>>,
 }
 impl openrust_fortify::contracts::TwoFactorAuthenticationProvider for Engine {
-    fn generateSecretKey(&self, length: usize) -> FortifyResult<String> {
+    fn generate_secret_key(&self, length: usize) -> FortifyResult<String> {
         self.generated.lock().unwrap().push(length);
         Ok(SECRET.into())
     }
-    fn qrCodeUrl(&self, company: &str, account: &str, secret: &str) -> String {
-        self.engine.qrCodeUrl(company, account, secret)
+    fn qr_code_url(&self, company: &str, account: &str, secret: &str) -> String {
+        self.engine.qr_code_url(company, account, secret)
     }
     fn verify<'a>(&'a self, secret: &'a str, code: &'a str) -> HttpFuture<'a, FortifyResult<bool>> {
         self.engine.verify(secret, code)
@@ -138,7 +138,7 @@ struct Ignore;
 impl ServiceProvider for Ignore {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.make::<Fortify>().await?.ignoreRoutes();
+            app.make::<Fortify>().await?.ignore_routes();
             Ok(())
         })
     }
@@ -218,7 +218,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                     .await?
                     .and_then(|v| v.as_str().map(str::to_owned))
                     .unwrap_or_default();
-                user.replaceRecoveryCode(&code, &fixture.fortify).await?;
+                user.replace_recovery_code(&code, &fixture.fortify).await?;
             }
             "status" => {}
             _ => return Err(HttpError::InvalidRequest),
@@ -229,7 +229,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 String::from_utf8(
                     fixture
                         .fortify
-                        .currentEncrypter()
+                        .current_encrypter()
                         .map_err(internal)?
                         .decrypt(ciphertext, true)
                         .map_err(internal)?,
@@ -243,7 +243,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 String::from_utf8(
                     fixture
                         .fortify
-                        .currentEncrypter()
+                        .current_encrypter()
                         .map_err(internal)?
                         .decrypt(ciphertext, true)
                         .map_err(internal)?,
@@ -256,14 +256,14 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             stored.get_attribute("two_factor_recovery_codes"),
             Some(Value::Text(_))
         ) {
-            Some(stored.recoveryCodes(&fixture.fortify).map_err(internal)?)
+            Some(stored.recovery_codes(&fixture.fortify).map_err(internal)?)
         } else {
             None
         };
         let qr = if secret.is_some() {
             Some(
                 stored
-                    .twoFactorQrCodeUrl(&fixture.fortify, fixture.engine.as_ref())
+                    .two_factor_qr_code_url(&fixture.fortify, fixture.engine.as_ref())
                     .map_err(internal)?,
             )
         } else {
@@ -271,7 +271,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         };
         Response::json(
             StatusCode::OK,
-            json!({"codes_json":codes_json,"secret":secret,"codes":codes,"qr":qr,"enabled":stored.hasEnabledTwoFactorAuthentication(&fixture.fortify).map_err(internal)?,"confirmed":stored.get_attribute("two_factor_confirmed_at").is_some_and(|v|*v!=Value::Null),"generated":*fixture.engine.generated.lock().unwrap(),"events":*fixture.events.lock().unwrap()}),
+            json!({"codes_json":codes_json,"secret":secret,"codes":codes,"qr":qr,"enabled":stored.has_enabled_two_factor_authentication(&fixture.fortify).map_err(internal)?,"confirmed":stored.get_attribute("two_factor_confirmed_at").is_some_and(|v|*v!=Value::Null),"generated":*fixture.engine.generated.lock().unwrap(),"events":*fixture.events.lock().unwrap()}),
         )
     })
 }
@@ -351,14 +351,14 @@ async fn two_factor_model_actions_persist_encrypted_state_and_events_on_mysql() 
     let fortify = app.make::<Fortify>().await.unwrap();
     let generated = Arc::new(AtomicUsize::new(0));
     let counter = generated.clone();
-    fortify.generateRecoveryCodesUsing(Some(Arc::new(move || {
+    fortify.generate_recovery_codes_using(Some(Arc::new(move || {
         format!("code-{}", counter.fetch_add(1, Ordering::Relaxed))
     })));
     let events = Arc::new(Mutex::new(Vec::new()));
     let engine = Arc::new(Engine {
         engine: TwoFactorAuthenticationProvider::new(None)
-            .withClock(|| Ok(59))
-            .withWindow(0),
+            .with_clock(|| Ok(59))
+            .with_window(0),
         generated: Mutex::new(Vec::new()),
     });
     app.container()
@@ -392,7 +392,7 @@ async fn two_factor_model_actions_persist_encrypted_state_and_events_on_mysql() 
         let step = case["step"].as_array().unwrap();
         let mut op = step[0].as_str().unwrap();
         if op == "unicode-generate" {
-            fortify.generateRecoveryCodesUsing(Some(Arc::new(|| "é/😀\\x".into())));
+            fortify.generate_recovery_codes_using(Some(Arc::new(|| "é/😀\\x".into())));
             op = "generate";
         }
         if op == "unicode-replace" {
@@ -463,11 +463,11 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
     let one = Fortify::new(config.clone());
     let two = Fortify::new(Arc::new(Repository::new(Default::default())));
     let mut user = FactorUser(ModelState::default());
-    assert!(!user.hasEnabledTwoFactorAuthentication(&one).unwrap());
+    assert!(!user.has_enabled_two_factor_authentication(&one).unwrap());
     user.set_attribute("two_factor_secret", "");
-    assert!(!user.hasEnabledTwoFactorAuthentication(&one).unwrap());
+    assert!(!user.has_enabled_two_factor_authentication(&one).unwrap());
     user.set_attribute("two_factor_confirmed_at", "");
-    assert!(user.hasEnabledTwoFactorAuthentication(&one).unwrap());
+    assert!(user.has_enabled_two_factor_authentication(&one).unwrap());
     user.set_attribute("two_factor_confirmed_at", Value::Null);
     config
         .set(
@@ -475,21 +475,21 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
             json!(1),
         )
         .unwrap();
-    assert!(user.hasEnabledTwoFactorAuthentication(&one).unwrap());
+    assert!(user.has_enabled_two_factor_authentication(&one).unwrap());
     let key = Arc::new(Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap());
-    one.encryptUsing(Some(key.clone()));
+    one.encrypt_using(Some(key.clone()));
     let cipher = one
-        .currentEncrypter()
+        .current_encrypter()
         .unwrap()
         .encrypt(br#"["original"]"#, true)
         .unwrap();
     user.set_attribute("two_factor_recovery_codes", cipher);
-    assert_eq!(user.recoveryCodes(&one).unwrap(), vec!["original"]);
-    two.encryptUsing(Some(Arc::new(
+    assert_eq!(user.recovery_codes(&one).unwrap(), vec!["original"]);
+    two.encrypt_using(Some(Arc::new(
         Encrypter::new([b'b'; 32], Cipher::Aes256Cbc).unwrap(),
     )));
-    assert!(user.recoveryCodes(&two).is_err());
-    one.generateRecoveryCodesUsing(Some(Arc::new(|| "only-one".into())));
+    assert!(user.recovery_codes(&two).is_err());
+    one.generate_recovery_codes_using(Some(Arc::new(|| "only-one".into())));
     assert_eq!(openrust_fortify::RecoveryCode::generate(&one), "only-one");
     let generated = openrust_fortify::RecoveryCode::generate(&two);
     assert_eq!(generated.len(), 21);
@@ -499,27 +499,27 @@ fn model_feature_checks_encryption_override_and_recovery_generator_are_applicati
             .chars()
             .all(|v| v == '-' || v.is_ascii_alphanumeric())
     );
-    one.generateRecoveryCodesUsing(None);
+    one.generate_recovery_codes_using(None);
     assert_ne!(openrust_fortify::RecoveryCode::generate(&one), "only-one");
     for invalid in ["null", "{}", r#"["original",5]"#] {
         user.set_attribute(
             "two_factor_recovery_codes",
-            one.currentEncrypter()
+            one.current_encrypter()
                 .unwrap()
                 .encrypt(invalid.as_bytes(), true)
                 .unwrap(),
         );
-        assert!(user.recoveryCodes(&one).is_err());
+        assert!(user.recovery_codes(&one).is_err());
     }
     user.set_attribute("two_factor_recovery_codes", Value::Integer(1));
     assert!(matches!(
-        user.recoveryCodes(&one),
+        user.recovery_codes(&one),
         Err(openrust_fortify::FortifyError::InvalidAttribute(
             "two_factor_recovery_codes"
         ))
     ));
-    one.encryptUsing(None);
-    assert!(one.currentEncrypter().is_err());
+    one.encrypt_using(None);
+    assert!(one.current_encrypter().is_err());
 }
 struct FailedEncrypter;
 impl openrust::contracts::encryption::Encrypter for FailedEncrypter {
@@ -559,10 +559,10 @@ async fn encryption_failures_stop_before_model_mutation_and_preserve_callback_or
         .set("fortify.features", json!(["two-factor-authentication"]))
         .unwrap();
     let fortify = Arc::new(Fortify::new(config));
-    fortify.encryptUsing(Some(Arc::new(FailedEncrypter)));
+    fortify.encrypt_using(Some(Arc::new(FailedEncrypter)));
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
-    fortify.generateRecoveryCodesUsing(Some(Arc::new(move || {
+    fortify.generate_recovery_codes_using(Some(Arc::new(move || {
         counter.fetch_add(1, Ordering::Relaxed);
         "recovery".into()
     })));
@@ -598,7 +598,7 @@ async fn encryption_failures_stop_before_model_mutation_and_preserve_callback_or
     );
     assert_eq!(user.state().get_attributes(), &original);
     assert!(
-        user.replaceRecoveryCode("recovery", &fortify)
+        user.replace_recovery_code("recovery", &fortify)
             .await
             .is_err()
     );

@@ -20,8 +20,8 @@ struct Callbacks {
     filters: Vec<EntryFilter>,
     batches: Vec<BatchFilter>,
     tags: Vec<TagCallback>,
-    afterRecording: Option<RecordingHook>,
-    afterStoring: Vec<StoringHook>,
+    after_recording: Option<RecordingHook>,
+    after_storing: Vec<StoringHook>,
 }
 #[derive(Default)]
 struct Pending {
@@ -29,15 +29,15 @@ struct Pending {
     updates: Vec<EntryUpdate>,
 }
 struct Hidden {
-    requestHeaders: Vec<String>,
-    requestParameters: Vec<String>,
-    responseParameters: Vec<String>,
+    request_headers: Vec<String>,
+    request_parameters: Vec<String>,
+    response_parameters: Vec<String>,
 }
 pub(crate) struct Options {
     callbacks: Arc<RwLock<Callbacks>>,
     hidden: Arc<RwLock<Hidden>>,
     authorization: Arc<RwLock<Option<crate::http::Authorize>>>,
-    ignoreFrameworkEvents: Arc<AtomicBool>,
+    ignore_framework_events: Arc<AtomicBool>,
 }
 impl Default for Options {
     fn default() -> Self {
@@ -45,16 +45,16 @@ impl Default for Options {
             callbacks: Default::default(),
             hidden: Default::default(),
             authorization: Default::default(),
-            ignoreFrameworkEvents: Arc::new(AtomicBool::new(true)),
+            ignore_framework_events: Arc::new(AtomicBool::new(true)),
         }
     }
 }
 impl Default for Hidden {
     fn default() -> Self {
         Self {
-            requestHeaders: vec!["authorization".into(), "php-auth-pw".into()],
-            requestParameters: vec!["password".into(), "password_confirmation".into()],
-            responseParameters: Vec::new(),
+            request_headers: vec!["authorization".into(), "php-auth-pw".into()],
+            request_parameters: vec!["password".into(), "password_confirmation".into()],
+            response_parameters: Vec::new(),
         }
     }
 }
@@ -62,11 +62,11 @@ impl Default for Hidden {
 /// One HTTP request, console invocation or queue job's Telescope recording state.
 pub struct Telescope {
     /// Shared application setting matching Telescope::$ignoreFrameworkEvents.
-    pub ignoreFrameworkEvents: Arc<AtomicBool>,
+    pub ignore_framework_events: Arc<AtomicBool>,
     pub(crate) repository: Arc<dyn EntriesRepository>,
     enabled: AtomicBool,
     started: AtomicBool,
-    pub(crate) automaticRecording: AtomicBool,
+    pub(crate) automatic_recording: AtomicBool,
     suppressed: AtomicUsize,
     pending: Mutex<Pending>,
     callbacks: Arc<RwLock<Callbacks>>,
@@ -82,19 +82,19 @@ impl Drop for WithoutRecording<'_> {
 }
 impl Telescope {
     pub fn new(repository: Arc<dyn EntriesRepository>, enabled: bool) -> Self {
-        Self::withOptions(repository, enabled, Arc::new(Options::default()))
+        Self::with_options(repository, enabled, Arc::new(Options::default()))
     }
-    pub(crate) fn withOptions(
+    pub(crate) fn with_options(
         repository: Arc<dyn EntriesRepository>,
         enabled: bool,
         options: Arc<Options>,
     ) -> Self {
         Self {
             repository,
-            ignoreFrameworkEvents: options.ignoreFrameworkEvents.clone(),
+            ignore_framework_events: options.ignore_framework_events.clone(),
             enabled: AtomicBool::new(enabled),
             started: AtomicBool::new(false),
-            automaticRecording: AtomicBool::new(false),
+            automatic_recording: AtomicBool::new(false),
             suppressed: AtomicUsize::new(0),
             pending: Mutex::default(),
             callbacks: options.callbacks.clone(),
@@ -122,25 +122,25 @@ impl Telescope {
             None => Ok(openrust::support::facades::Config::get("app.env")? == Some("local".into())),
         }
     }
-    pub fn hideRequestHeaders(&self, headers: &[&str]) {
+    pub fn hide_request_headers(&self, headers: &[&str]) {
         self.hidden
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .requestHeaders
+            .request_headers
             .extend(headers.iter().map(|s| s.to_ascii_lowercase()));
     }
-    pub fn hideRequestParameters(&self, parameters: &[&str]) {
+    pub fn hide_request_parameters(&self, parameters: &[&str]) {
         self.hidden
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .requestParameters
+            .request_parameters
             .extend(parameters.iter().map(|s| (*s).into()));
     }
-    pub fn hideResponseParameters(&self, parameters: &[&str]) {
+    pub fn hide_response_parameters(&self, parameters: &[&str]) {
         self.hidden
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .responseParameters
+            .response_parameters
             .extend(parameters.iter().map(|s| (*s).into()));
     }
     pub(crate) fn headers(&self, headers: &openrust::http::HeaderMap) -> serde_json::Value {
@@ -148,7 +148,7 @@ impl Telescope {
             .hidden
             .read()
             .unwrap_or_else(|e| e.into_inner())
-            .requestHeaders
+            .request_headers
             .clone();
         let mut result = serde_json::Map::new();
         for key in headers.keys() {
@@ -167,40 +167,40 @@ impl Telescope {
         }
         result.into()
     }
-    pub(crate) fn requestParameters(&self, value: serde_json::Value) -> serde_json::Value {
+    pub(crate) fn request_parameters(&self, value: serde_json::Value) -> serde_json::Value {
         redact(
             value,
             &self
                 .hidden
                 .read()
                 .unwrap_or_else(|e| e.into_inner())
-                .requestParameters,
+                .request_parameters,
         )
     }
-    pub(crate) fn responseParameters(&self, value: serde_json::Value) -> serde_json::Value {
+    pub(crate) fn response_parameters(&self, value: serde_json::Value) -> serde_json::Value {
         redact(
             value,
             &self
                 .hidden
                 .read()
                 .unwrap_or_else(|e| e.into_inner())
-                .responseParameters,
+                .response_parameters,
         )
     }
-    pub fn isRecording(&self) -> bool {
+    pub fn is_recording(&self) -> bool {
         self.enabled.load(Ordering::Acquire) && self.suppressed.load(Ordering::Acquire) == 0
     }
-    pub(crate) fn hasStarted(&self) -> bool {
+    pub(crate) fn has_started(&self) -> bool {
         self.started.load(Ordering::Acquire)
     }
-    pub fn stopRecording(&self) {
+    pub fn stop_recording(&self) {
         self.enabled.store(false, Ordering::Release);
     }
-    pub async fn startRecording(&self, loadMonitoredTags: bool) {
+    pub async fn start_recording(&self, load_monitored_tags: bool) {
         self.started.store(true, Ordering::Release);
         let _guard = self.suppress();
-        if loadMonitoredTags {
-            self.repository.loadMonitoredTags().await;
+        if load_monitored_tags {
+            self.repository.load_monitored_tags().await;
         }
         let paused = matches!(
             openrust::cache::Cache::get("telescope:pause-recording").await,
@@ -212,7 +212,7 @@ impl Telescope {
     }
     pub(crate) async fn initialize(&self) {
         if !self.started.swap(true, Ordering::AcqRel) && self.enabled.load(Ordering::Acquire) {
-            self.startRecording(true).await;
+            self.start_recording(true).await;
             if !self.enabled.load(Ordering::Acquire) {
                 *self
                     .pending
@@ -225,7 +225,7 @@ impl Telescope {
         self.suppressed.fetch_add(1, Ordering::AcqRel);
         WithoutRecording(&self.suppressed)
     }
-    pub async fn withoutRecording<T>(&self, future: impl std::future::Future<Output = T>) -> T {
+    pub async fn without_recording<T>(&self, future: impl std::future::Future<Output = T>) -> T {
         let _guard = self.suppress();
         future.await
     }
@@ -240,7 +240,7 @@ impl Telescope {
             .push(Arc::new(callback));
         self
     }
-    pub fn filterBatch(
+    pub fn filter_batch(
         &self,
         callback: impl Fn(&[IncomingEntry]) -> bool + Send + Sync + 'static,
     ) -> &Self {
@@ -262,29 +262,29 @@ impl Telescope {
             .push(Arc::new(callback));
         self
     }
-    pub fn afterRecording(
+    pub fn after_recording(
         &self,
         callback: impl Fn(&Self, &IncomingEntry) + Send + Sync + 'static,
     ) -> &Self {
         self.callbacks
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .afterRecording = Some(Arc::new(callback));
+            .after_recording = Some(Arc::new(callback));
         self
     }
-    pub fn afterStoring(
+    pub fn after_storing(
         &self,
         callback: impl Fn(&Self, &[IncomingEntry]) + Send + Sync + 'static,
     ) -> &Self {
         self.callbacks
             .write()
             .unwrap_or_else(|e| e.into_inner())
-            .afterStoring
+            .after_storing
             .push(Arc::new(callback));
         self
     }
     pub fn record(&self, kind: EntryType, mut entry: IncomingEntry) {
-        if !self.isRecording() {
+        if !self.is_recording() {
             return;
         }
         entry.r#type = Some(kind);
@@ -306,14 +306,14 @@ impl Telescope {
             (
                 callbacks.tags.clone(),
                 callbacks.filters.clone(),
-                callbacks.afterRecording.clone(),
+                callbacks.after_recording.clone(),
             )
         };
         for callback in tags {
             let extra = callback(&entry);
             entry = entry.tags(extra);
         }
-        entry.monitored = self.repository.hasMonitoredTag(&entry.tags);
+        entry.monitored = self.repository.has_monitored_tag(&entry.tags);
         let _guard = self.suppress();
         if filters.iter().all(|filter| filter(&entry)) {
             self.pending
@@ -326,7 +326,7 @@ impl Telescope {
             hook(self, &entry);
         }
     }
-    pub fn recordUpdate(&self, update: EntryUpdate) {
+    pub fn record_update(&self, update: EntryUpdate) {
         if self.enabled.load(Ordering::Acquire) {
             self.pending
                 .lock()
@@ -335,10 +335,10 @@ impl Telescope {
                 .push(update);
         }
     }
-    pub fn recordDump(&self, entry: crate::IncomingDumpEntry) {
+    pub fn record_dump(&self, entry: crate::IncomingDumpEntry) {
         self.record(EntryType::Dump, entry.into());
     }
-    pub(crate) fn recordHydration(&self, model: &str) -> crate::Result<()> {
+    pub(crate) fn record_hydration(&self, model: &str) -> crate::Result<()> {
         {
             let mut pending = self
                 .pending
@@ -375,10 +375,10 @@ impl Telescope {
         );
         Ok(())
     }
-    pub fn recordException(&self, entry: IncomingExceptionEntry) {
+    pub fn record_exception(&self, entry: IncomingExceptionEntry) {
         self.record(EntryType::Exception, entry.into());
     }
-    pub fn flushEntries(&self) {
+    pub fn flush_entries(&self) {
         self.pending
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -396,16 +396,16 @@ impl Telescope {
         let _guard = self.suppress();
         let (filters, hooks) = {
             let callbacks = self.callbacks.read().unwrap_or_else(|e| e.into_inner());
-            (callbacks.batches.clone(), callbacks.afterStoring.clone())
+            (callbacks.batches.clone(), callbacks.after_storing.clone())
         };
         if !filters.iter().all(|filter| filter(&pending.entries)) {
             pending.entries.clear();
         }
         let batch = Uuid::now_v7();
         for entry in &mut pending.entries {
-            entry.batchId = Some(batch);
+            entry.batch_id = Some(batch);
         }
-        let entryPoints = pending
+        let entry_points = pending
             .entries
             .iter()
             .filter(|entry| {
@@ -418,9 +418,9 @@ impl Telescope {
             .cloned()
             .collect::<Vec<_>>();
         for entry in &mut pending.entries {
-            if entry.isDump() {
+            if entry.is_dump() {
                 let mut dump = crate::IncomingDumpEntry(entry.clone());
-                dump.assignEntryPointFromBatch(&entryPoints);
+                dump.assign_entry_point_from_batch(&entry_points);
                 *entry = dump.into();
             }
         }

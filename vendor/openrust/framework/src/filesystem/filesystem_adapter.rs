@@ -35,7 +35,6 @@ enum Driver {
     S3(Box<AwsS3V3Adapter>),
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl FilesystemAdapter {
     pub(super) fn local(
         local: LocalFilesystemAdapter,
@@ -77,7 +76,7 @@ impl FilesystemAdapter {
         }
     }
 
-    pub fn providesTemporaryUrls(&self) -> bool {
+    pub fn provides_temporary_urls(&self) -> bool {
         self.signed_route.is_some()
             || matches!(self.driver, Driver::S3(_))
             || self
@@ -87,7 +86,7 @@ impl FilesystemAdapter {
                 .is_some()
     }
 
-    pub fn providesTemporaryUploadUrls(&self) -> bool {
+    pub fn provides_temporary_upload_urls(&self) -> bool {
         self.signed_route.is_some()
             || matches!(self.driver, Driver::S3(_))
             || self
@@ -98,7 +97,7 @@ impl FilesystemAdapter {
     }
 
     /// Sets the download URL builder for a local disk. S3 uses its native signer.
-    pub fn buildTemporaryUrlsUsing(
+    pub fn build_temporary_urls_using(
         &self,
         builder: impl for<'a> Fn(
             &'a str,
@@ -116,7 +115,7 @@ impl FilesystemAdapter {
     }
 
     /// Sets the upload URL builder for a local disk. S3 uses its native signer.
-    pub fn buildTemporaryUploadUrlsUsing(
+    pub fn build_temporary_upload_urls_using(
         &self,
         builder: impl for<'a> Fn(
             &'a str,
@@ -133,16 +132,16 @@ impl FilesystemAdapter {
             .expect("temporary upload URL builder lock") = Some(Arc::new(builder));
     }
 
-    pub async fn temporaryUrl(
+    pub async fn temporary_url(
         &self,
         path: &str,
         expiration: SystemTime,
     ) -> FilesystemResult<String> {
-        self.temporaryUrlWith(path, expiration, TemporaryUrlOptions::default())
+        self.temporary_url_with(path, expiration, TemporaryUrlOptions::default())
             .await
     }
 
-    pub async fn temporaryUrlWith(
+    pub async fn temporary_url_with(
         &self,
         path: &str,
         expiration: SystemTime,
@@ -165,16 +164,16 @@ impl FilesystemAdapter {
         }
     }
 
-    pub async fn temporaryUploadUrl(
+    pub async fn temporary_upload_url(
         &self,
         path: &str,
         expiration: SystemTime,
     ) -> FilesystemResult<TemporaryUploadUrl> {
-        self.temporaryUploadUrlWith(path, expiration, TemporaryUploadUrlOptions::default())
+        self.temporary_upload_url_with(path, expiration, TemporaryUploadUrlOptions::default())
             .await
     }
 
-    pub async fn temporaryUploadUrlWith(
+    pub async fn temporary_upload_url_with(
         &self,
         path: &str,
         expiration: SystemTime,
@@ -201,7 +200,7 @@ impl FilesystemAdapter {
     }
 
     /// Presigns an S3 GET with SDK options. The disk supplies the bucket and key.
-    pub async fn temporaryDownloadRequest(
+    pub async fn temporary_download_request(
         &self,
         path: &str,
         expiration: SystemTime,
@@ -218,7 +217,7 @@ impl FilesystemAdapter {
     }
 
     /// Presigns an S3 PUT with SDK options. The disk supplies the bucket and key.
-    pub async fn temporaryUploadRequest(
+    pub async fn temporary_upload_request(
         &self,
         path: &str,
         expiration: SystemTime,
@@ -294,11 +293,11 @@ impl FilesystemAdapter {
         self: &Arc<Self>,
         path: impl Into<String>,
     ) -> crate::image::Result<crate::image::Image> {
-        crate::image::ImageFacade::fromDisk(self.clone(), path)
+        crate::image::ImageFacade::from_disk(self.clone(), path)
     }
 
     pub async fn get(&self, path: &str) -> FilesystemResult<Option<Vec<u8>>> {
-        let Some(mut reader) = self.readStream(path).await? else {
+        let Some(mut reader) = self.read_stream(path).await? else {
             return Ok(None);
         };
         let mut bytes = Vec::new();
@@ -314,11 +313,11 @@ impl FilesystemAdapter {
         if let Driver::S3(disk) = &self.driver {
             return self.or_default(disk.copy(from, to).await.map(|()| true));
         }
-        let Some(mut reader) = self.readStream(from).await? else {
+        let Some(mut reader) = self.read_stream(from).await? else {
             return Ok(false);
         };
-        let visibility = self.getVisibility(from).await?;
-        self.writeStreamWithOptions(
+        let visibility = self.get_visibility(from).await?;
+        self.write_stream_with_options(
             to,
             &mut reader,
             WriteOptions {
@@ -380,7 +379,7 @@ impl FilesystemAdapter {
         Ok(disk.metadata(path.into()).await?.len())
     }
 
-    pub async fn lastModified(&self, path: &str) -> FilesystemResult<SystemTime> {
+    pub async fn last_modified(&self, path: &str) -> FilesystemResult<SystemTime> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
@@ -399,10 +398,10 @@ impl FilesystemAdapter {
     }
 
     pub async fn checksum(&self, path: &str) -> FilesystemResult<Option<String>> {
-        self.checksumWith::<md5::Md5>(path).await
+        self.checksum_with::<md5::Md5>(path).await
     }
 
-    pub async fn checksumWith<D: md5::Digest>(
+    pub async fn checksum_with<D: md5::Digest>(
         &self,
         path: &str,
     ) -> FilesystemResult<Option<String>> {
@@ -470,7 +469,7 @@ impl FilesystemAdapter {
         file.response(path, name, headers, disposition)
     }
 
-    pub async fn readStream(&self, path: &str) -> FilesystemResult<Option<FilesystemReader>> {
+    pub async fn read_stream(&self, path: &str) -> FilesystemResult<Option<FilesystemReader>> {
         Ok(self
             .read_with_content_type(path)
             .await?
@@ -497,31 +496,31 @@ impl FilesystemAdapter {
     }
 
     pub async fn put(&self, path: &str, contents: impl AsRef<[u8]>) -> FilesystemResult<bool> {
-        self.putWithOptions(path, contents, WriteOptions::default())
+        self.put_with_options(path, contents, WriteOptions::default())
             .await
     }
 
-    pub async fn putWithOptions(
+    pub async fn put_with_options(
         &self,
         path: &str,
         contents: impl AsRef<[u8]>,
         options: WriteOptions,
     ) -> FilesystemResult<bool> {
-        self.writeStreamWithOptions(path, &mut contents.as_ref(), options)
+        self.write_stream_with_options(path, &mut contents.as_ref(), options)
             .await
     }
 
-    pub async fn putFile(
+    pub async fn put_file(
         &self,
         directory: &str,
         file: &UploadedFile,
         options: WriteOptions,
     ) -> FilesystemResult<Option<String>> {
-        self.putFileAs(directory, file, file.hash_name()?, options)
+        self.put_file_as(directory, file, file.hash_name()?, options)
             .await
     }
 
-    pub async fn putFileAs(
+    pub async fn put_file_as(
         &self,
         directory: &str,
         file: &UploadedFile,
@@ -534,20 +533,20 @@ impl FilesystemAdapter {
         } else {
             format!("{directory}/{name}")
         };
-        let stored = self.putWithOptions(&path, file.get(), options).await?;
+        let stored = self.put_with_options(&path, file.get(), options).await?;
         Ok(stored.then_some(path))
     }
 
-    pub async fn writeStream(
+    pub async fn write_stream(
         &self,
         path: &str,
         reader: &mut (impl AsyncRead + Unpin),
     ) -> FilesystemResult<bool> {
-        self.writeStreamWithOptions(path, reader, WriteOptions::default())
+        self.write_stream_with_options(path, reader, WriteOptions::default())
             .await
     }
 
-    pub async fn writeStreamWithOptions(
+    pub async fn write_stream_with_options(
         &self,
         path: &str,
         reader: &mut (impl AsyncRead + Unpin),
@@ -576,7 +575,7 @@ impl FilesystemAdapter {
         Ok(!self.exists(path).await?)
     }
 
-    pub async fn fileExists(&self, path: &str) -> FilesystemResult<bool> {
+    pub async fn file_exists(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         match &self.driver {
@@ -585,7 +584,7 @@ impl FilesystemAdapter {
         }
     }
 
-    pub async fn directoryExists(&self, path: &str) -> FilesystemResult<bool> {
+    pub async fn directory_exists(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         match &self.driver {
@@ -606,7 +605,7 @@ impl FilesystemAdapter {
         self.list(directory, false, true).await
     }
 
-    pub async fn allDirectories(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+    pub async fn all_directories(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
         self.list(directory, true, true).await
     }
 
@@ -630,7 +629,7 @@ impl FilesystemAdapter {
         }
     }
 
-    pub async fn makeDirectory(&self, path: &str) -> FilesystemResult<bool> {
+    pub async fn make_directory(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
@@ -639,7 +638,7 @@ impl FilesystemAdapter {
         self.or_default(disk.make_directory(path.into()).await.map(|()| true))
     }
 
-    pub async fn deleteDirectory(&self, path: &str) -> FilesystemResult<bool> {
+    pub async fn delete_directory(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         let Driver::Local(disk) = &self.driver else {
@@ -658,7 +657,7 @@ impl FilesystemAdapter {
         self.or_default(result.map(|()| true))
     }
 
-    pub async fn getVisibility(&self, path: &str) -> FilesystemResult<Visibility> {
+    pub async fn get_visibility(&self, path: &str) -> FilesystemResult<Visibility> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
         match &self.driver {
@@ -667,7 +666,7 @@ impl FilesystemAdapter {
         }
     }
 
-    pub async fn setVisibility(
+    pub async fn set_visibility(
         &self,
         path: &str,
         visibility: Visibility,

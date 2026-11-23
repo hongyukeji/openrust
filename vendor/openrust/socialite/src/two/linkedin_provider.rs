@@ -34,24 +34,24 @@ impl Default for LinkedInProvider {
     }
 }
 impl LinkedInProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints) -> Self {
         Self { endpoints }
     }
 }
 impl ProviderDefinition for LinkedInProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["r_liteprofile", "r_emailaddress"]
     }
-    fn scopeSeparator(&self) -> &str {
+    fn scope_separator(&self) -> &str {
         " "
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -98,7 +98,7 @@ impl ProviderDefinition for LinkedInProvider {
             Ok(Value::Object(user.clone()))
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let locale = format!(
             "{}_{}",
             value(&user, &["firstName", "preferredLocale", "language"])

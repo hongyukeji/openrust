@@ -3,7 +3,6 @@ use std::fmt::Write as _;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ScopeJsonOptions(u32);
-#[allow(non_snake_case)]
 impl ScopeJsonOptions {
     pub const JSON_HEX_TAG: Self = Self(1);
     pub const JSON_HEX_AMP: Self = Self(2);
@@ -16,7 +15,7 @@ impl ScopeJsonOptions {
     pub const JSON_PRESERVE_ZERO_FRACTION: Self = Self(1024);
     pub const JSON_UNESCAPED_LINE_TERMINATORS: Self = Self(2048);
     /// PHP option bits with no effect on an object of valid strings are accepted too.
-    pub const fn fromBits(bits: u32) -> Self {
+    pub const fn from_bits(bits: u32) -> Self {
         Self(bits)
     }
     const fn has(self, flag: Self) -> bool {

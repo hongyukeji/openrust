@@ -23,27 +23,27 @@ impl Default for BitbucketProvider {
     }
 }
 impl BitbucketProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints) -> Self {
         Self { endpoints }
     }
 }
 impl ProviderDefinition for BitbucketProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["email"]
     }
-    fn scopeSeparator(&self) -> &str {
+    fn scope_separator(&self) -> &str {
         " "
     }
-    fn directTokenBasicAuth(&self) -> bool {
+    fn direct_token_basic_auth(&self) -> bool {
         true
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -97,7 +97,7 @@ impl ProviderDefinition for BitbucketProvider {
             Ok(user)
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let fields = [
             ("id", user["uuid"].clone()),
             ("nickname", user["username"].clone()),

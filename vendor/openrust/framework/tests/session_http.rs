@@ -463,7 +463,7 @@ async fn verify(driver: &'static str) {
             .decode(payload)
             .unwrap();
         let payload = String::from_utf8(decoded).unwrap();
-        assert!(Encrypter::appearsEncrypted(&payload));
+        assert!(Encrypter::appears_encrypted(&payload));
         assert!(!payload.contains("Ada"));
     }
 
@@ -605,7 +605,7 @@ async fn cookie_sessions_round_trip_and_rotate_across_applications() {
         CookieValuePrefix::validate(id, &decoded, encrypter.get_all_keys()).unwrap(),
     )
     .unwrap();
-    assert!(Encrypter::appearsEncrypted(
+    assert!(Encrypter::appears_encrypted(
         envelope["data"].as_str().unwrap()
     ));
     envelope["expires"] = 0.into();
@@ -642,7 +642,7 @@ async fn file_sessions_persist_across_applications_and_prune_expired_files() {
     let directory = root.path().join("sessions");
     let initial_file = directory.join(original["id"].as_str().unwrap());
     let stored = fs::read_to_string(&initial_file).unwrap();
-    assert!(Encrypter::appearsEncrypted(&stored));
+    assert!(Encrypter::appears_encrypted(&stored));
     assert!(!stored.contains("Ada"));
     first_server.abort();
     first_server.await.unwrap_err();
@@ -1234,7 +1234,7 @@ async fn provider_registers_a_request_bound_session_driver_per_application() {
         .await
         .unwrap()
         .unwrap();
-    assert!(Encrypter::appearsEncrypted(
+    assert!(Encrypter::appears_encrypted(
         std::str::from_utf8(&payload).unwrap()
     ));
     assert_eq!(read(&send(first, "read", cookie).await).1["name"], "Ada");

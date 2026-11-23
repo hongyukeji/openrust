@@ -33,7 +33,7 @@ impl SocialiteManager {
         }
     }
     /// Mini Program code exchange follows EasyWeChat, independently of browser OAuth.
-    pub fn miniApp(&self) -> Result<crate::wechat::MiniApp> {
+    pub fn mini_app(&self) -> Result<crate::wechat::MiniApp> {
         crate::wechat::MiniApp::new(
             &self
                 .config
@@ -48,7 +48,7 @@ impl SocialiteManager {
             .expect("Socialite providers")
             .insert(name.into(), provider);
     }
-    pub fn extendOAuth1(&self, name: impl Into<String>, provider: one::TwitterProvider) {
+    pub fn extend_oauth1(&self, name: impl Into<String>, provider: one::TwitterProvider) {
         self.oauth1
             .write()
             .expect("Socialite providers")
@@ -111,7 +111,7 @@ impl SocialiteManager {
                 "gitlab" => {
                     let mut provider = GitlabProvider::default();
                     if let Some(host) = value.get("host").and_then(serde_json::Value::as_str) {
-                        provider.setHost(host);
+                        provider.set_host(host);
                     }
                     Some(Arc::new(provider) as Arc<dyn ProviderDefinition>)
                 }

@@ -1,5 +1,5 @@
 //! League resource verification over the selected application's real token store.
-use crate::{OAuthError, Passport, PublicKey};
+use crate::{OauthError, Passport, PublicKey};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use openrust::{
     contracts::container::Container as _,
@@ -67,15 +67,14 @@ impl Facade for ResourceServer {
         openrust::container::ServiceKey::typed::<Self>()
     }
 }
-#[allow(non_snake_case)]
 impl ResourceServer {
     pub(crate) fn new(passport: Arc<Passport>, key: Arc<PublicKey>) -> Self {
         Self { passport, key }
     }
-    pub async fn validateAuthenticatedRequest(
+    pub async fn validate_authenticated_request(
         &self,
         request: &mut Request,
-    ) -> Result<AccessToken, OAuthError> {
+    ) -> Result<AccessToken, OauthError> {
         if let Some(token) = request
             .parts()
             .extensions
@@ -100,7 +99,7 @@ impl ResourceServer {
             .await
             .map_err(internal)?
         {
-            return Err(OAuthError::access_denied(Some(
+            return Err(OauthError::access_denied(Some(
                 "Access token has been revoked",
             )));
         }
@@ -108,7 +107,7 @@ impl ResourceServer {
         request.parts_mut().extensions.insert(claims.clone());
         Ok(claims)
     }
-    fn verify(&self, token: &str, now: f64) -> Result<AccessToken, OAuthError> {
+    fn verify(&self, token: &str, now: f64) -> Result<AccessToken, OauthError> {
         use rsa::{
             pkcs1::DecodeRsaPublicKey as _, pkcs8::DecodePublicKey as _,
             traits::PublicKeyParts as _,
@@ -128,8 +127,8 @@ impl ResourceServer {
         {
             return Err(invalid());
         }
-        let key = rsa::PublicKey::from_public_key_pem(self.key.getKeyContents())
-            .or_else(|_| rsa::PublicKey::from_pkcs1_pem(self.key.getKeyContents()))
+        let key = rsa::PublicKey::from_public_key_pem(self.key.get_key_contents())
+            .or_else(|_| rsa::PublicKey::from_pkcs1_pem(self.key.get_key_contents()))
             .map_err(internal)?;
         let signed = token.rsplit_once('.').ok_or_else(invalid)?.0;
         aws_lc_rs::signature::RsaPublicKeyComponents {
@@ -219,16 +218,16 @@ impl ResourceServer {
         })
     }
 }
-fn internal(_: impl std::fmt::Display) -> OAuthError {
-    OAuthError::server_error("OAuth resource validation failed")
+fn internal(_: impl std::fmt::Display) -> OauthError {
+    OauthError::server_error("OAuth resource validation failed")
 }
-fn invalid() -> OAuthError {
-    OAuthError::access_denied(Some("Access token could not be verified"))
+fn invalid() -> OauthError {
+    OauthError::access_denied(Some("Access token could not be verified"))
 }
 // Reused from the pinned old ResourceServer: PCRE scheme removal then PHP trim.
-fn bearer(authorization: Option<&[u8]>) -> Result<&str, OAuthError> {
+fn bearer(authorization: Option<&[u8]>) -> Result<&str, OauthError> {
     let value = authorization
-        .ok_or_else(|| OAuthError::access_denied(Some("Missing \"Authorization\" header")))?;
+        .ok_or_else(|| OauthError::access_denied(Some("Missing \"Authorization\" header")))?;
     let leading = value
         .iter()
         .position(|byte| !pcre_space(*byte))
@@ -247,7 +246,7 @@ fn bearer(authorization: Option<&[u8]>) -> Result<&str, OAuthError> {
         .map_err(|_| invalid())?
         .trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\0']);
     if token.is_empty() {
-        return Err(OAuthError::access_denied(Some("Missing \"Bearer\" token")));
+        return Err(OauthError::access_denied(Some("Missing \"Bearer\" token")));
     }
     Ok(token)
 }

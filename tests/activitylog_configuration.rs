@@ -191,7 +191,7 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
     let record = logger
         .log(
             openrust_activitylog::Activity::new("native.probe")
-                .performedOn(openrust_activitylog::Subject::new("account", "1").unwrap()),
+                .performed_on(openrust_activitylog::Subject::new("account", "1").unwrap()),
         )
         .await
         .unwrap()

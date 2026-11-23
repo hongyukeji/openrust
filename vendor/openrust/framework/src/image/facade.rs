@@ -58,7 +58,6 @@ pub struct ImageManager {
     http: Option<Arc<Factory>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ImageManager {
     pub fn new(limits: Limits) -> Self {
         Self {
@@ -97,7 +96,7 @@ impl ImageManager {
             .upgrade()
     }
 
-    pub fn setContainer(&self, container: Arc<Container>) -> &Self {
+    pub fn set_container(&self, container: Arc<Container>) -> &Self {
         *self
             .container
             .write()
@@ -121,7 +120,7 @@ impl ImageManager {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    pub fn transformUsing(
+    pub fn transform_using(
         &self,
         driver: &str,
         transformation: &str,
@@ -142,7 +141,7 @@ impl ImageManager {
         };
         if let Some(resolved) = resolved {
             for (transformation, callback) in handlers {
-                resolved.transformUsing(&transformation, callback)?;
+                resolved.transform_using(&transformation, callback)?;
             }
         }
         Ok(self)
@@ -190,7 +189,7 @@ impl ImageManager {
             Some(creator) => creator(self)?,
             None => Arc::new(NativeDriver::default()),
         };
-        driver.ensureRequirementsAreMet()?;
+        driver.ensure_requirements_are_met()?;
         loop {
             let (handlers, revision) = {
                 let state = self.driver_state();
@@ -200,7 +199,7 @@ impl ImageManager {
                 )
             };
             for (transformation, callback) in handlers {
-                driver.transformUsing(&transformation, callback)?;
+                driver.transform_using(&transformation, callback)?;
             }
             let mut state = self.driver_state();
             if !Arc::ptr_eq(&state.handlers_generation, &revision) {
@@ -236,38 +235,38 @@ impl ImageManager {
         .map_err(|error| Error::Io(std::io::Error::other(error)))?
     }
 
-    pub fn fromBytes(&self, bytes: impl Into<Bytes>) -> Image {
+    pub fn from_bytes(&self, bytes: impl Into<Bytes>) -> Image {
         Image::new(self.clone(), Source::Bytes(bytes.into()))
     }
 
-    pub async fn fromStream(&self, reader: impl AsyncRead) -> Result<Image> {
-        Ok(self.fromBytes(read_bounded(reader, self.limits).await?))
+    pub async fn from_stream(&self, reader: impl AsyncRead) -> Result<Image> {
+        Ok(self.from_bytes(read_bounded(reader, self.limits).await?))
     }
 
     pub fn from_base64(&self, encoded: impl Into<Arc<str>>) -> Image {
         Image::new(self.clone(), Source::Base64(encoded.into()))
     }
 
-    pub fn fromPath(&self, path: impl Into<PathBuf>) -> Image {
+    pub fn from_path(&self, path: impl Into<PathBuf>) -> Image {
         Image::new(self.clone(), Source::Path(path.into()))
     }
 
-    pub fn fromUpload(&self, file: &UploadedFile) -> Image {
+    pub fn from_upload(&self, file: &UploadedFile) -> Image {
         Image::new(self.clone(), Source::Upload(file.clone()))
     }
 
-    pub fn fromDisk(&self, disk: Arc<FilesystemAdapter>, path: impl Into<String>) -> Image {
+    pub fn from_disk(&self, disk: Arc<FilesystemAdapter>, path: impl Into<String>) -> Image {
         Image::new(self.clone(), Source::Storage(disk, path.into()))
     }
 
-    pub fn fromStorage(&self, path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
+    pub fn from_storage(&self, path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
         Ok(Image::new(
             self.clone(),
             Source::ConfiguredStorage(disk.map(str::to_owned), path.into()),
         ))
     }
 
-    pub fn fromUrl(&self, url: impl Into<String>) -> Result<Image> {
+    pub fn from_url(&self, url: impl Into<String>) -> Result<Image> {
         Ok(Image::new(self.clone(), Source::Url(url.into())))
     }
 
@@ -304,51 +303,50 @@ impl Facade for ImageFacade {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ImageFacade {
-    pub fn fromBytes(bytes: impl Into<Bytes>) -> Result<Image> {
-        Ok(Self::get_facade_root()?.fromBytes(bytes))
+    pub fn from_bytes(bytes: impl Into<Bytes>) -> Result<Image> {
+        Ok(Self::get_facade_root()?.from_bytes(bytes))
     }
 
-    pub async fn fromStream(reader: impl AsyncRead) -> Result<Image> {
-        Self::get_facade_root()?.fromStream(reader).await
+    pub async fn from_stream(reader: impl AsyncRead) -> Result<Image> {
+        Self::get_facade_root()?.from_stream(reader).await
     }
 
     pub fn from_base64(encoded: impl Into<Arc<str>>) -> Result<Image> {
         Ok(Self::get_facade_root()?.from_base64(encoded))
     }
 
-    pub fn fromPath(path: impl Into<PathBuf>) -> Result<Image> {
-        Ok(Self::get_facade_root()?.fromPath(path))
+    pub fn from_path(path: impl Into<PathBuf>) -> Result<Image> {
+        Ok(Self::get_facade_root()?.from_path(path))
     }
 
-    pub fn fromUpload(file: &UploadedFile) -> Result<Image> {
-        Ok(Self::get_facade_root()?.fromUpload(file))
+    pub fn from_upload(file: &UploadedFile) -> Result<Image> {
+        Ok(Self::get_facade_root()?.from_upload(file))
     }
 
-    pub fn fromDisk(disk: Arc<FilesystemAdapter>, path: impl Into<String>) -> Result<Image> {
-        Ok(Self::get_facade_root()?.fromDisk(disk, path))
+    pub fn from_disk(disk: Arc<FilesystemAdapter>, path: impl Into<String>) -> Result<Image> {
+        Ok(Self::get_facade_root()?.from_disk(disk, path))
     }
 
-    pub fn fromStorage(path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
-        Self::get_facade_root()?.fromStorage(path, disk)
+    pub fn from_storage(path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
+        Self::get_facade_root()?.from_storage(path, disk)
     }
 
-    pub fn fromUrl(url: impl Into<String>) -> Result<Image> {
-        Self::get_facade_root()?.fromUrl(url)
+    pub fn from_url(url: impl Into<String>) -> Result<Image> {
+        Self::get_facade_root()?.from_url(url)
     }
 
     pub fn driver(name: Option<&str>) -> Result<Arc<dyn Driver>> {
         Self::get_facade_root()?.driver(name)
     }
 
-    pub fn transformUsing(
+    pub fn transform_using(
         driver: &str,
         transformation: &str,
         callback: TransformationHandler,
     ) -> Result<()> {
         Self::get_facade_root()?
-            .transformUsing(driver, transformation, callback)
+            .transform_using(driver, transformation, callback)
             .map(|_| ())
     }
 
@@ -364,8 +362,8 @@ impl ImageFacade {
         Ok(Self::get_facade_root()?.get_container())
     }
 
-    pub fn setContainer(container: Arc<Container>) -> Result<()> {
-        Self::get_facade_root()?.setContainer(container);
+    pub fn set_container(container: Arc<Container>) -> Result<()> {
+        Self::get_facade_root()?.set_container(container);
         Ok(())
     }
 

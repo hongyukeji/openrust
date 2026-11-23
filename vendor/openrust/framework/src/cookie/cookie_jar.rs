@@ -27,13 +27,12 @@ impl Default for CookieJar {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CookieJar {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn setDefaultPathAndDomain(
+    pub fn set_default_path_and_domain(
         &mut self,
         path: &str,
         domain: Option<&str>,
@@ -112,7 +111,7 @@ impl CookieJar {
         }
     }
 
-    pub fn hasQueued(&self, name: &str, path: Option<&str>) -> bool {
+    pub fn has_queued(&self, name: &str, path: Option<&str>) -> bool {
         self.queued(name, path).is_some()
     }
 
@@ -127,14 +126,14 @@ impl CookieJar {
         Ok(())
     }
 
-    pub fn getQueuedCookies(&self) -> Vec<&Cookie> {
+    pub fn get_queued_cookies(&self) -> Vec<&Cookie> {
         self.queued
             .iter()
             .flat_map(|(_, cookies)| cookies)
             .collect()
     }
 
-    pub fn flushQueuedCookies(&mut self) -> &mut Self {
+    pub fn flush_queued_cookies(&mut self) -> &mut Self {
         self.queued.clear();
         self
     }
@@ -219,7 +218,7 @@ impl QueueingFactory for CookieJar {
     }
 
     fn get_queued_cookies(&self) -> Vec<&Cookie> {
-        self.getQueuedCookies()
+        self.get_queued_cookies()
     }
 }
 

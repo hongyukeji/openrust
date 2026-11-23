@@ -119,7 +119,6 @@ pub struct DatabaseNotification {
     pub read_at: Option<Timestamp>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseNotification {
     /// Defines the table while allowing the application to select the model key column type.
     pub fn schema(table: &mut Blueprint, key_column: impl FnOnce(&mut Blueprint)) {
@@ -138,14 +137,14 @@ impl DatabaseNotification {
         self.read_at.is_none()
     }
 
-    pub async fn markAsRead(&mut self) -> NotificationResult<()> {
+    pub async fn mark_as_read(&mut self) -> NotificationResult<()> {
         if self.unread() {
             self.set_read_at(Some(now())).await?;
         }
         Ok(())
     }
 
-    pub async fn markAsUnread(&mut self) -> NotificationResult<()> {
+    pub async fn mark_as_unread(&mut self) -> NotificationResult<()> {
         if !self.unread() {
             self.set_read_at(None).await?;
         }

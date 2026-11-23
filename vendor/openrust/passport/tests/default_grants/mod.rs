@@ -12,7 +12,7 @@ use openrust_passport::{
     http::middleware::{CheckToken, CheckTokenForAnyScope, EnsureClientIsResourceOwner},
 };
 impl HasApiTokens for User {
-    fn getProviderName(&self) -> &str {
+    fn get_provider_name(&self) -> &str {
         "users"
     }
 }
@@ -99,7 +99,7 @@ impl Fixture {
                     let repo = openrust::container::Container::get_instance()
                         .make::<ClientRepository>()?;
                     let client = repo
-                        .createClientCredentialsGrantClient("Machine")
+                        .create_client_credentials_grant_client("Machine")
                         .await
                         .unwrap();
                     let id = AuthIdentifier::try_from(&client.get_key().await.unwrap())
@@ -107,7 +107,7 @@ impl Fixture {
                         .to_string();
                     let model = client.model::<openrust_passport::Client>().unwrap();
                     let mut model = model.lock().await;
-                    let secret = model.plainSecret.as_ref().unwrap().to_string();
+                    let secret = model.plain_secret.as_ref().unwrap().to_string();
                     if public {
                         model
                             .force_fill_async(Attributes::from([("secret".into(), Value::Null)]))
@@ -148,7 +148,7 @@ impl Fixture {
                     let repo = openrust::container::Container::get_instance()
                         .make::<ClientRepository>()?;
                     let client = repo
-                        .createPersonalAccessGrantClient("Personal", provider.as_deref())
+                        .create_personal_access_grant_client("Personal", provider.as_deref())
                         .await
                         .unwrap();
                     Ok(AuthIdentifier::try_from(&client.get_key().await.unwrap())
@@ -169,7 +169,7 @@ async fn mysql_machine_issuance_scopes_subject_and_resource_boundaries() {
     let f = Fixture::new().await;
     let client = f.machine_client(false, None).await;
     f.passport
-        .clientCredentialsTokensExpireIn(Some(GrantLifetime::Seconds(90)));
+        .client_credentials_tokens_expire_in(Some(GrantLifetime::Seconds(90)));
     let response = f.machine_token(&client, Some("read read")).await;
     assert_eq!(response.status(), 200);
     assert_eq!(response.headers()["cache-control"], "no-store");
@@ -236,7 +236,7 @@ async fn mysql_machine_validation_defaults_basic_and_client_scope_restrictions()
         return;
     }
     let f = Fixture::new().await;
-    f.passport.setDefaultScope(vec!["read".into()]);
+    f.passport.set_default_scope(vec!["read".into()]);
     let public = f.machine_client(true, None).await;
     assert_eq!(
         json_body(f.machine_token(&public, None).await).await["error"],
@@ -313,7 +313,7 @@ async fn mysql_personal_access_uses_provider_subject_name_lifetime_and_camel_res
     let client = f.personal_client(Some("users")).await;
     let browser = f.login("alice@test").await;
     f.passport
-        .personalAccessTokensExpireIn(Some(GrantLifetime::Seconds(120)));
+        .personal_access_tokens_expire_in(Some(GrantLifetime::Seconds(120)));
     let response = f
         .wire(
             reqwest::Method::POST,
@@ -373,15 +373,15 @@ async fn mysql_personal_access_uses_provider_subject_name_lifetime_and_camel_res
                     result["accessToken"].as_str().unwrap().into(),
                     120,
                 );
-                assert!(!format!("{result:?}").contains(&result.accessToken));
+                assert!(!format!("{result:?}").contains(&result.access_token));
                 assert_eq!(
                     serde_json::from_str::<J>(&result.to_json().unwrap()).unwrap(),
                     result.to_array()
                 );
-                let instance = result.getToken().await.unwrap().unwrap();
+                let instance = result.get_token().await.unwrap().unwrap();
                 assert!(Arc::ptr_eq(
                     &instance,
-                    &result.getToken().await.unwrap().unwrap()
+                    &result.get_token().await.unwrap().unwrap()
                 ));
                 let mut token = instance.lock().await;
                 assert!(
@@ -433,7 +433,7 @@ async fn mysql_personal_provider_fallback_invalid_scope_and_atomic_veto() {
         )
         .await;
     assert_eq!(json_body(response).await["error"], "invalid_scope");
-    f.passport.useTokenModel::<SelectedToken>();
+    f.passport.use_token_model::<SelectedToken>();
     f.veto.store(true, Ordering::Relaxed);
     let response = f
         .wire(
@@ -479,11 +479,11 @@ impl Listener for Record {
                 return Err(openrust::events::EventError::InvalidPayload);
             }
             let payload = if let Some(e) = event.downcast_ref::<AccessTokenCreated>() {
-                json!({"access":e.tokenId,"user":e.userId,"client":e.clientId})
+                json!({"access":e.token_id,"user":e.user_id,"client":e.client_id})
             } else if let Some(e) = event.downcast_ref::<RefreshTokenCreated>() {
-                json!({"refresh":e.refreshTokenId,"access":e.accessTokenId})
+                json!({"refresh":e.refresh_token_id,"access":e.access_token_id})
             } else if let Some(e) = event.downcast_ref::<AccessTokenRevoked>() {
-                json!({"revoked":e.tokenId})
+                json!({"revoked":e.token_id})
             } else {
                 panic!("unexpected event")
             };
@@ -820,7 +820,7 @@ async fn mysql_cookie_switches_key_callback_serialization_and_application_isolat
     let plain = f.encryption.decrypt_string(&encrypted).unwrap();
     let jwt =
         String::from_utf8(openrust::cookie::CookieValuePrefix::remove(&plain).to_vec()).unwrap();
-    f.passport.withoutCookieEncryption();
+    f.passport.without_cookie_encryption();
     let raw = format!("openrust_token={jwt}");
     assert_eq!(
         f.cookie_resource("/cookie-resource", &raw, Some(&b.csrf))
@@ -834,14 +834,14 @@ async fn mysql_cookie_switches_key_callback_serialization_and_application_isolat
             .status(),
         401
     );
-    f.passport.withCookieEncryption();
+    f.passport.with_cookie_encryption();
     assert_eq!(
         f.cookie_resource("/cookie-resource", &raw, Some(&b.csrf))
             .await
             .status(),
         401
     );
-    f.passport.ignoreCsrfToken(true);
+    f.passport.ignore_csrf_token(true);
     assert_eq!(
         f.cookie_resource("/cookie-resource", &cookie, None)
             .await
@@ -855,8 +855,8 @@ async fn mysql_cookie_switches_key_callback_serialization_and_application_isolat
             .status(),
         401
     );
-    f.passport.ignoreCsrfToken(false);
-    f.passport.withCookieSerialization();
+    f.passport.ignore_csrf_token(false);
+    f.passport.with_cookie_serialization();
     let serialized = f.encryption.encrypt(&plain, true).unwrap();
     assert_eq!(
         f.cookie_resource(
@@ -874,8 +874,8 @@ async fn mysql_cookie_switches_key_callback_serialization_and_application_isolat
             .status(),
         401
     );
-    f.passport.withoutCookieSerialization();
-    f.passport.encryptTokensUsing(Some(alternate_key));
+    f.passport.without_cookie_serialization();
+    f.passport.encrypt_tokens_using(Some(alternate_key));
     assert_eq!(
         f.cookie_resource("/cookie-resource", &cookie, Some(&b.csrf))
             .await
@@ -896,7 +896,7 @@ async fn mysql_cookie_switches_key_callback_serialization_and_application_isolat
             .status(),
         401
     );
-    f.passport.encryptTokensUsing(None);
+    f.passport.encrypt_tokens_using(None);
     f.cleanup().await;
     other.cleanup().await;
 }
@@ -919,7 +919,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                 let issued = user.create_token("Native", &["read".into()]).await.unwrap();
                 assert_eq!(
                     issued
-                        .getToken()
+                        .get_token()
                         .await
                         .unwrap()
                         .unwrap()
@@ -932,7 +932,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                     axum::http::Request::new(openrust::http::Body::empty()).into_parts();
                 let mut request = Request::from_parts(parts, body);
                 passport
-                    .actingAs(&mut request, Box::new(user), &["read".into()], "api", None)
+                    .acting_as(&mut request, Box::new(user), &["read".into()], "api", None)
                     .await
                     .unwrap();
                 assert_eq!(
@@ -944,19 +944,19 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                         .to_string(),
                     "77"
                 );
-                let token = openrust_passport::guards::TokenGuard::currentToken(&request).unwrap();
+                let token = openrust_passport::guards::TokenGuard::current_token(&request).unwrap();
                 assert!(token.can("read").unwrap());
                 assert!(token.cant("write").unwrap());
                 assert!(!token.transient());
                 let repo =
                     openrust::container::Container::get_instance().make::<ClientRepository>()?;
                 let client = repo
-                    .createClientCredentialsGrantClient("Test")
+                    .create_client_credentials_grant_client("Test")
                     .await
                     .unwrap();
                 assert!(
                     passport
-                        .actingAsClient(&mut request, &client, &["read".into()], "api")
+                        .acting_as_client(&mut request, &client, &["read".into()], "api")
                         .await
                         .is_err()
                 );
@@ -964,12 +964,12 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                     axum::http::Request::new(openrust::http::Body::empty()).into_parts();
                 let mut second = Request::from_parts(parts, body);
                 passport
-                    .actingAsClient(&mut second, &client, &["write".into()], "api")
+                    .acting_as_client(&mut second, &client, &["write".into()], "api")
                     .await
                     .unwrap();
                 let server = openrust_passport::ResourceServer::get_facade_root().unwrap();
                 let token = server
-                    .validateAuthenticatedRequest(&mut second)
+                    .validate_authenticated_request(&mut second)
                     .await
                     .unwrap();
                 assert!(token.can("write").unwrap());
@@ -980,7 +980,7 @@ async fn mysql_native_user_token_trait_and_testing_substitutions_stay_in_one_req
                 let mut fresh = Request::from_parts(parts, body);
                 assert!(
                     server
-                        .validateAuthenticatedRequest(&mut fresh)
+                        .validate_authenticated_request(&mut fresh)
                         .await
                         .is_err()
                 );
@@ -1036,33 +1036,33 @@ async fn mysql_public_scope_queries_and_default_scope_string_conversion() {
         .call(
             openrust::container::Callback::new(&[], |_| async move {
                 let passport = openrust::container::Container::get_instance().make::<Passport>()?;
-                passport.tokensCan(std::collections::BTreeMap::from([
+                passport.tokens_can(std::collections::BTreeMap::from([
                     ("read".into(), "Read".into()),
                     ("write".into(), "Write".into()),
                     ("0".into(), "Zero".into()),
                 ]));
-                assert_eq!(passport.scopeIds(), ["0", "read", "write"]);
-                assert!(passport.hasScope("*"));
-                assert!(!passport.hasScope("unknown"));
+                assert_eq!(passport.scope_ids(), ["0", "read", "write"]);
+                assert!(passport.has_scope("*"));
+                assert!(!passport.has_scope("unknown"));
                 let ids: Vec<String> = ["write", "unknown", "read", "write", "*"]
                     .map(str::to_owned)
                     .to_vec();
-                assert_eq!(passport.validScopes(&ids), ["write", "read"]);
+                assert_eq!(passport.valid_scopes(&ids), ["write", "read"]);
                 assert_eq!(
                     passport
-                        .scopesFor(&ids)
+                        .scopes_for(&ids)
                         .iter()
                         .map(|scope| scope.id.as_str())
                         .collect::<Vec<_>>(),
                     ["write", "read", "write"]
                 );
                 assert_eq!(
-                    passport.defaultScopes(Some(vec![" read  write ".into()])),
+                    passport.default_scopes(Some(vec![" read  write ".into()])),
                     ["", "read", "", "write", ""]
                 );
-                assert_eq!(passport.defaultScopes(None), ["", "read", "", "write", ""]);
-                assert!(passport.defaultScopes(Some(vec!["0".into()])).is_empty());
-                passport.setDefaultScope(vec!["read  write".into()]);
+                assert_eq!(passport.default_scopes(None), ["", "read", "", "write", ""]);
+                assert!(passport.default_scopes(Some(vec!["0".into()])).is_empty());
+                passport.set_default_scope(vec!["read  write".into()]);
                 Ok(())
             }),
             Default::default(),

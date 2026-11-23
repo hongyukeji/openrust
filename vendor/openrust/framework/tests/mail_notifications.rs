@@ -96,7 +96,7 @@ struct RemoteReport(String);
 impl Attachable for RemoteReport {
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn to_mail_attachment(&self) -> MailResult<AttachmentSource> {
-        Attachment::fromUrl(&self.0)
+        Attachment::from_url(&self.0)
     }
 }
 
@@ -123,13 +123,13 @@ impl Mailable for AttachmentReceipt {
 
     fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
         Ok(vec![
-            Attachment::fromPath(&self.path),
-            Attachment::fromStorage("exports/default.csv"),
-            Attachment::fromStorageDisk("archive", "data.bin")
+            Attachment::from_path(&self.path),
+            Attachment::from_storage("exports/default.csv"),
+            Attachment::from_storage_disk("archive", "data.bin")
                 .r#as("archive-record.bin")
-                .withMime("application/x-openrust"),
-            Attachment::fromCloudStorage("nested/object.bin")?,
-            Attachment::fromData(vec![0, 255, 1], "generated.bin"),
+                .with_mime("application/x-openrust"),
+            Attachment::from_cloud_storage("nested/object.bin")?,
+            Attachment::from_data(vec![0, 255, 1], "generated.bin"),
             RemoteReport(Config::string("fixture.attachment_url").unwrap()).to_mail_attachment()?,
         ])
     }
@@ -158,7 +158,7 @@ fn uploaded_mail_from_http(request: &mut Request) -> HttpFuture<'_, Result<Respo
     Box::pin(async {
         let queued = request.uri().query() == Some("queued=1");
         let file = request.file("upload").await?.expect("fixture upload");
-        let receipt = UploadedReceipt(Attachment::fromUploadedFile(&file));
+        let receipt = UploadedReceipt(Attachment::from_uploaded_file(&file));
         let mail = Mail::to("to@example.test").unwrap();
         let result = if queued {
             mail.queue(
@@ -421,7 +421,7 @@ fn notify_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             })]),
         )
         .unwrap();
-        target.notifyNow(&RoutedNotice, None).await?;
+        target.notify_now(&RoutedNotice, None).await?;
         Response::json(http::StatusCode::OK, json!({"accepted":true}))
     })
 }
@@ -520,9 +520,9 @@ impl ServiceProvider for FixtureGuardProvider {
         Box::pin(async move {
             app.container()
                 .make::<ChannelManager>()?
-                .extendQueueGuard("fixture.delivery-flag", guard_file);
+                .extend_queue_guard("fixture.delivery-flag", guard_file);
             let queue = app.container().make::<QueueManager>()?;
-            SendQueuedNotifications::registerMiddleware(
+            SendQueuedNotifications::register_middleware(
                 &queue,
                 "skip",
                 vec![Arc::new(Skip::when(true))],
@@ -586,7 +586,7 @@ impl Transport for LocaleTransport {
             let record = json!({
                 "locale": Lang::get_locale().unwrap(),
                 "app_locale": openrust::support::facades::App::current_locale().unwrap(),
-                "html": message.getHtmlBody(),
+                "html": message.get_html_body(),
                 "subject": message.envelope().subject,
             });
             let mut file = std::fs::OpenOptions::new()
@@ -623,7 +623,7 @@ impl ServiceProvider for FixtureMailProvider {
                 };
                 let marker = PathBuf::from(path.as_str().unwrap());
                 let manager = container.make::<MailManager>()?;
-                manager.registerMessageCustomizer("fixture.marker", move |draft, data| {
+                manager.register_message_customizer("fixture.marker", move |draft, data| {
                     if !marker.is_file() {
                         return Err(fail("Mail customizer marker is missing."));
                     }
@@ -636,7 +636,7 @@ impl ServiceProvider for FixtureMailProvider {
                         .insert("X-Custom-Marker".into(), value.into());
                     Ok(())
                 })?;
-                manager.registerMessageCustomizer("fixture.append", move |draft, _| {
+                manager.register_message_customizer("fixture.append", move |draft, _| {
                     if !draft.headers.text.contains_key("X-Custom-Marker") {
                         return Err(fail("Mail customizers ran out of order."));
                     }
@@ -646,8 +646,8 @@ impl ServiceProvider for FixtureMailProvider {
                         .ok_or_else(|| fail("Rendered text is required."))?;
                     text.push_str(" - customized body");
                     draft.attachment_sources.push(
-                        Attachment::fromData(b"customizer bytes".as_slice(), "customized.txt")
-                            .withMime("text/plain"),
+                        Attachment::from_data(b"customizer bytes".as_slice(), "customized.txt")
+                            .with_mime("text/plain"),
                     );
                     Ok(())
                 })?;
@@ -820,18 +820,18 @@ impl Notice for DeliveryNotice {
                 address: "finance@example.test".into(),
                 name: Some("Finance Team".into()),
             })
-            .replyTo("support@example.test")
+            .reply_to("support@example.test")
             .cc("team@example.test")
             .bcc("audit@example.test")
             .line("Notice body")
-            .attachMany([
-                Attachment::fromPath(Config::string("fixture.notice_path").unwrap())
+            .attach_many([
+                Attachment::from_path(Config::string("fixture.notice_path").unwrap())
                     .r#as("notice.txt")
-                    .withMime("text/plain"),
+                    .with_mime("text/plain"),
             ])
-            .attachData(b"memory bytes".as_slice(), "memory.txt", Some("text/plain"))
-            .attachFromStorage("report.txt", Some("default-report.txt"), Some("text/plain"))
-            .attachFromStorageDisk(
+            .attach_data(b"memory bytes".as_slice(), "memory.txt", Some("text/plain"))
+            .attach_from_storage("report.txt", Some("default-report.txt"), Some("text/plain"))
+            .attach_from_storage_disk(
                 "archive",
                 "report.txt",
                 Some("archive-report.txt"),
@@ -839,11 +839,11 @@ impl Notice for DeliveryNotice {
             )
             .tag("payment")
             .metadata("case", "notification")
-            .withMessage(MessageCustomization::new(
+            .with_message(MessageCustomization::new(
                 "fixture.marker",
                 json!({"value":"notification-marked"}),
             ))
-            .withMessage(MessageCustomization::new("fixture.append", Json::Null));
+            .with_message(MessageCustomization::new("fixture.append", Json::Null));
         message
             .assertHasBcc("audit@example.test", None)
             .assert_has_attached_data(b"memory bytes", "memory.txt", Some("text/plain"));
@@ -869,7 +869,7 @@ fn notification_envelope_from_http(_: &mut Request) -> HttpFuture<'_, Result<Res
             }]),
         )
         .unwrap()
-        .notifyNow(&DeliveryNotice(None), None)
+        .notify_now(&DeliveryNotice(None), None)
         .await?;
         Response::json(http::StatusCode::OK, json!({"sent":true}))
     })
@@ -890,19 +890,19 @@ impl Notice for SlackNotice {
             return Ok(None);
         }
         if self.mode == "invalid" {
-            return SlackMessage::new().usingBlockKitTemplate("[]").map(Some);
+            return SlackMessage::new().using_block_kit_template("[]").map(Some);
         }
         if self.mode == "invalid-image" {
             return Ok(Some(
-                SlackMessage::new().imageBlockWith("https://example.test/chart.png", |_| {}),
+                SlackMessage::new().image_block_with("https://example.test/chart.png", |_| {}),
             ));
         }
         if self.mode == "invalid-menu" {
             return SlackMessage::new()
-                .tryActionsBlock(|block| {
+                .try_actions_block(|block| {
                     block
-                        .staticSelect("Choose an option")
-                        .initialOption("missing")?;
+                        .static_select("Choose an option")
+                        .initial_option("missing")?;
                     Ok(())
                 })
                 .map(Some);
@@ -911,23 +911,23 @@ impl Notice for SlackNotice {
         if self.mode == "blocks" {
             message = message
                 .to("ignored-message-channel")
-                .headerBlockWith("Invoice Paid", |header| {
+                .header_block_with("Invoice Paid", |header| {
                     header.id("invoice-heading").text().emoji();
                 })
-                .contextBlock(|block| {
+                .context_block(|block| {
                     block.text("Customer 42");
-                    block.imageWith("https://example.test/avatar.png", |image| {
+                    block.image_with("https://example.test/avatar.png", |image| {
                         image.alt("Customer avatar");
                     });
                 })
-                .sectionBlock(|block| {
+                .section_block(|block| {
                     block.text("Payment received");
                     block.field("*Amount:* 42").markdown();
                 })
-                .dividerBlockWith(|divider| {
+                .divider_block_with(|divider| {
                     divider.id("invoice-divider");
                 })
-                .actionsBlock(|block| {
+                .actions_block(|block| {
                     block.button("Acknowledge Invoice").primary().confirm(
                         "Confirm payment?",
                         |dialog| {
@@ -935,12 +935,12 @@ impl Notice for SlackNotice {
                         },
                     );
                 })
-                .usingBlockKitTemplate(r#"{"blocks":[{"type":"divider"}]}"#)?
-                .withMetadata(invoice_slack_metadata())
-                .threadTimestamp("1710000000.001")
-                .broadcastReply(false)
-                .unfurlLinks(false);
-            let preview = message.toBlockKitBuilderUrl()?;
+                .using_block_kit_template(r#"{"blocks":[{"type":"divider"}]}"#)?
+                .with_metadata(invoice_slack_metadata())
+                .thread_timestamp("1710000000.001")
+                .broadcast_reply(false)
+                .unfurl_links(false);
+            let preview = message.to_block_kit_builder_url()?;
             let (_, fragment) = preview.split_once('#').unwrap();
             let json: Json = serde_json::from_str(
                 &percent_encoding::percent_decode_str(fragment)
@@ -960,43 +960,43 @@ impl Notice for SlackNotice {
             message = message.to("message-channel");
         } else if self.mode.starts_with("webhook-") {
             message = message
-                .headerBlock("Webhook notice")
+                .header_block("Webhook notice")
                 .metadata("webhook_notice", Default::default())
-                .threadTimestamp("1710000000.000007");
+                .thread_timestamp("1710000000.000007");
         }
         if self.mode == "database" {
             message = message
-                .withMetadata(invoice_slack_metadata())
-                .threadTimestamp("1710000000.000007")
-                .broadcastReply(true);
+                .with_metadata(invoice_slack_metadata())
+                .thread_timestamp("1710000000.000007")
+                .broadcast_reply(true);
         } else if self.mode == "redis" {
             message = message
-                .withMetadata(invoice_slack_metadata())
-                .threadTimestamp("1710000000.000008")
-                .broadcastReply(true)
-                .clearThreadTimestamp()
-                .broadcastReply(None);
+                .with_metadata(invoice_slack_metadata())
+                .thread_timestamp("1710000000.000008")
+                .broadcast_reply(true)
+                .clear_thread_timestamp()
+                .broadcast_reply(None);
         }
         if matches!(self.mode.as_str(), "blocks" | "database" | "redis") {
             message = message
-                .imageBlockWith("https://example.test/chart.png", |image| {
+                .image_block_with("https://example.test/chart.png", |image| {
                     image.id("invoice-chart").alt("Invoice chart");
                     image.title("February invoices").emoji();
                 })
-                .tryActionsBlock(|block| {
+                .try_actions_block(|block| {
                     block
-                        .staticSelect("Choose a status")
+                        .static_select("Choose a status")
                         .id("invoice-status")
-                        .addOption("Old", "Needs Review")
-                        .addOption("Paid", "Paid")
-                        .addOption("Review", "Needs Review")
-                        .initialOption("Needs Review")?
+                        .add_option("Old", "Needs Review")
+                        .add_option("Paid", "Paid")
+                        .add_option("Review", "Needs Review")
+                        .initial_option("Needs Review")?
                         .focus(false);
                     Ok(())
                 })?
-                .sectionBlock(|block| {
+                .section_block(|block| {
                     block.text("Assign invoice");
-                    block.usersSelect("Select a teammate").initialUser("U123");
+                    block.users_select("Select a teammate").initial_user("U123");
                 });
         }
         Ok(Some(message))
@@ -1017,9 +1017,9 @@ impl Notice for SlackNotice {
                 .content(&self.mode)
                 .from("Billing", Some(":moneybag:"))
                 .from("Accounting", None)
-                .linkNames()
-                .unfurlLinks(false)
-                .unfurlMedia(true)
+                .link_names()
+                .unfurl_links(false)
+                .unfurl_media(true)
                 .attachment(|attachment| {
                     attachment
                         .title("Invoice", Some("https://example.test/invoices/42"))
@@ -1027,7 +1027,7 @@ impl Notice for SlackNotice {
                         .content("*Pending*")
                         .fallback("Invoice pending")
                         .field("Status", "old")
-                        .fieldWith(|field| {
+                        .field_with(|field| {
                             field.title("Details").content("Payment pending").long();
                         })
                         .field("Status", "pending")
@@ -1036,10 +1036,10 @@ impl Notice for SlackNotice {
                         .thumb("https://example.test/thumb.png")
                         .author("Billing", Some("https://example.test"), None)
                         .footer("Billing service")
-                        .footerIcon("https://example.test/footer.png")
+                        .footer_icon("https://example.test/footer.png")
                         .action("Review", "https://example.test/invoices/42", None)
                         .timestamp(jiff::Timestamp::new(1_710_000_000, 0).unwrap())
-                        .callbackId("invoice_status");
+                        .callback_id("invoice_status");
                 })
                 .attachment(|attachment| {
                     attachment.color("#123456");
@@ -1085,12 +1085,12 @@ fn slack_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
             };
             Notification::route("slack", NotificationRoute::Slack(webhook.into()))
                 .unwrap()
-                .notifyNow(&notice, None)
+                .notify_now(&notice, None)
                 .await
         } else if notice.mode == "blocks" {
             Notification::route("slack", NotificationRoute::Slack("override-channel".into()))
                 .unwrap()
-                .notifyNow(&notice, None)
+                .notify_now(&notice, None)
                 .await
         } else {
             Notification::send_now(
@@ -1117,8 +1117,8 @@ fn notification_preview_from_http(
         };
         let message = MailMessage::new()
             .mailer("missing-mailer")
-            .attach(Attachment::fromPath("missing-attachment"))
-            .withMessage(MessageCustomization::new("missing-customizer", Json::Null));
+            .attach(Attachment::from_path("missing-attachment"))
+            .with_message(MessageCustomization::new("missing-customizer", Json::Null));
         let message = match kind.as_deref() {
             Some("html") => {
                 let mail = message
@@ -1179,8 +1179,8 @@ fn notification_format_from_http(_: &mut Request) -> HttpFuture<'_, Result<Respo
             .error()
             .greeting("Hello <Sam>")
             .line(" First line \r\n continued ")
-            .lineIf(false, "hidden")
-            .linesIf(true, ["Second line", "Third line"])
+            .line_if(false, "hidden")
+            .lines_if(true, ["Second line", "Third line"])
             .action(
                 "View invoice",
                 "https://example.test/invoice?src=mail&ref=1",
@@ -1205,7 +1205,7 @@ fn notification_format_from_http(_: &mut Request) -> HttpFuture<'_, Result<Respo
             NotificationRoute::Mail(vec!["reader@example.test".into()]),
         )
         .unwrap()
-        .notifyNow(&InvoicePaid(std::marker::PhantomData::<Envelope>), None)
+        .notify_now(&InvoicePaid(std::marker::PhantomData::<Envelope>), None)
         .await
         .unwrap();
         let sent = Mail::mailer(None).unwrap().sent().unwrap();
@@ -1357,7 +1357,7 @@ impl Command for AssertFakes {
             let mail = Mail::fake().unwrap();
             let notifications = Notification::fake().unwrap();
             let kind = Receipt.kind();
-            mail.assertNothingOutgoing();
+            mail.assert_nothing_outgoing();
             notifications.assert_nothing_sent();
 
             let named = Mail::mailer(Some("unconfigured-provider")).unwrap();
@@ -1382,14 +1382,14 @@ impl Command for AssertFakes {
                 .unwrap();
             named.send_now(&AddressedReceipt).await.unwrap();
             cached_mailer.send_now(&AddressedReceipt).await.unwrap();
-            mail.assertSentOnce(kind)
-                .assertQueuedOnce(kind)
-                .assertOutgoingCount(4)
-                .assertNotOutgoing("unused")
-                .assertSentMatching(kind, |entry| {
+            mail.assert_sent_once(kind)
+                .assert_queued_once(kind)
+                .assert_outgoing_count(4)
+                .assert_not_outgoing("unused")
+                .assert_sent_matching(kind, |entry| {
                     entry.envelope.to[0].address == "sent@example.test"
                 })
-                .assertQueuedMatching(kind, |entry| {
+                .assert_queued_matching(kind, |entry| {
                     entry.locale.as_deref() == Some("fr")
                         && entry.queue.as_ref().unwrap().queue.as_deref() == Some("mail")
                 });
@@ -1399,7 +1399,7 @@ impl Command for AssertFakes {
             let model = user();
             let target = NotificationTarget::from(model.route.clone());
             model
-                .notifyNow(&queued_notice, Some(&["mail", "blocked"]))
+                .notify_now(&queued_notice, Some(&["mail", "blocked"]))
                 .await
                 .unwrap();
             Notification::route(
@@ -1411,20 +1411,20 @@ impl Command for AssertFakes {
             .await
             .unwrap();
             notifications
-                .assertSentToOnce(&target, queued_notice.kind())
-                .assertSentToMatching(&target, queued_notice.kind(), |entry| {
+                .assert_sent_to_once(&target, queued_notice.kind())
+                .assert_sent_to_matching(&target, queued_notice.kind(), |entry| {
                     entry.channels == ["mail"]
                         && entry.locale.as_deref() == Some("fr")
                         && entry.data == json!({"paid":true})
                 })
-                .assertSentOnDemandOnce(queued_notice.kind())
-                .assertSentOnDemandMatching(queued_notice.kind(), |entry| {
+                .assert_sent_on_demand_once(queued_notice.kind())
+                .assert_sent_on_demand_matching(queued_notice.kind(), |entry| {
                     entry.channels == ["mail"]
                         && matches!(entry.target, NotificationTarget::OnDemand(_))
                 })
-                .assertSentTimes(queued_notice.kind(), 2)
-                .assertCount(2);
-            mail.assertOutgoingCount(4);
+                .assert_sent_times(queued_notice.kind(), 2)
+                .assert_count(2);
+            mail.assert_outgoing_count(4);
             output.comment("mail and notification fakes verified");
             Ok(0)
         })
@@ -3260,9 +3260,9 @@ async fn database_notification_is_polymorphic_localized_and_cancellable() {
             assert_eq!(stored.data, json!({"paid":true}));
             assert_eq!(stored.kind, "payment.received");
             assert!(stored.unread());
-            stored.markAsRead().await.unwrap();
+            stored.mark_as_read().await.unwrap();
             assert!(!user.route.find(&id).await.unwrap().unwrap().unread());
-            stored.markAsUnread().await.unwrap();
+            stored.mark_as_unread().await.unwrap();
             assert!(user.route.find(&id).await.unwrap().unwrap().unread());
             let sent = Mail::mailer(None).unwrap().sent().unwrap();
             assert!(
@@ -3307,13 +3307,13 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
             let notifications = Notification::get_facade_root().unwrap();
             let mut transaction = Db::begin_transaction().await.unwrap();
             notifications
-                .sendInTransaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
+                .send_in_transaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
                 .await
                 .unwrap();
             transaction.roll_back(None).await.unwrap();
             let mut transaction = Db::begin_transaction().await.unwrap();
             notifications
-                .sendInTransaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
+                .send_in_transaction(&[&user], &Payment { queued: true }, Some(&mut transaction))
                 .await
                 .unwrap();
             Mail::to("receipt@example.test")
@@ -3542,11 +3542,11 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
     let response = reqwest::get(url).await.unwrap();
     assert_eq!(response.status(), 200);
     notifications
-        .assertSentOnDemandOnce(RoutedNotice.kind())
-        .assertSentOnDemandMatching(RoutedNotice.kind(), |entry| {
+        .assert_sent_on_demand_once(RoutedNotice.kind())
+        .assert_sent_on_demand_matching(RoutedNotice.kind(), |entry| {
             entry.channels == ["mail", "broadcast"]
         });
-    mail.assertNothingOutgoing();
+    mail.assert_nothing_outgoing();
     assert!(real_mailer.sent().unwrap().is_empty());
 
     let mut independent = app(&root.0);
@@ -3566,7 +3566,7 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
         )
         .await
         .unwrap();
-    mail.assertNothingOutgoing();
+    mail.assert_nothing_outgoing();
     server.abort();
 }
 
@@ -3934,10 +3934,10 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
 #[test]
 fn slack_visual_blocks_validate_identifiers_alt_text_and_image_bounds() {
     let blocks = SlackMessage::new()
-        .dividerBlockWith(|divider| {
+        .divider_block_with(|divider| {
             divider.id("0");
         })
-        .imageBlockWith("u".repeat(3000), |image| {
+        .image_block_with("u".repeat(3000), |image| {
             image.id("i".repeat(255)).alt("a".repeat(2000));
             image.title("界".repeat(667));
         })
@@ -3954,20 +3954,20 @@ fn slack_visual_blocks_validate_identifiers_alt_text_and_image_bounds() {
     );
 
     for invalid in [
-        SlackMessage::new().headerBlockWith("Header", |block| {
+        SlackMessage::new().header_block_with("Header", |block| {
             block.id("界".repeat(86));
         }),
-        SlackMessage::new().dividerBlockWith(|block| {
+        SlackMessage::new().divider_block_with(|block| {
             block.id("a".repeat(256));
         }),
-        SlackMessage::new().imageBlock("u".repeat(3001), "Alt"),
-        SlackMessage::new().imageBlock("url", "a".repeat(2001)),
-        SlackMessage::new().imageBlockWith("url", |_| {}),
-        SlackMessage::new().imageBlockWith("url", |image| {
+        SlackMessage::new().image_block("u".repeat(3001), "Alt"),
+        SlackMessage::new().image_block("url", "a".repeat(2001)),
+        SlackMessage::new().image_block_with("url", |_| {}),
+        SlackMessage::new().image_block_with("url", |image| {
             image.alt("Alt").title("");
         }),
-        SlackMessage::new().contextBlock(|block| {
-            block.imageWith("url", |_| {});
+        SlackMessage::new().context_block(|block| {
+            block.image_with("url", |_| {});
         }),
     ] {
         assert!(invalid.to_array().is_err());
@@ -3977,12 +3977,12 @@ fn slack_visual_blocks_validate_identifiers_alt_text_and_image_bounds() {
 #[test]
 fn slack_block_kit_matches_text_and_identifier_boundaries() {
     let payload = SlackMessage::new()
-        .headerBlock("界".repeat(51))
-        .sectionBlock(|block| {
+        .header_block("界".repeat(51))
+        .section_block(|block| {
             block.text("plain").verbatim().emoji();
             block.field("a".repeat(2001)).emoji().markdown().verbatim();
         })
-        .actionsBlock(|block| {
+        .actions_block(|block| {
             block
                 .button("a".repeat(250))
                 .emoji()
@@ -4025,18 +4025,18 @@ fn slack_block_kit_matches_text_and_identifier_boundaries() {
     );
 
     for invalid in [
-        SlackMessage::new().headerBlock(""),
-        SlackMessage::new().actionsBlock(|block| {
+        SlackMessage::new().header_block(""),
+        SlackMessage::new().actions_block(|block| {
             block.button("Click").url("a".repeat(3001));
         }),
-        SlackMessage::new().actionsBlock(|block| {
-            block.button("Click").accessibilityLabel("a".repeat(76));
+        SlackMessage::new().actions_block(|block| {
+            block.button("Click").accessibility_label("a".repeat(76));
         }),
-        SlackMessage::new().actionsBlock(|block| {
-            block.usersSelect("Choose").id("界".repeat(86));
+        SlackMessage::new().actions_block(|block| {
+            block.users_select("Choose").id("界".repeat(86));
         }),
-        SlackMessage::new().actionsBlock(|block| {
-            block.staticSelect("");
+        SlackMessage::new().actions_block(|block| {
+            block.static_select("");
         }),
     ] {
         assert!(invalid.to_array().is_err());
@@ -4445,7 +4445,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         "http:example.test/report",
         "https:///report",
     ] {
-        assert!(Attachment::fromUrl(invalid).is_err());
+        assert!(Attachment::from_url(invalid).is_err());
     }
 
     let (Some(mysql), Ok(redis), Ok(smtp), Ok(mailpit)) = (
@@ -4610,7 +4610,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                         subject: "Source attachments worker",
                     };
                     receipt
-                        .assert_has_attachment(&Attachment::fromPath(&path))
+                        .assert_has_attachment(&Attachment::from_path(&path))
                         .assert_has_attachment(
                             &RemoteReport(Config::string("fixture.attachment_url").unwrap())
                                 .to_mail_attachment()
@@ -4641,12 +4641,12 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                         );
                     assert!(
                         !receipt
-                            .has_attachment(&Attachment::fromStorage("nested/object.bin"))
+                            .has_attachment(&Attachment::from_storage("nested/object.bin"))
                             .unwrap()
                     );
                     assert!(
                         !receipt
-                            .has_attachment(&Attachment::fromStorageDisk("archive", "data.bin"))
+                            .has_attachment(&Attachment::from_storage_disk("archive", "data.bin"))
                             .unwrap()
                     );
                     AddressedReceipt.assert_has_no_attachments();
@@ -4836,11 +4836,11 @@ async fn mail_customizers_are_application_local_and_preview_is_read_only() {
         .make::<openrust::mail::MailManager>()
         .unwrap();
     manager
-        .registerMessageCustomizer("fixture.marker", |_, _| Ok(()))
+        .register_message_customizer("fixture.marker", |_, _| Ok(()))
         .unwrap();
     assert!(
         manager
-            .registerMessageCustomizer("fixture.marker", |_, _| Ok(()))
+            .register_message_customizer("fixture.marker", |_, _| Ok(()))
             .is_err()
     );
     let root = fixture(None, None, None);
@@ -5220,7 +5220,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                             .await
                             .is_err()
                     );
-                    mail.assertOutgoingCount(2);
+                    mail.assert_outgoing_count(2);
                     let notices = Notification::fake().unwrap();
                     let recipient = user();
                     let notice = Payment { queued: false };
@@ -5229,7 +5229,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                         .send_now(&[&recipient], &notice, Some(&["mail"]))
                         .await
                         .unwrap();
-                    notices.assertSentToMatching(
+                    notices.assert_sent_to_matching(
                         &NotificationTarget::from(recipient.route.clone()),
                         notice.kind(),
                         |entry| entry.locale.as_deref() == Some("zh-Hans"),
@@ -5241,7 +5241,7 @@ async fn mail_and_notification_locale_labels_are_canonical_before_recording_or_q
                             .await
                             .is_err()
                     );
-                    notices.assertSentToOnce(
+                    notices.assert_sent_to_once(
                         &NotificationTarget::from(recipient.route),
                         notice.kind(),
                     );

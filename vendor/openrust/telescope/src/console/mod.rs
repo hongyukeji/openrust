@@ -79,7 +79,7 @@ struct TelescopeCommand {
     definition: CommandDefinition,
     name: &'static str,
 }
-fn validType(value: &str, output: &mut Output) -> Option<EntryType> {
+fn valid_type(value: &str, output: &mut Output) -> Option<EntryType> {
     match value.parse() {
         Ok(value) => Some(value),
         Err(_) => {
@@ -96,7 +96,7 @@ fn validType(value: &str, output: &mut Output) -> Option<EntryType> {
         }
     }
 }
-fn jsonOutput(output: &mut Output, value: &impl serde::Serialize) -> Result<(), ConsoleError> {
+fn json_output(output: &mut Output, value: &impl serde::Serialize) -> Result<(), ConsoleError> {
     output
         .stdout
         .push_str(&serde_json::to_string_pretty(value).map_err(error)?);
@@ -187,7 +187,7 @@ impl Command for TelescopeCommand {
                 }
                 "telescope:list" => {
                     let kind = if let Some(kind) = value("type").filter(|s| !s.is_empty()) {
-                        let Some(kind) = validType(kind, output) else {
+                        let Some(kind) = valid_type(kind, output) else {
                             return Ok(1);
                         };
                         Some(kind)
@@ -216,14 +216,14 @@ impl Command for TelescopeCommand {
                             EntryQueryOptions::default()
                                 .limit(limit)
                                 .tag(value("tag").map(str::to_owned))
-                                .batchId(batch)
-                                .familyHash(value("family").map(str::to_owned))
-                                .beforeSequence(before),
+                                .batch_id(batch)
+                                .family_hash(value("family").map(str::to_owned))
+                                .before_sequence(before),
                         )
                         .await
                         .map_err(error)?;
                     if matches.get_flag("json") {
-                        jsonOutput(output, &entries)?;
+                        json_output(output, &entries)?;
                     } else if entries.is_empty() {
                         output.comment("No entries found.");
                     } else {
@@ -253,7 +253,7 @@ impl Command for TelescopeCommand {
                         let kind = if let Some(kind) =
                             id.strip_prefix("latest:").filter(|s| !s.is_empty())
                         {
-                            let Some(kind) = validType(kind, output) else {
+                            let Some(kind) = valid_type(kind, output) else {
                                 return Ok(1);
                             };
                             Some(kind)
@@ -291,21 +291,21 @@ impl Command for TelescopeCommand {
                         .map(str::trim)
                         .filter(|s| !s.is_empty())
                     {
-                        let Some(kind) = validType(kind, output) else {
+                        let Some(kind) = valid_type(kind, output) else {
                             return Ok(1);
                         };
                         kinds.push(kind);
                     }
-                    let batchId = entry
+                    let batch_id = entry
                         .content
                         .get("updated_batch_id")
                         .and_then(|v| v.as_str())
                         .and_then(|v| Uuid::parse_str(v).ok())
-                        .unwrap_or(entry.batchId);
+                        .unwrap_or(entry.batch_id);
                     let mut batch = repository
                         .get(
                             None,
-                            EntryQueryOptions::forBatchId(Some(batchId)).limit(u64::MAX),
+                            EntryQueryOptions::for_batch_id(Some(batch_id)).limit(u64::MAX),
                         )
                         .await
                         .map_err(error)?;
@@ -314,7 +314,7 @@ impl Command for TelescopeCommand {
                         other.id != entry.id && (kinds.is_empty() || kinds.contains(&other.r#type))
                     });
                     if matches.get_flag("json") {
-                        jsonOutput(output, &json!({"entry":entry,"batch":batch}))?;
+                        json_output(output, &json!({"entry":entry,"batch":batch}))?;
                     } else {
                         formats_output::show(output, &entry, &batch, matches.get_flag("full"));
                     }

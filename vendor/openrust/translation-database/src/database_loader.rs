@@ -50,7 +50,7 @@ impl DatabaseLoader {
     }
 
     /// Selects an unqualified table name; this does not create or migrate the table.
-    pub fn withTable(mut self, table: impl Into<String>) -> TranslationResult<Self> {
+    pub fn with_table(mut self, table: impl Into<String>) -> TranslationResult<Self> {
         let table = table.into();
         let mut bytes = table.bytes();
         if !bytes
@@ -65,7 +65,7 @@ impl DatabaseLoader {
     }
 
     /// Bounds each SQL group load. Exceeding the limit fails without truncation.
-    pub fn withMaxRows(mut self, rows: u64) -> TranslationResult<Self> {
+    pub fn with_max_rows(mut self, rows: u64) -> TranslationResult<Self> {
         if rows == 0 || rows == u64::MAX {
             return Err(invalid("Invalid translation row limit"));
         }
@@ -76,7 +76,7 @@ impl DatabaseLoader {
     /// Merges database entries over another exact-locale source, such as FileLoader.
     ///
     /// A database error still fails the load; it never silently returns the fallback.
-    pub fn withFallback(mut self, fallback: Arc<dyn Loader>) -> Self {
+    pub fn with_fallback(mut self, fallback: Arc<dyn Loader>) -> Self {
         self.fallback = Some(fallback);
         self
     }

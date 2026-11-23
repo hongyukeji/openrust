@@ -42,7 +42,7 @@ pub trait FailedJobProviderInterface: Send + Sync {
         non_snake_case,
         reason = "Matches the failed job provider method naming"
     )]
-    fn findForRetry<'a>(
+    fn find_for_retry<'a>(
         &'a self,
         id: &'a str,
     ) -> QueueFuture<'a, QueueResult<Option<FailedJobRetryStream<'a>>>> {

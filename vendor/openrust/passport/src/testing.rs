@@ -10,9 +10,8 @@ use openrust::{
 };
 #[derive(Clone)]
 pub(crate) struct TestingToken(pub AccessToken);
-#[allow(non_snake_case)]
 impl Passport {
-    pub async fn actingAs(
+    pub async fn acting_as(
         &self,
         request: &mut Request,
         user: Box<dyn Authenticatable>,
@@ -41,7 +40,7 @@ impl Passport {
         );
         Ok(())
     }
-    pub async fn actingAsClient(
+    pub async fn acting_as_client(
         &self,
         request: &mut Request,
         client: &ClientRecord,
@@ -50,7 +49,7 @@ impl Passport {
     ) -> AuthResult<()> {
         if Auth::guard(request, Some(guard))?.has_user() {
             return Err(AuthError::Configuration(
-                "actingAsClient requires a request without a cached user",
+                "acting_as_client requires a request without a cached user",
             ));
         }
         Auth::should_use(request, guard)?;

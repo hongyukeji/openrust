@@ -19,7 +19,6 @@ impl<M: ClientModel> std::ops::Deref for ClientFactory<M> {
     }
 }
 
-#[allow(non_snake_case)]
 impl<M: ClientModel> ClientFactory<M> {
     pub fn new() -> DatabaseResult<Self> {
         let model = M::from_state(ModelState::default());
@@ -47,7 +46,7 @@ impl<M: ClientModel> ClientFactory<M> {
     }
 
     /// Returns the existing Eloquent builder for counts, relationships and callbacks.
-    pub fn intoFactory(self) -> Factory<M> {
+    pub fn into_factory(self) -> Factory<M> {
         self.0
     }
 
@@ -57,7 +56,7 @@ impl<M: ClientModel> ClientFactory<M> {
     }
 
     #[must_use]
-    pub fn asPublic(self) -> Self {
+    pub fn as_public(self) -> Self {
         self.state(|_| Attributes::from([("secret".into(), Value::Null)]))
     }
     fn grants(self, grants: &'static [&'static str], clear_redirects: bool) -> Self {
@@ -71,23 +70,23 @@ impl<M: ClientModel> ClientFactory<M> {
         })
     }
     #[must_use]
-    pub fn asPasswordClient(self) -> Self {
+    pub fn as_password_client(self) -> Self {
         self.grants(&["password", "refresh_token"], true)
     }
     #[must_use]
-    pub fn asPersonalAccessTokenClient(self) -> Self {
+    pub fn as_personal_access_token_client(self) -> Self {
         self.grants(&["personal_access"], true)
     }
     #[must_use]
-    pub fn asImplicitClient(self) -> Self {
-        self.grants(&["implicit"], false).asPublic()
+    pub fn as_implicit_client(self) -> Self {
+        self.grants(&["implicit"], false).as_public()
     }
     #[must_use]
-    pub fn asClientCredentials(self) -> Self {
+    pub fn as_client_credentials(self) -> Self {
         self.grants(&["client_credentials"], true)
     }
     #[must_use]
-    pub fn asDeviceCodeClient(self) -> Self {
+    pub fn as_device_code_client(self) -> Self {
         self.grants(
             &[
                 "urn:ietf:params:oauth:grant-type:device_code",

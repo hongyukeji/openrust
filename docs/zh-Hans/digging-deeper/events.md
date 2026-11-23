@@ -37,7 +37,7 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 在清单中调用 `registry.listen_class::<OrderListener>("orders.created", Delivery::Sync)?` 注册监听器类型，也可以在应用作用域内调用 `Event::listen_class`。在应用容器中为该类型绑定工厂，异步依赖可用 `bind_async`。派发到该监听器时，框架从所属应用的容器解析实例。缺少绑定会使派发失败。使用 `Delivery::AfterCommit` 时，实例在派发时解析，事务成功提交后调用。
 
-需要动态发现时，实现 `ShouldBeDiscovered`，用 `withListener` 接入监听器注册。用 `with_events(discover_events())` 接入生成的清单。启动时，发现条件读取当前应用并决定是否注册监听器。条件返回错误时，本次清单注册失败。通过 `Event::listen` 手动注册的监听器独立于发现条件。
+需要动态发现时，实现 `ShouldBeDiscovered`，用 `with_listener` 接入监听器注册。用 `with_events(discover_events())` 接入生成的清单。启动时，发现条件读取当前应用并决定是否注册监听器。条件返回错误时，本次清单注册失败。通过 `Event::listen` 手动注册的监听器独立于发现条件。
 
 ```rust
 use std::sync::Arc;
@@ -80,7 +80,7 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 }
 
 fn discover_events() -> DiscoverEvents {
-    DiscoverEvents::new(&[]).withListener::<OrderListener>(register_orders)
+    DiscoverEvents::new(&[]).with_listener::<OrderListener>(register_orders)
 }
 ```
 
@@ -130,15 +130,15 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
         &mut EventContext::new(),
     ).await?;
 
-    fake.assertDispatchedTimes("orders.created", 1)
-        .assertNotDispatched("orders.cancelled");
+    fake.assert_dispatched_times("orders.created", 1)
+        .assert_not_dispatched("orders.cancelled");
     Ok(())
 }
 ```
 
 被 fake 的事件跳过监听器、队列和广播。提交后分发的事件在事务提交后才记录，回滚会丢弃事件。用 `dispatched` 取得已记录的负载并检查具体类型。替身随测试应用释放，也可通过再次安装 fake 替换。
 
-选中所有事件时，替身也会记录 `TransactionBeginning`、`TransactionRolledBack` 等数据库事务生命周期事件。验证回滚丢弃某个延迟派发的应用事件时，可在安装替身时只选择该事件，或用 `assertNotDispatched` 断言该事件名。
+选中所有事件时，替身也会记录 `TransactionBeginning`、`TransactionRolledBack` 等数据库事务生命周期事件。验证回滚丢弃某个延迟派发的应用事件时，可在安装替身时只选择该事件，或用 `assert_not_dispatched` 断言该事件名。
 
 ### 作用域内的事件替身 {#scoped-event-fakes}
 
@@ -161,7 +161,7 @@ assert_eq!(order_id, 42);
 
 ### 按事件负载筛选 {#matching-event-payloads}
 
-在应用作用域内，`Event::fake_when` 按事件全名或接收事件的回调选择事件。`Event::fake_for_when` 在异步回调内应用相同规则。名称列表为空时，由筛选回调决定。`except` 和 `exceptWhen` 让符合排除规则的事件继续交给常规监听器，即使替身已选中该事件。
+在应用作用域内，`Event::fake_when` 按事件全名或接收事件的回调选择事件。`Event::fake_for_when` 在异步回调内应用相同规则。名称列表为空时，由筛选回调决定。`except` 和 `except_when` 让符合排除规则的事件继续交给常规监听器，即使替身已选中该事件。
 
 ```rust
 use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
@@ -175,12 +175,12 @@ let fake = Event::fake_when(&[], is_priority)?;
 Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
 Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
 
-fake.assertDispatchedOnce("orders.created")
-    .assertDispatchedWhere("orders.created", is_priority)
-    .assertNotDispatchedWhere("orders.created", |event| !is_priority(event));
+fake.assert_dispatched_once("orders.created")
+    .assert_dispatched_where("orders.created", is_priority)
+    .assert_not_dispatched_where("orders.created", |event| !is_priority(event));
 ```
 
-用 `dispatchedWhere` 按派发顺序读取符合条件的负载。带 `Where` 的方法接收筛选回调，按名称的方法沿用现有签名。
+用 `dispatched_where` 按派发顺序读取符合条件的负载。带 `Where` 的方法接收筛选回调，按名称的方法沿用现有签名。
 
 ## 暂存事件
 

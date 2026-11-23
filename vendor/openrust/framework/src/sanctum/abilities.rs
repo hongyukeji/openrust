@@ -69,7 +69,7 @@ impl Middleware for AbilityCheck {
                 return Err(HttpError::Unauthenticated);
             }
             let token =
-                AccessToken::currentAccessToken(request).ok_or(HttpError::Unauthenticated)?;
+                AccessToken::current_access_token(request).ok_or(HttpError::Unauthenticated)?;
             let missing = if self.any {
                 (!self.values.iter().any(|ability| token.can(ability))).then(|| self.values.clone())
             } else {

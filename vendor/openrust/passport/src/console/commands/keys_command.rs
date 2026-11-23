@@ -59,8 +59,8 @@ impl Command for KeysCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let passport = app.make::<Passport>().await.map_err(error)?;
-            let public = passport.keyPath("oauth-public.key");
-            let private = passport.keyPath("oauth-private.key");
+            let public = passport.key_path("oauth-public.key");
+            let private = passport.key_path("oauth-private.key");
             let force = input.matches().get_flag("force");
             if !force
                 && (public.try_exists().map_err(error)? || private.try_exists().map_err(error)?)

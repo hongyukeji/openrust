@@ -6,7 +6,6 @@ use openrust::database::{
 
 #[derive(Default)]
 pub struct AuthCode(ModelState);
-#[allow(non_snake_case)]
 impl Model for AuthCode {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("oauth_auth_codes")
@@ -44,14 +43,13 @@ impl Model for AuthCode {
         .map(|name| name.map(std::borrow::Cow::Owned))
     }
 }
-#[allow(non_snake_case)]
 impl AuthCode {
     pub fn client(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, crate::Client> {
-        self.clientFor::<crate::Client>()
+        self.client_for::<crate::Client>()
     }
-    pub fn clientFor<C: crate::ClientModel>(
+    pub fn client_for<C: crate::ClientModel>(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, C> {
         openrust::database::eloquent::relations::BelongsTo::new(

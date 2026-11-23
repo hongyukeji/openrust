@@ -68,7 +68,7 @@ pub trait SettingsRepository: Send + Sync {
     ) -> SettingsFuture<'a, SettingsSnapshot>;
     /// The supplied transaction selects the target database. Its caller owns the outer commit.
     /// The returned snapshot is uncommitted and must not be published to other operations.
-    fn saveIn<'a>(
+    fn save_in<'a>(
         &'a self,
         transaction: &'a mut Transaction,
         group: &'a str,

@@ -4,7 +4,6 @@ pub struct Scope {
     pub id: String,
     pub description: String,
 }
-#[allow(non_snake_case)]
 impl Scope {
     pub fn new(id: impl Into<String>, description: impl Into<String>) -> Self {
         Self {
@@ -16,9 +15,9 @@ impl Scope {
         serde_json::json!({"id":self.id,"description":self.description})
     }
     pub fn to_json(&self) -> serde_json::Result<String> {
-        self.toJsonWithOptions(crate::ScopeJsonOptions::default())
+        self.to_json_with_options(crate::ScopeJsonOptions::default())
     }
-    pub fn toJsonWithOptions(
+    pub fn to_json_with_options(
         &self,
         options: crate::ScopeJsonOptions,
     ) -> serde_json::Result<String> {

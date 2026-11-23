@@ -1,6 +1,6 @@
 #![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
-use crate::{ClientRecord, OAuthError, Passport};
+use crate::{ClientRecord, OauthError, Passport};
 use openrust::{
     auth::{AuthFuture, AuthIdentifier, AuthManager, AuthResult, Credentials},
     contracts::container::Container as _,
@@ -15,15 +15,14 @@ pub type PasswordGrantResolver = for<'a> fn(
 ) -> AuthFuture<'a, AuthResult<Option<AuthIdentifier>>>;
 
 pub struct UserRepository;
-#[allow(non_snake_case)]
 impl UserRepository {
-    pub async fn getUserEntityByUserCredentials(
+    pub async fn get_user_entity_by_user_credentials(
         username: &str,
         password: &str,
-        _grantType: &str,
-        clientEntity: &ClientRecord,
-    ) -> Result<Option<AuthIdentifier>, OAuthError> {
-        let provider = match clientEntity
+        _grant_type: &str,
+        client_entity: &ClientRecord,
+    ) -> Result<Option<AuthIdentifier>, OauthError> {
+        let provider = match client_entity
             .get_attribute_value("provider")
             .await
             .map_err(internal)?
@@ -33,13 +32,13 @@ impl UserRepository {
                 .map_err(internal)?
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .ok_or_else(|| {
-                    OAuthError::server_error("Unable to determine authentication provider")
+                    OauthError::server_error("Unable to determine authentication provider")
                 })?,
         };
         let container = openrust::container::Container::get_instance();
         let passport = container.make::<Passport>().map_err(internal)?;
         if let Some(resolver) = passport.password_resolver(&provider) {
-            return resolver(username, password, clientEntity)
+            return resolver(username, password, client_entity)
                 .await
                 .map_err(internal);
         }
@@ -69,6 +68,6 @@ impl UserRepository {
         }
     }
 }
-fn internal(_: impl std::fmt::Display) -> OAuthError {
-    OAuthError::server_error("Password grant user provider unavailable")
+fn internal(_: impl std::fmt::Display) -> OauthError {
+    OauthError::server_error("Password grant user provider unavailable")
 }

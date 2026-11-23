@@ -46,7 +46,6 @@ pub struct Pipeline<T, E, R = T, C = ()> {
     finalizer: Option<Box<dyn FnOnce() + Send>>,
 }
 
-#[allow(non_snake_case, reason = "保留对应公开方法名")]
 impl<T, E, R, C> Pipeline<T, E, R, C> {
     pub fn send(value: T) -> Self {
         Self {
@@ -110,14 +109,12 @@ impl<T, R: Send + 'static, E: Send + 'static> Pipeline<T, E, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "保留管道公开方法名")]
 impl<T: Send + 'static, E: Send + 'static> Pipeline<T, E> {
-    pub async fn thenReturn(self) -> Result<T, E> {
+    pub async fn then_return(self) -> Result<T, E> {
         self.then(Ok).await
     }
 }
 
-#[allow(non_snake_case, reason = "保留管道公开方法名")]
 impl<T: Send + 'static, R: Send + 'static> Pipeline<T, DatabaseError, R, Transaction> {
     /// 仅配置事务；直到 then/thenReturn 才解析连接、开启事务并执行管道。
     pub fn within_transaction(self, connection: Option<&str>) -> TransactionalPipeline<T, R> {
@@ -189,17 +186,18 @@ impl<T: Send + 'static, R: Send + 'static> TransactionalPipeline<T, R> {
     }
 }
 
-#[allow(non_snake_case)]
 impl<T: Send + 'static> TransactionalPipeline<T> {
-    pub async fn thenReturn(self) -> DatabaseResult<T> {
+    pub async fn then_return(self) -> DatabaseResult<T> {
         self.then(|value, _| Box::pin(async move { Ok(value) }))
             .await
     }
 }
 
-#[allow(non_snake_case, reason = "保留管道公开方法名")]
 impl<T: Send + 'static> Pipeline<T, DatabaseError, T, Transaction> {
-    pub async fn thenReturnWithinTransaction(self, connection: Option<&str>) -> DatabaseResult<T> {
-        self.within_transaction(connection).thenReturn().await
+    pub async fn then_return_within_transaction(
+        self,
+        connection: Option<&str>,
+    ) -> DatabaseResult<T> {
+        self.within_transaction(connection).then_return().await
     }
 }

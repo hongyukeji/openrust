@@ -19,7 +19,6 @@ impl Facade for Cookie {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cookie {
     pub(crate) fn factory() -> Result<Arc<CookieJar>, CookieError> {
         Self::get_facade_root().map_err(|_| CookieError)
@@ -54,17 +53,17 @@ impl Cookie {
         with_queue(|jar| jar.queued(name, path).cloned())
     }
 
-    pub fn hasQueued(name: &str, path: Option<&str>) -> Result<bool, CookieError> {
-        with_queue(|jar| jar.hasQueued(name, path))
+    pub fn has_queued(name: &str, path: Option<&str>) -> Result<bool, CookieError> {
+        with_queue(|jar| jar.has_queued(name, path))
     }
 
-    pub fn getQueuedCookies() -> Result<Vec<Value>, CookieError> {
-        with_queue(|jar| jar.getQueuedCookies().into_iter().cloned().collect())
+    pub fn get_queued_cookies() -> Result<Vec<Value>, CookieError> {
+        with_queue(|jar| jar.get_queued_cookies().into_iter().cloned().collect())
     }
 
-    pub fn flushQueuedCookies() -> Result<(), CookieError> {
+    pub fn flush_queued_cookies() -> Result<(), CookieError> {
         with_queue(|jar| {
-            jar.flushQueuedCookies();
+            jar.flush_queued_cookies();
         })
     }
 

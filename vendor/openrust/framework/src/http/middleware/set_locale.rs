@@ -334,7 +334,7 @@ impl Middleware for SetLocale {
                 supported: self.supported.clone(),
                 from_query,
                 preference,
-                can_store: cookie_active && !from_callback && Cookie::getQueuedCookies().is_ok(),
+                can_store: cookie_active && !from_callback && Cookie::get_queued_cookies().is_ok(),
             });
             let mut response = next.run(request).await;
             // 下游可以主动切换语言，已有响应头仍由响应提供者决定。

@@ -21,7 +21,7 @@ impl Default for GithubProvider {
 }
 impl GithubProvider {
     /// Endpoint customization for controlled providers and protocol acceptance.
-    pub fn withEndpoints(authorize: String, token: String, user: String, emails: String) -> Self {
+    pub fn with_endpoints(authorize: String, token: String, user: String, emails: String) -> Self {
         Self {
             authorize,
             token,
@@ -31,16 +31,16 @@ impl GithubProvider {
     }
 }
 impl ProviderDefinition for GithubProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.token
     }
     fn scopes(&self) -> &[&str] {
         &["user:email"]
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -96,7 +96,7 @@ impl ProviderDefinition for GithubProvider {
             Ok(user)
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let id = user
             .get("id")
             .cloned()

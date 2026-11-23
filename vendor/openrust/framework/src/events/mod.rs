@@ -139,8 +139,7 @@ impl<'tx> EventContext<'tx> {
     }
 
     /// Excludes the request's originating socket from this broadcast.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn toOthers(mut self, request: &crate::http::Request) -> Self {
+    pub fn to_others(mut self, request: &crate::http::Request) -> Self {
         self.socket = crate::broadcasting::request_socket(request);
         self
     }

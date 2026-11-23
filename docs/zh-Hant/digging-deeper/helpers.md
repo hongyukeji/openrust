@@ -139,11 +139,11 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 ## 管線 {#pipeline}
 
-`Pipeline::send` 建立型別化非同步管線。`through` 取代階段，`pipe` 附加階段。呼叫 `next.run` 繼續執行，或直接傳回結果以短路。用 `then` 做最終投影，用 `thenReturn` 傳回傳遞值，用 `finally` 讀取原始輸入。
+`Pipeline::send` 建立型別化非同步管線。`through` 取代階段，`pipe` 附加階段。呼叫 `next.run` 繼續執行，或直接傳回結果以短路。用 `then` 做最終投影，用 `then_return` 傳回傳遞值，用 `finally` 讀取原始輸入。
 
 資料庫操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `within_transaction`。階段透過 `next.context()` 在同一交易中執行查詢，傳回錯誤時回復。可傳入型別化回呼，或明確解析服務。
 
-`.within_transaction(None)` 使用預設連線，`.within_transaction(Some("audit"))` 選擇具名連線。此呼叫僅設定管線；`.then(...)` 或 `.thenReturn()` 才開啟交易並執行。終點回呼接收 `(value, &mut Transaction)`。`finally` 在提交或回復後執行一次，執行中恐慌或被取消時也會執行。
+`.within_transaction(None)` 使用預設連線，`.within_transaction(Some("audit"))` 選擇具名連線。此呼叫僅設定管線；`.then(...)` 或 `.then_return()` 才開啟交易並執行。終點回呼接收 `(value, &mut Transaction)`。`finally` 在提交或回復後執行一次，執行中恐慌或被取消時也會執行。
 
 ```rust
 use openrust::support::facades::Pipeline;
@@ -152,7 +152,7 @@ use std::convert::Infallible;
 let result = Pipeline::<_, Infallible>::send(20)
     .pipe(|value, next| Box::pin(async move { next.run(value + 1).await }))
     .pipe(|value, next| Box::pin(async move { next.run(value * 2).await }))
-    .thenReturn()
+    .then_return()
     .await?;
 assert_eq!(result, 42);
 ```
@@ -207,14 +207,14 @@ let factory = JsonSchemaTypeFactory;
 let schema = factory.object([
     ("name", factory.string().min(1).required(true).into()),
     ("active", factory.boolean().default(true).into()),
-]).withoutAdditionalProperties();
+]).without_additional_properties();
 let encoded = schema.to_array()?;
-let restored = JsonSchema::fromArray(encoded.clone())?;
+let restored = JsonSchema::from_array(encoded.clone())?;
 assert_eq!(restored.to_array()?, encoded);
-assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
+assert!(JsonSchema::from_array(json!({"type": "unknown"})).is_err());
 ```
 
-序列化傳回 `Result`，非有限數值明確失敗。`fromArray` 支援本地 `$ref`、必填屬性、可空聯合與 anyOf 組合；遠端或循環引用、布林模式、元組 items、無法推斷的型別、多型別聯合上的專有約束及 null 預設值會失敗。支援子集以外的未知中繼資料不保留；此介面用於建構模式，不負責驗證業務資料。展開最多20,000個片段，巢狀或引用鏈最多128層。
+序列化傳回 `Result`，非有限數值明確失敗。`from_array` 支援本地 `$ref`、必填屬性、可空聯合與 anyOf 組合；遠端或循環引用、布林模式、元組 items、無法推斷的型別、多型別聯合上的專有約束及 null 預設值會失敗。支援子集以外的未知中繼資料不保留；此介面用於建構模式，不負責驗證業務資料。展開最多20,000個片段，巢狀或引用鏈最多128層。
 
 
 ## 機率回呼

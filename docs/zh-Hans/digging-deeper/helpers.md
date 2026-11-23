@@ -139,11 +139,11 @@ assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 
 ## 流水线 {#pipeline}
 
-`Pipeline::send` 创建类型化异步流水线。`through` 替换阶段，`pipe` 追加阶段。调用 `next.run` 继续执行，或直接返回结果以短路。用 `then` 做最终投影，用 `thenReturn` 返回传递值，用 `finally` 读取原始输入。
+`Pipeline::send` 创建类型化异步流水线。`through` 替换阶段，`pipe` 追加阶段。调用 `next.run` 继续执行，或直接返回结果以短路。用 `then` 做最终投影，用 `then_return` 返回传递值，用 `finally` 读取原始输入。
 
 数据库操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `within_transaction`。阶段通过 `next.context()` 在同一事务中执行查询，返回错误时回滚。可传入类型化回调，或显式解析服务。
 
-`.within_transaction(None)` 使用默认连接，`.within_transaction(Some("audit"))` 选择具名连接。该调用仅配置管道；`.then(...)` 或 `.thenReturn()` 才开启事务并执行。终点回调接收 `(value, &mut Transaction)`。`finally` 在提交或回滚后执行一次，执行中恐慌或被取消时也会执行。
+`.within_transaction(None)` 使用默认连接，`.within_transaction(Some("audit"))` 选择具名连接。该调用仅配置管道；`.then(...)` 或 `.then_return()` 才开启事务并执行。终点回调接收 `(value, &mut Transaction)`。`finally` 在提交或回滚后执行一次，执行中恐慌或被取消时也会执行。
 
 ```rust
 use openrust::support::facades::Pipeline;
@@ -152,7 +152,7 @@ use std::convert::Infallible;
 let result = Pipeline::<_, Infallible>::send(20)
     .pipe(|value, next| Box::pin(async move { next.run(value + 1).await }))
     .pipe(|value, next| Box::pin(async move { next.run(value * 2).await }))
-    .thenReturn()
+    .then_return()
     .await?;
 assert_eq!(result, 42);
 ```
@@ -207,14 +207,14 @@ let factory = JsonSchemaTypeFactory;
 let schema = factory.object([
     ("name", factory.string().min(1).required(true).into()),
     ("active", factory.boolean().default(true).into()),
-]).withoutAdditionalProperties();
+]).without_additional_properties();
 let encoded = schema.to_array()?;
-let restored = JsonSchema::fromArray(encoded.clone())?;
+let restored = JsonSchema::from_array(encoded.clone())?;
 assert_eq!(restored.to_array()?, encoded);
-assert!(JsonSchema::fromArray(json!({"type": "unknown"})).is_err());
+assert!(JsonSchema::from_array(json!({"type": "unknown"})).is_err());
 ```
 
-序列化返回 `Result`，非有限数值明确失败。`fromArray` 支持本地 `$ref`、必填属性、可空联合及 anyOf 组合；远程或循环引用、布尔模式、元组 items、无法推断的类型、多类型联合上的专有约束及 null 默认值会失败。支持子集以外的未知元数据不保留；该接口用于构造模式，不负责校验业务数据。展开最多20,000个片段，嵌套或引用链最多128层。
+序列化返回 `Result`，非有限数值明确失败。`from_array` 支持本地 `$ref`、必填属性、可空联合及 anyOf 组合；远程或循环引用、布尔模式、元组 items、无法推断的类型、多类型联合上的专有约束及 null 默认值会失败。支持子集以外的未知元数据不保留；该接口用于构造模式，不负责校验业务数据。展开最多20,000个片段，嵌套或引用链最多128层。
 
 
 ## 概率回调

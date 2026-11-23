@@ -17,7 +17,6 @@ pub struct EncryptCookies {
     except: Arc<HashSet<String>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl EncryptCookies {
     pub fn new(encrypter: Arc<dyn Encrypter>) -> Self {
         Self {
@@ -43,11 +42,11 @@ impl EncryptCookies {
             .map_err(Into::into)
     }
 
-    pub fn disableFor(&mut self, names: impl IntoIterator<Item = impl Into<String>>) {
+    pub fn disable_for(&mut self, names: impl IntoIterator<Item = impl Into<String>>) {
         Arc::make_mut(&mut self.except).extend(names.into_iter().map(Into::into));
     }
 
-    pub fn isDisabled(&self, name: &str) -> bool {
+    pub fn is_disabled(&self, name: &str) -> bool {
         self.except.contains(name)
     }
 
@@ -76,7 +75,7 @@ impl EncryptCookies {
 
     fn decrypt(&self, encrypter: &dyn Encrypter, cookies: &mut Value) {
         let apply = |name: &str, value: &mut Value| {
-            if !self.isDisabled(name) && Self::decrypt_value(encrypter, name, value).is_err() {
+            if !self.is_disabled(name) && Self::decrypt_value(encrypter, name, value).is_err() {
                 *value = Value::Null;
             }
         };
@@ -139,7 +138,7 @@ impl EncryptCookies {
                 .decode_utf8()
                 .map_err(|_| CookieError)?,
         };
-        if self.isDisabled(&decoded_name) {
+        if self.is_disabled(&decoded_name) {
             return Ok(header.clone());
         }
         let value = match cookie {

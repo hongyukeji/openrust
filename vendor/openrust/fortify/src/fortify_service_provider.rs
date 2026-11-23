@@ -85,7 +85,7 @@ impl ServiceProvider for FortifyServiceProvider {
             )?;
             app.make::<openrust_passkeys::Passkeys>()
                 .await?
-                .ignoreRoutes();
+                .ignore_routes();
             let container = app.container();
             container.singleton::<Fortify, _>(|container| {
                 Ok(Arc::new(Fortify::new(container.get("config")?)))
@@ -241,7 +241,7 @@ impl ServiceProvider for FortifyServiceProvider {
                 crate::resources::register(app)?;
             }
             let fortify = app.make::<Fortify>().await?;
-            if !fortify.registersRoutes() {
+            if !fortify.registers_routes() {
                 return Ok(());
             }
             let features = Features::new(fortify.config.clone());

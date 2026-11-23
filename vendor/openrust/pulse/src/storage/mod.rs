@@ -24,7 +24,7 @@ pub trait Storage: Send + Sync {
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>>;
-    fn aggregateTypes<'a>(
+    fn aggregate_types<'a>(
         &'a self,
         types: &'a [String],
         aggregate: &'a str,
@@ -33,7 +33,7 @@ pub trait Storage: Send + Sync {
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>>;
-    fn aggregateTotal<'a>(
+    fn aggregate_total<'a>(
         &'a self,
         types: &'a [String],
         aggregate: &'a str,

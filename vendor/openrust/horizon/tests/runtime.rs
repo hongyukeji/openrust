@@ -165,7 +165,7 @@ async fn redis_metadata_is_atomic_bounded_isolated_and_uses_server_time() {
     assert_eq!(store.metrics("redis", "default").await.unwrap().failed, 1);
     let metrics = store.metrics("redis", "default").await.unwrap();
     assert_eq!(metrics.runtime_ms, 25.);
-    assert_eq!(metrics.runtimeForQueue(), 12.5);
+    assert_eq!(metrics.runtime_for_queue(), 12.5);
     let other = Repository::new(connection.clone(), "another:".into(), 60).unwrap();
     assert!(other.recent(10).await.unwrap().is_empty());
     store.pause().await.unwrap();
@@ -193,7 +193,7 @@ async fn redis_metadata_is_atomic_bounded_isolated_and_uses_server_time() {
             .metrics("redis", "long")
             .await
             .unwrap()
-            .runtimeForQueue(),
+            .runtime_for_queue(),
         7_200_000.
     );
     // Dedicated metric:job:* counters persist until a snapshot; only legacy
@@ -346,17 +346,17 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
         .pushed(&item.id, "redis", "default", &payload, &tags)
         .await
         .unwrap();
-    assert_eq!(store.jobs().countPending().await.unwrap(), 1);
+    assert_eq!(store.jobs().count_pending().await.unwrap(), 1);
     store
-        .recordPayload(item.clone(), "processing", &payload, &tags, false, None)
+        .record_payload(item.clone(), "processing", &payload, &tags, false, None)
         .await
         .unwrap();
     store
-        .recordPayload(item.clone(), "released", &payload, &tags, false, None)
+        .record_payload(item.clone(), "released", &payload, &tags, false, None)
         .await
         .unwrap();
     store
-        .recordPayload(item.clone(), "finalize", &payload, &tags, false, None)
+        .record_payload(item.clone(), "finalize", &payload, &tags, false, None)
         .await
         .unwrap();
     assert_eq!(
@@ -370,14 +370,14 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
             .status,
         "pending"
     );
-    assert_eq!(store.jobs().countCompleted().await.unwrap(), 0);
+    assert_eq!(store.jobs().count_completed().await.unwrap(), 0);
     item.attempts = 2;
     store
-        .recordPayload(item.clone(), "processing", &payload, &tags, false, None)
+        .record_payload(item.clone(), "processing", &payload, &tags, false, None)
         .await
         .unwrap();
     store
-        .recordPayload(
+        .record_payload(
             item.clone(),
             "failed",
             &payload,
@@ -388,7 +388,7 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
         .await
         .unwrap();
     store
-        .recordPayload(
+        .record_payload(
             item.clone(),
             "finalize",
             &payload,
@@ -401,7 +401,7 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
     assert_eq!(
         store
             .jobs()
-            .findFailed(&item.id)
+            .find_failed(&item.id)
             .await
             .unwrap()
             .unwrap()
@@ -409,7 +409,7 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
             .as_deref(),
         Some("operator-only exception")
     );
-    assert_eq!(store.jobs().countFailed().await.unwrap(), 1);
+    assert_eq!(store.jobs().count_failed().await.unwrap(), 1);
     assert_eq!(
         store
             .tags()
@@ -429,7 +429,7 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
     );
     store
         .jobs()
-        .storeRetryReference(&item.id, "retry-id")
+        .store_retry_reference(&item.id, "retry-id")
         .await
         .unwrap();
     assert_eq!(
@@ -443,51 +443,51 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
             .len(),
         1
     );
-    assert!(store.jobs().deleteFailed(&item.id).await.unwrap());
-    assert!(!store.jobs().deleteFailed(&item.id).await.unwrap());
+    assert!(store.jobs().delete_failed(&item.id).await.unwrap());
+    assert!(!store.jobs().delete_failed(&item.id).await.unwrap());
     assert_eq!(store.tags().count(&tags[0]).await.unwrap(), 0);
     item.attempts = 1;
     store
-        .recordPayload(item.clone(), "processing", &payload, &tags, true, None)
+        .record_payload(item.clone(), "processing", &payload, &tags, true, None)
         .await
         .unwrap();
     store
-        .recordPayload(item.clone(), "finalize", &payload, &tags, true, None)
+        .record_payload(item.clone(), "finalize", &payload, &tags, true, None)
         .await
         .unwrap();
     store
-        .recordPayload(item.clone(), "finalize", &payload, &tags, true, None)
+        .record_payload(item.clone(), "finalize", &payload, &tags, true, None)
         .await
         .unwrap();
-    assert_eq!(store.jobs().countSilenced().await.unwrap(), 1);
-    assert_eq!(store.jobs().countCompleted().await.unwrap(), 0);
-    let metrics = store.metricsRepository();
-    assert_eq!(metrics.throughputForJob("probe").await.unwrap(), 1);
-    assert_eq!(metrics.runtimeForJob("probe").await.unwrap(), 12.5);
+    assert_eq!(store.jobs().count_silenced().await.unwrap(), 1);
+    assert_eq!(store.jobs().count_completed().await.unwrap(), 0);
+    let metrics = store.metrics_repository();
+    assert_eq!(metrics.throughput_for_job("probe").await.unwrap(), 1);
+    assert_eq!(metrics.runtime_for_job("probe").await.unwrap(), 12.5);
     metrics.snapshot().await.unwrap();
-    assert_eq!(metrics.throughputForJob("probe").await.unwrap(), 0);
+    assert_eq!(metrics.throughput_for_job("probe").await.unwrap(), 0);
     assert_eq!(
-        metrics.snapshotsForJob("probe").await.unwrap()[0]["throughput"],
+        metrics.snapshots_for_job("probe").await.unwrap()[0]["throughput"],
         1
     );
     for _ in 0..30 {
-        metrics.incrementQueue("redis:default", 5.).await.unwrap();
+        metrics.increment_queue("redis:default", 5.).await.unwrap();
         metrics.snapshot().await.unwrap();
     }
     assert!(
         metrics
-            .snapshotsForQueue("redis:default")
+            .snapshots_for_queue("redis:default")
             .await
             .unwrap()
             .len()
             <= 24
     );
     metrics.clear().await.unwrap();
-    assert!(metrics.measuredQueues().await.unwrap().is_empty());
+    assert!(metrics.measured_queues().await.unwrap().is_empty());
     assert_eq!(store.metrics("redis", "default").await.unwrap().attempts, 0);
     assert!(store.jobs().find(&item.id).await.unwrap().is_some());
     store
-        .heartbeatSupervisor(
+        .heartbeat_supervisor(
             "master:supervisor",
             &json!({"options":{"timeout":70},"processes":{"redis:default":2}}),
         )
@@ -495,44 +495,44 @@ async fn redis_horizon_repositories_preserve_job_lifecycle_tags_snapshots_and_pr
         .unwrap();
     assert_eq!(
         store
-            .supervisorRepository()
-            .longestActiveTimeout()
+            .supervisor_repository()
+            .longest_active_timeout()
             .await
             .unwrap(),
         70
     );
-    store.pauseSupervisor("master:supervisor").await.unwrap();
-    assert!(store.supervisorPaused("master:supervisor").await.unwrap());
+    store.pause_supervisor("master:supervisor").await.unwrap();
+    assert!(store.supervisor_paused("master:supervisor").await.unwrap());
     assert!(
         store
-            .popCommands("master:supervisor")
+            .pop_commands("master:supervisor")
             .await
             .unwrap()
             .is_empty()
     );
     store
-        .pushCommand("master:supervisor", "terminate")
+        .push_command("master:supervisor", "terminate")
         .await
         .unwrap();
     assert_eq!(
-        store.popCommands("master:supervisor").await.unwrap(),
+        store.pop_commands("master:supervisor").await.unwrap(),
         vec!["terminate"]
     );
     assert!(
         store
-            .popCommands("master:supervisor")
+            .pop_commands("master:supervisor")
             .await
             .unwrap()
             .is_empty()
     );
     store.processes().orphaned("master", &[7, 8]).await.unwrap();
-    let observed = store.processes().allOrphans("master").await.unwrap();
+    let observed = store.processes().all_orphans("master").await.unwrap();
     store.processes().orphaned("master", &[7, 9]).await.unwrap();
-    let updated = store.processes().allOrphans("master").await.unwrap();
+    let updated = store.processes().all_orphans("master").await.unwrap();
     assert_eq!(observed.get(&7), updated.get(&7));
     assert!(!updated.contains_key(&8));
     assert!(updated.contains_key(&9));
-    store.forgetSupervisor("master:supervisor").await.unwrap();
+    store.forget_supervisor("master:supervisor").await.unwrap();
     assert!(
         store
             .supervisor("master:supervisor")
@@ -612,13 +612,13 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     .assert_successful();
     let repository = app.app().make::<Repository>().await.unwrap();
     let jobs = repository.jobs();
-    let original = jobs.findFailed(&id).await.unwrap().unwrap();
-    assert_eq!(original.payloadUuid().unwrap(), payload.uuid());
+    let original = jobs.find_failed(&id).await.unwrap().unwrap();
+    assert_eq!(original.payload_uuid().unwrap(), payload.uuid());
     assert!(jobs.find(payload.uuid()).await.unwrap().is_none());
     app.artisan(["horizon:retry", &id])
         .await
         .assert_successful();
-    let original = jobs.findFailed(&id).await.unwrap().unwrap();
+    let original = jobs.find_failed(&id).await.unwrap().unwrap();
     let retry = original.retried_by[0]["id"].as_str().unwrap().to_owned();
     assert_ne!(retry, id);
     assert_ne!(retry, payload.uuid());
@@ -627,7 +627,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
             .await
             .unwrap()
             .unwrap()
-            .payloadUuid()
+            .payload_uuid()
             .unwrap(),
         payload.uuid()
     );
@@ -643,11 +643,11 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     .await
     .assert_successful();
     assert_eq!(
-        jobs.findFailed(&id).await.unwrap().unwrap().retried_by[0]["status"],
+        jobs.find_failed(&id).await.unwrap().unwrap().retried_by[0]["status"],
         "failed"
     );
     assert_eq!(
-        jobs.findFailedByUuid(payload.uuid())
+        jobs.find_failed_by_uuid(payload.uuid())
             .await
             .unwrap()
             .unwrap()
@@ -655,7 +655,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
             .id,
         retry
     );
-    assert_eq!(jobs.countFailed().await.unwrap(), 2);
+    assert_eq!(jobs.count_failed().await.unwrap(), 2);
     // Removing the historical parent must not erase the retry's native failure.
     app.artisan(["horizon:forget", &id])
         .await
@@ -666,12 +666,12 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         .get::<dyn openrust::queue::failed::FailedJobProviderInterface>("queue.failer")
         .unwrap();
     assert!(failures.find(payload.uuid()).await.unwrap().is_some());
-    assert!(jobs.findFailed(&retry).await.unwrap().is_some());
+    assert!(jobs.find_failed(&retry).await.unwrap().is_some());
     app.artisan(["horizon:forget", &retry])
         .await
         .assert_successful();
     assert!(failures.find(payload.uuid()).await.unwrap().is_none());
-    assert_eq!(jobs.countFailed().await.unwrap(), 0);
+    assert_eq!(jobs.count_failed().await.unwrap(), 0);
     assert!(repository.recent(100).await.unwrap().is_empty());
 }
 
@@ -706,7 +706,7 @@ async fn redis_jobs_outside_the_deployment_plan_keep_pending_and_lifecycle_metad
     let pending = repository.jobs().find(&id).await.unwrap().unwrap();
     assert_eq!(pending.record.queue, "outside-plan");
     assert_eq!(pending.record.status, "pending");
-    repository.heartbeatSupervisor("master:outside", &json!({"name":"master:outside","pid":1,"status":"running","processes":{"redis:outside-plan":1,"redis:default":1},"options":{"balance":"off"}})).await.unwrap();
+    repository.heartbeat_supervisor("master:outside", &json!({"name":"master:outside","pid":1,"status":"running","processes":{"redis:outside-plan":1,"redis:default":1},"options":{"balance":"off"}})).await.unwrap();
     let response = app
         .call(
             http::Request::builder()
@@ -974,11 +974,11 @@ async fn native_failure_replacement_during_lookup_preserves_the_new_delivery() {
                 .load(std::sync::atomic::Ordering::SeqCst),
             usize::from(operation == "forget")
         );
-        assert_eq!(jobs.countPending().await.unwrap(), 0);
+        assert_eq!(jobs.count_pending().await.unwrap(), 0);
         if operation == "forget" {
-            assert!(jobs.findFailed(&original_id).await.unwrap().is_none());
+            assert!(jobs.find_failed(&original_id).await.unwrap().is_none());
             assert_eq!(
-                jobs.findFailedByUuid(payload.uuid())
+                jobs.find_failed_by_uuid(payload.uuid())
                     .await
                     .unwrap()
                     .unwrap()
@@ -988,7 +988,7 @@ async fn native_failure_replacement_during_lookup_preserves_the_new_delivery() {
             );
         } else {
             assert!(
-                jobs.findFailed(&original_id)
+                jobs.find_failed(&original_id)
                     .await
                     .unwrap()
                     .unwrap()

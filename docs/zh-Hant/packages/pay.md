@@ -29,7 +29,7 @@ cargo run --features pay -- artisan migrate
 
 ## 發起支付 {#create-payment}
 
-金額使用人民幣整數分，也支援精確解析 `Amount::fromYuan("12.34")`；拒絕負數、零、指數及超過兩位小數。商戶訂單號在查詢和重試間保持不變，使用 1–32 位 ASCII 字母、數字、底線或連字號。回呼及可選返回位址須使用 HTTPS。
+金額使用人民幣整數分，也支援精確解析 `Amount::from_yuan("12.34")`；拒絕負數、零、指數及超過兩位小數。商戶訂單號在查詢和重試間保持不變，使用 1–32 位 ASCII 字母、數字、底線或連字號。回呼及可選返回位址須使用 HTTPS。
 
 ```rust
 use openrust_pay::{Amount, Order, Scene, facades::Pay};
@@ -37,7 +37,7 @@ use openrust_pay::{Amount, Order, Scene, facades::Pay};
 let order = Order::new(
     "order_001",
     "Coffee",
-    Amount::fromFen(1234)?,
+    Amount::from_fen(1234)?,
     "https://shop.example/pay/notify",
 );
 let payment = Pay::driver("wechat")?.pay(Scene::Scan, &order).await?;
@@ -57,7 +57,7 @@ let payment = Pay::driver("wechat")?.pay(Scene::Scan, &order).await?;
 
 ## 查單、關單與退款 {#query-and-refund}
 
-使用 `gateway.find(out_trade_no)`、`gateway.close(out_trade_no)`、`gateway.refund(&Refund)` 和 `gateway.findRefund(out_trade_no, out_refund_no)`。回傳經過簽章驗證的廠商 JSON；須檢查交易或退款狀態，不能把請求成功直接當作資金處理完成。`Refund` 包含原訂單號、穩定的商戶退款單號、原訂單 `total`、本次退款 `amount` 及可選 `reason`。退款金額不能超過原訂單金額，支援部分退款。
+使用 `gateway.find(out_trade_no)`、`gateway.close(out_trade_no)`、`gateway.refund(&Refund)` 和 `gateway.find_refund(out_trade_no, out_refund_no)`。回傳經過簽章驗證的廠商 JSON；須檢查交易或退款狀態，不能把請求成功直接當作資金處理完成。`Refund` 包含原訂單號、穩定的商戶退款單號、原訂單 `total`、本次退款 `amount` 及可選 `reason`。退款金額不能超過原訂單金額，支援部分退款。
 
 請求不會自動重試。`Error::OutcomeUnknown` 表示無法確定廠商受理結果，包括回應遺失、回應簽章無效等情況。先用原訂單號或退款單號查詢，再決定是否重試，不要為不確定請求產生新單號。經過驗章的廠商拒絕回傳 `Error::Rejected`；錯誤與 HTTP 觀察事件不包含原始廠商訊息和內容。請求／回應本文與授權標頭會遮蔽，但回傳給應用的成功 JSON 仍包含業務資料，記錄日誌或序列化時應明確選擇欄位。
 
@@ -79,7 +79,7 @@ DatabaseNotifications::new(connection)
     .process(&notification, &expected, |tx, notice| Box::pin(async move {
         // Validate the business state and update it using this transaction.
         tx.table("orders")
-            .r#where("number", "=", notice.outTradeNo())
+            .r#where("number", "=", notice.out_trade_no())
             .r#where("status", "=", "pending")
             .update([("status".into(), "paid".into())].into_iter().collect())
             .await?;
@@ -97,6 +97,6 @@ let response = notification.success();
 
 ## 閘道生命週期 {#gateway-lifecycle}
 
-`PayManager::driver(name)` 懶解析並重用商戶設定和金鑰快照。`get_default_driver` 讀取目前預設名稱，`Pay::defaultDriver()` 解析它。`forget_drivers` 讓後續解析使用新設定，已持有的 `Gateway` 複本保留原快照。管理器依應用隔離。輪換金鑰時重新整理相關實例，不從未驗證回呼取得驗章公鑰。
+`PayManager::driver(name)` 懶解析並重用商戶設定和金鑰快照。`get_default_driver` 讀取目前預設名稱，`Pay::default_driver()` 解析它。`forget_drivers` 讓後續解析使用新設定，已持有的 `Gateway` 複本保留原快照。管理器依應用隔離。輪換金鑰時重新整理相關實例，不從未驗證回呼取得驗章公鑰。
 
 真實商戶進件、產品權限開通、公開 HTTPS 回呼及廠商端到端驗證由部署方完成。協定測試通過不代表商戶帳號已經可以實際收付款。

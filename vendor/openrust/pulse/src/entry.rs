@@ -12,7 +12,7 @@ pub struct Entry {
     pub key: String,
     pub value: Option<i64>,
     aggregations: Arc<RwLock<Vec<String>>>,
-    onlyBuckets: Arc<AtomicBool>,
+    only_buckets: Arc<AtomicBool>,
 }
 impl Entry {
     pub fn new(
@@ -27,7 +27,7 @@ impl Entry {
             key: key.into(),
             value,
             aggregations: Arc::default(),
-            onlyBuckets: Arc::default(),
+            only_buckets: Arc::default(),
         }
     }
     fn aggregate(self, name: &str) -> Self {
@@ -52,8 +52,8 @@ impl Entry {
     pub fn avg(self) -> Self {
         self.aggregate("avg")
     }
-    pub fn onlyBuckets(self) -> Self {
-        self.onlyBuckets.store(true, Ordering::Relaxed);
+    pub fn only_buckets(self) -> Self {
+        self.only_buckets.store(true, Ordering::Relaxed);
         self
     }
     pub fn aggregations(&self) -> Vec<String> {
@@ -62,23 +62,23 @@ impl Entry {
             .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
-    pub fn isCount(&self) -> bool {
+    pub fn is_count(&self) -> bool {
         self.aggregations().iter().any(|a| a == "count")
     }
-    pub fn isMin(&self) -> bool {
+    pub fn is_min(&self) -> bool {
         self.aggregations().iter().any(|a| a == "min")
     }
-    pub fn isMax(&self) -> bool {
+    pub fn is_max(&self) -> bool {
         self.aggregations().iter().any(|a| a == "max")
     }
-    pub fn isSum(&self) -> bool {
+    pub fn is_sum(&self) -> bool {
         self.aggregations().iter().any(|a| a == "sum")
     }
-    pub fn isAvg(&self) -> bool {
+    pub fn is_avg(&self) -> bool {
         self.aggregations().iter().any(|a| a == "avg")
     }
-    pub fn isOnlyBuckets(&self) -> bool {
-        self.onlyBuckets.load(Ordering::Relaxed)
+    pub fn is_only_buckets(&self) -> bool {
+        self.only_buckets.load(Ordering::Relaxed)
     }
     pub fn attributes(&self) -> serde_json::Value {
         serde_json::json!({"timestamp":self.timestamp,"type":self.r#type,"key":self.key,"value":self.value})
@@ -102,7 +102,7 @@ impl Serialize for Entry {
             key: self.key.clone(),
             value: self.value,
             aggregations: self.aggregations(),
-            only_buckets: self.isOnlyBuckets(),
+            only_buckets: self.is_only_buckets(),
         }
         .serialize(s)
     }
@@ -121,7 +121,7 @@ impl<'de> Deserialize<'de> for Entry {
             .aggregations
             .write()
             .unwrap_or_else(|e| e.into_inner()) = e.aggregations;
-        entry.onlyBuckets.store(e.only_buckets, Ordering::Relaxed);
+        entry.only_buckets.store(e.only_buckets, Ordering::Relaxed);
         Ok(entry)
     }
 }

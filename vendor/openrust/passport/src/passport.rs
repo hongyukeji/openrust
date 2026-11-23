@@ -25,22 +25,21 @@ use zeroize::Zeroizing;
 pub type TokenEncryptionKey = fn(&openrust::encryption::Encrypter) -> Vec<u8>;
 
 /// Application-local counterpart of the framework Passport's configuration state.
-#[allow(non_snake_case)]
 pub struct Passport {
     /// Mirrors Passport::$validateKeyPermissions without process-global state.
-    pub validateKeyPermissions: AtomicBool,
+    pub validate_key_permissions: AtomicBool,
     /// Whether a parent scope grants a colon-delimited descendant scope.
-    pub withInheritedScopes: AtomicBool,
-    pub deviceCodeGrantEnabled: AtomicBool,
-    pub passwordGrantEnabled: AtomicBool,
-    pub implicitGrantEnabled: AtomicBool,
+    pub with_inherited_scopes: AtomicBool,
+    pub device_code_grant_enabled: AtomicBool,
+    pub password_grant_enabled: AtomicBool,
+    pub implicit_grant_enabled: AtomicBool,
     password_resolvers:
         RwLock<std::collections::HashMap<String, crate::bridge::PasswordGrantResolver>>,
-    pub clientUuids: AtomicBool,
-    pub registersRoutes: AtomicBool,
-    pub ignoreCsrfToken: AtomicBool,
-    pub decryptsCookies: AtomicBool,
-    pub unserializesCookies: AtomicBool,
+    pub client_uuids: AtomicBool,
+    pub registers_routes: AtomicBool,
+    pub ignore_csrf_token: AtomicBool,
+    pub decrypts_cookies: AtomicBool,
+    pub unserializes_cookies: AtomicBool,
     cookie_name: RwLock<String>,
     token_key: RwLock<Option<TokenEncryptionKey>>,
     authorization_view: RwLock<Option<crate::http::AuthorizationView>>,
@@ -60,7 +59,6 @@ pub struct Passport {
     personal_lifetime: RwLock<crate::GrantLifetime>,
     client_credentials_lifetime: RwLock<Option<crate::GrantLifetime>>,
 }
-#[allow(non_snake_case)]
 impl Passport {
     pub(crate) fn new(
         config: Arc<dyn Repository>,
@@ -79,17 +77,17 @@ impl Passport {
             personal_lifetime: RwLock::new(crate::GrantLifetime::CalendarYears(1)),
             client_credentials_lifetime: RwLock::new(None),
             default_scopes: RwLock::new(String::new()),
-            validateKeyPermissions: AtomicBool::new(true),
-            withInheritedScopes: AtomicBool::new(false),
-            deviceCodeGrantEnabled: AtomicBool::new(true),
-            passwordGrantEnabled: AtomicBool::new(false),
-            implicitGrantEnabled: AtomicBool::new(false),
+            validate_key_permissions: AtomicBool::new(true),
+            with_inherited_scopes: AtomicBool::new(false),
+            device_code_grant_enabled: AtomicBool::new(true),
+            password_grant_enabled: AtomicBool::new(false),
+            implicit_grant_enabled: AtomicBool::new(false),
             password_resolvers: RwLock::new(Default::default()),
-            clientUuids: AtomicBool::new(true),
-            registersRoutes: AtomicBool::new(true),
-            ignoreCsrfToken: AtomicBool::new(false),
-            decryptsCookies: AtomicBool::new(true),
-            unserializesCookies: AtomicBool::new(false),
+            client_uuids: AtomicBool::new(true),
+            registers_routes: AtomicBool::new(true),
+            ignore_csrf_token: AtomicBool::new(false),
+            decrypts_cookies: AtomicBool::new(true),
+            unserializes_cookies: AtomicBool::new(false),
             cookie_name: RwLock::new("openrust_token".into()),
             token_key: RwLock::new(None),
             authorization_view: RwLock::new(None),
@@ -106,7 +104,7 @@ impl Passport {
         }
     }
     /// Explicit Option retains PHP's combined getter/setter contract.
-    pub fn tokensExpireIn(&self, lifetime: Option<crate::GrantLifetime>) -> crate::GrantLifetime {
+    pub fn tokens_expire_in(&self, lifetime: Option<crate::GrantLifetime>) -> crate::GrantLifetime {
         let mut value = self
             .access_lifetime
             .write()
@@ -116,7 +114,7 @@ impl Passport {
         }
         *value
     }
-    pub fn refreshTokensExpireIn(
+    pub fn refresh_tokens_expire_in(
         &self,
         lifetime: Option<crate::GrantLifetime>,
     ) -> crate::GrantLifetime {
@@ -129,7 +127,7 @@ impl Passport {
         }
         *value
     }
-    pub fn personalAccessTokensExpireIn(
+    pub fn personal_access_tokens_expire_in(
         &self,
         lifetime: Option<crate::GrantLifetime>,
     ) -> crate::GrantLifetime {
@@ -142,7 +140,7 @@ impl Passport {
         }
         *current
     }
-    pub fn clientCredentialsTokensExpireIn(
+    pub fn client_credentials_tokens_expire_in(
         &self,
         lifetime: Option<crate::GrantLifetime>,
     ) -> crate::GrantLifetime {
@@ -153,27 +151,29 @@ impl Passport {
         if let Some(lifetime) = lifetime {
             *current = Some(lifetime);
         }
-        current.unwrap_or_else(|| self.tokensExpireIn(None))
+        current.unwrap_or_else(|| self.tokens_expire_in(None))
     }
-    pub fn deviceAuthorizationView(&self, view: crate::http::AuthorizationView) {
+    pub fn device_authorization_view(&self, view: crate::http::AuthorizationView) {
         *self
             .device_authorization_view
             .write()
             .expect("Passport device view lock") = Some(view);
     }
-    pub fn deviceUserCodeView(&self, view: crate::http::DeviceUserCodeView) {
+    pub fn device_user_code_view(&self, view: crate::http::DeviceUserCodeView) {
         *self
             .device_user_code_view
             .write()
             .expect("Passport device view lock") = Some(view);
     }
-    pub(crate) fn device_authorization_view(&self) -> Option<crate::http::AuthorizationView> {
+    pub(crate) fn device_authorization_view_response(
+        &self,
+    ) -> Option<crate::http::AuthorizationView> {
         *self
             .device_authorization_view
             .read()
             .expect("Passport device view lock")
     }
-    pub(crate) fn device_user_code_view(&self) -> Option<crate::http::DeviceUserCodeView> {
+    pub(crate) fn device_user_code_view_response(&self) -> Option<crate::http::DeviceUserCodeView> {
         *self
             .device_user_code_view
             .read()
@@ -186,30 +186,30 @@ impl Passport {
         }
         current.clone()
     }
-    pub fn ignoreCsrfToken(&self, ignore: bool) {
-        self.ignoreCsrfToken
+    pub fn ignore_csrf_token(&self, ignore: bool) {
+        self.ignore_csrf_token
             .store(ignore, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn withCookieEncryption(&self) {
-        self.decryptsCookies
+    pub fn with_cookie_encryption(&self) {
+        self.decrypts_cookies
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn withoutCookieEncryption(&self) {
-        self.decryptsCookies
+    pub fn without_cookie_encryption(&self) {
+        self.decrypts_cookies
             .store(false, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn withCookieSerialization(&self) {
-        self.unserializesCookies
+    pub fn with_cookie_serialization(&self) {
+        self.unserializes_cookies
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn withoutCookieSerialization(&self) {
-        self.unserializesCookies
+    pub fn without_cookie_serialization(&self) {
+        self.unserializes_cookies
             .store(false, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn encryptTokensUsing(&self, callback: Option<TokenEncryptionKey>) {
+    pub fn encrypt_tokens_using(&self, callback: Option<TokenEncryptionKey>) {
         *self.token_key.write().expect("Passport token key lock") = callback;
     }
-    pub fn tokenEncryptionKey(
+    pub fn token_encryption_key(
         &self,
         encrypter: &openrust::encryption::Encrypter,
     ) -> zeroize::Zeroizing<Vec<u8>> {
@@ -221,16 +221,16 @@ impl Passport {
                 .unwrap_or_else(|| encrypter.get_key().to_vec()),
         )
     }
-    pub fn enablePasswordGrant(&self) {
-        self.passwordGrantEnabled
+    pub fn enable_password_grant(&self) {
+        self.password_grant_enabled
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn enableImplicitGrant(&self) {
-        self.implicitGrantEnabled
+    pub fn enable_implicit_grant(&self) {
+        self.implicit_grant_enabled
             .store(true, std::sync::atomic::Ordering::Relaxed);
     }
     /// Native adapter for PHP's model-level findAndValidateForPassport hook.
-    pub fn findAndValidateForPassportUsing(
+    pub fn find_and_validate_for_passport_using(
         &self,
         provider: &str,
         resolver: crate::bridge::PasswordGrantResolver,
@@ -250,21 +250,21 @@ impl Passport {
             .get(provider)
             .copied()
     }
-    pub fn ignoreRoutes(&self) {
-        self.registersRoutes
+    pub fn ignore_routes(&self) {
+        self.registers_routes
             .store(false, std::sync::atomic::Ordering::Relaxed);
     }
-    pub fn authorizationView(&self, view: crate::http::AuthorizationView) {
+    pub fn authorization_view(&self, view: crate::http::AuthorizationView) {
         *self.authorization_view.write().expect("Passport view lock") = Some(view);
     }
-    pub(crate) fn authorization_view(&self) -> Option<crate::http::AuthorizationView> {
+    pub(crate) fn authorization_view_response(&self) -> Option<crate::http::AuthorizationView> {
         *self.authorization_view.read().expect("Passport view lock")
     }
-    pub fn tokensCan(&self, scopes: std::collections::BTreeMap<String, String>) {
+    pub fn tokens_can(&self, scopes: std::collections::BTreeMap<String, String>) {
         *self.scopes.write().expect("Passport scopes lock") = scopes;
     }
-    pub fn setDefaultScope(&self, scopes: Vec<String>) {
-        self.defaultScopes(Some(scopes));
+    pub fn set_default_scope(&self, scopes: Vec<String>) {
+        self.default_scopes(Some(scopes));
     }
     pub fn scopes(&self) -> Vec<crate::Scope> {
         self.scopes
@@ -277,7 +277,7 @@ impl Passport {
             })
             .collect()
     }
-    pub fn defaultScopes(&self, scopes: Option<Vec<String>>) -> Vec<String> {
+    pub fn default_scopes(&self, scopes: Option<Vec<String>>) -> Vec<String> {
         let mut value = self.default_scopes.write().expect("Passport scopes lock");
         if let Some(scopes) = scopes {
             *value = scopes.join(" ");
@@ -289,7 +289,7 @@ impl Passport {
             value.split(' ').map(str::to_owned).collect()
         }
     }
-    pub fn validScopes(&self, scopes: &[String]) -> Vec<String> {
+    pub fn valid_scopes(&self, scopes: &[String]) -> Vec<String> {
         let configured = self.scopes.read().expect("Passport scopes lock");
         let mut seen = std::collections::HashSet::new();
         scopes
@@ -298,7 +298,7 @@ impl Passport {
             .cloned()
             .collect()
     }
-    pub fn scopeIds(&self) -> Vec<String> {
+    pub fn scope_ids(&self) -> Vec<String> {
         self.scopes
             .read()
             .expect("Passport scopes lock")
@@ -306,7 +306,7 @@ impl Passport {
             .cloned()
             .collect()
     }
-    pub fn hasScope(&self, id: &str) -> bool {
+    pub fn has_scope(&self, id: &str) -> bool {
         id == "*"
             || self
                 .scopes
@@ -314,7 +314,7 @@ impl Passport {
                 .expect("Passport scopes lock")
                 .contains_key(id)
     }
-    pub fn scopesFor(&self, ids: &[String]) -> Vec<crate::Scope> {
+    pub fn scopes_for(&self, ids: &[String]) -> Vec<crate::Scope> {
         let configured = self.scopes.read().expect("Passport scopes lock");
         ids.iter()
             .filter_map(|id| {
@@ -324,8 +324,8 @@ impl Passport {
             })
             .collect()
     }
-    pub(crate) fn default_scopes(&self) -> Vec<String> {
-        self.defaultScopes(None)
+    pub(crate) fn configured_default_scopes(&self) -> Vec<String> {
+        self.default_scopes(None)
             .join(" ")
             .trim_matches([' ', '\t', '\n', '\r', '\0', '\u{b}'])
             .split(' ')
@@ -333,11 +333,9 @@ impl Passport {
             .map(str::to_owned)
             .collect()
     }
-    pub(crate) fn has_scope(&self, id: &str) -> bool {
-        self.hasScope(id)
-    }
+
     /// Selects a compiled client type before resolving the lifecycle's repository.
-    pub fn useClientModel<M: ClientModel>(&self) {
+    pub fn use_client_model<M: ClientModel>(&self) {
         *self
             .client_model
             .write()
@@ -346,38 +344,38 @@ impl Passport {
             factory: client_store::<M>,
         };
     }
-    pub fn useAuthCodeModel<M: openrust::database::eloquent::Model>(&self) {
+    pub fn use_auth_code_model<M: openrust::database::eloquent::Model>(&self) {
         self.grant_models.use_auth::<M>();
     }
-    pub fn useDeviceCodeModel<M: openrust::database::eloquent::Model>(&self) {
+    pub fn use_device_code_model<M: openrust::database::eloquent::Model>(&self) {
         self.grant_models.use_device::<M>();
     }
-    pub fn authCodeModel(&self) -> &'static str {
+    pub fn auth_code_model(&self) -> &'static str {
         self.grant_models.auth_name()
     }
-    pub fn deviceCodeModel(&self) -> &'static str {
+    pub fn device_code_model(&self) -> &'static str {
         self.grant_models.device_name()
     }
-    pub fn useTokenModel<M: crate::TokenModel>(&self) {
+    pub fn use_token_model<M: crate::TokenModel>(&self) {
         self.token_models.use_token::<M>();
     }
-    pub fn useRefreshTokenModel<M: crate::RefreshTokenModel>(&self) {
+    pub fn use_refresh_token_model<M: crate::RefreshTokenModel>(&self) {
         self.token_models.use_refresh::<M>();
     }
-    pub fn tokenModel(&self) -> &'static str {
+    pub fn token_model(&self) -> &'static str {
         self.token_models.token_name()
     }
-    pub fn refreshTokenModel(&self) -> &'static str {
+    pub fn refresh_token_model(&self) -> &'static str {
         self.token_models.refresh_name()
     }
-    pub fn clientModel(&self) -> &'static str {
+    pub fn client_model(&self) -> &'static str {
         self.client_model
             .read()
             .expect("Passport client model lock poisoned")
             .name
     }
     /// Creates an explicitly owned repository; DI scopes one instance per lifecycle.
-    pub fn clientRepository(&self) -> ClientRepository {
+    pub fn client_repository(&self) -> ClientRepository {
         let factory = self
             .client_model
             .read()
@@ -389,14 +387,14 @@ impl Passport {
         )
     }
     /// Sets a directory before lazy key services are first resolved.
-    pub fn loadKeysFrom(&self, path: impl AsRef<Path>) {
+    pub fn load_keys_from(&self, path: impl AsRef<Path>) {
         *self
             .key_path
             .write()
             .expect("Passport key path lock poisoned") = Some(path.as_ref().to_owned());
     }
     /// Resolves keys under the configured application storage directory by default.
-    pub fn keyPath(&self, file: &str) -> PathBuf {
+    pub fn key_path(&self, file: &str) -> PathBuf {
         let file = file.trim_start_matches(['/', '\\']);
         match self
             .key_path
@@ -425,7 +423,7 @@ impl Passport {
             return Ok(key);
         }
         let path = if option.is_empty() || option.as_str() == "0" {
-            self.keyPath(&format!("oauth-{kind}.key"))
+            self.key_path(&format!("oauth-{kind}.key"))
         } else {
             configured_file_path(&option)?
         };
@@ -443,7 +441,7 @@ impl Passport {
         #[cfg(unix)]
         let mode = {
             use std::os::unix::fs::PermissionsExt;
-            self.validateKeyPermissions
+            self.validate_key_permissions
                 .load(std::sync::atomic::Ordering::Relaxed)
                 .then(|| metadata.permissions().mode() & 0o777)
         };

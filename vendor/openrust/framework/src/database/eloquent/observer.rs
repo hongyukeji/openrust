@@ -61,7 +61,7 @@ model_observer! {
     Deleting => deleting,
     Deleted => deleted,
     ForceDeleting => forceDeleting,
-    ForceDeleted => forceDeleted,
+    ForceDeleted => force_deleted,
 }
 
 pub(super) struct AfterCommitObserver<O>(Arc<ObserverListener<O>>);

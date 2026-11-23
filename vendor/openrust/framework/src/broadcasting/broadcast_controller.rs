@@ -104,7 +104,7 @@ impl Handler for UserBroadcastController {
             if let Ok(session) = request.session_mut() {
                 session.reflash();
             }
-            Broadcast::authenticateUser(request, self.connection.as_deref())
+            Broadcast::authenticate_user(request, self.connection.as_deref())
                 .await
                 .map_err(http_error)
         })

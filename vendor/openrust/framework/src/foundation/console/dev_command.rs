@@ -86,7 +86,7 @@ impl Command for DevCommand {
             }
             let args = input.matches();
             let selected = args.get_many::<String>("env").and_then(Iterator::last);
-            let restart = !args.get_flag("no-restart") && DevCommands::shouldAutoRestart()?;
+            let restart = !args.get_flag("no-restart") && DevCommands::should_auto_restart()?;
             let mode = if args.get_flag("json") || args.get_flag("silent") || args.get_flag("quiet")
             {
                 DevCommandMode::Inline
@@ -99,17 +99,18 @@ impl Command for DevCommand {
             } else {
                 DevCommands::mode()?
             };
-            let timestamps = args.get_flag("timestamps") || DevCommands::shouldIncludeTimestamps()?;
+            let timestamps =
+                args.get_flag("timestamps") || DevCommands::should_include_timestamps()?;
             let mut terminal = if output.streams_to_terminal() && mode != DevCommandMode::Inline {
                 let limit = args
                     .get_one::<usize>("buffer-size")
                     .copied()
-                    .or(DevCommands::getBufferSize()?)
+                    .or(DevCommands::get_buffer_size()?)
                     .unwrap_or(2000);
                 let stream_limit = args
                     .get_one::<usize>("stream-buffer-size")
                     .copied()
-                    .or(DevCommands::getStreamBufferSize()?)
+                    .or(DevCommands::get_stream_buffer_size()?)
                     .unwrap_or(10000);
                 Terminal::open(
                     mode,

@@ -48,15 +48,15 @@ Listeners can stop delivery through `NotificationSending`. The dispatcher also e
 
 Run `./artisan make:notifications-table`, register the generated migration in the application's migration list, and run `./artisan migrate`. The generated table uses an unsigned integer key for the notifiable model. For UUID or ULID model keys, change the `notifiable_id` column type in the generated migration.
 
-Return `NotificationRoute::Database` with the model type and key. The database channel stores the notification UUID and JSON data. `DatabaseRoute::query` scopes queries to the notifiable model, and `find` returns a record with `markAsRead` and `markAsUnread`.
+Return `NotificationRoute::Database` with the model type and key. The database channel stores the notification UUID and JSON data. `DatabaseRoute::query` scopes queries to the notifiable model, and `find` returns a record with `mark_as_read` and `mark_as_unread`.
 
 ## Queueing notifications
 
-Return `DispatchOptions` from `Notification::queue_options` for each recipient and channel that should be queued. Each delivery gets its own job. The worker resolves the channel and emits delivery events. When using an active transaction, call `ChannelManager::sendInTransaction` with `after_commit` enabled to discard queued deliveries on rollback.
+Return `DispatchOptions` from `Notification::queue_options` for each recipient and channel that should be queued. Each delivery gets its own job. The worker resolves the channel and emits delivery events. When using an active transaction, call `ChannelManager::send_in_transaction` with `after_commit` enabled to discard queued deliveries on rollback.
 
-Use `Notification::queue_guard` when a queued delivery depends on state that can change before the worker runs. Return a `NotificationQueueGuard` with a registered name and JSON context. Register the named async decision with `ChannelManager::extendQueueGuard` in a provider loaded by the worker. A false result skips the channel and emits `NotificationSkipped`. For immediate delivery and queued notifications without a guard, the sender uses `should_send`.
+Use `Notification::queue_guard` when a queued delivery depends on state that can change before the worker runs. Return a `NotificationQueueGuard` with a registered name and JSON context. Register the named async decision with `ChannelManager::extend_queue_guard` in a provider loaded by the worker. A false result skips the channel and emits `NotificationSkipped`. For immediate delivery and queued notifications without a guard, the sender uses `should_send`.
 
-For per-channel worker limits, return `JobOptions` from `queue_job_options`. To apply queue middleware, register a named chain with `SendQueuedNotifications::registerMiddleware` in a provider loaded by both the dispatcher and worker, then return the chain’s name from `queue_middleware`. The queue worker runs the normal middleware pipeline for that job.
+For per-channel worker limits, return `JobOptions` from `queue_job_options`. To apply queue middleware, register a named chain with `SendQueuedNotifications::register_middleware` in a provider loaded by both the dispatcher and worker, then return the chain’s name from `queue_middleware`. The queue worker runs the normal middleware pipeline for that job.
 
 ## On-demand notifications
 
@@ -72,7 +72,7 @@ Notifications::route(
     "mail",
     NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
 )?
-.notifyNow(&PaymentReceived, None)
+.notify_now(&PaymentReceived, None)
 .await?;
 ```
 
@@ -84,7 +84,7 @@ Include `broadcast` in `via`. Return a `BroadcastMessage` from `to_broadcast`, o
 
 ### Formatting mail messages {#formatting-mail-messages}
 
-Return a `MailMessage` from `to_mail` to send a responsive HTML notification with a plain-text counterpart. Lines added before `action` appear above the button; subsequent lines appear below it. Use `lineIf` or `linesIf` for conditional text. The `error` and `success` levels select the button color. The notification’s locale supplies the default greeting, closing, and copyable link instructions. The closing uses `app.name`.
+Return a `MailMessage` from `to_mail` to send a responsive HTML notification with a plain-text counterpart. Lines added before `action` appear above the button; subsequent lines appear below it. Use `line_if` or `lines_if` for conditional text. The `error` and `success` levels select the button color. The notification’s locale supplies the default greeting, closing, and copyable link instructions. The closing uses `app.name`.
 
 ```rust
 use openrust::notifications::messages::{MailDelivery, MailMessage};
@@ -94,7 +94,7 @@ let delivery = MailDelivery::Message(Box::new(
         .subject("Invoice paid")
         .greeting("Hello!")
         .line("Your invoice has been paid.")
-        .lineIf(total > 0, format!("Amount paid: {total}"))
+        .line_if(total > 0, format!("Amount paid: {total}"))
         .action("View invoice", invoice_url)
         .line("Thank you for your payment."),
 ));
@@ -104,11 +104,11 @@ The mail channel uses the notification type name as the default subject. Overrid
 
 ### Sender and recipients {#sender-and-recipients}
 
-Use `from` to override the configured sender and `replyTo`, `cc`, or `bcc` to append addresses. Pass an email string or an `Address` with a display name. The mail channel gets recipients from `Notifiable::route_notification_for`. Use `NotificationRoute::Mail` for models and on-demand delivery. A custom mailable returned as `MailDelivery::Mailable` supplies its own recipients.
+Use `from` to override the configured sender and `reply_to`, `cc`, or `bcc` to append addresses. Pass an email string or an `Address` with a display name. The mail channel gets recipients from `Notifiable::route_notification_for`. Use `NotificationRoute::Mail` for models and on-demand delivery. A custom mailable returned as `MailDelivery::Mailable` supplies its own recipients.
 
 ### Attachments and message customization {#attachments-and-message-customization}
 
-Use `attach` or `attachMany` with [attachment sources](mail.md#attachments), or call `attachData`, `attachFromStorage`, and `attachFromStorageDisk`. The worker resolves file and disk attachments at delivery. Use `tag` and `metadata` for delivery labels. Register a customizer through `MailManager::registerMessageCustomizer` in the sender and worker applications, then pass its name and JSON data to `withMessage`.
+Use `attach` or `attach_many` with [attachment sources](mail.md#attachments), or call `attach_data`, `attach_from_storage`, and `attach_from_storage_disk`. The worker resolves file and disk attachments at delivery. Use `tag` and `metadata` for delivery labels. Register a customizer through `MailManager::register_message_customizer` in the sender and worker applications, then pass its name and JSON data to `with_message`.
 
 ```rust
 use openrust::{
@@ -121,12 +121,12 @@ let message = MailMessage::new()
         address: "finance@example.test".into(),
         name: Some("Finance".into()),
     })
-    .replyTo("support@example.test")
+    .reply_to("support@example.test")
     .tag("invoice")
     .metadata("invoice-id", "42")
     .line("Your invoice is ready.")
-    .attachData(b"total,42".as_slice(), "summary.csv", Some("text/csv"))
-    .withMessage(MessageCustomization::new(
+    .attach_data(b"total,42".as_slice(), "summary.csv", Some("text/csv"))
+    .with_message(MessageCustomization::new(
         "invoice.trace",
         serde_json::json!({"id": 42}),
     ));
@@ -184,11 +184,11 @@ impl Notification for InvoicePaid {
     fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
         Ok(Some(SlackMessage::new()
             .text("Invoice paid")
-            .headerBlock("Invoice paid")
-            .sectionBlock(|block| {
+            .header_block("Invoice paid")
+            .section_block(|block| {
                 block.field("*Amount:* 42").markdown();
             })
-            .actionsBlock(|block| {
+            .actions_block(|block| {
                 block.button("Acknowledge payment").primary().confirm(
                     "Record this acknowledgement?",
                     |dialog| {
@@ -200,7 +200,7 @@ impl Notification for InvoicePaid {
 }
 ```
 
-Use `usingBlockKitTemplate` to append blocks from Slack’s JSON builder and `toBlockKitBuilderUrl` to inspect a payload. Interactive buttons and confirmation dialogs describe what Slack displays. Register a Slack interactivity URL and handle the incoming actions in your application.
+Use `using_block_kit_template` to append blocks from Slack’s JSON builder and `to_block_kit_builder_url` to inspect a payload. Interactive buttons and confirmation dialogs describe what Slack displays. Register a Slack interactivity URL and handle the incoming actions in your application.
 
 An explicit `NotificationRoute::Slack` channel overrides the message’s `to` channel. The configured default applies when both are absent. For an external workspace, pass the channel and its bot token with `SlackRoute::make`. Queued external workspace tokens are encrypted with `APP_KEY`. Default workspace tokens are read from configuration at delivery.
 
@@ -219,7 +219,7 @@ The Bot API uses `chat.postMessage`. For a local protocol test, configure `servi
 
 ### Block Kit select menus {#slack-block-kit-selects}
 
-Use `staticSelect` to add a menu with application-defined options and `usersSelect` for Slack workspace users. The first argument sets the placeholder. Use explicit action IDs for application callbacks. Both menus can be added to an actions block or used as the accessory of a section.
+Use `static_select` to add a menu with application-defined options and `users_select` for Slack workspace users. The first argument sets the placeholder. Use explicit action IDs for application callbacks. Both menus can be added to an actions block or used as the accessory of a section.
 
 ```rust
 use openrust::notifications::{NotificationResult, slack::SlackMessage};
@@ -227,31 +227,31 @@ use openrust::notifications::{NotificationResult, slack::SlackMessage};
 fn review_message() -> NotificationResult<SlackMessage> {
     Ok(SlackMessage::new()
         .text("Invoice review")
-        .tryActionsBlock(|actions| {
+        .try_actions_block(|actions| {
             actions
-                .staticSelect("Choose a status")
+                .static_select("Choose a status")
                 .id("invoice-status")
-                .addOption("Needs review", "needs-review")
-                .addOption("Paid", "paid")
-                .initialOption("needs-review")?
+                .add_option("Needs review", "needs-review")
+                .add_option("Paid", "paid")
+                .initial_option("needs-review")?
                 .focus(false);
             Ok(())
         })?
-        .sectionBlock(|section| {
+        .section_block(|section| {
             section.text("Assign invoice");
             section
-                .usersSelect("Select a teammate")
+                .users_select("Select a teammate")
                 .id("invoice-owner")
-                .initialUser("U012345");
+                .initial_user("U012345");
         }))
 }
 ```
 
-A repeated static option key replaces the previous one without changing its position. `initialOption` looks up the original key and returns an error for an unknown key. Slack receives the normalized lowercase value. `focus(false)` sends an explicit false flag. Use `to_array` to check a typed message before delivery.
+A repeated static option key replaces the previous one without changing its position. `initial_option` looks up the original key and returns an error for an unknown key. Slack receives the normalized lowercase value. `focus(false)` sends an explicit false flag. Use `to_array` to check a typed message before delivery.
 
 ### Headers, dividers, and images {#slack-block-kit-visual-blocks}
 
-Use `headerBlockWith`, `dividerBlockWith`, and `imageBlockWith` to configure block identifiers and the image’s alternative text and title. Use `ContextBlock::imageWith` to set alternative text for an image inside a context block.
+Use `header_block_with`, `divider_block_with`, and `image_block_with` to configure block identifiers and the image’s alternative text and title. Use `ContextBlock::image_with` to set alternative text for an image inside a context block.
 
 ```rust
 use openrust::notifications::slack::SlackMessage;
@@ -259,13 +259,13 @@ use openrust::notifications::slack::SlackMessage;
 fn report_message() -> SlackMessage {
     SlackMessage::new()
         .text("Monthly invoice report")
-        .headerBlockWith("Invoice report", |header| {
+        .header_block_with("Invoice report", |header| {
             header.id("invoice-report").text().emoji();
         })
-        .dividerBlockWith(|divider| {
+        .divider_block_with(|divider| {
             divider.id("invoice-divider");
         })
-        .imageBlockWith("https://example.test/invoices.png", |image| {
+        .image_block_with("https://example.test/invoices.png", |image| {
             image.id("invoice-chart").alt("Invoice counts by month");
             image.title("Monthly invoices");
         })
@@ -276,7 +276,7 @@ Block identifiers may use up to 255 bytes. Standalone image URLs may use up to 3
 
 ### Metadata and thread replies {#slack-metadata-and-replies}
 
-Attach structured metadata with `metadata` or pass a reusable `EventMetadata` to `withMetadata`. Slack receives `event_type` and `event_payload` as JSON, with the payload represented as an object even when empty. Keep secrets out of Slack message metadata.
+Attach structured metadata with `metadata` or pass a reusable `EventMetadata` to `with_metadata`. Slack receives `event_type` and `event_payload` as JSON, with the payload represented as an object even when empty. Keep secrets out of Slack message metadata.
 
 ```rust
 use openrust::notifications::slack::{EventMetadata, SlackMessage};
@@ -290,13 +290,13 @@ fn invoice_reply(parent_timestamp: &str) -> SlackMessage {
 
     SlackMessage::new()
         .text("Invoice 42 paid")
-        .withMetadata(event)
-        .threadTimestamp(parent_timestamp)
-        .broadcastReply(false)
+        .with_metadata(event)
+        .thread_timestamp(parent_timestamp)
+        .broadcast_reply(false)
 }
 ```
 
-Pass the parent message’s timestamp as a string to `threadTimestamp`. With the Bot API, `broadcastReply(true)` also shares the reply to the conversation, while `broadcastReply(false)` keeps it in the thread. Use `clearThreadTimestamp()` or `broadcastReply(None)` to omit either field independently. Slack validates the event schema and applies the thread behavior.
+Pass the parent message’s timestamp as a string to `thread_timestamp`. With the Bot API, `broadcast_reply(true)` also shares the reply to the conversation, while `broadcast_reply(false)` keeps it in the thread. Use `clear_thread_timestamp()` or `broadcast_reply(None)` to omit either field independently. Slack validates the event schema and applies the thread behavior.
 
 ### Incoming webhooks {#slack-incoming-webhooks}
 
@@ -338,7 +338,7 @@ impl Notification for InvoicePending {
                     attachment
                         .title("Invoice 42", Some("https://example.test/invoices/42"))
                         .field("Status", "pending")
-                        .fieldWith(|field| {
+                        .field_with(|field| {
                             field.title("Next step").content("Review payment").long();
                         });
                 }),
@@ -347,11 +347,11 @@ impl Notification for InvoicePending {
 }
 ```
 
-An attachment inherits the message’s level color unless it sets its own color. Use `field` for a short field and `fieldWith` with `long()` to display a field on its own line. `timestamp` accepts a date and time and `timestampAfter` adds seconds to the current time. Legacy attachments use the same webhook transport, encryption and retry behavior.
+An attachment inherits the message’s level color unless it sets its own color. Use `field` for a short field and `field_with` with `long()` to display a field on its own line. `timestamp` accepts a date and time and `timestamp_after` adds seconds to the current time. Legacy attachments use the same webhook transport, encryption and retry behavior.
 
 ## Testing notifications
 
-Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assertSentToOnce` for a model target and `assertSentOnDemandOnce` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.
+Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assert_sent_to_once` for a model target and `assert_sent_on_demand_once` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.
 
 ```rust
 let notifications = Notifications::fake()?;
@@ -360,5 +360,5 @@ let target = Notifications::route(
     NotificationRoute::Mail(vec!["ops@example.test".into()]),
 )?;
 target.notify(&notice).await?;
-notifications.assertSentOnDemandOnce(notice.kind());
+notifications.assert_sent_on_demand_once(notice.kind());
 ```

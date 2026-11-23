@@ -86,7 +86,6 @@ pub struct PendingProcess {
     tty: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingProcess {
     pub(super) fn new(factory: Factory, command: Command) -> Self {
         Self {
@@ -120,7 +119,7 @@ impl PendingProcess {
         self
     }
 
-    pub fn removeEnv(mut self, key: impl Into<OsString>) -> Self {
+    pub fn remove_env(mut self, key: impl Into<OsString>) -> Self {
         self.environment.insert(key.into(), None);
         self
     }
@@ -135,7 +134,7 @@ impl PendingProcess {
         self
     }
 
-    pub fn idleTimeout(mut self, timeout: Duration) -> Self {
+    pub fn idle_timeout(mut self, timeout: Duration) -> Self {
         self.idle_timeout = (!timeout.is_zero()).then_some(timeout);
         self
     }
@@ -159,18 +158,18 @@ impl PendingProcess {
         self.start()?.wait().await
     }
 
-    pub async fn runWithOutput(
+    pub async fn run_with_output(
         self,
         callback: impl FnMut(OutputStream, &[u8]) + Send + 'static,
     ) -> Result<ProcessResult> {
-        self.startWithOutput(callback)?.wait().await
+        self.start_with_output(callback)?.wait().await
     }
 
     pub fn start(self) -> Result<InvokedProcess> {
         self.spawn(None)
     }
 
-    pub fn startWithOutput(
+    pub fn start_with_output(
         self,
         callback: impl FnMut(OutputStream, &[u8]) + Send + 'static,
     ) -> Result<InvokedProcess> {
@@ -183,7 +182,7 @@ impl PendingProcess {
             return Err(Error::InvalidTimeout);
         }
         let mut native = self.command.native()?;
-        if let Some(result) = self.factory.resolveFake(|| RecordedProcess {
+        if let Some(result) = self.factory.resolve_fake(|| RecordedProcess {
             command: self.command.clone(),
             path: self.path.clone(),
             environment: self.environment.clone(),

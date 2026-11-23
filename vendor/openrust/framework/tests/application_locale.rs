@@ -248,7 +248,7 @@ async fn official_tutorial_configuration_and_app_facade_work_without_browser_mid
     let recorded = events.0.lock().unwrap();
     assert_eq!(recorded.len(), 1);
     assert_eq!(recorded[0].locale, "zh-Hans");
-    assert_eq!(recorded[0].previousLocale.as_deref(), Some("en"));
+    assert_eq!(recorded[0].previous_locale.as_deref(), Some("en"));
 }
 
 #[tokio::test]
@@ -274,7 +274,7 @@ async fn tutorial_language_switches_are_isolated_between_requests_and_applicatio
             .lock()
             .unwrap()
             .iter()
-            .all(|event| event.previousLocale.as_deref() == Some("en"))
+            .all(|event| event.previous_locale.as_deref() == Some("en"))
     );
 }
 
@@ -430,7 +430,7 @@ async fn locale_events_include_unchanged_sets_and_propagate_listener_failures_af
     assert!(
         recorded
             .iter()
-            .all(|event| event.previousLocale.as_deref() == Some("en"))
+            .all(|event| event.previous_locale.as_deref() == Some("en"))
     );
 }
 

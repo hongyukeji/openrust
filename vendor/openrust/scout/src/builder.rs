@@ -21,17 +21,17 @@ pub struct Builder<M: Searchable> {
     pub query: String,
     pub index: Option<String>,
     pub wheres: Vec<Where>,
-    pub whereIns: Vec<(String, Vec<Value>)>,
-    pub whereNotIns: Vec<(String, Vec<Value>)>,
+    pub where_ins: Vec<(String, Vec<Value>)>,
+    pub where_not_ins: Vec<(String, Vec<Value>)>,
     pub orders: Vec<(String, String)>,
     pub limit: Option<usize>,
     pub options: serde_json::Value,
-    pub semanticSearch: bool,
-    pub minimumSimilarity: Option<f64>,
-    pub hybridSearch: Option<(f64, f64)>,
+    pub semantic_search: bool,
+    pub minimum_similarity: Option<f64>,
+    pub hybrid_search: Option<(f64, f64)>,
     pub callback: Option<Arc<QueryCallback<M>>>,
-    pub queryCallback: Option<Arc<QueryCallback<M>>>,
-    pub afterRawSearchCallback: Option<Arc<RawCallback>>,
+    pub query_callback: Option<Arc<QueryCallback<M>>>,
+    pub after_raw_search_callback: Option<Arc<RawCallback>>,
     pub(crate) manager: Arc<EngineManager>,
 }
 impl<M: Searchable> Clone for Builder<M> {
@@ -41,17 +41,17 @@ impl<M: Searchable> Clone for Builder<M> {
             query: self.query.clone(),
             index: self.index.clone(),
             wheres: self.wheres.clone(),
-            whereIns: self.whereIns.clone(),
-            whereNotIns: self.whereNotIns.clone(),
+            where_ins: self.where_ins.clone(),
+            where_not_ins: self.where_not_ins.clone(),
             orders: self.orders.clone(),
             limit: self.limit,
             options: self.options.clone(),
-            semanticSearch: self.semanticSearch,
-            minimumSimilarity: self.minimumSimilarity,
-            hybridSearch: self.hybridSearch,
+            semantic_search: self.semantic_search,
+            minimum_similarity: self.minimum_similarity,
+            hybrid_search: self.hybrid_search,
             callback: self.callback.clone(),
-            queryCallback: self.queryCallback.clone(),
-            afterRawSearchCallback: self.afterRawSearchCallback.clone(),
+            query_callback: self.query_callback.clone(),
+            after_raw_search_callback: self.after_raw_search_callback.clone(),
             manager: self.manager.clone(),
         }
     }
@@ -72,17 +72,17 @@ impl<M: Searchable> Builder<M> {
             manager,
             index: None,
             wheres,
-            whereIns: Vec::new(),
-            whereNotIns: Vec::new(),
+            where_ins: Vec::new(),
+            where_not_ins: Vec::new(),
             orders: Vec::new(),
             limit: None,
             options: serde_json::json!({}),
-            semanticSearch: false,
-            minimumSimilarity: None,
-            hybridSearch: None,
+            semantic_search: false,
+            minimum_similarity: None,
+            hybrid_search: None,
             callback: None,
-            queryCallback: None,
-            afterRawSearchCallback: None,
+            query_callback: None,
+            after_raw_search_callback: None,
         }
     }
     pub fn within(mut self, index: impl Into<String>) -> Self {
@@ -104,14 +104,14 @@ impl<M: Searchable> Builder<M> {
     }
     pub fn where_in(mut self, field: impl Into<String>, values: Vec<Value>) -> Self {
         let field = field.into();
-        self.whereIns.retain(|(key, _)| *key != field);
-        self.whereIns.push((field, values));
+        self.where_ins.retain(|(key, _)| *key != field);
+        self.where_ins.push((field, values));
         self
     }
     pub fn where_not_in(mut self, field: impl Into<String>, values: Vec<Value>) -> Self {
         let field = field.into();
-        self.whereNotIns.retain(|(key, _)| *key != field);
-        self.whereNotIns.push((field, values));
+        self.where_not_ins.retain(|(key, _)| *key != field);
+        self.where_not_ins.push((field, values));
         self
     }
     pub fn with_trashed(mut self) -> Self {
@@ -163,7 +163,7 @@ impl<M: Searchable> Builder<M> {
         + Sync
         + 'static,
     ) -> Self {
-        self.queryCallback = Some(Arc::new(callback));
+        self.query_callback = Some(Arc::new(callback));
         self
     }
     pub fn callback(
@@ -176,50 +176,51 @@ impl<M: Searchable> Builder<M> {
         self.callback = Some(Arc::new(callback));
         self
     }
-    pub fn withRawResults(
+    pub fn with_raw_results(
         mut self,
         callback: impl Fn(SearchResults) -> Result<SearchResults> + Send + Sync + 'static,
     ) -> Self {
-        self.afterRawSearchCallback = Some(Arc::new(callback));
+        self.after_raw_search_callback = Some(Arc::new(callback));
         self
     }
-    pub fn semantic(mut self, minSimilarity: Option<f64>) -> Result<Self> {
+    pub fn semantic(mut self, min_similarity: Option<f64>) -> Result<Self> {
         if self.query.trim().is_empty() {
             return Err(Error::InvalidConfiguration(
                 "Semantic searches require a non-empty query.".into(),
             ));
         }
-        self.semanticSearch = true;
-        self.hybridSearch = None;
-        self.minimumSimilarity = minSimilarity;
+        self.semantic_search = true;
+        self.hybrid_search = None;
+        self.minimum_similarity = min_similarity;
         Ok(self)
     }
     pub fn hybrid(
         mut self,
-        textWeight: f64,
-        semanticWeight: f64,
-        minSimilarity: Option<f64>,
+        text_weight: f64,
+        semantic_weight: f64,
+        min_similarity: Option<f64>,
     ) -> Result<Self> {
         if self.query.trim().is_empty()
-            || !textWeight.is_finite()
-            || !semanticWeight.is_finite()
-            || textWeight <= 0.0
-            || semanticWeight <= 0.0
+            || !text_weight.is_finite()
+            || !semantic_weight.is_finite()
+            || text_weight <= 0.0
+            || semantic_weight <= 0.0
         {
             return Err(Error::InvalidConfiguration(
                 "Hybrid searches require a non-empty query and positive finite weights.".into(),
             ));
         }
-        self.semanticSearch = false;
-        self.hybridSearch = Some((textWeight, semanticWeight));
-        self.minimumSimilarity = minSimilarity;
+        self.semantic_search = false;
+        self.hybrid_search = Some((text_weight, semantic_weight));
+        self.minimum_similarity = min_similarity;
         Ok(self)
     }
     pub fn engine(&self) -> Result<Arc<dyn Engine<M>>> {
         let engine = self
             .manager
-            .engine::<M>(self.model.scoutDriver().as_deref())?;
-        if (self.semanticSearch || self.hybridSearch.is_some()) && !engine.supportsSemanticSearch()
+            .engine::<M>(self.model.scout_driver().as_deref())?;
+        if (self.semantic_search || self.hybrid_search.is_some())
+            && !engine.supports_semantic_search()
         {
             return Err(Error::NotSupported(
                 "The configured Scout engine does not support semantic search.".into(),
@@ -233,8 +234,8 @@ impl<M: Searchable> Builder<M> {
     pub async fn keys(&self) -> Result<Vec<Value>> {
         self.engine()?.keys(self).await
     }
-    pub fn applyAfterRawSearchCallback(&self, results: SearchResults) -> Result<SearchResults> {
-        match &self.afterRawSearchCallback {
+    pub fn apply_after_raw_search_callback(&self, results: SearchResults) -> Result<SearchResults> {
+        match &self.after_raw_search_callback {
             Some(callback) => callback(results),
             None => Ok(results),
         }
@@ -261,15 +262,15 @@ impl<M: Searchable> Builder<M> {
             PaginatorOptions::default(),
         )?;
         let results =
-            self.applyAfterRawSearchCallback(engine.paginate(self, per_page, page).await?)?;
+            self.apply_after_raw_search_callback(engine.paginate(self, per_page, page).await?)?;
         let models = engine.map(self, &results).await?;
-        let total = if self.queryCallback.is_some() {
+        let total = if self.query_callback.is_some() {
             let mut all = self.clone();
             all.limit = None;
             let raw = engine.search(&all).await?;
             engine.map(self, &raw).await?.len() as u64
         } else {
-            engine.getTotalCount(&results)
+            engine.get_total_count(&results)
         };
         let mut paginator = LengthAwarePaginator::new(
             models,
@@ -290,7 +291,7 @@ impl<M: Searchable> Builder<M> {
         let engine = self.engine()?;
         Paginator::<M>::new(vec![], per_page, Some(page), PaginatorOptions::default())?;
         let results =
-            self.applyAfterRawSearchCallback(engine.paginate(self, per_page, page).await?)?;
+            self.apply_after_raw_search_callback(engine.paginate(self, per_page, page).await?)?;
         let mut paginator = Paginator::new(
             engine.map(self, &results).await?,
             per_page,
@@ -298,7 +299,7 @@ impl<M: Searchable> Builder<M> {
             PaginatorOptions::default(),
         )?;
         paginator
-            .has_more_pages_when(per_page.saturating_mul(page) < engine.getTotalCount(&results));
+            .has_more_pages_when(per_page.saturating_mul(page) < engine.get_total_count(&results));
         paginator.appends(&[("query".into(), self.query.clone())]);
         Ok(paginator)
     }
@@ -316,10 +317,10 @@ impl<M: Searchable> Builder<M> {
         .flatten()
         .boxed()
     }
-    pub fn modelConnectionType(&self) -> Result<String> {
+    pub fn model_connection_type(&self) -> Result<String> {
         Ok(self.model.get_connection()?.get_driver_name().into())
     }
-    pub(crate) fn collectionQuery(&self) -> Result<EloquentBuilder<'static, M>> {
+    pub(crate) fn collection_query(&self) -> Result<EloquentBuilder<'static, M>> {
         let mut query = M::query_on(&self.model.get_connection()?);
         if let Some(callback) = &self.callback {
             query = callback(query)?;
@@ -329,10 +330,10 @@ impl<M: Searchable> Builder<M> {
                     query.r#where(&clause.field, &clause.operator, clause.value.clone());
                 }
             }
-            for (field, values) in &self.whereIns {
+            for (field, values) in &self.where_ins {
                 query.where_in(field, values.clone());
             }
-            for (field, values) in &self.whereNotIns {
+            for (field, values) in &self.where_not_ins {
                 query.where_nested(|conditions| conditions.where_not_in(field, values.clone()));
             }
         }
@@ -340,7 +341,7 @@ impl<M: Searchable> Builder<M> {
             query = query.order_by(column, direction);
         }
         if self.orders.is_empty() {
-            query = query.order_by(&self.model.getScoutKeyName(), "desc");
+            query = query.order_by(&self.model.get_scout_key_name(), "desc");
         }
         let soft = self.wheres.iter().find(|w| w.field == "__soft_deleted");
         if self.model.get_deleted_at_column().is_some() {

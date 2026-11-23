@@ -22,7 +22,7 @@ impl Fixture {
                         .make::<ClientRepository>()
                         .unwrap();
                     let client = repo
-                        .createDeviceAuthorizationGrantClient("Device", confidential, None)
+                        .create_device_authorization_grant_client("Device", confidential, None)
                         .await
                         .unwrap();
                     let id = match client.get_key().await.unwrap() {
@@ -34,7 +34,7 @@ impl Fixture {
                         .unwrap()
                         .lock()
                         .await
-                        .plainSecret
+                        .plain_secret
                         .as_ref()
                         .map(|s| s.to_string());
                     Ok(DeviceClient { id, secret })
@@ -343,7 +343,7 @@ async fn mysql_device_atomic_competition_and_token_save_veto_preserve_code() {
     let b = f.login("alice@test").await;
     let view = f.device_view(&b, data["user_code"].as_str().unwrap()).await;
     assert_eq!(f.device_decide(&b, &view, true).await.status(), 302);
-    f.passport.useTokenModel::<SelectedToken>();
+    f.passport.use_token_model::<SelectedToken>();
     f.veto.store(true, Ordering::Relaxed);
     let code = data["device_code"].as_str().unwrap();
     assert_eq!(f.device_poll(&client, code).await.status(), 500);
@@ -516,11 +516,11 @@ impl openrust::support::ServiceProvider for Options {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             if !self.register {
-                app.make::<Passport>().await?.ignoreRoutes();
+                app.make::<Passport>().await?.ignore_routes();
             }
             app.make::<Passport>()
                 .await?
-                .deviceCodeGrantEnabled
+                .device_code_grant_enabled
                 .store(self.enabled, Ordering::Relaxed);
             if let Some(prefix) = &self.prefix {
                 app.container()
@@ -749,8 +749,9 @@ async fn mysql_device_real_chromium_browser_approval() {
     assert!(required());
     let f = Fixture::new().await;
     let client = f.device_client(false).await;
-    f.passport.deviceUserCodeView(html_code_view);
-    f.passport.deviceAuthorizationView(html_authorization_view);
+    f.passport.device_user_code_view(html_code_view);
+    f.passport
+        .device_authorization_view(html_authorization_view);
     let base = f.base.clone();
     let script =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/device_authorization/browser.mjs");

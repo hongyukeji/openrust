@@ -114,7 +114,7 @@ async fn process_driver_returns_ordered_named_results_from_real_artisan_children
     let driver = driver(&root);
     let parent = std::process::id();
     let results = driver
-        .runNamed(
+        .run_named(
             IndexMap::from([
                 ("slower".into(), probe("first", 70, None)),
                 ("faster".into(), probe("second", 0, None)),
@@ -133,7 +133,7 @@ async fn process_driver_returns_ordered_named_results_from_real_artisan_children
     assert_ne!(results["faster"]["pid"], parent);
     assert_ne!(results["slower"]["pid"], results["faster"]["pid"]);
     let failure = driver
-        .runNamed(
+        .run_named(
             IndexMap::from([
                 ("failed".into(), Task::new("fixture:fail", ()).unwrap()),
                 (
@@ -161,7 +161,7 @@ async fn timeout_and_cancellation_reclaim_live_worker_processes() {
         let cancel_marker = cancel_marker.clone();
         async move {
             driver
-                .runNamed(
+                .run_named(
                     IndexMap::from([("cancel".into(), probe("cancel", 1000, Some(cancel_marker)))]),
                     None,
                 )
@@ -173,7 +173,7 @@ async fn timeout_and_cancellation_reclaim_live_worker_processes() {
     assert!(cancellation.await.unwrap_err().is_cancelled());
 
     let result = driver
-        .runNamed(
+        .run_named(
             IndexMap::from([(
                 "timeout".into(),
                 probe("timeout", 1000, Some(timeout_marker.clone())),

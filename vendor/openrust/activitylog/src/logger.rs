@@ -11,33 +11,33 @@ use std::{future::Future, sync::Arc};
 pub struct ActivityLogger {
     repository: Arc<ActivityRepository>,
     status: ActivityLogStatus,
-    causerResolver: CauserResolver,
-    defaultLogName: Option<String>,
+    causer_resolver: CauserResolver,
+    default_log_name: Option<String>,
     activity: Activity,
-    causerWasSet: bool,
+    causer_was_set: bool,
     action: crate::actions::LogActivityAction,
     buffer: Option<Arc<crate::ActivityBuffer>>,
 }
 impl ActivityLogger {
     pub fn new(connection: Connection) -> Self {
-        Self::fromRepository(Arc::new(ActivityRepository::new(connection)))
+        Self::from_repository(Arc::new(ActivityRepository::new(connection)))
     }
-    pub fn fromRepository(repository: Arc<ActivityRepository>) -> Self {
-        let defaultLogName = repository.defaultLogName.clone();
-        let mut activity = Activity::new("").useLog(defaultLogName.clone());
+    pub fn from_repository(repository: Arc<ActivityRepository>) -> Self {
+        let default_log_name = repository.default_log_name.clone();
+        let mut activity = Activity::new("").use_log(default_log_name.clone());
         activity.description = None;
         Self {
-            status: ActivityLogStatus::new(repository.isEnabled()),
-            causerResolver: CauserResolver::default(),
+            status: ActivityLogStatus::new(repository.is_enabled()),
+            causer_resolver: CauserResolver::default(),
             activity,
-            defaultLogName,
+            default_log_name,
             repository,
-            causerWasSet: false,
+            causer_was_set: false,
             action: crate::actions::LogActivityAction::default(),
             buffer: None,
         }
     }
-    pub fn withBuffer(&mut self, buffer: Arc<crate::ActivityBuffer>) -> &mut Self {
+    pub fn with_buffer(&mut self, buffer: Arc<crate::ActivityBuffer>) -> &mut Self {
         self.buffer = Some(buffer);
         self
     }
@@ -47,127 +47,130 @@ impl ActivityLogger {
             None => Ok(0),
         }
     }
-    pub fn setLogActivityAction(&mut self, action: crate::actions::LogActivityAction) -> &mut Self {
+    pub fn set_log_activity_action(
+        &mut self,
+        action: crate::actions::LogActivityAction,
+    ) -> &mut Self {
         self.action = action;
         self
     }
-    pub fn setLogStatus(&mut self, status: ActivityLogStatus) -> &mut Self {
+    pub fn set_log_status(&mut self, status: ActivityLogStatus) -> &mut Self {
         self.status = status;
         self
     }
-    pub fn setCauserResolver(&mut self, resolver: CauserResolver) -> &mut Self {
-        self.causerResolver = resolver;
+    pub fn set_causer_resolver(&mut self, resolver: CauserResolver) -> &mut Self {
+        self.causer_resolver = resolver;
         self
     }
-    pub fn withDefaultLogName(&mut self, name: impl IntoLogName) -> &mut Self {
-        self.defaultLogName = name.intoLogName();
-        self.activity.log_name = self.defaultLogName.clone();
+    pub fn with_default_log_name(&mut self, name: impl IntoLogName) -> &mut Self {
+        self.default_log_name = name.into_log_name();
+        self.activity.log_name = self.default_log_name.clone();
         self
     }
     pub fn activity(&self) -> PendingActivityLog {
-        let mut logger = Self::fromRepository(self.repository.clone());
+        let mut logger = Self::from_repository(self.repository.clone());
         logger.status = self.status.clone();
-        logger.causerResolver = self.causerResolver.clone();
+        logger.causer_resolver = self.causer_resolver.clone();
         logger.action = self.action.clone();
         logger.buffer = self.buffer.clone();
-        logger.withDefaultLogName(self.defaultLogName.clone());
+        logger.with_default_log_name(self.default_log_name.clone());
         PendingActivityLog { logger }
     }
-    pub fn performedOn(&mut self, subject: Subject) -> &mut Self {
+    pub fn performed_on(&mut self, subject: Subject) -> &mut Self {
         self.activity.subject = Some(subject);
-        self.activity.subjectAttributes = serde_json::json!({});
+        self.activity.subject_attributes = serde_json::json!({});
         self
     }
     pub fn on(&mut self, subject: Subject) -> &mut Self {
-        self.performedOn(subject)
+        self.performed_on(subject)
     }
-    pub fn causedBy(&mut self, subject: impl Into<Option<Subject>>) -> Result<&mut Self> {
+    pub fn caused_by(&mut self, subject: impl Into<Option<Subject>>) -> Result<&mut Self> {
         if let Some(subject) = subject.into() {
-            self.activity.causer = self.causerResolver.resolve(Some(subject))?;
+            self.activity.causer = self.causer_resolver.resolve(Some(subject))?;
             if let Some(causer) = &self.activity.causer {
-                self.activity.causerAttributes = self.causerResolver.attributes(causer)?;
+                self.activity.causer_attributes = self.causer_resolver.attributes(causer)?;
             }
-            self.causerWasSet = true;
+            self.causer_was_set = true;
         }
         Ok(self)
     }
-    pub fn byModel<M: openrust::database::eloquent::Model>(
+    pub fn by_model<M: openrust::database::eloquent::Model>(
         &mut self,
         model: &M,
     ) -> Result<&mut Self> {
         let subject = crate::models::identity(model)?;
-        self.causedBy(subject.clone())?;
+        self.caused_by(subject.clone())?;
         if self.activity.causer.as_ref() == Some(&subject) {
-            self.activity.causerAttributes = model.to_array()?.into();
+            self.activity.causer_attributes = model.to_array()?.into();
         }
         Ok(self)
     }
-    pub fn onModel<M: openrust::database::eloquent::Model>(
+    pub fn on_model<M: openrust::database::eloquent::Model>(
         &mut self,
         model: &M,
     ) -> Result<&mut Self> {
-        self.performedOn(crate::models::identity(model)?);
-        self.activity.subjectAttributes = model.to_array()?.into();
+        self.performed_on(crate::models::identity(model)?);
+        self.activity.subject_attributes = model.to_array()?.into();
         Ok(self)
     }
-    pub async fn byId(
+    pub async fn by_id(
         &mut self,
         id: impl Into<openrust::auth::AuthIdentifier>,
     ) -> Result<&mut Self> {
-        let (subject, attributes) = self.causerResolver.resolveId(id.into()).await?;
+        let (subject, attributes) = self.causer_resolver.resolve_id(id.into()).await?;
         self.activity.causer = subject;
-        self.activity.causerAttributes = attributes;
-        self.causerWasSet = true;
+        self.activity.causer_attributes = attributes;
+        self.causer_was_set = true;
         Ok(self)
     }
     pub fn by(&mut self, subject: impl Into<Option<Subject>>) -> Result<&mut Self> {
-        self.causedBy(subject)
+        self.caused_by(subject)
     }
-    pub fn causedByAnonymous(&mut self) -> &mut Self {
+    pub fn caused_by_anonymous(&mut self) -> &mut Self {
         self.activity.causer = None;
-        self.causerWasSet = true;
+        self.causer_was_set = true;
         self
     }
-    pub fn byAnonymous(&mut self) -> &mut Self {
-        self.causedByAnonymous()
+    pub fn by_anonymous(&mut self) -> &mut Self {
+        self.caused_by_anonymous()
     }
     pub fn event(&mut self, event: impl Into<String>) -> &mut Self {
-        self.setEvent(event)
+        self.set_event(event)
     }
-    pub fn setEvent(&mut self, event: impl Into<String>) -> &mut Self {
+    pub fn set_event(&mut self, event: impl Into<String>) -> &mut Self {
         self.activity.event = Some(event.into());
         self
     }
-    pub fn withChanges(&mut self, changes: Value) -> &mut Self {
+    pub fn with_changes(&mut self, changes: Value) -> &mut Self {
         self.activity.changes = changes;
         self
     }
-    pub fn withProperties(&mut self, properties: Value) -> &mut Self {
+    pub fn with_properties(&mut self, properties: Value) -> &mut Self {
         self.activity.properties = properties;
         self
     }
-    pub fn withProperty(&mut self, key: impl Into<String>, value: impl Into<Value>) -> &mut Self {
+    pub fn with_property(&mut self, key: impl Into<String>, value: impl Into<Value>) -> &mut Self {
         if let Some(properties) = self.activity.properties.as_object_mut() {
             properties.insert(key.into(), value.into());
         }
         self
     }
-    pub fn createdAt(&mut self, time: jiff::Timestamp) -> &mut Self {
+    pub fn created_at(&mut self, time: jiff::Timestamp) -> &mut Self {
         self.activity.created_at = Some(time.as_millisecond());
         self
     }
-    pub fn useLog(&mut self, name: impl IntoLogName) -> &mut Self {
-        self.activity.log_name = name.intoLogName();
+    pub fn use_log(&mut self, name: impl IntoLogName) -> &mut Self {
+        self.activity.log_name = name.into_log_name();
         self
     }
-    pub fn inLog(&mut self, name: impl IntoLogName) -> &mut Self {
-        self.useLog(name)
+    pub fn in_log(&mut self, name: impl IntoLogName) -> &mut Self {
+        self.use_log(name)
     }
-    fn useDefaultCauserIfNoneWasGiven(&mut self) -> Result<()> {
-        if !self.causerWasSet && self.activity.causer.is_none() {
-            self.activity.causer = self.causerResolver.resolve(None)?;
+    fn use_default_causer_if_none_was_given(&mut self) -> Result<()> {
+        if !self.causer_was_set && self.activity.causer.is_none() {
+            self.activity.causer = self.causer_resolver.resolve(None)?;
             if let Some(causer) = &self.activity.causer {
-                self.activity.causerAttributes = self.causerResolver.attributes(causer)?;
+                self.activity.causer_attributes = self.causer_resolver.attributes(causer)?;
             }
         }
         Ok(())
@@ -177,27 +180,27 @@ impl ActivityLogger {
         callback: impl FnOnce(&mut Activity, Option<&str>),
         event: Option<&str>,
     ) -> Result<&mut Self> {
-        self.useDefaultCauserIfNoneWasGiven()?;
-        self.causerWasSet = true;
+        self.use_default_causer_if_none_was_given()?;
+        self.causer_was_set = true;
         callback(&mut self.activity, event);
         Ok(self)
     }
-    pub fn enableLogging(&mut self) -> &mut Self {
+    pub fn enable_logging(&mut self) -> &mut Self {
         self.status.enable();
         self
     }
-    pub fn disableLogging(&mut self) -> &mut Self {
+    pub fn disable_logging(&mut self) -> &mut Self {
         self.status.disable();
         self
     }
-    pub async fn withoutLogging<F: Future>(&self, callback: impl FnOnce() -> F) -> F::Output {
-        self.status.withoutLogging(callback).await
+    pub async fn without_logging<F: Future>(&self, callback: impl FnOnce() -> F) -> F::Output {
+        self.status.without_logging(callback).await
     }
     pub async fn log(&mut self, description: impl Into<String>) -> Result<Option<ActivityRecord>> {
         if self.status.disabled() {
             return Ok(None);
         }
-        self.useDefaultCauserIfNoneWasGiven()?;
+        self.use_default_causer_if_none_was_given()?;
         self.action
             .execute(&mut self.activity, description.into())?;
         let record = if let Some(buffer) = &self.buffer {
@@ -207,9 +210,9 @@ impl ActivityLogger {
         } else {
             self.repository.log(self.activity.clone()).await?
         };
-        self.activity = Activity::new("").useLog(self.defaultLogName.clone());
+        self.activity = Activity::new("").use_log(self.default_log_name.clone());
         self.activity.description = None;
-        self.causerWasSet = false;
+        self.causer_was_set = false;
         Ok(record)
     }
 }
@@ -220,8 +223,8 @@ impl PendingActivityLog {
     pub fn logger(&mut self) -> &mut ActivityLogger {
         &mut self.logger
     }
-    pub fn defaultCauser(&mut self, causer: Option<Subject>) -> &mut Self {
-        self.logger.causerResolver.setCauser(causer);
+    pub fn default_causer(&mut self, causer: Option<Subject>) -> &mut Self {
+        self.logger.causer_resolver.set_causer(causer);
         self
     }
 }
@@ -241,8 +244,8 @@ impl std::ops::DerefMut for PendingActivityLog {
 pub struct ActivityLogContext {
     repository: Arc<ActivityRepository>,
     status: ActivityLogStatus,
-    causerResolver: CauserResolver,
-    defaultLogName: Option<String>,
+    causer_resolver: CauserResolver,
+    default_log_name: Option<String>,
     action: crate::actions::LogActivityAction,
     buffer: Option<Arc<crate::ActivityBuffer>>,
 }
@@ -252,8 +255,8 @@ impl ActivityLogger {
         let context = ActivityLogContext {
             repository: self.repository.clone(),
             status: self.status.clone(),
-            causerResolver: self.causerResolver.clone(),
-            defaultLogName: self.defaultLogName.clone(),
+            causer_resolver: self.causer_resolver.clone(),
+            default_log_name: self.default_log_name.clone(),
             action: self.action.clone(),
             buffer: self.buffer.clone(),
         };
@@ -262,11 +265,11 @@ impl ActivityLogger {
     pub(crate) fn current() -> Option<Self> {
         CONTEXT
             .try_with(|context| {
-                let mut logger = Self::fromRepository(context.repository.clone());
+                let mut logger = Self::from_repository(context.repository.clone());
                 logger.status = context.status.clone();
-                logger.causerResolver = context.causerResolver.clone();
-                logger.defaultLogName = context.defaultLogName.clone();
-                logger.activity.log_name = context.defaultLogName.clone();
+                logger.causer_resolver = context.causer_resolver.clone();
+                logger.default_log_name = context.default_log_name.clone();
+                logger.activity.log_name = context.default_log_name.clone();
                 logger.action = context.action.clone();
                 logger.buffer = context.buffer.clone();
                 logger
@@ -276,13 +279,13 @@ impl ActivityLogger {
     pub(crate) fn buffer(&self) -> Option<Arc<crate::ActivityBuffer>> {
         self.buffer.clone()
     }
-    pub(crate) fn bufferPrepared(
+    pub(crate) fn buffer_prepared(
         &self,
         activity: crate::PreparedActivity,
     ) -> Option<ActivityRecord> {
         self.buffer.as_ref().map(|buffer| buffer.add(activity))
     }
-    pub(crate) fn prepareModel(
+    pub(crate) fn prepare_model(
         &mut self,
         mut activity: Activity,
         before: impl FnOnce(&mut Activity) -> Result<()>,
@@ -290,16 +293,16 @@ impl ActivityLogger {
         if self.status.disabled() {
             return Ok(None);
         }
-        activity.causer = self.causerResolver.resolve(None)?;
+        activity.causer = self.causer_resolver.resolve(None)?;
         if let Some(causer) = &activity.causer {
-            activity.causerAttributes = self.causerResolver.attributes(causer)?;
+            activity.causer_attributes = self.causer_resolver.attributes(causer)?;
         }
         if activity.log_name.is_none() {
-            activity.log_name = self.defaultLogName.clone();
+            activity.log_name = self.default_log_name.clone();
         }
         let description = activity.description.take().unwrap_or_default();
         self.action
-            .executeWith(&mut activity, description, before)?;
+            .execute_with(&mut activity, description, before)?;
         self.repository.prepare(activity)
     }
 }
@@ -308,29 +311,29 @@ impl ActivityLogContext {
     pub(crate) fn new(
         repository: Arc<ActivityRepository>,
         status: ActivityLogStatus,
-        causerResolver: CauserResolver,
+        causer_resolver: CauserResolver,
         action: crate::actions::LogActivityAction,
     ) -> Self {
         Self {
-            defaultLogName: repository.defaultLogName.clone(),
+            default_log_name: repository.default_log_name.clone(),
             repository,
             status,
-            causerResolver,
+            causer_resolver,
             action,
             buffer: None,
         }
     }
-    pub fn withBuffer(mut self, buffer: Arc<crate::ActivityBuffer>) -> Self {
+    pub fn with_buffer(mut self, buffer: Arc<crate::ActivityBuffer>) -> Self {
         self.buffer = Some(buffer);
         self
     }
     pub fn logger(&self) -> ActivityLogger {
-        let mut logger = ActivityLogger::fromRepository(self.repository.clone());
+        let mut logger = ActivityLogger::from_repository(self.repository.clone());
         logger
-            .setLogStatus(self.status.clone())
-            .setCauserResolver(self.causerResolver.clone())
-            .setLogActivityAction(self.action.clone())
-            .withDefaultLogName(self.defaultLogName.clone());
+            .set_log_status(self.status.clone())
+            .set_causer_resolver(self.causer_resolver.clone())
+            .set_log_activity_action(self.action.clone())
+            .with_default_log_name(self.default_log_name.clone());
         logger.buffer = self.buffer.clone();
         logger
     }

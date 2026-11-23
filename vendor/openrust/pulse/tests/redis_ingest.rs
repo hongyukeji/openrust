@@ -35,7 +35,7 @@ impl Storage for Sink {
     ) -> PulseFuture<'a, Vec<openrust::database::Row>> {
         Box::pin(async { unreachable!() })
     }
-    fn aggregateTypes<'a>(
+    fn aggregate_types<'a>(
         &'a self,
         _: &'a [String],
         _: &'a str,
@@ -46,7 +46,7 @@ impl Storage for Sink {
     ) -> PulseFuture<'a, Vec<openrust::database::Row>> {
         Box::pin(async { unreachable!() })
     }
-    fn aggregateTotal<'a>(
+    fn aggregate_total<'a>(
         &'a self,
         _: &'a [String],
         _: &'a str,
@@ -79,14 +79,14 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
         .connection(None)
         .unwrap();
     let key = connection.key("openrust:pulse:ingest");
-    let ingest = RedisIngest::new(connection.clone()).withChunk(2).unwrap();
+    let ingest = RedisIngest::new(connection.clone()).with_chunk(2).unwrap();
     let sink = Sink::default();
     let now = jiff::Timestamp::now().as_second();
     let items: Vec<Item> = (0..5)
         .map(|i| {
             Entry::new(now, "redis", i.to_string(), Some(i))
                 .count()
-                .onlyBuckets()
+                .only_buckets()
                 .into()
         })
         .collect();
@@ -109,8 +109,8 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
         assert_eq!(stored.len(), 5);
         for item in stored.iter() {
             let Item::Entry(e) = item else { panic!() };
-            assert!(e.isCount());
-            assert!(e.isOnlyBuckets());
+            assert!(e.is_count());
+            assert!(e.is_only_buckets());
         }
     }
     let invalid = b"invalid-json";
@@ -124,14 +124,14 @@ async fn redis_stream_batches_retry_without_deleting_failed_storage_and_trim_ret
         openrust::redis::Value::Int(1)
     );
     connection.command("DEL", &[key.as_bytes()]).await.unwrap();
-    let trim = RedisIngest::new(connection.clone()).withKeep(Retention::Entries(0));
+    let trim = RedisIngest::new(connection.clone()).with_keep(Retention::Entries(0));
     trim.ingest(&items).await.unwrap();
     trim.trim().await.unwrap();
     assert_eq!(
         connection.command("XLEN", &[key.as_bytes()]).await.unwrap(),
         openrust::redis::Value::Int(0)
     );
-    let trim = RedisIngest::new(connection.clone()).withKeep(Retention::Seconds(0));
+    let trim = RedisIngest::new(connection.clone()).with_keep(Retention::Seconds(0));
     trim.ingest(&items).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     trim.trim().await.unwrap();

@@ -20,7 +20,7 @@ impl Facade for TagStore {
 /// Explicit job tags are resolved in the current application scope.
 pub struct Tags;
 impl Tags {
-    pub fn forPayload(payload: &Payload) -> Result<Vec<String>> {
+    pub fn for_payload(payload: &Payload) -> Result<Vec<String>> {
         let manager = TagStore::get_facade_root().map_err(|_| Error::Unavailable)?;
         let mut tags = Vec::new();
         for callback in manager
@@ -37,7 +37,7 @@ impl Tags {
         }
         Ok(tags)
     }
-    pub fn forModel<M: openrust::database::eloquent::Model>(model: &M) -> Result<String> {
+    pub fn for_model<M: openrust::database::eloquent::Model>(model: &M) -> Result<String> {
         let key = match model.get_key().ok_or(Error::InvalidRecord)? {
             openrust::database::Value::Text(value) => value.clone(),
             openrust::database::Value::Integer(value) => value.to_string(),

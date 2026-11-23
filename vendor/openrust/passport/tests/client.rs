@@ -31,14 +31,14 @@ fn client_grant_and_redirect_accessors_preserve_shapes_and_fixed_fallback_order(
         ("password_client", true.into()),
         ("personal_access_client", true.into()),
     ]);
-    assert!(client.firstParty().unwrap());
+    assert!(client.first_party().unwrap());
     assert!(client.confidential());
     assert_eq!(
-        client.redirectUris().unwrap().as_value(),
+        client.redirect_uris().unwrap().as_value(),
         &json!(["https://one.test/cb", "https://two.test/cb"])
     );
     assert_eq!(
-        client.grantTypes().unwrap().as_value(),
+        client.grant_types().unwrap().as_value(),
         &json!([
             "authorization_code",
             "client_credentials",
@@ -50,31 +50,31 @@ fn client_grant_and_redirect_accessors_preserve_shapes_and_fixed_fallback_order(
         ])
     );
     client.state_mut().set_attribute("redirect_uris", "[]");
-    assert!(client.redirectUris().unwrap().is_empty());
+    assert!(client.redirect_uris().unwrap().is_empty());
     client.state_mut().set_attribute(
         "grant_types",
         Value::Json(json!({"0":"refresh_token", "1":"authorization_code"})),
     );
     assert_eq!(
-        client.grantTypes().unwrap().as_value(),
+        client.grant_types().unwrap().as_value(),
         &json!(["refresh_token", "authorization_code"])
     );
     client.state_mut().set_attribute(
         "grant_types",
         Value::Json(json!({"named":"authorization_code", "2":true})),
     );
-    let grants = client.grantTypes().unwrap();
+    let grants = client.grant_types().unwrap();
     assert!(grants.as_value().is_object());
-    assert!(client.hasGrantType("authorization_code").unwrap());
+    assert!(client.has_grant_type("authorization_code").unwrap());
     assert!(
-        client.hasGrantType("other").unwrap(),
+        client.has_grant_type("other").unwrap(),
         "PHP in_array is non-strict"
     );
     assert!(!grants.contains_strict_string("other"));
     client.state_mut().set_attribute("grant_types", "null");
-    assert!(client.grantTypes().is_err());
+    assert!(client.grant_types().is_err());
     client.state_mut().set_attribute("redirect_uris", "12");
-    assert!(client.redirectUris().is_err());
+    assert!(client.redirect_uris().is_err());
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn client_projection_hides_raw_secret_and_uses_model_accessors_and_uuid_strategy
         ])
     );
     assert_eq!(json["redirect_uris"], json!([]));
-    assert!(client.plainSecret.is_none());
+    assert!(client.plain_secret.is_none());
     assert_eq!(
         client.get_attribute_value("plain_secret").unwrap(),
         Some(Value::Null)
@@ -155,7 +155,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
         .await
         .unwrap();
     assert_eq!(
-        client.plainSecret.as_deref().map(|s| s.as_str()),
+        client.plain_secret.as_deref().map(|s| s.as_str()),
         Some("plain secret")
     );
     let Some(Value::Text(hash)) = client.get_attribute("secret") else {
@@ -172,7 +172,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
     assert!(!client.to_json().unwrap().contains("plain secret"));
     assert!(!format!("{client:?}").contains("plain secret"));
     let loaded = Client::from_state(client.state().clone());
-    assert!(loaded.plainSecret.is_none());
+    assert!(loaded.plain_secret.is_none());
     assert_eq!(
         loaded.get_attribute("secret"),
         Some(&Value::Text(hash.clone()))
@@ -180,7 +180,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
     client.set_attribute_value("secret", hash.clone()).unwrap();
     assert_eq!(client.get_attribute("secret"), Some(&Value::Text(hash)));
     assert!(
-        client.plainSecret.is_some(),
+        client.plain_secret.is_some(),
         "PHP retains the setter input, even when already hashed"
     );
     client
@@ -188,7 +188,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
         .await
         .unwrap();
     assert_eq!(
-        client.plainSecret.as_deref().map(|s| s.as_str()),
+        client.plain_secret.as_deref().map(|s| s.as_str()),
         Some("replacement")
     );
     let Some(Value::Text(hash)) = client.get_attribute("secret") else {
@@ -204,7 +204,7 @@ async fn secrets_use_existing_eloquent_hashing_and_plaintext_remains_instance_lo
         .set_attribute_value_async("secret", Value::Null)
         .await
         .unwrap();
-    assert!(client.plainSecret.is_none());
+    assert!(client.plain_secret.is_none());
     assert!(!client.confidential());
     assert!(
         client
@@ -241,7 +241,7 @@ async fn secret_failure_keeps_the_existing_hash_and_applications_keep_their_hash
     ));
     assert_eq!(a.get_attribute("secret"), stored.as_ref());
     assert_eq!(
-        a.plainSecret.as_deref().map(|s| s.as_str()),
+        a.plain_secret.as_deref().map(|s| s.as_str()),
         b.get_attribute("secret").and_then(|v| match v {
             Value::Text(s) => Some(s.as_str()),
             _ => None,
@@ -284,7 +284,7 @@ fn scope_exposes_the_fixed_id_and_description_payload() {
 #[test]
 fn plain_secret_appending_reads_the_instance_and_respects_visibility() {
     let mut client = hydrated([("secret", "stored hash".into())]);
-    client.plainSecret = Some(zeroize::Zeroizing::new("instance-only secret".to_owned()));
+    client.plain_secret = Some(zeroize::Zeroizing::new("instance-only secret".to_owned()));
     assert!(client.to_array().unwrap().get("plain_secret").is_none());
     client.append(&["plain_secret"]);
     let projected = client.to_array().unwrap();
@@ -312,7 +312,7 @@ fn plain_secret_appending_reads_the_instance_and_respects_visibility() {
 fn missing_and_null_scope_restrictions_allow_scopes_without_loading_application_state() {
     for client in [Client::default(), hydrated([("scopes", Value::Null)])] {
         for scope in ["", "*", "orders:read", "账:读"] {
-            assert!(client.hasScope(scope).unwrap());
+            assert!(client.has_scope(scope).unwrap());
         }
     }
 }

@@ -82,7 +82,7 @@ impl Command for PurgeCommand {
                     expired.then(|| cutoff.strftime("%Y-%m-%d %H:%M:%S%.6f").to_string()),
                     now.strftime("%Y-%m-%d %H:%M:%S%.6f").to_string(),
                     passport
-                        .deviceCodeGrantEnabled
+                        .device_code_grant_enabled
                         .load(std::sync::atomic::Ordering::Relaxed),
                 )
                 .await

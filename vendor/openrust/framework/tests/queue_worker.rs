@@ -846,7 +846,7 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
         Arc::new(JobInterruptListener),
         Delivery::Sync,
     )?;
-    registry.listenQueued::<Invoice>(
+    registry.listen_queued::<Invoice>(
         "invoice.paid",
         Arc::new(InvoiceListener),
         QueuedListenerOptions {
@@ -882,13 +882,13 @@ struct LimitedHandler(&'static str);
 impl JobHandler for LimitedHandler {
     fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
         let limiter: Arc<dyn JobMiddleware> = match self.0 {
-            "rate_drop" => Arc::new(RateLimited::new("job-drop").dontRelease()),
+            "rate_drop" => Arc::new(RateLimited::new("job-drop").dont_release()),
             "rate_unlimited" => Arc::new(RateLimited::new("job-unlimited")),
             "rate_missing" => Arc::new(RateLimited::new("job-missing")),
             "rate_redis" => Arc::new(
                 RateLimitedWithRedis::new("job-redis")
                     .connection("default")
-                    .dontRelease(),
+                    .dont_release(),
             ),
             _ => Arc::new(RateLimited::new("job-budget").release_after(Duration::from_secs(1))),
         };
@@ -914,9 +914,9 @@ impl JobHandler for ThrottledHandler {
         };
         let throttle = ThrottlesExceptions::new(2, 8)
             .by("remote-service")
-            .backoffWhen(|_| 1)
+            .backoff_when(|_| 1)
             .when(move |error, _| !matches_error(error, "_bypass"))
-            .reportWhen(|_, limiter| {
+            .report_when(|_, limiter| {
                 match limiter {
                     ExceptionThrottleLimiter::Cache(_) => println!("throttle-cache"),
                     ExceptionThrottleLimiter::Redis {
@@ -930,8 +930,8 @@ impl JobHandler for ThrottledHandler {
                 }
                 true
             })
-            .deleteWhen(move |error| matches_error(error, "_discard"))
-            .failWhen(move |error| matches_error(error, "_terminal"));
+            .delete_when(move |error| matches_error(error, "_discard"))
+            .fail_when(move |error| matches_error(error, "_terminal"));
         let middleware: Arc<dyn JobMiddleware> = if self.0.starts_with("throttle_redis_") {
             Arc::new(ThrottlesExceptionsWithRedis::from(throttle).connection("default"))
         } else {
@@ -1000,25 +1000,25 @@ impl JobHandler for OverlapHandler {
         let shared = || {
             WithoutOverlapping::new("resource")
                 .shared()
-                .withPrefix("fixture-overlap:")
+                .with_prefix("fixture-overlap:")
         };
         let lease = || {
             WithoutOverlapping::new("lease")
                 .shared()
-                .withPrefix("fixture-overlap:")
+                .with_prefix("fixture-overlap:")
         };
         let middleware = match self.name {
             "overlap_holder" | "overlap_after_error" | "overlap_error" => shared(),
             "overlap_deferred" => {
                 shared().release_after(SystemTime::now() + Duration::from_secs(3))
             }
-            "overlap_discard" => shared().dontRelease(),
-            "overlap_isolated" => base.withPrefix("fixture-overlap:"),
-            "overlap_other_prefix" => base.shared().withPrefix("fixture-other:"),
+            "overlap_discard" => shared().dont_release(),
+            "overlap_isolated" => base.with_prefix("fixture-overlap:"),
+            "overlap_other_prefix" => base.shared().with_prefix("fixture-other:"),
             "overlap_lease_holder" => {
-                lease().expireAfter(SystemTime::now() + Duration::from_secs(2))
+                lease().expire_after(SystemTime::now() + Duration::from_secs(2))
             }
-            "overlap_lease_probe" => lease().dontRelease(),
+            "overlap_lease_probe" => lease().dont_release(),
             _ => unreachable!(),
         };
         vec![Arc::new(middleware), Arc::new(Tag)]
@@ -1075,7 +1075,7 @@ impl ServiceProvider for Providers {
                     ))?;
             }
             if std::env::var_os("QUEUE_WORKER_DISABLE_POLLING").is_some() {
-                Queue::withoutInterruptionPolling()?;
+                Queue::without_interruption_polling()?;
             }
             Queue::register("restore-models", Arc::new(RestoreModels))?;
             Queue::register("restore-pivots", Arc::new(RestorePivots))?;
@@ -1101,7 +1101,7 @@ impl ServiceProvider for Providers {
                 Queue::after(attempt_hook)?;
                 Queue::exceptionOccurred(attempt_hook)?;
                 Queue::failing(attempt_hook)?;
-                Queue::whenJobRunsLongerThan(Duration::from_millis(75), |job, elapsed| {
+                Queue::when_job_runs_longer_than(Duration::from_millis(75), |job, elapsed| {
                     Box::pin(async move {
                         assert!(elapsed > Duration::from_millis(75));
                         println!("long-job:{}:{}", job.payload.name(), job.attempts);
@@ -1238,7 +1238,7 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             let model = QueuedModel::new_instance(Default::default())?;
             let id = ModelIdentifier::capture(&model)?;
             let jobs = [
-                Payload::new("restore-required", id)?.deleteWhenMissingModels(),
+                Payload::new("restore-required", id)?.delete_when_missing_models(),
                 Payload::new("restore-required", "chain successor must not run")?,
             ];
             let chain = Bus::chain(jobs).on_queue("missing-chain");
@@ -1250,10 +1250,10 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         } else if kind == "timed_pause" {
             let connection = Queue::connection(None)?;
             let name = connection.get_connection_name();
-            Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
-            assert!(Queue::isPaused(name, "default").await?);
+            Queue::pause_for(name, "default", Ttl::Seconds(3)).await?;
+            assert!(Queue::is_paused(name, "default").await?);
             assert_eq!(
-                Queue::getPausedQueues(name, &["low", "default"]).await?,
+                Queue::get_paused_queues(name, &["low", "default"]).await?,
                 ["default"]
             );
         } else if matches!(kind, "invoice" | "rollback") {
@@ -1463,8 +1463,8 @@ async fn worker_artisan_fixture() {
         std::process::exit(status);
     }
     if let Some(fake) = fake {
-        fake.assertDispatchedTimes(JobPopping::NAME, 1)
-            .assertDispatchedTimes(JobPopped::NAME, 1);
+        fake.assert_dispatched_times(JobPopping::NAME, 1)
+            .assert_dispatched_times(JobPopped::NAME, 1);
         println!("pop-event:fake");
     }
 }
@@ -1845,7 +1845,7 @@ async fn verify_model_restoration(
     for _ in 0..2 {
         assert!(matches!(
             manager
-                .dispatch(required().deleteWhenMissingModels(), options(), None)
+                .dispatch(required().delete_when_missing_models(), options(), None)
                 .await
                 .unwrap(),
             openrust::queue::DispatchResult::Queued(_)
@@ -2174,17 +2174,27 @@ async fn exercise_with_cluster(redis: Option<u16>, database_url: Option<&str>, c
         let events = dispatcher.fake(&[QueuePaused::NAME, QueueResumed::NAME]);
         let other_manager = other.container().make::<QueueManager>().unwrap();
         other_manager
-            .pauseFor(
+            .pause_for(
                 "database",
                 "default",
                 Ttl::Until(SystemTime::now() + Duration::from_secs(30)),
             )
             .await
             .unwrap();
-        assert!(other_manager.isPaused("database", "default").await.unwrap());
-        assert!(!manager.isPaused("database", "default").await.unwrap());
+        assert!(
+            other_manager
+                .is_paused("database", "default")
+                .await
+                .unwrap()
+        );
+        assert!(!manager.is_paused("database", "default").await.unwrap());
         other_manager.resume("database", "default").await.unwrap();
-        assert!(!other_manager.isPaused("database", "default").await.unwrap());
+        assert!(
+            !other_manager
+                .is_paused("database", "default")
+                .await
+                .unwrap()
+        );
         assert_eq!(events.dispatched(QueuePaused::NAME).len(), 1);
         assert_eq!(events.dispatched(QueueResumed::NAME).len(), 1);
     }
@@ -3501,14 +3511,14 @@ async fn verify_job_overlap(
     };
     let payload = Payload::new("overlap_holder", ()).unwrap();
     assert_eq!(
-        WithoutOverlapping::new("resource").getLockKey(&payload),
+        WithoutOverlapping::new("resource").get_lock_key(&payload),
         "laravel-queue-overlap:overlap_holder:resource",
     );
     assert_eq!(
         WithoutOverlapping::new("resource")
             .shared()
-            .withPrefix("fixture-overlap:")
-            .getLockKey(&payload),
+            .with_prefix("fixture-overlap:")
+            .get_lock_key(&payload),
         "fixture-overlap:resource",
     );
 
@@ -3978,7 +3988,7 @@ async fn long_job_hooks_require_a_measured_duration_above_the_threshold_and_are_
         .container()
         .make::<QueueManager>()
         .unwrap()
-        .whenJobRunsLongerThan(Duration::from_secs(1), move |job, elapsed| {
+        .when_job_runs_longer_than(Duration::from_secs(1), move |job, elapsed| {
             assert_eq!(job.payload.name(), "threshold-probe");
             assert_eq!(elapsed, Duration::from_millis(1001));
             observed.fetch_add(1, Ordering::Relaxed);

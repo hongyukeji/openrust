@@ -69,7 +69,7 @@ pub(crate) fn resolve(config: &dyn Repository) -> Result<Encrypter, EncryptExcep
         }
         _ => return Err(EncryptException::InvalidKey),
     }
-    encrypter.previousKeys(std::mem::take(&mut *keys))
+    encrypter.previous_keys(std::mem::take(&mut *keys))
 }
 
 pub(crate) fn configured_cipher(config: &dyn Repository) -> Result<Cipher, EncryptException> {

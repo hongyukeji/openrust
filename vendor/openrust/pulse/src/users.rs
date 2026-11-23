@@ -21,7 +21,7 @@ pub trait ResolvesUsers: Send + Sync {
     fn key(&self, user: &dyn Authenticatable) -> Option<String> {
         Some(user.get_auth_identifier().to_string())
     }
-    fn setFieldResolver(&self, _resolver: Arc<FieldResolver>) -> Result<()> {
+    fn set_field_resolver(&self, _resolver: Arc<FieldResolver>) -> Result<()> {
         Err(Error::InvalidConfiguration(
             "The configured user resolver does not support setting user fields".into(),
         ))
@@ -36,7 +36,7 @@ pub struct Users {
     pub(crate) fields: Arc<RwLock<Option<Arc<FieldResolver>>>>,
 }
 impl Users {
-    pub fn setFieldResolver(
+    pub fn set_field_resolver(
         &self,
         resolver: impl Fn(&dyn Authenticatable) -> User + Send + Sync + 'static,
     ) -> &Self {
@@ -81,7 +81,7 @@ impl Users {
     }
 }
 impl ResolvesUsers for Users {
-    fn setFieldResolver(&self, resolver: Arc<FieldResolver>) -> Result<()> {
+    fn set_field_resolver(&self, resolver: Arc<FieldResolver>) -> Result<()> {
         *self.fields.write().unwrap_or_else(|e| e.into_inner()) = Some(resolver);
         Ok(())
     }

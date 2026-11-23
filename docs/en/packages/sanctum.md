@@ -24,33 +24,33 @@ The published migration uses `table.morphs("tokenable")`. It creates an integer 
 
 ## Issuing personal access tokens {#issuing-api-tokens}
 
-Create a token with the token store resolved by `Sanctum::personalAccessTokens`. Supply the owner type, owner ID, name, abilities and optional expiration. Give the client the returned `plain_text_token` once. The database stores its SHA-256 digest. `findToken` resolves credentials, and `revokeToken` deletes a token scoped to its owner. `can` accepts an exact ability or the wildcard `*`. The HTTP guard checks expiration before authenticating the request. Token issuance, authentication updates and individual revocation use the Eloquent lifecycle. The default token response includes `updated_at`.
+Create a token with the token store resolved by `Sanctum::personal_access_tokens`. Supply the owner type, owner ID, name, abilities and optional expiration. Give the client the returned `plain_text_token` once. The database stores its SHA-256 digest. `find_token` resolves credentials, and `revoke_token` deletes a token scoped to its owner. `can` accepts an exact ability or the wildcard `*`. The HTTP guard checks expiration before authenticating the request. Token issuance, authentication updates and individual revocation use the Eloquent lifecycle. The default token response includes `updated_at`.
 
 ```rust
 use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};
 
 async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> AuthResult<NewAccessToken> {
-    sanctum.personalAccessTokens(database, "")?
+    sanctum.personal_access_tokens(database, "")?
         .create_token("app::models::User", user_id, "browser", &["reports:read"], None)
         .await
 }
 ```
 
-In a service provider, call `usePersonalAccessTokenModel::<M>()` on the application’s `Sanctum` service to select the Eloquent model’s table and connection. Create the custom table in an application migration using the standard Sanctum attributes and the primary key declared by the model. Issuance applies model mutators and casts before saving and fires the Eloquent creation events. Bearer authentication reads through the model’s accessors and casts and saves the last-used timestamp through the same model instance. `revokeToken` deletes the owner’s model instance and honors its deletion events. Artisan pruning applies the model’s global scopes and deletes in bulk without firing per-token events.
+In a service provider, call `use_personal_access_token_model::<M>()` on the application’s `Sanctum` service to select the Eloquent model’s table and connection. Create the custom table in an application migration using the standard Sanctum attributes and the primary key declared by the model. Issuance applies model mutators and casts before saving and fires the Eloquent creation events. Bearer authentication reads through the model’s accessors and casts and saves the last-used timestamp through the same model instance. `revoke_token` deletes the owner’s model instance and honors its deletion events. Artisan pruning applies the model’s global scopes and deletes in bulk without firing per-token events.
 
 For UUID or ULID keys, declare the corresponding column in the migration and use `ModelMetadata::unique_id(UniqueId::Uuid)` or `UniqueId::Ulid` on the model. Use `primary_key` for a key column other than `id`. The credential stays in `<key>|<secret>` format. Token and owner identifiers use `AuthIdentifier` to retain their numeric or text representation. For a string owner key, use a compatible `tokenable_id` column and pass the owner’s identifier to issuance and revocation.
 
 Set `SANCTUM_TOKEN_PREFIX` to prepend an application-specific prefix to newly issued secrets.
 
-Implement `PersonalAccessTokenModel` on the model. Its default `findToken` verifies the SHA-256 digest. An override receives the presented credential and the configured Eloquent query, and can call `findTokenByDigest` after adding constraints or decoding the credential. The override is responsible for validating the credential it accepts.
+Implement `PersonalAccessTokenModel` on the model. Its default `find_token` verifies the SHA-256 digest. An override receives the presented credential and the configured Eloquent query, and can call `find_token_by_digest` after adding constraints or decoding the credential. The override is responsible for validating the credential it accepts.
 
-The application service exposes its registered model type through `personalAccessTokenModel()`. Use `currentApplicationUrlWithPort()` to obtain the configured application host and explicit port, prefixed with a comma for use in stateful domain strings.
+The application service exposes its registered model type through `personal_access_token_model()`. Use `current_application_url_with_port()` to obtain the configured application host and explicit port, prefixed with a comma for use in stateful domain strings.
 
 ## Model token relationship {#model-token-relationship}
 
-Implement `HasApiTokens` on the Eloquent owner. Use `user.tokens(&sanctum, &database)?` to list or revoke its tokens and `user.create_token(&sanctum, &database, name, abilities, expires_at)` to issue one. The relationship uses the configured token model and the owner’s morph alias and primary key. `delete_token` and `delete` use scoped bulk deletion. A persisted token can resolve its owner with `tokenable`. Read the request’s token and abilities through `currentAccessToken`, `tokenCan` and `tokenCant` on the owner.
+Implement `HasApiTokens` on the Eloquent owner. Use `user.tokens(&sanctum, &database)?` to list or revoke its tokens and `user.create_token(&sanctum, &database, name, abilities, expires_at)` to issue one. The relationship uses the configured token model and the owner’s morph alias and primary key. `delete_token` and `delete` use scoped bulk deletion. A persisted token can resolve its owner with `tokenable`. Read the request’s token and abilities through `current_access_token`, `token_can` and `token_cant` on the owner.
 
-For a chainable Eloquent query, use `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?`. Use `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` with Eloquent’s `with("tokens", relation)` to eager-load. Substitute the registered model type for a custom model. The nested token in the issuance response uses the model’s casts, accessors, appended fields, and visibility, and always omits the digest. Hide the `token` field in custom models when serializing them directly.
+For a chainable Eloquent query, use `user.tokens_query::<DefaultPersonalAccessToken>(&sanctum, &database)?`. Use `user.tokens_relation::<DefaultPersonalAccessToken>(&sanctum)?` with Eloquent’s `with("tokens", relation)` to eager-load. Substitute the registered model type for a custom model. The nested token in the issuance response uses the model’s casts, accessors, appended fields, and visibility, and always omits the digest. Hide the `token` field in custom models when serializing them directly.
 
 ## Protecting routes and checking abilities {#protecting-routes}
 
@@ -67,9 +67,9 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
-Use the registered provider model name as the token owner type. The default application uses `app::models::User`. A custom Sanctum guard can set its `provider` in `auth.guards`; when omitted, the guard resolves the owner through the registered Eloquent models and `MorphMap`. Use `AccessToken::currentAccessToken(request)` to inspect the request's credential. Set `sanctum.expiration` in minutes to cap token age independently of per-token expiry. Successful Bearer authentication dispatches `TokenAuthenticated` and updates `last_used_at`. Set `sanctum.last_used_at` to false to disable the timestamp update.
+Use the registered provider model name as the token owner type. The default application uses `app::models::User`. A custom Sanctum guard can set its `provider` in `auth.guards`; when omitted, the guard resolves the owner through the registered Eloquent models and `MorphMap`. Use `AccessToken::current_access_token(request)` to inspect the request's credential. Set `sanctum.expiration` in minutes to cap token age independently of per-token expiry. Successful Bearer authentication dispatches `TokenAuthenticated` and updates `last_used_at`. Set `sanctum.last_used_at` to false to disable the timestamp update.
 
-Register `getAccessTokenFromRequestUsing` to replace Bearer extraction. Register `authenticateAccessTokensUsing` to decide whether a found token is valid. The callback receives the token and the built-in expiration and provider decision. The owner must still resolve.
+Register `get_access_token_from_request_using` to replace Bearer extraction. Register `authenticate_access_tokens_using` to decide whether a found token is valid. The callback receives the token and the built-in expiration and provider decision. The owner must still resolve.
 
 Register token-capable owners with `AuthManager::register_sanctum_model`. Use `NewAccessToken::to_json()` or `to_array()` explicitly to return the plaintext credential at issuance. The nested token omits its stored digest. The event payload is `TokenAuthenticated::token`.
 
@@ -81,7 +81,7 @@ For a cross-origin first-party frontend, enable credentialed CORS for its exact 
 
 After a successful first-party request records the password fingerprint, a password change invalidates that session on its next request. To replace a frontend middleware, register it with the application's middleware `alias` method and use the alias as the value of `sanctum.middleware.encrypt_cookies`, `sanctum.middleware.validate_csrf_token`, or `sanctum.middleware.authenticate_session`.
 
-Add `__SANCTUM_CURRENT_REQUEST_HOST__` to `SANCTUM_STATEFUL_DOMAINS` or append `Sanctum::currentRequestHost()` to a comma-separated domain string to match the current request host and port.
+Add `__SANCTUM_CURRENT_REQUEST_HOST__` to `SANCTUM_STATEFUL_DOMAINS` or append `Sanctum::current_request_host()` to a comma-separated domain string to match the current request host and port.
 
 ## Pruning expired tokens {#pruning-expired-tokens}
 
@@ -93,4 +93,4 @@ Run the command with the Sanctum feature enabled. The default retention is 24 ho
 
 ## Testing {#testing}
 
-Use `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` with a `TestApp` and an owned Eloquent user. It returns a shared user whose `was_recently_created` flag has been cleared. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.
+Use `Sanctum::acting_as(&mut app, user, &["reports:read"], None)` with a `TestApp` and an owned Eloquent user. It returns a shared user whose `was_recently_created` flag has been cleared. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.

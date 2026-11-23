@@ -25,13 +25,13 @@ The same client ID, client secret and redirect settings apply to these additiona
 | `slack` | `SLACK` | `identity.basic,identity.email,identity.team,identity.avatar` |
 | `slack-openid` | `SLACK_OPENID` | `openid email profile` |
 
-`services.gitlab.host` / `GITLAB_HOST` defaults to `https://gitlab.com`. `GitlabProvider::setHost` retains a self-hosted path prefix and removes trailing slashes. The profile endpoint is `/api/v3/user`. Slack login credentials share the services object with the existing `slack.notifications` settings. Provider-specific callback registration and permissions are still required for real services.
+`services.gitlab.host` / `GITLAB_HOST` defaults to `https://gitlab.com`. `GitlabProvider::set_host` retains a self-hosted path prefix and removes trailing slashes. The profile endpoint is `/api/v3/user`. Slack login credentials share the services object with the existing `slack.notifications` settings. Provider-specific callback registration and permissions are still required for real services.
 
 `x` uses `X_CLIENT_ID`, `X_CLIENT_SECRET` and `X_REDIRECT_URI`. `twitter` uses the equivalent `TWITTER_` variables; set `TWITTER_OAUTH=2` to select OAuth2. The default value 1 selects Twitter OAuth1. Only the integer 2 selects OAuth2; string `"2"` retains the OAuth1 selection. The explicit `twitter-oauth-2` driver reads `services.twitter`, falling back to `services.twitter-oauth-2` only when the first object is null/missing. `x` similarly falls back from `services.x` to `services.x-oauth-2`; a present incomplete object fails instead of silently using fallback credentials.
 
-`google` reads `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI`, with default scopes `openid profile email`. Ordinary access tokens call Google UserInfo with `pretty_print=false` and Bearer authentication. Refresh keeps the supplied refresh token only when the response omits that field; an explicit null or rotated value is retained.
+`google` reads `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI`, with default scopes `openid profile email`. Ordinary access tokens call Google UserInfo with `prettyPrint=false` and Bearer authentication. Refresh keeps the supplied refresh token only when the response omits that field; an explicit null or rotated value is retained.
 
-`facebook` uses `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` and `FACEBOOK_REDIRECT_URI`, with the default `email` scope and pinned Graph version `v23.0`. `provider.usingGraphVersion("v99.0")` changes this request’s authorization/token/profile paths. `fields(vec!["id".into(), "name".into()])` replaces the Graph fields; `asPopup()` and `reRequest()` override the corresponding optional authorization parameters. Graph requests send `access_token`, fields and an HMAC-SHA256 `appsecret_proof` when the client secret is nonempty and not `"0"`. Code exchange leaves Accept unspecified, and preserves `expires` while filling a missing/null `expires_in` without overwriting an existing value.
+`facebook` uses `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` and `FACEBOOK_REDIRECT_URI`, with the default `email` scope and pinned Graph version `v23.0`. `provider.using_graph_version("v99.0")` changes this request’s authorization/token/profile paths. `fields(vec!["id".into(), "name".into()])` replaces the Graph fields; `as_popup()` and `re_request()` override the corresponding optional authorization parameters. Graph requests send `access_token`, fields and an HMAC-SHA256 `appsecret_proof` when the client secret is nonempty and not `"0"`. Code exchange leaves Accept unspecified, and preserves `expires` while filling a missing/null `expires_in` without overwriting an existing value.
 
 ### WeChat and QQ {#wechat-and-qq}
 
@@ -41,22 +41,22 @@ WeChat login is grouped by application type under `services.wechat`; QQ uses `se
 | --- | --- | --- | --- |
 | `weixinweb` | `services.wechat.web` | WeChat website QR login | `WECHAT_WEB` |
 | `weixin` | `services.wechat.official_account` | WeChat official-account web authorization | `WECHAT_OFFICIAL_ACCOUNT` |
-| `miniApp()` | `services.wechat.mini_app` | WeChat Mini Program login | `WECHAT_MINI_APP` |
+| `mini_app()` | `services.wechat.mini_app` | WeChat Mini Program login | `WECHAT_MINI_APP` |
 | `qq` | `services.qq` | QQ Connect website login | `QQ` |
 
 For browser WeChat and QQ, append `_CLIENT_ID`, `_CLIENT_SECRET`, and `_REDIRECT_URI` to each prefix, mapped to `client_id`, `client_secret`, and `redirect`. Use each WeChat application's own AppID and AppSecret and register its corresponding callback domain. Mini Programs use the AppID/secret settings below and require no redirect. Keep credentials separate for all three WeChat application types.
 
-Reuse the redirect and callback examples below, replacing `github` with the driver name. Website QR login uses `snsapi_login`; official-account authorization defaults to `snsapi_userinfo`. For silent authorization, call `provider.setScopes(vec!["snsapi_base".into()])` on `weixin`; this returns OpenID without fetching a nickname or avatar. Keep the default Session state validation for browser login and avoid `stateless()`.
+Reuse the redirect and callback examples below, replacing `github` with the driver name. Website QR login uses `snsapi_login`; official-account authorization defaults to `snsapi_userinfo`. For silent authorization, call `provider.set_scopes(vec!["snsapi_base".into()])` on `weixin`; this returns OpenID without fetching a nickname or avatar. Keep the default Session state validation for browser login and avoid `stateless()`.
 
-WeChat code exchange retains OpenID in the current request. Before direct `userFromToken` calls, use `provider.setOpenId(openid)` with the OpenID belonging to that token and application. QQ resolves OpenID before fetching the profile; request UnionID with `provider.withUnionId(true)`, subject to provider permissions. Read UnionID from `user.attributes.get("unionid")` and use standard User methods for nickname and avatar. These drivers do not return email.
+WeChat code exchange retains OpenID in the current request. Before direct `user_from_token` calls, use `provider.set_open_id(openid)` with the OpenID belonging to that token and application. QQ resolves OpenID before fetching the profile; request UnionID with `provider.with_union_id(true)`, subject to provider permissions. Read UnionID from `user.attributes.get("unionid")` and use standard User methods for nickname and avatar. These drivers do not return email.
 
-Bind local accounts using a trusted application/provider namespace and OpenID. Nicknames or UnionID alone do not authorize automatic account merging. Website and official-account OpenIDs must not be assumed identical. Applications own registration and binding flows. `refreshToken` uses each provider's refresh endpoint; rejected, expired, revoked, or incomplete identity responses return errors. Production setup requires real application credentials, an approved callback, and an authorization test with the provider.
+Bind local accounts using a trusted application/provider namespace and OpenID. Nicknames or UnionID alone do not authorize automatic account merging. Website and official-account OpenIDs must not be assumed identical. Applications own registration and binding flows. `refresh_token` uses each provider's refresh endpoint; rejected, expired, revoked, or incomplete identity responses return errors. Production setup requires real application credentials, an approved callback, and an authorization test with the provider.
 
 When upgrading existing configuration, move `services.weixinweb`, `services.weixin`, and `services.weixin_mini_app` to `services.wechat.web`, `services.wechat.official_account`, and `services.wechat.mini_app`, respectively. Rename environment prefixes from `WEIXINWEB_`, `WEIXIN_`, and `WEIXIN_MINI_APP_` to `WECHAT_WEB_`, `WECHAT_OFFICIAL_ACCOUNT_`, and `WECHAT_MINI_APP_`. Old configuration locations are no longer read. Import custom provider types from `openrust_socialite::wechat::{WeixinProvider, WeixinWebProvider, MiniApp, Session}`.
 
 ### WeChat Mini Programs {#wechat-mini-program}
 
-Mini Program login uses the EasyWeChat-style `miniApp().codeToSession(code)` entry point. Set `WECHAT_MINI_APP_APPID` and `WECHAT_MINI_APP_SECRET`, mapped to `services.wechat.mini_app.app_id` / `secret`, using the Mini Program's own AppID and AppSecret. No redirect is required. This entry is available with the `socialite` feature and through `Socialite::miniApp()`.
+Mini Program login uses the EasyWeChat-style `mini_app().code_to_session(code)` entry point. Set `WECHAT_MINI_APP_APPID` and `WECHAT_MINI_APP_SECRET`, mapped to `services.wechat.mini_app.app_id` / `secret`, using the Mini Program's own AppID and AppSecret. No redirect is required. This entry is available with the `socialite` feature and through `Socialite::mini_app()`.
 
 Call `wx.login()` in the Mini Program and send its `code` over HTTPS POST to your application's login endpoint. Exchange it on the server using the method below, bind the verified identity to a local account as described below, and issue your application's own Sanctum/Passport token or login session. Client-supplied OpenID, UnionID, nickname and avatar are not login credentials.
 
@@ -64,7 +64,7 @@ Call `wx.login()` in the Mini Program and send its `code` over HTTPS POST to you
 use openrust_socialite::{Result, SocialiteManager, two::User};
 
 pub async fn mini_login(manager: &SocialiteManager, code: &str) -> Result<User> {
-    let session = manager.miniApp()?.codeToSession(code).await?;
+    let session = manager.mini_app()?.code_to_session(code).await?;
     Ok(session.user())
 }
 ```
@@ -103,27 +103,27 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .map_err(|_| HttpError::InvalidRequest)?
             .user().await.map_err(|_| HttpError::InvalidRequest)?;
         Response::json(StatusCode::OK, serde_json::json!({
-            "id": user.get_id(), "name": user.get_name(), "email": user.getEmail(),
+            "id": user.get_id(), "name": user.get_name(), "email": user.get_email(),
         }))
     })
 }
 ```
 
-`driver("github", request)` and `with("github", request)` borrow the current request. The provider keeps its cached user within that borrow; it is never cached globally by the manager. `redirect` returns a native redirect response. The Session stores a random 40-character state, which the callback consumes before exchanging the code. Missing, mismatched, array-valued, empty or replayed state fails. `enablePKCE()` is optional; enable it on both redirect and callback providers to store a 96-character verifier and send its S256 challenge and verifier.
+`driver("github", request)` and `with("github", request)` borrow the current request. The provider keeps its cached user within that borrow; it is never cached globally by the manager. `redirect` returns a native redirect response. The Session stores a random 40-character state, which the callback consumes before exchanging the code. Missing, mismatched, array-valued, empty or replayed state fails. `enable_pkce()` is optional; enable it on both redirect and callback providers to store a 96-character verifier and send its S256 challenge and verifier.
 
-The manager and facade return `Provider`, whose common `redirect().await?` and `user().await?` work with either protocol. OAuth1 needs HTTP to obtain temporary credentials before redirecting. Select `manager.driver("github", request)?.oauth2()?` before using OAuth2 options such as `scopes`, `stateless` or `refreshToken`; select `.oauth1()?` for Twitter `scope` and `userFromTokenAndSecret`. A protocol mismatch returns an explicit error. The concrete OAuth2 provider retains its synchronous `redirect()`.
+The manager and facade return `Provider`, whose common `redirect().await?` and `user().await?` work with either protocol. OAuth1 needs HTTP to obtain temporary credentials before redirecting. Select `manager.driver("github", request)?.oauth2()?` before using OAuth2 options such as `scopes`, `stateless` or `refresh_token`; select `.oauth1()?` for Twitter `scope` and `user_from_token_and_secret`. A protocol mismatch returns an explicit error. The concrete OAuth2 provider retains its synchronous `redirect()`.
 
 Twitter OAuth1 uses `services.twitter.scope` / `TWITTER_SCOPE` (optional) or `.scope("write")`, independently of OAuth2 `scopes`. The request-token query sends `x_auth_access_type` for a nonempty scope other than `"0"`. Temporary credentials are stored at Session `oauth.temp`; the callback requires both `oauth_token` and `oauth_verifier`, checks the temporary identifier before HTTP, and reads rather than consumes the stored credentials. The remote server owns single-use temporary-token enforcement. OAuth1 requires Session for this redirect/callback flow and has no `stateless()` mode.
 
 ## Optional Parameters {#optional-parameters}
 
-Call `provider.with(serde_json::json!({"prompt":"select_account","login_hint":"alice@example.test"}).as_object().unwrap().clone())` before redirecting or exchanging a code. The values are merged after the ordinary fields, as in the fixed upstream implementation. Scalar strings, booleans and numbers are supported. `redirectUrl` changes this provider instance’s callback.
+Call `provider.with(serde_json::json!({"prompt":"select_account","login_hint":"alice@example.test"}).as_object().unwrap().clone())` before redirecting or exchanging a code. The values are merged after the ordinary fields, as in the fixed upstream implementation. Scalar strings, booleans and numbers are supported. `redirect_url` changes this provider instance’s callback.
 
-For Slack identity, the default authorization field is `user_scope`, with an empty `scope`. Call `provider.asBotUser()` on the redirect and callback providers to select `scope` and the token response’s top-level credentials; ordinary user credentials come from `authed_user`. The default user-scope fields are applied after `with` parameters, matching upstream. `BitbucketProvider` also supports the explicit `provider.getAccessToken(code).await?` path, which adds HTTP Basic client authentication; ordinary `user()` follows the inherited token response path.
+For Slack identity, the default authorization field is `user_scope`, with an empty `scope`. Call `provider.as_bot_user()` on the redirect and callback providers to select `scope` and the token response’s top-level credentials; ordinary user credentials come from `authed_user`. The default user-scope fields are applied after `with` parameters, matching upstream. `BitbucketProvider` also supports the explicit `provider.get_access_token(code).await?` path, which adds HTTP Basic client authentication; ordinary `user()` follows the inherited token response path.
 
 ## Access Scopes {#access-scopes}
 
-The GitHub default is `user:email`. `scopes(["read:user".into()])` merges unique scopes, while `setScopes(vec!["read:user".into()])` replaces them. `getScopes()` returns the current list. GitHub receives comma-separated scopes. When `user:email` is selected, Socialite queries `/user/emails` and selects a primary, verified email; failure or no match produces `None`. Removing that scope retains the profile’s email.
+The GitHub default is `user:email`. `scopes(["read:user".into()])` merges unique scopes, while `set_scopes(vec!["read:user".into()])` replaces them. `get_scopes()` returns the current list. GitHub receives comma-separated scopes. When `user:email` is selected, Socialite queries `/user/emails` and selects a primary, verified email; failure or no match produces `None`. Removing that scope retains the profile’s email.
 
 GitLab, Bitbucket and both LinkedIn/OpenID drivers use space-separated scopes; Slack identity uses commas and Slack OpenID uses spaces. Bitbucket selects a primary, confirmed email whose type is `email`; email endpoint failure yields `None`. Legacy LinkedIn loads the localized profile and email separately, requests `vanityName` with `r_liteprofile`, and propagates email request failure.
 
@@ -135,13 +135,13 @@ X/Twitter OAuth2 enables PKCE by default on both redirect and callback, so it ne
 
 ## Retrieving User Details {#retrieving-user-details}
 
-The user exposes `get_id`, `getNickname`, `get_name`, `getEmail`, `getAvatar`, `getRaw` and mapped `attributes` such as GitHub `nodeId`. The provider ID retains its JSON number/string type. `userFromToken(token)` retrieves a profile using an existing token. `refreshToken(token)` exchanges a refresh token. Credentials are explicit in `user.credentials`: `token`, `refreshToken`, `expiresIn` and `approvedScopes`; token strings use `Zeroizing<String>` and are not automatically serialized or printed by Debug. A remote access token is not a Passport or Sanctum credential.
+The user exposes `get_id`, `get_nickname`, `get_name`, `get_email`, `get_avatar`, `get_raw` and mapped `attributes` such as GitHub `nodeId`. The provider ID retains its JSON number/string type. `user_from_token(token)` retrieves a profile using an existing token. `refresh_token(token)` exchanges a refresh token. Credentials are explicit in `user.credentials`: `token`, `refresh_token`, `expires_in` and `approved_scopes`; token strings use `Zeroizing<String>` and are not automatically serialized or printed by Debug. A remote access token is not a Passport or Sanctum credential.
 
 Legacy LinkedIn adds `first_name`, `last_name` and `avatar_original`, using the preferred locale and exact 100/800-pixel image selection from upstream. LinkedIn OpenID adds given/family names, `email_verified` and the original picture. Slack variants expose `organization_id`. The `linkedin-openid` and `slack-openid` drivers use the access token at fixed UserInfo endpoints, as in the pinned package; they do not validate ID Tokens, perform Discovery or implement a full OIDC RP. Use the [OIDC package](oidc.md) for those features.
 
 Google treats a token longer than 100 bytes with exactly two dots as a JWT, matching the pinned provider. It fetches the configured Google JWKS endpoint, verifies the key algorithm and signature through `jsonwebtoken` 11.1.0 with AWS-LC, and requires the exact scalar issuer `https://accounts.google.com` and audience equal to the client ID. It checks present `exp`/`nbf` and the `iat` fallback, preserving the pinned PHP NumericDate behavior. Invalid JWTs never fall back to Bearer UserInfo. This Socialite path accepts an absent `exp`, numeric date strings and null dates as upstream does; it does not perform Discovery, require a nonce or implement full OIDC RP validation. Use the [OIDC package](oidc.md) for full RP validation. Google raw data also adds `id`, `verified_email`, `link` and mapped `avatar_original`.
 
-Facebook Limited Login detects a non-null `kid` in the untrusted token header, then requires RS256 with the selected Facebook JWKS key, exact `https://www.facebook.com` issuer, scalar client audience and a matching nonce. Use `provider.withNonce(expected)` before `userFromToken(token).await?` or the callback’s `user()`; otherwise the scalar `with` parameter `nonce` supplies the expected value. Explicit `withNonce` takes precedence. The nonce must come from the application’s stored authorization attempt. `withNonce` only sets the expectation; it does not generate, store or add an authorization nonce automatically. Failed signature/claims/nonce verification never falls back to Graph. Request options and `lastToken()` stay in the current provider; the retained token is zeroized. This matches the pinned Socialite Limited Login path, including its optional dates, and does not replace the full [OIDC RP protocol](oidc.md).
+Facebook Limited Login detects a non-null `kid` in the untrusted token header, then requires RS256 with the selected Facebook JWKS key, exact `https://www.facebook.com` issuer, scalar client audience and a matching nonce. Use `provider.with_nonce(expected)` before `user_from_token(token).await?` or the callback’s `user()`; otherwise the scalar `with` parameter `nonce` supplies the expected value. Explicit `with_nonce` takes precedence. The nonce must come from the application’s stored authorization attempt. `with_nonce` only sets the expectation; it does not generate, store or add an authorization nonce automatically. Failed signature/claims/nonce verification never falls back to Graph. Request options and `last_token()` stay in the current provider; the retained token is zeroized. This matches the pinned Socialite Limited Login path, including its optional dates, and does not replace the full [OIDC RP protocol](oidc.md).
 
 ### Logging in a bound local account
 
@@ -223,16 +223,16 @@ For multiple providers, store the selected namespace at redirect and consume/che
 
 ## Testing {#testing}
 
-Use a controlled HTTP provider with `GithubProvider::withEndpoints` and application-local `manager.extend("github", Arc::new(provider))`. It customizes authorization/token/profile/email URLs while retaining the driver behavior. `ProviderDefinition` supports compiled protocol customization. `facades::Socialite::driver` / `contracts::Factory`, `Provider` and `User` expose the public contracts.
+Use a controlled HTTP provider with `GithubProvider::with_endpoints` and application-local `manager.extend("github", Arc::new(provider))`. It customizes authorization/token/profile/email URLs while retaining the driver behavior. `ProviderDefinition` supports compiled protocol customization. `facades::Socialite::driver` / `contracts::Factory`, `Provider` and `User` expose the public contracts.
 
 Socialite requests use the shared client’s explicit `redact_payload()` mode: observers and recordings retain status and route but omit query, authorization, request body, response body and response headers. The actual network request and returned response remain complete. Provider status and malformed-response errors do not print response credentials.
 
-`ProviderEndpoints::new(authorize, token, user).email(email)` supplies explicit endpoint overrides to the new drivers’ `withEndpoints` constructors.
+`ProviderEndpoints::new(authorize, token, user).email(email)` supplies explicit endpoint overrides to the new drivers’ `with_endpoints` constructors.
 
 For provider authorization, register an application and callback with the provider and configure its credentials. Use a dedicated account when testing the login flow.
 
-`GoogleProvider::withEndpoints(endpoints, jwks)` configures the controlled UserInfo and JWKS services.
+`GoogleProvider::with_endpoints(endpoints, jwks)` configures the controlled UserInfo and JWKS services.
 
-`FacebookProvider::withEndpoints(endpoints, jwks)` overrides the three Graph/authorization endpoints and the JWKS service for controlled tests; paths containing `/v23.0/` follow `usingGraphVersion`.
+`FacebookProvider::with_endpoints(endpoints, jwks)` overrides the three Graph/authorization endpoints and the JWKS service for controlled tests; paths containing `/v23.0/` follow `using_graph_version`.
 
-Twitter OAuth1 uses signed HMAC-SHA1 requests and explicit `user.credentials.tokenSecret` alongside the access token. `userFromTokenAndSecret(token, secret).await?` calls the profile endpoint directly. Callback mapping includes URL fields, location, description and `avatar_original`; direct-credential mapping retains only League extra fields, matching upstream. Successful profiles are cached per credential pair in one request; changing either credential fetches again. `one::TwitterProvider::withEndpoints` and `manager.extendOAuth1` support controlled endpoints.
+Twitter OAuth1 uses signed HMAC-SHA1 requests and explicit `user.credentials.token_secret` alongside the access token. `user_from_token_and_secret(token, secret).await?` calls the profile endpoint directly. Callback mapping includes URL fields, location, description and `avatar_original`; direct-credential mapping retains only League extra fields, matching upstream. Successful profiles are cached per credential pair in one request; changing either credential fetches again. `one::TwitterProvider::with_endpoints` and `manager.extend_oauth1` support controlled endpoints.

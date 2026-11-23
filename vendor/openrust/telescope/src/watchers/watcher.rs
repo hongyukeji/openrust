@@ -26,11 +26,11 @@ macro_rules! watchers {
             }
             impl Watcher for $name {
                 fn register<'a>(&'a self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
-                    Box::pin(registerWatcher(app, stringify!($name), self.options.clone(), &[$($event),*]))
+                    Box::pin(register_watcher(app, stringify!($name), self.options.clone(), &[$($event),*]))
                 }
             }
         )*
-        pub(crate) async fn registerAll(app: &Application) -> ProviderResult {
+        pub(crate) async fn register_all(app: &Application) -> ProviderResult {
             let config = app.config()?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             let lifecycle = Arc::new(NativeWatcher { config: config.clone(), only: None });
@@ -69,7 +69,7 @@ watchers! {
     ScheduleWatcher => ["console.scheduled_task_completed"],
     ViewWatcher => [],
 }
-async fn registerWatcher(
+async fn register_watcher(
     app: &Application,
     name: &'static str,
     options: Map<String, Value>,
@@ -83,11 +83,11 @@ async fn registerWatcher(
         only: Some((name, options)),
     };
     match name {
-        "LogWatcher" | "ExceptionWatcher" => super::registerLogging(
+        "LogWatcher" | "ExceptionWatcher" => super::register_logging(
             app.make::<openrust::log::LogManager>().await?.as_ref(),
             watcher,
         )?,
-        "ViewWatcher" => super::registerViews(
+        "ViewWatcher" => super::register_views(
             app.make::<openrust::view::Factory>().await?.as_ref(),
             watcher,
             app.base_path().to_owned(),

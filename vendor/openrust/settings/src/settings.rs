@@ -173,7 +173,7 @@ impl<T: SettingsGroup> Settings<T> {
     /// Writes in a caller-owned transaction. It leaves this instance unpublished.
     /// After outer commit call refresh; after rollback pending edits remain retryable.
     /// The transaction must target this repository's database and migrated table.
-    pub async fn saveIn(&self, transaction: &mut Transaction) -> SettingsResult<()> {
+    pub async fn save_in(&self, transaction: &mut Transaction) -> SettingsResult<()> {
         let state = self.state.lock().await;
         if state.changes.is_empty() {
             return Ok(());
@@ -181,7 +181,7 @@ impl<T: SettingsGroup> Settings<T> {
         state.values.validate()?;
         let changes = self.encode(&state.changes)?;
         self.repository
-            .saveIn(transaction, T::group(), &state.snapshot, &changes)
+            .save_in(transaction, T::group(), &state.snapshot, &changes)
             .await?;
         Ok(())
     }
@@ -243,7 +243,7 @@ impl<T: SettingsGroup> Settings<T> {
 
     /// Rewrites persisted secrets with the current encrypter key. Unlock them first.
     /// Missing values stay absent. No secret is returned or written to logs.
-    pub async fn reEncrypt(&self) -> SettingsResult<()> {
+    pub async fn re_encrypt(&self) -> SettingsResult<()> {
         let mut state = self.state.lock().await;
         if !state.changes.is_empty() {
             return Err(Error::InvalidValue);

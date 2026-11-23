@@ -231,7 +231,7 @@ fn encrypt(
             ));
         }
         None => (
-            Zeroizing::new(Encrypter::generateKey(cipher).map_err(error)?),
+            Zeroizing::new(Encrypter::generate_key(cipher).map_err(error)?),
             true,
         ),
     };
@@ -297,7 +297,7 @@ fn decrypt(
     let encrypter = Encrypter::new(&*key, cipher).map_err(error)?;
     let contents = std::str::from_utf8(&contents)
         .map_err(|_| ConsoleError::new("Invalid encrypted environment file."))?;
-    let plaintext = if Encrypter::appearsEncrypted(contents) {
+    let plaintext = if Encrypter::appears_encrypted(contents) {
         Zeroizing::new(encrypter.decrypt(contents, true).map_err(error)?)
     } else {
         readable::decrypt(contents, &encrypter)?

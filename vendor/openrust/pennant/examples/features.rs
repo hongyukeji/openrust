@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .create()?;
     app.boot().await?;
     let store = app.make::<FeatureManager>().await?.store(None)?;
-    store.defineValue("new-api", json!(true))?;
+    store.define_value("new-api", json!(true))?;
     store.define(
         "theme",
         Arc::new(|scope| {
@@ -39,11 +39,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     assert!(user.active("new-api").await?);
     assert_eq!(user.value("theme").await?, json!("blue"));
     user.load_missing(&["new-api", "theme"]).await?;
-    assert!(user.allAreActive(&["new-api", "theme"]).await?);
-    store.defineClass(|| Box::pin(async { Ok(Arc::new(NewApi)) }))?;
-    user.activateWithValue(&["theme"], json!("green")).await?;
+    assert!(user.all_are_active(&["new-api", "theme"]).await?);
+    store.define_class(|| Box::pin(async { Ok(Arc::new(NewApi)) }))?;
+    user.activate_with_value(&["theme"], json!("green")).await?;
     user.deactivate("new-api").await?;
     user.forget(&["theme"]).await?;
-    store.activateForEveryone("new-api", json!(true)).await?;
+    store.activate_for_everyone("new-api", json!(true)).await?;
     Ok(())
 }

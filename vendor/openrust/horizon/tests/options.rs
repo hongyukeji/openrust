@@ -21,14 +21,14 @@ fn autoscaler_matches_pinned_php_reference() {
         let expected: Vec<usize> = serde_json::from_value(case["expected"].clone()).unwrap();
         let options = SupervisorOptions {
             queue: (0..sizes.len()).map(|index| index.to_string()).collect(),
-            maxProcesses: case["max"].as_u64().unwrap() as usize,
-            minProcesses: case["min"].as_u64().unwrap_or(1) as usize,
-            balanceMaxShift: case["shift"].as_u64().unwrap_or(1) as usize,
+            max_processes: case["max"].as_u64().unwrap() as usize,
+            min_processes: case["min"].as_u64().unwrap_or(1) as usize,
+            balance_max_shift: case["shift"].as_u64().unwrap_or(1) as usize,
             balance: case.get("balance").cloned().unwrap_or(json!("auto")),
-            autoScalingStrategy: case["strategy"].as_str().unwrap_or("time").into(),
+            auto_scaling_strategy: case["strategy"].as_str().unwrap_or("time").into(),
             ..Default::default()
         };
-        let targets = AutoScaler::numberOfWorkersPerQueue(&options, &sizes, &runtimes).unwrap();
+        let targets = AutoScaler::number_of_workers_per_queue(&options, &sizes, &runtimes).unwrap();
         for (index, target) in targets.iter().enumerate() {
             let expected = case["recommendations"][index].as_f64().unwrap();
             assert!(
@@ -44,7 +44,7 @@ fn autoscaler_matches_pinned_php_reference() {
             let pool = current[index] + terminating[index];
             let total = current.iter().sum::<usize>() + terminating.iter().sum::<usize>();
             if let Some(target) =
-                AutoScaler::scalePool(&options, pool, total, targets[index]).unwrap()
+                AutoScaler::scale_pool(&options, pool, total, targets[index]).unwrap()
             {
                 current[index] = target;
             }
@@ -57,21 +57,23 @@ fn autoscaler_matches_pinned_php_reference() {
 fn scaler_rejects_invalid_metrics_and_configuration() {
     let options = SupervisorOptions {
         queue: vec!["emails".into(), "reports".into()],
-        maxProcesses: 8,
+        max_processes: 8,
         balance: json!("auto"),
         ..Default::default()
     };
     assert!(options.validate().is_ok());
     let mut invalid = options.clone();
-    invalid.minProcesses = 0;
+    invalid.min_processes = 0;
     assert!(invalid.validate().is_err());
     let mut invalid = options.clone();
     invalid.queue.push("emails".into());
     assert!(invalid.validate().is_err());
     for runtime in [f64::NAN, f64::INFINITY, -1., f64::MAX] {
-        assert!(AutoScaler::numberOfWorkersPerQueue(&options, &[2, 1], &[runtime, 1.]).is_err());
+        assert!(
+            AutoScaler::number_of_workers_per_queue(&options, &[2, 1], &[runtime, 1.]).is_err()
+        );
     }
-    assert!(AutoScaler::numberOfWorkersPerQueue(&options, &[1], &[1.]).is_err());
+    assert!(AutoScaler::number_of_workers_per_queue(&options, &[1], &[1.]).is_err());
 }
 
 #[test]
@@ -79,16 +81,16 @@ fn options_preserve_upstream_defaults_and_allow_unlimited_tries_and_zero_sleep()
     let options = SupervisorOptions::default();
     assert_eq!(options.balance, "off");
     assert_eq!(options.sleep, 3);
-    assert_eq!(options.maxTries, 0);
+    assert_eq!(options.max_tries, 0);
     assert!(!options.balancing());
-    assert!(options.autoScaling());
+    assert!(options.auto_scaling());
     let options = SupervisorOptions {
-        maxProcesses: 1000,
-        maxTries: 0,
+        max_processes: 1000,
+        max_tries: 0,
         sleep: 0,
         timeout: 0,
-        balanceCooldown: 0,
-        balanceMaxShift: 0,
+        balance_cooldown: 0,
+        balance_max_shift: 0,
         ..options
     };
     assert!(options.validate().is_ok());
@@ -97,14 +99,14 @@ fn options_preserve_upstream_defaults_and_allow_unlimited_tries_and_zero_sleep()
 #[test]
 fn worker_options_preserve_literals_aliases_zero_values_and_all_backoff_forms() {
     for backoff in [json!(0), json!("1,5,10"), json!([1, 5, 10])] {
-        let options = SupervisorOptions::fromArray(json!({
+        let options = SupervisorOptions::from_array(json!({
             "workersName":"reports worker $(literal)", "queue":"emails,reports",
             "tries":0, "timeout":0, "sleep":0, "backoff":backoff,
             "maxTime":42, "maxJobs":10, "rest":2, "force":true, "json":true,
         }))
         .unwrap();
         let arguments = options
-            .toWorkerCommand(std::path::Path::new("/path with spaces/app"))
+            .to_worker_command(std::path::Path::new("/path with spaces/app"))
             .unwrap();
         let arguments: Vec<_> = arguments
             .iter()
@@ -132,11 +134,11 @@ fn worker_options_preserve_literals_aliases_zero_values_and_all_backoff_forms() 
         } else {
             "--backoff=1,5,10"
         }));
-        assert_eq!(options.withQueue("urgent").queue, ["urgent"]);
+        assert_eq!(options.with_queue("urgent").queue, ["urgent"]);
         assert_eq!(options.queue, ["emails", "reports"]);
         let encoded = options.to_json().unwrap();
         let decoded =
-            SupervisorOptions::fromArray(serde_json::from_str(&encoded).unwrap()).unwrap();
+            SupervisorOptions::from_array(serde_json::from_str(&encoded).unwrap()).unwrap();
         assert_eq!(decoded.to_array().unwrap(), options.to_array().unwrap());
     }
     for backoff in [
@@ -146,7 +148,7 @@ fn worker_options_preserve_literals_aliases_zero_values_and_all_backoff_forms() 
         json!([1, "5"]),
         json!(null),
     ] {
-        assert!(SupervisorOptions::fromArray(json!({"backoff":backoff})).is_err());
+        assert!(SupervisorOptions::from_array(json!({"backoff":backoff})).is_err());
     }
 }
 
@@ -176,17 +178,17 @@ fn environment_patterns_recursive_arrays_disabled_and_shared_queues_match_provis
         },
         "environments":environments,
     });
-    let options = SupervisorOptions::fromConfig(&config("production", horizon.clone())).unwrap();
-    assert_eq!(options["one"].maxProcesses, 6);
+    let options = SupervisorOptions::from_config(&config("production", horizon.clone())).unwrap();
+    assert_eq!(options["one"].max_processes, 6);
     assert_eq!(options["one"].queue, ["override", "b"]);
     assert!(options.contains_key("two"));
     assert!(!options.contains_key("disabled"));
-    let options = SupervisorOptions::fromConfig(&config("staging", horizon.clone())).unwrap();
-    assert_eq!(options["one"].maxProcesses, 7);
+    let options = SupervisorOptions::from_config(&config("staging", horizon.clone())).unwrap();
+    assert_eq!(options["one"].max_processes, 7);
     let mut horizon = horizon;
     horizon["environments"].as_object_mut().unwrap().remove("*");
     assert!(
-        SupervisorOptions::fromConfig(&config("staging", horizon.clone()))
+        SupervisorOptions::from_config(&config("staging", horizon.clone()))
             .unwrap()
             .is_empty()
     );
@@ -196,7 +198,8 @@ fn environment_patterns_recursive_arrays_disabled_and_shared_queues_match_provis
     environments.insert("production".into(), json!({"one":{"maxProcesses":10}}));
     horizon["environments"] = environments.into();
     assert_eq!(
-        SupervisorOptions::fromConfig(&config("production", horizon)).unwrap()["one"].maxProcesses,
+        SupervisorOptions::from_config(&config("production", horizon)).unwrap()["one"]
+            .max_processes,
         9
     );
 }
@@ -214,8 +217,8 @@ fn environment_overrides_merge_without_modifying_defaults_and_reject_unsafe_work
             json!({"connections":{"redis":{"driver":"redis","retry_after":90}}}),
         ),
     ]));
-    let options = SupervisorOptions::fromConfig(&config).unwrap();
-    assert_eq!(options["supervisor-1"].maxProcesses, 6);
+    let options = SupervisorOptions::from_config(&config).unwrap();
+    assert_eq!(options["supervisor-1"].max_processes, 6);
     assert_eq!(options["supervisor-1"].queue, vec!["a", "b"]);
     for driver in ["database", "sync"] {
         let unsafe_config = Repository::new(BTreeMap::from([
@@ -228,7 +231,7 @@ fn environment_overrides_merge_without_modifying_defaults_and_reject_unsafe_work
                 json!({"connections":{"redis":{"driver":driver,"retry_after":90}}}),
             ),
         ]));
-        assert!(SupervisorOptions::fromConfig(&unsafe_config).is_err());
+        assert!(SupervisorOptions::from_config(&unsafe_config).is_err());
     }
     for retry in [0, 30, 60] {
         let unsafe_config = Repository::new(BTreeMap::from([
@@ -241,7 +244,7 @@ fn environment_overrides_merge_without_modifying_defaults_and_reject_unsafe_work
                 json!({"connections":{"redis":{"driver":"redis","retry_after":retry}}}),
             ),
         ]));
-        assert!(SupervisorOptions::fromConfig(&unsafe_config).is_err());
+        assert!(SupervisorOptions::from_config(&unsafe_config).is_err());
     }
 }
 
@@ -261,7 +264,7 @@ fn cluster_queue_transports_are_rejected() {
             json!({"redis":{"clusters":{"cluster":[]}}}),
         ),
     ]));
-    assert!(SupervisorOptions::fromConfig(&config).is_err());
+    assert!(SupervisorOptions::from_config(&config).is_err());
 }
 
 #[test]
@@ -278,12 +281,41 @@ fn horizon_environment_selects_the_deployment_plan_without_changing_app_environm
         ),
     ]));
     assert_eq!(
-        SupervisorOptions::fromConfig(&config).unwrap()["one"].maxProcesses,
+        SupervisorOptions::from_config(&config).unwrap()["one"].max_processes,
         4
     );
     assert_eq!(
-        SupervisorOptions::fromConfigForEnvironment(&config, "testing").unwrap()["one"]
-            .maxProcesses,
+        SupervisorOptions::from_config_for_environment(&config, "testing").unwrap()["one"]
+            .max_processes,
         1
     );
+}
+
+#[test]
+fn native_option_fields_keep_existing_json_and_tries_alias() {
+    let options: SupervisorOptions = serde_json::from_value(json!({
+        "workersName":"mail", "autoScalingStrategy":"size", "minProcesses":2,
+        "maxProcesses":7, "balanceMaxShift":3, "balanceCooldown":4, "tries":5,
+        "parentId":6, "maxJobs":10, "maxTime":11
+    }))
+    .unwrap();
+    assert_eq!(options.workers_name, "mail");
+    assert_eq!(options.max_tries, 5);
+    let encoded = serde_json::to_value(&options).unwrap();
+    for (key, expected) in [
+        ("workersName", json!("mail")),
+        ("autoScalingStrategy", json!("size")),
+        ("minProcesses", json!(2)),
+        ("maxProcesses", json!(7)),
+        ("balanceMaxShift", json!(3)),
+        ("balanceCooldown", json!(4)),
+        ("maxTries", json!(5)),
+        ("parentId", json!(6)),
+        ("maxJobs", json!(10)),
+        ("maxTime", json!(11)),
+    ] {
+        assert_eq!(encoded[key], expected, "{key}");
+    }
+    assert!(encoded.get("max_processes").is_none());
+    assert!(serde_json::from_value::<SupervisorOptions>(json!({"max_processes":7})).is_err());
 }

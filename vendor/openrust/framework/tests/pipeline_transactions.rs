@@ -134,7 +134,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
         assert_eq!(
             Pipeline::send(8)
                 .within_transaction(Some("audit"))
-                .thenReturn()
+                .then_return()
                 .await?,
             8
         );
@@ -155,7 +155,7 @@ async fn transactional_pipeline_defers_execution_and_commits_or_rolls_back_on_se
                 copy.fetch_add(1, Ordering::SeqCst);
             })
             .within_transaction(Some("missing"))
-            .thenReturn()
+            .then_return()
             .await;
         assert!(matches!(error, Err(DatabaseError::UnknownConnection(_))));
         assert_eq!(missing_finalized.load(Ordering::SeqCst), 1);

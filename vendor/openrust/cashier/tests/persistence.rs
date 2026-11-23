@@ -35,7 +35,7 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
             subscription(provider, "active"),
             0,
         );
-        let event = client.verifyWebhook(&h, &body).unwrap();
+        let event = client.verify_webhook(&h, &body).unwrap();
         let result = db
             .store
             .process(&client, &event, |tx, e| {
@@ -138,11 +138,11 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
             subscription(provider, "past_due"),
             0,
         );
-        let old = client.verifyWebhook(&h, &body).unwrap();
+        let old = client.verify_webhook(&h, &body).unwrap();
         db.store
             .process(&client, &old, |_, event| {
                 Box::pin(async move {
-                    assert_eq!(event.currentSubscription().unwrap().status, "active");
+                    assert_eq!(event.current_subscription().unwrap().status, "active");
                     Ok(())
                 })
             })
@@ -159,9 +159,9 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
             subscription(provider, "canceled"),
             0,
         );
-        let conflict = client.verifyWebhook(&h, &body).unwrap();
+        let conflict = client.verify_webhook(&h, &body).unwrap();
         assert!(matches!(
-            db.store.handleWebhook(&client, &conflict).await,
+            db.store.handle_webhook(&client, &conflict).await,
             Err(Error::EventConflict)
         ));
         let hkind = if provider == Provider::Stripe {
@@ -170,15 +170,15 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
             "transaction.completed"
         };
         let (h, body) = support::event(&client, "evt_invoice", hkind, invoice(provider), 0);
-        let notice = client.verifyWebhook(&h, &body).unwrap();
-        db.store.handleWebhook(&client, &notice).await.unwrap();
-        let invoices = b.localInvoices().await.unwrap();
+        let notice = client.verify_webhook(&h, &body).unwrap();
+        db.store.handle_webhook(&client, &notice).await.unwrap();
+        let invoices = b.local_invoices().await.unwrap();
         assert_eq!(invoices.len(), 1);
         assert_eq!(invoices[0].total, "1234");
         assert_eq!(invoices[0].subscription.as_deref(), Some("sub_1"));
         let unknown = Billable::new(client.clone(), db.store.clone(), "users:2").unwrap();
-        assert!(unknown.attachCustomer("cus_1").await.is_err());
-        assert!(unknown.customerId().await.is_err());
+        assert!(unknown.attach_customer("cus_1").await.is_err());
+        assert!(unknown.customer_id().await.is_err());
         let mut data = subscription(provider, "active");
         data[if provider == Provider::Stripe {
             "customer"
@@ -188,7 +188,7 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
         let (h, body) = support::event(&client, "evt_attacker", kind, data, 0);
         assert!(matches!(
             db.store
-                .handleWebhook(&client, &client.verifyWebhook(&h, &body).unwrap())
+                .handle_webhook(&client, &client.verify_webhook(&h, &body).unwrap())
                 .await,
             Err(Error::Ownership)
         ));
@@ -261,18 +261,18 @@ async fn durable_billing_reconciles_out_of_order_events_in_one_business_transact
                 json!({"id":"cus_1","deleted":true}),
                 0,
             );
-            let event = client.verifyWebhook(&h, &body).unwrap();
+            let event = client.verify_webhook(&h, &body).unwrap();
             db.store
                 .process(&client, &event, |_, e| {
                     Box::pin(async move {
-                        assert!(e.customerDeleted());
+                        assert!(e.customer_deleted());
                         Ok(())
                     })
                 })
                 .await
                 .unwrap();
             assert!(!b.subscribed("default").await.unwrap());
-            assert!(matches!(b.customerId().await, Err(Error::NotFound)));
+            assert!(matches!(b.customer_id().await, Err(Error::NotFound)));
             let before = server.requests().len();
             assert!(matches!(
                 old_handle.preview(json!({}), "deleted-preview").await,

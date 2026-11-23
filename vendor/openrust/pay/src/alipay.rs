@@ -246,7 +246,7 @@ impl Alipay {
             identity: format!("alipay:{}:{}:{transaction_id}", self.seller_id, self.app_id),
             out_trade_no,
             transaction_id,
-            amount: Amount::fromYuan(get("total_amount")?)?,
+            amount: Amount::from_yuan(get("total_amount")?)?,
             provider: "alipay",
         })
     }

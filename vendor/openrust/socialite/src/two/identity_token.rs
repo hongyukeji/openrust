@@ -13,7 +13,7 @@ pub(super) struct Requirements<'a> {
     pub issuer: &'a str,
     pub audience: &'a str,
     pub algorithm: Option<Algorithm>,
-    pub firstKey: bool,
+    pub first_key: bool,
 }
 pub(super) async fn verify(
     http: &Factory,
@@ -25,7 +25,7 @@ pub(super) async fn verify(
         issuer,
         audience,
         algorithm,
-        firstKey,
+        first_key,
     } = requirements;
     let invalid = || Error::InvalidIdentityToken;
     let response = json(
@@ -52,10 +52,10 @@ pub(super) async fn verify(
     let kid = header
         .kid
         .as_deref()
-        .filter(|v| firstKey || !v.is_empty())
+        .filter(|v| first_key || !v.is_empty())
         .ok_or_else(invalid)?;
     let matching = |key: &&Value| key.get("kid").and_then(Value::as_str) == Some(kid);
-    let raw = if firstKey {
+    let raw = if first_key {
         keys.iter().find(matching)
     } else {
         keys.iter().rev().find(matching)

@@ -8,7 +8,7 @@ fn deserialization_matches_fixed_upstream_cases() {
     let fixture: Value = serde_json::from_str(include_str!("reference/json-schema.json")).unwrap();
     for (index, case) in fixture["cases"].as_array().unwrap().iter().enumerate() {
         let result =
-            JsonSchema::fromArray(case["schema"].clone()).and_then(|schema| schema.to_array());
+            JsonSchema::from_array(case["schema"].clone()).and_then(|schema| schema.to_array());
         if case.get("error") == Some(&Value::Bool(true)) {
             assert!(
                 result.is_err(),
@@ -63,7 +63,7 @@ fn typed_factory_retains_constraints_and_required_parent_semantics() {
             ),
             ("enabled", factory.boolean().default(false).into()),
         ])
-        .withoutAdditionalProperties();
+        .without_additional_properties();
     let value = schema.to_array().unwrap();
     assert_eq!(value["required"], json!(["name"]));
     assert_eq!(
@@ -74,7 +74,7 @@ fn typed_factory_retains_constraints_and_required_parent_semantics() {
     assert_eq!(value["properties"]["enabled"]["default"], false);
     assert!(value["properties"]["name"].get("required").is_none());
     assert_eq!(
-        JsonSchema::fromArray(value.clone())
+        JsonSchema::from_array(value.clone())
             .unwrap()
             .to_array()
             .unwrap(),
@@ -134,15 +134,15 @@ fn combinations_can_be_nested_and_disabled_flags_are_omitted() {
 fn invalid_numeric_and_reference_inputs_fail_explicitly() {
     assert!(JsonSchema::number().min(f64::INFINITY).to_array().is_err());
     assert!(JsonSchema::number().default(f64::NAN).to_string().is_err());
-    assert!(JsonSchema::fromArray(json!({"$ref":"#/$defs/a","$defs":{"a":42}})).is_err());
+    assert!(JsonSchema::from_array(json!({"$ref":"#/$defs/a","$defs":{"a":42}})).is_err());
     assert!(
-        JsonSchema::fromArray(json!({"type":"object","properties":{"a":{"$ref":"#"}}})).is_err()
+        JsonSchema::from_array(json!({"type":"object","properties":{"a":{"$ref":"#"}}})).is_err()
     );
     let mut nested = json!({"type":"string"});
     for _ in 0..=Deserializer::MAX_DEPTH {
         nested = json!({"type":"array","items":nested});
     }
-    assert!(JsonSchema::fromArray(nested).is_err());
+    assert!(JsonSchema::from_array(nested).is_err());
 }
 
 #[test]
@@ -151,9 +151,9 @@ fn node_budget_and_repeated_references_are_checked_independently() {
     for n in 0..Deserializer::MAX_NODES {
         properties.insert(n.to_string(), json!({"type":"string"}));
     }
-    assert!(JsonSchema::fromArray(json!({"type":"object","properties":properties})).is_err());
+    assert!(JsonSchema::from_array(json!({"type":"object","properties":properties})).is_err());
     let value = json!({"type":"object","properties":{"a":{"$ref":"#/$defs/s"},"b":{"$ref":"#/$defs/s"}},"$defs":{"s":{"type":"string"}}});
-    let result = JsonSchema::fromArray(value).unwrap().to_array().unwrap();
+    let result = JsonSchema::from_array(value).unwrap().to_array().unwrap();
     assert_eq!(result["properties"]["a"], result["properties"]["b"]);
 }
 

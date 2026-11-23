@@ -37,7 +37,6 @@ pub struct PendingChain {
     catches: Vec<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingChain {
     pub(super) fn new(jobs: impl IntoIterator<Item = Payload>) -> Self {
         Self {
@@ -74,11 +73,11 @@ impl PendingChain {
     }
 
     /// Adds a batch as one step, waiting for its terminal state before continuing.
-    pub fn appendBatch(self, batch: PendingBatch) -> QueueResult<Self> {
+    pub fn append_batch(self, batch: PendingBatch) -> QueueResult<Self> {
         Ok(self.append(ChainedBatch::payload(batch)?))
     }
 
-    pub fn prependBatch(self, batch: PendingBatch) -> QueueResult<Self> {
+    pub fn prepend_batch(self, batch: PendingBatch) -> QueueResult<Self> {
         Ok(self.prepend(ChainedBatch::payload(batch)?))
     }
 
@@ -88,7 +87,7 @@ impl PendingChain {
     }
 
     /// Dispatches the chain if the condition passes.
-    pub async fn dispatchIf(
+    pub async fn dispatch_if(
         self,
         condition: impl ChainCondition,
     ) -> QueueResult<Option<DispatchResult>> {
@@ -99,11 +98,11 @@ impl PendingChain {
     }
 
     /// Dispatches the chain if the condition does not pass.
-    pub async fn dispatchUnless(
+    pub async fn dispatch_unless(
         self,
         condition: impl ChainCondition,
     ) -> QueueResult<Option<DispatchResult>> {
-        self.dispatchIf(!condition.evaluate()).await
+        self.dispatch_if(!condition.evaluate()).await
     }
 
     pub async fn dispatch(mut self) -> QueueResult<DispatchResult> {

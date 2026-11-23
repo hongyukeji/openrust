@@ -6,72 +6,72 @@ use std::sync::Arc;
 fn feature_flags_options_and_profile_queries_follow_configuration() {
     let config = Arc::new(Repository::new(Default::default()));
     let features = Features::new(config.clone());
-    assert!(!features.hasProfileFeatures().unwrap());
-    assert!(!features.hasSecurityFeatures().unwrap());
+    assert!(!features.has_profile_features().unwrap());
+    assert!(!features.has_security_features().unwrap());
     assert_eq!(
         features
-            .twoFactorAuthenticationWithOptions(
+            .two_factor_authentication_with_options(
                 json!({"confirm":true,"confirmPassword":1})
                     .as_object()
                     .unwrap()
                     .clone()
             )
             .unwrap(),
-        Features::twoFactorAuthentication()
+        Features::two_factor_authentication()
     );
     assert!(
         !features
-            .optionEnabled(Features::twoFactorAuthentication(), "confirm")
+            .option_enabled(Features::two_factor_authentication(), "confirm")
             .unwrap()
     );
     config
         .set(
             "fortify.features",
-            json!([Features::twoFactorAuthentication()]),
+            json!([Features::two_factor_authentication()]),
         )
         .unwrap();
     assert!(
         features
-            .optionEnabled(Features::twoFactorAuthentication(), "confirm")
+            .option_enabled(Features::two_factor_authentication(), "confirm")
             .unwrap()
     );
     assert!(
         !features
-            .optionEnabled(Features::twoFactorAuthentication(), "confirmPassword")
+            .option_enabled(Features::two_factor_authentication(), "confirmPassword")
             .unwrap()
     );
-    assert!(features.hasProfileFeatures().unwrap());
-    assert!(features.hasSecurityFeatures().unwrap());
+    assert!(features.has_profile_features().unwrap());
+    assert!(features.has_security_features().unwrap());
     features
-        .twoFactorAuthenticationWithOptions(Default::default())
+        .two_factor_authentication_with_options(Default::default())
         .unwrap();
     assert!(
         features
-            .optionEnabled(Features::twoFactorAuthentication(), "confirm")
+            .option_enabled(Features::two_factor_authentication(), "confirm")
             .unwrap()
     );
     features
-        .twoFactorAuthenticationWithOptions(json!({"window":2}).as_object().unwrap().clone())
+        .two_factor_authentication_with_options(json!({"window":2}).as_object().unwrap().clone())
         .unwrap();
     assert!(
         !features
-            .optionEnabled(Features::twoFactorAuthentication(), "confirm")
+            .option_enabled(Features::two_factor_authentication(), "confirm")
             .unwrap()
     );
     config
         .set(
             "fortify.features",
-            json!([Features::updateProfileInformation()]),
+            json!([Features::update_profile_information()]),
         )
         .unwrap();
-    assert!(features.canUpdateProfileInformation().unwrap());
-    assert!(features.hasProfileFeatures().unwrap());
-    assert!(!features.hasSecurityFeatures().unwrap());
+    assert!(features.can_update_profile_information().unwrap());
+    assert!(features.has_profile_features().unwrap());
+    assert!(!features.has_security_features().unwrap());
     config
         .set("fortify.features", json!([Features::passkeys()]))
         .unwrap();
-    assert!(features.canManagePasskeys().unwrap());
-    assert!(features.hasSecurityFeatures().unwrap());
+    assert!(features.can_manage_passkeys().unwrap());
+    assert!(features.has_security_features().unwrap());
 }
 #[test]
 fn feature_membership_uses_php_loose_values_including_associative_arrays() {
@@ -95,16 +95,16 @@ fn feature_membership_uses_php_loose_values_including_associative_arrays() {
             "fortify.features",
             json!([
                 Features::registration(),
-                Features::resetPasswords(),
-                Features::emailVerification(),
-                Features::updatePasswords()
+                Features::reset_passwords(),
+                Features::email_verification(),
+                Features::update_passwords()
             ]),
         )
         .unwrap();
     assert!(features.enabled(Features::registration()).unwrap());
-    assert!(features.enabled(Features::resetPasswords()).unwrap());
-    assert!(features.enabled(Features::emailVerification()).unwrap());
-    assert!(features.canUpdatePasswords().unwrap());
+    assert!(features.enabled(Features::reset_passwords()).unwrap());
+    assert!(features.enabled(Features::email_verification()).unwrap());
+    assert!(features.can_update_passwords().unwrap());
 }
 
 #[test]
@@ -141,13 +141,13 @@ fn fixed_php_feature_queries() {
         let features = Features::new(config);
         let actual = json!({
             "enabled":[outcome(features.enabled("registration")),outcome(features.enabled("0e12")),outcome(features.enabled("")),outcome(features.enabled("0"))],
-            "hasProfileFeatures":outcome(features.hasProfileFeatures()),
-            "hasSecurityFeatures":outcome(features.hasSecurityFeatures()),
-            "canUpdateProfileInformation":outcome(features.canUpdateProfileInformation()),
-            "canUpdatePasswords":outcome(features.canUpdatePasswords()),
-            "canManageTwoFactorAuthentication":outcome(features.canManageTwoFactorAuthentication()),
-            "canManagePasskeys":outcome(features.canManagePasskeys()),
-            "option":outcome(features.optionEnabled(Features::twoFactorAuthentication(),"confirm"))
+            "hasProfileFeatures":outcome(features.has_profile_features()),
+            "hasSecurityFeatures":outcome(features.has_security_features()),
+            "canUpdateProfileInformation":outcome(features.can_update_profile_information()),
+            "canUpdatePasswords":outcome(features.can_update_passwords()),
+            "canManageTwoFactorAuthentication":outcome(features.can_manage_two_factor_authentication()),
+            "canManagePasskeys":outcome(features.can_manage_passkeys()),
+            "option":outcome(features.option_enabled(Features::two_factor_authentication(),"confirm"))
         });
         assert_eq!(actual, case["expected"], "PHP feature case {index}: {case}");
     }

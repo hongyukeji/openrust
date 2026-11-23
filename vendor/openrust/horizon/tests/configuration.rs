@@ -73,8 +73,8 @@ async fn application_name_derives_prefix_and_empty_path_mounts_at_root() {
 }
 
 fn explicit() -> Result<(), openrust::routing::RoutingError> {
-    Horizon::routesAt("/custom")?;
-    Horizon::routesAt("/ignored-duplicate")
+    Horizon::routes_at("/custom")?;
+    Horizon::routes_at("/ignored-duplicate")
 }
 #[tokio::test]
 async fn explicit_routes_take_precedence_and_automatic_routes_can_be_disabled() {

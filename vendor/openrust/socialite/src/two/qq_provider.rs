@@ -25,7 +25,7 @@ impl Default for QqProvider {
     }
 }
 impl QqProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints, me: impl Into<String>) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints, me: impl Into<String>) -> Self {
         Self {
             endpoints,
             me: me.into(),
@@ -76,16 +76,16 @@ impl QqProvider {
     }
 }
 impl ProviderDefinition for QqProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["get_user_info"]
     }
-    fn getAccessTokenResponse<'a>(
+    fn get_access_token_response<'a>(
         &'a self,
         http: &'a Factory,
         _: &'a ProviderConfig,
@@ -115,7 +115,7 @@ impl ProviderDefinition for QqProvider {
             Ok(response)
         }))
     }
-    fn refreshTokenResponse<'a>(
+    fn refresh_token_response<'a>(
         &'a self,
         http: &'a Factory,
         config: &'a ProviderConfig,
@@ -140,7 +140,7 @@ impl ProviderDefinition for QqProvider {
             Ok(response)
         }))
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         _: &'a Factory,
         _: &'a str,
@@ -148,7 +148,7 @@ impl ProviderDefinition for QqProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async { Err(Error::Configuration("client_id")) })
     }
-    fn getUserByTokenWithConfig<'a>(
+    fn get_user_by_token_with_config<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -157,7 +157,7 @@ impl ProviderDefinition for QqProvider {
     ) -> ProviderFuture<'a, Value> {
         Box::pin(self.profile(http, token, config, false))
     }
-    fn getUserByTokenWithOptions<'a>(
+    fn get_user_by_token_with_options<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -166,9 +166,9 @@ impl ProviderDefinition for QqProvider {
         options: &'a ProviderOptions,
         _: &'a Map<String, Value>,
     ) -> ProviderFuture<'a, Value> {
-        Box::pin(self.profile(http, token, config, options.withUnionId))
+        Box::pin(self.profile(http, token, config, options.with_union_id))
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let id = identifier(&user, "openid")?.to_owned();
         let profile = user
             .get("profile")

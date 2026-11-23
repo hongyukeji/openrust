@@ -24,7 +24,7 @@ impl VerifiedEvent {
     pub fn id(&self) -> &str {
         &self.id
     }
-    pub fn eventType(&self) -> &str {
+    pub fn event_type(&self) -> &str {
         &self.kind
     }
     /// Verified provider payload for application events. Avoid logging personal information.
@@ -32,13 +32,13 @@ impl VerifiedEvent {
         &self.payload
     }
     /// Current canonical state, populated only inside BillingStore::process handlers.
-    pub fn currentSubscription(&self) -> Option<&crate::Subscription> {
+    pub fn current_subscription(&self) -> Option<&crate::Subscription> {
         self.subscription.as_ref()
     }
-    pub fn currentInvoice(&self) -> Option<&crate::Invoice> {
+    pub fn current_invoice(&self) -> Option<&crate::Invoice> {
         self.invoice.as_ref()
     }
-    pub fn customerDeleted(&self) -> bool {
+    pub fn customer_deleted(&self) -> bool {
         self.customer_deleted
     }
     pub fn success(&self) -> http::Response<String> {

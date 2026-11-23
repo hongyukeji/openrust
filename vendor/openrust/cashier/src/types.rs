@@ -21,7 +21,7 @@ pub struct Subscription {
     pub items: Vec<SubscriptionItem>,
 }
 impl Subscription {
-    pub fn onTrial(&self) -> bool {
+    pub fn on_trial(&self) -> bool {
         self.trial_ends_at
             .is_some_and(|t| t > jiff::Timestamp::now().as_second())
             && self.status == "trialing"
@@ -29,7 +29,7 @@ impl Subscription {
     pub fn canceled(&self) -> bool {
         self.ends_at.is_some() || matches!(self.status.as_str(), "canceled" | "cancelled")
     }
-    pub fn onGracePeriod(&self) -> bool {
+    pub fn on_grace_period(&self) -> bool {
         self.ends_at
             .is_some_and(|t| t > jiff::Timestamp::now().as_second())
     }
@@ -39,7 +39,7 @@ impl Subscription {
     pub fn incomplete(&self) -> bool {
         self.status == "incomplete"
     }
-    pub fn pastDue(&self) -> bool {
+    pub fn past_due(&self) -> bool {
         self.status == "past_due"
     }
     pub fn active(&self) -> bool {
@@ -49,9 +49,9 @@ impl Subscription {
                 .is_none_or(|t| t > jiff::Timestamp::now().as_second())
     }
     pub fn valid(&self) -> bool {
-        self.active() || self.onGracePeriod()
+        self.active() || self.on_grace_period()
     }
-    pub fn hasPrice(&self, price: &str) -> bool {
+    pub fn has_price(&self, price: &str) -> bool {
         self.items.iter().any(|i| i.price == price)
     }
     pub(crate) fn parse(provider: Provider, v: &Value) -> Result<Self> {

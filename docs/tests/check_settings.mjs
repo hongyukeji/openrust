@@ -24,7 +24,7 @@ try {
                     await page.locator("main h1").waitFor();
                     const main = page.locator("main");
                     assert.equal(await main.locator("h2").count(), 4);
-                    for (const word of ["SettingsGroup", "registerSettings", "saveIn", "reEncrypt", "__settings_version", "Conflict"]) {
+                    for (const word of ["SettingsGroup", "register_settings", "save_in", "re_encrypt", "__settings_version", "Conflict"]) {
                         assert((await main.innerText()).includes(word), `${language}: missing ${word}`);
                     }
                     assert(await page.locator(`a[href$="/packages/settings.html"]`).count() > 0, "missing settings navigation");

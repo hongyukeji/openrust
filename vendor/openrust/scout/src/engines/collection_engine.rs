@@ -4,17 +4,17 @@ use serde_json::json;
 #[derive(Default)]
 pub struct CollectionEngine;
 impl CollectionEngine {
-    async fn searchModels<M: Searchable>(&self, builder: &Builder<M>) -> crate::Result<Vec<M>> {
-        let query = builder.collectionQuery()?;
-        let models = M::makeSearchableUsing(query.get().await?.into_iter().collect()).await?;
+    async fn search_models<M: Searchable>(&self, builder: &Builder<M>) -> crate::Result<Vec<M>> {
+        let query = builder.collection_query()?;
+        let models = M::make_searchable_using(query.get().await?.into_iter().collect()).await?;
         let needle = builder.query.to_lowercase();
         let mut results = Vec::new();
         for model in models {
-            if !model.shouldBeSearchable() {
+            if !model.should_be_searchable() {
                 continue;
             }
             if needle.is_empty()
-                || model.toSearchableArray()?.values().any(|value| {
+                || model.to_searchable_array()?.values().any(|value| {
                     let text = match value {
                         serde_json::Value::String(s) => s.clone(),
                         serde_json::Value::Null => "null".into(),
@@ -23,7 +23,7 @@ impl CollectionEngine {
                             openrust::support::php_float_string(n.as_f64().expect("JSON float"))
                         }
                         serde_json::Value::Number(n) => n.to_string(),
-                        value => phpJson(value),
+                        value => php_json(value),
                     };
                     text.to_lowercase().contains(&needle)
                 })
@@ -35,7 +35,10 @@ impl CollectionEngine {
     }
     fn results<M: Searchable>(models: &[M], total: u64) -> crate::Result<SearchResults> {
         Ok(SearchResults {
-            ids: models.iter().filter_map(Searchable::getScoutKey).collect(),
+            ids: models
+                .iter()
+                .filter_map(Searchable::get_scout_key)
+                .collect(),
             total,
             raw: json!({"results":models.iter().map(|m|m.to_array()).collect::<openrust::database::DatabaseResult<Vec<_>>>()?, "total":total}),
         })
@@ -50,7 +53,7 @@ impl<M: Searchable> Engine<M> for CollectionEngine {
     }
     fn search<'a>(&'a self, builder: &'a Builder<M>) -> ScoutFuture<'a, SearchResults> {
         Box::pin(async move {
-            let mut models = self.searchModels(builder).await?;
+            let mut models = self.search_models(builder).await?;
             if let Some(limit) = builder.limit {
                 models.truncate(limit);
             }
@@ -64,7 +67,7 @@ impl<M: Searchable> Engine<M> for CollectionEngine {
         page: u64,
     ) -> ScoutFuture<'a, SearchResults> {
         Box::pin(async move {
-            let models = self.searchModels(builder).await?;
+            let models = self.search_models(builder).await?;
             let offset = page.saturating_sub(1).saturating_mul(per_page);
             let offset = usize::try_from(offset)
                 .unwrap_or(usize::MAX)
@@ -78,30 +81,30 @@ impl<M: Searchable> Engine<M> for CollectionEngine {
     fn flush<'a>(&'a self, _: &'a M) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn createIndex<'a>(&'a self, _: &'a str, _: &'a serde_json::Value) -> ScoutFuture<'a, ()> {
+    fn create_index<'a>(&'a self, _: &'a str, _: &'a serde_json::Value) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn deleteIndex<'a>(&'a self, _: &'a str) -> ScoutFuture<'a, ()> {
+    fn delete_index<'a>(&'a self, _: &'a str) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
 }
 
 // CollectionEngine searches PHP json_encode output for non-scalar attributes.
-fn phpJson(value: &serde_json::Value) -> String {
+fn php_json(value: &serde_json::Value) -> String {
     match value {
         serde_json::Value::Array(values) => format!(
             "[{}]",
-            values.iter().map(phpJson).collect::<Vec<_>>().join(",")
+            values.iter().map(php_json).collect::<Vec<_>>().join(",")
         ),
         serde_json::Value::Object(values) => format!(
             "{{{}}}",
             values
                 .iter()
-                .map(|(key, value)| format!("{}:{}", phpString(key), phpJson(value)))
+                .map(|(key, value)| format!("{}:{}", php_string(key), php_json(value)))
                 .collect::<Vec<_>>()
                 .join(",")
         ),
-        serde_json::Value::String(s) => phpString(s),
+        serde_json::Value::String(s) => php_string(s),
         serde_json::Value::Number(n) if n.is_f64() => {
             openrust::support::php_numeric_json_string(&n.to_string(), false)
                 .expect("finite JSON number")
@@ -109,7 +112,7 @@ fn phpJson(value: &serde_json::Value) -> String {
         value => value.to_string(),
     }
 }
-fn phpString(value: &str) -> String {
+fn php_string(value: &str) -> String {
     use std::fmt::Write as _;
     let json = serde_json::to_string(value).expect("valid string");
     let mut output = String::new();

@@ -799,15 +799,15 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
         .unwrap();
         server.abort();
         let _ = server.await;
-        events.assertDispatchedTimes(
+        events.assert_dispatched_times(
             openrust::cache::events::KeyWritten::NAME,
             usize::from(persists),
         );
-        events.assertDispatchedTimes(
+        events.assert_dispatched_times(
             openrust::cache::events::KeyWriteFailed::NAME,
             usize::from(!persists),
         );
-        events.assertDispatchedTimes(openrust::cache::events::CacheFlushed::NAME, 1);
+        events.assert_dispatched_times(openrust::cache::events::CacheFlushed::NAME, 1);
         root.success(&["inspire"]);
     }
 }
@@ -1308,12 +1308,12 @@ async fn null_results_end_failover_and_emit_reference_event_payloads() {
         Err(CacheError::MissingCounter)
     ));
     assert_eq!(array.get("two").await.unwrap(), Some(2.into()));
-    events.assertNotDispatched(CacheFailedOver::NAME);
+    events.assert_not_dispatched(CacheFailedOver::NAME);
     let misses = events.dispatched(CacheMissed::NAME);
     let miss = misses[0].downcast_ref::<CacheMissed>().unwrap();
     assert_eq!(miss.store_name, None);
     assert_eq!(miss.key, "two");
-    events.assertDispatchedTimes(KeyWriteFailed::NAME, 1);
+    events.assert_dispatched_times(KeyWriteFailed::NAME, 1);
 }
 
 #[tokio::test]
@@ -1378,7 +1378,7 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
     assert_eq!(cache.get("counter").await.unwrap(), None);
     tokio::time::sleep(Duration::from_millis(1100)).await;
     assert_eq!(cache.get(key).await.unwrap(), None);
-    assert!(disk.fileExists(&hashed[0]).await.unwrap());
+    assert!(disk.file_exists(&hashed[0]).await.unwrap());
     assert!(disk.put(&hashed[0], b"invalid cache record").await.unwrap());
     assert_eq!(cache.get(key).await.unwrap(), None);
     assert!(cache.forever(key, &"fresh".into()).await.unwrap());
@@ -1390,7 +1390,11 @@ async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
     assert_eq!(cache.get(key).await.unwrap(), None);
     assert!(cache.forever(key, &"fresh".into()).await.unwrap());
     root.success(&["cache:clear", "storage"]);
-    assert!(disk.directoryExists("framework/cache/items").await.unwrap());
+    assert!(
+        disk.directory_exists("framework/cache/items")
+            .await
+            .unwrap()
+    );
     assert!(
         disk.all_files(Some("framework/cache/items"))
             .await

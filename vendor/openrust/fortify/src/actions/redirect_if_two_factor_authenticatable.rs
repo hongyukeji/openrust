@@ -72,7 +72,7 @@ impl RedirectIfTwoFactorAuthenticatable {
         if !truthy(account.attribute("two_factor_secret").map_err(internal)?)
             || (self
                 .fortify
-                .confirmsTwoFactorAuthentication()
+                .confirms_two_factor_authentication()
                 .map_err(internal)?
                 && !present(
                     account

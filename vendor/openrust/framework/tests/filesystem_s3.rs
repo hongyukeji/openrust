@@ -202,8 +202,8 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
         disk.get("a/space + 你好.txt").await.unwrap().unwrap(),
         b"hello"
     );
-    assert!(disk.directoryExists("a").await.unwrap());
-    assert!(!disk.fileExists("a").await.unwrap());
+    assert!(disk.directory_exists("a").await.unwrap());
+    assert!(!disk.file_exists("a").await.unwrap());
     assert!(disk.exists("a").await.unwrap());
     assert!(isolated.missing("a/space + 你好.txt").await.unwrap());
     assert!(isolated.get("a/space + 你好.txt").await.unwrap().is_none());
@@ -227,8 +227,8 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
     assert!(disk.get("empty").await.unwrap().unwrap().is_empty());
 
     let mut large = tokio::io::repeat(42).take(9 * 1024 * 1024);
-    assert!(disk.writeStream("large", &mut large).await.unwrap());
-    let mut stream = disk.readStream("large").await.unwrap().unwrap();
+    assert!(disk.write_stream("large", &mut large).await.unwrap());
+    let mut stream = disk.read_stream("large").await.unwrap().unwrap();
     let mut received = Vec::new();
     stream.read_to_end(&mut received).await.unwrap();
     assert_eq!(received.len(), 9 * 1024 * 1024);
@@ -237,8 +237,8 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
     let mut left = tokio::io::repeat(65).take(9 * 1024 * 1024);
     let mut right = tokio::io::repeat(66).take(9 * 1024 * 1024);
     let (left, right) = tokio::join!(
-        disk.writeStream("concurrent", &mut left),
-        disk.writeStream("concurrent", &mut right)
+        disk.write_stream("concurrent", &mut left),
+        disk.write_stream("concurrent", &mut right)
     );
     assert!(left.unwrap() && right.unwrap());
     let final_bytes = disk.get("concurrent").await.unwrap().unwrap();
@@ -248,7 +248,7 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
 
     let mut failed = tokio::io::repeat(11).take(8 * 1024 * 1024).chain(FailRead);
     assert!(matches!(
-        disk.writeStream("a/space + 你好.txt", &mut failed).await,
+        disk.write_stream("a/space + 你好.txt", &mut failed).await,
         Err(FilesystemError::Backend { .. })
     ));
     assert_eq!(
@@ -261,7 +261,7 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
     let mut interrupted = tokio::io::repeat(11).take(8 * 1024 * 1024).chain(reader);
     let task = {
         let disk = Arc::clone(&disk);
-        tokio::spawn(async move { disk.writeStream("cancelled", &mut interrupted).await })
+        tokio::spawn(async move { disk.write_stream("cancelled", &mut interrupted).await })
     };
     wait_for_uploads(&service, 1).await;
     assert!(disk.missing("cancelled").await.unwrap());
@@ -271,7 +271,7 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
     assert!(disk.missing("cancelled").await.unwrap());
 
     let denied = manager
-        .buildS3(S3DiskConfig {
+        .build_s3(S3DiskConfig {
             bucket: service.bucket.clone(),
             region: "us-east-1".into(),
             key: Some(service.key.clone()),
@@ -287,7 +287,7 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
         })
         .unwrap();
     assert!(!denied.put("rejected", b"wrong credentials").await.unwrap());
-    assert!(!disk.fileExists("rejected").await.unwrap());
+    assert!(!disk.file_exists("rejected").await.unwrap());
     assert!(disk.delete("a/space + 你好.txt").await.unwrap());
     assert!(disk.missing("a/space + 你好.txt").await.unwrap());
 
@@ -313,7 +313,7 @@ async fn acl_compatible_backend_persists_public_and_private_visibility() {
     service.set_ownership(ObjectOwnership::ObjectWriter).await;
     let disk = service.manager().disk(None).unwrap();
     assert!(
-        disk.putWithOptions(
+        disk.put_with_options(
             "acl",
             b"payload",
             WriteOptions {
@@ -323,15 +323,18 @@ async fn acl_compatible_backend_persists_public_and_private_visibility() {
         .await
         .unwrap()
     );
-    assert_eq!(disk.getVisibility("acl").await.unwrap(), Visibility::Public);
+    assert_eq!(
+        disk.get_visibility("acl").await.unwrap(),
+        Visibility::Public
+    );
     assert_eq!(anonymous_status(&service, "tenant-a/acl").await, 200);
     assert!(
-        disk.setVisibility("acl", Visibility::Private)
+        disk.set_visibility("acl", Visibility::Private)
             .await
             .unwrap()
     );
     assert_eq!(
-        disk.getVisibility("acl").await.unwrap(),
+        disk.get_visibility("acl").await.unwrap(),
         Visibility::Private
     );
 
@@ -345,7 +348,10 @@ async fn acl_compatible_backend_persists_public_and_private_visibility() {
         .send()
         .await;
     assert!(put.is_ok());
-    assert_eq!(disk.getVisibility("acl").await.unwrap(), Visibility::Public);
+    assert_eq!(
+        disk.get_visibility("acl").await.unwrap(),
+        Visibility::Public
+    );
     service.clear().await;
 }
 
@@ -360,11 +366,11 @@ async fn acl_disabled_backend_does_not_report_a_public_write_as_successful() {
     let disk = service.manager().disk(None).unwrap();
     assert!(disk.put("acl", b"payload").await.unwrap());
     assert!(matches!(
-        disk.setVisibility("acl", Visibility::Public).await,
+        disk.set_visibility("acl", Visibility::Public).await,
         Err(FilesystemError::UnsupportedOperation)
     ));
     assert!(matches!(
-        disk.putWithOptions(
+        disk.put_with_options(
             "acl",
             b"payload",
             WriteOptions {
@@ -416,7 +422,7 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
     let path = "private/signed + 文本.txt";
     let expires = std::time::SystemTime::now() + Duration::from_secs(60);
     let upload = disk
-        .temporaryUploadUrlWith(
+        .temporary_upload_url_with(
             path,
             expires,
             TemporaryUploadUrlOptions {
@@ -443,7 +449,7 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
         .unwrap();
     assert!(response.status.success(), "presigned PUT failed");
     let download = disk
-        .temporaryUrlWith(
+        .temporary_url_with(
             path,
             expires,
             TemporaryUrlOptions {
@@ -492,7 +498,7 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
         "tampered download options were accepted"
     );
     let partial = disk
-        .temporaryDownloadRequest(path, expires, |request| {
+        .temporary_download_request(path, expires, |request| {
             request
                 .bucket("ignored-bucket")
                 .key("ignored-key")
@@ -527,7 +533,7 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
     );
 
     let conditional = disk
-        .temporaryUploadRequest("private/create-only.txt", expires, |request| {
+        .temporary_upload_request("private/create-only.txt", expires, |request| {
             request
                 .bucket("ignored-bucket")
                 .key("ignored-key")
@@ -571,7 +577,7 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
         .unwrap();
     assert!(!response.status.success(), "unsigned GET was accepted");
     assert!(
-        disk.temporaryUrl(path, std::time::SystemTime::now() - Duration::from_secs(1))
+        disk.temporary_url(path, std::time::SystemTime::now() - Duration::from_secs(1))
             .await
             .is_err()
     );
@@ -623,7 +629,7 @@ async fn temporary_origin_preserves_signed_path_and_version() {
         versions.push(result.version_id().expect("versioned PUT").to_owned());
     }
     let signed = disk
-        .temporaryUrlWith(
+        .temporary_url_with(
             path,
             expires,
             TemporaryUrlOptions {
@@ -668,7 +674,7 @@ async fn temporary_origin_preserves_signed_path_and_version() {
     assert!(response.status.success(), "versioned GET failed");
     assert_eq!(response.stdout, b"original");
 
-    let upload = disk.temporaryUploadUrl(path, expires).await.unwrap();
+    let upload = disk.temporary_upload_url(path, expires).await.unwrap();
     assert!(upload.url.starts_with("http://download.example.test:8080/"));
     assert!(!upload.url.contains("/ignored"));
     let mut request = tokio::process::Command::new("curl");

@@ -37,7 +37,7 @@ Declare event registration functions in your application and pass them to `with_
 
 Register a listener type with `registry.listen_class::<OrderListener>("orders.created", Delivery::Sync)?` in the manifest, or use `Event::listen_class` in the application scope. Bind the type with an application container factory, such as `bind_async` for asynchronous dependencies. The dispatcher resolves it when the event reaches that listener, using the owning application's container. A missing binding fails the dispatch. With `Delivery::AfterCommit`, dispatch resolves the instance immediately and a successful commit invokes it.
 
-For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `withListener`. Pass the resulting manifest to `with_events(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
+For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `with_listener`. Pass the resulting manifest to `with_events(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
 
 ```rust
 use std::sync::Arc;
@@ -80,7 +80,7 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 }
 
 fn discover_events() -> DiscoverEvents {
-    DiscoverEvents::new(&[]).withListener::<OrderListener>(register_orders)
+    DiscoverEvents::new(&[]).with_listener::<OrderListener>(register_orders)
 }
 ```
 
@@ -130,15 +130,15 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
         &mut EventContext::new(),
     ).await?;
 
-    fake.assertDispatchedTimes("orders.created", 1)
-        .assertNotDispatched("orders.cancelled");
+    fake.assert_dispatched_times("orders.created", 1)
+        .assert_not_dispatched("orders.cancelled");
     Ok(())
 }
 ```
 
 Faked events skip listeners, queueing and broadcasting. Events deferred until commit are recorded only after that commit. Rollback discards them. `dispatched` exposes recorded payloads for typed inspection. The fake lasts for the fixture or until another fake is installed.
 
-An all-events fake also records database transaction lifecycle events, such as `TransactionBeginning` and `TransactionRolledBack`. To check that rollback discarded a deferred application event, select that event when installing the fake or use `assertNotDispatched` with its name.
+An all-events fake also records database transaction lifecycle events, such as `TransactionBeginning` and `TransactionRolledBack`. To check that rollback discarded a deferred application event, select that event when installing the fake or use `assert_not_dispatched` with its name.
 
 ### Scoped event fakes {#scoped-event-fakes}
 
@@ -161,7 +161,7 @@ The scope follows the callback's future for its dispatcher. A nested scope resto
 
 ### Matching event payloads {#matching-event-payloads}
 
-In an application scope, `Event::fake_when` selects events by exact name or by a predicate that receives the event. `Event::fake_for_when` uses the same selector inside an async callback. An empty name list leaves selection to the predicate. `except` and `exceptWhen` let matching events reach their ordinary listeners even when selected by the fake.
+In an application scope, `Event::fake_when` selects events by exact name or by a predicate that receives the event. `Event::fake_for_when` uses the same selector inside an async callback. An empty name list leaves selection to the predicate. `except` and `except_when` let matching events reach their ordinary listeners even when selected by the fake.
 
 ```rust
 use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
@@ -175,12 +175,12 @@ let fake = Event::fake_when(&[], is_priority)?;
 Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
 Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
 
-fake.assertDispatchedOnce("orders.created")
-    .assertDispatchedWhere("orders.created", is_priority)
-    .assertNotDispatchedWhere("orders.created", |event| !is_priority(event));
+fake.assert_dispatched_once("orders.created")
+    .assert_dispatched_where("orders.created", is_priority)
+    .assert_not_dispatched_where("orders.created", |event| !is_priority(event));
 ```
 
-Use `dispatchedWhere` to read matching payloads in dispatch order. The `Where` methods take a predicate while the name-only methods retain their existing signatures.
+Use `dispatched_where` to read matching payloads in dispatch order. The `Where` methods take a predicate while the name-only methods retain their existing signatures.
 
 ## Pushed events
 

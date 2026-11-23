@@ -19,7 +19,7 @@ try {
                     assert.equal(response.status(), 200);
                     await page.locator("#transactions").waitFor();
                     const body = await page.locator("main").innerText();
-                    for (const text of ["ActivitylogServiceProvider", "ActivityLogger", "PreparedActivity::logIn", "logOnly", "logProperties", "activitylog:clean", "cleanBefore", "forSubject", "ACTIVITYLOG_BUFFER_ENABLED", "activitylogState", "ActivityModel::of", "include_soft_deleted_subjects", "byId", "getProperty"]) {
+                    for (const text of ["ActivitylogServiceProvider", "ActivityLogger", "PreparedActivity::log_in", "log_only", "log_properties", "activitylog:clean", "clean_before", "for_subject", "ACTIVITYLOG_BUFFER_ENABLED", "activitylog_state", "ActivityModel::of", "include_soft_deleted_subjects", "by_id", "get_property"]) {
                         assert(body.includes(text), `${language}: missing ${text}`);
                     }
                     for (const anchor of ["configuration", "recording", "transactions", "redaction", "queries"]) {

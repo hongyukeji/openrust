@@ -517,17 +517,17 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         .unwrap()
         .register_model::<AccountUser>("AccountUser");
     let fortify = app.make::<Fortify>().await.unwrap();
-    fortify.registerEmailVerification::<AccountUser>();
-    fortify.registerPasswordReset::<AccountUser>();
+    fortify.register_email_verification::<AccountUser>();
+    fortify.register_password_reset::<AccountUser>();
     let hasher = app.make::<dyn Hasher>().await.unwrap();
     let actions = Arc::new(Actions {
         hasher: hasher.clone(),
     });
     if callbacks {
-        fortify.resetUserPasswordsUsing(actions.clone());
-        fortify.createUsersUsing(actions.clone());
-        fortify.updateUserProfileInformationUsing(actions.clone());
-        fortify.updateUserPasswordsUsing(actions.clone());
+        fortify.reset_user_passwords_using(actions.clone());
+        fortify.create_users_using(actions.clone());
+        fortify.update_user_profile_information_using(actions.clone());
+        fortify.update_user_passwords_using(actions.clone());
     } else {
         app.container()
             .instance::<dyn contracts::ResetsUserPasswords>(actions.clone())
@@ -542,7 +542,7 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
             .instance::<dyn contracts::UpdatesUserPasswords>(actions.clone())
             .unwrap();
     }
-    fortify.registerView(
+    fortify.register_view(
         openrust_fortify::http::responses::SimpleViewResponse::callback(Arc::new(|_| {
             Box::pin(async { Response::json(StatusCode::OK, json!({"register_view":true})) })
         })),

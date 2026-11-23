@@ -60,13 +60,13 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 输出按进程加上标签，保留各自的 stdout 和 stderr。`--timestamps` 给内联输出加 UTC 时间。`--json` 每行输出一条带版本号的事件，包括进程启动、输出、退出、重试和最后的 `done`。
 
-运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disableAutoRestart()` 关闭。用 `DevCommands::with_timestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
+运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disable_auto_restart()` 关闭。用 `DevCommands::with_timestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
 
 Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进入合并视图。重定向输出、尺寸不足的终端、Windows、`--inline` 和 `--json` 走内联输出路径。交互会话正常退出时返回 0，内联和 JSON 模式则报告第一个永久失败的退出码。
 
 按 `1`–`9` 选择标签，也可用 Tab 聚焦侧栏后用方向键选择。按 `s` 切到流式视图、`t` 返回标签、`f` 筛选流、`r` 重启当前标签的进程、`c` 清空当前视图。用 `/` 搜索，再按 `n` 或 `N` 切换匹配。用方向键或 Page Up、Page Down 滚动日志。
 
-`--buffer-size` 和 `--stream-buffer-size` 控制每个标签和流式视图保留的行数，分别默认 2,000 和 10,000 行。应用可用 `DevCommands::bufferSize()`、`streamBufferSize()` 配置，并用 `tabs()`、`stream()` 或 `inline()` 设置默认模式。
+`--buffer-size` 和 `--stream-buffer-size` 控制每个标签和流式视图保留的行数，分别默认 2,000 和 10,000 行。应用可用 `DevCommands::buffer_size()`、`stream_buffer_size()` 配置，并用 `tabs()`、`stream()` 或 `inline()` 设置默认模式。
 
 按 `q` 或 Ctrl+C 退出。Unix 终止信号也会请求关停，最多等子进程退出六秒。Artisan 恢复终端，并把保留的流式日志打印到对应的输出流。可选 [Pail 命令](../the-basics/logging.md#tailing-log-messages-using-pail)也可独立运行。
 
@@ -74,7 +74,7 @@ Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进
 
 ### 查看开发进程
 
-用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。加载可选 Pail Provider 后，会在 Vite 之前添加 `logs`，执行 `pail --timeout=0`。它属于框架默认进程，排除 vendor 不会移除它，`withoutDefaultCommands()` 会移除它。包或应用可以用同名 `logs` 条目覆盖。
+用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。加载可选 Pail Provider 后，会在 Vite 之前添加 `logs`，执行 `pail --timeout=0`。它属于框架默认进程，排除 vendor 不会移除它，`without_default_commands()` 会移除它。包或应用可以用同名 `logs` 条目覆盖。
 
 ```sh
 ./artisan dev:list
@@ -90,7 +90,7 @@ Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进
 DevCommands::artisan("serve --port=9000", Some("server"))?.green();
 ```
 
-Shell 命令用 `register` 登记，包管理器命令用 `node` 或 `nodeExec`。名称传 `None` 时使用命令首词。用 `only`、`except`、`order`、`withoutVendorCommands` 和 `withoutDefaultCommands` 调整应用清单。框架依据 Rust 调用者的源码路径识别包登记。
+Shell 命令用 `register` 登记，包管理器命令用 `node` 或 `node_exec`。名称传 `None` 时使用命令首词。用 `only`、`except`、`order`、`without_vendor_commands` 和 `without_default_commands` 调整应用清单。框架依据 Rust 调用者的源码路径识别包登记。
 
 ## 命令帮助和输出格式 {#command-help-and-output-formats}
 

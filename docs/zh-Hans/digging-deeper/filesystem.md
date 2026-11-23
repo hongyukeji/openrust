@@ -54,7 +54,7 @@ pub async fn store_report() -> FilesystemResult<Option<Vec<u8>>> {
 }
 ```
 
-`readStream` 为本地磁盘和 S3 磁盘提供相同的异步读取接口。S3 每段写入 8 MiB，完成分段上传后发布对象。当前最多上传 10,000 段，单对象约 78 GiB。上传中断后会尽量取消未完成的上传。连接失败后远端可能已经完成写入，此时 `throw = true` 会返回 `PublishOutcomeUnknown`。重试前可读取目标核对状态。
+`read_stream` 为本地磁盘和 S3 磁盘提供相同的异步读取接口。S3 每段写入 8 MiB，完成分段上传后发布对象。当前最多上传 10,000 段，单对象约 78 GiB。上传中断后会尽量取消未完成的上传。连接失败后远端可能已经完成写入，此时 `throw = true` 会返回 `PublishOutcomeUnknown`。重试前可读取目标核对状态。
 
 ## 获取磁盘实例
 
@@ -76,7 +76,7 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 
 ## 读取文件
 
-`get` 返回文件内容。读取大文件时可通过 `readStream` 获取异步读取器。默认 `throw = false` 时读取失败返回 `None`，写入失败返回 `false`。设置 `throw = true` 可返回错误，设置 `report = true` 可记录默认策略处理的错误。无效路径始终返回错误。
+`get` 返回文件内容。读取大文件时可通过 `read_stream` 获取异步读取器。默认 `throw = false` 时读取失败返回 `None`，写入失败返回 `false`。设置 `throw = true` 可返回错误，设置 `report = true` 可记录默认策略处理的错误。无效路径始终返回错误。
 
 ### 下载文件
 
@@ -101,7 +101,7 @@ pub async fn download_report() -> Result<Response, HttpError> {
 
 ### 文件元数据 {#file-metadata}
 
-用 `size` 取得本地磁盘文件的字节数，用 `lastModified` 取得 `SystemTime`。两者在元数据不可用时返回错误。通过 `Storage` 调用时使用默认磁盘。
+用 `size` 取得本地磁盘文件的字节数，用 `last_modified` 取得 `SystemTime`。两者在元数据不可用时返回错误。通过 `Storage` 调用时使用默认磁盘。
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
@@ -112,15 +112,15 @@ async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Opt
 }
 ```
 
-用 `mime_type` 检查内容签名，并回退到扩展名推断或 `application/octet-stream`。用 `checksum` 流式计算 MD5，或用 `checksumWith::<D>` 选用 Rust 摘要算法。这两项操作在关闭 `throw` 时将磁盘错误回退为 `None`。无效路径始终返回错误。
+用 `mime_type` 检查内容签名，并回退到扩展名推断或 `application/octet-stream`。用 `checksum` 流式计算 MD5，或用 `checksum_with::<D>` 选用 Rust 摘要算法。这两项操作在关闭 `throw` 时将磁盘错误回退为 `None`。无效路径始终返回错误。
 
 ## 存储文件
 
-`writeStream` 从异步读取器复制数据。本地驱动先写同目录临时文件，流写完后通过重命名发布。源失败或发布前取消会保留原文件。重命名操作已经发出后，即使调用方取消，完整写入仍可能发布。
+`write_stream` 从异步读取器复制数据。本地驱动先写同目录临时文件，流写完后通过重命名发布。源失败或发布前取消会保留原文件。重命名操作已经发出后，即使调用方取消，完整写入仍可能发布。
 
 ### 文件上传
 
-通过 `Request::file` 获取 multipart 上传。可调用上传对象的 `store` 或 `store_as`，也可用磁盘的 `putFile` 或 `putFileAs`。`store_publicly` 和 `store_publicly_as` 请求公开可见性。自动文件名使用 40 个随机字符，识别出类型时附加由内容推断的扩展名。客户端文件名与媒体类型属于元数据，保存前应执行应用的上传验证。
+通过 `Request::file` 获取 multipart 上传。可调用上传对象的 `store` 或 `store_as`，也可用磁盘的 `put_file` 或 `put_file_as`。`store_publicly` 和 `store_publicly_as` 请求公开可见性。自动文件名使用 40 个随机字符，识别出类型时附加由内容推断的扩展名。客户端文件名与媒体类型属于元数据，保存前应执行应用的上传验证。
 
 ```rust
 use openrust::{
@@ -141,7 +141,7 @@ pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpErr
 
 ### 文件可见性
 
-Unix 上公开和私有文件权限分别是 `0644` 和 `0600`。新子目录使用磁盘的目录可见性配置。可用 `WriteOptions` 覆盖单次写入的可见性，通过 `getVisibility` 和 `setVisibility` 管理已有文件。Windows 写入使用文件系统 ACL，显式可见性变更目前支持 Unix。
+Unix 上公开和私有文件权限分别是 `0644` 和 `0600`。新子目录使用磁盘的目录可见性配置。可用 `WriteOptions` 覆盖单次写入的可见性，通过 `get_visibility` 和 `set_visibility` 管理已有文件。Windows 写入使用文件系统 ACL，显式可见性变更目前支持 Unix。
 
 S3 可见性使用对象 ACL。未指定可见性时，写入沿用存储桶的访问控制。显式可见性需要存储桶支持 ACL，确认设置结果还需要读取 ACL 的权限。实际匿名可访问性取决于存储桶策略及服务是否执行 ACL。
 
@@ -157,11 +157,11 @@ fn permissions() -> FilesystemResult<LocalPermissions> {
 }
 ```
 
-按需磁盘可用 `Storage::buildWithPermissions` 同时传入 `LocalDiskConfig` 和权限表。新建文件和目录采用配置的权限，`setVisibility` 会给文件应用对应模式。公开磁盘挂载还要求 Unix 的公共读权限和目录遍历权限，并遵守映射为 `private` 的模式。自定义 Unix 模式适用于 Unix。
+按需磁盘可用 `Storage::build_with_permissions` 同时传入 `LocalDiskConfig` 和权限表。新建文件和目录采用配置的权限，`set_visibility` 会给文件应用对应模式。公开磁盘挂载还要求 Unix 的公共读权限和目录遍历权限，并遵守映射为 `private` 的模式。自定义 Unix 模式适用于 Unix。
 
 ## 临时文件 URL
 
-用 `disk.temporaryUrl(path, expiration).await?` 生成下载链接，或用 `disk.temporaryUploadUrl(path, expiration).await?` 生成上传链接。上传时向返回的 `url` 发送请求，并携带返回的 `headers`。本地磁盘须在磁盘配置中开启 `serve`，路由使用该磁盘 `url` 的路径，省略时使用 `/storage`。本地上传链接接收 PUT。S3 适配器按配置的桶端点签名，客户端需要能够访问该端点。
+用 `disk.temporary_url(path, expiration).await?` 生成下载链接，或用 `disk.temporary_upload_url(path, expiration).await?` 生成上传链接。上传时向返回的 `url` 发送请求，并携带返回的 `headers`。本地磁盘须在磁盘配置中开启 `serve`，路由使用该磁盘 `url` 的路径，省略时使用 `/storage`。本地上传链接接收 PUT。S3 适配器按配置的桶端点签名，客户端需要能够访问该端点。
 
 ### S3 临时 URL 基地址 {#s3-temporary-url-origin}
 
@@ -169,7 +169,7 @@ fn permissions() -> FilesystemResult<LocalPermissions> {
 
 ### S3 请求选项 {#s3-request-parameters}
 
-用 `temporaryUrlWith` 签入下载响应头或版本 ID。用 `temporaryUploadUrlWith` 签入上传内容头和对象元数据，并在 PUT 请求中携带返回的请求头。存储桶和对象路径由磁盘提供。
+用 `temporary_url_with` 签入下载响应头或版本 ID。用 `temporary_upload_url_with` 签入上传内容头和对象元数据，并在 PUT 请求中携带返回的请求头。存储桶和对象路径由磁盘提供。
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -181,7 +181,7 @@ use openrust::{
 
 async fn report_url() -> FilesystemResult<String> {
     Storage::disk(Some("s3"))?
-        .temporaryUrlWith(
+        .temporary_url_with(
             "reports/current.csv",
             SystemTime::now() + Duration::from_secs(300),
             TemporaryUrlOptions {
@@ -194,7 +194,7 @@ async fn report_url() -> FilesystemResult<String> {
 }
 ```
 
-如需更多 S3 选项，在指定磁盘上调用 `temporaryDownloadRequest` 或 `temporaryUploadRequest`，通过闭包配置 AWS SDK 请求构造器。两种方法都返回 URL 和签名请求头，客户端发送请求时需携带这些头。磁盘在应用选项后设置存储桶和带前缀的对象键。
+如需更多 S3 选项，在指定磁盘上调用 `temporary_download_request` 或 `temporary_upload_request`，通过闭包配置 AWS SDK 请求构造器。两种方法都返回 URL 和签名请求头，客户端发送请求时需携带这些头。磁盘在应用选项后设置存储桶和带前缀的对象键。
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -206,7 +206,7 @@ use openrust::{
 
 async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
     Storage::disk(Some("s3"))?
-        .temporaryDownloadRequest(
+        .temporary_download_request(
             "reports/current.csv",
             SystemTime::now() + Duration::from_secs(300),
             |request| request.range("bytes=0-1023"),
@@ -217,25 +217,25 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 
 ### 自定义本地磁盘签名回调 {#customizing-temporary-urls}
 
-在服务提供者启动时，对本地磁盘注册 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回调接收已校验的路径、过期时间和类型化选项。上传回调返回包含 URL 和所需请求头的 `TemporaryUploadUrl`。
+在服务提供者启动时，对本地磁盘注册 `build_temporary_urls_using` 或 `build_temporary_upload_urls_using`。回调接收已校验的路径、过期时间和类型化选项。上传回调返回包含 URL 和所需请求头的 `TemporaryUploadUrl`。
 
 ## 目录 {#directories}
 
-对本地磁盘使用 `files` 和 `directories` 列出直接子项，使用 `all_files` 和 `allDirectories` 包含后代。传入 `None` 表示磁盘根目录。结果为以 `/` 分隔的磁盘相对路径。文件列表按路径排序，目录缺失时返回空列表。
+对本地磁盘使用 `files` 和 `directories` 列出直接子项，使用 `all_files` 和 `all_directories` 包含后代。传入 `None` 表示磁盘根目录。结果为以 `/` 分隔的磁盘相对路径。文件列表按路径排序，目录缺失时返回空列表。
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
-    disk.makeDirectory("reports/daily").await?;
+    disk.make_directory("reports/daily").await?;
     disk.all_files(Some("reports")).await
 }
 ```
 
-用 `makeDirectory` 按磁盘配置的目录可见性创建缺失的父目录，用 `deleteDirectory` 删除目录及其内容。列表跳过符号链接和临时写入项。创建和删除时须传入具名相对路径。也可通过 `Storage` 在默认磁盘调用这些方法。
+用 `make_directory` 按磁盘配置的目录可见性创建缺失的父目录，用 `delete_directory` 删除目录及其内容。列表跳过符号链接和临时写入项。创建和删除时须传入具名相对路径。也可通过 `Storage` 在默认磁盘调用这些方法。
 
 ## 契约与常用操作
 
-容器可解析 `dyn contracts::filesystem::Factory`、默认 `Filesystem` 及配置的 `Cloud`，复用现有 Manager 和 Adapter。契约中的流接口为 `read_stream` / `write_stream`；Adapter 和 Storage Facade 使用 `readStream` / `writeStream`。`copy`、`move`（Rust 为 `r#move`）、`append`、`prepend`、`json` 复用当前磁盘；缺失文件和非法 JSON 返回空结果，路径越界仍拒绝。`Cloud` 解析依赖 `filesystems.cloud`，不表示本地磁盘拥有 S3 的签名上传能力。
+容器可解析 `dyn contracts::filesystem::Factory`、默认 `Filesystem` 及配置的 `Cloud`，复用现有 Manager 和 Adapter。契约中的流接口为 `read_stream` / `write_stream`；Adapter 和 Storage Facade 使用 `read_stream` / `write_stream`。`copy`、`move`（Rust 为 `r#move`）、`append`、`prepend`、`json` 复用当前磁盘；缺失文件和非法 JSON 返回空结果，路径越界仍拒绝。`Cloud` 解析依赖 `filesystems.cloud`，不表示本地磁盘拥有 S3 的签名上传能力。
 
 Rust 中 `append(path, text, separator)` 和 `prepend(path, text, separator)` 需要显式传入分隔符。换行可传 `"\n"`，需要 Windows 行尾时传 `"\r\n"`。`move` 是 Rust 关键字，因此使用原始标识符 `r#move`。

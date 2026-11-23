@@ -12,7 +12,7 @@ use openrust::{
 };
 use openrust_socialite::{
     Error, SocialiteManager, SocialiteServiceProvider,
-    one::{TwitterProvider, mapUser, signature::sign},
+    one::{TwitterProvider, map_user, signature::sign},
 };
 use serde_json::{Value, json};
 use std::{
@@ -23,7 +23,7 @@ fn oracle() -> Value {
     serde_json::from_str(include_str!("fixtures/oauth1.json")).unwrap()
 }
 fn snapshot(u: &openrust_socialite::two::User) -> Value {
-    json!({"id":u.get_id(),"nickname":u.getNickname(),"name":u.get_name(),"email":u.getEmail(),"avatar":u.getAvatar(),"raw":u.getRaw(),"attributes":u.attributes})
+    json!({"id":u.get_id(),"nickname":u.get_nickname(),"name":u.get_name(),"email":u.get_email(),"avatar":u.get_avatar(),"raw":u.get_raw(),"attributes":u.attributes})
 }
 #[test]
 fn signatures_and_two_mapping_paths_match_pinned_league_and_socialite() {
@@ -44,7 +44,7 @@ fn signatures_and_two_mapping_paths_match_pinned_league_and_socialite() {
     }
     for (callback, key) in [(true, "callback"), (false, "direct")] {
         assert_eq!(
-            snapshot(&mapUser(oracle()["raw"].clone(), callback).unwrap()),
+            snapshot(&map_user(oracle()["raw"].clone(), callback).unwrap()),
             oracle()[key]
         );
     }
@@ -264,10 +264,10 @@ fn callback(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 let token = user.credentials.as_ref().unwrap();
                 assert_eq!(token.token.as_str(), "access");
                 assert_eq!(
-                    token.tokenSecret.as_ref().unwrap().as_str(),
+                    token.token_secret.as_ref().unwrap().as_str(),
                     "access-secret"
                 );
-                assert!(token.refreshToken.is_none());
+                assert!(token.refresh_token.is_none());
                 use openrust::contracts::session::Session as _;
                 assert!(r.session()?.get("oauth.temp").is_some());
                 Response::json(StatusCode::OK, snapshot(&user))
@@ -282,21 +282,23 @@ fn direct(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .make::<SocialiteManager>()
             .unwrap();
         let mut p = manager.driver("twitter", r).unwrap().oauth1().unwrap();
-        let first = p.userFromTokenAndSecret("access", "access-secret").await;
+        let first = p
+            .user_from_token_and_secret("access", "access-secret")
+            .await;
         match first {
             Ok(user) => {
                 assert_eq!(
                     snapshot(
-                        &p.userFromTokenAndSecret("access", "access-secret")
+                        &p.user_from_token_and_secret("access", "access-secret")
                             .await
                             .unwrap()
                     ),
                     snapshot(&user)
                 );
-                p.userFromTokenAndSecret("access", "rotated-secret")
+                p.user_from_token_and_secret("access", "rotated-secret")
                     .await
                     .unwrap();
-                p.userFromTokenAndSecret("other", "other-secret")
+                p.user_from_token_and_secret("other", "other-secret")
                     .await
                     .unwrap();
                 Response::json(StatusCode::OK, snapshot(&user))
@@ -313,9 +315,9 @@ async fn rp(remote: &str) -> (String, Arc<Factory>, tokio::task::JoinHandle<()>)
     app.boot().await.unwrap();
     let http = app.make::<Factory>().await.unwrap();
     http.fake(|_| None);
-    app.make::<SocialiteManager>().await.unwrap().extendOAuth1(
+    app.make::<SocialiteManager>().await.unwrap().extend_oauth1(
         "twitter",
-        TwitterProvider::withEndpoints(
+        TwitterProvider::with_endpoints(
             format!("{remote}/temporary"),
             format!("{remote}/authorize"),
             format!("{remote}/token"),
@@ -490,7 +492,7 @@ async fn factory_facade_protocol_selection_is_explicit_and_application_local() {
         );
     }
     config.set("services.custom", value.clone()).unwrap();
-    manager.extendOAuth1("custom", TwitterProvider::default());
+    manager.extend_oauth1("custom", TwitterProvider::default());
     assert!(manager.driver("custom", &mut r).unwrap().oauth1().is_ok());
     let other = SocialiteManager::new(config.clone(), Arc::new(Factory::new().unwrap()));
     assert!(matches!(

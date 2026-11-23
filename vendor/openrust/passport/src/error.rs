@@ -33,7 +33,7 @@ use axum::{
 ///
 /// scope 提示只在协议响应中包含转义后的 scope 标识符，调试输出省略提示。
 #[derive(Clone, serde::Serialize)]
-pub struct OAuthError {
+pub struct OauthError {
     #[serde(skip)]
     status: StatusCode,
     error: &'static str,
@@ -44,9 +44,8 @@ pub struct OAuthError {
     authenticate: Option<&'static str>,
 }
 
-impl OAuthError {
-    #[allow(non_snake_case, reason = "Matches the fixed League exception API")]
-    pub fn invalidCredentials() -> Self {
+impl OauthError {
+    pub fn invalid_credentials() -> Self {
         Self::new(
             StatusCode::BAD_REQUEST,
             "invalid_grant",
@@ -250,25 +249,25 @@ impl OAuthError {
     }
 }
 
-impl std::fmt::Display for OAuthError {
+impl std::fmt::Display for OauthError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&self.error_description)
     }
 }
 
-impl std::fmt::Debug for OAuthError {
+impl std::fmt::Debug for OauthError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("OAuthError")
+            .debug_struct("OauthError")
             .field("status", &self.status)
             .field("error", &self.error)
             .field("error_description", &self.error_description)
             .finish_non_exhaustive()
     }
 }
-impl std::error::Error for OAuthError {}
+impl std::error::Error for OauthError {}
 
-impl IntoResponse for OAuthError {
+impl IntoResponse for OauthError {
     fn into_response(self) -> Response {
         let authenticate = self.authenticate;
         let mut response = (self.status, Json(self)).into_response();
@@ -282,7 +281,7 @@ impl IntoResponse for OAuthError {
     }
 }
 
-impl From<PkceError> for OAuthError {
+impl From<PkceError> for OauthError {
     fn from(error: PkceError) -> Self {
         match error {
             PkceError::MissingChallenge => Self::invalid_request(

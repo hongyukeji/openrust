@@ -114,7 +114,7 @@ Set `APP_DISABLED_RUNNERS=queue,schedule` to skip the queue and scheduler. The c
 
 A Provider supplies runners through `ServiceProvider::runners`. The application can add custom runners with `with_runners(|| vec![...])`. If called more than once, the last callback supplies the custom list. The first registration for each signature wins, with Provider contributions before the custom list. The application applies the disabled list before evaluating `should_run`. Eligible runners run concurrently in the application process.
 
-On Ctrl+C, Unix SIGTERM, or a Runner failure, the application shuts down runners in ascending `shutdownPriority` order, concurrently within each group. The default priority is zero. `run` receives a `RunnerContext` cancellation token so it can finish its work. A custom `shutdown` hook can release other resources. A successful return from `run` can mean that a Runner started its own background work and stays eligible for shutdown.
+On Ctrl+C, Unix SIGTERM, or a Runner failure, the application shuts down runners in ascending `shutdown_priority` order, concurrently within each group. The default priority is zero. `run` receives a `RunnerContext` cancellation token so it can finish its work. A custom `shutdown` hook can release other resources. A successful return from `run` can mean that a Runner started its own background work and stays eligible for shutdown.
 
 New long-running services join application startup by default once they are registered, configured, and ready to start. They can still be disabled or run independently. One-off Artisan commands run only when explicitly invoked.
 

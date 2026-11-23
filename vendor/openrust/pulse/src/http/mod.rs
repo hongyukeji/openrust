@@ -8,7 +8,7 @@ use std::sync::Arc;
 pub(crate) fn routes() -> Result<(), RoutingError> {
     if !crate::facades::Options::get_facade_root()
         .map_err(|_| RoutingError::NoRegistrationScope)?
-        .registersRoutes
+        .registers_routes
         .load(std::sync::atomic::Ordering::Relaxed)
     {
         return Ok(());
@@ -110,7 +110,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                     .await?
             } else {
                 pulse
-                    .aggregateTypes(&types, "count", interval, None, "desc", 101)
+                    .aggregate_types(&types, "count", interval, None, "desc", 101)
                     .await?
             };
             let mut rows: Vec<_> = rows.into_iter().map(row).collect();
@@ -119,7 +119,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                     .iter()
                     .filter_map(|row| row.get("key").and_then(|v| v.as_str()).map(str::to_owned))
                     .collect();
-                let users = pulse.resolveUsers(&keys).await?;
+                let users = pulse.resolve_users(&keys).await?;
                 for row in &mut rows {
                     if let Some(key) = row.get("key").and_then(|v| v.as_str()) {
                         let user = serde_json::to_value(users.find(key))?;

@@ -45,7 +45,7 @@ async fn named_and_on_demand_disks_isolate_files_and_honor_error_policy() {
     let root = Sandbox::new();
     let other = Sandbox::new();
     let manager = root.manager(false);
-    assert_eq!(manager.getDefaultCloudDriver().unwrap(), "s3");
+    assert_eq!(manager.get_default_cloud_driver().unwrap(), "s3");
     let private = manager.disk(None).unwrap();
     let public = manager.disk(Some("public")).unwrap();
     assert!(Arc::ptr_eq(&private, &manager.disk(Some("local")).unwrap()));
@@ -70,8 +70,8 @@ async fn named_and_on_demand_disks_isolate_files_and_honor_error_policy() {
             .await
             .unwrap()
     );
-    assert!(private.directoryExists("logs").await.unwrap());
-    assert!(!private.fileExists("logs").await.unwrap());
+    assert!(private.directory_exists("logs").await.unwrap());
+    assert!(!private.file_exists("logs").await.unwrap());
     assert!(private.delete("logs/data").await.unwrap());
     assert!(private.delete("logs/data").await.unwrap());
     assert!(private.get("logs/data").await.unwrap().is_none());
@@ -95,7 +95,7 @@ async fn named_and_on_demand_disks_isolate_files_and_honor_error_policy() {
         );
     }
 
-    manager.forgetDisk("local");
+    manager.forget_disk("local");
     assert!(!Arc::ptr_eq(&private, &manager.disk(None).unwrap()));
     let on_demand = manager
         .build(LocalDiskConfig {
@@ -136,7 +136,7 @@ async fn stream_failures_and_cancellation_leave_existing_file_intact() {
     let disk = root.manager(true).disk(None).unwrap();
     disk.put("file", b"before").await.unwrap();
     assert!(matches!(
-        disk.writeStream("file", &mut Interrupted(false)).await,
+        disk.write_stream("file", &mut Interrupted(false)).await,
         Err(FilesystemError::Backend { .. })
     ));
     assert_eq!(disk.get("file").await.unwrap().unwrap(), b"before");
@@ -144,7 +144,7 @@ async fn stream_failures_and_cancellation_leave_existing_file_intact() {
     let (mut writer, mut reader) = tokio::io::duplex(16);
     let worker = {
         let disk = Arc::clone(&disk);
-        tokio::spawn(async move { disk.writeStream("file", &mut reader).await })
+        tokio::spawn(async move { disk.write_stream("file", &mut reader).await })
     };
     writer.write_all(b"uncommitted").await.unwrap();
     let start = std::time::Instant::now();
@@ -161,8 +161,8 @@ async fn stream_failures_and_cancellation_leave_existing_file_intact() {
     );
 
     let mut data = &vec![b'x'; 512 * 1024][..];
-    assert!(disk.writeStream("file", &mut data).await.unwrap());
-    let mut stream = disk.readStream("file").await.unwrap().unwrap();
+    assert!(disk.write_stream("file", &mut data).await.unwrap());
+    let mut stream = disk.read_stream("file").await.unwrap().unwrap();
     let mut first = [0; 17];
     stream.read_exact(&mut first).await.unwrap();
     assert_eq!(first, [b'x'; 17]);
@@ -182,15 +182,15 @@ async fn visibility_and_links_are_confined_to_the_disk() {
     let private = WriteOptions {
         visibility: Some(Visibility::Private),
     };
-    disk.putWithOptions("folder/hidden", b"private", private)
+    disk.put_with_options("folder/hidden", b"private", private)
         .await
         .unwrap();
     assert_eq!(
-        disk.getVisibility("folder/plain").await.unwrap(),
+        disk.get_visibility("folder/plain").await.unwrap(),
         Visibility::Public
     );
     assert_eq!(
-        disk.getVisibility("folder/hidden").await.unwrap(),
+        disk.get_visibility("folder/hidden").await.unwrap(),
         Visibility::Private
     );
     assert_eq!(
@@ -201,7 +201,7 @@ async fn visibility_and_links_are_confined_to_the_disk() {
             & 0o777,
         0o755
     );
-    disk.setVisibility("folder/hidden", Visibility::Public)
+    disk.set_visibility("folder/hidden", Visibility::Public)
         .await
         .unwrap();
     assert_eq!(
@@ -220,7 +220,9 @@ async fn visibility_and_links_are_confined_to_the_disk() {
     for path in ["escape/outside", "soft", "hard"] {
         assert!(disk.get(path).await.is_err(), "{path}");
         assert!(
-            disk.setVisibility(path, Visibility::Private).await.is_err(),
+            disk.set_visibility(path, Visibility::Private)
+                .await
+                .is_err(),
             "{path}"
         );
     }
@@ -289,7 +291,7 @@ async fn application_scope_and_public_mount_work_over_http() {
 
     fn write(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            assert!(Storage::makeDirectory("notes/empty").await.unwrap());
+            assert!(Storage::make_directory("notes/empty").await.unwrap());
             assert!(Storage::put("notes/example.txt", b"Hello").await.unwrap());
             assert_eq!(Storage::size("notes/example.txt").await.unwrap(), 5);
             assert_eq!(
@@ -299,7 +301,7 @@ async fn application_scope_and_public_mount_work_over_http() {
                     .as_deref(),
                 Some("text/plain")
             );
-            assert!(Storage::lastModified("notes/example.txt").await.is_ok());
+            assert!(Storage::last_modified("notes/example.txt").await.is_ok());
             assert_eq!(
                 Storage::checksum("notes/example.txt")
                     .await
@@ -321,12 +323,12 @@ async fn application_scope_and_public_mount_work_over_http() {
                 ["notes/empty"]
             );
             assert!(
-                Storage::allDirectories(None)
+                Storage::all_directories(None)
                     .await
                     .unwrap()
                     .contains(&"notes/empty".to_owned())
             );
-            assert!(Storage::deleteDirectory("notes/empty").await.unwrap());
+            assert!(Storage::delete_directory("notes/empty").await.unwrap());
 
             assert_eq!(
                 Storage::get("notes/example.txt").await.unwrap().as_deref(),
@@ -339,7 +341,7 @@ async fn application_scope_and_public_mount_work_over_http() {
                     .unwrap()
             );
             assert!(
-                disk.putWithOptions(
+                disk.put_with_options(
                     "nested/private.txt",
                     b"restricted content",
                     WriteOptions {
@@ -350,7 +352,7 @@ async fn application_scope_and_public_mount_work_over_http() {
                 .unwrap()
             );
             assert_eq!(
-                disk.getVisibility("nested/private.txt").await?,
+                disk.get_visibility("nested/private.txt").await?,
                 Visibility::Private
             );
             disk.put("private-folder/readable.txt", b"private directory")
@@ -379,7 +381,7 @@ async fn application_scope_and_public_mount_work_over_http() {
                 .unwrap();
             let disk = Storage::disk(Some("public"))?;
             assert!(matches!(
-                disk.putFileAs("incoming", &file, "../escape.png", WriteOptions::default())
+                disk.put_file_as("incoming", &file, "../escape.png", WriteOptions::default())
                     .await,
                 Err(FilesystemError::InvalidPath)
             ));
@@ -554,13 +556,13 @@ async fn local_directories_list_paths_create_parents_and_delete_recursively() {
     let disk = root.manager(true).disk(None).unwrap();
     assert!(disk.files(None).await.unwrap().is_empty());
     assert!(
-        disk.allDirectories(Some("absent"))
+        disk.all_directories(Some("absent"))
             .await
             .unwrap()
             .is_empty()
     );
-    assert!(disk.makeDirectory("records/january/empty").await.unwrap());
-    assert!(disk.makeDirectory("records/january/empty").await.unwrap());
+    assert!(disk.make_directory("records/january/empty").await.unwrap());
+    assert!(disk.make_directory("records/january/empty").await.unwrap());
     assert!(disk.put("records/z.txt", b"last").await.unwrap());
     assert!(disk.put("records/january/a.txt", b"first").await.unwrap());
     assert!(disk.put("outside.txt", b"other").await.unwrap());
@@ -578,25 +580,25 @@ async fn local_directories_list_paths_create_parents_and_delete_recursively() {
         ["records/january"]
     );
     assert_eq!(
-        disk.allDirectories(Some("records")).await.unwrap(),
+        disk.all_directories(Some("records")).await.unwrap(),
         ["records/january", "records/january/empty"]
     );
 
-    assert!(disk.makeDirectory("records/z.txt/child").await.is_err());
+    assert!(disk.make_directory("records/z.txt/child").await.is_err());
     let quiet = root.manager(false).disk(None).unwrap();
-    assert!(!quiet.makeDirectory("records/z.txt/child").await.unwrap());
-    assert!(!quiet.deleteDirectory("records/z.txt").await.unwrap());
+    assert!(!quiet.make_directory("records/z.txt/child").await.unwrap());
+    assert!(!quiet.delete_directory("records/z.txt").await.unwrap());
     assert!(matches!(
-        quiet.deleteDirectory("").await,
+        quiet.delete_directory("").await,
         Err(FilesystemError::InvalidPath)
     ));
     assert!(matches!(
         quiet.all_files(Some("../")).await,
         Err(FilesystemError::InvalidPath)
     ));
-    assert!(disk.deleteDirectory("records").await.unwrap());
-    assert!(disk.deleteDirectory("records").await.unwrap());
-    assert!(!disk.directoryExists("records").await.unwrap());
+    assert!(disk.delete_directory("records").await.unwrap());
+    assert!(disk.delete_directory("records").await.unwrap());
+    assert!(!disk.directory_exists("records").await.unwrap());
     assert_eq!(disk.get("outside.txt").await.unwrap().unwrap(), b"other");
 }
 
@@ -609,8 +611,8 @@ async fn local_directory_operations_preserve_visibility_and_link_boundaries() {
     let manager = root.manager(true);
     let private = manager.disk(None).unwrap();
     let public = manager.disk(Some("public")).unwrap();
-    assert!(private.makeDirectory("folder/nested").await.unwrap());
-    assert!(public.makeDirectory("folder/nested").await.unwrap());
+    assert!(private.make_directory("folder/nested").await.unwrap());
+    assert!(public.make_directory("folder/nested").await.unwrap());
     for (path, mode) in [
         ("private/folder", 0o700),
         ("private/folder/nested", 0o700),
@@ -642,13 +644,13 @@ async fn local_directory_operations_preserve_visibility_and_link_boundaries() {
     .unwrap();
     assert!(public.all_files(Some("folder")).await.unwrap().is_empty());
     assert_eq!(
-        public.allDirectories(Some("folder")).await.unwrap(),
+        public.all_directories(Some("folder")).await.unwrap(),
         ["folder/nested"]
     );
     assert!(public.files(Some("folder/link")).await.is_err());
-    assert!(public.makeDirectory("folder/link/other").await.is_err());
-    assert!(public.deleteDirectory("folder/link").await.is_err());
-    assert!(public.deleteDirectory("folder").await.unwrap());
+    assert!(public.make_directory("folder/link/other").await.is_err());
+    assert!(public.delete_directory("folder/link").await.is_err());
+    assert!(public.delete_directory("folder").await.unwrap());
     assert_eq!(
         std::fs::read(outside.join("retained.txt")).unwrap(),
         b"retain"
@@ -663,14 +665,14 @@ async fn local_metadata_uses_the_open_file_and_preserves_error_policy() {
     assert!(disk.put("reports/large.bin", &content).await.unwrap());
     assert_eq!(disk.size("reports/large.bin").await.unwrap(), 600_000);
     assert_eq!(
-        disk.lastModified("reports/large.bin").await.unwrap(),
+        disk.last_modified("reports/large.bin").await.unwrap(),
         std::fs::metadata(root.0.join("private/reports/large.bin"))
             .unwrap()
             .modified()
             .unwrap()
     );
     assert_eq!(
-        disk.checksumWith::<md5::Md5>("reports/large.bin")
+        disk.checksum_with::<md5::Md5>("reports/large.bin")
             .await
             .unwrap()
             .as_deref(),
@@ -702,7 +704,7 @@ async fn local_metadata_uses_the_open_file_and_preserves_error_policy() {
         Err(FilesystemError::NotFound)
     ));
     assert!(matches!(
-        quiet.lastModified("missing.txt").await,
+        quiet.last_modified("missing.txt").await,
         Err(FilesystemError::NotFound)
     ));
     assert!(matches!(
@@ -734,7 +736,7 @@ async fn local_metadata_rejects_symbolic_and_hard_links() {
     std::fs::hard_link(&outside, root.0.join("private/hard.txt")).unwrap();
     for name in ["soft.txt", "hard.txt"] {
         assert!(disk.size(name).await.is_err());
-        assert!(disk.lastModified(name).await.is_err());
+        assert!(disk.last_modified(name).await.is_err());
         assert!(disk.mime_type(name).await.is_err());
         assert!(disk.checksum(name).await.is_err());
     }
@@ -758,7 +760,7 @@ async fn local_permission_maps_apply_to_writes_directories_and_visibility_reads(
     let permissions = LocalPermissions::new(0o640, 0o620, 0o775, 0o750).unwrap();
     let disk = root
         .manager(true)
-        .buildWithPermissions(config, permissions)
+        .build_with_permissions(config, permissions)
         .unwrap();
     assert!(disk.put("reports/example.txt", b"report").await.unwrap());
     let mode = |path: &str| {
@@ -772,17 +774,17 @@ async fn local_permission_maps_apply_to_writes_directories_and_visibility_reads(
     assert_eq!(mode("on-demand/reports"), 0o775);
     assert_eq!(mode("on-demand/reports/example.txt"), 0o620);
     assert_eq!(
-        disk.getVisibility("reports/example.txt").await.unwrap(),
+        disk.get_visibility("reports/example.txt").await.unwrap(),
         Visibility::Private
     );
     assert!(
-        disk.setVisibility("reports/example.txt", Visibility::Public)
+        disk.set_visibility("reports/example.txt", Visibility::Public)
             .await
             .unwrap()
     );
     assert_eq!(mode("on-demand/reports/example.txt"), 0o640);
     assert_eq!(
-        disk.getVisibility("reports/example.txt").await.unwrap(),
+        disk.get_visibility("reports/example.txt").await.unwrap(),
         Visibility::Public
     );
     assert!(matches!(
@@ -839,8 +841,8 @@ async fn repeated_separators_share_local_files_and_preserve_s3_path_prefix_text(
             "{path}"
         );
     }
-    disk.buildTemporaryUrlsUsing(|path, _, _| Box::pin(async move { Ok(path.to_owned()) }));
-    disk.buildTemporaryUploadUrlsUsing(|path, _, _| {
+    disk.build_temporary_urls_using(|path, _, _| Box::pin(async move { Ok(path.to_owned()) }));
+    disk.build_temporary_upload_urls_using(|path, _, _| {
         Box::pin(async move {
             Ok(openrust::filesystem::TemporaryUploadUrl {
                 url: path.to_owned(),
@@ -850,13 +852,13 @@ async fn repeated_separators_share_local_files_and_preserve_s3_path_prefix_text(
     });
     let expires = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
     assert_eq!(
-        disk.temporaryUrl("avatars///image.png", expires)
+        disk.temporary_url("avatars///image.png", expires)
             .await
             .unwrap(),
         "avatars///image.png"
     );
     assert_eq!(
-        disk.temporaryUploadUrl("avatars///image.png", expires)
+        disk.temporary_upload_url("avatars///image.png", expires)
             .await
             .unwrap()
             .url,

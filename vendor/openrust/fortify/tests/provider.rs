@@ -10,7 +10,7 @@ struct Ignore;
 impl ServiceProvider for Ignore {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.make::<Fortify>().await?.ignoreRoutes();
+            app.make::<Fortify>().await?.ignore_routes();
             Ok(())
         })
     }
@@ -23,7 +23,7 @@ async fn ignored_routes_preserve_default_features_and_engine_binding() {
         .unwrap();
     app.boot().await.unwrap();
     let fortify = app.make::<Fortify>().await.unwrap();
-    assert!(!fortify.registersRoutes());
+    assert!(!fortify.registers_routes());
     assert_eq!(fortify.username(), "email");
     let config = app
         .container()
@@ -43,7 +43,7 @@ async fn ignored_routes_preserve_default_features_and_engine_binding() {
         .make::<dyn openrust_fortify::contracts::TwoFactorAuthenticationProvider>()
         .await
         .unwrap();
-    assert_eq!(engine.generateSecretKey(16).unwrap().len(), 16);
+    assert_eq!(engine.generate_secret_key(16).unwrap().len(), 16);
     assert!(Arc::ptr_eq(&fortify, &app.make::<Fortify>().await.unwrap()));
 }
 #[tokio::test]
@@ -94,10 +94,10 @@ async fn passkey_routes_use_fortify_prefix_guard_domain_and_confirmation_policy(
             .unwrap();
         assert_eq!(service.timeout().unwrap(), 1234);
         assert_eq!(
-            service.allowedOrigins().unwrap(),
+            service.allowed_origins().unwrap(),
             ["https://login.example.test:8443"]
         );
-        assert!(!service.shouldRegisterRoutes());
+        assert!(!service.should_register_routes());
         let config = app
             .app()
             .container()

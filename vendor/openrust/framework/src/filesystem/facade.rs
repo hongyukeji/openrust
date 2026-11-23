@@ -23,21 +23,18 @@ impl Facade for Storage {
 }
 
 impl Storage {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn readStream(path: &str) -> FilesystemResult<Option<super::FilesystemReader>> {
-        Self::disk(None)?.readStream(path).await
+    pub async fn read_stream(path: &str) -> FilesystemResult<Option<super::FilesystemReader>> {
+        Self::disk(None)?.read_stream(path).await
     }
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn writeStream(
+    pub async fn write_stream(
         path: &str,
         reader: &mut (impl tokio::io::AsyncRead + Unpin),
     ) -> FilesystemResult<bool> {
-        Self::disk(None)?.writeStream(path, reader).await
+        Self::disk(None)?.write_stream(path, reader).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn getDefaultCloudDriver() -> FilesystemResult<String> {
-        Self::get_facade_root()?.getDefaultCloudDriver()
+    pub fn get_default_cloud_driver() -> FilesystemResult<String> {
+        Self::get_facade_root()?.get_default_cloud_driver()
     }
 
     pub async fn copy(from: &str, to: &str) -> FilesystemResult<bool> {
@@ -64,41 +61,37 @@ impl Storage {
         Self::get_facade_root()?.build(config)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn buildWithPermissions(
+    pub fn build_with_permissions(
         config: LocalDiskConfig,
         permissions: LocalPermissions,
     ) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::get_facade_root()?.buildWithPermissions(config, permissions)
+        Self::get_facade_root()?.build_with_permissions(config, permissions)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn buildS3(config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        Self::get_facade_root()?.buildS3(config)
+    pub fn build_s3(config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        Self::get_facade_root()?.build_s3(config)
     }
 
     pub async fn put(path: &str, contents: impl AsRef<[u8]>) -> FilesystemResult<bool> {
         Self::disk(None)?.put(path, contents).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn putFile(
+    pub async fn put_file(
         directory: &str,
         file: &UploadedFile,
         options: WriteOptions,
     ) -> FilesystemResult<Option<String>> {
-        Self::disk(None)?.putFile(directory, file, options).await
+        Self::disk(None)?.put_file(directory, file, options).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn putFileAs(
+    pub async fn put_file_as(
         directory: &str,
         file: &UploadedFile,
         name: &str,
         options: WriteOptions,
     ) -> FilesystemResult<Option<String>> {
         Self::disk(None)?
-            .putFileAs(directory, file, name, options)
+            .put_file_as(directory, file, name, options)
             .await
     }
 
@@ -110,12 +103,10 @@ impl Storage {
         Self::disk(None)?.size(path).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn lastModified(path: &str) -> FilesystemResult<SystemTime> {
-        Self::disk(None)?.lastModified(path).await
+    pub async fn last_modified(path: &str) -> FilesystemResult<SystemTime> {
+        Self::disk(None)?.last_modified(path).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn mime_type(path: &str) -> FilesystemResult<Option<String>> {
         Self::disk(None)?.mime_type(path).await
     }
@@ -124,47 +115,44 @@ impl Storage {
         Self::disk(None)?.checksum(path).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn checksumWith<D: md5::Digest>(path: &str) -> FilesystemResult<Option<String>> {
-        Self::disk(None)?.checksumWith::<D>(path).await
+    pub async fn checksum_with<D: md5::Digest>(path: &str) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?.checksum_with::<D>(path).await
     }
 
     pub fn url(path: &str) -> FilesystemResult<String> {
         Self::disk(None)?.url(path)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn temporaryUrl(path: &str, expiration: SystemTime) -> FilesystemResult<String> {
-        Self::disk(None)?.temporaryUrl(path, expiration).await
+    pub async fn temporary_url(path: &str, expiration: SystemTime) -> FilesystemResult<String> {
+        Self::disk(None)?.temporary_url(path, expiration).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn temporaryUploadUrl(
+    pub async fn temporary_upload_url(
         path: &str,
         expiration: SystemTime,
     ) -> FilesystemResult<super::TemporaryUploadUrl> {
-        Self::disk(None)?.temporaryUploadUrl(path, expiration).await
+        Self::disk(None)?
+            .temporary_upload_url(path, expiration)
+            .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn temporaryUrlWith(
+    pub async fn temporary_url_with(
         path: &str,
         expiration: SystemTime,
         options: super::TemporaryUrlOptions,
     ) -> FilesystemResult<String> {
         Self::disk(None)?
-            .temporaryUrlWith(path, expiration, options)
+            .temporary_url_with(path, expiration, options)
             .await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn temporaryUploadUrlWith(
+    pub async fn temporary_upload_url_with(
         path: &str,
         expiration: SystemTime,
         options: super::TemporaryUploadUrlOptions,
     ) -> FilesystemResult<super::TemporaryUploadUrl> {
         Self::disk(None)?
-            .temporaryUploadUrlWith(path, expiration, options)
+            .temporary_upload_url_with(path, expiration, options)
             .await
     }
 
@@ -184,7 +172,6 @@ impl Storage {
         Self::disk(None)?.files(directory).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn all_files(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
         Self::disk(None)?.all_files(directory).await
     }
@@ -193,19 +180,16 @@ impl Storage {
         Self::disk(None)?.directories(directory).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn allDirectories(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
-        Self::disk(None)?.allDirectories(directory).await
+    pub async fn all_directories(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        Self::disk(None)?.all_directories(directory).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn makeDirectory(path: &str) -> FilesystemResult<bool> {
-        Self::disk(None)?.makeDirectory(path).await
+    pub async fn make_directory(path: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.make_directory(path).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn deleteDirectory(path: &str) -> FilesystemResult<bool> {
-        Self::disk(None)?.deleteDirectory(path).await
+    pub async fn delete_directory(path: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.delete_directory(path).await
     }
 
     pub async fn delete(path: &str) -> FilesystemResult<bool> {

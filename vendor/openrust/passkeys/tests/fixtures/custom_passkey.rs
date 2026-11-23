@@ -129,7 +129,7 @@ impl<U: Authenticatable> Listener for ObserveEvents<U> {
                             .model::<CustomPasskey>()
                             .expect("preserved actual model");
                         assert_eq!(actual.lock().await.get_key(), model.get_key());
-                        assert!(event.passkey.sameInstance(&event.passkey.clone()));
+                        assert!(event.passkey.same_instance(&event.passkey.clone()));
                         $counter.fetch_add(1, Ordering::SeqCst);
                     }
                 };

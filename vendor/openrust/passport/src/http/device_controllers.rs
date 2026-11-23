@@ -4,7 +4,7 @@ use super::{
     AuthorizationViewParameters,
     controllers::{internal, nonce, passport, select_guard},
 };
-use crate::{AuthorizationServer, OAuthError, OAuthParameters};
+use crate::{AuthorizationServer, OauthError, OauthParameters};
 use axum::response::IntoResponse as _;
 use openrust::{
     contracts::{routing::UrlGenerator as _, session::Session as _},
@@ -40,8 +40,8 @@ impl DeviceCodeController {
                 .map_err(internal)?;
             let authorization = request.headers().get("authorization").map(|v| v.as_bytes());
             let response = match server
-                .respondToDeviceAuthorizationRequest(
-                    &OAuthParameters::new(values),
+                .respond_to_device_authorization_request(
+                    &OauthParameters::new(values),
                     authorization,
                     uri,
                 )
@@ -73,11 +73,13 @@ impl DeviceUserCodeController {
                     Some(&code),
                 );
             }
-            let view = passport()?.device_user_code_view().ok_or_else(|| {
-                internal(OAuthError::server_error(
-                    "Configure Passport::deviceUserCodeView",
-                ))
-            })?;
+            let view = passport()?
+                .device_user_code_view_response()
+                .ok_or_else(|| {
+                    internal(OauthError::server_error(
+                        "Configure Passport::device_user_code_view",
+                    ))
+                })?;
             view(request).await
         })
     }
@@ -94,7 +96,11 @@ impl DeviceAuthorizationController {
                 return redirect(request, "passport.device", None);
             };
             let server = AuthorizationServer::get_facade_root().map_err(internal)?;
-            let Some(device) = server.deviceCodeByUserCode(&code).await.map_err(internal)? else {
+            let Some(device) = server
+                .device_code_by_user_code(&code)
+                .await
+                .map_err(internal)?
+            else {
                 request
                     .session_mut()?
                     .flash_input(json!({"user_code":code}))?;
@@ -114,7 +120,7 @@ impl DeviceAuthorizationController {
             };
             let passport = passport()?;
             let client = passport
-                .clientRepository()
+                .client_repository()
                 .find(client_id.as_str())
                 .await
                 .map_err(internal)?
@@ -140,11 +146,13 @@ impl DeviceAuthorizationController {
                 })
                 .map_err(internal)?,
             )?;
-            let view = passport.device_authorization_view().ok_or_else(|| {
-                internal(OAuthError::server_error(
-                    "Configure Passport::deviceAuthorizationView",
-                ))
-            })?;
+            let view = passport
+                .device_authorization_view_response()
+                .ok_or_else(|| {
+                    internal(OauthError::server_error(
+                        "Configure Passport::device_authorization_view",
+                    ))
+                })?;
             view(
                 request,
                 AuthorizationViewParameters {
@@ -195,7 +203,7 @@ fn complete(request: &mut Request, approved: bool) -> HttpFuture<'_, Result<Resp
         }
         let server = AuthorizationServer::get_facade_root().map_err(internal)?;
         if let Err(error) = server
-            .completeDeviceAuthorizationRequest(&pending.code, pending.user, approved)
+            .complete_device_authorization_request(&pending.code, pending.user, approved)
             .await
         {
             return Ok(error.into_response().into());

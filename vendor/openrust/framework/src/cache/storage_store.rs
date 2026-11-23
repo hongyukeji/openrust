@@ -19,7 +19,6 @@ pub struct StorageStore {
     prefix: String,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl StorageStore {
     pub fn new(disk: Arc<FilesystemAdapter>, directory: &str, prefix: String) -> CacheResult<Self> {
         let directory = directory.trim_matches('/').to_owned();
@@ -211,8 +210,8 @@ impl Store for StorageStore {
         Box::pin(async move {
             let directory = (!self.directory.is_empty()).then_some(self.directory.as_str());
             if let Some(directory) = directory {
-                match self.disk.deleteDirectory(directory).await {
-                    Ok(true) => return self.disk.makeDirectory(directory).await.map_err(backend),
+                match self.disk.delete_directory(directory).await {
+                    Ok(true) => return self.disk.make_directory(directory).await.map_err(backend),
                     Ok(false) => return Ok(false),
                     Err(FilesystemError::UnsupportedOperation) => {}
                     Err(error) => return Err(backend(error)),

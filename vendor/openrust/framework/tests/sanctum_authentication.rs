@@ -109,7 +109,6 @@ impl<const KEY: u8> Model for CustomToken<KEY> {
         }
     }
 
-    #[allow(non_snake_case, reason = "Implements the Eloquent scope hook")]
     fn global_scopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[("visible", &VisibleToken)]
     }
@@ -125,17 +124,16 @@ impl<const KEY: u8> Model for CustomToken<KEY> {
 }
 
 impl<const KEY: u8> PersonalAccessTokenModel for CustomToken<KEY> {
-    #[allow(non_snake_case, reason = "Implements the Sanctum model lookup hook")]
-    fn findToken<'a>(
+    fn find_token<'a>(
         mut query: Builder<'static, Self>,
         connection: &'a Connection,
         credential: &'a str,
     ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
         if let Some(credential) = credential.strip_prefix("lookup:") {
             query.r#where("name", "=", "stored:read");
-            Self::findTokenByDigest(query, connection, credential)
+            Self::find_token_by_digest(query, connection, credential)
         } else {
-            Self::findTokenByDigest(query, connection, credential)
+            Self::find_token_by_digest(query, connection, credential)
         }
     }
 }
@@ -318,7 +316,7 @@ fn whoami(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let user = Auth::user(request)
             .await?
             .ok_or(HttpError::Unauthenticated)?;
-        let token = match AccessToken::currentAccessToken(request) {
+        let token = match AccessToken::current_access_token(request) {
             Some(AccessToken::Personal(token)) => json!(token.id),
             Some(AccessToken::Transient) => json!("session"),
             Some(AccessToken::Test(_)) => json!("test"),
@@ -385,7 +383,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .with_config(|root, _| Ok([
             ("app".into(), json!({"key":"a".repeat(32)})),
             ("session".into(), json!({"driver":"array","cookie":"sanctum_test","lottery":[0,100],"same_site":"strict","http_only":false})),
-            ("sanctum".into(), json!({"stateful":format!("spa.example:8443{}", Sanctum::currentRequestHost()),"expiration":5,"token_prefix":"fixture_",
+            ("sanctum".into(), json!({"stateful":format!("spa.example:8443{}", Sanctum::current_request_host()),"expiration":5,"token_prefix":"fixture_",
                 "middleware": if root.join("custom-csrf").is_file() {
                     json!({"validate_csrf_token":"custom-csrf"})
                 } else { json!({}) }})),
@@ -433,17 +431,17 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     let sanctum = app.container().make::<Sanctum>().unwrap();
     let model_events = TokenEvents::default();
     assert_eq!(
-        sanctum.personalAccessTokenModel(),
+        sanctum.personal_access_token_model(),
         std::any::type_name::<DefaultPersonalAccessToken>()
     );
-    assert_eq!(sanctum.currentApplicationUrlWithPort(), "");
+    assert_eq!(sanctum.current_application_url_with_port(), "");
     for (url, suffix) in [
         ("https://Example.test:443/api?x=1", ",Example.test:443"),
         ("http://[::1]:8123/app", ",[::1]:8123"),
         ("https://example.test/path", ",example.test"),
     ] {
         config.set("app.url", json!(url)).unwrap();
-        assert_eq!(sanctum.currentApplicationUrlWithPort(), suffix);
+        assert_eq!(sanctum.current_application_url_with_port(), suffix);
     }
     if KEY == 2 {
         config
@@ -455,9 +453,9 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     }
     let token_table = if custom_csrf {
         model_events.register::<KEY>(&app);
-        sanctum.usePersonalAccessTokenModel::<CustomToken<KEY>>();
+        sanctum.use_personal_access_token_model::<CustomToken<KEY>>();
         assert_eq!(
-            sanctum.personalAccessTokenModel(),
+            sanctum.personal_access_token_model(),
             std::any::type_name::<CustomToken<KEY>>()
         );
         "custom_sanctum_tokens"
@@ -543,7 +541,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             AuthIdentifier::from(id)
         }
     };
-    let tokens = sanctum.personalAccessTokens(&database, "").unwrap();
+    let tokens = sanctum.personal_access_tokens(&database, "").unwrap();
     let read = tokens
         .create_token("users_alias", owner(1), "read", &["read"], None)
         .await
@@ -596,13 +594,13 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         }
         assert_eq!(read.access_token.id, AuthIdentifier::String(key.into()));
         assert_eq!(
-            tokens.findToken(secret).await.unwrap().unwrap().id,
+            tokens.find_token(secret).await.unwrap().unwrap().id,
             read.access_token.id
         );
         for invalid in ["not-a-uuid", "1"] {
             assert!(
                 tokens
-                    .findToken(&format!("{invalid}|{secret}"))
+                    .find_token(&format!("{invalid}|{secret}"))
                     .await
                     .unwrap()
                     .is_none()
@@ -662,7 +660,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     assert!(fresh_user.save().await.unwrap());
     assert!(fresh_user.state().was_recently_created());
     let mut test_app = TestApp::create(|builder| builder).unwrap();
-    let fresh_user = Sanctum::actingAs(&mut test_app, fresh_user, &[], None);
+    let fresh_user = Sanctum::acting_as(&mut test_app, fresh_user, &[], None);
     assert!(!fresh_user.state().was_recently_created());
     assert!(fresh_user.state().exists());
 
@@ -709,17 +707,17 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         database: &DatabaseManager,
         sanctum: &Sanctum,
     ) {
-        let mut chain = user.tokensQuery::<T>(sanctum, database).unwrap();
+        let mut chain = user.tokens_query::<T>(sanctum, database).unwrap();
         chain.r#where("name", "=", "nonexistent").or_where(
             "tokenable_id",
             "=",
             SqlValue::Unsigned(1),
         );
         assert!(chain.get().await.unwrap().is_empty());
-        let mut chain = user.tokensQuery::<T>(sanctum, database).unwrap();
+        let mut chain = user.tokens_query::<T>(sanctum, database).unwrap();
         chain.r#where("name", "like", "%related");
         assert_eq!(chain.get().await.unwrap().len(), 1);
-        let relation = user.tokensRelation::<T>(sanctum).unwrap();
+        let relation = user.tokens_relation::<T>(sanctum).unwrap();
         let mut owners = User::<false, KEY>::query_on(db).with("tokens", relation);
         owners.where_key(SqlValue::from(user.get_auth_identifier()));
         let owner = owners.first().await.unwrap().unwrap();
@@ -750,7 +748,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
 
     assert!(
         tokens
-            .revokeToken("USERS_ALIAS", owner(4), case_variant.access_token.id)
+            .revoke_token("USERS_ALIAS", owner(4), case_variant.access_token.id)
             .await
             .unwrap()
     );
@@ -776,7 +774,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     assert!(relation.get().await.unwrap().is_empty());
     assert!(
         tokens
-            .findToken(read.plain_text_token.as_str())
+            .find_token(read.plain_text_token.as_str())
             .await
             .unwrap()
             .is_some()
@@ -828,7 +826,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         );
         assert!(
             tokens
-                .findToken(read.plain_text_token.as_str())
+                .find_token(read.plain_text_token.as_str())
                 .await
                 .unwrap()
                 .unwrap()
@@ -864,7 +862,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     }
     assert!(
         tokens
-            .findToken(read.plain_text_token.as_str())
+            .find_token(read.plain_text_token.as_str())
             .await
             .unwrap()
             .unwrap()
@@ -873,7 +871,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     );
     assert!(
         tokens
-            .findToken(expired.plain_text_token.as_str())
+            .find_token(expired.plain_text_token.as_str())
             .await
             .unwrap()
             .unwrap()
@@ -883,7 +881,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     model_events.take();
     assert!(
         tokens
-            .revokeToken("SanctumUser", owner(1), full.access_token.id.clone())
+            .revoke_token("SanctumUser", owner(1), full.access_token.id.clone())
             .await
             .unwrap()
     );
@@ -899,21 +897,21 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         use ModelEvent::*;
         assert!(
             !tokens
-                .revokeToken("SanctumUser", owner(1), full.access_token.id.clone())
+                .revoke_token("SanctumUser", owner(1), full.access_token.id.clone())
                 .await
                 .unwrap()
         );
         assert!(model_events.take().is_empty());
         assert!(
             !tokens
-                .revokeToken("users_alias", owner(1), read.access_token.id.clone())
+                .revoke_token("users_alias", owner(1), read.access_token.id.clone())
                 .await
                 .unwrap()
         );
         assert_eq!(model_events.take(), [Retrieved, Deleting]);
         assert!(
             tokens
-                .findToken(read.plain_text_token.as_str())
+                .find_token(read.plain_text_token.as_str())
                 .await
                 .unwrap()
                 .is_some()
@@ -930,7 +928,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         401
     );
 
-    events.assertDispatchedTimes(TokenAuthenticated::NAME, 6);
+    events.assert_dispatched_times(TokenAuthenticated::NAME, 6);
     let first = events.dispatched(TokenAuthenticated::NAME);
     let first = first[0].downcast_ref::<TokenAuthenticated>().unwrap();
     assert_eq!(first.token.id, read.access_token.id.clone());
@@ -949,7 +947,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                 401
             );
         }
-        sanctum.getAccessTokenFromRequestUsing(Some(Arc::new(|request| {
+        sanctum.get_access_token_from_request_using(Some(Arc::new(|request| {
             request
                 .headers()
                 .get("x-lookup-token")?
@@ -960,7 +958,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         for (credential, expected) in [(&read, 200), (&service, 401)] {
             let alternate = format!("lookup:{}", credential.plain_text_token.as_str());
             assert_eq!(
-                tokens.findToken(&alternate).await.unwrap().is_some(),
+                tokens.find_token(&alternate).await.unwrap().is_some(),
                 expected == 200
             );
             assert_eq!(
@@ -975,7 +973,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         }
     }
 
-    sanctum.getAccessTokenFromRequestUsing(Some(Arc::new(|request| {
+    sanctum.get_access_token_from_request_using(Some(Arc::new(|request| {
         request
             .headers()
             .get("x-access-token")?
@@ -983,7 +981,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .ok()
             .map(str::to_owned)
     })));
-    sanctum.authenticateAccessTokensUsing(|token, valid| valid && token.name != "service");
+    sanctum.authenticate_access_tokens_using(|token, valid| valid && token.name != "service");
     for (token, expected) in [(&read, 200), (&service, 401), (&expired, 401)] {
         assert_eq!(
             get("/api/user")
@@ -1004,8 +1002,8 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .status(),
         401
     );
-    sanctum.getAccessTokenFromRequestUsing(None);
-    sanctum.authenticateAccessTokensUsing(|_, valid| valid);
+    sanctum.get_access_token_from_request_using(None);
+    sanctum.authenticate_access_tokens_using(|_, valid| valid);
 
     for (path, credential, expected) in [
         ("/api/user", &service, 200),
@@ -1047,13 +1045,13 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     if KEY != 0 {
         assert!(
             !tokens
-                .revokeToken("services_alias", 0, service.access_token.id.clone())
+                .revoke_token("services_alias", 0, service.access_token.id.clone())
                 .await
                 .unwrap()
         );
         assert!(
             !tokens
-                .revokeToken(
+                .revoke_token(
                     "users_alias",
                     service_owner.clone(),
                     service.access_token.id.clone()
@@ -1063,7 +1061,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         );
         assert!(
             tokens
-                .revokeToken(
+                .revoke_token(
                     "services_alias",
                     service_owner,
                     service.access_token.id.clone()
@@ -1081,7 +1079,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             401
         );
     }
-    sanctum.authenticateAccessTokensUsing(|token, valid| valid || token.name == "expired");
+    sanctum.authenticate_access_tokens_using(|token, valid| valid || token.name == "expired");
     assert_eq!(
         get("/api/user")
             .bearer_auth(expired.plain_text_token.as_str())
@@ -1091,7 +1089,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .status(),
         200
     );
-    sanctum.authenticateAccessTokensUsing(|_, valid| valid);
+    sanctum.authenticate_access_tokens_using(|_, valid| valid);
 
     let csrf = get("/sanctum/csrf-cookie").send().await.unwrap();
     assert_eq!(csrf.status(), 204);
@@ -1269,7 +1267,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .unwrap();
         assert!(
             tokens
-                .findToken(hidden.plain_text_token.as_str())
+                .find_token(hidden.plain_text_token.as_str())
                 .await
                 .unwrap()
                 .is_none()
@@ -1291,7 +1289,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .container()
             .make::<Sanctum>()
             .unwrap()
-            .usePersonalAccessTokenModel::<CustomToken<KEY>>();
+            .use_personal_access_token_model::<CustomToken<KEY>>();
         assert_eq!(
             console
                 .handle_command(&["sanctum:prune-expired".into(), "--hours=0".into()])
@@ -1301,7 +1299,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         );
         assert!(
             tokens
-                .findToken(aged.plain_text_token.as_str())
+                .find_token(aged.plain_text_token.as_str())
                 .await
                 .unwrap()
                 .is_none()
@@ -1320,14 +1318,14 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         );
         assert!(
             tokens
-                .findToken(expired.plain_text_token.as_str())
+                .find_token(expired.plain_text_token.as_str())
                 .await
                 .unwrap()
                 .is_none()
         );
         assert!(
             tokens
-                .findToken(read.plain_text_token.as_str())
+                .find_token(read.plain_text_token.as_str())
                 .await
                 .unwrap()
                 .is_some()
@@ -1437,15 +1435,15 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
             let mut other = User::<false, 0>(ModelState::default());
             other.set_attribute("id", SqlValue::Unsigned(43));
             let abilities = json!({
-                "read": user.tokenCan(request, "read"),
-                "write_denied": user.tokenCant(request, "write"),
-                "other_denied": other.tokenCant(request, "read"),
+                "read": user.token_can(request, "read"),
+                "write_denied": user.token_cant(request, "write"),
+                "other_denied": other.token_cant(request, "read"),
             });
             let token = AccessToken::Test(Arc::from(["write".to_owned()]));
-            assert!(other.withAccessToken(request, token.clone()).is_err());
-            user.withAccessToken(request, token)?;
-            assert!(user.tokenCan(request, "write"));
-            assert!(user.tokenCant(request, "read"));
+            assert!(other.with_access_token(request, token.clone()).is_err());
+            user.with_access_token(request, token)?;
+            assert!(user.token_can(request, "write"));
+            assert!(user.token_cant(request, "read"));
             Response::json(StatusCode::OK, abilities)
         })
     }
@@ -1478,7 +1476,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         user.set_attribute("id", SqlValue::Unsigned(42));
         user
     };
-    let selected = Sanctum::actingAs(&mut app, user(), &["read"], None);
+    let selected = Sanctum::acting_as(&mut app, user(), &["read"], None);
     assert_eq!(selected.get_auth_identifier(), AuthIdentifier::from(42_u64));
     for path in ["/api/user", "/api/any", "/api/default"] {
         let response = app.get(path).await.unwrap();
@@ -1526,14 +1524,14 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         .await
         .unwrap()
         .assert_status(StatusCode::UNAUTHORIZED);
-    Sanctum::actingAs(&mut app, user(), &[], None);
+    Sanctum::acting_as(&mut app, user(), &[], None);
     app.get("/api/any")
         .await
         .unwrap()
         .assert_status(StatusCode::FORBIDDEN);
-    Sanctum::actingAs(&mut app, user(), &["*"], None);
+    Sanctum::acting_as(&mut app, user(), &["*"], None);
     app.get("/api/all").await.unwrap().assert_ok();
-    Sanctum::actingAs(&mut app, user(), &["*"], Some("alternate"));
+    Sanctum::acting_as(&mut app, user(), &["*"], Some("alternate"));
     app.get("/api/alternate").await.unwrap().assert_ok();
     app.get("/api/default").await.unwrap().assert_ok();
     app.get("/api/user")

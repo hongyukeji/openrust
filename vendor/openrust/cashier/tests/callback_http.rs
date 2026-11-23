@@ -19,7 +19,7 @@ async fn callback(
     headers: http::HeaderMap,
     body: Bytes,
 ) -> axum::response::Response {
-    let Ok(event) = s.client.verifyWebhook(&headers, &body) else {
+    let Ok(event) = s.client.verify_webhook(&headers, &body) else {
         return http::StatusCode::BAD_REQUEST.into_response();
     };
     let fail = s.fail.clone();

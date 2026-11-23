@@ -89,21 +89,21 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
         Ok(self.0.get_attribute_value(name)?)
     }
     fn recovery_codes(&self, fortify: &Fortify) -> FortifyResult<Vec<String>> {
-        self.0.recoveryCodes(fortify)
+        self.0.recovery_codes(fortify)
     }
     fn qr_url(
         &self,
         fortify: &Fortify,
         provider: &dyn crate::contracts::TwoFactorAuthenticationProvider,
     ) -> FortifyResult<String> {
-        self.0.twoFactorQrCodeUrl(fortify, provider)
+        self.0.two_factor_qr_code_url(fortify, provider)
     }
     fn qr_svg(
         &self,
         fortify: &Fortify,
         provider: &dyn crate::contracts::TwoFactorAuthenticationProvider,
     ) -> FortifyResult<String> {
-        self.0.twoFactorQrCodeSvg(fortify, provider)
+        self.0.two_factor_qr_code_svg(fortify, provider)
     }
     fn mutate<'a>(&'a mut self, mutation: Mutation<'a>) -> HttpFuture<'a, Result<(), HttpError>> {
         Box::pin(async move {
@@ -134,7 +134,7 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
                 }
                 Mutation::Replace(code) => {
                     let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-                    self.0.replaceRecoveryCode(code, &fortify).await
+                    self.0.replace_recovery_code(code, &fortify).await
                 }
             }
         })

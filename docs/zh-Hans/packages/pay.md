@@ -29,7 +29,7 @@ cargo run --features pay -- artisan migrate
 
 ## 发起支付 {#create-payment}
 
-金额使用人民币整数分，也支持精确解析 `Amount::fromYuan("12.34")`；拒绝负数、零、指数及超过两位小数。商户订单号在查询和重试间保持不变，使用 1–32 位 ASCII 字母、数字、下划线或连字符。回调及可选返回地址须使用 HTTPS。
+金额使用人民币整数分，也支持精确解析 `Amount::from_yuan("12.34")`；拒绝负数、零、指数及超过两位小数。商户订单号在查询和重试间保持不变，使用 1–32 位 ASCII 字母、数字、下划线或连字符。回调及可选返回地址须使用 HTTPS。
 
 ```rust
 use openrust_pay::{Amount, Order, Scene, facades::Pay};
@@ -37,7 +37,7 @@ use openrust_pay::{Amount, Order, Scene, facades::Pay};
 let order = Order::new(
     "order_001",
     "Coffee",
-    Amount::fromFen(1234)?,
+    Amount::from_fen(1234)?,
     "https://shop.example/pay/notify",
 );
 let payment = Pay::driver("wechat")?.pay(Scene::Scan, &order).await?;
@@ -57,7 +57,7 @@ let payment = Pay::driver("wechat")?.pay(Scene::Scan, &order).await?;
 
 ## 查单、关单与退款 {#query-and-refund}
 
-使用 `gateway.find(out_trade_no)`、`gateway.close(out_trade_no)`、`gateway.refund(&Refund)` 和 `gateway.findRefund(out_trade_no, out_refund_no)`。返回经过签名验证的厂商 JSON；须检查交易或退款状态，不能把请求成功直接当作资金处理完成。`Refund` 包含原订单号、稳定的商户退款单号、原订单 `total`、本次退款 `amount` 及可选 `reason`。退款金额不能超过原订单金额，支持部分退款。
+使用 `gateway.find(out_trade_no)`、`gateway.close(out_trade_no)`、`gateway.refund(&Refund)` 和 `gateway.find_refund(out_trade_no, out_refund_no)`。返回经过签名验证的厂商 JSON；须检查交易或退款状态，不能把请求成功直接当作资金处理完成。`Refund` 包含原订单号、稳定的商户退款单号、原订单 `total`、本次退款 `amount` 及可选 `reason`。退款金额不能超过原订单金额，支持部分退款。
 
 请求不会自动重试。`Error::OutcomeUnknown` 表示无法确定厂商受理结果，包括响应丢失、响应签名无效等情况。先用原订单号或退款单号查询，再决定是否重试，不要为不确定请求生成新单号。经过验签的厂商拒绝返回 `Error::Rejected`；错误与 HTTP 观察事件不包含原始厂商消息和载荷。请求／响应正文与授权头会脱敏，但返回给应用的成功 JSON 仍包含业务数据，记录日志或序列化时应明确选择字段。
 
@@ -79,7 +79,7 @@ DatabaseNotifications::new(connection)
     .process(&notification, &expected, |tx, notice| Box::pin(async move {
         // Validate the business state and update it using this transaction.
         tx.table("orders")
-            .r#where("number", "=", notice.outTradeNo())
+            .r#where("number", "=", notice.out_trade_no())
             .r#where("status", "=", "pending")
             .update([("status".into(), "paid".into())].into_iter().collect())
             .await?;
@@ -97,6 +97,6 @@ let response = notification.success();
 
 ## 网关生命周期 {#gateway-lifecycle}
 
-`PayManager::driver(name)` 懒解析并复用商户配置和密钥快照。`get_default_driver` 读取当前默认名，`Pay::defaultDriver()` 解析它。`forget_drivers` 让后续解析使用新配置，已持有的 `Gateway` 克隆保留原快照。管理器按应用隔离。轮换密钥时刷新相关实例，不从未验证回调获取验签公钥。
+`PayManager::driver(name)` 懒解析并复用商户配置和密钥快照。`get_default_driver` 读取当前默认名，`Pay::default_driver()` 解析它。`forget_drivers` 让后续解析使用新配置，已持有的 `Gateway` 克隆保留原快照。管理器按应用隔离。轮换密钥时刷新相关实例，不从未验证回调获取验签公钥。
 
 真实商户入驻、产品权限开通、公开 HTTPS 回调及厂商端到端验证由部署方完成。协议测试通过不代表商户账号已经可以实际收付款。

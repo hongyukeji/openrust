@@ -1,19 +1,16 @@
 //! Typed Passport repository events, delivered through the application's dispatcher.
 use openrust::contracts::events::Event;
-#[allow(non_snake_case)]
 pub struct AccessTokenCreated {
-    pub tokenId: String,
-    pub userId: Option<String>,
-    pub clientId: String,
+    pub token_id: String,
+    pub user_id: Option<String>,
+    pub client_id: String,
 }
-#[allow(non_snake_case)]
 pub struct RefreshTokenCreated {
-    pub refreshTokenId: String,
-    pub accessTokenId: String,
+    pub refresh_token_id: String,
+    pub access_token_id: String,
 }
-#[allow(non_snake_case)]
 pub struct AccessTokenRevoked {
-    pub tokenId: String,
+    pub token_id: String,
 }
 macro_rules! event {
     ($name:ident) => {

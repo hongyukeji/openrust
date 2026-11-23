@@ -93,7 +93,6 @@ pub struct Sanctum {
     authentication: RwLock<Option<Arc<Authentication>>>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Sanctum {
     pub(crate) fn configured(config: Arc<dyn Repository>) -> Self {
         Self {
@@ -103,7 +102,7 @@ impl Sanctum {
     }
 
     /// Authenticates subsequent requests made through this in-process test application.
-    pub fn actingAs<U>(
+    pub fn acting_as<U>(
         app: &mut crate::testing::TestApp,
         mut user: U,
         abilities: &[&str],
@@ -126,19 +125,19 @@ impl Sanctum {
     }
 
     /// Returns the suffix to append to a comma-separated list of stateful domains.
-    pub fn currentRequestHost() -> &'static str {
+    pub fn current_request_host() -> &'static str {
         ",__SANCTUM_CURRENT_REQUEST_HOST__"
     }
 
     /// Returns the host and explicit port as a comma-prefixed stateful-domain suffix.
-    pub fn currentApplicationUrlWithPort(&self) -> String {
+    pub fn current_application_url_with_port(&self) -> String {
         self.config
             .as_deref()
             .and_then(application_host)
             .map_or_else(String::new, |host| format!(",{host}"))
     }
 
-    pub fn personalAccessTokenModel(&self) -> &'static str {
+    pub fn personal_access_token_model(&self) -> &'static str {
         self.model
             .read()
             .expect("Sanctum token model lock")
@@ -148,14 +147,14 @@ impl Sanctum {
     }
 
     pub(super) fn require_token_model<M: PersonalAccessTokenModel>(&self) -> AuthResult<()> {
-        if self.personalAccessTokenModel() == type_name::<M>() {
+        if self.personal_access_token_model() == type_name::<M>() {
             Ok(())
         } else {
             Err(AuthError::Configuration("Sanctum token relation model"))
         }
     }
 
-    pub fn usePersonalAccessTokenModel<M: PersonalAccessTokenModel>(&self) {
+    pub fn use_personal_access_token_model<M: PersonalAccessTokenModel>(&self) {
         *self.model.write().expect("Sanctum token model lock") = Some(TokenModel {
             name: type_name::<M>(),
             store: |database, prefix| {
@@ -167,7 +166,7 @@ impl Sanctum {
     }
 
     /// Resolves the token store for issuance, lookup, revocation and pruning.
-    pub fn personalAccessTokens(
+    pub fn personal_access_tokens(
         &self,
         database: &DatabaseManager,
         prefix: impl Into<String>,
@@ -200,11 +199,11 @@ impl Sanctum {
         }
     }
 
-    pub fn getAccessTokenFromRequestUsing(&self, callback: Option<Arc<Retrieval>>) {
+    pub fn get_access_token_from_request_using(&self, callback: Option<Arc<Retrieval>>) {
         *self.retrieval.write().expect("Sanctum retrieval lock") = callback;
     }
 
-    pub fn authenticateAccessTokensUsing(
+    pub fn authenticate_access_tokens_using(
         &self,
         callback: impl Fn(&PersonalAccessToken, bool) -> bool + Send + Sync + 'static,
     ) {

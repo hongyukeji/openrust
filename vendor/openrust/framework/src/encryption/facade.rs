@@ -15,7 +15,6 @@ impl Facade for Crypt {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Crypt {
     pub fn encrypt(value: impl AsRef<[u8]>, serialize: bool) -> Result<String, EncryptException> {
         Self::get_facade_root()
@@ -37,8 +36,8 @@ impl Crypt {
         Self::decrypt(payload, false)
     }
 
-    pub fn appearsEncrypted(payload: &str) -> bool {
-        Encrypter::appearsEncrypted(payload)
+    pub fn appears_encrypted(payload: &str) -> bool {
+        Encrypter::appears_encrypted(payload)
     }
 }
 

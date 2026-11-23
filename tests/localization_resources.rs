@@ -127,7 +127,7 @@ async fn eighteen_notification_messages_render_to_local_capture_and_restore_loca
                 let message=MailMessage::new().subject(title.clone()).line(line.clone()).action(action,"https://example.test/reset");
                 let sent=Mail::to("recipient@example.test").unwrap().send_now(&message).await.unwrap().unwrap();
                 assert_eq!(sent.message.envelope().subject,title);
-                let body=sent.message.getTextBody().unwrap();assert!(body.contains(&line),"{locale}: {body}");
+                let body=sent.message.get_text_body().unwrap();assert!(body.contains(&line),"{locale}: {body}");
                 let greeting=Lang::get("Hello!",&BTreeMap::new(),None).unwrap();assert!(body.contains(&greeting),"{locale}: {body}");
                 let copyright=Lang::get("All rights reserved.",&BTreeMap::new(),None).unwrap();assert!(body.contains(&copyright),"{locale}: {body}");
             }).await.unwrap();

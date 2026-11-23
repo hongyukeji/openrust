@@ -381,7 +381,7 @@ fn callback(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 a.tokens.id_token.clear(); // Public token fields cannot forge the captured verified hint.
                 Oidc::provider("work", r)
                     .map_err(internal)?
-                    .rememberLogout(&a)
+                    .remember_logout(&a)
                     .map_err(internal)?;
                 Response::json(StatusCode::OK, json!({"authenticated":true}))
             }
@@ -429,7 +429,7 @@ fn signed_out(r: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         }
         match Oidc::provider("work", r)
             .map_err(internal)?
-            .completeLogout()
+            .complete_logout()
             .await
         {
             Ok(()) => Response::json(StatusCode::OK, json!({"local":true,"federated":true})),

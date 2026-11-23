@@ -19,7 +19,7 @@ try {
                     assert.equal(response.status(), 200);
                     await page.locator("#configuration").waitFor();
                     const body = await page.locator("main").innerText();
-                    for (const text of ["TelescopeServiceProvider", "telescope:list", "telescope:show", "Watcher", "QueryWatcher", "EventWatcher", "ignoreFrameworkEvents", "Not Captured"]) {
+                    for (const text of ["TelescopeServiceProvider", "telescope:list", "telescope:show", "Watcher", "QueryWatcher", "EventWatcher", "ignore_framework_events", "Not Captured"]) {
                         assert(body.includes(text), `${language}: missing ${text}`);
                     }
                     for (const anchor of ["configuration", "authorization", "watchers", "commands"]) {

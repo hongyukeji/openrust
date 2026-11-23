@@ -36,10 +36,10 @@ impl Servers {
             memory: RwLock::default(),
         }
     }
-    pub fn detectCpuUsing(&self, callback: Option<Arc<CpuDetector>>) {
+    pub fn detect_cpu_using(&self, callback: Option<Arc<CpuDetector>>) {
         *self.cpu.write().unwrap_or_else(|e| e.into_inner()) = callback;
     }
-    pub fn detectMemoryUsing(&self, callback: Option<Arc<MemoryDetector>>) {
+    pub fn detect_memory_using(&self, callback: Option<Arc<MemoryDetector>>) {
         *self.memory.write().unwrap_or_else(|e| e.into_inner()) = callback;
     }
     pub async fn record(&self, event: &SharedBeat, pulse: &Pulse) -> Result<()> {
@@ -106,12 +106,12 @@ impl Servers {
             .record("cpu", &slug, Some(cpu), Some(event.time))
             .await
             .avg()
-            .onlyBuckets();
+            .only_buckets();
         pulse
             .record("memory", &slug, Some(memory.used), Some(event.time))
             .await
             .avg()
-            .onlyBuckets();
+            .only_buckets();
         pulse.set("system",slug,json!({"name":name,"cpu":cpu,"memory_used":memory.used,"memory_total":memory.total,"storage":storage}).to_string(),Some(event.time)).await;
         cache
             .put(

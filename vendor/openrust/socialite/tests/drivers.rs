@@ -56,45 +56,47 @@ fn definition(name: &str, base: Option<&str>) -> Arc<dyn ProviderDefinition> {
     match name {
         "gitlab" => Arc::new(
             endpoints
-                .map(GitlabProvider::withEndpoints)
+                .map(GitlabProvider::with_endpoints)
                 .unwrap_or_default(),
         ),
         "bitbucket" => Arc::new(
             endpoints
-                .map(BitbucketProvider::withEndpoints)
+                .map(BitbucketProvider::with_endpoints)
                 .unwrap_or_default(),
         ),
         "linkedin" => Arc::new(
             endpoints
-                .map(LinkedInProvider::withEndpoints)
+                .map(LinkedInProvider::with_endpoints)
                 .unwrap_or_default(),
         ),
         "linkedin-openid" => Arc::new(
             endpoints
-                .map(LinkedInOpenIdProvider::withEndpoints)
+                .map(LinkedInOpenIdProvider::with_endpoints)
                 .unwrap_or_default(),
         ),
         "slack" => Arc::new(
             endpoints
-                .map(SlackProvider::withEndpoints)
+                .map(SlackProvider::with_endpoints)
                 .unwrap_or_default(),
         ),
         "slack-openid" => Arc::new(
             endpoints
-                .map(SlackOpenIdProvider::withEndpoints)
+                .map(SlackOpenIdProvider::with_endpoints)
                 .unwrap_or_default(),
         ),
         _ => panic!("unknown driver"),
     }
 }
 fn profile(user: &openrust_socialite::two::User) -> Value {
-    json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
+    json!({"id":user.get_id(),"nickname":user.get_nickname(),"name":user.get_name(),"email":user.get_email(),"avatar":user.get_avatar(),"raw":user.get_raw(),"attributes":user.attributes})
 }
 #[tokio::test]
 async fn six_driver_scopes_parameters_and_user_mappings_match_fixed_php_sources() {
     for name in NAMES {
         let definition = definition(name, None);
-        let mapped = definition.mapUserToObject(inputs()[name].clone()).unwrap();
+        let mapped = definition
+            .map_user_to_object(inputs()[name].clone())
+            .unwrap();
         assert_eq!(profile(&mapped), fixture()[name]["user"], "{name}");
         let mut request = request();
         let config=ProviderConfig::from_config(&json!({"client_id":"client","client_secret":"secret","redirect":"https://rp.test/callback"})).unwrap();
@@ -119,9 +121,9 @@ async fn six_driver_scopes_parameters_and_user_mappings_match_fixed_php_sources(
                 if *name != "slack" {
                     continue;
                 }
-                provider.asBotUser();
+                provider.as_bot_user();
             }
-            let url = url::Url::parse(&provider.authorizationUrl().unwrap()).unwrap();
+            let url = url::Url::parse(&provider.authorization_url().unwrap()).unwrap();
             let actual: serde_json::Map<String, Value> = url
                 .query_pairs()
                 .map(|(k, v)| (k.to_string(), Value::String(v.to_string())))
@@ -288,10 +290,10 @@ async fn six_drivers_exchange_profile_and_refresh_through_real_http() {
             }
         );
         assert_eq!(
-            token.expiresIn,
+            token.expires_in,
             Some(if *name == "slack" { 100 } else { 300 })
         );
-        let refreshed = provider.refreshToken("refresh-input").await.unwrap();
+        let refreshed = provider.refresh_token("refresh-input").await.unwrap();
         assert_eq!(
             refreshed.token.as_str(),
             if *name == "slack" {
@@ -321,7 +323,7 @@ async fn bitbucket_direct_token_uses_basic_and_slack_bot_uses_top_level_credenti
     let mut p = provider(&mut req, "bitbucket", &base);
     p.stateless();
     assert_eq!(
-        p.getAccessToken("direct-code").await.unwrap().as_str(),
+        p.get_access_token("direct-code").await.unwrap().as_str(),
         "secret-token"
     );
     assert_eq!(
@@ -330,7 +332,7 @@ async fn bitbucket_direct_token_uses_basic_and_slack_bot_uses_top_level_credenti
     );
     let mut req = request();
     let mut p = provider(&mut req, "slack", &base);
-    p.stateless().asBotUser();
+    p.stateless().as_bot_user();
     assert_eq!(
         p.user().await.unwrap().credentials.unwrap().token.as_str(),
         "bot-token"
@@ -359,7 +361,7 @@ async fn driver_remote_failures_propagate_except_optional_bitbucket_email_lookup
     let mut req = request();
     let mut p = provider(&mut req, "bitbucket", &base);
     p.stateless();
-    assert_eq!(p.user().await.unwrap().getEmail(), None);
+    assert_eq!(p.user().await.unwrap().get_email(), None);
     let mut req = request();
     let mut p = provider(&mut req, "linkedin", &base);
     p.stateless();
@@ -378,7 +380,7 @@ async fn manager_selects_all_six_default_drivers_and_self_hosted_gitlab_without_
         let mut req = request();
         let mut p = manager.driver(name, &mut req).unwrap().oauth2().unwrap();
         p.stateless();
-        let uri = p.authorizationUrl().unwrap();
+        let uri = p.authorization_url().unwrap();
         if *name == "gitlab" {
             let actual = url::Url::parse(&uri).unwrap();
             let expected = url::Url::parse(fixture()[name]["host"].as_str().unwrap()).unwrap();
@@ -418,7 +420,7 @@ async fn revoked_remote_tokens_fail_profile_lookup_for_all_six_drivers() {
         } else {
             "secret-token"
         };
-        let error = p.userFromToken(credential).await.err().unwrap();
+        let error = p.user_from_token(credential).await.err().unwrap();
         assert!(matches!(error, Error::ProviderStatus(401)));
         assert!(!error.to_string().contains("private"));
     }

@@ -4,26 +4,26 @@
 
 use serde_json::{Map, Value};
 
-use super::OAuthError;
+use super::OauthError;
 
 /// OAuth 请求中已解析的参数集合；字符串、数字、布尔值遵循 PHP 标量转换。
 ///
 /// 传输层负责解析表单或查询字符串；数组和对象在读取时作为无效请求拒绝。
 /// 此类型不将重复参数自动合并为数组，也不负责选择不同传输来源的优先级。
 #[derive(Clone, Default)]
-pub struct OAuthParameters {
+pub struct OauthParameters {
     values: Map<String, Value>,
 }
 
-impl std::fmt::Debug for OAuthParameters {
+impl std::fmt::Debug for OauthParameters {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("OAuthParameters")
+            .debug_struct("OauthParameters")
             .finish_non_exhaustive()
     }
 }
 
-impl OAuthParameters {
+impl OauthParameters {
     pub(crate) fn raw_string_matches(&self, name: &str, expected: &str) -> bool {
         self.values.get(name).and_then(Value::as_str) == Some(expected)
     }
@@ -39,7 +39,7 @@ impl OAuthParameters {
         &self,
         name: &str,
         default: Option<&[u8]>,
-    ) -> Result<Option<zeroize::Zeroizing<Vec<u8>>>, OAuthError> {
+    ) -> Result<Option<zeroize::Zeroizing<Vec<u8>>>, OauthError> {
         if let Some(value) = self.parameter(name, None)? {
             return Ok(Some(zeroize::Zeroizing::new(value.into_bytes())));
         }
@@ -54,11 +54,11 @@ impl OAuthParameters {
         &self,
         name: &str,
         default: Option<&str>,
-    ) -> Result<Option<String>, OAuthError> {
+    ) -> Result<Option<String>, OauthError> {
         let value = match self.values.get(name) {
             None | Some(Value::Null) => None,
             Some(Value::Array(_) | Value::Object(_)) => {
-                return Err(OAuthError::invalid_request(name, None));
+                return Err(OauthError::invalid_request(name, None));
             }
             Some(value) => {
                 let scalar = match value {
@@ -73,7 +73,7 @@ impl OAuthParameters {
                                 value.as_f64().expect("JSON number"),
                             )
                         }),
-                    _ => return Err(OAuthError::invalid_request(name, None)),
+                    _ => return Err(OauthError::invalid_request(name, None)),
                 };
                 normalized(Some(&scalar)).map(str::to_owned)
             }

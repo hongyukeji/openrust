@@ -41,7 +41,7 @@ pub(super) async fn purge(
             .to_string_lossy()
             .to_string();
         for master in repository
-            .masterSupervisors()
+            .master_supervisors()
             .names()
             .await
             .map_err(error)?
@@ -71,11 +71,11 @@ pub(super) async fn purge(
                 .map_err(error)?;
             let expired = repository
                 .processes()
-                .orphanedFor(
+                .orphaned_for(
                     &master,
                     repository
-                        .supervisorRepository()
-                        .longestActiveTimeout()
+                        .supervisor_repository()
+                        .longest_active_timeout()
                         .await
                         .map_err(error)?,
                 )
@@ -91,7 +91,7 @@ pub(super) async fn purge(
                 if !owned.contains(&pid) {
                     repository
                         .processes()
-                        .forgetOrphans(&master, &[pid])
+                        .forget_orphans(&master, &[pid])
                         .await
                         .map_err(error)?;
                     continue;
@@ -110,7 +110,7 @@ pub(super) async fn purge(
                 if result.successful() {
                     repository
                         .processes()
-                        .forgetOrphans(&master, &[pid])
+                        .forget_orphans(&master, &[pid])
                         .await
                         .map_err(error)?;
                 } else {

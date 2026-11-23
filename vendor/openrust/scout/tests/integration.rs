@@ -40,13 +40,13 @@ impl Model for Article {
     }
 }
 impl Searchable for Article {
-    fn searchIndexShouldBeUpdated(&self) -> bool {
+    fn search_index_should_be_updated(&self) -> bool {
         self.get_attribute("title") != Some(&Value::Text("skip-index".into()))
     }
-    fn shouldBeSearchable(&self) -> bool {
+    fn should_be_searchable(&self) -> bool {
         self.get_attribute("status") == Some(&Value::Text("published".into()))
     }
-    fn toSearchableArray(&self) -> openrust_scout::Result<serde_json::Map<String, Json>> {
+    fn to_searchable_array(&self) -> openrust_scout::Result<serde_json::Map<String, Json>> {
         Ok(json!({"title":match self.get_attribute("title"){Some(Value::Text(v))=>v.clone(),_=>String::new()},"nested":{"locale":"中文"}}).as_object().unwrap().clone())
     }
 }
@@ -138,12 +138,12 @@ fn manual_sync(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         use openrust_scout::SearchableCollection;
         let result = async {
-            let manager = Article::scoutManager()?;
-            let nested = Article::withoutSyncingToSearch(async {
+            let manager = Article::scout_manager()?;
+            let nested = Article::without_syncing_to_search(async {
                 let mut model = Article::find(1_i64).await.unwrap().unwrap();
                 model.set_attribute("title", "suppressed");
                 model.save().await.unwrap();
-                Article::withoutSyncingToSearch(async {
+                Article::without_syncing_to_search(async {
                     model.set_attribute("title", "nested");
                     model.save().await.unwrap();
                 })
@@ -154,18 +154,18 @@ fn manual_sync(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             nested?;
             let cancelled = tokio::time::timeout(
                 std::time::Duration::from_millis(1),
-                Article::withoutSyncingToSearch(std::future::pending::<()>()),
+                Article::without_syncing_to_search(std::future::pending::<()>()),
             )
             .await;
             assert!(cancelled.is_err());
-            assert!(!manager.syncingDisabledFor::<Article>());
+            assert!(!manager.syncing_disabled_for::<Article>());
             let mut model = Article::find(1_i64).await?.unwrap();
             model.set_attribute("title", "restored");
             model.save().await?;
-            model.searchableSync().await?;
+            model.searchable_sync().await?;
             let models = Article::query()?.get().await?;
-            models.unsearchableSync().await?;
-            assert_eq!(model.searchableAs()?, "scout_articles");
+            models.unsearchable_sync().await?;
+            assert_eq!(model.searchable_as()?, "scout_articles");
             Ok::<_, openrust_scout::Error>(())
         }
         .await;
@@ -270,7 +270,7 @@ fn number(v: &Value) -> i64 {
 fn ids(models: impl IntoIterator<Item = Article>) -> Vec<i64> {
     models
         .into_iter()
-        .map(|m| number(&m.getScoutKey().unwrap()))
+        .map(|m| number(&m.get_scout_key().unwrap()))
         .collect()
 }
 #[derive(Clone, Debug, PartialEq)]
@@ -294,7 +294,7 @@ impl Recording {
             kind,
             ids: models
                 .iter()
-                .map(|m| number(&m.getScoutKey().unwrap()))
+                .map(|m| number(&m.get_scout_key().unwrap()))
                 .collect(),
             trashed: models.iter().map(Model::trashed).collect(),
             titles: models
@@ -346,10 +346,10 @@ impl Engine<Article> for Recording {
             Ok(())
         })
     }
-    fn createIndex<'a>(&'a self, _: &'a str, _: &'a Json) -> ScoutFuture<'a, ()> {
+    fn create_index<'a>(&'a self, _: &'a str, _: &'a Json) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
-    fn deleteIndex<'a>(&'a self, _: &'a str) -> ScoutFuture<'a, ()> {
+    fn delete_index<'a>(&'a self, _: &'a str) -> ScoutFuture<'a, ()> {
         Box::pin(async { Ok(()) })
     }
 }
@@ -404,7 +404,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
         .await
         .unwrap();
     assert_eq!(page.total(), 2);
-    assert_eq!(number(&page.items()[0].getScoutKey().unwrap()), 2);
+    assert_eq!(number(&page.items()[0].get_scout_key().unwrap()), 2);
     assert!(!page.has_more_pages());
     let page = f.search("rust").simple_paginate(1, 1).await.unwrap();
     assert!(page.has_more_pages());
@@ -441,7 +441,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
         .await
         .unwrap();
     assert_eq!(ids(callback), vec![4]);
-    let raw = f.search("rust").withRawResults(|mut results| {
+    let raw = f.search("rust").with_raw_results(|mut results| {
         results.ids.reverse();
         Ok(results)
     });
@@ -455,7 +455,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
             .collect::<Vec<_>>(),
         vec![2, 1]
     );
-    let string_keys = f.search("rust").withRawResults(|mut results| {
+    let string_keys = f.search("rust").with_raw_results(|mut results| {
         results.ids = results
             .ids
             .into_iter()
@@ -529,7 +529,7 @@ async fn collection_search_filters_maps_callbacks_soft_deletes_pages_and_native_
         .await
         .unwrap();
     assert_eq!(zero.total(), 2);
-    assert_eq!(number(&zero.items()[0].getScoutKey().unwrap()), 6);
+    assert_eq!(number(&zero.items()[0].get_scout_key().unwrap()), 6);
     f.app
         .app()
         .config()
@@ -601,10 +601,10 @@ async fn observer_waits_for_outer_commit_discards_rollback_and_tracks_soft_delet
     let actions = engine.take();
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0].kind, "delete");
-    f.manager.disableSyncingFor::<Article>();
+    f.manager.disable_syncing_for::<Article>();
     f.article(3, "Rust", "published").save().await.unwrap();
     assert!(engine.take().is_empty());
-    f.manager.enableSyncingFor::<Article>();
+    f.manager.enable_syncing_for::<Article>();
     assert!(
         f.manager
             .register::<Article>(f.app.app(), "DuplicateAlias")
@@ -761,7 +761,7 @@ async fn native_scope_restores_nested_and_cancelled_sync_suppression_and_collect
     );
     assert_eq!(actions[0].titles, vec!["restored"]);
     let other = Fixture::new(false).await;
-    assert!(!other.manager.syncingDisabledFor::<Article>());
+    assert!(!other.manager.syncing_disabled_for::<Article>());
 }
 
 #[derive(Clone)]
@@ -781,7 +781,7 @@ impl Model for SearchValue {
     }
 }
 impl Searchable for SearchValue {
-    fn toSearchableArray(&self) -> openrust_scout::Result<serde_json::Map<String, Json>> {
+    fn to_searchable_array(&self) -> openrust_scout::Result<serde_json::Map<String, Json>> {
         let Some(Value::Text(text)) = self.get_attribute("title") else {
             panic!("fixture JSON")
         };

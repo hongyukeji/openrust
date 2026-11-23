@@ -60,7 +60,7 @@ fn parsed(arguments: &[&str]) -> Options {
                 .collect::<Vec<_>>(),
         )
         .unwrap();
-    Options::fromCommand(&input).unwrap()
+    Options::from_command(&input).unwrap()
 }
 
 #[test]
@@ -70,9 +70,9 @@ fn parsed_records_preserve_dates_origins_and_public_context() {
     assert_eq!(event.date().unwrap(), "2026-11-19 03:04:05");
     assert_eq!(event.time().unwrap(), "03:04:05");
     assert_eq!(event.level(), "CRITICAL");
-    assert_eq!(event.classOrType(), "ImportError");
+    assert_eq!(event.class_or_type(), "ImportError");
     assert_eq!(event.file(), Some("/app/jobs/import.rs:9"));
-    assert_eq!(event.authId().as_deref(), Some("12"));
+    assert_eq!(event.auth_id().as_deref(), Some("12"));
     assert_eq!(event.trace().unwrap().len(), 1);
     assert_eq!(
         event.context(),
@@ -83,29 +83,29 @@ fn parsed_records_preserve_dates_origins_and_public_context() {
         Origin::Http(Http {
             method: "GET".into(),
             path: "reports/weekly".into(),
-            authId: Some("12".into()),
-            authEmail: Some("user@example.test".into())
+            auth_id: Some("12".into()),
+            auth_email: Some("user@example.test".into())
         })
     );
     assert_eq!(
-        Http::fromArray(&json!({"method":"POST","path":"/","auth_id":"0012","auth_email":null}))
+        Http::from_array(&json!({"method":"POST","path":"/","auth_id":"0012","auth_email":null}))
             .unwrap()
-            .authId
+            .auth_id
             .as_deref(),
         Some("0012")
     );
     assert_eq!(
-        Console::fromArray(&json!({})).unwrap(),
+        Console::from_array(&json!({})).unwrap(),
         Console { command: None }
     );
     assert_eq!(
-        Queue::fromArray(&json!({"queue":"default","job":"Import","command":"queue:work"}))
+        Queue::from_array(&json!({"queue":"default","job":"Import","command":"queue:work"}))
             .unwrap()
             .command
             .as_deref(),
         Some("queue:work")
     );
-    assert!(Queue::fromArray(&json!({"job":"Import"})).is_err());
+    assert!(Queue::from_array(&json!({"job":"Import"})).is_err());
     assert!(event.to_string().contains(r"\u4f60\u597d \ud83d\ude80"));
     assert!(event.to_string().contains("reports/weekly"));
     assert!(!event.to_string().contains(r"\/"));
@@ -135,12 +135,12 @@ fn severity_origin_and_absent_fields_follow_pail() {
     ] {
         let event=MessageLogged::from_json(&json!({"message":"ok","datetime":"2026-11-19T23:59:59.000000-05:00","level_name":level,"context":{"__pail":{"origin":{"type":"console","command":null}}}}).to_string()).unwrap();
         assert_eq!(event.color(), color);
-        assert_eq!(event.classOrType(), level.to_ascii_uppercase());
+        assert_eq!(event.class_or_type(), level.to_ascii_uppercase());
         assert_eq!(
             event.origin().unwrap(),
             Origin::Console(Console { command: None })
         );
-        assert!(event.file().is_none() && event.trace().is_none() && event.authId().is_none());
+        assert!(event.file().is_none() && event.trace().is_none() && event.auth_id().is_none());
         assert_eq!(event.time().unwrap(), "23:59:59");
     }
     let event = record(

@@ -224,7 +224,7 @@ pub trait Mailable: Send + Sync {
     where
         Self: Sized,
     {
-        self.assert_has_attachment(&Attachment::fromData(data, name).with_metadata(None, mime))
+        self.assert_has_attachment(&Attachment::from_data(data, name).with_metadata(None, mime))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
@@ -238,7 +238,7 @@ pub trait Mailable: Send + Sync {
     where
         Self: Sized,
     {
-        self.assert_has_attachment(&Attachment::fromStorage(path).with_metadata(name, mime))
+        self.assert_has_attachment(&Attachment::from_storage(path).with_metadata(name, mime))
     }
 
     #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
@@ -254,7 +254,7 @@ pub trait Mailable: Send + Sync {
         Self: Sized,
     {
         self.assert_has_attachment(
-            &Attachment::fromStorageDisk(disk, path).with_metadata(name, mime),
+            &Attachment::from_storage_disk(disk, path).with_metadata(name, mime),
         )
     }
     fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {

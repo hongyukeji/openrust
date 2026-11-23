@@ -56,21 +56,21 @@ impl EntriesRepository for Store {
     fn monitoring(&self) -> TelescopeFuture<'_, Result<Vec<String>>> {
         Box::pin(async { Ok(vec![]) })
     }
-    fn loadMonitoredTags(&self) -> TelescopeFuture<'_, ()> {
+    fn load_monitored_tags(&self) -> TelescopeFuture<'_, ()> {
         Box::pin(async {
             self.initializations.fetch_add(1, Ordering::Relaxed);
         })
     }
-    fn hasMonitoredTag(&self, _: &[String]) -> bool {
+    fn has_monitored_tag(&self, _: &[String]) -> bool {
         false
     }
-    fn isMonitoring<'a>(&'a self, _: &'a [String]) -> TelescopeFuture<'a, bool> {
+    fn is_monitoring<'a>(&'a self, _: &'a [String]) -> TelescopeFuture<'a, bool> {
         Box::pin(async { false })
     }
     fn monitor<'a>(&'a self, _: &'a [String]) -> TelescopeFuture<'a, Result<()>> {
         Box::pin(async { Ok(()) })
     }
-    fn stopMonitoring<'a>(&'a self, _: &'a [String]) -> TelescopeFuture<'a, Result<()>> {
+    fn stop_monitoring<'a>(&'a self, _: &'a [String]) -> TelescopeFuture<'a, Result<()>> {
         Box::pin(async { Ok(()) })
     }
     fn terminate(&self) {

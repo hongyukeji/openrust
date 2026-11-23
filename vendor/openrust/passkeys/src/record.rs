@@ -10,7 +10,6 @@ use tokio::sync::Mutex;
 
 #[derive(Clone)]
 pub struct PasskeyRecord(Arc<dyn LoadedPasskey>);
-#[allow(non_snake_case, reason = "Matches native Eloquent model operations")]
 impl PasskeyRecord {
     pub fn new<M: PasskeyModel>(model: M) -> Self {
         Self(Arc::new(Loaded(Arc::new(Mutex::new(model)))))
@@ -21,7 +20,7 @@ impl PasskeyRecord {
             .downcast_ref::<Loaded<M>>()
             .map(|loaded| loaded.0.clone())
     }
-    pub fn sameInstance(&self, other: &Self) -> bool {
+    pub fn same_instance(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
     pub async fn get_key(&self) -> Option<Value> {

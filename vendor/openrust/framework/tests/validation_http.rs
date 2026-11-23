@@ -1816,9 +1816,9 @@ async fn validates_upload_dimensions_and_encoding_over_real_http() {
         );
     }
     use openrust::image::{Format, ImageManager, Limits};
-    let image = ImageManager::new(Limits::default()).fromBytes(square.clone());
+    let image = ImageManager::new(Limits::default()).from_bytes(square.clone());
     for format in [Format::Jpeg, Format::Webp, Format::Avif, Format::Heic] {
-        let bytes = image.clone().encode(format).toBytes().await.unwrap();
+        let bytes = image.clone().encode(format).to_bytes().await.unwrap();
         let mode = if format == Format::Heic {
             "dimensions-heic"
         } else {

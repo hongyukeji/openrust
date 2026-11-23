@@ -33,9 +33,8 @@ impl QueueFacade {
     }
 
     /// Sets or removes a reservation callback for a named worker in the current application.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn popUsing(worker: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
-        Self::manager()?.popUsing(worker, callback);
+    pub fn pop_using(worker: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
+        Self::manager()?.pop_using(worker, callback);
         Ok(())
     }
 
@@ -55,9 +54,8 @@ impl QueueFacade {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutInterruptionPolling() -> QueueResult<()> {
-        Self::manager()?.withoutInterruptionPolling();
+    pub fn without_interruption_polling() -> QueueResult<()> {
+        Self::manager()?.without_interruption_polling();
         Ok(())
     }
 
@@ -65,36 +63,31 @@ impl QueueFacade {
         Self::manager()?.pause(connection, queue).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn pauseFor(connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
-        Self::manager()?.pauseFor(connection, queue, ttl).await
+    pub async fn pause_for(connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
+        Self::manager()?.pause_for(connection, queue, ttl).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn pauseAll() -> QueueResult<()> {
-        Self::manager()?.pauseAll().await
+    pub async fn pause_all() -> QueueResult<()> {
+        Self::manager()?.pause_all().await
     }
 
     pub async fn resume(connection: &str, queue: &str) -> QueueResult<()> {
         Self::manager()?.resume(connection, queue).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn resumeAll() -> QueueResult<()> {
-        Self::manager()?.resumeAll().await
+    pub async fn resume_all() -> QueueResult<()> {
+        Self::manager()?.resume_all().await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn isPaused(connection: &str, queue: &str) -> QueueResult<bool> {
-        Self::manager()?.isPaused(connection, queue).await
+    pub async fn is_paused(connection: &str, queue: &str) -> QueueResult<bool> {
+        Self::manager()?.is_paused(connection, queue).await
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn getPausedQueues<'a>(
+    pub async fn get_paused_queues<'a>(
         connection: &str,
         queues: &[&'a str],
     ) -> QueueResult<Vec<&'a str>> {
-        Self::manager()?.getPausedQueues(connection, queues).await
+        Self::manager()?.get_paused_queues(connection, queues).await
     }
 
     pub async fn dispatch(

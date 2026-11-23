@@ -63,7 +63,6 @@ impl ListenerRegistry {
     }
 
     /// Resolves the listener from the dispatcher's application container on delivery.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn listen_class<L: Listener + 'static>(
         &mut self,
         event: &str,
@@ -131,8 +130,7 @@ impl ListenerRegistry {
             .push(registration);
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn listenQueued<E: Event + serde::Serialize + serde::de::DeserializeOwned>(
+    pub fn listen_queued<E: Event + serde::Serialize + serde::de::DeserializeOwned>(
         &mut self,
         event: &str,
         listener: Arc<dyn Listener>,
@@ -178,8 +176,7 @@ impl ListenerRegistry {
             .collect()
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn listenAfterCommit(
+    pub fn listen_after_commit(
         &mut self,
         event: &str,
         listener: impl Listener + ShouldHandleEventsAfterCommit + 'static,

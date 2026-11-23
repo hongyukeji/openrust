@@ -100,7 +100,7 @@ impl Fortify {
         }
     }
     /// Registers a compiled model implementing Fortify's explicit account trait.
-    pub fn registerTwoFactorAuthenticatable<T>(&self)
+    pub fn register_two_factor_authenticatable<T>(&self)
     where
         T: crate::TwoFactorAuthenticatable + Clone,
     {
@@ -112,7 +112,7 @@ impl Fortify {
                 Arc::new(crate::two_factor_model::ModelAdapter::<T>::new()),
             );
     }
-    pub fn twoFactorChallengeView(
+    pub fn two_factor_challenge_view(
         &self,
         view: impl Into<crate::http::responses::SimpleViewResponse>,
     ) {
@@ -126,32 +126,34 @@ impl Fortify {
             .expect("Fortify views lock")
             .clone()
     }
-    pub fn createUsersUsing(&self, creator: Arc<dyn crate::contracts::CreatesNewUsers>) {
+    pub fn create_users_using(&self, creator: Arc<dyn crate::contracts::CreatesNewUsers>) {
         *self.creator.write().expect("Fortify actions lock") = Some(creator);
     }
-    pub fn updateUserProfileInformationUsing(
+    pub fn update_user_profile_information_using(
         &self,
         updater: Arc<dyn crate::contracts::UpdatesUserProfileInformation>,
     ) {
         *self.profile_updater.write().expect("Fortify actions lock") = Some(updater);
     }
-    pub fn updateUserPasswordsUsing(
+    pub fn update_user_passwords_using(
         &self,
         updater: Arc<dyn crate::contracts::UpdatesUserPasswords>,
     ) {
         *self.password_updater.write().expect("Fortify actions lock") = Some(updater);
     }
-    pub fn registerView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+    pub fn register_view(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
         *self.register_view.write().expect("Fortify views lock") = Some(Arc::new(view.into()));
     }
-    pub(crate) fn register_view(&self) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
+    pub(crate) fn registration_view_response(
+        &self,
+    ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.register_view
             .read()
             .expect("Fortify views lock")
             .clone()
     }
     /// Registers the model whose primary key is authorized by signed verification links.
-    pub fn registerEmailVerification<T>(&self)
+    pub fn register_email_verification<T>(&self)
     where
         T: openrust::database::eloquent::Model + openrust::contracts::auth::MustVerifyEmail + Clone,
     {
@@ -163,10 +165,10 @@ impl Fortify {
                 Arc::new(crate::email_verification_model::ModelAdapter::<T>::new()),
             );
     }
-    pub fn verifyEmailView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+    pub fn verify_email_view(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
         *self.verify_email_view.write().expect("Fortify views lock") = Some(Arc::new(view.into()));
     }
-    pub(crate) fn verify_email_view(
+    pub(crate) fn verification_view_response(
         &self,
     ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.verify_email_view
@@ -174,13 +176,16 @@ impl Fortify {
             .expect("Fortify views lock")
             .clone()
     }
-    pub fn resetUserPasswordsUsing(&self, action: Arc<dyn crate::contracts::ResetsUserPasswords>) {
+    pub fn reset_user_passwords_using(
+        &self,
+        action: Arc<dyn crate::contracts::ResetsUserPasswords>,
+    ) {
         *self
             .password_resetter
             .write()
             .expect("Fortify actions lock") = Some(action);
     }
-    pub fn registerPasswordReset<T>(&self)
+    pub fn register_password_reset<T>(&self)
     where
         T: openrust::database::eloquent::Model + openrust::contracts::auth::CanResetPassword,
     {
@@ -192,7 +197,7 @@ impl Fortify {
                 Arc::new(crate::password_reset_model::ModelAdapter::<T>::new()),
             );
     }
-    pub fn requestPasswordResetLinkView(
+    pub fn request_password_reset_link_view(
         &self,
         view: impl Into<crate::http::responses::SimpleViewResponse>,
     ) {
@@ -201,13 +206,13 @@ impl Fortify {
             .write()
             .expect("Fortify views lock") = Some(Arc::new(view.into()));
     }
-    pub fn resetPasswordView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+    pub fn reset_password_view(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
         *self
             .reset_password_view
             .write()
             .expect("Fortify views lock") = Some(Arc::new(view.into()));
     }
-    pub(crate) fn request_password_reset_link_view(
+    pub(crate) fn password_reset_link_view_response(
         &self,
     ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.request_password_reset_link_view
@@ -215,7 +220,7 @@ impl Fortify {
             .expect("Fortify views lock")
             .clone()
     }
-    pub(crate) fn reset_password_view(
+    pub(crate) fn password_reset_view_response(
         &self,
     ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.reset_password_view
@@ -244,22 +249,25 @@ impl Fortify {
             .or_else(|| default.map(str::to_owned))
             .unwrap_or_else(|| self.string("fortify.home", "/home"))
     }
-    pub fn authenticateUsing(&self, callback: Arc<AuthenticateCallback>) {
+    pub fn authenticate_using(&self, callback: Arc<AuthenticateCallback>) {
         *self.authenticate.write().expect("Fortify callbacks lock") = Some(callback);
     }
-    pub fn confirmPasswordsUsing(&self, callback: Arc<ConfirmPasswordCallback>) {
+    pub fn confirm_passwords_using(&self, callback: Arc<ConfirmPasswordCallback>) {
         *self
             .confirm_password
             .write()
             .expect("Fortify callbacks lock") = Some(callback);
     }
-    pub fn authenticateThrough(&self, callback: Arc<LoginPipelineCallback>) {
+    pub fn authenticate_through(&self, callback: Arc<LoginPipelineCallback>) {
         *self.pipeline.write().expect("Fortify callbacks lock") = Some(callback);
     }
-    pub fn loginView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+    pub fn login_view(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
         *self.login_view.write().expect("Fortify views lock") = Some(Arc::new(view.into()));
     }
-    pub fn confirmPasswordView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+    pub fn confirm_password_view(
+        &self,
+        view: impl Into<crate::http::responses::SimpleViewResponse>,
+    ) {
         *self
             .confirm_password_view
             .write()
@@ -278,17 +286,19 @@ impl Fortify {
                 .clone()
         }
     }
-    pub fn confirmsTwoFactorAuthentication(&self) -> Result<bool, openrust::config::ConfigError> {
+    pub fn confirms_two_factor_authentication(
+        &self,
+    ) -> Result<bool, openrust::config::ConfigError> {
         crate::Features::new(self.config.clone())
-            .optionEnabled(crate::Features::twoFactorAuthentication(), "confirm")
+            .option_enabled(crate::Features::two_factor_authentication(), "confirm")
     }
-    pub fn encryptUsing(
+    pub fn encrypt_using(
         &self,
         encrypter: Option<Arc<dyn openrust::contracts::encryption::Encrypter>>,
     ) {
         *self.encrypter.write().expect("Fortify encrypter lock") = encrypter;
     }
-    pub fn currentEncrypter(
+    pub fn current_encrypter(
         &self,
     ) -> crate::FortifyResult<Arc<dyn openrust::contracts::encryption::Encrypter>> {
         if let Some(encrypter) = self
@@ -304,7 +314,7 @@ impl Fortify {
             dyn openrust::contracts::encryption::Encrypter,
         >::get_facade_root()?)
     }
-    pub fn generateRecoveryCodesUsing(
+    pub fn generate_recovery_codes_using(
         &self,
         callback: Option<Arc<crate::recovery_code::RecoveryCodeGenerator>>,
     ) {
@@ -321,10 +331,10 @@ impl Fortify {
             .expect("Fortify recovery codes lock")
             .clone()
     }
-    pub fn ignoreRoutes(&self) {
+    pub fn ignore_routes(&self) {
         self.registers_routes.store(false, Ordering::Relaxed);
     }
-    pub fn registersRoutes(&self) -> bool {
+    pub fn registers_routes(&self) -> bool {
         self.registers_routes.load(Ordering::Relaxed)
     }
     pub(crate) fn authenticate_callback(&self) -> Option<Arc<AuthenticateCallback>> {

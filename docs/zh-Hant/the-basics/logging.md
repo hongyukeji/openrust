@@ -247,9 +247,9 @@ Log::log_with_request(request, openrust::log::Level::Info, "Order placed", &LogC
 
 ### 讀取與篩選擷取記錄
 
-`openrust_pail::value_objects::MessageLogged::from_json` 讀取一行擷取資料，可取得訊息、等級、日期／時間、例外類別與檔案、trace，以及具型別的 HTTP、命令或佇列來源。解析、日期轉換與來源解碼的失敗透過 `Result` 傳回。`context()` 排除保留欄位 `__pail`、`exception` 和 `userId`。
+`openrust_pail::value_objects::MessageLogged::from_json` 讀取一行擷取資料，可取得訊息、等級、日期／時間、例外類別與檔案、trace，以及具型別的 HTTP、命令或佇列來源。解析、日期轉換與來源解碼的失敗透過 `Result` 傳回。`context()` 排除保留欄位 `__pail`、`exception` 和 `user_id`。
 
-`Options::accepts` 要求所有已設定條件同時符合。等級比較與子字串搜尋使用 ASCII 大小寫折疊。message 條件只搜尋訊息文字；通用 filter 搜尋包含來源與 context 的四欄位 JSON 表示。該表示遵循 PHP 的 Unicode 跳脫、物件順序及浮點格式，因此通用 Unicode 搜尋可能需要使用 `\u` 表示。驗證 ID 按字串精確比較，`12` 與 `012` 不同。`fromCommand(&Input)` 保留 auth 優先於 user 的規則，包括明確空值，以及 PHP 的 timeout 轉換；Rust 的命令輸入物件與命令實作分開傳入。
+`Options::accepts` 要求所有已設定條件同時符合。等級比較與子字串搜尋使用 ASCII 大小寫折疊。message 條件只搜尋訊息文字；通用 filter 搜尋包含來源與 context 的四欄位 JSON 表示。該表示遵循 PHP 的 Unicode 跳脫、物件順序及浮點格式，因此通用 Unicode 搜尋可能需要使用 `\u` 表示。驗證 ID 按字串精確比較，`12` 與 `012` 不同。`from_command(&Input)` 保留 auth 優先於 user 的規則，包括明確空值，以及 PHP 的 timeout 轉換；Rust 的命令輸入物件與命令實作分開傳入。
 
 ```rust
 use openrust_pail::{Options, value_objects::MessageLogged};
@@ -275,7 +275,7 @@ Pail 透過共用路徑服務解析 `Application::storage_path("pail")`。在首
 
 ## Pail CLI 列印器 {#pail-cli-printer}
 
-可選 Pail 套件提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中建構 `CliPrinter::new(output, base_path)`，呼叫 `print(&messageLogged)?`。列印器讀取目前輸出的詳細程度與色彩狀態。一般模式顯示時間並縮略類型、檔案和訊息；`-v` 顯示完整日期與本文，`-vv` 或 `-vvv` 再顯示擷取的堆疊框架。
+可選 Pail 套件提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中建構 `CliPrinter::new(output, base_path)`，呼叫 `print(&message_logged)?`。列印器讀取目前輸出的詳細程度與色彩狀態。一般模式顯示時間並縮略類型、檔案和訊息；`-v` 顯示完整日期與本文，`-vv` 或 `-vvv` 再顯示擷取的堆疊框架。
 
 底部顯示 HTTP 方法／路徑和驗證資訊，或佇列／工作／命令，以及公開 Context。數字鍵與 null、PHP 風格值匯出、HTML 文字和多行訊息依固定 Pail 規則處理。邊框寬度上限為 150 個終端欄；原始訊息和長底部資訊可能像上游一樣溢出。Rust 的 `::` 類型命名空間及 Windows 本機路徑分隔符適配到縮略和相對來源顯示。
 

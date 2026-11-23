@@ -54,7 +54,7 @@ fn signature_claims_and_key_metadata_fail_closed() {
     let original = claims();
     let identity = check(&original, header(), keys(), false, None).unwrap();
     assert_eq!(identity.subject(), "007");
-    assert!(identity.emailVerified());
+    assert!(identity.email_verified());
     assert!(!format!("{identity:?}").contains("a@test"));
     for field in ["iss", "sub", "aud", "exp", "iat", "nonce"] {
         let mut v = original.clone();

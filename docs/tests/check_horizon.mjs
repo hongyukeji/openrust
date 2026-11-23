@@ -19,7 +19,7 @@ try {
                     assert.equal(response.status(), 200);
                     await page.locator("#configuration").waitFor();
                     const body = await page.locator("main").innerText();
-                    for (const text of ["HorizonServiceProvider", "horizon:pause", "horizon:continue", "horizon:retry", "horizon:forget", "AutoScaler::numberOfWorkersPerQueue", "MasterSupervisor"]) {
+                    for (const text of ["HorizonServiceProvider", "horizon:pause", "horizon:continue", "horizon:retry", "horizon:forget", "AutoScaler::number_of_workers_per_queue", "MasterSupervisor"]) {
                         assert(body.includes(text), `${language}: missing ${text}`);
                     }
                     for (const anchor of ["installation", "configuration", "authorization", "commands", "metrics"]) {

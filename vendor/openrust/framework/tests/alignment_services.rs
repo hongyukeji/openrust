@@ -102,9 +102,9 @@ async fn filesystem_contracts_resolve_real_adapter_and_stream_and_copy_consumers
     app.call(
         openrust::container::Callback::new(&[], move |_| async move {
             use openrust::support::facades::Storage;
-            let mut input = Storage::readStream("stream.json").await.unwrap().unwrap();
+            let mut input = Storage::read_stream("stream.json").await.unwrap().unwrap();
             assert!(
-                Storage::writeStream("facade.json", &mut input)
+                Storage::write_stream("facade.json", &mut input)
                     .await
                     .unwrap()
             );
@@ -112,7 +112,7 @@ async fn filesystem_contracts_resolve_real_adapter_and_stream_and_copy_consumers
                 Storage::json("facade.json").await.unwrap(),
                 Some(json!({"n":1}))
             );
-            assert!(Storage::readStream("missing").await.unwrap().is_none());
+            assert!(Storage::read_stream("missing").await.unwrap().is_none());
             Ok(())
         }),
         Default::default(),
@@ -210,7 +210,7 @@ async fn pushed_events_repeat_flush_forget_and_obey_fake_selection() {
         .flush("audit", &mut EventContext::new())
         .await
         .unwrap();
-    fake.assertDispatchedTimes("audit_pushed", 1);
+    fake.assert_dispatched_times("audit_pushed", 1);
     assert_eq!(calls.load(Ordering::SeqCst), 4);
     dispatcher.forget_pushed().unwrap();
 }
@@ -726,13 +726,13 @@ async fn mail_global_addresses_inherit_boot_defaults_without_leaking_between_req
     app.boot().await.unwrap();
     let manager = app.container().make::<MailManager>().unwrap();
     let mailer = manager.mailer(None).unwrap();
-    mailer.alwaysFrom("boot@example.test").unwrap();
-    mailer.alwaysReplyTo("reply@example.test").unwrap();
-    mailer.alwaysReturnPath("bounce@example.test").unwrap();
+    mailer.always_from("boot@example.test").unwrap();
+    mailer.always_reply_to("reply@example.test").unwrap();
+    mailer.always_return_path("bounce@example.test").unwrap();
     let container = app.container();
     container
         .scope(async {
-            mailer.alwaysTo("scope@example.test").unwrap();
+            mailer.always_to("scope@example.test").unwrap();
             let sent = mailer.send_now(&AddressMail).await.unwrap().unwrap();
             let envelope = sent.message.envelope();
             assert_eq!(envelope.from.as_ref().unwrap().address, "boot@example.test");

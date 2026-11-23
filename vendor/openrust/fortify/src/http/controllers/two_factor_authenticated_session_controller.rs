@@ -96,7 +96,7 @@ impl TwoFactorAuthenticatedSessionController {
                         })?;
                     let clear = Zeroizing::new(
                         fortify
-                            .currentEncrypter()
+                            .current_encrypter()
                             .map_err(internal)?
                             .decrypt(&encrypted, true)
                             .map_err(internal)?,

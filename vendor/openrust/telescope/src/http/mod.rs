@@ -199,8 +199,8 @@ fn mail(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let telescope = telescope()?;
-        telescope.flushEntries();
-        telescope.stopRecording();
+        telescope.flush_entries();
+        telescope.stop_recording();
         let repository = telescope.repository.clone();
         let path = request
             .path()
@@ -218,7 +218,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     .and_then(|value| value.as_str().map(str::to_owned))
                     .ok_or(HttpError::InvalidRequest)?;
                 if path.ends_with("/delete") {
-                    repository.stopMonitoring(&[tag]).await.map_err(failure)?;
+                    repository.stop_monitoring(&[tag]).await.map_err(failure)?;
                 } else {
                     repository.monitor(&[tag]).await.map_err(failure)?;
                 }
@@ -287,7 +287,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     let batch = repository
                         .get(
                             None,
-                            EntryQueryOptions::forBatchId(Some(entry.batchId)).limit(u64::MAX),
+                            EntryQueryOptions::for_batch_id(Some(entry.batch_id)).limit(u64::MAX),
                         )
                         .await
                         .map_err(failure)?;
@@ -372,11 +372,11 @@ impl EntryQueryOptions {
         };
         let take = number("take")?.unwrap_or(50);
         Ok(Self::default()
-            .batchId(batch)
+            .batch_id(batch)
             .tag(string("tag")?)
-            .familyHash(string("family_hash")?)
+            .family_hash(string("family_hash")?)
             .uuids(uuids)
-            .beforeSequence(number("before")?)
+            .before_sequence(number("before")?)
             .limit(if take < 0 { u64::MAX } else { take as u64 }))
     }
 }

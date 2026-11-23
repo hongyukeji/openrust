@@ -86,8 +86,8 @@ impl JobMiddleware for SkipIfBatchCancelled {
         next: JobNext<'a>,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            if let Some(id) = payload.batchId()
-                && crate::bus::Bus::findBatch(id)
+            if let Some(id) = payload.batch_id()
+                && crate::bus::Bus::find_batch(id)
                     .await?
                     .is_some_and(|batch| batch.cancelled())
             {
@@ -113,7 +113,6 @@ impl Default for WithoutOverlapping {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl WithoutOverlapping {
     pub fn new(key: impl Into<String>) -> Self {
         Self {
@@ -130,17 +129,17 @@ impl WithoutOverlapping {
         self
     }
 
-    pub fn dontRelease(mut self) -> Self {
+    pub fn dont_release(mut self) -> Self {
         self.release_after = None;
         self
     }
 
-    pub fn expireAfter(mut self, delay: impl Into<Delay>) -> Self {
+    pub fn expire_after(mut self, delay: impl Into<Delay>) -> Self {
         self.expires_after = overlap_delay(delay.into());
         self
     }
 
-    pub fn withPrefix(mut self, prefix: impl Into<String>) -> Self {
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = prefix.into();
         self
     }
@@ -150,7 +149,7 @@ impl WithoutOverlapping {
         self
     }
 
-    pub fn getLockKey(&self, payload: &Payload) -> String {
+    pub fn get_lock_key(&self, payload: &Payload) -> String {
         if self.shared {
             format!("{}{}", self.prefix, self.key)
         } else {
@@ -174,7 +173,7 @@ impl JobMiddleware for WithoutOverlapping {
         next: JobNext<'a>,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let key = self.getLockKey(payload);
+            let key = self.get_lock_key(payload);
             let mut lock = Cache::lock(&key, Some(self.expires_after)).map_err(backend)?;
             if !lock.get().await.map_err(backend)? {
                 if let Some(delay) = self.release_after {

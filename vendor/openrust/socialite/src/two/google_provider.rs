@@ -12,7 +12,7 @@ pub struct GoogleProvider {
 }
 impl Default for GoogleProvider {
     fn default() -> Self {
-        Self::withEndpoints(
+        Self::with_endpoints(
             ProviderEndpoints::new(
                 "https://accounts.google.com/o/oauth2/auth",
                 "https://www.googleapis.com/oauth2/v4/token",
@@ -23,37 +23,37 @@ impl Default for GoogleProvider {
     }
 }
 impl GoogleProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints, jwks: impl Into<String>) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints, jwks: impl Into<String>) -> Self {
         Self {
             endpoints,
             jwks: jwks.into(),
         }
     }
-    fn isJwtToken(token: &str) -> bool {
+    fn is_jwt_token(token: &str) -> bool {
         token.len() > 100 && token.bytes().filter(|b| *b == b'.').count() == 2
     }
 }
 impl ProviderDefinition for GoogleProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
         &["openid", "profile", "email"]
     }
-    fn scopeSeparator(&self) -> &str {
+    fn scope_separator(&self) -> &str {
         " "
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
         _: &'a [String],
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
-            if Self::isJwtToken(token) {
+            if Self::is_jwt_token(token) {
                 return Err(Error::Configuration("client_id"));
             }
             json(
@@ -68,7 +68,7 @@ impl ProviderDefinition for GoogleProvider {
             )
         })
     }
-    fn getUserByTokenWithConfig<'a>(
+    fn get_user_by_token_with_config<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -76,7 +76,7 @@ impl ProviderDefinition for GoogleProvider {
         config: &'a ProviderConfig,
     ) -> ProviderFuture<'a, Value> {
         Box::pin(async move {
-            if Self::isJwtToken(token) {
+            if Self::is_jwt_token(token) {
                 identity_token::verify(
                     http,
                     &self.jwks,
@@ -85,30 +85,30 @@ impl ProviderDefinition for GoogleProvider {
                         issuer: "https://accounts.google.com",
                         audience: &config.client_id,
                         algorithm: None,
-                        firstKey: false,
+                        first_key: false,
                     },
                 )
                 .await
             } else {
-                self.getUserByToken(http, token, scopes).await
+                self.get_user_by_token(http, token, scopes).await
             }
         })
     }
-    fn normalizeRefreshTokenResponse(
+    fn normalize_refresh_token_response(
         &self,
         mut response: Value,
-        refreshToken: &str,
+        refresh_token: &str,
     ) -> Result<Value> {
         if let Some(object) = response.as_object_mut() {
             if !object.contains_key("refresh_token") {
-                object.insert("refresh_token".into(), refreshToken.into());
+                object.insert("refresh_token".into(), refresh_token.into());
             }
         } else {
             return Err(Error::InvalidResponse);
         }
         Ok(response)
     }
-    fn mapUserToObject(&self, mut user: Value) -> Result<User> {
+    fn map_user_to_object(&self, mut user: Value) -> Result<User> {
         let id = user["sub"].clone();
         let verified = user["email_verified"].clone();
         let link = user["profile"].clone();

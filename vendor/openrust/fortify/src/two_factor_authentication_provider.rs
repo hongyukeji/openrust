@@ -28,7 +28,6 @@ pub struct TwoFactorAuthenticationProvider {
     window: AtomicI64,
 }
 
-#[allow(non_snake_case, reason = "Matches Fortify and Google2FA method names")]
 impl TwoFactorAuthenticationProvider {
     pub fn new(cache: Option<Arc<dyn Repository>>) -> Self {
         Self {
@@ -44,7 +43,7 @@ impl TwoFactorAuthenticationProvider {
             window: AtomicI64::new(1),
         }
     }
-    pub fn withClock(
+    pub fn with_clock(
         mut self,
         clock: impl Fn() -> FortifyResult<i64> + Send + Sync + 'static,
     ) -> Self {
@@ -55,11 +54,11 @@ impl TwoFactorAuthenticationProvider {
         self.config = Some(config);
         self
     }
-    pub fn withWindow(self, window: i64) -> Self {
+    pub fn with_window(self, window: i64) -> Self {
         self.window.store(window, Ordering::Relaxed);
         self
     }
-    pub fn getWindow(&self) -> i64 {
+    pub fn get_window(&self) -> i64 {
         self.window.load(Ordering::Relaxed)
     }
     fn current_window(&self) -> i64 {
@@ -72,7 +71,7 @@ impl TwoFactorAuthenticationProvider {
             self.window.store(window, Ordering::Relaxed);
             window
         } else {
-            self.getWindow()
+            self.get_window()
         }
     }
     async fn verify_code(&self, secret: &str, code: &str) -> FortifyResult<bool> {
@@ -144,7 +143,7 @@ impl TwoFactorAuthenticationProvider {
 }
 
 impl Contract for TwoFactorAuthenticationProvider {
-    fn generateSecretKey(&self, length: usize) -> FortifyResult<String> {
+    fn generate_secret_key(&self, length: usize) -> FortifyResult<String> {
         validate_length(length)?;
         let mut entropy = Zeroizing::new(Vec::new());
         entropy
@@ -163,7 +162,7 @@ impl Contract for TwoFactorAuthenticationProvider {
         );
         Ok(secret)
     }
-    fn qrCodeUrl(&self, company: &str, account: &str, secret: &str) -> String {
+    fn qr_code_url(&self, company: &str, account: &str, secret: &str) -> String {
         let issuer = raw_url_encode(company);
         format!(
             "otpauth://totp/{issuer}:{}?secret={secret}&issuer={issuer}&algorithm=SHA1&digits=6&period=30",

@@ -25,13 +25,13 @@ cargo run --features socialite -- artisan serve
 | `slack` | `SLACK` | `identity.basic,identity.email,identity.team,identity.avatar` |
 | `slack-openid` | `SLACK_OPENID` | `openid email profile` |
 
-`services.gitlab.host`／`GITLAB_HOST` 預設 `https://gitlab.com`。`GitlabProvider::setHost` 保留自託管路徑前綴並移除結尾斜線。資料端點為 `/api/v3/user`。Slack 登入設定與既有 `slack.notifications` 共處同一 services 物件；真實供應商仍需分別註冊回呼並取得權限。
+`services.gitlab.host`／`GITLAB_HOST` 預設 `https://gitlab.com`。`GitlabProvider::set_host` 保留自託管路徑前綴並移除結尾斜線。資料端點為 `/api/v3/user`。Slack 登入設定與既有 `slack.notifications` 共處同一 services 物件；真實供應商仍需分別註冊回呼並取得權限。
 
 `x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用對應的 `TWITTER_` 變數，並設定 `TWITTER_OAUTH=2` 選擇 OAuth2；預設值 1 選擇 Twitter OAuth1；只有整數 2 選擇 OAuth2，字串 `"2"` 仍選擇 OAuth1。明確的 `twitter-oauth-2` 驅動先讀取 `services.twitter`，僅在物件缺失或為 null 時回退 `services.twitter-oauth-2`。`x` 同樣從 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的設定會失敗，不靜默改用另一組憑證。
 
-`google` 讀取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，預設 scope 為 `openid profile email`。一般 access token 以 Bearer 呼叫 Google UserInfo，傳送 `pretty_print=false`。更新回應僅在缺少 refresh token 欄位時保留傳入值；明確的 null 或輪換值按回應保留。
+`google` 讀取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，預設 scope 為 `openid profile email`。一般 access token 以 Bearer 呼叫 Google UserInfo，傳送 `prettyPrint=false`。更新回應僅在缺少 refresh token 欄位時保留傳入值；明確的 null 或輪換值按回應保留。
 
-`facebook` 使用 `FACEBOOK_CLIENT_ID`、`FACEBOOK_CLIENT_SECRET`、`FACEBOOK_REDIRECT_URI`，預設 scope 為 `email`，固定 Graph 版本為 `v23.0`。`provider.usingGraphVersion("v99.0")` 修改目前請求的授權／token／profile 路徑。`fields(vec!["id".into(), "name".into()])` 替換 Graph 欄位；`asPopup()`、`reRequest()` 覆寫相應可選授權參數。Graph 請求傳送 `access_token`、fields，並在 client secret 非空且不等於 `"0"` 時傳送 HMAC-SHA256 `appsecret_proof`。授權碼交換不指定 Accept，回傳保留 `expires`，僅在 `expires_in` 缺失或為 null 時補入，不覆蓋已有值。
+`facebook` 使用 `FACEBOOK_CLIENT_ID`、`FACEBOOK_CLIENT_SECRET`、`FACEBOOK_REDIRECT_URI`，預設 scope 為 `email`，固定 Graph 版本為 `v23.0`。`provider.using_graph_version("v99.0")` 修改目前請求的授權／token／profile 路徑。`fields(vec!["id".into(), "name".into()])` 替換 Graph 欄位；`as_popup()`、`re_request()` 覆寫相應可選授權參數。Graph 請求傳送 `access_token`、fields，並在 client secret 非空且不等於 `"0"` 時傳送 HMAC-SHA256 `appsecret_proof`。授權碼交換不指定 Accept，回傳保留 `expires`，僅在 `expires_in` 缺失或為 null 時補入，不覆蓋已有值。
 
 ### 微信與 QQ {#wechat-and-qq}
 
@@ -41,22 +41,22 @@ cargo run --features socialite -- artisan serve
 | --- | --- | --- | --- |
 | `weixinweb` | `services.wechat.web` | 微信網站掃碼 | `WECHAT_WEB` |
 | `weixin` | `services.wechat.official_account` | 微信公眾號網頁授權 | `WECHAT_OFFICIAL_ACCOUNT` |
-| `miniApp()` | `services.wechat.mini_app` | 微信小程式登入 | `WECHAT_MINI_APP` |
+| `mini_app()` | `services.wechat.mini_app` | 微信小程式登入 | `WECHAT_MINI_APP` |
 | `qq` | `services.qq` | QQ 互聯網站登入 | `QQ` |
 
 網頁微信與 QQ 的前綴後設定 `_CLIENT_ID`、`_CLIENT_SECRET`、`_REDIRECT_URI`，對應 `client_id`、`client_secret`、`redirect`。微信填寫各自應用的 AppID／AppSecret，分別登記對應回呼網域。小程式使用下方的 AppID／secret 設定，無需回呼位址；三種微信入口使用各自獨立的應用憑證。
 
-沿用下方跳轉／回呼範例，將 `github` 換成對應驅動。網站掃碼使用 `snsapi_login`，公眾號預設使用 `snsapi_userinfo`；靜默授權可用 `provider.setScopes(vec!["snsapi_base".into()])`，傳回 OpenID，不讀取暱稱與頭像。網頁登入保留預設 Session state 檢查，不要呼叫 `stateless()`。
+沿用下方跳轉／回呼範例，將 `github` 換成對應驅動。網站掃碼使用 `snsapi_login`，公眾號預設使用 `snsapi_userinfo`；靜默授權可用 `provider.set_scopes(vec!["snsapi_base".into()])`，傳回 OpenID，不讀取暱稱與頭像。網頁登入保留預設 Session state 檢查，不要呼叫 `stateless()`。
 
-微信授權碼交換會保存當前請求的 OpenID。直接使用 `userFromToken` 時，先呼叫 `provider.setOpenId(openid)`；權杖與 OpenID 必須屬於同一應用及使用者。QQ 先查詢 OpenID 再讀取資料；需要 UnionID 時呼叫 `provider.withUnionId(true)`，仍取決於供應商授予的權限。微信與 QQ 的 UnionID 可從 `user.attributes.get("unionid")` 讀取，暱稱與頭像使用標準 User 方法；這些驅動不傳回電子郵件。
+微信授權碼交換會保存當前請求的 OpenID。直接使用 `user_from_token` 時，先呼叫 `provider.set_open_id(openid)`；權杖與 OpenID 必須屬於同一應用及使用者。QQ 先查詢 OpenID 再讀取資料；需要 UnionID 時呼叫 `provider.with_union_id(true)`，仍取決於供應商授予的權限。微信與 QQ 的 UnionID 可從 `user.attributes.get("unionid")` 讀取，暱稱與頭像使用標準 User 方法；這些驅動不傳回電子郵件。
 
-本地帳戶以可信的應用／供應商 namespace 加 OpenID 綁定，不單憑暱稱或 UnionID 自動合併帳戶；註冊與綁定流程由應用決定。網站微信與公眾號的 OpenID 不能預設相同。`refreshToken` 按各自的重新整理端點執行，供應商拒絕、過期、撤銷或缺少身分欄位會傳回錯誤。正式使用仍須設定真實應用憑證、獲准回呼，並向供應商完成授權聯調。
+本地帳戶以可信的應用／供應商 namespace 加 OpenID 綁定，不單憑暱稱或 UnionID 自動合併帳戶；註冊與綁定流程由應用決定。網站微信與公眾號的 OpenID 不能預設相同。`refresh_token` 按各自的重新整理端點執行，供應商拒絕、過期、撤銷或缺少身分欄位會傳回錯誤。正式使用仍須設定真實應用憑證、獲准回呼，並向供應商完成授權聯調。
 
 升級既有設定時，將 `services.weixinweb`、`services.weixin`、`services.weixin_mini_app` 分別移至 `services.wechat.web`、`services.wechat.official_account`、`services.wechat.mini_app`。環境變數前綴對應從 `WEIXINWEB_`、`WEIXIN_`、`WEIXIN_MINI_APP_` 改為 `WECHAT_WEB_`、`WECHAT_OFFICIAL_ACCOUNT_`、`WECHAT_MINI_APP_`；舊位置不再讀取。自訂驅動型別從 `openrust_socialite::wechat::{WeixinProvider, WeixinWebProvider, MiniApp, Session}` 匯入。
 
 ### 微信小程式 {#wechat-mini-program}
 
-小程式登入採用 EasyWeChat 風格的 `miniApp().codeToSession(code)`。設定 `WECHAT_MINI_APP_APPID` 與 `WECHAT_MINI_APP_SECRET`，對應 `services.wechat.mini_app.app_id`／`secret`；填寫小程式自己的 AppID／AppSecret，無需 redirect。此入口隨 `socialite` feature 提供，也可從 `Socialite::miniApp()` 取得。
+小程式登入採用 EasyWeChat 風格的 `mini_app().code_to_session(code)`。設定 `WECHAT_MINI_APP_APPID` 與 `WECHAT_MINI_APP_SECRET`，對應 `services.wechat.mini_app.app_id`／`secret`；填寫小程式自己的 AppID／AppSecret，無需 redirect。此入口隨 `socialite` feature 提供，也可從 `Socialite::mini_app()` 取得。
 
 小程式呼叫 `wx.login()`，將取得的 `code` 透過 HTTPS POST 傳給應用自己的登入介面；伺服器呼叫以下方法換取可信身分，再依下方本機帳戶範例綁定使用者，並簽發應用自己的 Sanctum／Passport 權杖或登入狀態。客戶端傳入的 OpenID、UnionID、暱稱及頭像不能作為登入憑證。
 
@@ -64,7 +64,7 @@ cargo run --features socialite -- artisan serve
 use openrust_socialite::{Result, SocialiteManager, two::User};
 
 pub async fn mini_login(manager: &SocialiteManager, code: &str) -> Result<User> {
-    let session = manager.miniApp()?.codeToSession(code).await?;
+    let session = manager.mini_app()?.code_to_session(code).await?;
     Ok(session.user())
 }
 ```
@@ -103,27 +103,27 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .map_err(|_| HttpError::InvalidRequest)?
             .user().await.map_err(|_| HttpError::InvalidRequest)?;
         Response::json(StatusCode::OK, serde_json::json!({
-            "id": user.get_id(), "name": user.get_name(), "email": user.getEmail(),
+            "id": user.get_id(), "name": user.get_name(), "email": user.get_email(),
         }))
     })
 }
 ```
 
-`driver("github", request)` 與 `with("github", request)` 借用目前請求，使用者快取僅存於該借用期，不在 manager 全域快取。`redirect` 傳回原生跳轉回應。Session 儲存隨機 40 字元 state，回呼先消費它再交換 code；缺少、不符、陣列、空值及重播均失敗。`enablePKCE()` 可選；在跳轉與回呼兩次 provider 上同時啟用，儲存 96 字元 verifier 並傳送 S256 challenge 與 verifier。
+`driver("github", request)` 與 `with("github", request)` 借用目前請求，使用者快取僅存於該借用期，不在 manager 全域快取。`redirect` 傳回原生跳轉回應。Session 儲存隨機 40 字元 state，回呼先消費它再交換 code；缺少、不符、陣列、空值及重播均失敗。`enable_pkce()` 可選；在跳轉與回呼兩次 provider 上同時啟用，儲存 96 字元 verifier 並傳送 S256 challenge 與 verifier。
 
-manager 與 facade 回傳 `Provider`，共同入口為 `redirect().await?` 和 `user().await?`。OAuth1 跳轉前需透過 HTTP 取得臨時憑證，因此統一跳轉入口為非同步。使用 `scopes`、`stateless`、`refreshToken` 等 OAuth2 方法前，執行 `manager.driver("github", request)?.oauth2()?`；Twitter 的 `scope` 和 `userFromTokenAndSecret` 則使用 `.oauth1()?`。協定不符明確回傳錯誤。具體 OAuth2 provider 仍保留同步 `redirect()`。
+manager 與 facade 回傳 `Provider`，共同入口為 `redirect().await?` 和 `user().await?`。OAuth1 跳轉前需透過 HTTP 取得臨時憑證，因此統一跳轉入口為非同步。使用 `scopes`、`stateless`、`refresh_token` 等 OAuth2 方法前，執行 `manager.driver("github", request)?.oauth2()?`；Twitter 的 `scope` 和 `user_from_token_and_secret` 則使用 `.oauth1()?`。協定不符明確回傳錯誤。具體 OAuth2 provider 仍保留同步 `redirect()`。
 
 Twitter OAuth1 使用可選 `services.twitter.scope`／`TWITTER_SCOPE` 或 `.scope("write")`，與 OAuth2 的 `scopes` 分開。scope 非空且不等於 `"0"` 時，臨時憑證請求透過 query 傳送 `x_auth_access_type`。Session `oauth.temp` 儲存臨時憑證；回呼要求同時存在 `oauth_token` 和 `oauth_verifier`，HTTP 交換前嚴格核對臨時識別碼，讀取但不消費儲存的憑證。臨時 token 的單次使用由遠端伺服器執行。此跳轉／回呼流程要求 Session，OAuth1 不提供 `stateless()`。
 
 ## 可選參數 {#optional-parameters}
 
-跳轉或交換 code 前呼叫 `provider.with(serde_json::json!({"prompt":"select_account","login_hint":"alice@example.test"}).as_object().unwrap().clone())`。參數按固定上游順序覆蓋普通欄位，支援字串、布林和數字純量。`redirectUrl` 修改目前 provider 的回呼。
+跳轉或交換 code 前呼叫 `provider.with(serde_json::json!({"prompt":"select_account","login_hint":"alice@example.test"}).as_object().unwrap().clone())`。參數按固定上游順序覆蓋普通欄位，支援字串、布林和數字純量。`redirect_url` 修改目前 provider 的回呼。
 
-Slack identity 預設使用 `user_scope`，同時將 `scope` 設為空。在跳轉和回呼的 provider 都執行 `provider.asBotUser()` 後，使用 `scope` 及 token 回應頂層憑據；普通使用者憑據取自 `authed_user`。預設 user-scope 欄位在 `with` 參數後套用，與上游一致。`BitbucketProvider` 另有顯式 `provider.getAccessToken(code).await?` 路徑，會追加 HTTP Basic 客戶端認證；普通 `user()` 使用繼承的 token 回應路徑。
+Slack identity 預設使用 `user_scope`，同時將 `scope` 設為空。在跳轉和回呼的 provider 都執行 `provider.as_bot_user()` 後，使用 `scope` 及 token 回應頂層憑據；普通使用者憑據取自 `authed_user`。預設 user-scope 欄位在 `with` 參數後套用，與上游一致。`BitbucketProvider` 另有顯式 `provider.get_access_token(code).await?` 路徑，會追加 HTTP Basic 客戶端認證；普通 `user()` 使用繼承的 token 回應路徑。
 
 ## 存取範圍 {#access-scopes}
 
-GitHub 預設 `user:email`。`scopes(["read:user".into()])` 去重合併，`setScopes(vec!["read:user".into()])` 替換；`getScopes()` 讀取清單。GitHub 使用逗號分隔。包含 `user:email` 時查詢 `/user/emails` 並選擇 primary 且 verified 的信箱，失敗或無匹配傳回 `None`；移除該 scope 則保留 profile 的信箱。
+GitHub 預設 `user:email`。`scopes(["read:user".into()])` 去重合併，`set_scopes(vec!["read:user".into()])` 替換；`get_scopes()` 讀取清單。GitHub 使用逗號分隔。包含 `user:email` 時查詢 `/user/emails` 並選擇 primary 且 verified 的信箱，失敗或無匹配傳回 `None`；移除該 scope 則保留 profile 的信箱。
 
 GitLab、Bitbucket、LinkedIn 兩個驅動以空格分隔 scopes；Slack identity 用逗號，Slack OpenID 用空格。Bitbucket 選擇型別為 `email` 且 primary、confirmed 的信箱，信箱介面失敗傳回 `None`。舊式 LinkedIn 分別載入本地化資料和信箱，含 `r_liteprofile` 時請求 `vanityName`，信箱請求失敗正常傳播。
 
@@ -135,13 +135,13 @@ X／Twitter OAuth2 在重新導向和回呼預設啟用 PKCE，因此即使 `sta
 
 ## 讀取使用者詳情 {#retrieving-user-details}
 
-使用者提供 `get_id`、`getNickname`、`get_name`、`getEmail`、`getAvatar`、`getRaw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 數字／字串型別。`userFromToken(token)` 使用既有 token 讀取身分，`refreshToken(token)` 交換更新權杖。憑據顯式放在 `user.credentials` 的 `token`、`refreshToken`、`expiresIn`、`approvedScopes`；字串使用 `Zeroizing<String>`，不會自動序列化或由 Debug 輸出。遠端 access token 不是 Passport／Sanctum 憑據。
+使用者提供 `get_id`、`get_nickname`、`get_name`、`get_email`、`get_avatar`、`get_raw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 數字／字串型別。`user_from_token(token)` 使用既有 token 讀取身分，`refresh_token(token)` 交換更新權杖。憑據顯式放在 `user.credentials` 的 `token`、`refresh_token`、`expires_in`、`approved_scopes`；字串使用 `Zeroizing<String>`，不會自動序列化或由 Debug 輸出。遠端 access token 不是 Passport／Sanctum 憑據。
 
 舊式 LinkedIn 增加 `first_name`、`last_name`、`avatar_original`，按偏好 locale 和上游嚴格的 100／800 像素選擇圖片。LinkedIn OpenID 增加 given／family name、`email_verified` 和原始圖片；Slack 兩種驅動暴露 `organization_id`。`linkedin-openid`、`slack-openid` 按固定套件使用 access token 存取固定 UserInfo 介面，不驗證 ID Token、不執行 Discovery，也不是完整 OIDC RP；這些能力使用 [OIDC 套件](oidc.md)。
 
 Google 按固定驅動將長度大於 100 位元組且恰有兩個句點的 token 識別為 JWT。它讀取固定 Google JWKS 端點，透過採用 AWS-LC 的 `jsonwebtoken` 11.1.0 校驗金鑰演算法和簽章，要求 issuer 嚴格等於 `https://accounts.google.com`，audience 為與 client ID 相同的單一字串。存在的 `exp`／`nbf` 與 `iat` 回退按固定 PHP NumericDate 行為驗證。JWT 驗證失敗不會退回 Bearer UserInfo。此 Socialite 路徑按上游接受缺少 `exp`、數字日期字串與 null 日期，不執行 Discovery、不要求 nonce，也不是完整 OIDC RP；完整 RP 校驗使用 [OIDC 套件](oidc.md)。Google raw 資料還補入 `id`、`verified_email`、`link`，並映射 `avatar_original`。
 
-Facebook Limited Login 從未驗證的 token header 偵測非 null 的 `kid`，隨後要求所選 Facebook JWKS 金鑰的 RS256 簽章、嚴格的 `https://www.facebook.com` issuer、單一 client audience 與匹配 nonce。在 `userFromToken(token).await?` 或回呼 `user()` 前呼叫 `provider.withNonce(expected)`；未明確指定時，從 `with` 參數的純量 `nonce` 讀取期待值。明確的 `withNonce` 優先，nonce 必須來自應用保存的授權嘗試。`withNonce` 只設定期待值，不自動產生、儲存或加入授權 nonce。簽章／宣告／nonce 失敗不會退回 Graph。請求選項與 `lastToken()` 留在目前 provider，保留的 token 使用 zeroize 清理。此行為對應固定 Socialite Limited Login（日期可選），不替代 完整的 [OIDC RP 協定](oidc.md)。
+Facebook Limited Login 從未驗證的 token header 偵測非 null 的 `kid`，隨後要求所選 Facebook JWKS 金鑰的 RS256 簽章、嚴格的 `https://www.facebook.com` issuer、單一 client audience 與匹配 nonce。在 `user_from_token(token).await?` 或回呼 `user()` 前呼叫 `provider.with_nonce(expected)`；未明確指定時，從 `with` 參數的純量 `nonce` 讀取期待值。明確的 `with_nonce` 優先，nonce 必須來自應用保存的授權嘗試。`with_nonce` 只設定期待值，不自動產生、儲存或加入授權 nonce。簽章／宣告／nonce 失敗不會退回 Graph。請求選項與 `last_token()` 留在目前 provider，保留的 token 使用 zeroize 清理。此行為對應固定 Socialite Limited Login（日期可選），不替代 完整的 [OIDC RP 協定](oidc.md)。
 
 ### 登入已綁定的本機帳戶
 
@@ -223,16 +223,16 @@ pub async fn login_bound_user(
 
 ## 測試 {#testing}
 
-透過 `GithubProvider::withEndpoints` 配合應用內 `manager.extend("github", Arc::new(provider))` 指向受控 HTTP 供應商，替換授權／token／profile／email URL 並保留驅動行為。`ProviderDefinition` 支援編譯型協定客製，`facades::Socialite::driver` / `contracts::Factory`、`Provider`、`User` 暴露公開契約。
+透過 `GithubProvider::with_endpoints` 配合應用內 `manager.extend("github", Arc::new(provider))` 指向受控 HTTP 供應商，替換授權／token／profile／email URL 並保留驅動行為。`ProviderDefinition` 支援編譯型協定客製，`facades::Socialite::driver` / `contracts::Factory`、`Provider`、`User` 暴露公開契約。
 
 Socialite 使用共用客戶端顯式 `redact_payload()`：觀察者與錄製保留狀態及路徑，省略 query、authorization、請求內容、回應內容和回應標頭；實際網路與傳回回應完整。供應商狀態／無效回應錯誤不列印回應憑據。
 
-`ProviderEndpoints::new(authorize, token, user).email(email)` 可傳給新增驅動的 `withEndpoints` 建構器，顯式替換端點。
+`ProviderEndpoints::new(authorize, token, user).email(email)` 可傳給新增驅動的 `with_endpoints` 建構器，顯式替換端點。
 
 使用供應商授權前，先註冊應用程式和回呼並設定憑證。測試登入流程時使用專用帳戶。
 
-`GoogleProvider::withEndpoints(endpoints, jwks)` 用於受控 UserInfo 與 JWKS 服務。
+`GoogleProvider::with_endpoints(endpoints, jwks)` 用於受控 UserInfo 與 JWKS 服務。
 
-`FacebookProvider::withEndpoints(endpoints, jwks)` 為受控測試替換三個 Graph／授權端點與 JWKS；包含 `/v23.0/` 的路徑隨 `usingGraphVersion` 變化。
+`FacebookProvider::with_endpoints(endpoints, jwks)` 為受控測試替換三個 Graph／授權端點與 JWKS；包含 `/v23.0/` 的路徑隨 `using_graph_version` 變化。
 
-Twitter OAuth1 傳送 HMAC-SHA1 簽章請求，存取憑證另含明確的 `user.credentials.tokenSecret`。`userFromTokenAndSecret(token, secret).await?` 直接呼叫 profile。回呼映射包含 URL 欄位、location、description 與 `avatar_original`；憑證直取僅保留 League extra 欄位，與上游一致。成功 profile 按憑證對快取於目前請求內，任一憑證變化就重新取得。`one::TwitterProvider::withEndpoints` 與 `manager.extendOAuth1` 提供受控端點。
+Twitter OAuth1 傳送 HMAC-SHA1 簽章請求，存取憑證另含明確的 `user.credentials.token_secret`。`user_from_token_and_secret(token, secret).await?` 直接呼叫 profile。回呼映射包含 URL 欄位、location、description 與 `avatar_original`；憑證直取僅保留 League extra 欄位，與上游一致。成功 profile 按憑證對快取於目前請求內，任一憑證變化就重新取得。`one::TwitterProvider::with_endpoints` 與 `manager.extend_oauth1` 提供受控端點。

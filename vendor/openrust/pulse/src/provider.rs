@@ -59,7 +59,7 @@ impl ServiceProvider for PulseServiceProvider {
                 .singleton::<crate::pulse::Options, _>(|_| Ok(Arc::default()))?;
             app.container().scoped_if::<crate::Users, _>(|c| {
                 let mut users = crate::Users::default();
-                users.fields = c.make::<crate::pulse::Options>()?.userFields.clone();
+                users.fields = c.make::<crate::pulse::Options>()?.user_fields.clone();
                 Ok(Arc::new(users))
             })?;
             app.container()
@@ -95,9 +95,9 @@ impl ServiceProvider for PulseServiceProvider {
                 .map_err(binding)?;
                 Ok(Arc::new(
                     DatabaseStorage::new(connection)
-                        .withChunk(usize::try_from(chunk).map_err(|_| invalid("chunk overflow"))?)
+                        .with_chunk(usize::try_from(chunk).map_err(|_| invalid("chunk overflow"))?)
                         .map_err(binding)?
-                        .withKeep(keep),
+                        .with_keep(keep),
                 ))
             })?;
             app.container().scoped_if::<dyn Storage, _>(|c| {
@@ -136,12 +136,12 @@ impl ServiceProvider for PulseServiceProvider {
                         };
                         Ok(Arc::new(
                             RedisIngest::new(connection)
-                                .withChunk(
+                                .with_chunk(
                                     usize::try_from(chunk)
                                         .map_err(|_| invalid("chunk overflow"))?,
                                 )
                                 .map_err(binding)?
-                                .withKeep(keep),
+                                .with_keep(keep),
                         ) as Arc<dyn Ingest>)
                     }
                     _ => Err(invalid("unknown ingest driver")),
@@ -177,15 +177,15 @@ impl ServiceProvider for PulseServiceProvider {
                 .map_err(binding)?;
                 let pulse = Arc::new(
                     Pulse::new(c.make::<dyn Storage>()?, c.make::<dyn Ingest>()?)
-                        .withUserResolver(c.make::<dyn crate::ResolvesUsers>()?)
-                        .withTrimLottery(lottery)
-                        .withOptions(c.make::<crate::pulse::Options>()?)
-                        .withBuffer(
+                        .with_user_resolver(c.make::<dyn crate::ResolvesUsers>()?)
+                        .with_trim_lottery(lottery)
+                        .with_options(c.make::<crate::pulse::Options>()?)
+                        .with_buffer(
                             usize::try_from(buffer).map_err(|_| invalid("buffer overflow"))?,
                         ),
                 );
                 if config.get("pulse.enabled").and_then(|v| v.as_bool()) == Some(false) {
-                    pulse.stopRecording();
+                    pulse.stop_recording();
                 }
                 let pending = pulse.clone();
                 match openrust::support::defer(
@@ -198,7 +198,7 @@ impl ServiceProvider for PulseServiceProvider {
                 ) {
                     Ok(_) => {
                         pulse
-                            .automaticRecording
+                            .automatic_recording
                             .store(true, std::sync::atomic::Ordering::Relaxed);
                     }
                     Err(openrust::concurrency::Error::OutsideRequest) => {}
@@ -244,7 +244,7 @@ impl ServiceProvider for PulseServiceProvider {
                     app.base_path().to_owned(),
                     app.make::<crate::pulse::Options>().await?,
                 )?;
-                crate::recorders::registerLogging(
+                crate::recorders::register_logging(
                     app.make::<openrust::log::LogManager>().await?.as_ref(),
                     app.config()?,
                     app.make::<crate::pulse::Options>().await?,

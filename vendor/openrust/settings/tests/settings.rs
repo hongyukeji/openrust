@@ -140,7 +140,7 @@ async fn nested_transaction_rollback_and_failed_savepoints_publish_nothing() {
     let s = f.site().await;
     s.fill(json!({"name":"Outer edit"})).await.unwrap();
     let mut tx = f.connection.begin_transaction().await.unwrap();
-    s.saveIn(&mut tx).await.unwrap();
+    s.save_in(&mut tx).await.unwrap();
     assert_eq!(tx.transaction_level(), 1);
     tx.roll_back(None).await.unwrap();
     assert_eq!(f.site().await.get().await.name, "Default");
@@ -148,7 +148,7 @@ async fn nested_transaction_rollback_and_failed_savepoints_publish_nothing() {
     assert_eq!(f.site().await.get().await.name, "Outer edit");
     s.fill(json!({"enabled":false})).await.unwrap();
     let mut tx = f.connection.begin_transaction().await.unwrap();
-    s.saveIn(&mut tx).await.unwrap();
+    s.save_in(&mut tx).await.unwrap();
     tx.commit().await.unwrap();
     s.refresh().await.unwrap();
     assert!(!s.get().await.enabled);
@@ -160,7 +160,7 @@ async fn nested_transaction_rollback_and_failed_savepoints_publish_nothing() {
     ]);
     assert_eq!(
         f.repository
-            .saveIn(&mut tx, "absent_group", &raw, &bad)
+            .save_in(&mut tx, "absent_group", &raw, &bad)
             .await
             .unwrap_err(),
         Error::UnknownProperty
@@ -198,14 +198,14 @@ async fn encrypted_objects_rotate_restore_and_fail_without_keys() {
     let next = Arc::new(
         Encrypter::new([2; 32], Cipher::Aes256Cbc)
             .unwrap()
-            .previousKeys(vec![vec![1; 32]])
+            .previous_keys(vec![vec![1; 32]])
             .unwrap(),
     );
     let rotated = Settings::<Secrets>::load(f.repository.clone(), &f.config, Some(next))
         .await
         .unwrap();
     assert_eq!(rotated.get().await.credentials["key"], "private-token");
-    rotated.reEncrypt().await.unwrap();
+    rotated.re_encrypt().await.unwrap();
     let current = Arc::new(Encrypter::new([2; 32], Cipher::Aes256Cbc).unwrap());
     let restored = Settings::<Secrets>::load(f.repository.clone(), &f.config, Some(current))
         .await
@@ -270,12 +270,12 @@ async fn unknown_future_properties_are_preserved_and_groups_are_isolated() {
             .is_empty()
     );
     let wrong = DatabaseSettingsRepository::new(f.connection.clone())
-        .withTable("missing_settings")
+        .with_table("missing_settings")
         .unwrap();
     assert_eq!(wrong.load("site").await.unwrap_err(), Error::Database);
     assert!(
         DatabaseSettingsRepository::new(f.connection.clone())
-            .withTable("settings;drop table users")
+            .with_table("settings;drop table users")
             .is_err()
     );
     assert_eq!(

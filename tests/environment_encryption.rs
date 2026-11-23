@@ -90,7 +90,7 @@ fn artisan_encrypts_and_decrypts_an_environment_file_byte_for_byte() {
         .unwrap();
     assert!(key.starts_with("base64:"));
     let payload = fs::read_to_string(&encrypted).unwrap();
-    assert!(Encrypter::appearsEncrypted(&payload));
+    assert!(Encrypter::appears_encrypted(&payload));
     assert!(!plain.exists());
 
     failure(

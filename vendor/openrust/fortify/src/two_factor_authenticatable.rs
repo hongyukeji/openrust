@@ -12,23 +12,22 @@ use openrust::{
 use zeroize::Zeroizing;
 
 /// Explicit model opt-in corresponding to Fortify's Eloquent trait.
-#[allow(non_snake_case, reason = "Matches Fortify's model trait")]
 pub trait TwoFactorAuthenticatable: Authenticatable + Model {
-    fn hasEnabledTwoFactorAuthentication(&self, fortify: &Fortify) -> FortifyResult<bool> {
+    fn has_enabled_two_factor_authentication(&self, fortify: &Fortify) -> FortifyResult<bool> {
         Ok(text(self, "two_factor_secret")?.is_some()
-            && (!fortify.confirmsTwoFactorAuthentication()?
+            && (!fortify.confirms_two_factor_authentication()?
                 || !matches!(
                     self.get_attribute_value("two_factor_confirmed_at")?,
                     None | Some(Value::Null)
                 )))
     }
-    fn recoveryCodes(&self, fortify: &Fortify) -> FortifyResult<Vec<String>> {
+    fn recovery_codes(&self, fortify: &Fortify) -> FortifyResult<Vec<String>> {
         let ciphertext = text(self, "two_factor_recovery_codes")?
             .ok_or(FortifyError::InvalidAttribute("two_factor_recovery_codes"))?;
-        let cleartext = Zeroizing::new(fortify.currentEncrypter()?.decrypt(&ciphertext, true)?);
+        let cleartext = Zeroizing::new(fortify.current_encrypter()?.decrypt(&ciphertext, true)?);
         Ok(serde_json::from_slice(&cleartext)?)
     }
-    fn replaceRecoveryCode(
+    fn replace_recovery_code(
         &mut self,
         code: &str,
         fortify: &Fortify,
@@ -39,11 +38,11 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
                 .ok_or_else(|| {
                     internal(FortifyError::InvalidAttribute("two_factor_recovery_codes"))
                 })?;
-            let encrypter = fortify.currentEncrypter().map_err(internal)?;
+            let encrypter = fortify.current_encrypter().map_err(internal)?;
             let replacement = Zeroizing::new(RecoveryCode::generate(fortify));
             let cleartext = Zeroizing::new(
                 fortify
-                    .currentEncrypter()
+                    .current_encrypter()
                     .map_err(internal)?
                     .decrypt(&ciphertext, true)
                     .map_err(internal)?,
@@ -69,28 +68,28 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
             .await
         }
     }
-    fn twoFactorQrCodeSvg(
+    fn two_factor_qr_code_svg(
         &self,
         fortify: &Fortify,
         provider: &dyn crate::contracts::TwoFactorAuthenticationProvider,
     ) -> FortifyResult<String> {
-        crate::qr::two_factor_qr_code_svg(&self.twoFactorQrCodeUrl(fortify, provider)?)
+        crate::qr::two_factor_qr_code_svg(&self.two_factor_qr_code_url(fortify, provider)?)
     }
-    fn twoFactorQrCodeUrl(
+    fn two_factor_qr_code_url(
         &self,
         fortify: &Fortify,
         provider: &dyn crate::contracts::TwoFactorAuthenticationProvider,
     ) -> FortifyResult<String> {
         let encrypted = text(self, "two_factor_secret")?
             .ok_or(FortifyError::InvalidAttribute("two_factor_secret"))?;
-        let cleartext = Zeroizing::new(fortify.currentEncrypter()?.decrypt(&encrypted, true)?);
+        let cleartext = Zeroizing::new(fortify.current_encrypter()?.decrypt(&encrypted, true)?);
         let secret = std::str::from_utf8(&cleartext).map_err(|_| FortifyError::InvalidUtf8)?;
         let username = self.get_attribute_value(&fortify.username())?;
         let username = match username {
             Some(Value::Text(value)) => value,
             _ => return Err(FortifyError::InvalidAttribute("username")),
         };
-        Ok(provider.qrCodeUrl(&fortify.string("app.name", ""), &username, secret))
+        Ok(provider.qr_code_url(&fortify.string("app.name", ""), &username, secret))
     }
 }
 pub(crate) fn text<T: Model>(user: &T, attribute: &'static str) -> FortifyResult<Option<String>> {

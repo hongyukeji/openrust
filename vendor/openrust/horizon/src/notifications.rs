@@ -71,7 +71,7 @@ impl Notification for LongWaitDetected {
     }
 }
 impl crate::Horizon {
-    pub fn routeMailNotificationsTo(
+    pub fn route_mail_notifications_to(
         email: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
         Routes::get_facade_root()?
@@ -86,7 +86,7 @@ impl crate::Horizon {
             );
         Ok(())
     }
-    pub fn routeSlackNotificationsTo(
+    pub fn route_slack_notifications_to(
         route: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
         Routes::get_facade_root()?
@@ -99,7 +99,7 @@ impl crate::Horizon {
             );
         Ok(())
     }
-    pub fn routeSmsNotificationsTo(
+    pub fn route_sms_notifications_to(
         number: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
         Routes::get_facade_root()?
@@ -112,8 +112,8 @@ impl crate::Horizon {
 }
 pub(crate) async fn monitor(repository: &Repository) -> Result<()> {
     if !repository
-        .metricsRepository()
-        .acquireWaitTimeMonitorLock()
+        .metrics_repository()
+        .acquire_wait_time_monitor_lock()
         .await?
     {
         return Ok(());
@@ -144,7 +144,7 @@ pub(crate) async fn monitor(repository: &Repository) -> Result<()> {
         openrust::support::facades::Event::dispatch(event.clone())
             .await
             .map_err(|_| Error::Unavailable)?;
-        if !repository.notificationLock(&name).await? {
+        if !repository.notification_lock(&name).await? {
             continue;
         }
         let routes = Routes::get_facade_root()

@@ -12,7 +12,7 @@ pub struct SearchResults {
     pub raw: serde_json::Value,
 }
 pub trait Engine<M: Searchable>: Send + Sync {
-    fn supportsSemanticSearch(&self) -> bool {
+    fn supports_semantic_search(&self) -> bool {
         false
     }
     fn update<'a>(&'a self, models: &'a [M]) -> ScoutFuture<'a, ()>;
@@ -25,30 +25,30 @@ pub trait Engine<M: Searchable>: Send + Sync {
         page: u64,
     ) -> ScoutFuture<'a, SearchResults>;
     fn flush<'a>(&'a self, model: &'a M) -> ScoutFuture<'a, ()>;
-    fn createIndex<'a>(
+    fn create_index<'a>(
         &'a self,
         name: &'a str,
         options: &'a serde_json::Value,
     ) -> ScoutFuture<'a, ()>;
-    fn deleteIndex<'a>(&'a self, name: &'a str) -> ScoutFuture<'a, ()>;
-    fn mapIds(&self, results: &SearchResults) -> Vec<Value> {
+    fn delete_index<'a>(&'a self, name: &'a str) -> ScoutFuture<'a, ()>;
+    fn map_ids(&self, results: &SearchResults) -> Vec<Value> {
         results.ids.clone()
     }
-    fn mapIdsFrom(&self, results: &SearchResults, _key: &str) -> Vec<Value> {
-        self.mapIds(results)
+    fn map_ids_from(&self, results: &SearchResults, _key: &str) -> Vec<Value> {
+        self.map_ids(results)
     }
-    fn getTotalCount(&self, results: &SearchResults) -> u64 {
+    fn get_total_count(&self, results: &SearchResults) -> u64 {
         results.total
     }
     fn keys<'a>(&'a self, builder: &'a Builder<M>) -> ScoutFuture<'a, Vec<Value>> {
-        Box::pin(async move { Ok(self.mapIds(&self.search(builder).await?)) })
+        Box::pin(async move { Ok(self.map_ids(&self.search(builder).await?)) })
     }
     fn get<'a>(
         &'a self,
         builder: &'a Builder<M>,
     ) -> ScoutFuture<'a, openrust::database::eloquent::Collection<M>> {
         Box::pin(async move {
-            let results = builder.applyAfterRawSearchCallback(self.search(builder).await?)?;
+            let results = builder.apply_after_raw_search_callback(self.search(builder).await?)?;
             Ok(M::new_collection(self.map(builder, &results).await?))
         })
     }
@@ -57,11 +57,11 @@ pub trait Engine<M: Searchable>: Send + Sync {
         builder: &'a Builder<M>,
     ) -> ScoutFuture<'a, futures_util::stream::BoxStream<'static, crate::Result<M>>> {
         Box::pin(async move {
-            let results = builder.applyAfterRawSearchCallback(self.search(builder).await?)?;
-            Ok(self.lazyMap(builder, &results))
+            let results = builder.apply_after_raw_search_callback(self.search(builder).await?)?;
+            Ok(self.lazy_map(builder, &results))
         })
     }
-    fn lazyMap(
+    fn lazy_map(
         &self,
         builder: &Builder<M>,
         results: &SearchResults,
@@ -72,13 +72,13 @@ pub trait Engine<M: Searchable>: Send + Sync {
         }
         match builder
             .model
-            .queryScoutModelsByIds(builder, results.ids.clone())
+            .query_scout_models_by_ids(builder, results.ids.clone())
         {
             Ok(query) => query
                 .reorder()
                 .in_order_of(
-                    &builder.model.getScoutKeyName(),
-                    crate::searchable::normalizedKeys(&builder.model, results.ids.clone()),
+                    &builder.model.get_scout_key_name(),
+                    crate::searchable::normalized_keys(&builder.model, results.ids.clone()),
                 )
                 .cursor()
                 .map_err(crate::Error::from)
@@ -97,27 +97,27 @@ pub trait Engine<M: Searchable>: Send + Sync {
             }
             let mut models: Vec<_> = builder
                 .model
-                .getScoutModelsByIds(builder, results.ids.clone())
+                .get_scout_models_by_ids(builder, results.ids.clone())
                 .await?
                 .into_iter()
                 .collect();
             models.retain(|model| {
                 model
-                    .getScoutKey()
-                    .is_some_and(|id| results.ids.iter().any(|key| sameKey(key, &id)))
+                    .get_scout_key()
+                    .is_some_and(|id| results.ids.iter().any(|key| same_key(key, &id)))
             });
             models.sort_by_key(|model| {
                 results
                     .ids
                     .iter()
-                    .position(|id| model.getScoutKey().is_some_and(|key| sameKey(id, &key)))
+                    .position(|id| model.get_scout_key().is_some_and(|key| same_key(id, &key)))
             });
             Ok(models)
         })
     }
 }
 
-fn sameKey(left: &Value, right: &Value) -> bool {
+fn same_key(left: &Value, right: &Value) -> bool {
     let text = |key: &Value| match key {
         Value::Integer(n) => Some(n.to_string()),
         Value::Unsigned(n) => Some(n.to_string()),

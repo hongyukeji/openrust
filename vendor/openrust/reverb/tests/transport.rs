@@ -372,14 +372,14 @@ fn room_channel() -> openrust::broadcasting::BroadcastResult<()> {
         contracts::auth::Authenticatable,
         support::facades::Broadcast,
     };
-    Broadcast::channelWithOptions(
+    Broadcast::channel_with_options(
         "orders.{id}",
         |_: &dyn Authenticatable, _: &ChannelParameters| Ok(ChannelAuthorization::Allowed),
         ChannelOptions {
             guards: vec!["test".into()],
         },
     )?;
-    Broadcast::channelWithOptions(
+    Broadcast::channel_with_options(
         "room.{id}",
         |_: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(ChannelAuthorization::Presence(

@@ -247,9 +247,9 @@ Authentication or observer errors return through the log result after the ordina
 
 ### Reading and Filtering Captures
 
-`openrust_pail::value_objects::MessageLogged::from_json` reads a capture line. It exposes its message, level, date/time, exception class/file, trace and typed HTTP, console or queue origin. Parsing, date conversion and origin decoding return `Result` where they can fail. `context()` excludes the reserved `__pail`, `exception` and `userId` fields.
+`openrust_pail::value_objects::MessageLogged::from_json` reads a capture line. It exposes its message, level, date/time, exception class/file, trace and typed HTTP, console or queue origin. Parsing, date conversion and origin decoding return `Result` where they can fail. `context()` excludes the reserved `__pail`, `exception` and `user_id` fields.
 
-`Options::accepts` combines all supplied filters. Level comparison and substring searches fold ASCII case. The message filter searches only message text; the general filter searches the four-field JSON representation, including origin and context. That representation follows PHP's Unicode escaping, object order and float notation, so a general Unicode search may need its `\u` spelling. Authentication IDs compare as exact strings; `12` and `012` differ. `fromCommand(&Input)` preserves `auth` precedence over `user`, including an explicitly empty value, and PHP's timeout conversion. It reads the Rust command's separate input object.
+`Options::accepts` combines all supplied filters. Level comparison and substring searches fold ASCII case. The message filter searches only message text; the general filter searches the four-field JSON representation, including origin and context. That representation follows PHP's Unicode escaping, object order and float notation, so a general Unicode search may need its `\u` spelling. Authentication IDs compare as exact strings; `12` and `012` differ. `from_command(&Input)` preserves `auth` precedence over `user`, including an explicitly empty value, and PHP's timeout conversion. It reads the Rust command's separate input object.
 
 ```rust
 use openrust_pail::{Options, value_objects::MessageLogged};
@@ -275,7 +275,7 @@ Default file log channels and the emergency fallback follow the application stor
 
 ## Pail CLI Printer {#pail-cli-printer}
 
-The optional Pail package exposes `openrust_pail::contracts::Printer` and `printers::CliPrinter`. In an Artisan command, construct `CliPrinter::new(output, base_path)` and call `print(&messageLogged)?`. It reads the current output's verbose and decoration flags. Normal output shows the time and abbreviated class/file/message; `-v` shows the date and full text, and `-vv` or `-vvv` adds captured trace frames.
+The optional Pail package exposes `openrust_pail::contracts::Printer` and `printers::CliPrinter`. In an Artisan command, construct `CliPrinter::new(output, base_path)` and call `print(&message_logged)?`. It reads the current output's verbose and decoration flags. Normal output shows the time and abbreviated class/file/message; `-v` shows the date and full text, and `-vv` or `-vvv` adds captured trace frames.
 
 HTTP method/path and authentication, queue/job/command, and public context appear in the footer. Numeric/null context entries, PHP-style value exports, literal HTML text and multiline messages follow the pinned Pail rendering rules. The frame is limited to 150 terminal columns; source messages and long footers can overflow as in upstream. Rust `::` class namespaces and native Windows path separators are adapted for abbreviation and relative source display.
 

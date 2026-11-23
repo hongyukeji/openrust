@@ -108,10 +108,10 @@ async fn remote() -> (String, Arc<Remote>, tokio::task::JoinHandle<()>) {
     (base, remote, task)
 }
 fn provider<'a>(request: &'a mut Request, base: &str, client_id: &str) -> AbstractProvider<'a> {
-    AbstractProvider::new(request,ProviderConfig::from_config(&json!({"client_id":client_id,"client_secret":"secret","redirect":"https://rp.test/callback"})).unwrap(),Arc::new(Factory::new().unwrap()),Arc::new(GoogleProvider::withEndpoints(ProviderEndpoints::new(format!("{base}/authorize"),format!("{base}/token"),format!("{base}/user")),format!("{base}/certs"))))
+    AbstractProvider::new(request,ProviderConfig::from_config(&json!({"client_id":client_id,"client_secret":"secret","redirect":"https://rp.test/callback"})).unwrap(),Arc::new(Factory::new().unwrap()),Arc::new(GoogleProvider::with_endpoints(ProviderEndpoints::new(format!("{base}/authorize"),format!("{base}/token"),format!("{base}/user")),format!("{base}/certs"))))
 }
 fn mapped(user: &openrust_socialite::two::User) -> Value {
-    json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes})
+    json!({"id":user.get_id(),"nickname":user.get_nickname(),"name":user.get_name(),"email":user.get_email(),"avatar":user.get_avatar(),"raw":user.get_raw(),"attributes":user.attributes})
 }
 #[tokio::test]
 async fn google_default_fields_mapping_and_oauth_exchange_refresh_match_fixed_php() {
@@ -119,7 +119,7 @@ async fn google_default_fields_mapping_and_oauth_exchange_refresh_match_fixed_ph
     let mut request = request();
     let mut p = provider(&mut request, &base, "client");
     p.stateless();
-    let url = url::Url::parse(&p.authorizationUrl().unwrap()).unwrap();
+    let url = url::Url::parse(&p.authorization_url().unwrap()).unwrap();
     let fields = url
         .query_pairs()
         .map(|(k, v)| (k.into_owned(), Value::String(v.into_owned())))
@@ -129,13 +129,13 @@ async fn google_default_fields_mapping_and_oauth_exchange_refresh_match_fixed_ph
     assert_eq!(fields, expected);
     let user = p.user().await.unwrap();
     assert_eq!(mapped(&user), fixture()["user"]);
-    assert!(user.credentials.as_ref().unwrap().refreshToken.is_none());
-    let token = p.refreshToken("keep-refresh").await.unwrap();
+    assert!(user.credentials.as_ref().unwrap().refresh_token.is_none());
+    let token = p.refresh_token("keep-refresh").await.unwrap();
     assert_eq!(token.token.as_str(), fixture()["refresh"]["token"]);
-    assert_eq!(token.refreshToken.unwrap().as_str(), "keep-refresh");
-    assert_eq!(token.expiresIn, Some(3600));
+    assert_eq!(token.refresh_token.unwrap().as_str(), "keep-refresh");
+    assert_eq!(token.expires_in, Some(3600));
     assert_eq!(
-        json!(token.approvedScopes),
+        json!(token.approved_scopes),
         fixture()["refresh"]["approvedScopes"]
     );
     {
@@ -151,10 +151,10 @@ async fn google_default_fields_mapping_and_oauth_exchange_refresh_match_fixed_ph
     for (mode, expected) in [("refresh-null", None), ("refresh-rotate", Some("rotated"))] {
         *remote.mode.lock().unwrap() = mode.into();
         assert_eq!(
-            p.refreshToken("keep")
+            p.refresh_token("keep")
                 .await
                 .unwrap()
-                .refreshToken
+                .refresh_token
                 .as_deref()
                 .map(|v| v.as_str()),
             expected
@@ -170,7 +170,7 @@ async fn google_jwt_signature_claim_matrix_matches_real_php_and_never_falls_back
         *remote.keys.lock().unwrap() = case["keys"].clone();
         let mut request = request();
         let mut p = provider(&mut request, &base, "client");
-        let result = p.userFromToken(case["token"].as_str().unwrap()).await;
+        let result = p.user_from_token(case["token"].as_str().unwrap()).await;
         assert_eq!(
             result.is_ok(),
             case["accepted"].as_bool().unwrap(),
@@ -200,16 +200,16 @@ async fn google_jwks_rotation_and_code_exchange_jwt_path_keep_client_audience_is
         .as_str()
         .unwrap()
         .to_owned();
-    assert!(p.userFromToken(&rotated).await.is_ok());
+    assert!(p.user_from_token(&rotated).await.is_ok());
     assert!(matches!(
-        p.userFromToken(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
+        p.user_from_token(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
             .await,
         Err(Error::InvalidIdentityToken)
     ));
     let mut other_request = crate::request();
     let mut other = provider(&mut other_request, &base, "other-client");
     assert!(matches!(
-        other.userFromToken(&rotated).await,
+        other.user_from_token(&rotated).await,
         Err(Error::InvalidIdentityToken)
     ));
     assert_eq!(
@@ -247,7 +247,7 @@ async fn google_remote_and_jwks_errors_and_revocation_fail_without_private_paylo
         let mut p = provider(&mut request, &base, "client");
         p.stateless();
         let error = if mode.starts_with("jwks") {
-            p.userFromToken(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
+            p.user_from_token(fixture()["jwt"]["valid"]["token"].as_str().unwrap())
                 .await
                 .err()
                 .unwrap()
@@ -278,13 +278,13 @@ async fn google_manager_default_and_custom_definition_are_application_local() {
         .oauth2()
         .unwrap();
     p.stateless();
-    let url = p.authorizationUrl().unwrap();
+    let url = p.authorization_url().unwrap();
     assert!(url.starts_with("https://accounts.google.com/o/oauth2/auth?"));
     assert!(url.contains("redirect_uri=https%3A%2F%2Frp.test%2Fbase%2Fcallback"));
     let other = SocialiteManager::new(config, Arc::new(Factory::new().unwrap()));
     manager.extend(
         "google",
-        Arc::new(GoogleProvider::withEndpoints(
+        Arc::new(GoogleProvider::with_endpoints(
             ProviderEndpoints::new(
                 "https://custom.test/auth",
                 "https://custom.test/token",
@@ -300,7 +300,7 @@ async fn google_manager_default_and_custom_definition_are_application_local() {
         .unwrap();
     p.stateless();
     assert!(
-        p.authorizationUrl()
+        p.authorization_url()
             .unwrap()
             .starts_with("https://custom.test/")
     );
@@ -311,13 +311,13 @@ async fn google_manager_default_and_custom_definition_are_application_local() {
         .unwrap();
     p.stateless();
     assert!(
-        p.authorizationUrl()
+        p.authorization_url()
             .unwrap()
             .starts_with("https://accounts.google.com/")
     );
     let d = GoogleProvider::default();
     assert_eq!(
-        d.getTokenUrl(),
+        d.get_token_url(),
         "https://www.googleapis.com/oauth2/v4/token"
     );
 }

@@ -19,15 +19,15 @@ The Stripe API is pinned to `2026-11-18.endive`; configure the webhook endpoint 
 
 The package loads `cashier.default`, Stripe `cashier.key`, `cashier.secret`, `cashier.webhook.secret`, and Paddle `cashier.paddle.api_key`, `cashier.paddle.webhook_secret`, `cashier.paddle.sandbox`. The Paddle namespace separates the two upstream packages within one Rust crate. `cashier.drivers` contains explicit named accounts; a matching account overrides its canonical provider configuration. Your application configuration loader can override the `cashier` group: application values take precedence and `drivers` is replaced as a whole. Each named profile specifies `driver`, `secret`, `webhook_secret` and `live`; `webhook_secrets` supports secret rotation. A profile name identifies one stable merchant account and mode. Use another name or database for a different merchant or for production instead of reassigning an existing profile.
 
-`Cashier::driver("stripe")` and `Cashier::defaultDriver()` resolve clients in application scope. `CashierManager::get_default_driver()` returns the configured name. `forget_drivers()` reloads configuration on subsequent resolutions; existing clients retain their credential snapshots. Cached configuration remains authoritative; rebuild it after changing environment settings as described in [configuration](../getting-started/configuration.md).
+`Cashier::driver("stripe")` and `Cashier::default_driver()` resolve clients in application scope. `CashierManager::get_default_driver()` returns the configured name. `forget_drivers()` reloads configuration on subsequent resolutions; existing clients retain their credential snapshots. Cached configuration remains authoritative; rebuild it after changing environment settings as described in [configuration](../getting-started/configuration.md).
 
 ## Customers and Checkout {#customers-and-checkout}
 
 `Billable` binds a trusted, authenticated application identity. Do not infer ownership from an email, webhook field or Checkout query string. Profile names and local identities isolate customer mappings; a remote customer can be associated only once.
 
-Stripe customer APIs retain `stripeId`, `hasStripeId`, `createAsStripeCustomer`, `createOrGetStripeCustomer`, `updateStripeCustomer`, `updateOrCreateStripeCustomer` and `asStripeCustomer(&["tax"])`. Creation rejects an existing customer with `CustomerAlreadyCreated`; create-or-get retrieves the existing customer and honors `expand`. `billingPortalUrl(return_url, options, key)` returns a validated HTTPS URL; `redirectToBillingPortal` returns an HTTP 302 response. Stripe-only methods reject Paddle accounts before sending a request. Existing `createOrGetCustomer`, `updateCustomer` and `billingPortal` remain explicit cross-provider conveniences.
+Stripe customer APIs retain `stripe_id`, `has_stripe_id`, `create_as_stripe_customer`, `create_or_get_stripe_customer`, `update_stripe_customer`, `update_or_create_stripe_customer` and `as_stripe_customer(&["tax"])`. Creation rejects an existing customer with `CustomerAlreadyCreated`; create-or-get retrieves the existing customer and honors `expand`. `billing_portal_url(return_url, options, key)` returns a validated HTTPS URL; `redirect_to_billing_portal` returns an HTTP 302 response. Stripe-only methods reject Paddle accounts before sending a request. Existing `create_or_get_customer`, `update_customer` and `billing_portal` remain explicit cross-provider conveniences.
 
-`Billable` is a trusted identity adapter rather than a PHP model trait. Provide customer name/email/address in `options`; no reflection reads application model fields. Provider objects remain JSON values, while local subscription/invoice records are typed. `subscription()` returns `SubscriptionHandle`, which owns operations and dereferences the stored `Subscription`; `asStripeSubscription` and `asPaddleSubscription` retain their provider boundaries. `rawBalance()` returns Stripe minor units; the existing integer `balance()` is a convenience alias, without PHP localized currency formatting. Mutation keys are explicit Rust arguments to retain retry safety.
+`Billable` is a trusted identity adapter rather than a PHP model trait. Provide customer name/email/address in `options`; no reflection reads application model fields. Provider objects remain JSON values, while local subscription/invoice records are typed. `subscription()` returns `SubscriptionHandle`, which owns operations and dereferences the stored `Subscription`; `as_stripe_subscription` and `as_paddle_subscription` retain their provider boundaries. `raw_balance()` returns Stripe minor units; the existing integer `balance()` is a convenience alias, without PHP localized currency formatting. Mutation keys are explicit Rust arguments to retain retry safety.
 
 ```rust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
@@ -36,57 +36,57 @@ use serde_json::json;
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());
 let user = Billable::new(client.clone(), store.clone(), "users:42")?;
-user.createOrGetStripeCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
-let session = user.newSubscription("default", vec![Price::new("price_monthly", 1)?])?
-    .trialDays(14)?
-    .withCoupon("coupon_welcome")?
+user.create_or_get_stripe_customer(json!({"email":"buyer@example.com"}), "customer:42").await?;
+let session = user.new_subscription("default", vec![Price::new("price_monthly", 1)?])?
+    .trial_days(14)?
+    .with_coupon("coupon_welcome")?
     .checkout(json!({
         "success_url":"https://shop.example/success?session_id={CHECKOUT_SESSION_ID}",
         "cancel_url":"https://shop.example/account"
     }), "subscription:42:first").await?;
 ```
 
-Redirect to the returned `url`. A browser redirect is not proof of payment: use committed, signature-verified webhooks to synchronize payment and subscription status. `checkout(prices, options, key)` creates one-time Checkout sessions; use `newSubscription(...).checkout(...)` for subscriptions. Select catalog prices on the server instead of accepting arbitrary prices, amounts or customer IDs from the browser.
+Redirect to the returned `url`. A browser redirect is not proof of payment: use committed, signature-verified webhooks to synchronize payment and subscription status. `checkout(prices, options, key)` creates one-time Checkout sessions; use `new_subscription(...).checkout(...)` for subscriptions. Select catalog prices on the server instead of accepting arbitrary prices, amounts or customer IDs from the browser.
 
-`createOrGetCustomer` returns the associated customer or creates one; concurrent calls must reuse the same stable operation key. `attachCustomer(id)` is an explicit administrative association after checking ownership, including recovery of an unknown creation outcome. Never pass an unchecked request parameter to it. `updateCustomer` updates details; `billingPortal(return_url, key)` creates a Stripe customer portal session.
+`create_or_get_customer` returns the associated customer or creates one; concurrent calls must reuse the same stable operation key. `attach_customer(id)` is an explicit administrative association after checking ownership, including recovery of an unknown creation outcome. Never pass an unchecked request parameter to it. `update_customer` updates details; `billing_portal(return_url, key)` creates a Stripe customer portal session.
 
 ## Subscription lifecycle {#subscriptions}
 
-`newSubscription(name, prices)` accepts multiple prices, `Price::new(id, quantity)`, `Price::metered(id)`, `trialDays`, `trialUntil`, `skipTrial`, `quantity`, `anchorBillingCycleOn`, `withMetadata`, `withCoupon` and `withOptions`. Direct `create(payment_method, key)` uses Stripe's `default_incomplete` behavior and requires a supplied payment method to belong to this customer.
+`new_subscription(name, prices)` accepts multiple prices, `Price::new(id, quantity)`, `Price::metered(id)`, `trial_days`, `trial_until`, `skip_trial`, `quantity`, `anchor_billing_cycle_on`, `with_metadata`, `with_coupon` and `with_options`. Direct `create(payment_method, key)` uses Stripe's `default_incomplete` behavior and requires a supplied payment method to belong to this customer.
 
 ```rust
 use openrust_cashier::Proration;
 
 let subscription = user.subscription("default").await?.ok_or("missing subscription")?;
-let subscription = subscription.updateQuantity(3, None, Proration::Invoice, "seats:42:v2").await?;
+let subscription = subscription.update_quantity(3, None, Proration::Invoice, "seats:42:v2").await?;
 let subscription = subscription.cancel("cancel:42:v1").await?;
-if subscription.onGracePeriod() {
+if subscription.on_grace_period() {
     subscription.resume("resume:42:v1").await?;
 }
 ```
 
-`swap(prices, proration, key)` replaces the full price set, removes old items and retains matching item IDs. `Proration::Prorate` adds prorations to the next invoice, `Invoice` invoices immediately and `None` disables proration. Specify the price when changing quantities on a subscription with multiple prices. `cancel` schedules cancellation at period end, `cancelNow` cancels immediately, and `resume` resumes an eligible grace-period or Stripe-paused subscription. `extendTrial` extends a trial. `pauseCollection` / `resumeCollection` control Stripe collection, which is distinct from a paused subscription status.
+`swap(prices, proration, key)` replaces the full price set, removes old items and retains matching item IDs. `Proration::Prorate` adds prorations to the next invoice, `Invoice` invoices immediately and `None` disables proration. Specify the price when changing quantities on a subscription with multiple prices. `cancel` schedules cancellation at period end, `cancel_now` cancels immediately, and `resume` resumes an eligible grace-period or Stripe-paused subscription. `extend_trial` extends a trial. `pause_collection` / `resume_collection` control Stripe collection, which is distinct from a paused subscription status.
 
-`subscription(name)` returns the current named subscription, or the latest terminated record if none remain. Multiple nonterminal subscriptions with the same name fail explicitly; use `subscriptionById(id)` to disambiguate. `syncSubscription(id)` verifies customer ownership and reconciles remote state; `refresh()` refreshes a handle. `subscribed`, `valid`, `active`, `onTrial`, `canceled`, `onGracePeriod`, `paused`, `pastDue` and `incomplete` support entitlement decisions. Incomplete and past-due subscriptions do not grant valid access by default.
+`subscription(name)` returns the current named subscription, or the latest terminated record if none remain. Multiple nonterminal subscriptions with the same name fail explicitly; use `subscription_by_id(id)` to disambiguate. `sync_subscription(id)` verifies customer ownership and reconciles remote state; `refresh()` refreshes a handle. `subscribed`, `valid`, `active`, `on_trial`, `canceled`, `on_grace_period`, `paused`, `past_due` and `incomplete` support entitlement decisions. Incomplete and past-due subscriptions do not grant valid access by default.
 
-`asProviderSubscription(parameters)` retrieves the native subscription after checking ownership. For example, `{"expand":["latest_invoice.confirmation_secret"]}` can obtain confirmation details for a directly created subscription. Pass the applicable client secret only to that customer's Stripe.js flow. Never log or return it across customers.
+`as_provider_subscription(parameters)` retrieves the native subscription after checking ownership. For example, `{"expand":["latest_invoice.confirmation_secret"]}` can obtain confirmation details for a directly created subscription. Pass the applicable client secret only to that customer's Stripe.js flow. Never log or return it across customers.
 
 ## Payments, invoices and tax {#payments-and-invoices}
 
-`createSetupIntent`, `paymentMethods`, `addPaymentMethod`, `defaultPaymentMethod`, `updateDefaultPaymentMethod` and `deletePaymentMethod` manage Stripe payment methods. Collect card details with Stripe.js Payment Element; server methods accept Stripe identifiers, not card numbers or CVCs.
+`create_setup_intent`, `payment_methods`, `add_payment_method`, `default_payment_method`, `update_default_payment_method` and `delete_payment_method` manage Stripe payment methods. Collect card details with Stripe.js Payment Element; server methods accept Stripe identifiers, not card numbers or CVCs.
 
-`pay(amount, currency, options, key)` creates a PaymentIntent; `charge` confirms an off-session payment with a stored method; `confirmPayment` confirms an existing Intent. Amounts are positive integers in the currency's minor unit, such as USD cents or whole JPY, never floating point. `requires_action`, `requires_payment_method` and `processing` are not successful payments: complete authentication through Stripe.js and await webhooks. `refund(payment_intent_id, options, key)` supports partial amounts; acceptance is not settlement.
+`pay(amount, currency, options, key)` creates a PaymentIntent; `charge` confirms an off-session payment with a stored method; `confirm_payment` confirms an existing Intent. Amounts are positive integers in the currency's minor unit, such as USD cents or whole JPY, never floating point. `requires_action`, `requires_payment_method` and `processing` are not successful payments: complete authentication through Stripe.js and await webhooks. `refund(payment_intent_id, options, key)` supports partial amounts; acceptance is not settlement.
 
-`invoices(parameters)` preserves provider pagination, including `limit` / `starting_after`. `findInvoice` and `invoiceDocument` retrieve owned invoices and provider PDF / hosted URLs. `invoiceItem`, `createInvoice`, `finalizeInvoice`, `payInvoice` and `voidInvoice` support manual invoices. `previewInvoice` and subscription `preview` preview changes; `localInvoices` returns the minimal webhook projection.
+`invoices(parameters)` preserves provider pagination, including `limit` / `starting_after`. `find_invoice` and `invoice_document` retrieve owned invoices and provider PDF / hosted URLs. `invoice_item`, `create_invoice`, `finalize_invoice`, `pay_invoice` and `void_invoice` support manual invoices. `preview_invoice` and subscription `preview` preview changes; `local_invoices` returns the minimal webhook projection.
 
-`taxIds`, `createTaxId` and `deleteTaxId` manage tax identifiers. `balance` returns the unformatted balance in integer minor units, `balanceTransactions` lists its ledger, and `applyBalance` adds a credit or debit. `reportUsage(event_name, value, identifier, timestamp, key)` reports Stripe Billing Meter Events; use stable unique event identifiers. Pass tax rates, automatic tax, discounts and billing anchors through `withOptions`, `update`, or the relevant Checkout / invoice options. Construct options on the server instead of forwarding a complete HTTP request.
+`tax_ids`, `create_tax_id` and `delete_tax_id` manage tax identifiers. `balance` returns the unformatted balance in integer minor units, `balance_transactions` lists its ledger, and `apply_balance` adds a credit or debit. `report_usage(event_name, value, identifier, timestamp, key)` reports Stripe Billing Meter Events; use stable unique event identifiers. Pass tax rates, automatic tax, discounts and billing anchors through `with_options`, `update`, or the relevant Checkout / invoice options. Construct options on the server instead of forwarding a complete HTTP request.
 
 ## Webhooks and transactions {#webhooks}
 
 Configure a fixed HTTPS endpoint for each named account. Subscribe to Stripe `customer.subscription.*`, `invoice.*` and application-specific PaymentIntent or refund events. Exclude this route from browser-form CSRF checks and authenticate it through its signature. Verify the original bytes without decoding and re-encoding JSON:
 
 ```rust
-let event = client.verifyWebhook(&headers, &raw_body)?;
+let event = client.verify_webhook(&headers, &raw_body)?;
 store.process(&client, &event, |tx, event| Box::pin(async move {
     // Update business records or a transactional outbox using tx.
     // currentSubscription() / currentInvoice() contain the reconciled current projection.
@@ -97,11 +97,11 @@ store.process(&client, &event, |tx, event| Box::pin(async move {
 let response = event.success(); // HTTP 200 only after commit or confirmed duplicate.
 ```
 
-`handleWebhook` synchronizes without additional application SQL. `process` deduplicates the event, updates subscription / invoice projections, runs application SQL and marks completion in one transaction. Errors and cancellation roll back, allowing provider redelivery. A reused event ID with changed content produces `EventConflict`. Fetching current provider state under the customer lock prevents late notifications from regressing state; provider API failure must cause a failed response so delivery can retry.
+`handle_webhook` synchronizes without additional application SQL. `process` deduplicates the event, updates subscription / invoice projections, runs application SQL and marks completion in one transaction. Errors and cancellation roll back, allowing provider redelivery. A reused event ID with changed content produces `EventConflict`. Fetching current provider state under the customer lock prevents late notifications from regressing state; provider API failure must cause a failed response so delivery can retry.
 
 Unmapped subscription / invoice customers are rejected. Associate a trusted customer before opening Checkout. Dashboard subscriptions must use an associated customer; `metadata.cashier_type` names the subscription and defaults to `default`. Other verified events are available to your handler, without automatically treating them as payment or fulfillment success. Handlers must perform only transactional SQL. Use an application transactional outbox for shipping or email; do not initiate billing mutations or recursively process the same event inside the handler.
 
-Stripe `customer.deleted` is reconciled against the provider, disables the mapping and cancels local subscription projections atomically. Handlers can use `customerDeleted()` to revoke business access. Re-association after deletion requires an explicitly verified new customer through `attachCustomer`; old customer events remain rejected.
+Stripe `customer.deleted` is reconciled against the provider, disables the mapping and cancels local subscription projections atomically. Handlers can use `customer_deleted()` to revoke business access. Re-association after deletion requires an explicitly verified new customer through `attach_customer`; old customer events remain rejected.
 
 Stripe HMAC verification uses a 300-second window and rejects future timestamps outside that window, duplicate signature headers, wrong mode and Connect account events. Multiple trusted secrets support rotation. This integration targets direct Stripe accounts; Connect platform onboarding and split payments require a dedicated integration.
 

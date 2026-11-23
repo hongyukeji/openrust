@@ -19,13 +19,13 @@
 
 既有部署若使用先前的 `horizon:` 中繼資料前綴，應明確設定 `HORIZON_PREFIX=horizon:`，讓相關 Worker 繼續使用相同前綴。排空舊 Master 後再切換前綴；新前綴具有獨立的控制狀態與歷史紀錄。
 
-`horizon.defaults` 按監督器名稱設定；`horizon.environments` 選擇第一條符合 `app.env` 的模式，支援 `*`。未符合時不啟動監督器，`maxProcesses: 0` 停用對應監督器。環境選項與預設值遞迴合併，陣列按索引覆寫。預設範本在 `production` 使用 10 個程序預算，在 `local` 使用 3 個。
+`horizon.defaults` 按監督器名稱設定；`horizon.environments` 選擇第一條符合 `app.env` 的模式，支援 `*`。未符合時不啟動監督器，`max_processes: 0` 停用對應監督器。環境選項與預設值遞迴合併，陣列按索引覆寫。預設範本在 `production` 使用 10 個程序預算，在 `local` 使用 3 個。
 
-監督器支援 `connection`、`queue`（字串或字串陣列）、`balance`、`autoScalingStrategy`、`minProcesses`、`maxProcesses`、`balanceMaxShift`、`balanceCooldown`、`tries`、`timeout`、`sleep`、`memory`、`maxJobs`、`maxTime`、`workersName`、`backoff`、`force`、`rest`、`nice` 和 `directory`。`backoff` 接受整數、逗號分隔字串或整數陣列。`tries: 0` 表示不限嘗試次數，`sleep: 0` 不等待，`timeout: 0` 關閉工作超時。`nice` 非零時使用 Unix 行程優先級介面，工作行程繼承監督器優先級；其他平台明確拒絕此選項。設定支援 snake_case 與 `processes` 別名；Rust 的選項結構使用 `maxTries`，設定仍可使用 `tries`。
+監督器支援 `connection`、`queue`（字串或字串陣列）、`balance`、`auto_scaling_strategy`、`min_processes`、`max_processes`、`balance_max_shift`、`balance_cooldown`、`tries`、`timeout`、`sleep`、`memory`、`max_jobs`、`max_time`、`workers_name`、`backoff`、`force`、`rest`、`nice` 和 `directory`。`backoff` 接受整數、逗號分隔字串或整數陣列。`tries: 0` 表示不限嘗試次數，`sleep: 0` 不等待，`timeout: 0` 關閉工作超時。`nice` 非零時使用 Unix 行程優先級介面，工作行程繼承監督器優先級；其他平台明確拒絕此選項。設定支援 snake_case 與 `processes` 別名；Rust 的選項結構使用 `max_tries`，設定仍可使用 `tries`。
 
-`balance: "auto"` 按預計清空耗時（`time`）、待處理數量（`size`）或 `log1p` 數量比例（`log`）計算整個 `maxProcesses` 預算中的浮點目標。按目標從小到大調整程序池，目標向上取整，並套用 `minProcesses`、剩餘預算與 `balanceMaxShift`。未知耗時按零處理，非空但總耗時為零的佇列以最大預算為目標。`simple` 均分預算；`false` 或 `"off"` 使用一個優先佇列池，按待處理數量在最小與最大值間縮放。`balanceCooldown` 控制間隔；計算時包含結束中的程序，各 Master 獨立管理預算。
+`balance: "auto"` 按預計清空耗時（`time`）、待處理數量（`size`）或 `log1p` 數量比例（`log`）計算整個 `max_processes` 預算中的浮點目標。按目標從小到大調整程序池，目標向上取整，並套用 `min_processes`、剩餘預算與 `balance_max_shift`。未知耗時按零處理，非空但總耗時為零的佇列以最大預算為目標。`simple` 均分預算；`false` 或 `"off"` 使用一個優先佇列池，按待處理數量在最小與最大值間縮放。`balance_cooldown` 控制間隔；計算時包含結束中的程序，各 Master 獨立管理預算。
 
-Worker 的 `timeout` 必須短於佇列的 `retry_after`，預設分別為 60 和 90 秒。Worker 使用應用自身可執行檔案、基礎目錄、環境、處理器和設定。`maxJobs` 與 `maxTime` 觸發程序輪替，異常結束後自動補位。使用作業系統程序管理器託管 Master。SIGTERM／SIGINT 及終止請求等待目前工作完成，寬限期為設定的超時加五秒，之後強制結束。
+Worker 的 `timeout` 必須短於佇列的 `retry_after`，預設分別為 60 和 90 秒。Worker 使用應用自身可執行檔案、基礎目錄、環境、處理器和設定。`max_jobs` 與 `max_time` 觸發程序輪替，異常結束後自動補位。使用作業系統程序管理器託管 Master。SIGTERM／SIGINT 及終止請求等待目前工作完成，寬限期為設定的超時加五秒，之後強制結束。
 
 程序監督器面向 Unix 部署。基於訊號的監督器控制和孤兒程序檢查需要 Unix 程序工具。在其他平台上使用受支援的中繼資料命令，並在執行 Worker 前驗證部署行為。
 
@@ -49,7 +49,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 ```
 
-`HORIZON_PATH` 控制 `horizon.path`（預設 `horizon`），`HORIZON_DOMAIN` 控制可選的 `horizon.domain`；`horizon.middleware` 預設 `["web"]`。設定 `horizon.routes=false` 停用自動註冊。`Horizon::routes()` 使用這些設定；明確呼叫 `routesAt("/operations/horizon")` 優先於自動註冊，每個應用只註冊一次。現有路由群組繼續應用自身前綴與中間件。面板每五秒刷新，設定嚴格的內容安全策略並停用回應快取，支援佇列負載、Master 與監督器、待處理／完成／靜默／失敗工作、工作承載資料與異常、監控標籤、指標快照和批次。失敗工作及批次失敗工作透過已設定的原生失敗工作提供器重試。
+`HORIZON_PATH` 控制 `horizon.path`（預設 `horizon`），`HORIZON_DOMAIN` 控制可選的 `horizon.domain`；`horizon.middleware` 預設 `["web"]`。設定 `horizon.routes=false` 停用自動註冊。`Horizon::routes()` 使用這些設定；明確呼叫 `routes_at("/operations/horizon")` 優先於自動註冊，每個應用只註冊一次。現有路由群組繼續應用自身前綴與中間件。面板每五秒刷新，設定嚴格的內容安全策略並停用回應快取，支援佇列負載、Master 與監督器、待處理／完成／靜默／失敗工作、工作承載資料與異常、監控標籤、指標快照和批次。失敗工作及批次失敗工作透過已設定的原生失敗工作提供器重試。
 
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
@@ -88,14 +88,14 @@ Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳�
 
 在應用 Provider 中、Horizon 註冊後呼叫 `Horizon::tag(fn(&Payload) -> Vec<String>)`。回呼對每個被觀察的承載資料產生標籤，忽略空字串，重複標籤保留首次出現順序。Rust 工作透過這些回呼明確提供標籤，不透過反射自動探索承載資料中的模型欄位。
 
-`Tags::forModel(&model)` 將 Rust 模型型別與整數、無符號整數或字串主鍵組合為標籤；缺少主鍵或主鍵型別不支援時回傳錯誤。工作攜帶模型身分時，可將回傳的字串加入回呼產生的標籤。各應用註冊的標籤回呼彼此隔離。面板的監控操作決定哪些標籤保留監控工作。
+`Tags::for_model(&model)` 將 Rust 模型型別與整數、無符號整數或字串主鍵組合為標籤；缺少主鍵或主鍵型別不支援時回傳錯誤。工作攜帶模型身分時，可將回傳的字串加入回呼產生的標籤。各應用註冊的標籤回呼彼此隔離。面板的監控操作決定哪些標籤保留監控工作。
 
 ## 指標與限制 {#metrics}
 
-`Repository::recent(1..=100)`、`metrics(connection, queue)`、`masters()`、`pause()`、`r#continue()` 和 `terminate()` 提供相同的儲存操作。`SupervisorOptions::fromConfig` 驗證設定，`AutoScaler::numberOfWorkersPerQueue` 計算浮點目標，`scalePool` 計算逐池調整，`MasterSupervisor` 管理子程序生命週期。
+`Repository::recent(1..=100)`、`metrics(connection, queue)`、`masters()`、`pause()`、`r#continue()` 和 `terminate()` 提供相同的儲存操作。`SupervisorOptions::from_config` 驗證設定，`AutoScaler::number_of_workers_per_queue` 計算浮點目標，`scale_pool` 計算逐池調整，`MasterSupervisor` 管理子程序生命週期。
 
 Redis 佇列事件記錄 ID、工作名、連線、佇列、嘗試次數、狀態、耗時與 Redis 伺服器端時間。授權後的工作詳情還提供序列化承載資料、標籤和異常文字。`Repository::recent(1..=100)` 保持純元資料投影，近期索引最多 1000 個工作身份；`retention`（60–86400 秒，預設 3600）控制近期元資料和滾動 60 分鐘嘗試指標。
 
 `horizon.trim` 按分鐘控制工作清單保留時間：`recent`、`pending`、`completed` 預設為 60，`recent_failed`、`failed`、`monitored` 預設為 10080。工作清單每頁傳回 50 筆。`horizon.metrics.trim_snapshots.job` 與 `.queue` 預設各保留 24 個快照。平均耗時和吞吐量只計算成功完成的工作，失敗、釋放和等待重試不參與計算。重複結束事件在下一次處理事件前忽略；手動重試重設嘗試次數時開始新的觀測。
 
-`Repository::jobs()`、`tags()`、`metricsRepository()`、`masterSupervisors()`、`supervisorRepository()`、`processes()` 與 `workload()` 提供獨立儲存庫操作。監控標籤按元資料前綴保存。每個指標的快照寫入與目前計數重設原子執行。Master 心跳 15 秒後到期，監督器心跳 30 秒後到期。元資料服務錯誤會暫停領取新工作並結束 Master，由作業系統程序管理器恢復。監控記錄會到期，不作為持久執行帳本。
+`Repository::jobs()`、`tags()`、`metrics_repository()`、`master_supervisors()`、`supervisor_repository()`、`processes()` 與 `workload()` 提供獨立儲存庫操作。監控標籤按元資料前綴保存。每個指標的快照寫入與目前計數重設原子執行。Master 心跳 15 秒後到期，監督器心跳 30 秒後到期。元資料服務錯誤會暫停領取新工作並結束 Master，由作業系統程序管理器恢復。監控記錄會到期，不作為持久執行帳本。

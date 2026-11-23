@@ -285,13 +285,13 @@ async fn verify_store_clear(
             assert_eq!(tags.get("clear-probe").await?, Some(2.into()));
             assert_eq!(other.get("clear-probe").await?, Some(3.into()));
             assert_eq!(tags.get("clear-probe").await?, Some(2.into()));
-            events.assertDispatchedTimes(RetrievingKey::NAME, 3);
+            events.assert_dispatched_times(RetrievingKey::NAME, 3);
             assert!(tags.clear().await?);
             assert_eq!(memo.get("clear-probe").await?, None);
             assert_eq!(tags.get("clear-probe").await?, None);
             assert_eq!(other.get("clear-probe").await?, None);
-            events.assertDispatchedTimes(CacheFlushing::NAME, 1);
-            events.assertDispatchedTimes(CacheFlushed::NAME, 1);
+            events.assert_dispatched_times(CacheFlushing::NAME, 1);
+            events.assert_dispatched_times(CacheFlushed::NAME, 1);
             Ok(())
         })
         .await

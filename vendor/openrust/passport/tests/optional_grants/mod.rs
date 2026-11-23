@@ -21,11 +21,11 @@ impl Fixture {
                     let repo = openrust::container::Container::get_instance()
                         .make::<ClientRepository>()?;
                     let record = if implicit {
-                        repo.createImplicitGrantClient("Implicit", &[CALLBACK.into()])
+                        repo.create_implicit_grant_client("Implicit", &[CALLBACK.into()])
                             .await
                             .unwrap()
                     } else {
-                        repo.createPasswordGrantClient("Password", provider.as_deref(), !public)
+                        repo.create_password_grant_client("Password", provider.as_deref(), !public)
                             .await
                             .unwrap()
                     };
@@ -36,7 +36,7 @@ impl Fixture {
                     let secret = model
                         .lock()
                         .await
-                        .plainSecret
+                        .plain_secret
                         .as_ref()
                         .map(|value| value.to_string());
                     Ok(OptionalClient { id, secret })
@@ -127,8 +127,8 @@ async fn mysql_optional_grants_are_default_off_and_application_local() {
         json_body(a.implicit_request(None, &ai, "read", "consent").await).await["error"],
         "unsupported_grant_type"
     );
-    a.passport.enablePasswordGrant();
-    a.passport.enableImplicitGrant();
+    a.passport.enable_password_grant();
+    a.passport.enable_implicit_grant();
     assert_eq!(
         a.password_request(&ap, "alice@test", "password", None)
             .await
@@ -148,10 +148,10 @@ async fn mysql_optional_grants_are_default_off_and_application_local() {
         "unsupported_grant_type"
     );
     a.passport
-        .passwordGrantEnabled
+        .password_grant_enabled
         .store(false, Ordering::Relaxed);
     a.passport
-        .implicitGrantEnabled
+        .implicit_grant_enabled
         .store(false, Ordering::Relaxed);
     assert_eq!(
         json_body(
@@ -172,10 +172,11 @@ async fn mysql_optional_grants_are_default_off_and_application_local() {
 async fn mysql_password_tokens_refresh_scopes_provider_and_real_user() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enablePasswordGrant();
-    f.passport.tokensExpireIn(Some(GrantLifetime::Seconds(90)));
+    f.passport.enable_password_grant();
     f.passport
-        .refreshTokensExpireIn(Some(GrantLifetime::Seconds(3600)));
+        .tokens_expire_in(Some(GrantLifetime::Seconds(90)));
+    f.passport
+        .refresh_tokens_expire_in(Some(GrantLifetime::Seconds(3600)));
     let client = f.optional_client(false, None, false).await;
     let response = f
         .password_request(&client, "alice@test", "password", Some("* read read"))
@@ -234,7 +235,7 @@ async fn mysql_password_tokens_refresh_scopes_provider_and_real_user() {
 async fn mysql_password_rejects_invalid_credentials_parameters_and_clients() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enablePasswordGrant();
+    f.passport.enable_password_grant();
     let client = f.optional_client(false, Some("users"), false).await;
     for (name, password) in [("alice@test", "wrong"), ("missing@test", "password")] {
         let response = f
@@ -332,9 +333,9 @@ fn resolver<'a>(
 async fn mysql_password_native_model_hook_public_clients_basic_and_veto_rollback() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enablePasswordGrant();
+    f.passport.enable_password_grant();
     f.passport
-        .findAndValidateForPassportUsing("users", resolver);
+        .find_and_validate_for_passport_using("users", resolver);
     let public = f.optional_client(false, Some("users"), true).await;
     assert_eq!(
         f.password_request(&public, "77", "password", Some("read"))
@@ -369,7 +370,7 @@ async fn mysql_password_native_model_hook_public_clients_basic_and_veto_rollback
         jwt_claims(json_body(response).await["access_token"].as_str().unwrap())["sub"],
         "88"
     );
-    f.passport.useTokenModel::<SelectedToken>();
+    f.passport.use_token_model::<SelectedToken>();
     f.veto.store(true, Ordering::Relaxed);
     let before = f.db.table("oauth_access_tokens").count("*").await.unwrap();
     let refresh_before = f.db.table("oauth_refresh_tokens").count("*").await.unwrap();
@@ -393,8 +394,9 @@ async fn mysql_password_native_model_hook_public_clients_basic_and_veto_rollback
 async fn mysql_implicit_consent_fragment_scope_subject_resource_and_single_consumption() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enableImplicitGrant();
-    f.passport.tokensExpireIn(Some(GrantLifetime::Seconds(180)));
+    f.passport.enable_implicit_grant();
+    f.passport
+        .tokens_expire_in(Some(GrantLifetime::Seconds(180)));
     let client = f.optional_client(true, None, true).await;
     let browser = f.login("alice@test").await;
     let view = json_body(
@@ -447,7 +449,7 @@ async fn mysql_implicit_consent_fragment_scope_subject_resource_and_single_consu
 async fn mysql_implicit_errors_use_validated_fragment_and_never_untrusted_redirect() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enableImplicitGrant();
+    f.passport.enable_implicit_grant();
     let client = f.optional_client(true, None, true).await;
     let response = f.implicit_request(None, &client, "read", "none").await;
     assert_eq!(fragment(&response)["error"], "login_required");
@@ -507,7 +509,7 @@ async fn mysql_implicit_errors_use_validated_fragment_and_never_untrusted_redire
 async fn mysql_implicit_csrf_nonce_disable_mutated_client_and_rollback() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enableImplicitGrant();
+    f.passport.enable_implicit_grant();
     let client = f.optional_client(true, None, true).await;
     let browser = f.login("alice@test").await;
     let view = json_body(
@@ -525,17 +527,17 @@ async fn mysql_implicit_csrf_nonce_disable_mutated_client_and_rollback() {
         .await;
     assert_eq!(no_csrf.status(), 419);
     f.passport
-        .implicitGrantEnabled
+        .implicit_grant_enabled
         .store(false, Ordering::Relaxed);
     let disabled = f.implicit_decide(&browser, &view, true).await;
     assert_eq!(json_body(disabled).await["error"], "unsupported_grant_type");
-    f.passport.enableImplicitGrant();
+    f.passport.enable_implicit_grant();
     let view = json_body(
         f.implicit_request(Some(&browser), &client, "read", "consent")
             .await,
     )
     .await;
-    f.passport.useTokenModel::<SelectedToken>();
+    f.passport.use_token_model::<SelectedToken>();
     f.veto.store(true, Ordering::Relaxed);
     assert_eq!(f.implicit_decide(&browser, &view, true).await.status(), 500);
     assert_eq!(
@@ -565,9 +567,9 @@ async fn mysql_implicit_csrf_nonce_disable_mutated_client_and_rollback() {
 async fn mysql_optional_scopes_defaults_client_restrictions_and_storage_failure() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enablePasswordGrant();
-    f.passport.enableImplicitGrant();
-    f.passport.setDefaultScope(vec!["read write".into()]);
+    f.passport.enable_password_grant();
+    f.passport.enable_implicit_grant();
+    f.passport.set_default_scope(vec!["read write".into()]);
     f.db.get_schema_builder()
         .table("oauth_clients", |t| {
             t.json("scopes").nullable();
@@ -627,7 +629,7 @@ async fn mysql_optional_scopes_defaults_client_restrictions_and_storage_failure(
 async fn mysql_implicit_competing_consent_and_changed_redirect_cannot_issue_twice() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enableImplicitGrant();
+    f.passport.enable_implicit_grant();
     let client = f.optional_client(true, None, true).await;
     let browser = f.login("alice@test").await;
     let view = json_body(
@@ -686,9 +688,9 @@ fn browser_view(
 async fn mysql_optional_real_chromium_implicit_consent_and_password_client() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enableImplicitGrant();
-    f.passport.enablePasswordGrant();
-    f.passport.authorizationView(browser_view);
+    f.passport.enable_implicit_grant();
+    f.passport.enable_password_grant();
+    f.passport.authorization_view(browser_view);
     let client = f.optional_client(true, None, true).await;
     let callback = format!("{}/session?existing=1", f.base);
     f.db.table("oauth_clients")
@@ -780,7 +782,7 @@ impl openrust::contracts::auth::UserProvider for NativeProvider {
 async fn mysql_password_compiled_user_provider_uses_real_lookup_validation_and_identity() {
     assert!(required());
     let f = Fixture::new().await;
-    f.passport.enablePasswordGrant();
+    f.passport.enable_password_grant();
     let lookups = Arc::new(AtomicUsize::new(0));
     let validations = Arc::new(AtomicUsize::new(0));
     let a = lookups.clone();

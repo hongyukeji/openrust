@@ -64,12 +64,16 @@ impl EnableTwoFactorAuthentication {
             .unwrap_or(serde_json::json!(16));
         let length = usize::try_from(php_integer_cast(&length))
             .map_err(|_| internal(FortifyError::InvalidSecretLength))?;
-        let encrypter = self.fortify.currentEncrypter().map_err(internal)?;
-        let secret = Zeroizing::new(self.provider.generateSecretKey(length).map_err(internal)?);
+        let encrypter = self.fortify.current_encrypter().map_err(internal)?;
+        let secret = Zeroizing::new(
+            self.provider
+                .generate_secret_key(length)
+                .map_err(internal)?,
+        );
         let encrypted_secret = encrypter
             .encrypt(secret.as_bytes(), true)
             .map_err(internal)?;
-        let encrypter = self.fortify.currentEncrypter().map_err(internal)?;
+        let encrypter = self.fortify.current_encrypter().map_err(internal)?;
         let codes = Zeroizing::new(recovery_codes(&self.fortify));
         let encrypted_codes = encrypter
             .encrypt(codes.as_bytes(), true)
@@ -110,7 +114,7 @@ impl ConfirmTwoFactorAuthentication {
         {
             let secret = Zeroizing::new(
                 self.fortify
-                    .currentEncrypter()
+                    .current_encrypter()
                     .map_err(internal)?
                     .decrypt(&encrypted, true)
                     .map_err(internal)?,
@@ -176,7 +180,7 @@ impl DisableTwoFactorAuthentication {
         .collect::<openrust::database::eloquent::Attributes>();
         if self
             .fortify
-            .confirmsTwoFactorAuthentication()
+            .confirms_two_factor_authentication()
             .map_err(internal)?
             || confirmed
         {
@@ -201,7 +205,7 @@ impl GenerateNewRecoveryCodes {
         Self { fortify }
     }
     pub async fn call<T: TwoFactorAuthenticatable>(&self, user: &mut T) -> Result<(), HttpError> {
-        let encrypter = self.fortify.currentEncrypter().map_err(internal)?;
+        let encrypter = self.fortify.current_encrypter().map_err(internal)?;
         let codes = Zeroizing::new(recovery_codes(&self.fortify));
         user.force_fill(
             [(

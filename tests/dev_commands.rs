@@ -41,13 +41,13 @@ impl ServiceProvider for DevelopmentProvider {
             DevCommands::artisan("serve --port=9000", Some("server"))?.green();
             DevCommands::register("echo app queue", Some("queue"))?;
             package::register()?;
-            DevCommands::nodeExec("tailwindcss --watch", Some("tailwind"))?;
+            DevCommands::node_exec("tailwindcss --watch", Some("tailwind"))?;
             DevCommands::register("echo app probe", None)?;
             DevCommands::order(&["tailwind", "server"])?;
             DevCommands::except(&["echo"])?;
             if self.0 {
-                DevCommands::withoutDefaultCommands()?;
-                DevCommands::withoutVendorCommands()?;
+                DevCommands::without_default_commands()?;
+                DevCommands::without_vendor_commands()?;
                 DevCommands::only(&["package", "tailwind", "vite"])?;
             }
             Ok(())
@@ -322,8 +322,8 @@ async fn dev_uses_registry_restart_and_output_settings() {
     impl ServiceProvider for InlineProvider {
         fn boot<'a>(&'a mut self, _: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
             Box::pin(async move {
-                DevCommands::withoutDefaultCommands()?;
-                DevCommands::disableAutoRestart()?;
+                DevCommands::without_default_commands()?;
+                DevCommands::disable_auto_restart()?;
                 DevCommands::with_timestamps()?;
                 DevCommands::register(
                     "sleep 1.1; echo test-stdout; echo test-stderr >&2; exit 23",

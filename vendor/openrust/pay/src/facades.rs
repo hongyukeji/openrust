@@ -13,7 +13,7 @@ impl Pay {
             .map_err(|_| Error::Context)?
             .driver(name)
     }
-    pub fn defaultDriver() -> Result<Gateway> {
+    pub fn default_driver() -> Result<Gateway> {
         let manager = Self::get_facade_root().map_err(|_| Error::Context)?;
         manager.driver(&manager.get_default_driver()?)
     }

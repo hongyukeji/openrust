@@ -24,33 +24,33 @@
 
 ## 簽發個人存取權杖 {#issuing-api-tokens}
 
-使用 `Sanctum::personalAccessTokens` 解析出的權杖儲存庫建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`findToken` 查找憑證，`revokeToken` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。 簽發、驗證時寫回及單筆撤銷都會走 Eloquent 生命週期。預設權杖回應包含 `updated_at`。
+使用 `Sanctum::personal_access_tokens` 解析出的權杖儲存庫建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`find_token` 查找憑證，`revoke_token` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。 簽發、驗證時寫回及單筆撤銷都會走 Eloquent 生命週期。預設權杖回應包含 `updated_at`。
 
 ```rust
 use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};
 
 async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> AuthResult<NewAccessToken> {
-    sanctum.personalAccessTokens(database, "")?
+    sanctum.personal_access_tokens(database, "")?
         .create_token("app::models::User", user_id, "browser", &["reports:read"], None)
         .await
 }
 ```
 
-在服務提供者中透過應用程式的 `Sanctum` 服務呼叫 `usePersonalAccessTokenModel::<M>()`，選擇 Eloquent 模型的資料表和連線。應用程式遷移負責建立自訂資料表，使用標準 Sanctum 屬性以及模型宣告的主鍵。簽發時套用模型的屬性修改器和轉換，並觸發 Eloquent 建立事件。Bearer 驗證透過模型的存取器和轉換讀取屬性，再透過同一模型實例儲存最後使用時間。`revokeToken` 依歸屬刪除模型實例，遵循模型刪除事件。Artisan 清理套用模型全域作用域並批次刪除，不逐筆觸發模型事件。
+在服務提供者中透過應用程式的 `Sanctum` 服務呼叫 `use_personal_access_token_model::<M>()`，選擇 Eloquent 模型的資料表和連線。應用程式遷移負責建立自訂資料表，使用標準 Sanctum 屬性以及模型宣告的主鍵。簽發時套用模型的屬性修改器和轉換，並觸發 Eloquent 建立事件。Bearer 驗證透過模型的存取器和轉換讀取屬性，再透過同一模型實例儲存最後使用時間。`revoke_token` 依歸屬刪除模型實例，遵循模型刪除事件。Artisan 清理套用模型全域作用域並批次刪除，不逐筆觸發模型事件。
 
 使用 UUID 或 ULID 主鍵時，在遷移中宣告對應的欄位，並在模型中用 `ModelMetadata::unique_id(UniqueId::Uuid)` 或 `UniqueId::Ulid` 設定產生策略。若主鍵欄位名稱不是 `id`，用 `primary_key` 宣告。憑證格式仍為 `<主鍵>|<密鑰>`。權杖與歸屬識別碼使用 `AuthIdentifier` 保留整數或字串型別。歸屬主鍵是字串時，遷移須使用相符的 `tokenable_id` 欄位型別，簽發和撤銷時傳入該歸屬識別碼。
 
 可用 `SANCTUM_TOKEN_PREFIX` 為新簽發的權杖密鑰設定應用程式專用前綴。
 
-自訂模型須實作 `PersonalAccessTokenModel`。預設 `findToken` 會驗證 SHA-256 摘要。覆寫方法會收到請求憑證和已設定的 Eloquent 查詢，可在附加條件或解碼憑證後呼叫 `findTokenByDigest`。覆寫方法須驗證其接受的憑證。
+自訂模型須實作 `PersonalAccessTokenModel`。預設 `find_token` 會驗證 SHA-256 摘要。覆寫方法會收到請求憑證和已設定的 Eloquent 查詢，可在附加條件或解碼憑證後呼叫 `find_token_by_digest`。覆寫方法須驗證其接受的憑證。
 
-應用程式服務透過 `personalAccessTokenModel()` 傳回已註冊的模型型別名稱。使用 `currentApplicationUrlWithPort()` 取得應用程式 URL 的主機和明確連接埠。傳回值帶有前導逗號，可附加至有狀態網域設定。
+應用程式服務透過 `personal_access_token_model()` 傳回已註冊的模型型別名稱。使用 `current_application_url_with_port()` 取得應用程式 URL 的主機和明確連接埠。傳回值帶有前導逗號，可附加至有狀態網域設定。
 
 ## 模型權杖關聯 {#model-token-relationship}
 
-在 Eloquent 歸屬模型上實作 `HasApiTokens`。使用 `user.tokens(&sanctum, &database)?` 查詢或撤銷該模型的權杖，使用 `user.create_token(&sanctum, &database, name, abilities, expires_at)` 簽發。關聯使用已設定的權杖模型及歸屬模型的多型別名和主鍵。`delete_token` 和 `delete` 依關聯範圍批次刪除。權杖可透過 `tokenable` 解析歸屬模型。歸屬模型可透過 `currentAccessToken`、`tokenCan` 和 `tokenCant` 檢查目前請求的權杖及能力。
+在 Eloquent 歸屬模型上實作 `HasApiTokens`。使用 `user.tokens(&sanctum, &database)?` 查詢或撤銷該模型的權杖，使用 `user.create_token(&sanctum, &database, name, abilities, expires_at)` 簽發。關聯使用已設定的權杖模型及歸屬模型的多型別名和主鍵。`delete_token` 和 `delete` 依關聯範圍批次刪除。權杖可透過 `tokenable` 解析歸屬模型。歸屬模型可透過 `current_access_token`、`token_can` 和 `token_cant` 檢查目前請求的權杖及能力。
 
-使用 `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?` 串接查詢。用 `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` 取得關聯，再使用 Eloquent 的 `with("tokens", relation)` 預先載入。使用自訂模型時，請替換成已註冊的模型型別。簽發回應的內嵌權杖採用模型的屬性轉換、存取器、附加欄位及可見性，並一律排除摘要。直接序列化自訂模型時，應在模型中隱藏 `token` 欄位。
+使用 `user.tokens_query::<DefaultPersonalAccessToken>(&sanctum, &database)?` 串接查詢。用 `user.tokens_relation::<DefaultPersonalAccessToken>(&sanctum)?` 取得關聯，再使用 Eloquent 的 `with("tokens", relation)` 預先載入。使用自訂模型時，請替換成已註冊的模型型別。簽發回應的內嵌權杖採用模型的屬性轉換、存取器、附加欄位及可見性，並一律排除摘要。直接序列化自訂模型時，應在模型中隱藏 `token` 欄位。
 
 ## 保護路由與檢查能力 {#protecting-routes}
 
@@ -67,9 +67,9 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
-簽發時以已註冊的 Provider 模型名稱作為權杖歸屬型別。預設應用程式使用 `app::models::User`。可在 `auth.guards` 為自訂 Sanctum 守衛設定 `provider`，省略時透過已註冊的 Eloquent 模型和 `MorphMap` 解析歸屬。以 `AccessToken::currentAccessToken(request)` 檢視目前請求的憑證。`sanctum.expiration` 以分鐘限制權杖最長有效期，與個別權杖的到期時間同時生效。Bearer 驗證成功後派發 `TokenAuthenticated` 事件並更新 `last_used_at`，可設定 `sanctum.last_used_at=false` 關閉。
+簽發時以已註冊的 Provider 模型名稱作為權杖歸屬型別。預設應用程式使用 `app::models::User`。可在 `auth.guards` 為自訂 Sanctum 守衛設定 `provider`，省略時透過已註冊的 Eloquent 模型和 `MorphMap` 解析歸屬。以 `AccessToken::current_access_token(request)` 檢視目前請求的憑證。`sanctum.expiration` 以分鐘限制權杖最長有效期，與個別權杖的到期時間同時生效。Bearer 驗證成功後派發 `TokenAuthenticated` 事件並更新 `last_used_at`，可設定 `sanctum.last_used_at=false` 關閉。
 
-使用 `getAccessTokenFromRequestUsing` 取代 Bearer 擷取邏輯。使用 `authenticateAccessTokensUsing` 決定已查到的權杖是否有效，回呼接收權杖及內建到期和 Provider 檢查結果。權杖歸屬仍須成功解析。
+使用 `get_access_token_from_request_using` 取代 Bearer 擷取邏輯。使用 `authenticate_access_tokens_using` 決定已查到的權杖是否有效，回呼接收權杖及內建到期和 Provider 檢查結果。權杖歸屬仍須成功解析。
 
 在驗證管理器中以 `AuthManager::register_sanctum_model` 註冊支援權杖的模型。簽發時可明確呼叫 `NewAccessToken::to_json()` 或 `to_array()` 傳回明文憑證。內嵌權杖不含資料庫摘要，驗證事件資料可從 `TokenAuthenticated::token` 取得。
 
@@ -81,7 +81,7 @@ fn register() -> Result<(), RoutingError> {
 
 第一方請求成功記錄密碼指紋後，變更密碼會使該工作階段在下次請求時失效。若要替換前端中介軟體，先透過應用程式的 `alias` 方法註冊，再將別名填入 `sanctum.middleware.encrypt_cookies`、`sanctum.middleware.validate_csrf_token` 或 `sanctum.middleware.authenticate_session`。
 
-在 `SANCTUM_STATEFUL_DOMAINS` 中加入 `__SANCTUM_CURRENT_REQUEST_HOST__`，或在逗號分隔的網域字串末尾附加 `Sanctum::currentRequestHost()`，即可比對目前請求的主機和連接埠。
+在 `SANCTUM_STATEFUL_DOMAINS` 中加入 `__SANCTUM_CURRENT_REQUEST_HOST__`，或在逗號分隔的網域字串末尾附加 `Sanctum::current_request_host()`，即可比對目前請求的主機和連接埠。
 
 ## 清理過期權杖 {#pruning-expired-tokens}
 
@@ -93,6 +93,6 @@ fn register() -> Result<(), RoutingError> {
 
 ## 測試 {#testing}
 
-在測試中傳入擁有所有權的 Eloquent 使用者，用 `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` 為 `TestApp` 後續請求設定身分和能力。預設選擇 Sanctum 守衛。可傳入 `Some("guard-name")` 指定守衛，或傳入 `["*"]` 授予全部能力。測試夾具直接提供身分和能力，無須簽發資料庫權杖。
+在測試中傳入擁有所有權的 Eloquent 使用者，用 `Sanctum::acting_as(&mut app, user, &["reports:read"], None)` 為 `TestApp` 後續請求設定身分和能力。預設選擇 Sanctum 守衛。可傳入 `Some("guard-name")` 指定守衛，或傳入 `["*"]` 授予全部能力。測試夾具直接提供身分和能力，無須簽發資料庫權杖。
 
 傳回的共享使用者已清除 `was_recently_created` 狀態。

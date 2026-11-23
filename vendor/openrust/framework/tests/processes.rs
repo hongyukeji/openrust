@@ -4,15 +4,15 @@ use openrust::process::{Command, Error, Factory};
 async fn fake_configuration_and_results_are_isolated() {
     let left = Factory::new();
     let right = Factory::new();
-    left.fakeCommand("tool *", Factory::result("left", "stderr", 3));
-    right.fakeCommand("tool *", Factory::result("right", "", 0));
-    left.preventStrayProcesses(true);
-    right.preventStrayProcesses(true);
+    left.fake_command("tool *", Factory::result("left", "stderr", 3));
+    right.fake_command("tool *", Factory::result("right", "", 0));
+    left.prevent_stray_processes(true);
+    right.prevent_stray_processes(true);
 
     let left_run = left
         .command(["tool", "value with spaces"])
         .env([("MODE", "test")])
-        .removeEnv("HOME")
+        .remove_env("HOME")
         .input(b"payload")
         .run();
     let right_run = right.run(["tool", "value with spaces"]);
@@ -23,10 +23,10 @@ async fn fake_configuration_and_results_are_isolated() {
         left_result.command(),
         &Command::from(["tool", "value with spaces"])
     );
-    assert_eq!(left_result.errorOutput(), b"stderr");
+    assert_eq!(left_result.error_output(), b"stderr");
     assert!(matches!(left_result.throw(), Err(Error::Failed(_))));
     assert_eq!(right_result.unwrap().output(), b"right");
-    left.assertRan(|process, result| {
+    left.assert_ran(|process, result| {
         result.is_some_and(|result| result.exit_code() == 3)
             && process
                 .environment
@@ -35,18 +35,18 @@ async fn fake_configuration_and_results_are_isolated() {
             && process.environment.get(std::ffi::OsStr::new("HOME")) == Some(&None)
             && process.input == b"payload"
     });
-    right.assertRanTimes(|_, _| true, 1);
+    right.assert_ran_times(|_, _| true, 1);
     assert!(matches!(
         left.run(["other"]).await,
         Err(Error::StrayProcess)
     ));
-    left.assertDidntRun(|process, _| process.command == Command::from(["other"]));
+    left.assert_didnt_run(|process, _| process.command == Command::from(["other"]));
 }
 
 #[tokio::test]
 async fn uses_registered_fakes_and_keeps_the_recording_across_reconfiguration() {
     let factory = Factory::new();
-    factory.preventStrayProcesses(true);
+    factory.prevent_stray_processes(true);
     factory.fake_sequence(
         "example",
         [
@@ -62,7 +62,7 @@ async fn uses_registered_fakes_and_keeps_the_recording_across_reconfiguration() 
     ));
     factory.fake(|_| Some(Ok(Factory::result("replaced", "", 0))));
     assert_eq!(factory.run("example").await.unwrap().output(), b"replaced");
-    factory.assertRanTimes(|process, _| process.command == Command::from("example"), 4);
+    factory.assert_ran_times(|process, _| process.command == Command::from("example"), 4);
 }
 
 #[tokio::test]
@@ -85,8 +85,8 @@ async fn artisan_resolves_process_fakes_from_each_application() {
         ) -> openrust::http::HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
                 let factory = app.container().make::<Factory>()?;
-                factory.fakeCommand("example", Factory::result("", "", i32::from(self.0)));
-                factory.preventStrayProcesses(true);
+                factory.fake_command("example", Factory::result("", "", i32::from(self.0)));
+                factory.prevent_stray_processes(true);
                 Ok(())
             })
         }
@@ -140,15 +140,15 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
     use std::sync::{Arc, Mutex};
 
     let factory = Factory::new();
-    factory.preventStrayProcesses(true);
-    factory.fakeCommand(
+    factory.prevent_stray_processes(true);
+    factory.fake_command(
         "script",
         Factory::describe()
             .id(314)
-            .runsFor(2)
+            .runs_for(2)
             .output("replaced")
-            .errorOutput("diagnostic")
-            .replaceOutput("ready\n\n")
+            .error_output("diagnostic")
+            .replace_output("ready\n\n")
             .output("finished")
             .exit_code(7)
             .result(),
@@ -157,20 +157,20 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
     let capture = observed.clone();
     let mut process = factory
         .command("script")
-        .startWithOutput(move |stream, bytes| {
+        .start_with_output(move |stream, bytes| {
             capture.lock().unwrap().push((stream, bytes.to_vec()));
         })
         .unwrap();
     assert_eq!(process.id(), Some(314));
     assert!(process.running());
-    assert_eq!(process.latestErrorOutput(), b"diagnostic\n");
+    assert_eq!(process.latest_error_output(), b"diagnostic\n");
     process.signal(Signal::Raw(10)).await.unwrap();
-    assert!(process.hasReceivedSignal(Signal::Raw(10)));
-    assert!(!process.hasReceivedSignal(Signal::Kill));
+    assert!(process.has_received_signal(Signal::Raw(10)));
+    assert!(!process.has_received_signal(Signal::Kill));
     let mut staged = Vec::new();
     assert!(
         process
-            .waitUntil(|stream, bytes| {
+            .wait_until(|stream, bytes| {
                 staged.push((stream, bytes.to_vec()));
                 bytes == b"ready\n"
             })
@@ -189,7 +189,7 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
 
     let mut remaining = Vec::new();
     let result = process
-        .waitWithOutput(|stream, bytes| {
+        .wait_with_output(|stream, bytes| {
             remaining.push((stream, bytes.to_vec()));
         })
         .await
@@ -197,9 +197,9 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
     assert_eq!(remaining, [(OutputStream::Stdout, b"finished\n".to_vec())]);
     assert_eq!(result.exit_code(), 7);
     assert_eq!(result.output(), b"ready\nfinished\n");
-    assert_eq!(result.errorOutput(), b"diagnostic\n");
+    assert_eq!(result.error_output(), b"diagnostic\n");
     assert_eq!(observed.lock().unwrap().len(), 3);
-    factory.assertRanTimes(|probe, _| probe.command == "script".into(), 1);
+    factory.assert_ran_times(|probe, _| probe.command == "script".into(), 1);
     assert_eq!(
         factory.recorded()[0].1.as_ref().unwrap().output(),
         result.output()
@@ -252,10 +252,10 @@ mod unix {
             result.output(),
             format!("test\n{}\nfrom stdin", directory.0.display()).as_bytes()
         );
-        assert_eq!(result.errorOutput(), b"warning");
+        assert_eq!(result.error_output(), b"warning");
         assert_eq!(result.exit_code(), 7);
-        assert!(result.seeInOutput("from stdin"));
-        assert!(result.seeInErrorOutput("warning"));
+        assert!(result.see_in_output("from stdin"));
+        assert!(result.see_in_error_output("warning"));
         assert!(result.throw_if(false).is_ok());
 
         let literal = factory
@@ -269,7 +269,7 @@ mod unix {
             .run()
             .await
             .unwrap();
-        assert!(quiet.output().is_empty() && quiet.errorOutput().is_empty());
+        assert!(quiet.output().is_empty() && quiet.error_output().is_empty());
         assert!(
             matches!(factory.run(["/missing-openrust-test-executable"]).await, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::NotFound)
         );
@@ -282,7 +282,7 @@ mod unix {
         let captured = chunks.clone();
         let mut process = factory
             .command("printf first; sleep 0.1; printf second; printf problem >&2; sleep 0.1")
-            .startWithOutput(move |stream, bytes| {
+            .start_with_output(move |stream, bytes| {
                 captured.lock().unwrap().push((stream, bytes.to_vec()))
             })
             .unwrap();
@@ -291,7 +291,7 @@ mod unix {
         assert!(first.starts_with(b"first"));
         let result = process.wait().await.unwrap();
         assert_eq!(result.output(), b"firstsecond");
-        assert_eq!(result.errorOutput(), b"problem");
+        assert_eq!(result.error_output(), b"problem");
         let chunks = chunks.lock().unwrap();
         let stdout: Vec<u8> = chunks
             .iter()
@@ -319,7 +319,7 @@ mod unix {
         let result = factory
             .command(script)
             .path(&directory.0)
-            .idleTimeout(Duration::from_millis(100))
+            .idle_timeout(Duration::from_millis(100))
             .run()
             .await;
         assert!(matches!(result, Err(Error::TimedOut { idle: true, .. })));
@@ -343,7 +343,7 @@ mod unix {
         wait_for_output(&mut process, b"ready").await;
         let result = process.stop(Duration::from_secs(1)).await.unwrap();
         assert!(result.successful());
-        assert!(result.seeInOutput("stopped"));
+        assert!(result.see_in_output("stopped"));
 
         let mut process = factory
             .command("trap 'exit 4' INT; printf ready; while :; do sleep 0.05; done")
@@ -376,7 +376,7 @@ mod unix {
             .pipe(["printf failure >&2; exit 4", "printf unexpected"])
             .await
             .unwrap();
-        assert_eq!(failed.errorOutput(), b"failure");
+        assert_eq!(failed.error_output(), b"failure");
         assert_eq!(failed.exit_code(), 4);
 
         let directory = TestDirectory::new();
@@ -410,7 +410,7 @@ mod unix {
         tokio::time::timeout(Duration::from_secs(3), async {
             let mut observed = Vec::new();
             loop {
-                observed.extend(process.latestOutput());
+                observed.extend(process.latest_output());
                 if observed.starts_with(expected) {
                     return observed;
                 }
@@ -433,15 +433,15 @@ mod unix {
         ).path(&directory.0).tty(false).timeout(Duration::from_secs(4)).start().unwrap();
         assert!(
             process
-                .waitUntil(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready")
+                .wait_until(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready")
                 .await
                 .unwrap()
         );
         assert!(process.running());
-        assert_eq!(process.latestErrorOutput(), b"ready");
+        assert_eq!(process.latest_error_output(), b"ready");
 
         assert!(
-            tokio::time::timeout(Duration::from_millis(15), process.waitUntil(|_, _| false))
+            tokio::time::timeout(Duration::from_millis(15), process.wait_until(|_, _| false))
                 .await
                 .is_err()
         );
@@ -449,7 +449,7 @@ mod unix {
         std::fs::write(directory.0.join("proceed"), b"").unwrap();
         let mut remaining = Vec::new();
         let result = process
-            .waitWithOutput(|stream, bytes| {
+            .wait_with_output(|stream, bytes| {
                 if stream == OutputStream::Stdout {
                     remaining.extend_from_slice(bytes);
                 }
@@ -457,7 +457,7 @@ mod unix {
             .await
             .unwrap();
         assert_eq!(result.exit_code(), 4);
-        assert!(result.seeInOutput("done"));
+        assert!(result.see_in_output("done"));
         assert_eq!(remaining, b"done");
     }
 
@@ -469,7 +469,7 @@ mod unix {
         ).path(&directory.0).timeout(Duration::from_secs(4)).start().unwrap();
         assert!(
             process
-                .waitUntil(|stream, bytes| stream == OutputStream::Stdout && bytes == b"ready")
+                .wait_until(|stream, bytes| stream == OutputStream::Stdout && bytes == b"ready")
                 .await
                 .unwrap()
         );
@@ -477,7 +477,7 @@ mod unix {
         std::fs::write(directory.0.join("proceed"), b"").unwrap();
         assert!(
             !process
-                .waitUntil(|_, bytes| bytes == b"not printed")
+                .wait_until(|_, bytes| bytes == b"not printed")
                 .await
                 .unwrap()
         );
@@ -485,7 +485,7 @@ mod unix {
         let result = process.wait().await.unwrap();
         assert_eq!(result.exit_code(), 4);
         assert_eq!(result.output(), b"readydone");
-        assert_eq!(result.errorOutput(), b"diagnostic");
+        assert_eq!(result.error_output(), b"diagnostic");
     }
 
     #[tokio::test]
@@ -496,15 +496,15 @@ mod unix {
                 "(sleep 0.4; printf survived > marker) & printf ready; printf warning >&2; wait",
             )
             .path(&directory.0)
-            .idleTimeout(Duration::from_millis(100))
+            .idle_timeout(Duration::from_millis(100))
             .start()
             .unwrap();
-        let error = process.waitUntil(|_, _| false).await.unwrap_err();
+        let error = process.wait_until(|_, _| false).await.unwrap_err();
         assert!(matches!(error, Error::TimedOut { idle: true, .. }));
         assert_eq!(error.result().unwrap().output(), b"ready");
-        assert_eq!(error.result().unwrap().errorOutput(), b"warning");
+        assert_eq!(error.result().unwrap().error_output(), b"warning");
         assert!(matches!(
-            process.ensureNotTimedOut().await,
+            process.ensure_not_timed_out().await,
             Err(Error::TimedOut { idle: true, .. })
         ));
         assert!(matches!(
@@ -523,7 +523,12 @@ mod unix {
             .timeout(Duration::from_secs(3))
             .start()
             .unwrap();
-        assert!(child.waitUntil(|_, bytes| bytes == b"ready").await.unwrap());
+        assert!(
+            child
+                .wait_until(|_, bytes| bytes == b"ready")
+                .await
+                .unwrap()
+        );
         assert!(
             matches!(child.signal(Signal::Raw(0)).await, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::InvalidInput)
         );
@@ -568,8 +573,8 @@ mod unix {
 async fn ordered_and_negative_assertions_inspect_real_record_order_and_results() {
     use std::panic::{AssertUnwindSafe, catch_unwind};
     let factory = Factory::new();
-    factory.assertNothingRan().assertRanInOrder(&[]);
-    factory.fakeCommand("*", Factory::result("output", "", 0));
+    factory.assert_nothing_ran().assert_ran_in_order(&[]);
+    factory.fake_command("*", Factory::result("output", "", 0));
     factory.run(["tool", "first"]).await.unwrap();
     factory.run(["tool", "second"]).await.unwrap();
     let first = |process: &openrust::process::RecordedProcess,
@@ -582,16 +587,16 @@ async fn ordered_and_negative_assertions_inspect_real_record_order_and_results()
         process.command == Command::from(["tool", "second"])
     };
     factory
-        .assertRanInOrder(&[&first, &second])
-        .assertNotRan(|process, _| process.command == Command::from("missing"));
+        .assert_ran_in_order(&[&first, &second])
+        .assert_not_ran(|process, _| process.command == Command::from("missing"));
     assert!(
         catch_unwind(AssertUnwindSafe(
-            || factory.assertRanInOrder(&[&second, &first])
+            || factory.assert_ran_in_order(&[&second, &first])
         ))
         .is_err()
     );
-    assert!(catch_unwind(AssertUnwindSafe(|| factory.assertRanInOrder(&[&first]))).is_err());
-    assert!(catch_unwind(AssertUnwindSafe(|| factory.assertNotRan(first))).is_err());
-    assert!(catch_unwind(AssertUnwindSafe(|| factory.assertNothingRan())).is_err());
-    Factory::new().assertNothingRan();
+    assert!(catch_unwind(AssertUnwindSafe(|| factory.assert_ran_in_order(&[&first]))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| factory.assert_not_ran(first))).is_err());
+    assert!(catch_unwind(AssertUnwindSafe(|| factory.assert_nothing_ran())).is_err());
+    Factory::new().assert_nothing_ran();
 }

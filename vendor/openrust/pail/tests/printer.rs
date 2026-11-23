@@ -46,8 +46,8 @@ impl Command for Print {
             )
             .unwrap();
             let mut printer = CliPrinter::new(output, "/app/project");
-            let options = printer.optionsHtml(&message)?;
-            let trace = printer.traceHtml(&message);
+            let options = printer.options_html(&message)?;
+            let trace = printer.trace_html(&message);
             printer.print(&message)?;
             *self.1.lock().unwrap() = Some(json!({"options":options,"trace":trace}));
             Ok(0)
@@ -162,7 +162,7 @@ async fn main() -> ExitCode {
     }).to_string()).unwrap();
     let mut output = Output::default();
     let mut printer = CliPrinter::new(&mut output, "/app/project");
-    let options = printer.optionsHtml(&native).unwrap();
+    let options = printer.options_html(&native).unwrap();
     assert!(options.contains("large_id: 18446744073709551615"));
     assert!(options.contains("empty: array (\n)"));
     printer.print(&native).unwrap();

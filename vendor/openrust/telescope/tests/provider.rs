@@ -545,7 +545,7 @@ async fn request_payload_snapshot_redacts_decoded_input_without_polling_unread_s
         .await
         .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
-    telescope.hideRequestParameters(&["secret", "nested.password"]);
+    telescope.hide_request_parameters(&["secret", "nested.password"]);
     api_call(&mut app,"POST","/api/input?query=value&same=query",json!({"secret":"private","same":"body","nested":{"password":"hidden","public":"visible"},"empty":false})).await.assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let requests = repository
@@ -718,7 +718,7 @@ async fn provider_boot_is_lazy_and_native_lifecycles_flush_isolated_collectors()
         .await
         .unwrap();
     assert_eq!(events.len(), 2);
-    assert_ne!(events[0].batchId, events[1].batchId);
+    assert_ne!(events[0].batch_id, events[1].batch_id);
     assert_eq!(
         repository
             .find(&events[0].id.to_string())
@@ -1315,7 +1315,7 @@ async fn request_received_loads_monitored_tags_before_application_recording() {
             vec![]
         }
     });
-    telescope.filter(|entry| entry.hasMonitoredTag());
+    telescope.filter(|entry| entry.has_monitored_tag());
     app.get("/api/probe").await.unwrap().assert_ok();
     let entries = repository
         .get(None, EntryQueryOptions::default())
@@ -1341,7 +1341,7 @@ async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns(
     )
     .unwrap()
     .r#type(EntryType::Log)
-    .batchId(uuid::Uuid::now_v7());
+    .batch_id(uuid::Uuid::now_v7());
     let id = entry.uuid.to_string();
     repository.store(&[entry]).await.unwrap();
     let listed = app.artisan(["telescope:list", "log"]).await;
@@ -1514,8 +1514,8 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .await
         .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
-    telescope.hideRequestParameters(&["secret", "nested.password"]);
-    telescope.hideResponseParameters(&["token"]);
+    telescope.hide_request_parameters(&["secret", "nested.password"]);
+    telescope.hide_response_parameters(&["token"]);
     tokio::time::timeout(
         std::time::Duration::from_secs(5),
         app.call(

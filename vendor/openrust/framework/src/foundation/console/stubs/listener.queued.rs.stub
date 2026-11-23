@@ -19,7 +19,7 @@ impl Listener for {{class}} {
 }
 
 pub fn register<E: Event + serde::Serialize + serde::de::DeserializeOwned>(registry: &mut ListenerRegistry, name: &str) -> EventResult<()> {
-    registry.listenQueued::<E>(
+    registry.listen_queued::<E>(
         name,
         Arc::new({{class}}),
         openrust::events::QueuedListenerOptions {

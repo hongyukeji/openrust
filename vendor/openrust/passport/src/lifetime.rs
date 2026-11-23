@@ -1,5 +1,5 @@
 //! Passport intervals use the existing calendar implementation, including PHP carry.
-use crate::OAuthError;
+use crate::OauthError;
 use openrust::support::{Date, DateInterval, DateTimezone, MonthOverflow};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10,11 +10,11 @@ pub enum GrantLifetime {
 }
 impl GrantLifetime {
     /// Computes an expiry in UTC for explicit diagnostics and fixed vectors.
-    pub fn expires_at(self, now: i64) -> Result<i64, OAuthError> {
+    pub fn expires_at(self, now: i64) -> Result<i64, OauthError> {
         self.expires_at_in(now, DateTimezone::UTC)
     }
     /// Calendar years retain the supplied IANA timezone and carry leap days.
-    pub fn expires_at_in(self, now: i64, timezone: DateTimezone) -> Result<i64, OAuthError> {
+    pub fn expires_at_in(self, now: i64, timezone: DateTimezone) -> Result<i64, OauthError> {
         let start = jiff::Timestamp::from_second(now).map_err(|_| invalid())?;
         let interval = match self {
             Self::Interval(interval) => interval,
@@ -40,11 +40,11 @@ impl GrantLifetime {
             })
             .map_err(|_| invalid())
     }
-    pub(crate) fn for_application(self, now: i64) -> Result<i64, OAuthError> {
+    pub(crate) fn for_application(self, now: i64) -> Result<i64, OauthError> {
         let current = Date::now(None).map_err(|_| invalid())?;
         self.expires_at_in(now, current.as_date_time().time_zone().clone())
     }
 }
-fn invalid() -> OAuthError {
-    OAuthError::server_error("OAuth lifetime out of range")
+fn invalid() -> OauthError {
+    OauthError::server_error("OAuth lifetime out of range")
 }

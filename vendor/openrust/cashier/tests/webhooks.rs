@@ -14,19 +14,19 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
             "subscription.updated"
         };
         let (h, b) = event(&client, "evt_1", kind, subscription(provider, "active"), 0);
-        let e = client.verifyWebhook(&h, &b).unwrap();
-        assert_eq!(e.eventType(), kind);
+        let e = client.verify_webhook(&h, &b).unwrap();
+        assert_eq!(e.event_type(), kind);
         assert_eq!(e.id(), "evt_1");
         assert_eq!(e.success().status(), http::StatusCode::OK);
         let mut wrong = b.clone();
         wrong.push(b' ');
         assert!(matches!(
-            client.verifyWebhook(&h, &wrong),
+            client.verify_webhook(&h, &wrong),
             Err(Error::Verification)
         ));
         for offset in [-1000, 1000] {
             let (h, b) = event(&client, "evt_1", kind, json!({"id":"sub_1"}), offset);
-            assert!(client.verifyWebhook(&h, &b).is_err());
+            assert!(client.verify_webhook(&h, &b).is_err());
         }
         let name = if provider == Provider::Stripe {
             "stripe-signature"
@@ -35,7 +35,7 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
         };
         let mut duplicate = h.clone();
         duplicate.append(name, h[name].clone());
-        assert!(client.verifyWebhook(&duplicate, &b).is_err());
+        assert!(client.verify_webhook(&duplicate, &b).is_err());
         let mut mixed = h.clone();
         let value = format!(
             "{}{}{}={}",
@@ -53,7 +53,7 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
             "0".repeat(64)
         );
         mixed.insert(name, http::HeaderValue::from_str(&value).unwrap());
-        assert!(client.verifyWebhook(&mixed, &b).is_ok());
+        assert!(client.verify_webhook(&mixed, &b).is_ok());
         let mut malformed = h.clone();
         let value = format!(
             "{}{}{}={}",
@@ -71,7 +71,7 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
             "é".repeat(32)
         );
         malformed.insert(name, http::HeaderValue::from_str(&value).unwrap());
-        assert!(client.verifyWebhook(&malformed, &b).is_err());
+        assert!(client.verify_webhook(&malformed, &b).is_err());
         let mut p = profile(provider, &server.url);
         p["webhook_secrets"] = json!(["new_secret", SECRET]);
         let rotated = Client::new(
@@ -80,7 +80,7 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
             Arc::new(openrust::http::client::Factory::new().unwrap()),
         )
         .unwrap();
-        assert!(rotated.verifyWebhook(&h, &b).is_ok());
+        assert!(rotated.verify_webhook(&h, &b).is_ok());
         let mut p = profile(provider, &server.url);
         p["webhook_secret"] = json!("other_secret");
         let other = Client::new(
@@ -89,7 +89,7 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
             Arc::new(openrust::http::client::Factory::new().unwrap()),
         )
         .unwrap();
-        assert!(other.verifyWebhook(&h, &b).is_err());
+        assert!(other.verify_webhook(&h, &b).is_err());
         if provider == Provider::Stripe {
             let mut v: serde_json::Value = serde_json::from_slice(&b).unwrap();
             for (k, x) in [
@@ -100,7 +100,7 @@ async fn raw_body_hmac_timestamp_multisignatures_rotation_and_account_isolation(
                 let b = serde_json::to_vec(&v).unwrap();
                 assert!(
                     client
-                        .verifyWebhook(&headers(provider, &b, 0, SECRET), &b)
+                        .verify_webhook(&headers(provider, &b, 0, SECRET), &b)
                         .is_err()
                 );
                 v = serde_json::from_slice(&b).unwrap();
@@ -195,11 +195,11 @@ fn official_sdk_signatures_validate_without_reencoding_the_body() {
             http::HeaderValue::from_str(r["header"].as_str().unwrap()).unwrap(),
         );
         assert_eq!(
-            client.verifyWebhook(&h, body).unwrap().id(),
+            client.verify_webhook(&h, body).unwrap().id(),
             "evt_reference"
         );
         let mut changed = body.to_vec();
         changed.push(b' ');
-        assert!(client.verifyWebhook(&h, &changed).is_err());
+        assert!(client.verify_webhook(&h, &changed).is_err());
     }
 }

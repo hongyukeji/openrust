@@ -29,11 +29,11 @@ impl DatabaseStorage {
             }),
         }
     }
-    pub fn withClock(mut self, clock: impl Fn() -> i64 + Send + Sync + 'static) -> Self {
+    pub fn with_clock(mut self, clock: impl Fn() -> i64 + Send + Sync + 'static) -> Self {
         self.clock = Arc::new(clock);
         self
     }
-    pub fn withChunk(mut self, chunk: usize) -> Result<Self> {
+    pub fn with_chunk(mut self, chunk: usize) -> Result<Self> {
         if chunk == 0 {
             return Err(crate::Error::InvalidConfiguration(
                 "storage.database.chunk must be positive".into(),
@@ -42,7 +42,7 @@ impl DatabaseStorage {
         self.chunk = chunk;
         Ok(self)
     }
-    pub fn withKeep(mut self, seconds: i64) -> Self {
+    pub fn with_keep(mut self, seconds: i64) -> Self {
         self.keep = seconds;
         self
     }
@@ -62,7 +62,7 @@ impl DatabaseStorage {
             identifier.replace(quote, &format!("{quote}{quote}"))
         )
     }
-    fn keyHash(&self, key: &str, row: &mut Record) {
+    fn key_hash(&self, key: &str, row: &mut Record) {
         if self.connection.get_driver_name() == "sqlite" {
             row.insert(
                 "key_hash".into(),
@@ -70,7 +70,7 @@ impl DatabaseStorage {
             );
         }
     }
-    fn entryRow(&self, entry: &Entry) -> Record {
+    fn entry_row(&self, entry: &Entry) -> Record {
         let mut row = Record::from([
             ("timestamp".into(), entry.timestamp.into()),
             ("type".into(), entry.r#type.clone().into()),
@@ -80,7 +80,7 @@ impl DatabaseStorage {
                 entry.value.map(Sql::Integer).unwrap_or(Sql::Null),
             ),
         ]);
-        self.keyHash(&entry.key, &mut row);
+        self.key_hash(&entry.key, &mut row);
         row
     }
     fn preaggregate(&self, items: &[Item]) -> BTreeMap<String, Vec<Record>> {
@@ -107,7 +107,7 @@ impl DatabaseStorage {
                                 ("aggregate".into(), aggregate.clone().into()),
                                 ("key".into(), entry.key.clone().into()),
                             ]);
-                            self.keyHash(&entry.key, &mut row);
+                            self.key_hash(&entry.key, &mut row);
                             row
                         });
                     let previous = row.get("value").and_then(number);
@@ -223,7 +223,7 @@ impl DatabaseStorage {
         let entries: Vec<_> = items
             .iter()
             .filter_map(|i| match i {
-                Item::Entry(e) if !e.isOnlyBuckets() => Some(self.entryRow(e)),
+                Item::Entry(e) if !e.is_only_buckets() => Some(self.entry_row(e)),
                 _ => None,
             })
             .collect();
@@ -240,7 +240,7 @@ impl DatabaseStorage {
                             ("key".into(), value.key.clone().into()),
                             ("value".into(), value.value.clone().into()),
                         ]);
-                        self.keyHash(&value.key, &mut row);
+                        self.key_hash(&value.key, &mut row);
                         row
                     });
             }
@@ -379,7 +379,7 @@ impl super::Storage for DatabaseStorage {
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
         Box::pin(self.aggregate(r#type, aggregates, interval, order_by, direction, limit))
     }
-    fn aggregateTypes<'a>(
+    fn aggregate_types<'a>(
         &'a self,
         types: &'a [String],
         aggregate: &'a str,
@@ -388,15 +388,15 @@ impl super::Storage for DatabaseStorage {
         direction: &'a str,
         limit: u64,
     ) -> crate::PulseFuture<'a, Vec<openrust::database::Row>> {
-        Box::pin(self.aggregateTypes(types, aggregate, interval, order_by, direction, limit))
+        Box::pin(self.aggregate_types(types, aggregate, interval, order_by, direction, limit))
     }
-    fn aggregateTotal<'a>(
+    fn aggregate_total<'a>(
         &'a self,
         types: &'a [String],
         aggregate: &'a str,
         interval: i64,
     ) -> crate::PulseFuture<'a, indexmap::IndexMap<String, Option<f64>>> {
-        Box::pin(self.aggregateTotal(types, aggregate, interval))
+        Box::pin(self.aggregate_total(types, aggregate, interval))
     }
 
     fn store<'a>(&'a self, items: &'a [Item]) -> crate::PulseFuture<'a, ()> {

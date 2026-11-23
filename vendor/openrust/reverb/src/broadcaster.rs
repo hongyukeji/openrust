@@ -213,14 +213,13 @@ impl ReverbBroadcaster {
         if !valid_socket {
             return Err(BroadcastException::InvalidChannel);
         }
-        let (identity, result) = Broadcast::channelRegistry()?
-            .authorizeRequestWithIdentity(normalized, request)
+        let (identity, result) = Broadcast::channel_registry()?
+            .authorize_request_with_identity(normalized, request)
             .await?;
         Ok((channel, socket, identity, result))
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Broadcaster for ReverbBroadcaster {
     fn resolve_authenticated_user_using(
         &self,

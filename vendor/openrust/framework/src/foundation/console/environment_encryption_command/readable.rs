@@ -15,7 +15,7 @@ pub(super) fn encrypt(
 ) -> Result<String, ConsoleError> {
     let (mut existing, mut previous_output) = (HashMap::<&str, VecDeque<_>>::new(), String::new());
     if let Some(previous) = previous {
-        if Encrypter::appearsEncrypted(previous) {
+        if Encrypter::appears_encrypted(previous) {
             return Err(ConsoleError::new(
                 "The existing encrypted environment file is not in readable format. Use --force to overwrite it.",
             ));

@@ -54,7 +54,7 @@ pub async fn store_report() -> FilesystemResult<Option<Vec<u8>>> {
 }
 ```
 
-`readStream` 為本機磁碟和 S3 磁碟提供相同的非同步讀取介面。S3 每段寫入 8 MiB，完成分段上傳後發布物件。目前最多上傳 10,000 段，單一物件約 78 GiB。上傳中斷後會盡量取消未完成的上傳。連線失敗後遠端可能已完成寫入，此時 `throw = true` 會傳回 `PublishOutcomeUnknown`。重試前可讀取目標核對狀態。
+`read_stream` 為本機磁碟和 S3 磁碟提供相同的非同步讀取介面。S3 每段寫入 8 MiB，完成分段上傳後發布物件。目前最多上傳 10,000 段，單一物件約 78 GiB。上傳中斷後會盡量取消未完成的上傳。連線失敗後遠端可能已完成寫入，此時 `throw = true` 會傳回 `PublishOutcomeUnknown`。重試前可讀取目標核對狀態。
 
 ## 取得磁碟實例
 
@@ -76,7 +76,7 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 
 ## 讀取檔案
 
-`get` 傳回檔案內容。讀取大型檔案時可透過 `readStream` 取得非同步讀取器。預設 `throw = false` 時讀取失敗傳回 `None`，寫入失敗傳回 `false`。設定 `throw = true` 可傳回錯誤，設定 `report = true` 可記錄預設策略處理的錯誤。無效路徑一律傳回錯誤。
+`get` 傳回檔案內容。讀取大型檔案時可透過 `read_stream` 取得非同步讀取器。預設 `throw = false` 時讀取失敗傳回 `None`，寫入失敗傳回 `false`。設定 `throw = true` 可傳回錯誤，設定 `report = true` 可記錄預設策略處理的錯誤。無效路徑一律傳回錯誤。
 
 ### 下載檔案
 
@@ -101,7 +101,7 @@ pub async fn download_report() -> Result<Response, HttpError> {
 
 ### 檔案中繼資料 {#file-metadata}
 
-用 `size` 取得本機磁碟檔案的位元組數，用 `lastModified` 取得 `SystemTime`。兩者在中繼資料無法取得時傳回錯誤。透過 `Storage` 呼叫時使用預設磁碟。
+用 `size` 取得本機磁碟檔案的位元組數，用 `last_modified` 取得 `SystemTime`。兩者在中繼資料無法取得時傳回錯誤。透過 `Storage` 呼叫時使用預設磁碟。
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
@@ -112,15 +112,15 @@ async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Opt
 }
 ```
 
-用 `mime_type` 檢查內容簽章，並回退到副檔名推斷或 `application/octet-stream`。用 `checksum` 串流計算 MD5，或用 `checksumWith::<D>` 選用 Rust 摘要演算法。這兩項操作在停用 `throw` 時將磁碟錯誤回退為 `None`。無效路徑一律傳回錯誤。
+用 `mime_type` 檢查內容簽章，並回退到副檔名推斷或 `application/octet-stream`。用 `checksum` 串流計算 MD5，或用 `checksum_with::<D>` 選用 Rust 摘要演算法。這兩項操作在停用 `throw` 時將磁碟錯誤回退為 `None`。無效路徑一律傳回錯誤。
 
 ## 儲存檔案
 
-`writeStream` 從非同步讀取器複製資料。本機驅動程式先寫入同目錄暫存檔，串流完成後重新命名並發布。來源失敗或發布前取消會保留原檔。重新命名操作已經發出後，即使呼叫端取消，完整寫入仍可能發布。
+`write_stream` 從非同步讀取器複製資料。本機驅動程式先寫入同目錄暫存檔，串流完成後重新命名並發布。來源失敗或發布前取消會保留原檔。重新命名操作已經發出後，即使呼叫端取消，完整寫入仍可能發布。
 
 ### 檔案上傳
 
-透過 `Request::file` 取得 multipart 上傳。可呼叫上傳物件的 `store` 或 `store_as`，也可使用磁碟的 `putFile` 或 `putFileAs`。`store_publicly` 和 `store_publicly_as` 會要求公開可見性。自動檔名使用 40 個隨機字元，辨識出類型時附加由內容推斷的副檔名。用戶端檔名與媒體類型屬於中繼資料，儲存前應執行應用程式的上傳驗證。
+透過 `Request::file` 取得 multipart 上傳。可呼叫上傳物件的 `store` 或 `store_as`，也可使用磁碟的 `put_file` 或 `put_file_as`。`store_publicly` 和 `store_publicly_as` 會要求公開可見性。自動檔名使用 40 個隨機字元，辨識出類型時附加由內容推斷的副檔名。用戶端檔名與媒體類型屬於中繼資料，儲存前應執行應用程式的上傳驗證。
 
 ```rust
 use openrust::{
@@ -141,7 +141,7 @@ pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpErr
 
 ### 檔案可見性
 
-Unix 上公開和私有檔案權限分別是 `0644` 和 `0600`。新子目錄使用磁碟的目錄可見性設定。可用 `WriteOptions` 覆寫單次寫入的可見性，透過 `getVisibility` 和 `setVisibility` 管理既有檔案。Windows 寫入使用檔案系統 ACL，明確的可見性變更目前支援 Unix。
+Unix 上公開和私有檔案權限分別是 `0644` 和 `0600`。新子目錄使用磁碟的目錄可見性設定。可用 `WriteOptions` 覆寫單次寫入的可見性，透過 `get_visibility` 和 `set_visibility` 管理既有檔案。Windows 寫入使用檔案系統 ACL，明確的可見性變更目前支援 Unix。
 
 S3 可見性使用物件 ACL。未指定可見性時，寫入沿用儲存貯體的存取控制。明確設定可見性需要儲存貯體支援 ACL，確認設定結果還需要讀取 ACL 的權限。實際匿名存取取決於儲存貯體政策及服務是否執行 ACL。
 
@@ -157,11 +157,11 @@ fn permissions() -> FilesystemResult<LocalPermissions> {
 }
 ```
 
-按需磁碟可用 `Storage::buildWithPermissions` 同時傳入 `LocalDiskConfig` 和權限表。新建檔案和目錄使用設定的權限，`setVisibility` 會為檔案套用對應模式。公開磁碟掛載也要求 Unix 的公開讀取和目錄走訪權限，並遵守映射為 `private` 的模式。自訂 Unix 模式適用於 Unix。
+按需磁碟可用 `Storage::build_with_permissions` 同時傳入 `LocalDiskConfig` 和權限表。新建檔案和目錄使用設定的權限，`set_visibility` 會為檔案套用對應模式。公開磁碟掛載也要求 Unix 的公開讀取和目錄走訪權限，並遵守映射為 `private` 的模式。自訂 Unix 模式適用於 Unix。
 
 ## 暫存檔案 URL
 
-使用 `disk.temporaryUrl(path, expiration).await?` 產生下載連結，或使用 `disk.temporaryUploadUrl(path, expiration).await?` 產生上傳連結。上傳時向傳回的 `url` 發出請求，並附上傳回的 `headers`。本機磁碟須在磁碟設定中啟用 `serve`，路由使用該磁碟 `url` 的路徑，省略時使用 `/storage`。本機上傳連結接收 PUT。S3 配接器依設定的儲存貯體端點簽名，用戶端必須能存取該端點。
+使用 `disk.temporary_url(path, expiration).await?` 產生下載連結，或使用 `disk.temporary_upload_url(path, expiration).await?` 產生上傳連結。上傳時向傳回的 `url` 發出請求，並附上傳回的 `headers`。本機磁碟須在磁碟設定中啟用 `serve`，路由使用該磁碟 `url` 的路徑，省略時使用 `/storage`。本機上傳連結接收 PUT。S3 配接器依設定的儲存貯體端點簽名，用戶端必須能存取該端點。
 
 ### S3 臨時 URL 基底位址 {#s3-temporary-url-origin}
 
@@ -169,7 +169,7 @@ fn permissions() -> FilesystemResult<LocalPermissions> {
 
 ### S3 請求選項 {#s3-request-parameters}
 
-用 `temporaryUrlWith` 將下載回應標頭或版本 ID 納入簽章。用 `temporaryUploadUrlWith` 簽入上傳內容標頭和物件中繼資料，並在 PUT 請求中附上傳回的請求標頭。儲存貯體和物件路徑由磁碟提供。
+用 `temporary_url_with` 將下載回應標頭或版本 ID 納入簽章。用 `temporary_upload_url_with` 簽入上傳內容標頭和物件中繼資料，並在 PUT 請求中附上傳回的請求標頭。儲存貯體和物件路徑由磁碟提供。
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -181,7 +181,7 @@ use openrust::{
 
 async fn report_url() -> FilesystemResult<String> {
     Storage::disk(Some("s3"))?
-        .temporaryUrlWith(
+        .temporary_url_with(
             "reports/current.csv",
             SystemTime::now() + Duration::from_secs(300),
             TemporaryUrlOptions {
@@ -194,7 +194,7 @@ async fn report_url() -> FilesystemResult<String> {
 }
 ```
 
-如需更多 S3 選項，在指定磁碟上呼叫 `temporaryDownloadRequest` 或 `temporaryUploadRequest`，透過閉包設定 AWS SDK 請求建構器。兩種方法都傳回 URL 與簽章請求標頭，用戶端送出請求時須附上這些標頭。磁碟在套用選項後設定儲存貯體與帶前綴的物件鍵。
+如需更多 S3 選項，在指定磁碟上呼叫 `temporary_download_request` 或 `temporary_upload_request`，透過閉包設定 AWS SDK 請求建構器。兩種方法都傳回 URL 與簽章請求標頭，用戶端送出請求時須附上這些標頭。磁碟在套用選項後設定儲存貯體與帶前綴的物件鍵。
 
 ```rust
 use std::time::{Duration, SystemTime};
@@ -206,7 +206,7 @@ use openrust::{
 
 async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
     Storage::disk(Some("s3"))?
-        .temporaryDownloadRequest(
+        .temporary_download_request(
             "reports/current.csv",
             SystemTime::now() + Duration::from_secs(300),
             |request| request.range("bytes=0-1023"),
@@ -217,25 +217,25 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 
 ### 自訂本機磁碟簽章回呼 {#customizing-temporary-urls}
 
-在服務提供者啟動時，對本機磁碟註冊 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回呼接收已驗證的路徑、到期時間和具型別的選項。上傳回呼傳回包含 URL 和必要請求標頭的 `TemporaryUploadUrl`。
+在服務提供者啟動時，對本機磁碟註冊 `build_temporary_urls_using` 或 `build_temporary_upload_urls_using`。回呼接收已驗證的路徑、到期時間和具型別的選項。上傳回呼傳回包含 URL 和必要請求標頭的 `TemporaryUploadUrl`。
 
 ## 目錄 {#directories}
 
-對本機磁碟使用 `files` 和 `directories` 列出直接子項，使用 `all_files` 和 `allDirectories` 納入後代。傳入 `None` 表示磁碟根目錄。結果是以 `/` 分隔的磁碟相對路徑。檔案列表依路徑排序，目錄缺失時傳回空列表。
+對本機磁碟使用 `files` 和 `directories` 列出直接子項，使用 `all_files` 和 `all_directories` 納入後代。傳入 `None` 表示磁碟根目錄。結果是以 `/` 分隔的磁碟相對路徑。檔案列表依路徑排序，目錄缺失時傳回空列表。
 
 ```rust
 use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
 
 async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
-    disk.makeDirectory("reports/daily").await?;
+    disk.make_directory("reports/daily").await?;
     disk.all_files(Some("reports")).await
 }
 ```
 
-用 `makeDirectory` 依磁碟設定的目錄可見性建立缺失的父目錄，用 `deleteDirectory` 刪除目錄及內容。列表略過符號連結和暫存寫入項目。建立與刪除時須傳入具名相對路徑。也可透過 `Storage` 在預設磁碟呼叫這些方法。
+用 `make_directory` 依磁碟設定的目錄可見性建立缺失的父目錄，用 `delete_directory` 刪除目錄及內容。列表略過符號連結和暫存寫入項目。建立與刪除時須傳入具名相對路徑。也可透過 `Storage` 在預設磁碟呼叫這些方法。
 
 ## 契約與常用操作
 
-容器可解析 `dyn contracts::filesystem::Factory`、預設 `Filesystem` 與設定的 `Cloud`，重用既有 Manager 和 Adapter。契約串流介面為 `read_stream` / `write_stream`；Adapter 與 Storage Facade 使用 `readStream` / `writeStream`。`copy`、`move`（Rust 為 `r#move`）、`append`、`prepend`、`json` 重用目前磁碟；遺失檔案與無效 JSON 回傳空結果，越界路徑仍拒絕。`Cloud` 解析依賴 `filesystems.cloud`，不代表本機磁碟具備 S3 簽章上傳能力。
+容器可解析 `dyn contracts::filesystem::Factory`、預設 `Filesystem` 與設定的 `Cloud`，重用既有 Manager 和 Adapter。契約串流介面為 `read_stream` / `write_stream`；Adapter 與 Storage Facade 使用 `read_stream` / `write_stream`。`copy`、`move`（Rust 為 `r#move`）、`append`、`prepend`、`json` 重用目前磁碟；遺失檔案與無效 JSON 回傳空結果，越界路徑仍拒絕。`Cloud` 解析依賴 `filesystems.cloud`，不代表本機磁碟具備 S3 簽章上傳能力。
 
 Rust 中 `append(path, text, separator)` 與 `prepend(path, text, separator)` 需要明確傳入分隔符號。換行可傳 `"\n"`，需要 Windows 行尾時傳 `"\r\n"`。`move` 是 Rust 關鍵字，因此使用原始識別字 `r#move`。

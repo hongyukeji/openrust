@@ -325,7 +325,7 @@ impl Db {
     }
     pub async fn billable(&self, client: Client) -> Billable {
         let b = Billable::new(client, self.store.clone(), "users:1").unwrap();
-        b.attachCustomer("cus_1").await.unwrap();
+        b.attach_customer("cus_1").await.unwrap();
         b
     }
 }

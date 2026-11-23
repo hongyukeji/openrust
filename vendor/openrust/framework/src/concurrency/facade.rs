@@ -96,7 +96,6 @@ pub struct Driver {
     owner: Weak<Container>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Driver {
     pub async fn run(
         &self,
@@ -104,13 +103,13 @@ impl Driver {
         timeout: Option<Duration>,
     ) -> Result<Vec<Value>> {
         Ok(self
-            .runNamed(numbered(tasks), timeout)
+            .run_named(numbered(tasks), timeout)
             .await?
             .into_values()
             .collect())
     }
 
-    pub async fn runNamed(
+    pub async fn run_named(
         &self,
         tasks: IndexMap<String, Task>,
         timeout: Option<Duration>,
@@ -249,7 +248,6 @@ impl Facade for Concurrency {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Concurrency {
     pub fn driver(name: Option<&str>) -> Result<Driver> {
         Self::get_facade_root()?.driver(name)
@@ -262,11 +260,11 @@ impl Concurrency {
         Self::driver(None)?.run(tasks, timeout).await
     }
 
-    pub async fn runNamed(
+    pub async fn run_named(
         tasks: IndexMap<String, Task>,
         timeout: Option<Duration>,
     ) -> Result<IndexMap<String, Value>> {
-        Self::driver(None)?.runNamed(tasks, timeout).await
+        Self::driver(None)?.run_named(tasks, timeout).await
     }
 
     pub fn defer(tasks: impl IntoIterator<Item = Task>) -> Result<DeferredCallback> {

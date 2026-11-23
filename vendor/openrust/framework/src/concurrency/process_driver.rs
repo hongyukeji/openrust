@@ -25,7 +25,6 @@ pub struct ProcessDriver {
     base_path: PathBuf,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ProcessDriver {
     pub(super) fn launch_detached(
         &self,
@@ -96,7 +95,7 @@ impl ProcessDriver {
         }
     }
 
-    pub async fn runNamed(
+    pub async fn run_named(
         &self,
         tasks: IndexMap<String, Task>,
         timeout: Option<Duration>,

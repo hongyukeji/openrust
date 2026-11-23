@@ -15,8 +15,7 @@ struct RequestTokens(BTreeMap<String, AccessToken>);
 /// Bearer-token user resolution. State is isolated by request and guard name.
 pub struct TokenGuard;
 impl TokenGuard {
-    #[allow(non_snake_case)]
-    pub fn currentToken(request: &Request) -> Option<&AccessToken> {
+    pub fn current_token(request: &Request) -> Option<&AccessToken> {
         let guard = openrust::auth::Auth::guard_name(request, None).ok()?;
         Self::token(request, &guard)
     }
@@ -90,7 +89,7 @@ impl TokenGuard {
                 return Ok(user);
             }
             let server = ResourceServer::get_facade_root().map_err(backend)?;
-            let token = match server.validateAuthenticatedRequest(request).await {
+            let token = match server.validate_authenticated_request(request).await {
                 Ok(token) => token,
                 Err(error) if error.is_server_error() => return Err(backend(error)),
                 Err(_) => {
@@ -101,7 +100,7 @@ impl TokenGuard {
             let container = openrust::container::Container::get_instance();
             let clients = container.make::<ClientRepository>().map_err(backend)?;
             let Some(client) = clients
-                .findActive(token.oauth_client_id.as_str())
+                .find_active(token.oauth_client_id.as_str())
                 .await
                 .map_err(backend)?
             else {
@@ -124,7 +123,7 @@ impl TokenGuard {
             };
             if id == token.oauth_client_id
                 && client
-                    .hasGrantType("client_credentials")
+                    .has_grant_type("client_credentials")
                     .await
                     .map_err(backend)?
             {

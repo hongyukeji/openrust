@@ -30,7 +30,6 @@ pub struct Passkeys {
     authorize: RwLock<Option<Arc<AuthorizeLoginCallback>>>,
     routes: AtomicBool,
 }
-#[allow(non_snake_case, reason = "Matches Passkeys configuration API")]
 impl Passkeys {
     pub fn new(config: Arc<dyn Repository>) -> Self {
         Self {
@@ -41,22 +40,22 @@ impl Passkeys {
             routes: AtomicBool::new(true),
         }
     }
-    pub fn ignoreRoutes(&self) {
+    pub fn ignore_routes(&self) {
         self.routes.store(false, Ordering::Relaxed);
     }
-    pub fn shouldRegisterRoutes(&self) -> bool {
+    pub fn should_register_routes(&self) -> bool {
         self.routes.load(Ordering::Relaxed)
     }
-    pub fn relyingPartyId(&self) -> PasskeyResult<String> {
+    pub fn relying_party_id(&self) -> PasskeyResult<String> {
         self.config
             .get("passkeys.relying_party_id")
             .and_then(|v| v.as_str().map(str::to_owned))
             .ok_or(PasskeyError::Configuration("missing RP ID"))
     }
-    pub fn relyingPartyName(&self) -> PasskeyResult<String> {
-        self.relyingPartyId()
+    pub fn relying_party_name(&self) -> PasskeyResult<String> {
+        self.relying_party_id()
     }
-    pub fn allowedOrigins(&self) -> PasskeyResult<Vec<String>> {
+    pub fn allowed_origins(&self) -> PasskeyResult<Vec<String>> {
         let values = self
             .config
             .get("passkeys.allowed_origins")
@@ -89,35 +88,35 @@ impl Passkeys {
     }
     pub fn webauthn(&self) -> PasskeyResult<WebAuthn> {
         WebAuthn::new(
-            &self.relyingPartyId()?,
-            &self.allowedOrigins()?,
+            &self.relying_party_id()?,
+            &self.allowed_origins()?,
             self.timeout()?,
         )
     }
-    pub fn usePasskeyModel<M: PasskeyModel>(&self) {
+    pub fn use_passkey_model<M: PasskeyModel>(&self) {
         *self.passkey_model.write().expect("Passkeys model lock") =
             Arc::new(crate::store::Store::<M>::default());
     }
-    pub fn passkeyModel(&self) -> &'static str {
-        self.passkeyStore().name()
+    pub fn passkey_model(&self) -> &'static str {
+        self.passkey_store().name()
     }
-    pub(crate) fn passkeyStore(&self) -> Arc<dyn crate::store::PasskeyStore> {
+    pub(crate) fn passkey_store(&self) -> Arc<dyn crate::store::PasskeyStore> {
         self.passkey_model
             .read()
             .expect("Passkeys model lock")
             .clone()
     }
-    pub fn userModel(&self) -> Result<&'static str, HttpError> {
+    pub fn user_model(&self) -> Result<&'static str, HttpError> {
         Ok(self.model()?.name())
     }
-    pub fn useUserModel<T: PasskeyUser + Clone>(&self) {
+    pub fn use_user_model<T: PasskeyUser + Clone>(&self) {
         *self.user_model.write().expect("Passkeys model lock") =
             Some(Arc::new(Adapter::<T>(PhantomData)));
     }
-    pub fn authorizeLoginUsing(&self, callback: Option<Arc<AuthorizeLoginCallback>>) {
+    pub fn authorize_login_using(&self, callback: Option<Arc<AuthorizeLoginCallback>>) {
         *self.authorize.write().expect("Passkeys callback lock") = callback;
     }
-    pub async fn allowsLogin(
+    pub async fn allows_login(
         &self,
         request: &mut Request,
         user: &dyn Authenticatable,
@@ -201,9 +200,11 @@ impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
             .ok_or_else(|| crate::internal(PasskeyError::Format))?;
         Ok(Account {
             key,
-            handle: user.getPasskeyUserHandle(secret).map_err(crate::internal)?,
-            username: user.getPasskeyUsername().map_err(crate::internal)?,
-            display_name: user.getPasskeyDisplayName().map_err(crate::internal)?,
+            handle: user
+                .get_passkey_user_handle(secret)
+                .map_err(crate::internal)?,
+            username: user.get_passkey_username().map_err(crate::internal)?,
+            display_name: user.get_passkey_display_name().map_err(crate::internal)?,
         })
     }
     fn find(

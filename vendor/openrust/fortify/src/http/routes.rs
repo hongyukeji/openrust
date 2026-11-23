@@ -108,7 +108,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .name("password.confirm.store");
         let features = crate::Features::new(fortify.config.clone());
         if features
-            .enabled(crate::Features::resetPasswords())
+            .enabled(crate::Features::reset_passwords())
             .map_err(|_| RoutingError::InvalidAction)?
         {
             if views {
@@ -145,7 +145,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .name("password.update");
         }
         if features
-            .enabled(crate::Features::emailVerification())
+            .enabled(crate::Features::email_verification())
             .map_err(|_| RoutingError::InvalidAction)?
         {
             if views {
@@ -200,7 +200,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .name("register.store");
         }
         if features
-            .enabled(crate::Features::updateProfileInformation())
+            .enabled(crate::Features::update_profile_information())
             .map_err(|_| RoutingError::InvalidAction)?
         {
             router
@@ -215,7 +215,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .name("user-profile-information.update");
         }
         if features
-            .enabled(crate::Features::updatePasswords())
+            .enabled(crate::Features::update_passwords())
             .map_err(|_| RoutingError::InvalidAction)?
         {
             router
@@ -325,7 +325,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             );
         }
         if features
-            .enabled(crate::Features::twoFactorAuthentication())
+            .enabled(crate::Features::two_factor_authentication())
             .map_err(|_| RoutingError::InvalidAction)?
         {
             if views {
@@ -353,8 +353,8 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 ));
             }
             let confirm = features
-                .optionEnabled(
-                    crate::Features::twoFactorAuthentication(),
+                .option_enabled(
+                    crate::Features::two_factor_authentication(),
                     "confirmPassword",
                 )
                 .map_err(|_| RoutingError::InvalidAction)?;

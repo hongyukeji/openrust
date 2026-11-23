@@ -36,7 +36,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 }));
 ```
 
-面板使用原生 HTML、JavaScript 和 JSON 接口。通过 `./artisan vendor:publish --tag=pulse-dashboard` 发布模板；自定义模板保留 `<!-- PULSE_STYLES -->` 和 `<!-- PULSE_SCRIPTS -->` 可注入包资源。`Pulse::withCss` 接受可信应用 CSS 路径或 HTML，去重并追加；`css` 与 `js` 返回资源 HTML。Rust 将上游重载的 CSS 设置入口表达为 `withCss`。
+面板使用原生 HTML、JavaScript 和 JSON 接口。通过 `./artisan vendor:publish --tag=pulse-dashboard` 发布模板；自定义模板保留 `<!-- PULSE_STYLES -->` 和 `<!-- PULSE_SCRIPTS -->` 可注入包资源。`Pulse::with_css` 接受可信应用 CSS 路径或 HTML，去重并追加；`css` 与 `js` 返回资源 HTML。Rust 将上游重载的 CSS 设置入口表达为 `with_css`。
 
 ## 记录器 {#recorders}
 
@@ -46,7 +46,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢查询 `location` 尝试恢复应用源码位置；不含调试符号的构建可能返回空位置。`Exceptions` 接收原生带类型的异常日志、任务异常以及 `Pulse::report`，普通 JSON 日志上下文不冒充异常。Rust 错误未必携带调用栈，需要时显式传入位置。
 
-`Servers` 默认每实例 15 秒采样一次，保存 CPU、内存和磁盘快照；`PULSE_SERVER_NAME` 与 `PULSE_SERVER_DIRECTORIES` 自定义名称及冒号分隔的目录。`Servers::detectCpuUsing`、`detectMemoryUsing` 可替换检测器。
+`Servers` 默认每实例 15 秒采样一次，保存 CPU、内存和磁盘快照；`PULSE_SERVER_NAME` 与 `PULSE_SERVER_DIRECTORIES` 自定义名称及冒号分隔的目录。`Servers::detect_cpu_using`、`detect_memory_using` 可替换检测器。
 
 ## 自定义指标 {#custom-metrics}
 
@@ -59,18 +59,18 @@ Pulse::record("orders", "completed", Some(120), None).await?
     .count().sum().max().avg();
 Pulse::set("deployment", "version", "v1", None).await?;
 Pulse::ingest().await?;
-let totals = Pulse::aggregateTotal(&["orders".into()], "sum", 3600).await?;
+let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 ```
 
-`record` 返回 Entry，可选择 `count`、`min`、`max`、`sum`、`avg`；`onlyBuckets` 仅写聚合。返回 Entry 与缓冲项共享聚合标志，其他字段遵循 Rust 值所有权，修改副本不会改写缓冲项。`set` 为同类型／键保留最后传入的值。四种窗口为 1 小时、6 小时、24 小时和 7 天，图表填充 60 个时间点。
+`record` 返回 Entry，可选择 `count`、`min`、`max`、`sum`、`avg`；`only_buckets` 仅写聚合。返回 Entry 与缓冲项共享聚合标志，其他字段遵循 Rust 值所有权，修改副本不会改写缓冲项。`set` 为同类型／键保留最后传入的值。四种窗口为 1 小时、6 小时、24 小时和 7 天，图表填充 60 个时间点。
 
-`filter` 筛选入库项；`ignore(future)` 临时忽略采集并在取消时恢复；`lazy` 延迟生成指标；`handleExceptionsUsing` 接收入库与记录器错误。`flush` 丢弃当前缓冲，`ingest` 立即提交。查询接口包括 `values`、`graph`、`aggregate`、`aggregateTypes` 和 `aggregateTotal`。后者接收类型切片并返回每类型结果，空集合结果为 `None`。
+`filter` 筛选入库项；`ignore(future)` 临时忽略采集并在取消时恢复；`lazy` 延迟生成指标；`handle_exceptions_using` 接收入库与记录器错误。`flush` 丢弃当前缓冲，`ingest` 立即提交。查询接口包括 `values`、`graph`、`aggregate`、`aggregate_types` 和 `aggregate_total`。后者接收类型切片并返回每类型结果，空集合结果为 `None`。
 
 实现 `recorders::Recorder` 的 `name`、`listens` 与异步 `record`，在包启动后的应用 Provider 调用 `pulse.register(vec![recorder])`，即可监听原生事件。使用 `recorders()` 查看注册实例。Rust 通过编译型类型与显式事件名称替代 PHP 类反射；自定义 HTML 卡片通过发布模板实现。
 
 ## 用户 {#users}
 
-用量记录读取原生认证已经解析的用户。先运行认证中间件或 `Auth::user(request).await?`；队列投递可用 `rememberUser` 明确关联操作者。默认面板通过认证 Provider 读取姓名、邮箱和头像，找不到时显示 ID。`Pulse::user` 定制字段，或在扩展启动前绑定 `ResolvesUsers` 自定义用户键与加载行为。默认通用认证 Provider 按 ID 加载；需要批量优化时实现该契约。
+用量记录读取原生认证已经解析的用户。先运行认证中间件或 `Auth::user(request).await?`；队列投递可用 `remember_user` 明确关联操作者。默认面板通过认证 Provider 读取姓名、邮箱和头像，找不到时显示 ID。`Pulse::user` 定制字段，或在扩展启动前绑定 `ResolvesUsers` 自定义用户键与加载行为。默认通用认证 Provider 按 ID 加载；需要批量优化时实现该契约。
 
 ## 命令 {#commands}
 

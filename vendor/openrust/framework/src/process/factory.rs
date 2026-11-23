@@ -40,7 +40,6 @@ pub struct RecordedProcess {
     pub tty: bool,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Factory {
     pub fn new() -> Self {
         Self::default()
@@ -114,7 +113,7 @@ impl Factory {
         testing.fakes.insert("*".into(), Arc::new(callback));
     }
 
-    pub fn fakeCommand(&self, pattern: impl Into<String>, result: ProcessResult) {
+    pub fn fake_command(&self, pattern: impl Into<String>, result: ProcessResult) {
         self.testing()
             .fakes
             .insert(pattern.into(), Arc::new(move |_| Some(Ok(result.clone()))));
@@ -140,7 +139,7 @@ impl Factory {
         );
     }
 
-    pub fn preventStrayProcesses(&self, prevent: bool) {
+    pub fn prevent_stray_processes(&self, prevent: bool) {
         self.testing().prevent_stray = prevent;
     }
 
@@ -149,7 +148,7 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertRan(
+    pub fn assert_ran(
         &self,
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> &Self {
@@ -163,7 +162,7 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertNotRan(
+    pub fn assert_not_ran(
         &self,
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> &Self {
@@ -178,22 +177,22 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertDidntRun(
+    pub fn assert_didnt_run(
         &self,
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
     ) -> &Self {
-        self.assertNotRan(predicate)
+        self.assert_not_ran(predicate)
     }
 
     #[track_caller]
-    pub fn assertNothingRan(&self) -> &Self {
+    pub fn assert_nothing_ran(&self) -> &Self {
         assert!(self.recorded().is_empty(), "发现不应执行的进程");
         self
     }
 
     /// 顺序断言同时检查记录总量，回调可以核对命令与执行结果。
     #[track_caller]
-    pub fn assertRanInOrder(&self, callbacks: &[&ProcessAssertion<'_>]) -> &Self {
+    pub fn assert_ran_in_order(&self, callbacks: &[&ProcessAssertion<'_>]) -> &Self {
         let recorded = self.recorded();
         assert_eq!(recorded.len(), callbacks.len(), "执行进程数量不匹配");
         for (index, ((process, result), callback)) in recorded.iter().zip(callbacks).enumerate() {
@@ -207,7 +206,7 @@ impl Factory {
     }
 
     #[track_caller]
-    pub fn assertRanTimes(
+    pub fn assert_ran_times(
         &self,
         predicate: impl Fn(&RecordedProcess, Option<&ProcessResult>) -> bool,
         expected: usize,
@@ -222,7 +221,7 @@ impl Factory {
         self
     }
 
-    pub(super) fn resolveFake(
+    pub(super) fn resolve_fake(
         &self,
         process: impl FnOnce() -> RecordedProcess,
     ) -> Result<Option<Result<ProcessResult>>> {

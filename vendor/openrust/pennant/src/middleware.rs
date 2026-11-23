@@ -13,16 +13,16 @@ type Respond = Arc<
 >;
 pub struct EnsureFeaturesAreActive {
     features: Vec<String>,
-    respondUsing: Option<Respond>,
+    respond_using: Option<Respond>,
 }
 impl EnsureFeaturesAreActive {
     pub fn using(features: impl IntoIterator<Item = impl Into<String>>) -> Self {
         Self {
             features: features.into_iter().map(Into::into).collect(),
-            respondUsing: None,
+            respond_using: None,
         }
     }
-    pub fn whenInactive(
+    pub fn when_inactive(
         mut self,
         callback: impl for<'a> Fn(
             &'a mut Request,
@@ -32,7 +32,7 @@ impl EnsureFeaturesAreActive {
         + Sync
         + 'static,
     ) -> Self {
-        self.respondUsing = Some(Arc::new(callback));
+        self.respond_using = Some(Arc::new(callback));
         self
     }
 }
@@ -46,10 +46,10 @@ impl Middleware for EnsureFeaturesAreActive {
             let features: Vec<_> = self.features.iter().map(String::as_str).collect();
             if Feature::for_request(request)
                 .await?
-                .someAreInactive(&features)
+                .some_are_inactive(&features)
                 .await?
             {
-                if let Some(respond) = &self.respondUsing {
+                if let Some(respond) = &self.respond_using {
                     return respond(request, &self.features).await;
                 }
                 let debug = Config::get_facade_root()?

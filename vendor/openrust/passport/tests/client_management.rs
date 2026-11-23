@@ -186,8 +186,10 @@ async fn exercise_models() -> DatabaseResult<()> {
     let repo = openrust::container::Container::get_instance()
         .make::<ClientRepository>()
         .unwrap();
-    let first = repo.createClientCredentialsGrantClient("first").await?;
-    let second = repo.createClientCredentialsGrantClient("second").await?;
+    let first = repo.create_client_credentials_grant_client("first").await?;
+    let second = repo
+        .create_client_credentials_grant_client("second")
+        .await?;
     let db = Token::default().get_connection()?;
     let mut token = Token::new_instance_on(
         &db,
@@ -204,7 +206,9 @@ async fn exercise_models() -> DatabaseResult<()> {
     let passport = openrust::container::Container::get_instance()
         .make::<Passport>()
         .unwrap();
-    passport.withInheritedScopes.store(true, Ordering::Relaxed);
+    passport
+        .with_inherited_scopes
+        .store(true, Ordering::Relaxed);
     assert!(token.can("orders:read")?);
     assert!(!token.can("other")?);
     let mut refresh = RefreshToken::new_instance_on(
@@ -220,7 +224,7 @@ async fn exercise_models() -> DatabaseResult<()> {
     assert_eq!(loaded_client.get_key(), first.get_key().await.as_ref());
     assert_eq!(
         token
-            .refreshToken()
+            .refresh_token()
             .get_results(&token)
             .await?
             .unwrap()
@@ -229,7 +233,7 @@ async fn exercise_models() -> DatabaseResult<()> {
     );
     assert_eq!(
         refresh
-            .accessToken()
+            .access_token()
             .get_results(&refresh)
             .await?
             .unwrap()
@@ -280,7 +284,7 @@ async fn exercise_models() -> DatabaseResult<()> {
     );
     assert_eq!(
         loaded_client
-            .authCodes()
+            .auth_codes()
             .get_results(&loaded_client)
             .await?
             .len(),
@@ -344,12 +348,12 @@ async fn exercise_models() -> DatabaseResult<()> {
         Some(false.into())
     );
     assert!(
-        repo.findActive(first.get_key().await.unwrap())
+        repo.find_active(first.get_key().await.unwrap())
             .await?
             .is_none()
     );
     assert!(
-        repo.findActive(second.get_key().await.unwrap())
+        repo.find_active(second.get_key().await.unwrap())
             .await?
             .is_some()
     );
@@ -526,17 +530,17 @@ async fn mysql_artisan_client_creates_each_grant_and_preserves_output_rules() {
         let model = models
             .all()
             .iter()
-            .find(|m| m.hasGrantType(grant).unwrap())
+            .find(|m| m.has_grant_type(grant).unwrap())
             .unwrap_or(model);
         assert_eq!(model.confidential(), !public);
-        assert!(model.hasGrantType(grant).unwrap());
+        assert!(model.has_grant_type(grant).unwrap());
         assert_eq!(
             model.get_attribute_value("name").unwrap(),
             Some("Default client".into())
         );
         if matches!(grant, "authorization_code" | "implicit") {
             assert_eq!(
-                model.redirectUris().unwrap().as_value(),
+                model.redirect_uris().unwrap().as_value(),
                 &json!(["https://app.test/base/auth/callback"])
             );
         }
@@ -553,7 +557,7 @@ async fn mysql_artisan_client_creates_each_grant_and_preserves_output_rules() {
     assert_eq!(kernel.handle(&args.map(Into::into), &mut output).await, 0);
     let model = Client::query_on(&db).first().await.unwrap().unwrap();
     assert_eq!(
-        model.redirectUris().unwrap().as_value(),
+        model.redirect_uris().unwrap().as_value(),
         &json!(["https://a.test/cb", "https://b.test/cb"])
     );
     assert!(!model.confidential());
@@ -603,7 +607,7 @@ async fn mysql_client_uuid_switch_preserves_constructed_instances_and_numeric_lo
     in_app(&app, async {
         let passport = app.make::<Passport>().await.unwrap();
         let mut uuid = Client::default();
-        passport.clientUuids.store(false, Ordering::Relaxed);
+        passport.client_uuids.store(false, Ordering::Relaxed);
         let mut numeric = Client::new_instance_on(
             &db,
             Attributes::from([
@@ -621,19 +625,19 @@ async fn mysql_client_uuid_switch_preserves_constructed_instances_and_numeric_lo
             numeric.get_key_type(),
             openrust::database::eloquent::ModelKeyType::Integer
         );
-        passport.clientUuids.store(true, Ordering::Relaxed);
+        passport.client_uuids.store(true, Ordering::Relaxed);
         // The saved instance keeps its initialization strategy despite later app changes.
         numeric.save().await.unwrap();
         assert!(matches!(numeric.get_key(), Some(Value::Integer(1))));
         uuid.set_unique_ids().await.unwrap();
         assert!(matches!(uuid.get_key(), Some(Value::Text(id)) if Client::is_valid_unique_id(id)));
-        passport.clientUuids.store(false, Ordering::Relaxed);
+        passport.client_uuids.store(false, Ordering::Relaxed);
         uuid.set_unique_ids().await.unwrap();
         assert!(!uuid.get_incrementing_for_instance());
         assert!(numeric.get_incrementing_for_instance());
         let repo = app.make::<ClientRepository>().await.unwrap();
         let client = repo
-            .createClientCredentialsGrantClient("created")
+            .create_client_credentials_grant_client("created")
             .await
             .unwrap();
         assert_eq!(client.get_key().await, Some(2_i64.into()));
@@ -641,7 +645,7 @@ async fn mysql_client_uuid_switch_preserves_constructed_instances_and_numeric_lo
         assert_eq!(Client::route_binding_value("id", "2"), Some(2_i64.into()));
         let made = Client::factory()
             .unwrap()
-            .asPublic()
+            .as_public()
             .create_one(Attributes::new())
             .await
             .unwrap();
@@ -739,15 +743,15 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
             // Resolve the repository before changing the model registrations.
             let repo = app.make::<ClientRepository>().await.unwrap();
             let passport = app.make::<Passport>().await.unwrap();
-            passport.useTokenModel::<CustomToken>();
-            passport.useRefreshTokenModel::<CustomRefresh>();
-            assert_eq!(passport.tokenModel(), std::any::type_name::<CustomToken>());
+            passport.use_token_model::<CustomToken>();
+            passport.use_refresh_token_model::<CustomRefresh>();
+            assert_eq!(passport.token_model(), std::any::type_name::<CustomToken>());
             assert_eq!(
-                passport.refreshTokenModel(),
+                passport.refresh_token_model(),
                 std::any::type_name::<CustomRefresh>()
             );
             let client = repo
-                .createClientCredentialsGrantClient("custom")
+                .create_client_credentials_grant_client("custom")
                 .await
                 .unwrap();
             let mut token = CustomToken::new_instance_on(
@@ -774,7 +778,7 @@ async fn mysql_custom_token_registration_retains_models_events_and_separate_conn
             let guard = model.lock().await;
             assert_eq!(
                 guard
-                    .tokensFor::<CustomToken>()
+                    .tokens_for::<CustomToken>()
                     .get_results(&guard)
                     .await
                     .unwrap()
@@ -1024,7 +1028,7 @@ async fn mysql_revocation_ignores_cancelled_save_but_propagates_token_errors() {
         in_app(&app, async {
             let repo = app.make::<ClientRepository>().await.unwrap();
             let client = repo
-                .createClientCredentialsGrantClient("cancel")
+                .create_client_credentials_grant_client("cancel")
                 .await
                 .unwrap();
             let mut token = Token::new_instance_on(
@@ -1162,7 +1166,7 @@ async fn mysql_revocation_crosses_chunk_boundary_without_skipping_tokens() {
     in_app(&app, async {
         let repo = app.make::<ClientRepository>().await.unwrap();
         let client = repo
-            .createClientCredentialsGrantClient("chunked")
+            .create_client_credentials_grant_client("chunked")
             .await
             .unwrap();
         let client_id = client.get_key().await.unwrap();
@@ -1205,7 +1209,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .unwrap();
         let Some(id) = request.route("client") else {
             let client = repo
-                .createAuthorizationCodeGrantClient(
+                .create_authorization_code_grant_client(
                     "HTTP client",
                     &["https://http.test/cb".into()],
                     true,
@@ -1219,7 +1223,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 json!({"client":client.to_array().await.map_err(internal)?,"secret":client.get_attribute_value("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
             );
         };
-        let Some(client) = repo.findForUser(id, &owner).await.map_err(internal)? else {
+        let Some(client) = repo.find_for_user(id, &owner).await.map_err(internal)? else {
             return Response::json(StatusCode::NOT_FOUND, json!({"missing":true}));
         };
         match *request.method() {
@@ -1234,7 +1238,7 @@ fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
                 repo.delete(&client).await.map_err(internal)?;
             }
             openrust::http::Method::POST => {
-                assert!(repo.regenerateSecret(&client).await.map_err(internal)?);
+                assert!(repo.regenerate_secret(&client).await.map_err(internal)?);
                 return Response::json(
                     StatusCode::OK,
                     json!({"secret":client.get_attribute_value("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
@@ -1432,7 +1436,7 @@ async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps
         Some(&Value::Text("HTTP renamed".into()))
     );
     assert_eq!(
-        updated.redirectUris().unwrap().as_value(),
+        updated.redirect_uris().unwrap().as_value(),
         &json!(["https://http.test/new"])
     );
     let rotated = http

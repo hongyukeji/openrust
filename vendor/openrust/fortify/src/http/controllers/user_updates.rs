@@ -70,7 +70,7 @@ impl PasswordController {
                     .map_err(internal)?,
             };
             let user = updater
-                .updateFromRequest(request, user.as_ref(), &input)
+                .update_from_request(request, user.as_ref(), &input)
                 .await?;
             Auth::session_guard(request, fortify.guard().as_deref())?.set_user(user);
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;

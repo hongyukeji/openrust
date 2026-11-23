@@ -132,7 +132,7 @@ fn entry(kind: EntryType, batch: Uuid, content: serde_json::Value) -> IncomingEn
     IncomingEntry::make(content.as_object().unwrap().clone())
         .unwrap()
         .r#type(kind)
-        .batchId(batch)
+        .batch_id(batch)
 }
 fn exception(batch: Uuid, file: &str, line: u64) -> IncomingEntry {
     IncomingExceptionEntry::make(
@@ -144,7 +144,7 @@ fn exception(batch: Uuid, file: &str, line: u64) -> IncomingEntry {
     )
     .unwrap()
     .0
-    .batchId(batch)
+    .batch_id(batch)
 }
 
 #[tokio::test]
@@ -170,7 +170,7 @@ async fn storage_roundtrip_prefix_pagination_tag_union_batch_uuid_and_malformed_
         .unwrap();
     let found = f.repository.find(&first.uuid.to_string()).await.unwrap();
     assert_eq!(found.sequence, None);
-    assert_eq!(found.batchId, batch);
+    assert_eq!(found.batch_id, batch);
     assert_eq!(found.content["uri"], "/one");
     assert_eq!(found.tags.len(), 2);
     assert_eq!(
@@ -195,7 +195,7 @@ async fn storage_roundtrip_prefix_pagination_tag_union_batch_uuid_and_malformed_
         .repository
         .get(
             None,
-            EntryQueryOptions::default().beforeSequence(all.last().unwrap().sequence),
+            EntryQueryOptions::default().before_sequence(all.last().unwrap().sequence),
         )
         .await
         .unwrap();
@@ -204,7 +204,7 @@ async fn storage_roundtrip_prefix_pagination_tag_union_batch_uuid_and_malformed_
         .repository
         .get(
             Some(EntryType::Request),
-            EntryQueryOptions::forBatchId(Some(batch)),
+            EntryQueryOptions::for_batch_id(Some(batch)),
         )
         .await
         .unwrap();
@@ -284,7 +284,7 @@ async fn exception_families_display_occurrences_and_chunk_semantics() {
         .repository
         .get(
             None,
-            EntryQueryOptions::default().familyHash(first.familyHash.clone()),
+            EntryQueryOptions::default().family_hash(first.family_hash.clone()),
         )
         .await
         .unwrap();
@@ -311,7 +311,7 @@ async fn exception_families_display_occurrences_and_chunk_semantics() {
     assert_eq!(index[0].content["occurrences"], 4);
     assert_eq!(
         f.repository
-            .get(None, EntryQueryOptions::forBatchId(Some(batch)))
+            .get(None, EntryQueryOptions::for_batch_id(Some(batch)))
             .await
             .unwrap()
             .len(),
@@ -341,8 +341,8 @@ async fn updates_merge_content_tags_and_return_missing_or_wrong_type() {
             .unwrap()
             .clone(),
     )
-    .addTags(["old", "new"])
-    .removeTags(["old"]);
+    .add_tags(["old", "new"])
+    .remove_tags(["old"]);
     let missing = EntryUpdate::make(Uuid::now_v7(), EntryType::Job, Default::default());
     let wrong = EntryUpdate::make(first.uuid, EntryType::Request, Default::default());
     let failed = f
@@ -365,25 +365,25 @@ async fn updates_merge_content_tags_and_return_missing_or_wrong_type() {
 #[tokio::test]
 async fn monitored_tags_lazy_cache_termination_prune_and_cascade_clear() {
     let f = Fixture::new(2).await;
-    assert!(!f.repository.isMonitoring(&["a".into()]).await);
+    assert!(!f.repository.is_monitoring(&["a".into()]).await);
     f.repository
         .monitor(&["a".into(), "b".into(), "a".into()])
         .await
         .unwrap();
     assert_eq!(f.repository.monitoring().await.unwrap().len(), 2);
-    assert!(!f.repository.isMonitoring(&["a".into()]).await);
+    assert!(!f.repository.is_monitoring(&["a".into()]).await);
     f.repository.terminate();
-    assert!(f.repository.isMonitoring(&["c".into(), "a".into()]).await);
-    f.repository.stopMonitoring(&["a".into()]).await.unwrap();
+    assert!(f.repository.is_monitoring(&["c".into(), "a".into()]).await);
+    f.repository.stop_monitoring(&["a".into()]).await.unwrap();
     f.repository.terminate();
-    assert!(!f.repository.isMonitoring(&["a".into()]).await);
+    assert!(!f.repository.is_monitoring(&["a".into()]).await);
     let cutoff: jiff::Timestamp = "2026-01-02T00:00:00Z".parse().unwrap();
     let mut old = entry(EntryType::Log, Uuid::now_v7(), json!({})).tags(["old"]);
-    old.recordedAt = "2026-01-01T00:00:00Z".parse().unwrap();
+    old.recorded_at = "2026-01-01T00:00:00Z".parse().unwrap();
     let mut kept = exception(Uuid::now_v7(), "old.rs", 1);
-    kept.recordedAt = old.recordedAt;
+    kept.recorded_at = old.recorded_at;
     let mut boundary = entry(EntryType::Log, Uuid::now_v7(), json!({}));
-    boundary.recordedAt = cutoff;
+    boundary.recorded_at = cutoff;
     f.repository.store(&[old, kept, boundary]).await.unwrap();
     assert_eq!(f.repository.prune(cutoff, true).await.unwrap(), 1);
     assert_eq!(
@@ -450,14 +450,14 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
                 .unwrap_or(false)
         });
     let count = recorded.clone();
-    telescope.afterRecording(move |scope, entry| {
-        assert!(!scope.isRecording());
+    telescope.after_recording(move |scope, entry| {
+        assert!(!scope.is_recording());
         count.fetch_add(1, Ordering::SeqCst);
         scope.recordLog(entry.clone());
     });
     let count = stored.clone();
-    telescope.afterStoring(move |scope, entries| {
-        assert!(!scope.isRecording());
+    telescope.after_storing(move |scope, entries| {
+        assert!(!scope.is_recording());
         count.fetch_add(entries.len(), Ordering::SeqCst);
     });
     telescope
@@ -486,18 +486,18 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
     let scope = telescope.clone();
     let task = tokio::spawn(async move {
         scope
-            .withoutRecording(async {
+            .without_recording(async {
                 started.notify_one();
                 std::future::pending::<()>().await;
             })
             .await;
     });
     notify.notified().await;
-    assert!(!telescope.isRecording());
+    assert!(!telescope.is_recording());
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
-    assert!(telescope.isRecording());
-    telescope.filterBatch(|_| false);
+    assert!(telescope.is_recording());
+    telescope.filter_batch(|_| false);
     telescope
         .recordLog(IncomingEntry::make(json!({"keep":true}).as_object().unwrap().clone()).unwrap());
     telescope.store().await.unwrap();
@@ -509,11 +509,29 @@ async fn scoped_collector_filters_tags_batches_hooks_and_restores_recording_afte
             .len(),
         1
     );
-    telescope.stopRecording();
+    telescope.stop_recording();
     telescope.recordLog(IncomingEntry::make(Default::default()).unwrap());
     telescope.store().await.unwrap();
-    assert!(!telescope.isRecording());
-    telescope.startRecording(false).await;
-    assert!(telescope.isRecording());
+    assert!(!telescope.is_recording());
+    telescope.start_recording(false).await;
+    assert!(telescope.is_recording());
     f.close().await;
+}
+
+#[test]
+fn native_update_fields_read_and_write_existing_queue_payloads() {
+    let update = EntryUpdate::make(Uuid::nil(), EntryType::Request, Default::default())
+        .add_tags(["visible"]);
+    let payload = openrust_telescope::jobs::ProcessPendingUpdates::new(vec![update], 2);
+    let encoded = serde_json::to_value(&payload).unwrap();
+    assert!(encoded.get("pending_updates").is_none());
+    assert_eq!(
+        encoded["pendingUpdates"][0]["addedTags"],
+        json!(["visible"])
+    );
+    assert_eq!(encoded["pendingUpdates"][0]["removedTags"], json!([]));
+    let decoded: openrust_telescope::jobs::ProcessPendingUpdates =
+        serde_json::from_value(encoded).unwrap();
+    assert_eq!(decoded.attempt, 2);
+    assert_eq!(decoded.pending_updates[0].added_tags, ["visible"]);
 }

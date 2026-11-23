@@ -8,7 +8,6 @@ use openrust::database::{
 
 #[derive(Default)]
 pub struct Token(ModelState);
-#[allow(non_snake_case)]
 impl Model for Token {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("oauth_access_tokens")
@@ -46,7 +45,6 @@ impl Model for Token {
         .map(|name| name.map(std::borrow::Cow::Owned))
     }
 }
-#[allow(non_snake_case)]
 pub trait TokenModel: Model {
     fn revoke(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         async {
@@ -57,14 +55,13 @@ pub trait TokenModel: Model {
     }
 }
 impl TokenModel for Token {}
-#[allow(non_snake_case)]
 impl Token {
     pub fn client(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, crate::Client> {
-        self.clientFor::<crate::Client>()
+        self.client_for::<crate::Client>()
     }
-    pub fn clientFor<C: crate::ClientModel>(
+    pub fn client_for<C: crate::ClientModel>(
         &self,
     ) -> openrust::database::eloquent::relations::BelongsTo<Self, C> {
         openrust::database::eloquent::relations::BelongsTo::new(
@@ -72,12 +69,12 @@ impl Token {
             C::from_state(ModelState::default()).get_key_name(),
         )
     }
-    pub fn refreshToken(
+    pub fn refresh_token(
         &self,
     ) -> openrust::database::eloquent::relations::HasOne<Self, crate::RefreshToken> {
-        self.refreshTokenFor::<crate::RefreshToken>()
+        self.refresh_token_for::<crate::RefreshToken>()
     }
-    pub fn refreshTokenFor<R: crate::RefreshTokenModel>(
+    pub fn refresh_token_for<R: crate::RefreshTokenModel>(
         &self,
     ) -> openrust::database::eloquent::relations::HasOne<Self, R> {
         openrust::database::eloquent::relations::HasOne::new(self.get_key_name(), "access_token_id")
@@ -85,17 +82,17 @@ impl Token {
     /// The compiled provider model and its authentication key replace PHP's class lookup.
     pub fn user<U: Model + openrust::contracts::auth::Authenticatable>(
         &self,
-        authIdentifierName: &'static str,
+        auth_identifier_name: &'static str,
     ) -> DatabaseResult<openrust::database::eloquent::relations::BelongsTo<Self, U>> {
         let user = U::from_state(ModelState::default());
-        if user.get_auth_identifier_name() != authIdentifierName {
+        if user.get_auth_identifier_name() != auth_identifier_name {
             return Err(openrust::database::DatabaseError::InvalidQuery(
                 "token user owner key must match the provider authentication identifier",
             ));
         }
         Ok(openrust::database::eloquent::relations::BelongsTo::new(
             "user_id",
-            authIdentifierName,
+            auth_identifier_name,
         ))
     }
     pub fn can(&self, scope: &str) -> DatabaseResult<bool> {

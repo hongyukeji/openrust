@@ -216,7 +216,6 @@ pub struct ContextBlock {
     id: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ContextBlock {
     pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
         self.elements
@@ -228,12 +227,12 @@ impl ContextBlock {
     }
 
     pub fn image(&mut self, url: impl Into<String>, alt: impl Into<String>) -> &mut Self {
-        self.imageWith(url, |image| {
+        self.image_with(url, |image| {
             image.alt(alt);
         })
     }
 
-    pub fn imageWith(
+    pub fn image_with(
         &mut self,
         url: impl Into<String>,
         build: impl FnOnce(&mut ImageElement),
@@ -263,7 +262,6 @@ pub struct SectionBlock {
     id: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SectionBlock {
     pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
         self.text.insert(TextObject::new(text))
@@ -279,7 +277,7 @@ impl SectionBlock {
         self
     }
 
-    pub fn staticSelect(&mut self, placeholder: impl Into<String>) -> &mut StaticSelectElement {
+    pub fn static_select(&mut self, placeholder: impl Into<String>) -> &mut StaticSelectElement {
         let Action::StaticSelect(menu) =
             self.accessory
                 .insert(Action::StaticSelect(Box::new(StaticSelectElement::new(
@@ -291,7 +289,7 @@ impl SectionBlock {
         menu
     }
 
-    pub fn usersSelect(&mut self, placeholder: impl Into<String>) -> &mut UsersSelectElement {
+    pub fn users_select(&mut self, placeholder: impl Into<String>) -> &mut UsersSelectElement {
         let Action::UsersSelect(menu) = self
             .accessory
             .insert(Action::UsersSelect(UsersSelectElement::new(placeholder)))
@@ -337,7 +335,6 @@ pub struct ActionsBlock {
     id: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ActionsBlock {
     pub fn button(&mut self, text: impl Into<String>) -> &mut ButtonElement {
         let text = text.into();
@@ -353,7 +350,7 @@ impl ActionsBlock {
         element
     }
 
-    pub fn staticSelect(&mut self, placeholder: impl Into<String>) -> &mut StaticSelectElement {
+    pub fn static_select(&mut self, placeholder: impl Into<String>) -> &mut StaticSelectElement {
         self.elements
             .push(Action::StaticSelect(Box::new(StaticSelectElement::new(
                 placeholder,
@@ -364,7 +361,7 @@ impl ActionsBlock {
         menu
     }
 
-    pub fn usersSelect(&mut self, placeholder: impl Into<String>) -> &mut UsersSelectElement {
+    pub fn users_select(&mut self, placeholder: impl Into<String>) -> &mut UsersSelectElement {
         self.elements
             .push(Action::UsersSelect(UsersSelectElement::new(placeholder)));
         let Some(Action::UsersSelect(menu)) = self.elements.last_mut() else {
@@ -400,7 +397,6 @@ pub struct ButtonElement {
     confirm: Option<ConfirmObject>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ButtonElement {
     fn new(text: String, action_id: String) -> Self {
         Self {
@@ -442,7 +438,7 @@ impl ButtonElement {
         self
     }
 
-    pub fn accessibilityLabel(&mut self, label: impl Into<String>) -> &mut Self {
+    pub fn accessibility_label(&mut self, label: impl Into<String>) -> &mut Self {
         self.options
             .insert("accessibility_label".into(), label.into().into());
         self

@@ -78,7 +78,7 @@ impl Command for WorkerControlCommand {
                     "paused"
                 }
                 (Action::Pause, None) => {
-                    manager.pauseAll().await.map_err(error)?;
+                    manager.pause_all().await.map_err(error)?;
                     "paused"
                 }
                 (Action::Resume, Some((connection, queue))) => {
@@ -86,7 +86,7 @@ impl Command for WorkerControlCommand {
                     "resumed"
                 }
                 (Action::Resume, None) => {
-                    manager.resumeAll().await.map_err(error)?;
+                    manager.resume_all().await.map_err(error)?;
                     "resumed"
                 }
                 (Action::Restart, _) => unreachable!(),

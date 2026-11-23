@@ -73,7 +73,7 @@ impl FailedJobProviderInterface for CollectionProvider {
     }
 
     #[allow(non_snake_case, reason = "Implements the retry stream contract")]
-    fn findForRetry<'a>(
+    fn find_for_retry<'a>(
         &'a self,
         id: &'a str,
     ) -> QueueFuture<'a, QueueResult<Option<FailedJobRetryStream<'a>>>> {

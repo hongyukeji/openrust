@@ -114,7 +114,7 @@ curl --fail http://127.0.0.1:8088/up
 
 Provider 通过 `ServiceProvider::runners` 提供 Runner，应用可通过 `with_runners(|| vec![...])` 加入自定义 Runner，多次调用时以最后一次传入的回调为准。相同签名以首次注册为准，Provider 先于应用自定义列表。应用先过滤禁用签名，再调用 `should_run`。符合条件的 Runner 在应用进程内并发运行。
 
-Ctrl+C、Unix SIGTERM 或 Runner 运行失败时，应用按 `shutdownPriority` 从小到大关停，同组并发，默认优先级为零。`run` 可通过 `RunnerContext` 取消令牌完成在途工作，自定义 `shutdown` 可释放其他资源。`run` 成功返回后仍会执行关停钩子，以支持自行启动后台工作的 Runner。
+Ctrl+C、Unix SIGTERM 或 Runner 运行失败时，应用按 `shutdown_priority` 从小到大关停，同组并发，默认优先级为零。`run` 可通过 `RunnerContext` 取消令牌完成在途工作，自定义 `shutdown` 可释放其他资源。`run` 成功返回后仍会执行关停钩子，以支持自行启动后台工作的 Runner。
 
 框架新增的常驻服务在已装配、已配置且满足启动条件时，默认纳入主应用启动。各服务仍可关闭或独立运行。一次性 Artisan 命令由显式调用执行。
 

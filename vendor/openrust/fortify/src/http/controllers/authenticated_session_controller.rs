@@ -19,7 +19,6 @@ use openrust::{
 use std::sync::Arc;
 
 pub struct AuthenticatedSessionController;
-#[allow(non_snake_case, reason = "Matches Fortify's session controller")]
 impl AuthenticatedSessionController {
     pub fn create<'a>(
         &'a self,
@@ -34,7 +33,7 @@ impl AuthenticatedSessionController {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-            let pipes = self.loginPipeline(&fortify, request)?;
+            let pipes = self.login_pipeline(&fortify, request)?;
             Pipeline::send(())
                 .through(pipes)
                 .then_with(request, |(), request| {
@@ -60,7 +59,7 @@ impl AuthenticatedSessionController {
             super::respond::<dyn contracts::LogoutResponse>(request).await
         })
     }
-    pub fn loginPipeline(
+    pub fn login_pipeline(
         &self,
         fortify: &Arc<Fortify>,
         request: &Request,
@@ -94,7 +93,7 @@ impl AuthenticatedSessionController {
                 stages.push("CanonicalizeUsername".into());
             }
             if Features::new(fortify.config.clone())
-                .enabled(Features::twoFactorAuthentication())
+                .enabled(Features::two_factor_authentication())
                 .map_err(internal)?
             {
                 stages.push("RedirectIfTwoFactorAuthenticatable".into());

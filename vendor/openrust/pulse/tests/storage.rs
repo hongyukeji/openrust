@@ -173,8 +173,8 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
     }
     let now = 1_795_267_800i64;
     let storage = DatabaseStorage::new(fixture.connection.clone())
-        .withClock(move || now)
-        .withChunk(2)
+        .with_clock(move || now)
+        .with_chunk(2)
         .unwrap();
     storage
         .store(&[
@@ -228,7 +228,7 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
     assert_eq!(numeric(&rows[0], "avg"), 300.0);
     assert_eq!(
         storage
-            .aggregateTotal(&["type".into()], "count", 3600)
+            .aggregate_total(&["type".into()], "count", 3600)
             .await
             .unwrap()["type"],
         Some(4.0)
@@ -273,24 +273,24 @@ async fn database_storage_matches_upstream_aggregation_values_and_window_queries
 fn entry_flags_and_stream_serialization_preserve_duplicates_and_shared_builder_state() {
     let e = Entry::new(10, "t", "k", None);
     let buffered = e.clone();
-    let e = e.count().count().avg().onlyBuckets();
-    assert!(buffered.isCount());
-    assert!(buffered.isOnlyBuckets());
-    assert!(e.isAvg());
+    let e = e.count().count().avg().only_buckets();
+    assert!(buffered.is_count());
+    assert!(buffered.is_only_buckets());
+    assert!(e.is_avg());
     assert_eq!(e.aggregations(), ["count", "count", "avg"]);
     let wire = serde_json::to_string(&Item::from(e)).unwrap();
     let Item::Entry(decoded) = serde_json::from_str::<Item>(&wire).unwrap() else {
         panic!()
     };
-    assert!(decoded.isOnlyBuckets());
+    assert!(decoded.is_only_buckets());
     assert_eq!(decoded.aggregations().len(), 3);
     assert!(serde_json::from_str::<Item>(&wire.replace("avg", "invalid")).is_err());
 }
 
 async fn check_windows_atomicity_and_retention(connection: &Connection, now: i64) {
     let storage = DatabaseStorage::new(connection.clone())
-        .withClock(move || now)
-        .withChunk(2)
+        .with_clock(move || now)
+        .with_chunk(2)
         .unwrap();
     for interval in [3600, 21600, 86400, 604800] {
         let period = interval / 60;
@@ -342,7 +342,7 @@ async fn check_windows_atomicity_and_retention(connection: &Connection, now: i64
     b.unwrap();
     assert_eq!(
         storage
-            .aggregateTotal(&["type".into()], "count", 3600)
+            .aggregate_total(&["type".into()], "count", 3600)
             .await
             .unwrap()["type"],
         Some(2.0)
@@ -373,7 +373,7 @@ async fn check_windows_atomicity_and_retention(connection: &Connection, now: i64
     storage
         .store(&[Entry::new(now, "queue", "one", None)
             .count()
-            .onlyBuckets()
+            .only_buckets()
             .into()])
         .await
         .unwrap();
@@ -383,7 +383,7 @@ async fn check_windows_atomicity_and_retention(connection: &Connection, now: i64
     );
     assert_eq!(
         storage
-            .aggregateTotal(&["queue".into()], "count", 3600)
+            .aggregate_total(&["queue".into()], "count", 3600)
             .await
             .unwrap()["queue"],
         Some(1.0)
@@ -442,7 +442,7 @@ async fn check_php_preaggregation(connection: &Connection, now: i64) {
             })
         })
         .collect();
-    let storage = DatabaseStorage::new(connection.clone()).withClock(move || now);
+    let storage = DatabaseStorage::new(connection.clone()).with_clock(move || now);
     assert!(
         storage
             .store(&[Entry::new(now, "reference", "null", None)

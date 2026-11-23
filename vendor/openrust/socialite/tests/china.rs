@@ -44,15 +44,15 @@ fn definition(name: &str, base: Option<&str>) -> Arc<dyn ProviderDefinition> {
         )
     });
     match (name, endpoints) {
-        ("weixin", Some(e)) => Arc::new(WeixinProvider::withEndpoints(
+        ("weixin", Some(e)) => Arc::new(WeixinProvider::with_endpoints(
             e,
             format!("{}/weixin/refresh", base.unwrap()),
         )),
-        ("weixinweb", Some(e)) => Arc::new(WeixinWebProvider::withEndpoints(
+        ("weixinweb", Some(e)) => Arc::new(WeixinWebProvider::with_endpoints(
             e,
             format!("{}/weixinweb/refresh", base.unwrap()),
         )),
-        ("qq", Some(e)) => Arc::new(QqProvider::withEndpoints(
+        ("qq", Some(e)) => Arc::new(QqProvider::with_endpoints(
             e,
             format!("{}/qq/me", base.unwrap()),
         )),
@@ -202,7 +202,7 @@ async fn registered_drivers_use_upstream_endpoints_and_authorization_parameters(
         let mut req = request("one");
         let mut p = manager.driver(name, &mut req).unwrap().oauth2().unwrap();
         p.stateless();
-        let url = url::Url::parse(&p.authorizationUrl().unwrap()).unwrap();
+        let url = url::Url::parse(&p.authorization_url().unwrap()).unwrap();
         let fields = url.query_pairs().into_owned().collect::<BTreeMap<_, _>>();
         assert_eq!(fields["response_type"], "code");
         assert_eq!(fields["redirect_uri"], "https://rp.test/callback");
@@ -244,15 +244,15 @@ async fn three_drivers_exchange_profiles_refresh_and_redact_real_http() {
     for name in NAMES {
         let mut req = request("one");
         let mut p = manager.driver(name, &mut req).unwrap().oauth2().unwrap();
-        p.stateless().withUnionId(true);
+        p.stateless().with_union_id(true);
         let user = p.user().await.unwrap();
         assert_eq!(user.get_id(), "id-one");
-        assert_eq!(user.getNickname(), Some("读者"));
-        assert_eq!(user.getEmail(), None);
+        assert_eq!(user.get_nickname(), Some("读者"));
+        assert_eq!(user.get_email(), None);
         assert_eq!(user.get_name(), None);
         assert_eq!(user.attributes["unionid"], "union-id");
         assert_eq!(
-            user.getAvatar(),
+            user.get_avatar(),
             Some(if *name == "qq" {
                 "https://images.test/qq"
             } else {
@@ -261,16 +261,16 @@ async fn three_drivers_exchange_profiles_refresh_and_redact_real_http() {
         );
         if *name == "qq" {
             assert_eq!(
-                user.getRaw(),
+                user.get_raw(),
                 &json!({"ret":0,"nickname":"读者","figureurl_qq_2":"https://images.test/qq"})
             );
         }
-        assert_eq!(user.credentials.as_ref().unwrap().expiresIn, Some(7200));
+        assert_eq!(user.credentials.as_ref().unwrap().expires_in, Some(7200));
         let calls = remote.calls.lock().unwrap().len();
         assert_eq!(p.user().await.unwrap().get_id(), "id-one");
         assert_eq!(calls, remote.calls.lock().unwrap().len());
         assert_eq!(
-            p.refreshToken("private-refresh")
+            p.refresh_token("private-refresh")
                 .await
                 .unwrap()
                 .token
@@ -297,21 +297,21 @@ async fn weixin_silent_scope_and_direct_token_require_explicit_openid() {
         .unwrap()
         .oauth2()
         .unwrap();
-    p.stateless().setScopes(vec!["snsapi_base".into()]);
+    p.stateless().set_scopes(vec!["snsapi_base".into()]);
     let user = p.user().await.unwrap();
     assert_eq!(user.get_id(), "id-one");
-    assert_eq!(user.getNickname(), None);
+    assert_eq!(user.get_nickname(), None);
     assert_eq!(remote.calls.lock().unwrap().len(), 1);
     for name in ["weixin", "weixinweb"] {
         let mut req = request("one");
         let mut p = manager.driver(name, &mut req).unwrap().oauth2().unwrap();
         assert!(matches!(
-            p.userFromToken("private-token-direct").await,
+            p.user_from_token("private-token-direct").await,
             Err(Error::Configuration("openid"))
         ));
-        p.setOpenId("id-direct");
+        p.set_open_id("id-direct");
         assert_eq!(
-            p.userFromToken("private-token-direct")
+            p.user_from_token("private-token-direct")
                 .await
                 .unwrap()
                 .get_id(),
@@ -358,7 +358,7 @@ async fn provider_errors_and_inconsistent_identities_fail_without_exposing_secre
         if *name == "qq" {
             *remote.mode.lock().unwrap() = "token-error".into();
         }
-        assert!(p.refreshToken("private-refresh").await.is_err());
+        assert!(p.refresh_token("private-refresh").await.is_err());
     }
     task.abort();
 }
@@ -370,7 +370,7 @@ async fn shared_driver_keeps_simultaneous_openids_and_unionid_options_isolated()
         let (mut a, mut b) = (request("A"), request("B"));
         let mut a = manager.driver(name, &mut a).unwrap().oauth2().unwrap();
         let mut b = manager.driver(name, &mut b).unwrap().oauth2().unwrap();
-        a.stateless().withUnionId(true);
+        a.stateless().with_union_id(true);
         b.stateless();
         let (a, b) = tokio::join!(a.user(), b.user());
         let (a, b) = (a.unwrap(), b.unwrap());
@@ -578,7 +578,7 @@ async fn three_driver_mappings_and_auth_fields_match_fixed_php_reference() {
         let mut req = request("fixed");
         let mut p = defaults.driver(name, &mut req).unwrap().oauth2().unwrap();
         p.stateless();
-        let url = url::Url::parse(&p.authorizationUrl().unwrap()).unwrap();
+        let url = url::Url::parse(&p.authorization_url().unwrap()).unwrap();
         let fields: serde_json::Map<String, Value> = url
             .query_pairs()
             .map(|(k, v)| (k.into_owned(), v.into_owned().into()))
@@ -588,9 +588,9 @@ async fn three_driver_mappings_and_auth_fields_match_fixed_php_reference() {
         assert_eq!(Value::Object(fields), wanted);
         let mut req = request("fixed");
         let mut p = local.driver(name, &mut req).unwrap().oauth2().unwrap();
-        p.setOpenId("id-fixed").withUnionId(true);
-        let user = p.userFromToken("private-token-fixed").await.unwrap();
-        let actual = json!({"id":user.get_id(),"nickname":user.getNickname(),"name":user.get_name(),"email":user.getEmail(),"avatar":user.getAvatar(),"raw":user.getRaw(),"attributes":user.attributes});
+        p.set_open_id("id-fixed").with_union_id(true);
+        let user = p.user_from_token("private-token-fixed").await.unwrap();
+        let actual = json!({"id":user.get_id(),"nickname":user.get_nickname(),"name":user.get_name(),"email":user.get_email(),"avatar":user.get_avatar(),"raw":user.get_raw(),"attributes":user.attributes});
         assert_eq!(actual, expected[name]["user"], "{name}");
     }
     task.abort();
@@ -635,7 +635,7 @@ async fn grouped_wechat_configuration_selects_the_correct_application_without_fl
         let mut req = request("code");
         let mut provider = manager.driver(driver, &mut req).unwrap().oauth2().unwrap();
         provider.stateless();
-        let url = url::Url::parse(&provider.authorizationUrl().unwrap()).unwrap();
+        let url = url::Url::parse(&provider.authorization_url().unwrap()).unwrap();
         let fields = url.query_pairs().into_owned().collect::<BTreeMap<_, _>>();
         assert_eq!(fields["appid"], id);
         assert_eq!(
@@ -646,9 +646,9 @@ async fn grouped_wechat_configuration_selects_the_correct_application_without_fl
     }
     assert_eq!(
         manager
-            .miniApp()
+            .mini_app()
             .unwrap()
-            .codeToSession("mini-code")
+            .code_to_session("mini-code")
             .await
             .unwrap()
             .openid,
@@ -663,5 +663,5 @@ async fn grouped_wechat_configuration_selects_the_correct_application_without_fl
             Err(Error::Configuration(_))
         ));
     }
-    assert!(matches!(manager.miniApp(), Err(Error::Configuration(_))));
+    assert!(matches!(manager.mini_app(), Err(Error::Configuration(_))));
 }

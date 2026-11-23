@@ -155,19 +155,19 @@ async fn scoped_buffers_share_filters_but_never_measure_pulse_own_storage() {
         storage_dyn.clone(),
         Arc::new(openrust_pulse::ingests::StorageIngest(storage_dyn)),
     )
-    .withBuffer(1)
-    .withTrimLottery(openrust::support::Lottery::odds(0, 1).unwrap());
+    .with_buffer(1)
+    .with_trim_lottery(openrust::support::Lottery::odds(0, 1).unwrap());
     local.record("buffer", "one", Some(1), None).await.count();
     // Upstream flushes before the second record's returned builder is mutated.
     local.record("buffer", "two", Some(2), None).await.count();
-    assert!(!local.wantsIngesting());
+    assert!(!local.wants_ingesting());
     local
         .ignore(async {
             local.record("ignored", "none", None, None).await.count();
         })
         .await;
-    assert!(!local.wantsIngesting());
-    assert!(local.isRecording());
+    assert!(!local.wants_ingesting());
+    assert!(local.is_recording());
     local
         .lazy(|pulse| {
             Box::pin(async move {
@@ -221,7 +221,7 @@ async fn native_dashboard_gate_published_view_and_metrics_reject_invalid_periods
     let pulse = app.app().make::<Pulse>().await.unwrap();
     let stylesheet = app.root().join("custom.css");
     std::fs::write(&stylesheet, ".custom{color:red}").unwrap();
-    pulse.withCss([
+    pulse.with_css([
         openrust_pulse::Css::Path(stylesheet.clone()),
         openrust_pulse::Css::Path(stylesheet.clone()),
         openrust_pulse::Css::Html("<style>.html{color:blue}</style>".into()),
@@ -268,8 +268,8 @@ async fn native_server_beats_throttle_and_commands_use_configured_cache() {
         .assert_successful();
     let application = app.app();
     let servers = application.make::<Servers>().await.unwrap();
-    servers.detectCpuUsing(Some(Arc::new(|| 23)));
-    servers.detectMemoryUsing(Some(Arc::new(|| Memory {
+    servers.detect_cpu_using(Some(Arc::new(|| 23)));
+    servers.detect_memory_using(Some(Arc::new(|| Memory {
         total: 8192,
         used: 2048,
     })));
@@ -480,7 +480,7 @@ async fn cancelled_nested_ignore_restores_recording_and_rescues_failed_lazy_call
     let pulse = app.app().make::<Pulse>().await.unwrap();
     let errors = Arc::new(AtomicUsize::new(0));
     let count = errors.clone();
-    pulse.handleExceptionsUsing(move |_| {
+    pulse.handle_exceptions_using(move |_| {
         count.fetch_add(1, Ordering::SeqCst);
     });
     let cancelled = tokio::time::timeout(
@@ -489,15 +489,15 @@ async fn cancelled_nested_ignore_restores_recording_and_rescues_failed_lazy_call
     )
     .await;
     assert!(cancelled.is_err());
-    assert!(pulse.isRecording());
+    assert!(pulse.is_recording());
     pulse
         .lazy(|_| Box::pin(async { Err(openrust_pulse::Error::StateUnavailable) }))
         .await;
     pulse.record("custom", "survived", None, None).await.count();
     assert_eq!(pulse.ingest().await, 1);
     assert_eq!(errors.load(Ordering::SeqCst), 1);
-    assert!(!pulse.wantsIngesting());
-    assert!(pulse.isRecording());
+    assert!(!pulse.wants_ingesting());
+    assert!(pulse.is_recording());
 }
 
 struct CustomRecorder;
@@ -622,7 +622,7 @@ async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_obser
     let pulse = app.app().make::<Pulse>().await.unwrap();
     let errors = Arc::new(AtomicUsize::new(0));
     let observed = errors.clone();
-    pulse.handleExceptionsUsing(move |_| {
+    pulse.handle_exceptions_using(move |_| {
         observed.fetch_add(1, Ordering::SeqCst);
     });
     assert_eq!(pulse.rescue(async { Ok(42) }).await, Some(42));
@@ -645,7 +645,7 @@ async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_obser
         storage.clone(),
         Arc::new(openrust_pulse::ingests::StorageIngest(storage)),
     )
-    .withUserResolver(Arc::new(ReadOnlyUsers));
+    .with_user_resolver(Arc::new(ReadOnlyUsers));
     assert!(
         custom
             .user(|_| unreachable!())
@@ -656,7 +656,7 @@ async fn public_rescue_and_user_resolver_errors_and_documented_metrics_are_obser
     );
     assert_eq!(
         custom
-            .resolveUsers(&["42".into()])
+            .resolve_users(&["42".into()])
             .await
             .unwrap()
             .find("42")
@@ -677,7 +677,7 @@ fn metric_example(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 .avg();
             Pulse::set("deployment", "version", "v1", None).await?;
             Pulse::ingest().await?;
-            let totals = Pulse::aggregateTotal(&["orders".into()], "sum", 3600).await?;
+            let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
             assert_eq!(totals["orders"], Some(120.0));
             Ok::<_, openrust_pulse::Error>(())
         };
@@ -708,7 +708,7 @@ async fn legacy_bulk_users_remain_application_scoped_and_reject_field_overrides(
             })
             .collect())
     });
-    let users = pulse.resolveUsers(&["42".into()]).await.unwrap();
+    let users = pulse.resolve_users(&["42".into()]).await.unwrap();
     assert_eq!(users.find("42").name, "Bulk 42");
     assert_eq!(users.find("43").name, "ID: 43");
     assert!(pulse.user(|_| unreachable!()).is_err());

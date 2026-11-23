@@ -5,7 +5,7 @@ use serde_json::Value;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Amount(i64);
 impl Amount {
-    pub fn fromFen(fen: i64) -> Result<Self> {
+    pub fn from_fen(fen: i64) -> Result<Self> {
         if !(1..=99_999_999_999).contains(&fen) {
             return Err(Error::InvalidInput("amount"));
         }
@@ -17,7 +17,7 @@ impl Amount {
     pub fn yuan(self) -> String {
         format!("{}.{:02}", self.0 / 100, self.0 % 100)
     }
-    pub fn fromYuan(value: &str) -> Result<Self> {
+    pub fn from_yuan(value: &str) -> Result<Self> {
         let (whole, fraction) = value.split_once('.').unwrap_or((value, ""));
         if whole.is_empty()
             || whole.len() > 10
@@ -37,7 +37,7 @@ impl Amount {
                 .map_err(|_| Error::InvalidInput("amount"))?
                 * if fraction.len() == 1 { 10 } else { 1 }
         };
-        Self::fromFen(whole * 100 + fractional)
+        Self::from_fen(whole * 100 + fractional)
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -142,10 +142,10 @@ impl std::fmt::Debug for VerifiedNotification {
     }
 }
 impl VerifiedNotification {
-    pub fn outTradeNo(&self) -> &str {
+    pub fn out_trade_no(&self) -> &str {
         &self.out_trade_no
     }
-    pub fn transactionId(&self) -> &str {
+    pub fn transaction_id(&self) -> &str {
         &self.transaction_id
     }
     pub fn amount(&self) -> Amount {

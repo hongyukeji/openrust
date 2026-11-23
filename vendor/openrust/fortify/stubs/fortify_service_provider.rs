@@ -30,20 +30,20 @@ impl ServiceProvider for FortifyServiceProvider {
             let fortify = app.make::<Fortify>().await?;
             app.make::<openrust_fortify::passkeys::Passkeys>()
                 .await?
-                .useUserModel::<User>();
-            fortify.registerTwoFactorAuthenticatable::<User>();
-            fortify.registerEmailVerification::<User>();
-            fortify.registerPasswordReset::<User>();
-            fortify.createUsersUsing(Arc::new(CreateNewUser));
-            fortify.updateUserProfileInformationUsing(Arc::new(UpdateUserProfileInformation));
-            fortify.updateUserPasswordsUsing(Arc::new(UpdateUserPassword));
-            fortify.resetUserPasswordsUsing(Arc::new(ResetUserPassword));
+                .use_user_model::<User>();
+            fortify.register_two_factor_authenticatable::<User>();
+            fortify.register_email_verification::<User>();
+            fortify.register_password_reset::<User>();
+            fortify.create_users_using(Arc::new(CreateNewUser));
+            fortify.update_user_profile_information_using(Arc::new(UpdateUserProfileInformation));
+            fortify.update_user_passwords_using(Arc::new(UpdateUserPassword));
+            fortify.reset_user_passwords_using(Arc::new(ResetUserPassword));
             let login = app.make::<LoginRateLimiter>().await?;
             RateLimiter::for_async("login", move |request| {
                 let login = Arc::clone(&login);
                 Box::pin(async move {
                     Ok(Limit::per_minute(5)
-                        .by(login.throttleKey(request).await?)
+                        .by(login.throttle_key(request).await?)
                         .into())
                 })
             })?;

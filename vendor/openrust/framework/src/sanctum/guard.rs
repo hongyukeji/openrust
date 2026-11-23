@@ -75,7 +75,7 @@ impl Guard {
             return Ok(None);
         };
         let database = container.make::<DatabaseManager>()?;
-        let tokens = sanctum.personalAccessTokens(&database, "")?;
+        let tokens = sanctum.personal_access_tokens(&database, "")?;
         if is_bearer && !tokens.accepts_bearer(&credential) {
             return Ok(None);
         }

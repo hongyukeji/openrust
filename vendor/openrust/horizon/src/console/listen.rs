@@ -97,10 +97,10 @@ pub(super) async fn listen(
         tokio::select! {_=shutdown.cancelled()=>break,()=&mut signals=>break,_=ticker.tick()=>{}}
         output
             .stdout
-            .push_str(&String::from_utf8_lossy(&process.latestOutput()));
+            .push_str(&String::from_utf8_lossy(&process.latest_output()));
         output
             .stderr
-            .push_str(&String::from_utf8_lossy(&process.latestErrorOutput()));
+            .push_str(&String::from_utf8_lossy(&process.latest_error_output()));
         if !process.running() {
             return Ok(process.wait().await.map_err(error)?.exit_code());
         }

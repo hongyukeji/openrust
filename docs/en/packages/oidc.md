@@ -47,7 +47,7 @@ let identity = &authentication.identity;
 
 ## Verified identities {#identity}
 
-`Authentication.identity` is a `VerifiedIdentity` constructed only after signature and claims validation. `issuer()` and `subject()` are the stable identity pair; `email()`, `emailVerified()`, `claims()` and `user_info()` expose validated data. UserInfo must have the exact verified subject. A changed email does not inherit the ID Token’s verification flag: the UserInfo response must itself contain boolean `email_verified: true`. `Authentication.tokens` explicitly exposes zeroizing access/ID/optional refresh tokens and optional expiry; it has no Debug or Serialize implementation. Refresh-token grants are outside this RP client API.
+`Authentication.identity` is a `VerifiedIdentity` constructed only after signature and claims validation. `issuer()` and `subject()` are the stable identity pair; `email()`, `email_verified()`, `claims()` and `user_info()` expose validated data. UserInfo must have the exact verified subject. A changed email does not inherit the ID Token’s verification flag: the UserInfo response must itself contain boolean `email_verified: true`. `Authentication.tokens` explicitly exposes zeroizing access/ID/optional refresh tokens and optional expiry; it has no Debug or Serialize implementation. Refresh-token grants are outside this RP client API.
 
 ## Local account binding {#local-binding}
 
@@ -121,7 +121,7 @@ Discovery endpoints default to the issuer origin. Add required HTTPS origins to 
 
 Configure each RP with its own client ID, application key, database and local user bindings. Sign in at the OP once; the second RP can authorize through the existing OP browser Session. Each RP still owns its local Session and resolves `(issuer, subject)` separately. `prompt("login")` asks the OP to authenticate again; `max_age` additionally checks the returned `auth_time`.
 
-RP-initiated logout follows OpenID Connect RP-Initiated Logout 1.0 (2022-09-12). Set `OIDC_POST_LOGOUT_REDIRECT_URI` (`post_logout_redirect`) to a fixed callback registered at the OP. After `user()` and successful local account binding, call `Oidc::provider("work", request)?.rememberLogout(&authentication)?`. This explicitly saves only the verified ID Token in the server-side Session. `LogoutHint` is opaque; changing the public token fields cannot replace this verified hint. Treat all Session storage and outbound logout URLs as sensitive.
+RP-initiated logout follows OpenID Connect RP-Initiated Logout 1.0 (2022-09-12). Set `OIDC_POST_LOGOUT_REDIRECT_URI` (`post_logout_redirect`) to a fixed callback registered at the OP. After `user()` and successful local account binding, call `Oidc::provider("work", request)?.remember_logout(&authentication)?`. This explicitly saves only the verified ID Token in the server-side Session. `LogoutHint` is opaque; changing the public token fields cannot replace this verified hint. Treat all Session storage and outbound logout URLs as sensitive.
 
 Place this action in the application and register it on a CSRF-protected POST web route. Pass `false` for local logout and `true` to attempt OP logout:
 
@@ -143,7 +143,7 @@ fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError 
 pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, HttpError> {
     let hint = Oidc::provider("work", request)
         .map_err(internal)?
-        .takeLogoutHint()
+        .take_logout_hint()
         .ok();
     Auth::session_guard(request, Some("web"))
         .map_err(internal)?
@@ -154,7 +154,7 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
         && let Some(hint) = hint
         && let Ok(url) = Oidc::provider("work", request)
             .map_err(internal)?
-            .logoutUrl(&hint)
+            .logout_url(&hint)
             .await
     {
         return Ok(
@@ -167,9 +167,9 @@ pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, 
 }
 ```
 
-`takeLogoutHint()` consumes the hint before native `logout_and_invalidate()` clears the local Session and renews CSRF. `logoutUrl(&hint)` discovers and checks the allowed `end_session_endpoint`, adds the ID Token hint, client ID, fixed return URI and one-time state, then saves the state in the new anonymous Session. Missing support, unavailable Discovery or invalid metadata still leave local logout complete in this action. Do not take the hint or return destination from request parameters.
+`take_logout_hint()` consumes the hint before native `logout_and_invalidate()` clears the local Session and renews CSRF. `logout_url(&hint)` discovers and checks the allowed `end_session_endpoint`, adds the ID Token hint, client ID, fixed return URI and one-time state, then saves the state in the new anonymous Session. Missing support, unavailable Discovery or invalid metadata still leave local logout complete in this action. Do not take the hint or return destination from request parameters.
 
-In the fixed return handler, call `Oidc::provider("work", request)?.completeLogout().await?` and return a local signed-out page. Completion checks Session binding, configuration, destination, expiry and a shared atomic replay claim. A failed return consumes its attempt; it never logs anyone in. It acknowledges the return state and does not prove that every remote credential was revoked.
+In the fixed return handler, call `Oidc::provider("work", request)?.complete_logout().await?` and return a local signed-out page. Completion checks Session binding, configuration, destination, expiry and a shared atomic replay claim. A failed return consumes its attempt; it never logs anyone in. It acknowledges the return state and does not prove that every remote credential was revoked.
 
 Ending the OP browser Session leaves the other RP's existing local Session valid. Existing access and refresh tokens follow the OP's separate revocation policy. Front-channel/back-channel logout notifications and universal single logout are outside this implementation.
 

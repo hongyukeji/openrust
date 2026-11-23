@@ -37,9 +37,9 @@ fn fixed_php_scope_json_matches_options_unicode_slashes_and_numeric_strings() {
             case["description"].as_str().unwrap(),
         );
         let options =
-            ScopeJsonOptions::fromBits(u32::try_from(case["options"].as_u64().unwrap()).unwrap());
+            ScopeJsonOptions::from_bits(u32::try_from(case["options"].as_u64().unwrap()).unwrap());
         assert_eq!(
-            scope.toJsonWithOptions(options).unwrap(),
+            scope.to_json_with_options(options).unwrap(),
             case["expected"].as_str().unwrap(),
             "{case}"
         );
@@ -80,7 +80,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 case["expected"]["error"].as_bool().unwrap(),
                 "{case}"
             );
-            let plain = client.plainSecret.as_ref().map(|s| s.as_str());
+            let plain = client.plain_secret.as_ref().map(|s| s.as_str());
             assert_eq!(plain, case["expected"]["plain"].as_str(), "{case}");
             if failed {
                 assert_eq!(
@@ -130,7 +130,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             Some(&Value::Text("earlier".into()))
         );
         assert_eq!(client.get_attribute("secret"), old.as_ref());
-        assert_eq!(client.plainSecret.as_ref().unwrap().as_str(), "old");
+        assert_eq!(client.plain_secret.as_ref().unwrap().as_str(), "old");
         assert!(
             client
                 .fill_async(Attributes::from([
@@ -140,7 +140,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .await
                 .is_err()
         );
-        assert_eq!(client.plainSecret.as_ref().unwrap().as_str(), "old");
+        assert_eq!(client.plain_secret.as_ref().unwrap().as_str(), "old");
         assert!(
             client
                 .fill_async(Attributes::from([
@@ -150,7 +150,7 @@ fn contracts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .await
                 .is_err()
         );
-        assert_eq!(client.plainSecret.as_ref().unwrap().as_str(), "retained");
+        assert_eq!(client.plain_secret.as_ref().unwrap().as_str(), "retained");
         assert_ne!(client.get_attribute("secret"), old.as_ref());
         Response::json(
             StatusCode::OK,

@@ -29,9 +29,8 @@ impl Serializer {
     }
 }
 
-#[allow(non_snake_case)]
 impl JsonSchema {
-    pub fn fromArray(schema: serde_json::Value) -> Result<Type, SchemaError> {
+    pub fn from_array(schema: serde_json::Value) -> Result<Type, SchemaError> {
         Deserializer::deserialize(schema)
     }
     pub fn string() -> types::StringType {
@@ -63,10 +62,9 @@ impl JsonSchema {
         types::AnyOfType::new(schemas)
     }
 }
-#[allow(non_snake_case)]
 impl JsonSchemaTypeFactory {
-    pub fn fromArray(&self, schema: serde_json::Value) -> Result<Type, SchemaError> {
-        JsonSchema::fromArray(schema)
+    pub fn from_array(&self, schema: serde_json::Value) -> Result<Type, SchemaError> {
+        JsonSchema::from_array(schema)
     }
     pub fn string(&self) -> types::StringType {
         JsonSchema::string()
@@ -128,7 +126,6 @@ impl crate::contracts::json_schema::JsonSchema for JsonSchemaTypeFactory {
     ) -> Result<types::UnionType, SchemaError> {
         JsonSchema::union(types)
     }
-    #[allow(non_snake_case)]
     fn any_of(&self, schemas: impl IntoIterator<Item = Type>) -> types::AnyOfType {
         JsonSchema::any_of(schemas)
     }

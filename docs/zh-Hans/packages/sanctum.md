@@ -24,33 +24,33 @@
 
 ## 签发个人访问令牌 {#issuing-api-tokens}
 
-使用 `Sanctum::personalAccessTokens` 解析出的令牌仓储创建令牌，传入归属类型、归属 ID、名称、能力和可选的过期时间。签发时将返回的 `plain_text_token` 交给客户端。数据库保存 SHA-256 摘要。`findToken` 查找凭据，`revokeToken` 按归属删除令牌。`can` 支持精确能力及通配符 `*`。HTTP 守卫在认证请求前检查过期时间。 签发、认证时写回及单条撤销都走 Eloquent 生命周期。默认令牌响应包含 `updated_at`。
+使用 `Sanctum::personal_access_tokens` 解析出的令牌仓储创建令牌，传入归属类型、归属 ID、名称、能力和可选的过期时间。签发时将返回的 `plain_text_token` 交给客户端。数据库保存 SHA-256 摘要。`find_token` 查找凭据，`revoke_token` 按归属删除令牌。`can` 支持精确能力及通配符 `*`。HTTP 守卫在认证请求前检查过期时间。 签发、认证时写回及单条撤销都走 Eloquent 生命周期。默认令牌响应包含 `updated_at`。
 
 ```rust
 use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};
 
 async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> AuthResult<NewAccessToken> {
-    sanctum.personalAccessTokens(database, "")?
+    sanctum.personal_access_tokens(database, "")?
         .create_token("app::models::User", user_id, "browser", &["reports:read"], None)
         .await
 }
 ```
 
-在服务提供者中通过应用的 `Sanctum` 服务调用 `usePersonalAccessTokenModel::<M>()`，选择 Eloquent 模型的表和连接。应用迁移负责创建自定义表，使用标准 Sanctum 属性以及模型声明的主键。签发时应用模型的属性修改器和转换，并触发 Eloquent 创建事件。Bearer 认证通过模型的访问器和转换读取属性，再通过同一模型实例保存最后使用时间。`revokeToken` 按归属删除模型实例，遵循模型删除事件。Artisan 清理应用模型全局作用域并批量删除，不逐条触发模型事件。
+在服务提供者中通过应用的 `Sanctum` 服务调用 `use_personal_access_token_model::<M>()`，选择 Eloquent 模型的表和连接。应用迁移负责创建自定义表，使用标准 Sanctum 属性以及模型声明的主键。签发时应用模型的属性修改器和转换，并触发 Eloquent 创建事件。Bearer 认证通过模型的访问器和转换读取属性，再通过同一模型实例保存最后使用时间。`revoke_token` 按归属删除模型实例，遵循模型删除事件。Artisan 清理应用模型全局作用域并批量删除，不逐条触发模型事件。
 
 使用 UUID 或 ULID 主键时，在迁移中声明对应的列，并在模型中用 `ModelMetadata::unique_id(UniqueId::Uuid)` 或 `UniqueId::Ulid` 配置生成策略。若主键列名不是 `id`，用 `primary_key` 声明。凭据格式仍为 `<主键>|<密钥>`。令牌与归属标识使用 `AuthIdentifier` 保留整数或字符串类型。归属主键是字符串时，迁移须使用匹配的 `tokenable_id` 列类型，签发和撤销时传入该归属标识。
 
 可用 `SANCTUM_TOKEN_PREFIX` 为新签发的令牌密钥设置应用专用前缀。
 
-自定义模型须实现 `PersonalAccessTokenModel`。默认 `findToken` 校验 SHA-256 摘要。覆写方法收到请求凭据和已配置的 Eloquent 查询，可在追加条件或解码凭据后调用 `findTokenByDigest`。覆写方法负责验证其接受的凭据。
+自定义模型须实现 `PersonalAccessTokenModel`。默认 `find_token` 校验 SHA-256 摘要。覆写方法收到请求凭据和已配置的 Eloquent 查询，可在追加条件或解码凭据后调用 `find_token_by_digest`。覆写方法负责验证其接受的凭据。
 
-应用服务通过 `personalAccessTokenModel()` 返回注册的模型类型名。用 `currentApplicationUrlWithPort()` 读取应用 URL 的主机与显式端口。返回值带前导逗号，可追加到有状态域名配置。
+应用服务通过 `personal_access_token_model()` 返回注册的模型类型名。用 `current_application_url_with_port()` 读取应用 URL 的主机与显式端口。返回值带前导逗号，可追加到有状态域名配置。
 
 ## 模型令牌关系 {#model-token-relationship}
 
-在 Eloquent 归属模型上实现 `HasApiTokens`。用 `user.tokens(&sanctum, &database)?` 查询或撤销该模型的令牌，用 `user.create_token(&sanctum, &database, name, abilities, expires_at)` 签发。关系使用已配置的令牌模型以及归属模型的多态别名和主键。`delete_token` 和 `delete` 按关系范围批量删除。令牌可以通过 `tokenable` 解析归属模型。归属模型可通过 `currentAccessToken`、`tokenCan` 和 `tokenCant` 检查当前请求的令牌及能力。
+在 Eloquent 归属模型上实现 `HasApiTokens`。用 `user.tokens(&sanctum, &database)?` 查询或撤销该模型的令牌，用 `user.create_token(&sanctum, &database, name, abilities, expires_at)` 签发。关系使用已配置的令牌模型以及归属模型的多态别名和主键。`delete_token` 和 `delete` 按关系范围批量删除。令牌可以通过 `tokenable` 解析归属模型。归属模型可通过 `current_access_token`、`token_can` 和 `token_cant` 检查当前请求的令牌及能力。
 
-用 `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?` 链式查询。用 `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` 取得关系，再用 Eloquent 的 `with("tokens", relation)` 预加载。使用自定义模型时，替换为已注册的模型类型。签发响应的嵌套令牌采用模型的属性转换、访问器、附加字段和可见性，并始终排除摘要。直接序列化自定义模型时，应在模型中隐藏 `token` 字段。
+用 `user.tokens_query::<DefaultPersonalAccessToken>(&sanctum, &database)?` 链式查询。用 `user.tokens_relation::<DefaultPersonalAccessToken>(&sanctum)?` 取得关系，再用 Eloquent 的 `with("tokens", relation)` 预加载。使用自定义模型时，替换为已注册的模型类型。签发响应的嵌套令牌采用模型的属性转换、访问器、附加字段和可见性，并始终排除摘要。直接序列化自定义模型时，应在模型中隐藏 `token` 字段。
 
 ## 保护路由与检查能力 {#protecting-routes}
 
@@ -67,9 +67,9 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
-签发时将已注册的 Provider 模型名用作令牌归属类型。默认应用使用 `app::models::User`。可在 `auth.guards` 为自定义 Sanctum 守卫设置 `provider`，省略时通过已注册的 Eloquent 模型和 `MorphMap` 解析归属。用 `AccessToken::currentAccessToken(request)` 查看当前请求凭据。`sanctum.expiration` 以分钟限制令牌最长有效期，与单个令牌的到期时间同时生效。Bearer 认证成功后派发 `TokenAuthenticated` 事件并更新 `last_used_at`，可设 `sanctum.last_used_at=false` 关闭。
+签发时将已注册的 Provider 模型名用作令牌归属类型。默认应用使用 `app::models::User`。可在 `auth.guards` 为自定义 Sanctum 守卫设置 `provider`，省略时通过已注册的 Eloquent 模型和 `MorphMap` 解析归属。用 `AccessToken::current_access_token(request)` 查看当前请求凭据。`sanctum.expiration` 以分钟限制令牌最长有效期，与单个令牌的到期时间同时生效。Bearer 认证成功后派发 `TokenAuthenticated` 事件并更新 `last_used_at`，可设 `sanctum.last_used_at=false` 关闭。
 
-用 `getAccessTokenFromRequestUsing` 替换 Bearer 提取逻辑。用 `authenticateAccessTokensUsing` 决定已查到的令牌是否有效，回调接收令牌及内置过期和 Provider 检查结果。令牌归属仍须成功解析。
+用 `get_access_token_from_request_using` 替换 Bearer 提取逻辑。用 `authenticate_access_tokens_using` 决定已查到的令牌是否有效，回调接收令牌及内置过期和 Provider 检查结果。令牌归属仍须成功解析。
 
 在认证管理器中用 `AuthManager::register_sanctum_model` 注册支持令牌的模型。签发时可显式调用 `NewAccessToken::to_json()` 或 `to_array()` 返回明文凭据。嵌套令牌不包含数据库摘要，认证事件载荷可从 `TokenAuthenticated::token` 读取。
 
@@ -81,7 +81,7 @@ fn register() -> Result<(), RoutingError> {
 
 第一方请求成功记录密码指纹后，修改密码会使该会话在下次请求时失效。要替换前端中间件，先通过应用的 `alias` 方法注册，再把别名填入 `sanctum.middleware.encrypt_cookies`、`sanctum.middleware.validate_csrf_token` 或 `sanctum.middleware.authenticate_session`。
 
-在 `SANCTUM_STATEFUL_DOMAINS` 中加入 `__SANCTUM_CURRENT_REQUEST_HOST__`，或在逗号分隔的域名字符串末尾追加 `Sanctum::currentRequestHost()`，即可匹配当前请求的主机和端口。
+在 `SANCTUM_STATEFUL_DOMAINS` 中加入 `__SANCTUM_CURRENT_REQUEST_HOST__`，或在逗号分隔的域名字符串末尾追加 `Sanctum::current_request_host()`，即可匹配当前请求的主机和端口。
 
 ## 清理过期令牌 {#pruning-expired-tokens}
 
@@ -93,6 +93,6 @@ fn register() -> Result<(), RoutingError> {
 
 ## 测试 {#testing}
 
-在测试中传入拥有所有权的 Eloquent 用户，用 `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` 为 `TestApp` 的后续请求设置身份和能力。默认选择 Sanctum 守卫。可传入 `Some("guard-name")` 指定守卫，或传入 `["*"]` 授予全部能力。测试夹具直接提供身份和能力，无需签发数据库令牌。
+在测试中传入拥有所有权的 Eloquent 用户，用 `Sanctum::acting_as(&mut app, user, &["reports:read"], None)` 为 `TestApp` 的后续请求设置身份和能力。默认选择 Sanctum 守卫。可传入 `Some("guard-name")` 指定守卫，或传入 `["*"]` 授予全部能力。测试夹具直接提供身份和能力，无需签发数据库令牌。
 
 返回的共享用户已清除 `was_recently_created` 状态。

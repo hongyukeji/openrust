@@ -11,7 +11,7 @@ use std::sync::{
 #[derive(Default)]
 pub struct ArrayDriver {
     pub(crate) resolvers: crate::contracts::Definitions,
-    pub(crate) useMorphMap: Arc<AtomicBool>,
+    pub(crate) use_morph_map: Arc<AtomicBool>,
     pub(crate) events: Option<Arc<openrust::events::Dispatcher>>,
     states: RwLock<indexmap::IndexMap<String, indexmap::IndexMap<String, Value>>>,
 }
@@ -21,7 +21,7 @@ impl ArrayDriver {
     }
 }
 impl Driver for ArrayDriver {
-    fn supportsSetAll(&self) -> bool {
+    fn supports_set_all(&self) -> bool {
         true
     }
     fn define(&self, feature: &str, resolver: Resolver) -> Result<()> {
@@ -59,7 +59,7 @@ impl Driver for ArrayDriver {
                 .map_err(|_| Error::StateUnavailable)?
                 .get(feature)
                 .and_then(|scopes| {
-                    scopes.get(&scope.serialize(self.useMorphMap.load(Ordering::Relaxed)))
+                    scopes.get(&scope.serialize(self.use_morph_map.load(Ordering::Relaxed)))
                 })
                 .filter(|value| !value.is_null())
                 .cloned()
@@ -88,7 +88,7 @@ impl Driver for ArrayDriver {
             Ok(value)
         })
     }
-    fn getAll<'a>(&'a self, features: &'a FeatureScopes) -> FeatureFuture<'a, FeatureValues> {
+    fn get_all<'a>(&'a self, features: &'a FeatureScopes) -> FeatureFuture<'a, FeatureValues> {
         Box::pin(async move {
             let mut values = FeatureValues::new();
             for (feature, scopes) in features {
@@ -114,27 +114,27 @@ impl Driver for ArrayDriver {
                 .entry(feature.into())
                 .or_default()
                 .insert(
-                    scope.serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                    scope.serialize(self.use_morph_map.load(Ordering::Relaxed)),
                     value,
                 );
             Ok(())
         })
     }
-    fn setAll<'a>(&'a self, features: &'a [FeatureValue]) -> FeatureFuture<'a, ()> {
+    fn set_all<'a>(&'a self, features: &'a [FeatureValue]) -> FeatureFuture<'a, ()> {
         Box::pin(async move {
             let mut states = self.states.write().map_err(|_| Error::StateUnavailable)?;
             for feature in features {
                 states.entry(feature.feature.clone()).or_default().insert(
                     feature
                         .scope
-                        .serialize(self.useMorphMap.load(Ordering::Relaxed)),
+                        .serialize(self.use_morph_map.load(Ordering::Relaxed)),
                     feature.value.clone(),
                 );
             }
             Ok(())
         })
     }
-    fn setForAllScopes<'a>(&'a self, feature: &'a str, value: Value) -> FeatureFuture<'a, ()> {
+    fn set_for_all_scopes<'a>(&'a self, feature: &'a str, value: Value) -> FeatureFuture<'a, ()> {
         Box::pin(async move {
             let mut states = self.states.write().map_err(|_| Error::StateUnavailable)?;
             for stored in states.entry(feature.into()).or_default().values_mut() {
@@ -151,7 +151,7 @@ impl Driver for ArrayDriver {
                 .map_err(|_| Error::StateUnavailable)?
                 .get_mut(feature)
             {
-                scopes.shift_remove(&scope.serialize(self.useMorphMap.load(Ordering::Relaxed)));
+                scopes.shift_remove(&scope.serialize(self.use_morph_map.load(Ordering::Relaxed)));
             }
             Ok(())
         })
@@ -170,7 +170,7 @@ impl Driver for ArrayDriver {
             Ok(())
         })
     }
-    fn flushCache(&self) -> Result<()> {
+    fn flush_cache(&self) -> Result<()> {
         self.states
             .write()
             .map_err(|_| Error::StateUnavailable)?

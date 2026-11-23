@@ -117,7 +117,6 @@ impl Request {
     }
 
     /// Returns already-decoded input for diagnostics without polling the request body.
-    #[allow(non_snake_case, reason = "Matches the request input naming")]
     pub fn input_snapshot(&self) -> Option<Value> {
         let query = self.query(None).ok().flatten().unwrap_or_else(empty);
         let fields = match self.input_source().ok()? {
@@ -275,7 +274,6 @@ impl Request {
     }
 
     /// Uses default attributes for an absent or null input value.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn fluent_or(&mut self, key: &str, default: Value) -> Result<Fluent, HttpError> {
         self.fluent_value(Some(key), Some(default)).await
     }
@@ -596,14 +594,12 @@ impl Request {
     }
 
     /// Returns all uploads with their original field keys and groups.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn all_files(&mut self) -> Result<UploadedFileValue, HttpError> {
         let payload = self.payload().await?;
         Ok(payload.upload_value(&payload.file_indices))
     }
 
     /// Resolves a file or group by dotted path, including wildcard selections.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn file_value(&mut self, key: &str) -> Result<Option<UploadedFileValue>, HttpError> {
         let payload = self.payload().await?;
         Ok(data_get(&payload.file_indices, Some(key)).map(|value| payload.upload_value(&value)))
@@ -613,11 +609,10 @@ impl Request {
     pub async fn image(&mut self, key: &str) -> Result<Option<crate::image::Image>, HttpError> {
         self.file(key)
             .await?
-            .map(|file| crate::image::ImageFacade::fromUpload(&file).map_err(Into::into))
+            .map(|file| crate::image::ImageFacade::from_upload(&file).map_err(Into::into))
             .transpose()
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn has_file(&mut self, key: &str) -> Result<bool, HttpError> {
         let payload = self.payload().await?;
         let Some(value) = data_get(&payload.file_indices, Some(key)) else {

@@ -7,7 +7,7 @@ pub async fn create_client(
 ) -> Result<ClientRecord, Box<dyn std::error::Error + Send + Sync>> {
     let clients = app.make::<ClientRepository>().await?;
     Ok(clients
-        .createAuthorizationCodeGrantClient(
+        .create_authorization_code_grant_client(
             "My application",
             &["https://example.com/callback".to_owned()],
             true,

@@ -5,7 +5,7 @@ use serde_json::{Value as Json, json};
 #[derive(Clone)]
 pub struct MetricsRepository(pub(super) Repository);
 impl Repository {
-    pub fn metricsRepository(&self) -> MetricsRepository {
+    pub fn metrics_repository(&self) -> MetricsRepository {
         MetricsRepository(self.clone())
     }
 }
@@ -23,10 +23,10 @@ impl MetricsRepository {
                 .await?,
         )
     }
-    pub async fn measuredJobs(&self) -> Result<Vec<String>> {
+    pub async fn measured_jobs(&self) -> Result<Vec<String>> {
         self.measured("job").await
     }
-    pub async fn measuredQueues(&self) -> Result<Vec<String>> {
+    pub async fn measured_queues(&self) -> Result<Vec<String>> {
         self.measured("queue").await
     }
     async fn increment(&self, kind: &str, name: &str, runtime: f64) -> Result<()> {
@@ -36,13 +36,13 @@ impl MetricsRepository {
         self.0.eval("redis.call('SADD',KEYS[1],ARGV[1]);redis.call('HINCRBY',KEYS[2],'throughput',1);redis.call('HINCRBYFLOAT',KEYS[2],'total_runtime',ARGV[2]);return 1",vec![self.0.key(&format!("measured:{kind}")),self.key(kind,name)],vec![name.into(),runtime.to_string()]).await?;
         Ok(())
     }
-    pub async fn incrementJob(&self, job: &str, runtime: f64) -> Result<()> {
+    pub async fn increment_job(&self, job: &str, runtime: f64) -> Result<()> {
         self.increment("job", job, runtime).await
     }
-    pub async fn incrementQueue(&self, queue: &str, runtime: f64) -> Result<()> {
+    pub async fn increment_queue(&self, queue: &str, runtime: f64) -> Result<()> {
         self.increment("queue", queue, runtime).await
     }
-    async fn throughputFor(&self, kind: &str, name: &str) -> Result<u64> {
+    async fn throughput_for(&self, kind: &str, name: &str) -> Result<u64> {
         let value = self
             .0
             .command("HGET", &[self.key(kind, name), "throughput".into()])
@@ -53,30 +53,30 @@ impl MetricsRepository {
             text(&value)?.parse().map_err(|_| Error::Redis)
         }
     }
-    async fn runtimeFor(&self, kind: &str, name: &str) -> Result<f64> {
+    async fn runtime_for(&self, kind: &str, name: &str) -> Result<f64> {
         let value=self.0.eval("local n=tonumber(redis.call('HGET',KEYS[1],'throughput') or 0);if n==0 then return '0' end;return tostring(tonumber(redis.call('HGET',KEYS[1],'total_runtime') or 0)/n)",vec![self.key(kind,name)],vec![]).await?;
         text(&value)?.parse().map_err(|_| Error::Redis)
     }
-    pub async fn throughputForJob(&self, job: &str) -> Result<u64> {
-        self.throughputFor("job", job).await
+    pub async fn throughput_for_job(&self, job: &str) -> Result<u64> {
+        self.throughput_for("job", job).await
     }
-    pub async fn throughputForQueue(&self, queue: &str) -> Result<u64> {
-        self.throughputFor("queue", queue).await
+    pub async fn throughput_for_queue(&self, queue: &str) -> Result<u64> {
+        self.throughput_for("queue", queue).await
     }
-    pub async fn runtimeForJob(&self, job: &str) -> Result<f64> {
-        self.runtimeFor("job", job).await
+    pub async fn runtime_for_job(&self, job: &str) -> Result<f64> {
+        self.runtime_for("job", job).await
     }
-    pub async fn runtimeForQueue(&self, queue: &str) -> Result<f64> {
-        self.runtimeFor("queue", queue).await
+    pub async fn runtime_for_queue(&self, queue: &str) -> Result<f64> {
+        self.runtime_for("queue", queue).await
     }
     pub async fn throughput(&self) -> Result<u64> {
         let mut count = 0;
-        for queue in self.measuredQueues().await? {
-            count += self.throughputForQueue(&queue).await?;
+        for queue in self.measured_queues().await? {
+            count += self.throughput_for_queue(&queue).await?;
         }
         Ok(count)
     }
-    pub async fn jobsProcessedPerMinute(&self) -> Result<u64> {
+    pub async fn jobs_processed_per_minute(&self) -> Result<u64> {
         let now = self.0.now().await?;
         let last=self.0.eval("local last=redis.call('GET',KEYS[1]);if not last then redis.call('SET',KEYS[1],ARGV[1]);return ARGV[1] end;return last",vec![self.0.key("last_snapshot_at")],vec![now.to_string()]).await?;
         let last = text(&last)?.parse::<u64>().map_err(|_| Error::Redis)?;
@@ -100,13 +100,13 @@ impl MetricsRepository {
         .map(|v| serde_json::from_str(v).map_err(|_| Error::Redis))
         .collect()
     }
-    pub async fn snapshotsForJob(&self, job: &str) -> Result<Vec<Json>> {
+    pub async fn snapshots_for_job(&self, job: &str) -> Result<Vec<Json>> {
         self.snapshots("job", job).await
     }
-    pub async fn snapshotsForQueue(&self, queue: &str) -> Result<Vec<Json>> {
+    pub async fn snapshots_for_queue(&self, queue: &str) -> Result<Vec<Json>> {
         self.snapshots("queue", queue).await
     }
-    pub async fn acquireSnapshotLock(&self) -> Result<bool> {
+    pub async fn acquire_snapshot_lock(&self) -> Result<bool> {
         Ok(self
             .0
             .command(
@@ -143,8 +143,8 @@ impl MetricsRepository {
     async fn maximum(&self, field: &str) -> Result<Option<String>> {
         let mut maximum = 0.;
         let mut result = None;
-        for queue in self.measuredQueues().await? {
-            if let Some(snapshot) = self.snapshotsForQueue(&queue).await?.last() {
+        for queue in self.measured_queues().await? {
+            if let Some(snapshot) = self.snapshots_for_queue(&queue).await?.last() {
                 let value = snapshot.get(field).and_then(Json::as_f64).unwrap_or(0.);
                 if value > maximum {
                     maximum = value;
@@ -154,13 +154,13 @@ impl MetricsRepository {
         }
         Ok(result)
     }
-    pub async fn queueWithMaximumRuntime(&self) -> Result<Option<String>> {
+    pub async fn queue_with_maximum_runtime(&self) -> Result<Option<String>> {
         self.maximum("runtime").await
     }
-    pub async fn queueWithMaximumThroughput(&self) -> Result<Option<String>> {
+    pub async fn queue_with_maximum_throughput(&self) -> Result<Option<String>> {
         self.maximum("throughput").await
     }
-    pub async fn acquireWaitTimeMonitorLock(&self) -> Result<bool> {
+    pub async fn acquire_wait_time_monitor_lock(&self) -> Result<bool> {
         Ok(self
             .0
             .command(
@@ -247,7 +247,7 @@ impl MetricsRepository {
     }
     pub async fn summary(&self) -> Result<Json> {
         Ok(
-            json!({"jobsPerMinute":self.jobsProcessedPerMinute().await?,"queueWithMaxRuntime":self.queueWithMaximumRuntime().await?,"queueWithMaxThroughput":self.queueWithMaximumThroughput().await?}),
+            json!({"jobsPerMinute":self.jobs_processed_per_minute().await?,"queueWithMaxRuntime":self.queue_with_maximum_runtime().await?,"queueWithMaxThroughput":self.queue_with_maximum_throughput().await?}),
         )
     }
 }

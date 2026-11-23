@@ -1,5 +1,5 @@
 //! HS256 first-party cookie, protected by the application's ordinary Cookie middleware.
-use crate::{AccessToken, OAuthError, Passport};
+use crate::{AccessToken, OauthError, Passport};
 use aws_lc_rs::hmac;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use openrust::{
@@ -15,7 +15,7 @@ use std::sync::atomic::Ordering;
 use subtle::ConstantTimeEq as _;
 pub struct ApiTokenCookieFactory;
 impl ApiTokenCookieFactory {
-    pub fn make(user: impl Into<AuthIdentifier>, csrf: &str) -> Result<Cookie, OAuthError> {
+    pub fn make(user: impl Into<AuthIdentifier>, csrf: &str) -> Result<Cookie, OauthError> {
         let passport = passport()?;
         let encrypter = openrust::container::Container::get_instance()
             .make::<Encrypter>()
@@ -32,7 +32,7 @@ impl ApiTokenCookieFactory {
             .ok_or_else(invalid)?;
         let jwt = encode(
             &serde_json::json!({"sub":user.into(),"csrf":csrf,"exp":exp}),
-            &passport.tokenEncryptionKey(&encrypter),
+            &passport.token_encryption_key(&encrypter),
         )?;
         let options = CookieOptions {
             path: Some(
@@ -68,28 +68,30 @@ pub(crate) fn authenticate(
     request: &Request,
     passport: &Passport,
     encrypter: &Encrypter,
-) -> Result<Option<AuthIdentifier>, OAuthError> {
+) -> Result<Option<AuthIdentifier>, OauthError> {
     let Some(Value::String(value)) = request
         .cookie(Some(&passport.cookie(None)))
         .map_err(internal)?
     else {
         return Ok(None);
     };
-    let plain = if passport.decryptsCookies.load(Ordering::Relaxed) {
-        let decoded =
-            match encrypter.decrypt(&value, passport.unserializesCookies.load(Ordering::Relaxed)) {
-                Ok(v) => zeroize::Zeroizing::new(v),
-                Err(_) => return Ok(None),
-            };
+    let plain = if passport.decrypts_cookies.load(Ordering::Relaxed) {
+        let decoded = match encrypter.decrypt(
+            &value,
+            passport.unserializes_cookies.load(Ordering::Relaxed),
+        ) {
+            Ok(v) => zeroize::Zeroizing::new(v),
+            Err(_) => return Ok(None),
+        };
         String::from_utf8(CookieValuePrefix::remove(&decoded).to_vec()).map_err(|_| invalid())?
     } else {
         value
     };
-    let token = match decode(&plain, &passport.tokenEncryptionKey(encrypter)) {
+    let token = match decode(&plain, &passport.token_encryption_key(encrypter)) {
         Ok(v) => v,
         Err(_) => return Ok(None),
     };
-    if !passport.ignoreCsrfToken.load(Ordering::Relaxed) {
+    if !passport.ignore_csrf_token.load(Ordering::Relaxed) {
         let mut supplied = request
             .headers()
             .get("x-csrf-token")
@@ -126,7 +128,7 @@ pub(crate) fn transient(user: AuthIdentifier) -> AccessToken {
         transient: true,
     }
 }
-fn encode(claims: &Value, key: &[u8]) -> Result<String, OAuthError> {
+fn encode(claims: &Value, key: &[u8]) -> Result<String, OauthError> {
     let signing = format!(
         "{}.{}",
         URL_SAFE_NO_PAD.encode(br#"{"typ":"JWT","alg":"HS256"}"#),
@@ -138,7 +140,7 @@ fn encode(claims: &Value, key: &[u8]) -> Result<String, OAuthError> {
         URL_SAFE_NO_PAD.encode(signature.as_ref())
     ))
 }
-fn decode(jwt: &str, key: &[u8]) -> Result<Value, OAuthError> {
+fn decode(jwt: &str, key: &[u8]) -> Result<Value, OauthError> {
     let mut parts = jwt.split('.');
     let (Some(header), Some(payload), Some(signature), None) =
         (parts.next(), parts.next(), parts.next(), parts.next())
@@ -177,12 +179,12 @@ fn decode(jwt: &str, key: &[u8]) -> Result<Value, OAuthError> {
     }
     Ok(token)
 }
-fn passport() -> Result<std::sync::Arc<Passport>, OAuthError> {
+fn passport() -> Result<std::sync::Arc<Passport>, OauthError> {
     openrust::container::Container::get_instance()
         .make::<Passport>()
         .map_err(internal)
 }
-fn now() -> Result<i64, OAuthError> {
+fn now() -> Result<i64, OauthError> {
     Ok(Date::now(None)
         .map_err(internal)?
         .as_date_time()
@@ -190,9 +192,9 @@ fn now() -> Result<i64, OAuthError> {
         .as_nanosecond()
         .div_euclid(1_000_000_000) as i64)
 }
-fn invalid() -> OAuthError {
-    OAuthError::access_denied(Some("Invalid API token cookie"))
+fn invalid() -> OauthError {
+    OauthError::access_denied(Some("Invalid API token cookie"))
 }
-fn internal(_: impl std::fmt::Display) -> OAuthError {
-    OAuthError::server_error("API token cookie unavailable")
+fn internal(_: impl std::fmt::Display) -> OauthError {
+    OauthError::server_error("API token cookie unavailable")
 }

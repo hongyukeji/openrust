@@ -48,15 +48,15 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 
 执行 `./artisan make:notifications-table`，将生成的迁移加入应用迁移列表，再执行 `./artisan migrate`。生成的关联键默认是无符号整数。模型使用 UUID 或 ULID 时，在生成的迁移中调整 `notifiable_id` 的列类型。
 
-通过 `NotificationRoute::Database` 提供模型类型和主键。数据库渠道保存通知 UUID 和 JSON 数据。`DatabaseRoute::query` 按模型限制查询。`find` 返回可调用 `markAsRead` 和 `markAsUnread` 的记录。
+通过 `NotificationRoute::Database` 提供模型类型和主键。数据库渠道保存通知 UUID 和 JSON 数据。`DatabaseRoute::query` 按模型限制查询。`find` 返回可调用 `mark_as_read` 和 `mark_as_unread` 的记录。
 
 ## 通知入队
 
-通过 `Notification::queue_options` 为每位收件人的每个渠道返回 `DispatchOptions`。每次投递有自己的队列任务。Worker 解析渠道并触发投递事件。在活动事务中，调用 `ChannelManager::sendInTransaction` 并启用 `after_commit`，使回滚时丢弃待入队通知。
+通过 `Notification::queue_options` 为每位收件人的每个渠道返回 `DispatchOptions`。每次投递有自己的队列任务。Worker 解析渠道并触发投递事件。在活动事务中，调用 `ChannelManager::send_in_transaction` 并启用 `after_commit`，使回滚时丢弃待入队通知。
 
-如果队列通知依赖可能在 Worker 启动前变化的状态，通过 `Notification::queue_guard` 返回带名称和 JSON 上下文的 `NotificationQueueGuard`。在 Worker 加载的服务提供者中，用 `ChannelManager::extendQueueGuard` 注册异步判定函数。结果为 false 时跳过该渠道并发出 `NotificationSkipped`。立即发送和未配置 guard 的队列通知沿用发送端的 `should_send`。
+如果队列通知依赖可能在 Worker 启动前变化的状态，通过 `Notification::queue_guard` 返回带名称和 JSON 上下文的 `NotificationQueueGuard`。在 Worker 加载的服务提供者中，用 `ChannelManager::extend_queue_guard` 注册异步判定函数。结果为 false 时跳过该渠道并发出 `NotificationSkipped`。立即发送和未配置 guard 的队列通知沿用发送端的 `should_send`。
 
-若要按渠道设置 Worker 限制，从 `queue_job_options` 返回 `JobOptions`。要为通知启用队列中间件，在发送端和 Worker 都加载的服务提供者中，用 `SendQueuedNotifications::registerMiddleware` 注册命名链，并让 `queue_middleware` 返回该名称。Worker 会对该任务运行队列的中间件管道。
+若要按渠道设置 Worker 限制，从 `queue_job_options` 返回 `JobOptions`。要为通知启用队列中间件，在发送端和 Worker 都加载的服务提供者中，用 `SendQueuedNotifications::register_middleware` 注册命名链，并让 `queue_middleware` 返回该名称。Worker 会对该任务运行队列的中间件管道。
 
 ## 按需通知
 
@@ -72,7 +72,7 @@ Notifications::route(
     "mail",
     NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
 )?
-.notifyNow(&PaymentReceived, None)
+.notify_now(&PaymentReceived, None)
 .await?;
 ```
 
@@ -84,7 +84,7 @@ Notifications::route(
 
 ### 格式化邮件消息 {#formatting-mail-messages}
 
-在 `to_mail` 中返回 `MailMessage`，可发送响应式 HTML 通知和对应的纯文本正文。在 `action` 之前加入的正文行出现在按钮上方，之后加入的行则在按钮下方。用 `lineIf` 或 `linesIf` 按条件加入正文。`error` 和 `success` 决定按钮颜色。默认问候语、结束语和复制链接说明按通知语言生成，结束语使用 `app.name`。
+在 `to_mail` 中返回 `MailMessage`，可发送响应式 HTML 通知和对应的纯文本正文。在 `action` 之前加入的正文行出现在按钮上方，之后加入的行则在按钮下方。用 `line_if` 或 `lines_if` 按条件加入正文。`error` 和 `success` 决定按钮颜色。默认问候语、结束语和复制链接说明按通知语言生成，结束语使用 `app.name`。
 
 ```rust
 use openrust::notifications::messages::{MailDelivery, MailMessage};
@@ -94,7 +94,7 @@ let delivery = MailDelivery::Message(Box::new(
         .subject("Invoice paid")
         .greeting("Hello!")
         .line("Your invoice has been paid.")
-        .lineIf(total > 0, format!("Amount paid: {total}"))
+        .line_if(total > 0, format!("Amount paid: {total}"))
         .action("View invoice", invoice_url)
         .line("Thank you for your payment."),
 ));
@@ -104,11 +104,11 @@ let delivery = MailDelivery::Message(Box::new(
 
 ### 发件人和收件人 {#sender-and-recipients}
 
-用 `from` 覆盖配置中的发件人，用 `replyTo`、`cc` 或 `bcc` 追加地址。可传邮箱字符串或带显示名的 `Address`。邮件渠道通过 `Notifiable::route_notification_for` 获取收件人，模型通知和按需通知都使用 `NotificationRoute::Mail`。通过 `MailDelivery::Mailable` 返回的自定义邮件自行声明收件人。
+用 `from` 覆盖配置中的发件人，用 `reply_to`、`cc` 或 `bcc` 追加地址。可传邮箱字符串或带显示名的 `Address`。邮件渠道通过 `Notifiable::route_notification_for` 获取收件人，模型通知和按需通知都使用 `NotificationRoute::Mail`。通过 `MailDelivery::Mailable` 返回的自定义邮件自行声明收件人。
 
 ### 附件与消息定制 {#attachments-and-message-customization}
 
-用 `attach` 或 `attachMany` 添加[附件来源](mail.md#attachments)，也可调用 `attachData`、`attachFromStorage` 或 `attachFromStorageDisk`。队列 Worker 投递时解析文件与磁盘附件。用 `tag` 和 `metadata` 添加投递标记。在发送端和 Worker 应用中通过 `MailManager::registerMessageCustomizer` 注册回调，再用 `withMessage` 传入注册名和 JSON 数据。
+用 `attach` 或 `attach_many` 添加[附件来源](mail.md#attachments)，也可调用 `attach_data`、`attach_from_storage` 或 `attach_from_storage_disk`。队列 Worker 投递时解析文件与磁盘附件。用 `tag` 和 `metadata` 添加投递标记。在发送端和 Worker 应用中通过 `MailManager::register_message_customizer` 注册回调，再用 `with_message` 传入注册名和 JSON 数据。
 
 ```rust
 use openrust::{
@@ -121,12 +121,12 @@ let message = MailMessage::new()
         address: "finance@example.test".into(),
         name: Some("Finance".into()),
     })
-    .replyTo("support@example.test")
+    .reply_to("support@example.test")
     .tag("invoice")
     .metadata("invoice-id", "42")
     .line("Your invoice is ready.")
-    .attachData(b"total,42".as_slice(), "summary.csv", Some("text/csv"))
-    .withMessage(MessageCustomization::new(
+    .attach_data(b"total,42".as_slice(), "summary.csv", Some("text/csv"))
+    .with_message(MessageCustomization::new(
         "invoice.trace",
         serde_json::json!({"id": 42}),
     ));
@@ -184,11 +184,11 @@ impl Notification for InvoicePaid {
     fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
         Ok(Some(SlackMessage::new()
             .text("Invoice paid")
-            .headerBlock("Invoice paid")
-            .sectionBlock(|block| {
+            .header_block("Invoice paid")
+            .section_block(|block| {
                 block.field("*Amount:* 42").markdown();
             })
-            .actionsBlock(|block| {
+            .actions_block(|block| {
                 block.button("Acknowledge payment").primary().confirm(
                     "Record this acknowledgement?",
                     |dialog| {
@@ -200,7 +200,7 @@ impl Notification for InvoicePaid {
 }
 ```
 
-用 `usingBlockKitTemplate` 追加 Slack JSON 构建器导出的区块，用 `toBlockKitBuilderUrl` 查看载荷。按钮和确认对话框描述 Slack 中显示的交互。应用需要注册 Slack 交互 URL 并处理回调。
+用 `using_block_kit_template` 追加 Slack JSON 构建器导出的区块，用 `to_block_kit_builder_url` 查看载荷。按钮和确认对话框描述 Slack 中显示的交互。应用需要注册 Slack 交互 URL 并处理回调。
 
 显式 `NotificationRoute::Slack` 的频道优先于消息的 `to` 频道。二者都未指定时使用配置中的默认频道。外部工作区可用 `SlackRoute::make` 传入频道和 Bot 令牌。外部工作区令牌入队时通过 `APP_KEY` 加密，默认工作区令牌在投递时从配置读取。
 
@@ -219,7 +219,7 @@ Bot API 使用 `chat.postMessage`。应用测试时，可将本地模拟服务�
 
 ### Block Kit 选择器 {#slack-block-kit-selects}
 
-用 `staticSelect` 添加应用定义选项的下拉菜单，用 `usersSelect` 选择 Slack 工作区用户。第一个参数设置占位文字。对接应用回调时请设置明确的动作 ID。两种选择器都能放在动作区块，也能作为段落区块的附属组件。
+用 `static_select` 添加应用定义选项的下拉菜单，用 `users_select` 选择 Slack 工作区用户。第一个参数设置占位文字。对接应用回调时请设置明确的动作 ID。两种选择器都能放在动作区块，也能作为段落区块的附属组件。
 
 ```rust
 use openrust::notifications::{NotificationResult, slack::SlackMessage};
@@ -227,31 +227,31 @@ use openrust::notifications::{NotificationResult, slack::SlackMessage};
 fn review_message() -> NotificationResult<SlackMessage> {
     Ok(SlackMessage::new()
         .text("Invoice review")
-        .tryActionsBlock(|actions| {
+        .try_actions_block(|actions| {
             actions
-                .staticSelect("Choose a status")
+                .static_select("Choose a status")
                 .id("invoice-status")
-                .addOption("Needs review", "needs-review")
-                .addOption("Paid", "paid")
-                .initialOption("needs-review")?
+                .add_option("Needs review", "needs-review")
+                .add_option("Paid", "paid")
+                .initial_option("needs-review")?
                 .focus(false);
             Ok(())
         })?
-        .sectionBlock(|section| {
+        .section_block(|section| {
             section.text("Assign invoice");
             section
-                .usersSelect("Select a teammate")
+                .users_select("Select a teammate")
                 .id("invoice-owner")
-                .initialUser("U012345");
+                .initial_user("U012345");
         }))
 }
 ```
 
-重复的静态选项键会覆盖已有选项，位置保持原样。`initialOption` 按原始键查找，遇到未知键会返回错误。发送给 Slack 的选项值会转为规范小写形式。`focus(false)` 会发送明确的 false 值。投递前可用 `to_array` 检查类型化消息。
+重复的静态选项键会覆盖已有选项，位置保持原样。`initial_option` 按原始键查找，遇到未知键会返回错误。发送给 Slack 的选项值会转为规范小写形式。`focus(false)` 会发送明确的 false 值。投递前可用 `to_array` 检查类型化消息。
 
 ### 标题、分隔线与图片 {#slack-block-kit-visual-blocks}
 
-用 `headerBlockWith`、`dividerBlockWith` 和 `imageBlockWith` 配置区块标识、图片替代文字和标题。上下文区块中的图片可通过 `ContextBlock::imageWith` 设置替代文字。
+用 `header_block_with`、`divider_block_with` 和 `image_block_with` 配置区块标识、图片替代文字和标题。上下文区块中的图片可通过 `ContextBlock::image_with` 设置替代文字。
 
 ```rust
 use openrust::notifications::slack::SlackMessage;
@@ -259,13 +259,13 @@ use openrust::notifications::slack::SlackMessage;
 fn report_message() -> SlackMessage {
     SlackMessage::new()
         .text("Monthly invoice report")
-        .headerBlockWith("Invoice report", |header| {
+        .header_block_with("Invoice report", |header| {
             header.id("invoice-report").text().emoji();
         })
-        .dividerBlockWith(|divider| {
+        .divider_block_with(|divider| {
             divider.id("invoice-divider");
         })
-        .imageBlockWith("https://example.test/invoices.png", |image| {
+        .image_block_with("https://example.test/invoices.png", |image| {
             image.id("invoice-chart").alt("Invoice counts by month");
             image.title("Monthly invoices");
         })
@@ -276,7 +276,7 @@ fn report_message() -> SlackMessage {
 
 ### 元数据与线程回复 {#slack-metadata-and-replies}
 
-可用 `metadata` 添加结构化元数据，也可将可复用的 `EventMetadata` 传给 `withMetadata`。Slack 收到 JSON 格式的 `event_type` 和 `event_payload`，空载荷也发送为对象。请勿在 Slack 消息元数据中存放密钥。
+可用 `metadata` 添加结构化元数据，也可将可复用的 `EventMetadata` 传给 `with_metadata`。Slack 收到 JSON 格式的 `event_type` 和 `event_payload`，空载荷也发送为对象。请勿在 Slack 消息元数据中存放密钥。
 
 ```rust
 use openrust::notifications::slack::{EventMetadata, SlackMessage};
@@ -290,13 +290,13 @@ fn invoice_reply(parent_timestamp: &str) -> SlackMessage {
 
     SlackMessage::new()
         .text("Invoice 42 paid")
-        .withMetadata(event)
-        .threadTimestamp(parent_timestamp)
-        .broadcastReply(false)
+        .with_metadata(event)
+        .thread_timestamp(parent_timestamp)
+        .broadcast_reply(false)
 }
 ```
 
-用 `threadTimestamp` 传入父消息的时间戳字符串。通过 Bot API 发送时，`broadcastReply(true)` 也会把回复分享到会话，`broadcastReply(false)` 则只保留在线程内。可分别使用 `clearThreadTimestamp()` 或 `broadcastReply(None)` 省略对应字段。Slack 负责验证事件模式和应用线程行为。
+用 `thread_timestamp` 传入父消息的时间戳字符串。通过 Bot API 发送时，`broadcast_reply(true)` 也会把回复分享到会话，`broadcast_reply(false)` 则只保留在线程内。可分别使用 `clear_thread_timestamp()` 或 `broadcast_reply(None)` 省略对应字段。Slack 负责验证事件模式和应用线程行为。
 
 ### 传入 Webhook {#slack-incoming-webhooks}
 
@@ -338,7 +338,7 @@ impl Notification for InvoicePending {
                     attachment
                         .title("Invoice 42", Some("https://example.test/invoices/42"))
                         .field("Status", "pending")
-                        .fieldWith(|field| {
+                        .field_with(|field| {
                             field.title("Next step").content("Review payment").long();
                         });
                 }),
@@ -347,11 +347,11 @@ impl Notification for InvoicePending {
 }
 ```
 
-附件可以指定自己的颜色，省略时继承消息级别的颜色。使用 `field` 添加短字段，使用 `fieldWith` 配合 `long()` 让字段独占一行。`timestamp` 接收日期时间，`timestampAfter` 在当前时间上增加秒数。旧式附件沿用相同的 Webhook 传输、加密和重试行为。
+附件可以指定自己的颜色，省略时继承消息级别的颜色。使用 `field` 添加短字段，使用 `field_with` 配合 `long()` 让字段独占一行。`timestamp` 接收日期时间，`timestamp_after` 在当前时间上增加秒数。旧式附件沿用相同的 Webhook 传输、加密和重试行为。
 
 ## 测试通知
 
-在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assertSentToOnce` 断言模型收件人，用 `assertSentOnDemandOnce` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。
+在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assert_sent_to_once` 断言模型收件人，用 `assert_sent_on_demand_once` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。
 
 ```rust
 let notifications = Notifications::fake()?;
@@ -360,5 +360,5 @@ let target = Notifications::route(
     NotificationRoute::Mail(vec!["ops@example.test".into()]),
 )?;
 target.notify(&notice).await?;
-notifications.assertSentOnDemandOnce(notice.kind());
+notifications.assert_sent_on_demand_once(notice.kind());
 ```

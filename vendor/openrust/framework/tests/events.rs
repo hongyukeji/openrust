@@ -604,7 +604,7 @@ fn production_listener(registry: &mut ListenerRegistry) -> EventResult<()> {
 }
 
 fn discovery_manifest() -> DiscoverEvents {
-    DiscoverEvents::new(&[]).withListener::<ProductionListener>(production_listener)
+    DiscoverEvents::new(&[]).with_listener::<ProductionListener>(production_listener)
 }
 
 #[tokio::test]
@@ -693,7 +693,7 @@ async fn failed_discovery_leaves_the_manifest_unregistered() {
 
     let mut app = TestApp::create(|builder| {
         builder
-            .with_events(DiscoverEvents::new(&[register]).withListener::<FailingPolicy>(register))
+            .with_events(DiscoverEvents::new(&[register]).with_listener::<FailingPolicy>(register))
     })
     .unwrap();
     assert!(app.boot().await.is_err());

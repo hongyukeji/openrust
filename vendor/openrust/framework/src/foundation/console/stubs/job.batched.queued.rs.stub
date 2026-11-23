@@ -63,7 +63,7 @@ impl JobHandler for {{class}}Handler {
         Box::pin(async move {
             let job: {{class}} =
                 serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
-            job.handle(context, payload.batchId()).await
+            job.handle(context, payload.batch_id()).await
         })
     }
 

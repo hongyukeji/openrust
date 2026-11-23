@@ -10,14 +10,13 @@ use openrust::{
 use zeroize::Zeroizing;
 
 /// Eloquent behavior required by the Passport client repository.
-#[allow(non_snake_case)]
 pub trait ClientModel: Model {
-    fn newQuery(
+    fn new_query(
         connection: &openrust::database::Connection,
     ) -> openrust::database::eloquent::Builder<'static, Self> {
         Self::query_on(connection)
     }
-    fn firstParty(&self) -> DatabaseResult<bool> {
+    fn first_party(&self) -> DatabaseResult<bool> {
         let key = if self.state().get_attributes().contains_key("user_id") {
             "user_id"
         } else {
@@ -28,10 +27,10 @@ pub trait ClientModel: Model {
     fn confidential(&self) -> bool {
         truthy(self.state().get_attribute("secret"))
     }
-    fn hasGrantType(&self, grantType: &str) -> DatabaseResult<bool> {
-        Ok(self.grantTypes()?.contains_loose(grantType))
+    fn has_grant_type(&self, grant_type: &str) -> DatabaseResult<bool> {
+        Ok(self.grant_types()?.contains_loose(grant_type))
     }
-    fn hasScope(&self, scope: &str) -> DatabaseResult<bool> {
+    fn has_scope(&self, scope: &str) -> DatabaseResult<bool> {
         if matches!(
             self.state().get_attribute("scopes"),
             None | Some(Value::Null)
@@ -42,17 +41,21 @@ pub trait ClientModel: Model {
         scope_exists_in(scope, &scopes)
     }
     fn tokens(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::Token> {
-        self.tokensFor::<crate::Token>()
+        self.tokens_for::<crate::Token>()
     }
-    fn tokensFor<T: crate::TokenModel>(
+    fn tokens_for<T: crate::TokenModel>(
         &self,
     ) -> openrust::database::eloquent::relations::HasMany<Self, T> {
         openrust::database::eloquent::relations::HasMany::new(self.get_key_name(), "client_id")
     }
-    fn authCodes(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::AuthCode> {
-        self.authCodesFor::<crate::AuthCode>()
+    fn auth_codes(
+        &self,
+    ) -> openrust::database::eloquent::relations::HasMany<Self, crate::AuthCode> {
+        self.auth_codes_for::<crate::AuthCode>()
     }
-    fn authCodesFor<A: Model>(&self) -> openrust::database::eloquent::relations::HasMany<Self, A> {
+    fn auth_codes_for<A: Model>(
+        &self,
+    ) -> openrust::database::eloquent::relations::HasMany<Self, A> {
         openrust::database::eloquent::relations::HasMany::new(self.get_key_name(), "client_id")
     }
     fn owner(&self) -> openrust::database::eloquent::relations::MorphTo<Self> {
@@ -64,24 +67,23 @@ pub trait ClientModel: Model {
             U::from_state(ModelState::default()).get_key_name(),
         )
     }
-    fn redirectUris(&self) -> DatabaseResult<PhpArray> {
+    fn redirect_uris(&self) -> DatabaseResult<PhpArray> {
         array(self.get_attribute_value("redirect_uris")?)
     }
-    fn grantTypes(&self) -> DatabaseResult<PhpArray> {
+    fn grant_types(&self) -> DatabaseResult<PhpArray> {
         array(self.get_attribute_value("grant_types")?)
     }
-    fn skipsAuthorization(&self, _user: &dyn Authenticatable, _scopes: &[Scope]) -> bool {
+    fn skips_authorization(&self, _user: &dyn Authenticatable, _scopes: &[Scope]) -> bool {
         false
     }
 }
 
 /// A client retains plaintext only on the instance that assigned its secret.
 /// Its single ModelState is shared by all ordinary Eloquent lifecycle operations.
-#[allow(non_snake_case)]
 pub struct Client {
     attributes: ClientAttributes,
     uses_unique_ids: bool,
-    pub plainSecret: Option<Zeroizing<String>>,
+    pub plain_secret: Option<Zeroizing<String>>,
 }
 impl std::fmt::Debug for Client {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -131,7 +133,6 @@ impl Model for ClientAttributes {
     }
 }
 
-#[allow(non_snake_case)]
 impl Model for Client {
     fn unique_ids() -> &'static [&'static str] {
         if client_uuids() { &["id"] } else { &[] }
@@ -158,7 +159,7 @@ impl Model for Client {
         Self {
             attributes: ClientAttributes(state),
             uses_unique_ids: client_uuids(),
-            plainSecret: None,
+            plain_secret: None,
         }
     }
     fn state(&self) -> &ModelState {
@@ -188,7 +189,7 @@ impl Model for Client {
     fn get_attribute_value(&self, column: &str) -> DatabaseResult<Option<Value>> {
         match column {
             "plain_secret" | "plainSecret" => Ok(Some(
-                self.plainSecret
+                self.plain_secret
                     .as_ref()
                     .map_or(Value::Null, |value| Value::Text(value.to_string())),
             )),
@@ -264,7 +265,6 @@ pub(crate) fn configured_connection(
     };
     Ok(name.filter(|name| !name.is_empty() && name != "0"))
 }
-#[allow(non_snake_case)]
 impl Client {
     /// Builds the package factory using this application’s Passport connection.
     pub fn factory() -> DatabaseResult<crate::database::factories::ClientFactory> {
@@ -276,7 +276,7 @@ impl Client {
             .as_ref()
             .map_or(Value::Null, |plain| Value::Text(plain.to_string()));
         // The real PHP setter updates plainSecret before entering the hash boundary.
-        self.plainSecret = plain;
+        self.plain_secret = plain;
         Ok(value)
     }
     fn redirect_value(&self) -> DatabaseResult<Value> {
@@ -306,11 +306,11 @@ impl Client {
             return array(self.attributes.get_attribute_value("grant_types")?)
                 .map(|value| Value::Json(value.into()));
         }
-        let redirects = !self.redirectUris()?.is_empty();
+        let redirects = !self.redirect_uris()?.is_empty();
         let confidential = self.confidential();
         let grants = [
             ("authorization_code", redirects),
-            ("client_credentials", confidential && self.firstParty()?),
+            ("client_credentials", confidential && self.first_party()?),
             ("implicit", redirects),
             (
                 "password",
@@ -377,7 +377,7 @@ pub(crate) fn scope_exists_in(scope: &str, scopes: &PhpArray) -> DatabaseResult<
         .make::<Passport>()
         .map_err(DatabaseError::Unavailable)?;
     if !passport
-        .withInheritedScopes
+        .with_inherited_scopes
         .load(std::sync::atomic::Ordering::Relaxed)
     {
         return Ok(scopes.contains_loose(scope));
@@ -394,7 +394,7 @@ fn client_uuids() -> bool {
         .make::<Passport>()
         .map(|passport| {
             passport
-                .clientUuids
+                .client_uuids
                 .load(std::sync::atomic::Ordering::Relaxed)
         })
         .unwrap_or(true)

@@ -264,8 +264,7 @@ impl QueueManager {
     }
 
     /// Sets or removes a custom reservation callback for a worker name.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn popUsing(&self, worker: &str, callback: Option<JobPopCallback>) {
+    pub fn pop_using(&self, worker: &str, callback: Option<JobPopCallback>) {
         let previous = {
             let mut callbacks = self
                 .pop_callbacks
@@ -313,8 +312,7 @@ impl QueueManager {
         Ok(self.resolve(None)?.synchronous)
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn withoutInterruptionPolling(&self) {
+    pub fn without_interruption_polling(&self) {
         self.interruption_polling.store(false, Ordering::Relaxed);
     }
 
@@ -324,8 +322,7 @@ impl QueueManager {
     }
 
     /// Pauses one queue until the supplied cache deadline or duration expires.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn pauseFor(&self, connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
+    pub async fn pause_for(&self, connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
         self.set_queue_pause(connection, queue, Some(ttl)).await
     }
 
@@ -347,8 +344,7 @@ impl QueueManager {
     }
 
     /// Pauses all queues on all connections in this application's cache.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn pauseAll(&self) -> QueueResult<()> {
+    pub async fn pause_all(&self) -> QueueResult<()> {
         self.worker_control()?.pause(None, None).await?;
         self.emit_control_event(QueuesPaused {}).await
     }
@@ -366,22 +362,19 @@ impl QueueManager {
     }
 
     /// Clears the global pause while preserving individual pauses.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn resumeAll(&self) -> QueueResult<()> {
+    pub async fn resume_all(&self) -> QueueResult<()> {
         self.worker_control()?.resume(None).await?;
         self.emit_control_event(QueuesResumed {}).await
     }
 
     /// Checks both the global and individual pause state.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn isPaused(&self, connection: &str, queue: &str) -> QueueResult<bool> {
+    pub async fn is_paused(&self, connection: &str, queue: &str) -> QueueResult<bool> {
         let control = self.worker_control()?;
         Ok(control.all_paused().await? || control.queue_paused(connection, queue).await?)
     }
 
     /// Returns the paused queues in the requested order.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn getPausedQueues<'a>(
+    pub async fn get_paused_queues<'a>(
         &self,
         connection: &str,
         queues: &[&'a str],

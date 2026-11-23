@@ -2,4 +2,4 @@
 pub mod signature;
 mod twitter_provider;
 pub use crate::two::User;
-pub use twitter_provider::{AbstractProvider, TwitterProvider, mapUser};
+pub use twitter_provider::{AbstractProvider, TwitterProvider, map_user};

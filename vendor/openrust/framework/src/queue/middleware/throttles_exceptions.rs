@@ -51,7 +51,6 @@ impl Default for ThrottlesExceptions {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ThrottlesExceptions {
     pub fn new(max_attempts: u64, decay_seconds: u64) -> Self {
         Self {
@@ -68,7 +67,7 @@ impl ThrottlesExceptions {
         }
     }
 
-    pub fn withPrefix(mut self, prefix: impl Into<String>) -> Self {
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = prefix.into();
         self
     }
@@ -78,16 +77,16 @@ impl ThrottlesExceptions {
         self
     }
 
-    pub fn byJob(mut self) -> Self {
+    pub fn by_job(mut self) -> Self {
         self.by_job = true;
         self
     }
 
     pub fn backoff(self, minutes: u64) -> Self {
-        self.backoffWhen(move |_| minutes)
+        self.backoff_when(move |_| minutes)
     }
 
-    pub fn backoffWhen(
+    pub fn backoff_when(
         mut self,
         callback: impl Fn(&QueueError) -> u64 + Send + Sync + 'static,
     ) -> Self {
@@ -104,10 +103,10 @@ impl ThrottlesExceptions {
     }
 
     pub fn report(self) -> Self {
-        self.reportWhen(|_, _| true)
+        self.report_when(|_, _| true)
     }
 
-    pub fn reportWhen(
+    pub fn report_when(
         mut self,
         callback: impl Fn(&QueueError, &ExceptionThrottleLimiter<'_>) -> bool + Send + Sync + 'static,
     ) -> Self {
@@ -115,7 +114,7 @@ impl ThrottlesExceptions {
         self
     }
 
-    pub fn deleteWhen(
+    pub fn delete_when(
         mut self,
         callback: impl Fn(&QueueError) -> bool + Send + Sync + 'static,
     ) -> Self {
@@ -123,7 +122,7 @@ impl ThrottlesExceptions {
         self
     }
 
-    pub fn failWhen(
+    pub fn fail_when(
         mut self,
         callback: impl Fn(&QueueError) -> bool + Send + Sync + 'static,
     ) -> Self {
@@ -304,7 +303,6 @@ impl From<ThrottlesExceptions> for ThrottlesExceptionsWithRedis {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ThrottlesExceptionsWithRedis {
     pub fn new(max_attempts: u64, decay_seconds: u64) -> Self {
         Self::from(ThrottlesExceptions::new(max_attempts, decay_seconds))
@@ -315,8 +313,8 @@ impl ThrottlesExceptionsWithRedis {
         self
     }
 
-    pub fn withPrefix(mut self, prefix: impl Into<String>) -> Self {
-        self.throttle = self.throttle.withPrefix(prefix);
+    pub fn with_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.throttle = self.throttle.with_prefix(prefix);
         self
     }
 
@@ -325,20 +323,20 @@ impl ThrottlesExceptionsWithRedis {
         self
     }
 
-    pub fn byJob(mut self) -> Self {
-        self.throttle = self.throttle.byJob();
+    pub fn by_job(mut self) -> Self {
+        self.throttle = self.throttle.by_job();
         self
     }
 
     pub fn backoff(self, minutes: u64) -> Self {
-        self.backoffWhen(move |_| minutes)
+        self.backoff_when(move |_| minutes)
     }
 
-    pub fn backoffWhen(
+    pub fn backoff_when(
         mut self,
         callback: impl Fn(&QueueError) -> u64 + Send + Sync + 'static,
     ) -> Self {
-        self.throttle = self.throttle.backoffWhen(callback);
+        self.throttle = self.throttle.backoff_when(callback);
         self
     }
 
@@ -351,30 +349,30 @@ impl ThrottlesExceptionsWithRedis {
     }
 
     pub fn report(self) -> Self {
-        self.reportWhen(|_, _| true)
+        self.report_when(|_, _| true)
     }
 
-    pub fn reportWhen(
+    pub fn report_when(
         mut self,
         callback: impl Fn(&QueueError, &ExceptionThrottleLimiter<'_>) -> bool + Send + Sync + 'static,
     ) -> Self {
-        self.throttle = self.throttle.reportWhen(callback);
+        self.throttle = self.throttle.report_when(callback);
         self
     }
 
-    pub fn deleteWhen(
+    pub fn delete_when(
         mut self,
         callback: impl Fn(&QueueError) -> bool + Send + Sync + 'static,
     ) -> Self {
-        self.throttle = self.throttle.deleteWhen(callback);
+        self.throttle = self.throttle.delete_when(callback);
         self
     }
 
-    pub fn failWhen(
+    pub fn fail_when(
         mut self,
         callback: impl Fn(&QueueError) -> bool + Send + Sync + 'static,
     ) -> Self {
-        self.throttle = self.throttle.failWhen(callback);
+        self.throttle = self.throttle.fail_when(callback);
         self
     }
 }

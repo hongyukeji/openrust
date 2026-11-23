@@ -27,7 +27,7 @@ fn init_auth_tokens(
         .unwrap();
         openrust::http::Response::json(
             openrust::http::StatusCode::OK,
-            serde_json::json!({"passport":passport.accessToken,"sanctum":sanctum.plain_text_token.as_str()}),
+            serde_json::json!({"passport":passport.access_token,"sanctum":sanctum.plain_text_token.as_str()}),
         )
     })
 }

@@ -46,7 +46,7 @@ impl Gateway {
             Driver::Alipay(d) => d.refund(refund).await,
         }
     }
-    pub async fn findRefund(&self, out_trade_no: &str, out_refund_no: &str) -> Result<Value> {
+    pub async fn find_refund(&self, out_trade_no: &str, out_refund_no: &str) -> Result<Value> {
         match &*self.0 {
             Driver::Wechat(d) => d.find_refund(out_trade_no, out_refund_no).await,
             Driver::Alipay(d) => d.find_refund(out_trade_no, out_refund_no).await,

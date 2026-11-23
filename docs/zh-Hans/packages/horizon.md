@@ -19,13 +19,13 @@
 
 已有部署若使用此前的 `horizon:` 元数据前缀，应显式设置 `HORIZON_PREFIX=horizon:`，让相关 Worker 继续使用同一前缀。排空旧 Master 后再切换前缀；新前缀拥有独立的控制状态与历史记录。
 
-`horizon.defaults` 按监督器名称配置；`horizon.environments` 选择第一条匹配 `app.env` 的模式，支持 `*`。未匹配时不启动监督器，`maxProcesses: 0` 禁用对应监督器。环境选项与默认值递归合并，数组按索引覆盖。默认模板在 `production` 使用 10 个进程预算，在 `local` 使用 3 个。
+`horizon.defaults` 按监督器名称配置；`horizon.environments` 选择第一条匹配 `app.env` 的模式，支持 `*`。未匹配时不启动监督器，`max_processes: 0` 禁用对应监督器。环境选项与默认值递归合并，数组按索引覆盖。默认模板在 `production` 使用 10 个进程预算，在 `local` 使用 3 个。
 
-监督器支持 `connection`、`queue`（字符串或字符串数组）、`balance`、`autoScalingStrategy`、`minProcesses`、`maxProcesses`、`balanceMaxShift`、`balanceCooldown`、`tries`、`timeout`、`sleep`、`memory`、`maxJobs`、`maxTime`、`workersName`、`backoff`、`force`、`rest`、`nice` 和 `directory`。`backoff` 接受整数、逗号分隔字符串或整数数组。`tries: 0` 表示不限尝试次数，`sleep: 0` 不等待，`timeout: 0` 关闭任务超时。`nice` 非零时使用 Unix 进程优先级接口，工作进程继承监督器优先级；其他平台明确拒绝此选项。配置支持 snake_case 与 `processes` 别名；Rust 的选项结构使用 `maxTries`，配置仍可使用 `tries`。
+监督器支持 `connection`、`queue`（字符串或字符串数组）、`balance`、`auto_scaling_strategy`、`min_processes`、`max_processes`、`balance_max_shift`、`balance_cooldown`、`tries`、`timeout`、`sleep`、`memory`、`max_jobs`、`max_time`、`workers_name`、`backoff`、`force`、`rest`、`nice` 和 `directory`。`backoff` 接受整数、逗号分隔字符串或整数数组。`tries: 0` 表示不限尝试次数，`sleep: 0` 不等待，`timeout: 0` 关闭任务超时。`nice` 非零时使用 Unix 进程优先级接口，工作进程继承监督器优先级；其他平台明确拒绝此选项。配置支持 snake_case 与 `processes` 别名；Rust 的选项结构使用 `max_tries`，配置仍可使用 `tries`。
 
-`balance: "auto"` 按预计清空耗时（`time`）、待处理数量（`size`）或 `log1p` 数量比例（`log`）计算整个 `maxProcesses` 预算中的浮点目标。按目标从小到大调整进程池，目标向上取整，并应用 `minProcesses`、剩余预算和 `balanceMaxShift`。未知耗时按零处理，非空但总耗时为零的队列以最大预算为目标。`simple` 均分预算；`false` 或 `"off"` 使用一个优先队列池，按待处理数量在最小与最大值间缩放。`balanceCooldown` 控制间隔；计算时包含退出中的进程，各 Master 独立管理预算。
+`balance: "auto"` 按预计清空耗时（`time`）、待处理数量（`size`）或 `log1p` 数量比例（`log`）计算整个 `max_processes` 预算中的浮点目标。按目标从小到大调整进程池，目标向上取整，并应用 `min_processes`、剩余预算和 `balance_max_shift`。未知耗时按零处理，非空但总耗时为零的队列以最大预算为目标。`simple` 均分预算；`false` 或 `"off"` 使用一个优先队列池，按待处理数量在最小与最大值间缩放。`balance_cooldown` 控制间隔；计算时包含退出中的进程，各 Master 独立管理预算。
 
-Worker 的 `timeout` 必须短于队列的 `retry_after`，默认分别为 60 和 90 秒。Worker 使用应用自身可执行文件、基础目录、环境、处理器和配置。`maxJobs` 与 `maxTime` 触发进程轮换，异常退出后自动补位。使用操作系统进程管理器托管 Master。SIGTERM／SIGINT 及终止请求等待当前任务完成，宽限期为配置的超时加五秒，之后强制结束。
+Worker 的 `timeout` 必须短于队列的 `retry_after`，默认分别为 60 和 90 秒。Worker 使用应用自身可执行文件、基础目录、环境、处理器和配置。`max_jobs` 与 `max_time` 触发进程轮换，异常退出后自动补位。使用操作系统进程管理器托管 Master。SIGTERM／SIGINT 及终止请求等待当前任务完成，宽限期为配置的超时加五秒，之后强制结束。
 
 进程监督器面向 Unix 部署。基于信号的监督器控制和孤儿进程检查需要 Unix 进程工具。在其他平台上使用受支持的元数据命令，并在运行 Worker 前验证部署行为。
 
@@ -49,7 +49,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 ```
 
-`HORIZON_PATH` 控制 `horizon.path`（默认 `horizon`），`HORIZON_DOMAIN` 控制可选的 `horizon.domain`；`horizon.middleware` 默认 `["web"]`。设置 `horizon.routes=false` 关闭自动注册。`Horizon::routes()` 使用这些配置；显式 `routesAt("/operations/horizon")` 优先于自动注册，每个应用只注册一次。现有路由组继续应用自身前缀与中间件。面板每五秒刷新，设置严格的内容安全策略并禁用响应缓存，支持队列负载、Master 与监督器、待处理／完成／静默／失败任务、任务载荷与异常、监控标签、指标快照和批次。失败任务及批次失败任务通过已配置的原生失败任务提供器重试。
+`HORIZON_PATH` 控制 `horizon.path`（默认 `horizon`），`HORIZON_DOMAIN` 控制可选的 `horizon.domain`；`horizon.middleware` 默认 `["web"]`。设置 `horizon.routes=false` 关闭自动注册。`Horizon::routes()` 使用这些配置；显式 `routes_at("/operations/horizon")` 优先于自动注册，每个应用只注册一次。现有路由组继续应用自身前缀与中间件。面板每五秒刷新，设置严格的内容安全策略并禁用响应缓存，支持队列负载、Master 与监督器、待处理／完成／静默／失败任务、任务载荷与异常、监控标签、指标快照和批次。失败任务及批次失败任务通过已配置的原生失败任务提供器重试。
 
 暂停、继续、终止、监控变更和重试均须逐次通过授权回调。浏览器对写操作发送 `X-Horizon-Request: 1`，直接调用接口也须携带该请求头；拒绝跨站浏览器写操作。为整个路由组应用已有的认证与中间件。面板授权包含查看任务数据和执行运维控制的权限。
 
@@ -88,14 +88,14 @@ Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回�
 
 在应用 Provider 中、Horizon 注册后调用 `Horizon::tag(fn(&Payload) -> Vec<String>)`。回调对每个被观察的载荷生成标签，忽略空字符串，重复标签保留首次出现顺序。Rust 任务通过这些回调显式提供标签，不通过反射自动发现载荷中的模型字段。
 
-`Tags::forModel(&model)` 将 Rust 模型类型与整数、无符号整数或字符串主键组合为标签；缺少主键或主键类型不支持时返回错误。任务携带模型身份时，可将返回的字符串加入回调生成的标签。各应用注册的标签回调彼此隔离。面板的监控操作决定哪些标签保留监控任务。
+`Tags::for_model(&model)` 将 Rust 模型类型与整数、无符号整数或字符串主键组合为标签；缺少主键或主键类型不支持时返回错误。任务携带模型身份时，可将返回的字符串加入回调生成的标签。各应用注册的标签回调彼此隔离。面板的监控操作决定哪些标签保留监控任务。
 
 ## 指标与限制 {#metrics}
 
-`Repository::recent(1..=100)`、`metrics(connection, queue)`、`masters()`、`pause()`、`r#continue()` 和 `terminate()` 提供相同的存储操作。`SupervisorOptions::fromConfig` 验证配置，`AutoScaler::numberOfWorkersPerQueue` 计算浮点目标，`scalePool` 计算逐池调整，`MasterSupervisor` 管理子进程生命周期。
+`Repository::recent(1..=100)`、`metrics(connection, queue)`、`masters()`、`pause()`、`r#continue()` 和 `terminate()` 提供相同的存储操作。`SupervisorOptions::from_config` 验证配置，`AutoScaler::number_of_workers_per_queue` 计算浮点目标，`scale_pool` 计算逐池调整，`MasterSupervisor` 管理子进程生命周期。
 
 Redis 队列事件记录 ID、任务名、连接、队列、尝试次数、状态、耗时与 Redis 服务端时间。授权后的任务详情还提供序列化载荷、标签和异常文本。`Repository::recent(1..=100)` 保持纯元数据投影，近期索引最多 1000 个任务身份；`retention`（60–86400 秒，默认 3600）控制近期元数据和滚动 60 分钟尝试指标。
 
 `horizon.trim` 按分钟控制任务列表保留时间：`recent`、`pending`、`completed` 默认为 60，`recent_failed`、`failed`、`monitored` 默认为 10080。任务列表每页返回 50 条。`horizon.metrics.trim_snapshots.job` 与 `.queue` 默认各保留 24 个快照。平均耗时和吞吐量只计算成功完成的任务，失败、释放和等待重试不参与计算。重复结束事件在下一次处理事件前忽略；手动重试重置尝试次数时开始新的观测。
 
-`Repository::jobs()`、`tags()`、`metricsRepository()`、`masterSupervisors()`、`supervisorRepository()`、`processes()` 与 `workload()` 提供独立仓储操作。监控标签按元数据前缀保存。每个指标的快照写入与当前计数重置原子执行。Master 心跳 15 秒后过期，监督器心跳 30 秒后过期。元数据服务错误会暂停领取新任务并结束 Master，由操作系统进程管理器恢复。监控记录会过期，不作为持久执行账本。
+`Repository::jobs()`、`tags()`、`metrics_repository()`、`master_supervisors()`、`supervisor_repository()`、`processes()` 与 `workload()` 提供独立仓储操作。监控标签按元数据前缀保存。每个指标的快照写入与当前计数重置原子执行。Master 心跳 15 秒后过期，监督器心跳 30 秒后过期。元数据服务错误会暂停领取新任务并结束 Master，由操作系统进程管理器恢复。监控记录会过期，不作为持久执行账本。

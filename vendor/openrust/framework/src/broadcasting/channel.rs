@@ -194,18 +194,19 @@ impl ChannelRegistry {
     }
 
     /// Resolves the matching rule's guards against the incoming request.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn authorizeRequest(
+    pub async fn authorize_request(
         &self,
         channel: &str,
         request: &mut Request,
     ) -> BroadcastResult<ChannelAuthorization> {
-        Ok(self.authorizeRequestWithIdentity(channel, request).await?.1)
+        Ok(self
+            .authorize_request_with_identity(channel, request)
+            .await?
+            .1)
     }
 
     /// Returns the identity selected by the channel's guards together with its authorization.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub async fn authorizeRequestWithIdentity(
+    pub async fn authorize_request_with_identity(
         &self,
         channel: &str,
         request: &mut Request,

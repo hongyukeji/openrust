@@ -4,27 +4,27 @@ use serde_json::{Map, Value};
 pub struct ChangeDetector;
 impl ChangeDetector {
     /// Keeps changed keys and the matching old values. Null remains distinct from missing/zero.
-    pub fn filterDirty(
-        newAttributes: &Map<String, Value>,
-        oldAttributes: &Map<String, Value>,
+    pub fn filter_dirty(
+        new_attributes: &Map<String, Value>,
+        old_attributes: &Map<String, Value>,
     ) -> Value {
-        let changed: Map<_, _> = newAttributes
+        let changed: Map<_, _> = new_attributes
             .iter()
             .filter(|(key, new)| {
-                oldAttributes
+                old_attributes
                     .get(*key)
                     .is_none_or(|old| !equivalent(new, old))
             })
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
-        let old: Map<_, _> = oldAttributes
+        let old: Map<_, _> = old_attributes
             .iter()
             .filter(|(key, _)| changed.contains_key(*key))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
         serde_json::json!({"attributes":changed,"old":old})
     }
-    pub fn resolveJsonAttribute(attributes: &Map<String, Value>, attribute: &str) -> Value {
+    pub fn resolve_json_attribute(attributes: &Map<String, Value>, attribute: &str) -> Value {
         let mut path = attribute.split("->");
         let Some(mut value) = path.next().and_then(|key| attributes.get(key)) else {
             return Value::Null;
@@ -62,9 +62,9 @@ fn equivalent(new: &Value, old: &Value) -> bool {
     if old.is_null() || new.is_null() {
         return new.is_null() && old.is_null();
     }
-    phpEqual(new, old)
+    php_equal(new, old)
 }
-fn phpEqual(new: &Value, old: &Value) -> bool {
+fn php_equal(new: &Value, old: &Value) -> bool {
     if new.is_boolean() || old.is_boolean() {
         return truthy(new) == truthy(old);
     }
@@ -94,7 +94,7 @@ fn phpEqual(new: &Value, old: &Value) -> bool {
         let b = entries(old);
         return a.len() == b.len()
             && a.iter()
-                .all(|(key, a)| b.get(key).is_some_and(|b| phpEqual(a, b)));
+                .all(|(key, a)| b.get(key).is_some_and(|b| php_equal(a, b)));
     }
     match (new, old) {
         (Value::Number(a), Value::Number(b)) => numeric(&a.to_string()) == numeric(&b.to_string()),

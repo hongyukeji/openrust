@@ -14,18 +14,17 @@ pub(super) type SerializedModel = Result<serde_json::Map<String, serde_json::Val
 type FoundModelToken = Option<(PersonalAccessToken, Box<dyn ModelToken>)>;
 
 /// An Eloquent token model with an overridable Sanctum credential lookup.
-#[allow(non_snake_case, reason = "Matches Sanctum's token model API")]
 pub trait PersonalAccessTokenModel: Model {
-    fn findToken<'a>(
+    fn find_token<'a>(
         query: Builder<'static, Self>,
         connection: &'a Connection,
         credential: &'a str,
     ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
-        Self::findTokenByDigest(query, connection, credential)
+        Self::find_token_by_digest(query, connection, credential)
     }
 
     /// Standard lookup for overrides that retain Sanctum's SHA-256 credential verification.
-    fn findTokenByDigest<'a>(
+    fn find_token_by_digest<'a>(
         mut query: Builder<'static, Self>,
         connection: &'a Connection,
         credential: &'a str,
@@ -211,7 +210,7 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
         credential: &'a str,
     ) -> DatabaseFuture<'a, DatabaseResult<FoundModelToken>> {
         Box::pin(async move {
-            let Some(model) = M::findToken(self.query(), &self.connection, credential).await?
+            let Some(model) = M::find_token(self.query(), &self.connection, credential).await?
             else {
                 return Ok(None);
             };

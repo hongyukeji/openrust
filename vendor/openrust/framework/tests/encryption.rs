@@ -33,7 +33,7 @@ fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
         ));
         let rotated = Encrypter::new(vec![b'n'; size], cipher)
             .unwrap()
-            .previousKeys(vec![vec![b'x'; size], vec![b'o'; size]])
+            .previous_keys(vec![vec![b'x'; size], vec![b'o'; size]])
             .unwrap();
         assert_eq!(rotated.decrypt_string(old).unwrap(), b"persisted\0\xff");
         assert_eq!(rotated.get_all_keys().len(), 3);
@@ -59,8 +59,8 @@ fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
             rotated.decrypt(&value, true),
             Err(DecryptException::Deserialization)
         ));
-        assert!(Encrypter::appearsEncrypted(&value));
-        assert!(!Encrypter::appearsEncrypted("arbitrary text"));
+        assert!(Encrypter::appears_encrypted(&value));
+        assert!(!Encrypter::appears_encrypted("arbitrary text"));
 
         let mut envelope: Value = serde_json::from_slice(&STANDARD.decode(value).unwrap()).unwrap();
         if matches!(cipher, Cipher::Aes128Gcm | Cipher::Aes256Gcm) {
@@ -79,7 +79,7 @@ fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
             Err(DecryptException::InvalidPayload)
         ));
         assert!(matches!(
-            rotated.previousKeys(vec![vec![0; size + 1]]),
+            rotated.previous_keys(vec![vec![0; size + 1]]),
             Err(EncryptException::InvalidKey)
         ));
     }

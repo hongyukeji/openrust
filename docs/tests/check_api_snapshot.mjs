@@ -49,11 +49,11 @@ try {
                     assert(await page.locator("pre").count() > 0);
                 }
                 for (const [file, methods] of [
-                    ["openrust/support/struct.Date.html", ["timezone", "fromUtc", "asDateTime"]],
-                    ["openrust_settings/struct.Settings.html", ["get", "save", "saveIn", "refresh"]],
-                    ["openrust_socialite/wechat/struct.MiniApp.html", ["codeToSession"]],
-                    ["openrust_cashier/struct.CashierManager.html", ["driver", "forgetDrivers"]],
-                    ["openrust_cashier/struct.Billable.html", ["checkout", "newSubscription", "billingPortal", "invoiceDocument"]],
+                    ["openrust/support/struct.Date.html", ["timezone", "from_utc", "as_date_time"]],
+                    ["openrust_settings/struct.Settings.html", ["get", "save", "save_in", "refresh"]],
+                    ["openrust_socialite/wechat/struct.MiniApp.html", ["code_to_session"]],
+                    ["openrust_cashier/struct.CashierManager.html", ["driver", "forget_drivers"]],
+                    ["openrust_cashier/struct.Billable.html", ["checkout", "new_subscription", "billing_portal", "invoice_document"]],
                     ["openrust_pay/struct.PayManager.html", ["driver"]],
                 ]) {
                     assert.equal((await page.goto(`${base}api/${file}`)).status(), 200);

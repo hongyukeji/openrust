@@ -63,7 +63,9 @@ impl Command for PruneExpired {
                 .transpose()?;
             let database = app.make::<DatabaseManager>().await.map_err(error)?;
             let sanctum = app.container().make::<super::Sanctum>().map_err(error)?;
-            let tokens = sanctum.personalAccessTokens(&database, "").map_err(error)?;
+            let tokens = sanctum
+                .personal_access_tokens(&database, "")
+                .map_err(error)?;
             output.comment("Pruning tokens with expired expires_at timestamps");
             tokens.prune("expires_at", cutoff).await.map_err(error)?;
             if let Some(cutoff) = created_cutoff {

@@ -877,11 +877,12 @@ fn prepare_reverb(env: &mut BTreeMap<String, String>) -> Result<(), ConsoleError
                     "null" | "(null)"
                 )
             {
-                let bytes =
-                    crate::encryption::Encrypter::generateKey(crate::encryption::Cipher::Aes256Cbc)
-                        .map_err(|_| {
-                            ConsoleError::new("Could not generate Reverb application credentials.")
-                        })?;
+                let bytes = crate::encryption::Encrypter::generate_key(
+                    crate::encryption::Cipher::Aes256Cbc,
+                )
+                .map_err(|_| {
+                    ConsoleError::new("Could not generate Reverb application credentials.")
+                })?;
                 let generated = bytes
                     .iter()
                     .map(|byte| format!("{byte:02x}"))

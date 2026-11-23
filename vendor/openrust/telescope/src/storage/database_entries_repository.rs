@@ -6,15 +6,15 @@ use uuid::Uuid;
 
 pub struct DatabaseEntriesRepository {
     connection: Connection,
-    chunkSize: usize,
-    monitoredTags: Mutex<Option<Vec<String>>>,
+    chunk_size: usize,
+    monitored_tags: Mutex<Option<Vec<String>>>,
 }
 impl DatabaseEntriesRepository {
-    pub fn new(connection: Connection, chunkSize: Option<usize>) -> Self {
+    pub fn new(connection: Connection, chunk_size: Option<usize>) -> Self {
         Self {
             connection,
-            chunkSize: chunkSize.filter(|size| *size > 0).unwrap_or(1000),
-            monitoredTags: Mutex::new(None),
+            chunk_size: chunk_size.filter(|size| *size > 0).unwrap_or(1000),
+            monitored_tags: Mutex::new(None),
         }
     }
     pub async fn find(&self, id: &str) -> Result<EntryResult> {
@@ -50,7 +50,7 @@ impl DatabaseEntriesRepository {
         if let Some(kind) = kind {
             query = query.where_exact_text("type", kind.as_str());
         }
-        if let Some(batch) = options.batchId {
+        if let Some(batch) = options.batch_id {
             query = query.where_exact_text("batch_id", &batch.to_string());
         }
         if let Some(tag) = options.tag.as_ref().filter(|value| !value.is_empty()) {
@@ -65,13 +65,13 @@ impl DatabaseEntriesRepository {
             query = query.where_in_sub("uuid", &mut tags)?;
         }
         if let Some(hash) = options
-            .familyHash
+            .family_hash
             .as_ref()
             .filter(|value| !value.is_empty())
         {
             query = query.where_exact_text("family_hash", hash);
         }
-        if let Some(before) = options.beforeSequence.filter(|value| *value != 0) {
+        if let Some(before) = options.before_sequence.filter(|value| *value != 0) {
             query = query.r#where("sequence", "<", before);
         }
         if let Some(ids) = options.uuids {
@@ -80,9 +80,9 @@ impl DatabaseEntriesRepository {
                 ids.iter().map(|id| Value::from(id.to_string())).collect(),
             );
         }
-        if options.batchId.is_none()
+        if options.batch_id.is_none()
             && options.tag.as_ref().is_none_or(String::is_empty)
-            && options.familyHash.as_ref().is_none_or(String::is_empty)
+            && options.family_hash.as_ref().is_none_or(String::is_empty)
         {
             query = query.r#where("should_display_on_index", "=", true);
         }
@@ -101,15 +101,18 @@ impl DatabaseEntriesRepository {
         for entry in entries {
             row(entry)?;
         }
-        let exceptions: Vec<_> = entries.iter().filter(|entry| entry.isException()).collect();
+        let exceptions: Vec<_> = entries
+            .iter()
+            .filter(|entry| entry.is_exception())
+            .collect();
         let ordinary: Vec<_> = entries
             .iter()
-            .filter(|entry| !entry.isException())
+            .filter(|entry| !entry.is_exception())
             .collect();
-        for chunk in exceptions.chunks(self.chunkSize) {
+        for chunk in exceptions.chunks(self.chunk_size) {
             let mut rows = Vec::new();
             for entry in chunk {
-                let hash = entry.familyHash.as_deref().ok_or(Error::InvalidEntry)?;
+                let hash = entry.family_hash.as_deref().ok_or(Error::InvalidEntry)?;
                 let occurrences = self
                     .connection
                     .table("telescope_entries")
@@ -141,14 +144,14 @@ impl DatabaseEntriesRepository {
                 .insert(&rows)
                 .await?;
         }
-        self.storeTags(
+        self.store_tags(
             exceptions
                 .iter()
                 .map(|entry| (entry.uuid, entry.tags.clone()))
                 .collect(),
         )
         .await?;
-        for chunk in ordinary.chunks(self.chunkSize) {
+        for chunk in ordinary.chunks(self.chunk_size) {
             let rows = chunk
                 .iter()
                 .map(|entry| row(entry))
@@ -158,7 +161,7 @@ impl DatabaseEntriesRepository {
                 .insert(&rows)
                 .await?;
         }
-        self.storeTags(
+        self.store_tags(
             ordinary
                 .iter()
                 .map(|entry| (entry.uuid, entry.tags.clone()))
@@ -166,7 +169,7 @@ impl DatabaseEntriesRepository {
         )
         .await
     }
-    async fn storeTags(&self, entries: Vec<(Uuid, Vec<String>)>) -> Result<()> {
+    async fn store_tags(&self, entries: Vec<(Uuid, Vec<String>)>) -> Result<()> {
         let mut rows = Vec::new();
         for (uuid, tags) in entries {
             for tag in tags {
@@ -174,18 +177,18 @@ impl DatabaseEntriesRepository {
                     ("entry_uuid".into(), Value::from(uuid.to_string())),
                     ("tag".into(), Value::from(tag.clone())),
                 ]));
-                if rows.len() >= self.chunkSize {
-                    self.insertTags(&rows).await?;
+                if rows.len() >= self.chunk_size {
+                    self.insert_tags(&rows).await?;
                     rows.clear();
                 }
             }
         }
         if !rows.is_empty() {
-            self.insertTags(&rows).await?;
+            self.insert_tags(&rows).await?;
         }
         Ok(())
     }
-    async fn insertTags(&self, rows: &[BTreeMap<String, Value>]) -> Result<()> {
+    async fn insert_tags(&self, rows: &[BTreeMap<String, Value>]) -> Result<()> {
         match self
             .connection
             .table("telescope_entries_tags")
@@ -226,16 +229,16 @@ impl DatabaseEntriesRepository {
                     serde_json::Value::Object(content).to_string().into(),
                 )]))
                 .await?;
-            self.storeTags(vec![(update.uuid, update.addedTags.clone())])
+            self.store_tags(vec![(update.uuid, update.added_tags.clone())])
                 .await?;
-            if !update.removedTags.is_empty() {
+            if !update.removed_tags.is_empty() {
                 self.connection
                     .table("telescope_entries_tags")
                     .where_exact_text("entry_uuid", &update.uuid.to_string())
                     .where_in(
                         "tag",
                         update
-                            .removedTags
+                            .removed_tags
                             .iter()
                             .cloned()
                             .map(Value::from)
@@ -256,31 +259,31 @@ impl DatabaseEntriesRepository {
             .map(|row| text(row, "tag"))
             .collect()
     }
-    pub async fn loadMonitoredTags(&self) {
+    pub async fn load_monitored_tags(&self) {
         let tags = self.monitoring().await.unwrap_or_default();
         *self
-            .monitoredTags
+            .monitored_tags
             .lock()
             .unwrap_or_else(|error| error.into_inner()) = Some(tags);
     }
-    pub(crate) fn hasMonitoredTag(&self, tags: &[String]) -> bool {
-        self.monitoredTags
+    pub(crate) fn has_monitored_tag(&self, tags: &[String]) -> bool {
+        self.monitored_tags
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .as_ref()
             .is_some_and(|monitored| tags.iter().any(|tag| monitored.contains(tag)))
     }
-    pub async fn isMonitoring(&self, tags: &[String]) -> bool {
+    pub async fn is_monitoring(&self, tags: &[String]) -> bool {
         let cached = self
-            .monitoredTags
+            .monitored_tags
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clone();
         let monitored = match cached {
             Some(tags) => tags,
             None => {
-                self.loadMonitoredTags().await;
-                self.monitoredTags
+                self.load_monitored_tags().await;
+                self.monitored_tags
                     .lock()
                     .unwrap_or_else(|error| error.into_inner())
                     .clone()
@@ -304,7 +307,7 @@ impl DatabaseEntriesRepository {
             .await?;
         Ok(())
     }
-    pub async fn stopMonitoring(&self, tags: &[String]) -> Result<()> {
+    pub async fn stop_monitoring(&self, tags: &[String]) -> Result<()> {
         self.connection
             .table("telescope_monitoring")
             .where_in("tag", tags.iter().cloned().map(Value::from).collect())
@@ -312,7 +315,7 @@ impl DatabaseEntriesRepository {
             .await?;
         Ok(())
     }
-    pub async fn prune(&self, before: jiff::Timestamp, keepExceptions: bool) -> Result<u64> {
+    pub async fn prune(&self, before: jiff::Timestamp, keep_exceptions: bool) -> Result<u64> {
         let mut total = 0;
         loop {
             let mut query = self.connection.table("telescope_entries").r#where(
@@ -320,13 +323,13 @@ impl DatabaseEntriesRepository {
                 "<",
                 timestamp(before),
             );
-            if keepExceptions {
+            if keep_exceptions {
                 query = query.r#where("type", "!=", "exception");
             }
             let ids = query
                 .select(["sequence"])
                 .order_by("sequence", "asc")
-                .limit(self.chunkSize as u64)
+                .limit(self.chunk_size as u64)
                 .get()
                 .await?
                 .iter()
@@ -351,7 +354,7 @@ impl DatabaseEntriesRepository {
                 .table("telescope_entries")
                 .select(["sequence"])
                 .order_by("sequence", "asc")
-                .limit(self.chunkSize as u64)
+                .limit(self.chunk_size as u64)
                 .get()
                 .await?
                 .iter()
@@ -372,7 +375,7 @@ impl DatabaseEntriesRepository {
                 .table("telescope_monitoring")
                 .select(["tag"])
                 .order_by("tag", "asc")
-                .limit(self.chunkSize as u64)
+                .limit(self.chunk_size as u64)
                 .get()
                 .await?
                 .iter()
@@ -391,7 +394,7 @@ impl DatabaseEntriesRepository {
     }
     pub fn terminate(&self) {
         *self
-            .monitoredTags
+            .monitored_tags
             .lock()
             .unwrap_or_else(|error| error.into_inner()) = None;
     }
@@ -404,8 +407,8 @@ fn timestamp(timestamp: jiff::Timestamp) -> String {
 }
 fn row(entry: &IncomingEntry) -> Result<BTreeMap<String, Value>> {
     let kind = entry.r#type.ok_or(Error::InvalidEntry)?;
-    let batch = entry.batchId.ok_or(Error::InvalidEntry)?;
-    if entry.isException() && entry.familyHash.is_none() {
+    let batch = entry.batch_id.ok_or(Error::InvalidEntry)?;
+    if entry.is_exception() && entry.family_hash.is_none() {
         return Err(Error::InvalidEntry);
     }
     Ok(BTreeMap::from([
@@ -413,7 +416,7 @@ fn row(entry: &IncomingEntry) -> Result<BTreeMap<String, Value>> {
         ("batch_id".into(), batch.to_string().into()),
         (
             "family_hash".into(),
-            entry.familyHash.clone().map_or(Value::Null, Value::from),
+            entry.family_hash.clone().map_or(Value::Null, Value::from),
         ),
         ("type".into(), kind.as_str().into()),
         (
@@ -422,7 +425,7 @@ fn row(entry: &IncomingEntry) -> Result<BTreeMap<String, Value>> {
                 .to_string()
                 .into(),
         ),
-        ("created_at".into(), timestamp(entry.recordedAt).into()),
+        ("created_at".into(), timestamp(entry.recorded_at).into()),
     ]))
 }
 fn text(row: &Row, key: &str) -> Result<String> {
@@ -457,16 +460,16 @@ fn decode(row: &Row) -> Result<Option<EntryResult>> {
             .parse()
             .map_err(|_| Error::InvalidEntry)?,
         sequence: Some(sequence),
-        batchId: text(row, "batch_id")?
+        batch_id: text(row, "batch_id")?
             .parse()
             .map_err(|_| Error::InvalidEntry)?,
         r#type: text(row, "type")?.parse()?,
-        familyHash: match row.get("family_hash") {
+        family_hash: match row.get("family_hash") {
             Some(Value::Null) => None,
             _ => Some(text(row, "family_hash")?),
         },
         content,
-        createdAt: text(row, "created_at")?,
+        created_at: text(row, "created_at")?,
         tags: Vec::new(),
     }))
 }
@@ -480,12 +483,12 @@ impl crate::contracts::PrunableRepository for DatabaseEntriesRepository {
     fn prune(
         &self,
         before: jiff::Timestamp,
-        keepExceptions: bool,
+        keep_exceptions: bool,
     ) -> crate::contracts::TelescopeFuture<'_, Result<u64>> {
         Box::pin(DatabaseEntriesRepository::prune(
             self,
             before,
-            keepExceptions,
+            keep_exceptions,
         ))
     }
 }
@@ -518,17 +521,17 @@ impl crate::contracts::EntriesRepository for DatabaseEntriesRepository {
     fn monitoring(&self) -> crate::contracts::TelescopeFuture<'_, Result<Vec<String>>> {
         Box::pin(DatabaseEntriesRepository::monitoring(self))
     }
-    fn loadMonitoredTags(&self) -> crate::contracts::TelescopeFuture<'_, ()> {
-        Box::pin(DatabaseEntriesRepository::loadMonitoredTags(self))
+    fn load_monitored_tags(&self) -> crate::contracts::TelescopeFuture<'_, ()> {
+        Box::pin(DatabaseEntriesRepository::load_monitored_tags(self))
     }
-    fn hasMonitoredTag(&self, tags: &[String]) -> bool {
-        DatabaseEntriesRepository::hasMonitoredTag(self, tags)
+    fn has_monitored_tag(&self, tags: &[String]) -> bool {
+        DatabaseEntriesRepository::has_monitored_tag(self, tags)
     }
-    fn isMonitoring<'a>(
+    fn is_monitoring<'a>(
         &'a self,
         tags: &'a [String],
     ) -> crate::contracts::TelescopeFuture<'a, bool> {
-        Box::pin(DatabaseEntriesRepository::isMonitoring(self, tags))
+        Box::pin(DatabaseEntriesRepository::is_monitoring(self, tags))
     }
     fn monitor<'a>(
         &'a self,
@@ -536,11 +539,11 @@ impl crate::contracts::EntriesRepository for DatabaseEntriesRepository {
     ) -> crate::contracts::TelescopeFuture<'a, Result<()>> {
         Box::pin(DatabaseEntriesRepository::monitor(self, tags))
     }
-    fn stopMonitoring<'a>(
+    fn stop_monitoring<'a>(
         &'a self,
         tags: &'a [String],
     ) -> crate::contracts::TelescopeFuture<'a, Result<()>> {
-        Box::pin(DatabaseEntriesRepository::stopMonitoring(self, tags))
+        Box::pin(DatabaseEntriesRepository::stop_monitoring(self, tags))
     }
     fn terminate(&self) {
         DatabaseEntriesRepository::terminate(self);

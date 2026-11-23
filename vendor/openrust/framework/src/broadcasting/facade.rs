@@ -29,9 +29,8 @@ impl Facade for Broadcast {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Broadcast {
-    pub fn userRoutes(
+    pub fn user_routes(
         attributes: Option<crate::routing::RouteGroup>,
         connection: Option<&str>,
     ) -> Result<(), crate::routing::RoutingError> {
@@ -67,7 +66,7 @@ impl Broadcast {
             .resolve_authenticated_user(request)
             .await
     }
-    pub async fn authenticateUser(
+    pub async fn authenticate_user(
         request: &mut crate::http::Request,
         connection: Option<&str>,
     ) -> BroadcastResult<crate::http::Response> {
@@ -95,8 +94,7 @@ impl Broadcast {
     }
 
     /// Resolves the current application's channel authorization registry.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn channelRegistry() -> BroadcastResult<Arc<ChannelRegistry>> {
+    pub fn channel_registry() -> BroadcastResult<Arc<ChannelRegistry>> {
         crate::support::facades::current_container()
             .ok_or(BroadcastException::NoRegistrationScope)?
             .make::<ChannelRegistry>()
@@ -104,22 +102,20 @@ impl Broadcast {
     }
 
     pub fn channel(pattern: &str, handler: impl ChannelHandler + 'static) -> BroadcastResult<()> {
-        Self::channelWithOptions(pattern, handler, ChannelOptions::default())
+        Self::channel_with_options(pattern, handler, ChannelOptions::default())
     }
 
     /// Registers a channel with an explicit authentication guard order.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn channelWithOptions(
+    pub fn channel_with_options(
         pattern: &str,
         handler: impl ChannelHandler + 'static,
         options: ChannelOptions,
     ) -> BroadcastResult<()> {
-        Self::channelWithBindings(pattern, handler, options, ChannelBindings::default())
+        Self::channel_with_bindings(pattern, handler, options, ChannelBindings::default())
     }
 
     /// Registers channel parameters that use model route binding.
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    pub fn channelWithBindings(
+    pub fn channel_with_bindings(
         pattern: &str,
         handler: impl ChannelHandler + 'static,
         options: ChannelOptions,

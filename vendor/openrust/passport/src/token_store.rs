@@ -66,8 +66,8 @@ impl TokenModels {
         let tokens = (self.token.read().expect("token model lock").factory)();
         let refreshes = (self.refresh.read().expect("refresh model lock").factory)();
         let created = crate::events::AccessTokenCreated {
-            tokenId: event_id(&access, "id")?,
-            userId: access
+            token_id: event_id(&access, "id")?,
+            user_id: access
                 .get("user_id")
                 .filter(|v| !matches!(v, Value::Null))
                 .map(|v| {
@@ -76,7 +76,7 @@ impl TokenModels {
                         .map_err(|_| openrust::database::DatabaseError::InvalidScalar)
                 })
                 .transpose()?,
-            clientId: event_id(&access, "client_id")?,
+            client_id: event_id(&access, "client_id")?,
         };
         tokens
             .persist(
@@ -92,8 +92,8 @@ impl TokenModels {
             .map_err(event_error)?;
         if let Some(refresh) = refresh {
             let created = crate::events::RefreshTokenCreated {
-                refreshTokenId: event_id(&refresh, "id")?,
-                accessTokenId: event_id(&refresh, "access_token_id")?,
+                refresh_token_id: event_id(&refresh, "id")?,
+                access_token_id: event_id(&refresh, "access_token_id")?,
             };
             refreshes
                 .persist(
@@ -423,7 +423,9 @@ impl<M: TokenModel> TokenStore for Typed<M> {
             };
             if changed && let Some(transaction) = transaction {
                 openrust::support::facades::Event::dispatch_in_transaction(
-                    crate::events::AccessTokenRevoked { tokenId: id.into() },
+                    crate::events::AccessTokenRevoked {
+                        token_id: id.into(),
+                    },
                     transaction,
                 )
                 .await

@@ -74,15 +74,14 @@ pub struct Inspiring;
 impl Inspiring {
     pub fn quote() -> String {
         let quote = Self::quotes()[fastrand::usize(..QUOTES.len())];
-        Self::formatForConsole(quote)
+        Self::format_for_console(quote)
     }
 
     pub fn quotes() -> &'static [&'static str] {
         &QUOTES
     }
 
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
-    fn formatForConsole(quote: &str) -> String {
+    fn format_for_console(quote: &str) -> String {
         // the framework takes the first two fields from explode('-').
         let mut fields = quote.split('-').map(str::trim);
         let text = fields.next().expect("quote text");

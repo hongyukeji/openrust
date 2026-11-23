@@ -118,9 +118,8 @@ pub enum AccessToken {
     Transient,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl AccessToken {
-    pub fn currentAccessToken(request: &Request) -> Option<&Self> {
+    pub fn current_access_token(request: &Request) -> Option<&Self> {
         let name = crate::auth::AuthManager::selected_guard(request);
         let tokens = request.parts().extensions.get::<RequestTokens>()?;
         if let Some(name) = name {

@@ -8,14 +8,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ProcessPendingUpdates {
-    pub pendingUpdates: Vec<EntryUpdate>,
+    #[serde(rename = "pendingUpdates")]
+    pub pending_updates: Vec<EntryUpdate>,
     pub attempt: u32,
 }
 impl ProcessPendingUpdates {
     pub const NAME: &str = "openrust_telescope::jobs::ProcessPendingUpdates";
-    pub fn new(pendingUpdates: Vec<EntryUpdate>, attempt: u32) -> Self {
+    pub fn new(pending_updates: Vec<EntryUpdate>, attempt: u32) -> Self {
         Self {
-            pendingUpdates,
+            pending_updates,
             attempt,
         }
     }
@@ -61,7 +62,7 @@ impl JobHandler for Handler {
             let telescope =
                 crate::facades::Telescope::get_facade_root().map_err(QueueError::Unavailable)?;
             let failed = telescope
-                .withoutRecording(telescope.repository.update(&pending.pendingUpdates))
+                .without_recording(telescope.repository.update(&pending.pending_updates))
                 .await
                 .map_err(|source| QueueError::Execution {
                     source: Box::new(source),

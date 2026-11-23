@@ -47,11 +47,11 @@ impl Command for PruneBatchesCommand {
             let deleted = batches.prune(hours).await.map_err(error)?;
             output.info(&format!("{deleted} entries deleted."));
             if let Some(before) = unfinished {
-                let deleted = batches.pruneUnfinished(before).await.map_err(error)?;
+                let deleted = batches.prune_unfinished(before).await.map_err(error)?;
                 output.info(&format!("{deleted} unfinished entries deleted."));
             }
             if let Some(before) = cancelled {
-                let deleted = batches.pruneCancelled(before).await.map_err(error)?;
+                let deleted = batches.prune_cancelled(before).await.map_err(error)?;
                 output.info(&format!("{deleted} cancelled entries deleted."));
             }
             Ok(0)

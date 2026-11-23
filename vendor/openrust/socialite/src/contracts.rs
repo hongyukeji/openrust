@@ -13,10 +13,10 @@ pub trait Provider {
 }
 pub trait User {
     fn get_id(&self) -> &Value;
-    fn getNickname(&self) -> Option<&str>;
+    fn get_nickname(&self) -> Option<&str>;
     fn get_name(&self) -> Option<&str>;
-    fn getEmail(&self) -> Option<&str>;
-    fn getAvatar(&self) -> Option<&str>;
+    fn get_email(&self) -> Option<&str>;
+    fn get_avatar(&self) -> Option<&str>;
 }
 impl Factory for crate::SocialiteManager {
     fn driver<'a>(&self, name: &str, request: &'a mut Request) -> Result<ProtocolProvider<'a>> {
@@ -35,17 +35,17 @@ impl User for SocialiteUser {
     fn get_id(&self) -> &Value {
         self.get_id()
     }
-    fn getNickname(&self) -> Option<&str> {
-        self.getNickname()
+    fn get_nickname(&self) -> Option<&str> {
+        self.get_nickname()
     }
     fn get_name(&self) -> Option<&str> {
         self.get_name()
     }
-    fn getEmail(&self) -> Option<&str> {
-        self.getEmail()
+    fn get_email(&self) -> Option<&str> {
+        self.get_email()
     }
-    fn getAvatar(&self) -> Option<&str> {
-        self.getAvatar()
+    fn get_avatar(&self) -> Option<&str> {
+        self.get_avatar()
     }
 }
 

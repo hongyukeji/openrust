@@ -106,7 +106,7 @@ async fn independent_watchers_use_own_options_and_framework_event_switch_is_appl
     assert_eq!(entries[0].content["name"], "Application\\Visible");
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope
-        .ignoreFrameworkEvents
+        .ignore_framework_events
         .store(false, std::sync::atomic::Ordering::Release);
     app.get("/api/watchers").await.unwrap().assert_ok();
     let entries = repository
@@ -143,7 +143,7 @@ async fn independent_watchers_use_own_options_and_framework_event_switch_is_appl
             .make::<Telescope>()
             .await
             .unwrap()
-            .ignoreFrameworkEvents
+            .ignore_framework_events
             .load(std::sync::atomic::Ordering::Acquire)
     );
 }
@@ -183,7 +183,7 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
         .make::<Telescope>()
         .await
         .unwrap()
-        .hideResponseParameters(&["secret", "nested.password"]);
+        .hide_response_parameters(&["secret", "nested.password"]);
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         app.get(&format!("/api{path}")).await.unwrap().assert_ok();
     }
@@ -286,7 +286,7 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
         .await
         .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
-    telescope.hideResponseParameters(&["secret"]);
+    telescope.hide_response_parameters(&["secret"]);
     let client = app.app().make::<Factory>().await.unwrap();
     client.fake(|request| {
         Some(Ok(match request.url().path() {

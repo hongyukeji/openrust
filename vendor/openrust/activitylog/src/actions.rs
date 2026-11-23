@@ -9,26 +9,26 @@ pub struct LogActivityAction {
     callbacks: Arc<RwLock<Vec<BeforeLogging>>>,
 }
 impl LogActivityAction {
-    pub fn beforeLogging(
+    pub fn before_logging(
         &self,
         callback: impl Fn(&mut Activity) -> Result<()> + Send + Sync + 'static,
     ) {
         self.callbacks.write().unwrap().push(Arc::new(callback));
     }
-    pub fn clearBeforeLoggingCallbacks(&self) {
+    pub fn clear_before_logging_callbacks(&self) {
         self.callbacks.write().unwrap().clear();
     }
     pub fn execute(&self, activity: &mut Activity, description: String) -> Result<()> {
-        self.executeWith(activity, description, |_| Ok(()))
+        self.execute_with(activity, description, |_| Ok(()))
     }
-    pub(crate) fn executeWith(
+    pub(crate) fn execute_with(
         &self,
         activity: &mut Activity,
         description: String,
         before: impl FnOnce(&mut Activity) -> Result<()>,
     ) -> Result<()> {
         let description = activity.description.take().unwrap_or(description);
-        activity.description = Some(replacePlaceholders(&description, activity));
+        activity.description = Some(replace_placeholders(&description, activity));
         before(activity)?;
         // Clone before invoking user callbacks: callbacks may register or clear hooks themselves.
         let callbacks = self.callbacks.read().unwrap().clone();
@@ -38,7 +38,7 @@ impl LogActivityAction {
         Ok(())
     }
 }
-fn replacePlaceholders(description: &str, activity: &Activity) -> String {
+fn replace_placeholders(description: &str, activity: &Activity) -> String {
     let mut output = String::new();
     let mut remaining = description;
     while let Some(offset) = remaining.find(':') {
@@ -54,11 +54,11 @@ fn replacePlaceholders(description: &str, activity: &Activity) -> String {
                 "properties" => activity.properties.clone(),
                 "subject" => {
                     activity.subject.as_ref()?;
-                    activity.subjectAttributes.clone()
+                    activity.subject_attributes.clone()
                 }
                 "causer" => {
                     activity.causer.as_ref()?;
-                    activity.causerAttributes.clone()
+                    activity.causer_attributes.clone()
                 }
                 _ => return None,
             };
@@ -120,28 +120,30 @@ impl CleanActivityLogAction {
         }));
         self
     }
-    pub async fn execute(&self, maxAgeInDays: i64, logName: Option<&str>) -> Result<u64> {
+    pub async fn execute(&self, max_age_in_days: i64, log_name: Option<&str>) -> Result<u64> {
         if let Some(cleaner) = &self.cleaner {
             return cleaner(
                 self.repository.clone(),
-                maxAgeInDays,
-                logName.map(str::to_owned),
+                max_age_in_days,
+                log_name.map(str::to_owned),
             )
             .await;
         }
-        let cutoff = Self::getCutOffDate(maxAgeInDays)?;
-        self.repository.deleteOldActivities(cutoff, logName).await
+        let cutoff = Self::get_cut_off_date(max_age_in_days)?;
+        self.repository
+            .delete_old_activities(cutoff, log_name)
+            .await
     }
-    pub fn getCutOffDate(maxAgeInDays: i64) -> Result<i64> {
+    pub fn get_cut_off_date(max_age_in_days: i64) -> Result<i64> {
         use openrust::support::{Date, DateInterval, MonthOverflow};
-        if maxAgeInDays < 1 {
+        if max_age_in_days < 1 {
             return Err(crate::Error::InvalidActivity);
         }
         let now = Date::now(None).map_err(|_| crate::Error::InvalidConfiguration)?;
         let cutoff = now
             .minus(
                 DateInterval {
-                    days: maxAgeInDays,
+                    days: max_age_in_days,
                     ..DateInterval::default()
                 },
                 MonthOverflow::Carry,

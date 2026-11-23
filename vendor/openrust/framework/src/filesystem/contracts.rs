@@ -45,7 +45,7 @@ impl Filesystem for Adapter {
     }
     fn read_stream<'a>(&'a self, path: &'a str) -> Future<'a, Result<Option<Box<dyn FileStream>>>> {
         Box::pin(async move {
-            Ok(Self::readStream(self, path)
+            Ok(Self::read_stream(self, path)
                 .await?
                 .map(|r| Box::new(Reader(r)) as Box<dyn FileStream>))
         })
@@ -56,7 +56,7 @@ impl Filesystem for Adapter {
         contents: &'a [u8],
         options: &'a WriteOptions,
     ) -> Future<'a, Result<bool>> {
-        Box::pin(Self::putWithOptions(self, path, contents, *options))
+        Box::pin(Self::put_with_options(self, path, contents, *options))
     }
     fn put_file<'a>(
         &'a self,
@@ -64,7 +64,7 @@ impl Filesystem for Adapter {
         file: &'a mut UploadedFile,
         options: &'a WriteOptions,
     ) -> Future<'a, Result<Option<String>>> {
-        Box::pin(Self::putFile(self, path, file, *options))
+        Box::pin(Self::put_file(self, path, file, *options))
     }
     fn put_file_as<'a>(
         &'a self,
@@ -73,7 +73,7 @@ impl Filesystem for Adapter {
         name: &'a str,
         options: &'a WriteOptions,
     ) -> Future<'a, Result<Option<String>>> {
-        Box::pin(Self::putFileAs(self, path, file, name, *options))
+        Box::pin(Self::put_file_as(self, path, file, name, *options))
     }
     fn write_stream<'a>(
         &'a self,
@@ -90,24 +90,24 @@ impl Filesystem for Adapter {
                     .map(|chunk| chunk.map(|bytes| (axum::body::Bytes::from(bytes), stream)))
             });
             let mut reader = tokio_util::io::StreamReader::new(Box::pin(chunks));
-            Self::writeStreamWithOptions(self, path, &mut reader, *options).await
+            Self::write_stream_with_options(self, path, &mut reader, *options).await
         })
     }
     fn get_visibility<'a>(&'a self, path: &'a str) -> Future<'a, Result<Visibility>> {
-        Box::pin(Self::getVisibility(self, path))
+        Box::pin(Self::get_visibility(self, path))
     }
     fn set_visibility<'a>(
         &'a self,
         path: &'a str,
         visibility: Visibility,
     ) -> Future<'a, Result<bool>> {
-        Box::pin(Self::setVisibility(self, path, visibility))
+        Box::pin(Self::set_visibility(self, path, visibility))
     }
     fn size<'a>(&'a self, path: &'a str) -> Future<'a, Result<u64>> {
         Box::pin(Self::size(self, path))
     }
     fn last_modified<'a>(&'a self, path: &'a str) -> Future<'a, Result<SystemTime>> {
-        Box::pin(Self::lastModified(self, path))
+        Box::pin(Self::last_modified(self, path))
     }
     fn delete<'a>(&'a self, paths: &'a [&'a str]) -> Future<'a, Result<bool>> {
         Box::pin(async move {
@@ -144,16 +144,16 @@ impl Filesystem for Adapter {
     ) -> Future<'a, Result<Vec<String>>> {
         Box::pin(async move {
             if recursive {
-                Self::allDirectories(self, path).await
+                Self::all_directories(self, path).await
             } else {
                 Self::directories(self, path).await
             }
         })
     }
     fn make_directory<'a>(&'a self, path: &'a str) -> Future<'a, Result<bool>> {
-        Box::pin(Self::makeDirectory(self, path))
+        Box::pin(Self::make_directory(self, path))
     }
     fn delete_directory<'a>(&'a self, path: &'a str) -> Future<'a, Result<bool>> {
-        Box::pin(Self::deleteDirectory(self, path))
+        Box::pin(Self::delete_directory(self, path))
     }
 }

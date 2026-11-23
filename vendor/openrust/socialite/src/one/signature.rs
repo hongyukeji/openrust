@@ -43,8 +43,8 @@ pub fn sign(
     method: &str,
     endpoint: &str,
     parameters: &BTreeMap<String, String>,
-    consumerSecret: &str,
-    tokenSecret: &str,
+    consumer_secret: &str,
+    token_secret: &str,
 ) -> Result<String> {
     let mut url = url::Url::parse(endpoint).map_err(|_| Error::Configuration("OAuth1 endpoint"))?;
     if !matches!(url.scheme(), "http" | "https")
@@ -97,8 +97,8 @@ pub fn sign(
     let base = format!("{}&{}&{}", encode(method), encode(url.as_str()), query);
     let key = zeroize::Zeroizing::new(format!(
         "{}&{}",
-        encode(consumerSecret),
-        encode(tokenSecret)
+        encode(consumer_secret),
+        encode(token_secret)
     ));
     let key = aws_lc_rs::hmac::Key::new(
         aws_lc_rs::hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY,

@@ -99,12 +99,12 @@ struct Engine {
     generated: Mutex<Vec<usize>>,
 }
 impl openrust_fortify::contracts::TwoFactorAuthenticationProvider for Engine {
-    fn generateSecretKey(&self, length: usize) -> FortifyResult<String> {
+    fn generate_secret_key(&self, length: usize) -> FortifyResult<String> {
         self.generated.lock().unwrap().push(length);
         Ok(SECRET.into())
     }
-    fn qrCodeUrl(&self, company: &str, account: &str, secret: &str) -> String {
-        self.engine.qrCodeUrl(company, account, secret)
+    fn qr_code_url(&self, company: &str, account: &str, secret: &str) -> String {
+        self.engine.qr_code_url(company, account, secret)
     }
     fn verify<'a>(&'a self, secret: &'a str, code: &'a str) -> HttpFuture<'a, FortifyResult<bool>> {
         self.engine.verify(secret, code)
@@ -255,15 +255,15 @@ async fn start_configured(
         .unwrap()
         .register_model::<FactorUser>("FactorUser");
     let fortify = app.make::<Fortify>().await.unwrap();
-    fortify.registerTwoFactorAuthenticatable::<FactorUser>();
-    fortify.loginView("login");
-    fortify.twoFactorChallengeView(
+    fortify.register_two_factor_authenticatable::<FactorUser>();
+    fortify.login_view("login");
+    fortify.two_factor_challenge_view(
         openrust_fortify::http::responses::SimpleViewResponse::callback(Arc::new(|_| {
             Box::pin(async { Response::json(StatusCode::OK, json!({"challenge_view":true})) })
         })),
     );
     let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    fortify.generateRecoveryCodesUsing(Some(Arc::new(move || {
+    fortify.generate_recovery_codes_using(Some(Arc::new(move || {
         format!(
             "recovery-{}",
             count.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -273,8 +273,8 @@ async fn start_configured(
         .instance::<dyn openrust_fortify::contracts::TwoFactorAuthenticationProvider>(Arc::new(
             Engine {
                 engine: TwoFactorAuthenticationProvider::new(None)
-                    .withClock(|| Ok(59))
-                    .withWindow(0),
+                    .with_clock(|| Ok(59))
+                    .with_window(0),
                 generated: Mutex::new(Vec::new()),
             },
         ))
@@ -644,7 +644,7 @@ async fn callback_pipeline_prefix_paths_and_unconfirmed_optional_factor_follow_u
     let server=start(json!({"confirm":false,"confirmPassword":false}),json!({"prefix":"security","paths":{"two-factor":{"login":"/challenge","enable":"/enable"}},"home":"/account"})).await;
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let observed = calls.clone();
-    server.fortify.authenticateUsing(Arc::new(move |request| {
+    server.fortify.authenticate_using(Arc::new(move |request| {
         let calls = observed.clone();
         Box::pin(async move {
             calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -894,7 +894,7 @@ async fn broken_encryption_and_missing_accounts_preserve_upstream_challenge_cons
     client.send("POST", "/login", LOGIN, 200).await;
     server
         .fortify
-        .generateRecoveryCodesUsing(Some(Arc::new(|| "replacement".into())));
+        .generate_recovery_codes_using(Some(Arc::new(|| "replacement".into())));
     server
         .database
         .statement(

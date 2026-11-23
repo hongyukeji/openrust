@@ -9,7 +9,6 @@ use std::sync::Arc;
 pub struct Features {
     config: Arc<dyn Repository>,
 }
-#[allow(non_snake_case, reason = "Matches Fortify's feature API")]
 impl Features {
     pub fn new(config: Arc<dyn Repository>) -> Self {
         Self { config }
@@ -29,18 +28,18 @@ impl Features {
             }),
         }
     }
-    pub fn optionEnabled(&self, feature: &str, option: &str) -> Result<bool, ConfigError> {
+    pub fn option_enabled(&self, feature: &str, option: &str) -> Result<bool, ConfigError> {
         Ok(self.enabled(feature)?
             && self
                 .config
                 .get(&format!("fortify-options.{feature}.{option}"))
                 == Some(Value::Bool(true)))
     }
-    pub fn hasProfileFeatures(&self) -> Result<bool, ConfigError> {
+    pub fn has_profile_features(&self) -> Result<bool, ConfigError> {
         for feature in [
-            Self::updateProfileInformation(),
-            Self::updatePasswords(),
-            Self::twoFactorAuthentication(),
+            Self::update_profile_information(),
+            Self::update_passwords(),
+            Self::two_factor_authentication(),
             Self::passkeys(),
         ] {
             if self.enabled(feature)? {
@@ -49,52 +48,52 @@ impl Features {
         }
         Ok(false)
     }
-    pub fn canUpdateProfileInformation(&self) -> Result<bool, ConfigError> {
-        self.enabled(Self::updateProfileInformation())
+    pub fn can_update_profile_information(&self) -> Result<bool, ConfigError> {
+        self.enabled(Self::update_profile_information())
     }
-    pub fn hasSecurityFeatures(&self) -> Result<bool, ConfigError> {
-        Ok(self.canUpdatePasswords()?
-            || self.canManageTwoFactorAuthentication()?
-            || self.canManagePasskeys()?)
+    pub fn has_security_features(&self) -> Result<bool, ConfigError> {
+        Ok(self.can_update_passwords()?
+            || self.can_manage_two_factor_authentication()?
+            || self.can_manage_passkeys()?)
     }
-    pub fn canUpdatePasswords(&self) -> Result<bool, ConfigError> {
-        self.enabled(Self::updatePasswords())
+    pub fn can_update_passwords(&self) -> Result<bool, ConfigError> {
+        self.enabled(Self::update_passwords())
     }
-    pub fn canManageTwoFactorAuthentication(&self) -> Result<bool, ConfigError> {
-        self.enabled(Self::twoFactorAuthentication())
+    pub fn can_manage_two_factor_authentication(&self) -> Result<bool, ConfigError> {
+        self.enabled(Self::two_factor_authentication())
     }
-    pub fn canManagePasskeys(&self) -> Result<bool, ConfigError> {
+    pub fn can_manage_passkeys(&self) -> Result<bool, ConfigError> {
         self.enabled(Self::passkeys())
     }
     pub fn registration() -> &'static str {
         "registration"
     }
-    pub fn resetPasswords() -> &'static str {
+    pub fn reset_passwords() -> &'static str {
         "reset-passwords"
     }
-    pub fn emailVerification() -> &'static str {
+    pub fn email_verification() -> &'static str {
         "email-verification"
     }
-    pub fn updateProfileInformation() -> &'static str {
+    pub fn update_profile_information() -> &'static str {
         "update-profile-information"
     }
-    pub fn updatePasswords() -> &'static str {
+    pub fn update_passwords() -> &'static str {
         "update-passwords"
     }
-    pub fn twoFactorAuthentication() -> &'static str {
+    pub fn two_factor_authentication() -> &'static str {
         "two-factor-authentication"
     }
     pub fn passkeys() -> &'static str {
         "passkeys"
     }
     /// Rust expresses PHP's optional argument with a separate named method.
-    pub fn twoFactorAuthenticationWithOptions(
+    pub fn two_factor_authentication_with_options(
         &self,
         options: Map<String, Value>,
     ) -> Result<&'static str, ConfigError> {
-        self.set_options(Self::twoFactorAuthentication(), options)
+        self.set_options(Self::two_factor_authentication(), options)
     }
-    pub fn passkeysWithOptions(
+    pub fn passkeys_with_options(
         &self,
         options: Map<String, Value>,
     ) -> Result<&'static str, ConfigError> {

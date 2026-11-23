@@ -13,7 +13,7 @@ pub struct SupervisorProcess {
     name: String,
     options: SupervisorOptions,
     process: Option<InvokedProcess>,
-    restartAgainAt: Instant,
+    restart_again_at: Instant,
     dead: bool,
 }
 
@@ -27,7 +27,7 @@ pub struct MasterSupervisor {
     id: String,
     supervisors: Vec<SupervisorProcess>,
     failures: u64,
-    fastTermination: bool,
+    fast_termination: bool,
 }
 impl MasterSupervisor {
     pub fn new(
@@ -53,14 +53,14 @@ impl MasterSupervisor {
             id: uuid::Uuid::now_v7().to_string(),
             supervisors: Vec::new(),
             failures: 0,
-            fastTermination: false,
+            fast_termination: false,
         })
     }
-    pub fn fastTermination(mut self, enabled: bool) -> Self {
-        self.fastTermination = enabled;
+    pub fn fast_termination(mut self, enabled: bool) -> Self {
+        self.fast_termination = enabled;
         self
     }
-    pub fn memoryUsage(&self) -> f64 {
+    pub fn memory_usage(&self) -> f64 {
         memory_stats::memory_stats().map_or(0., |usage| usage.physical_mem as f64 / 1024. / 1024.)
     }
     pub fn name(&self) -> &str {
@@ -70,12 +70,12 @@ impl MasterSupervisor {
         let generation = self.repository.generation().await?;
         for (name, mut options) in self.options.clone() {
             options.name = format!("{}:{name}", self.id);
-            options.parentId = std::process::id();
+            options.parent_id = std::process::id();
             self.supervisors.push(SupervisorProcess {
                 name: options.name.clone(),
                 options,
                 process: None,
-                restartAgainAt: Instant::now(),
+                restart_again_at: Instant::now(),
                 dead: false,
             });
         }
@@ -90,16 +90,16 @@ impl MasterSupervisor {
             }
         };
         let cleanup = self.stop().await;
-        let forget = self.repository.forgetMaster(&self.id).await;
+        let forget = self.repository.forget_master(&self.id).await;
         result.and(cleanup).and(forget)
     }
     async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
-        let memoryLimit = openrust::support::facades::Config::get_facade_root()
+        let memory_limit = openrust::support::facades::Config::get_facade_root()
             .map_err(|_| Error::Unavailable)?
             .get("horizon.memory_limit")
             .and_then(|value| value.as_u64())
             .unwrap_or(64);
-        if self.memoryUsage() > memoryLimit as f64 {
+        if self.memory_usage() > memory_limit as f64 {
             return Err(Error::MemoryLimitExceeded);
         }
         if &self.repository.generation().await? != generation {
@@ -128,15 +128,15 @@ impl MasterSupervisor {
                         .failures
                         .saturating_add(previous["unexpected_exits"].as_u64().unwrap_or(0));
                 }
-                self.repository.forgetSupervisor(&supervisor.name).await?;
+                self.repository.forget_supervisor(&supervisor.name).await?;
             }
             if supervisor.dead
                 || supervisor.process.is_some()
-                || Instant::now() < supervisor.restartAgainAt
+                || Instant::now() < supervisor.restart_again_at
             {
                 continue;
             }
-            let mut arguments = supervisor.options.toSupervisorCommand(&self.executable)?;
+            let mut arguments = supervisor.options.to_supervisor_command(&self.executable)?;
             if paused {
                 arguments.push("--paused".into());
             }
@@ -151,7 +151,7 @@ impl MasterSupervisor {
                     .map_err(|_| Error::Process)?,
             );
             // Failed children cannot spin in a tight restart loop.
-            supervisor.restartAgainAt = Instant::now() + Duration::from_secs(1);
+            supervisor.restart_again_at = Instant::now() + Duration::from_secs(1);
         }
         let states = self.repository.supervisors().await?;
         let states: Vec<_> = states
@@ -199,7 +199,7 @@ impl MasterSupervisor {
                 failed |= crate::signals::terminate(process).await.is_err();
             }
         }
-        let wait = !self.fastTermination || self.repository.terminationWait().await?;
+        let wait = !self.fast_termination || self.repository.termination_wait().await?;
         for supervisor in &mut self.supervisors {
             if let Some(process) = supervisor.process.take() {
                 if wait {
@@ -210,7 +210,7 @@ impl MasterSupervisor {
             }
             failed |= self
                 .repository
-                .forgetSupervisor(&supervisor.name)
+                .forget_supervisor(&supervisor.name)
                 .await
                 .is_err();
         }

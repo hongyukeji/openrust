@@ -60,13 +60,13 @@ Run the registered development processes together from the application directory
 
 Output lines are labelled by process and retain stdout or stderr. `--timestamps` adds UTC times to inline output. `--json` emits one versioned event per line, including process starts, output, exits, retry attempts and a final `done` event.
 
-A process that fails after running for at least one second is retried up to five times with a one-second delay. A process that exits successfully is finished. A process that fails within a second is reported immediately. Disable retries for a run with `--no-restart`, or for the application with `DevCommands::disableAutoRestart()`. Use `DevCommands::with_timestamps()` to enable timestamps by default. The first permanent failure determines the exit code while other processes can keep running.
+A process that fails after running for at least one second is retried up to five times with a one-second delay. A process that exits successfully is finished. A process that fails within a second is reported immediately. Disable retries for a run with `--no-restart`, or for the application with `DevCommands::disable_auto_restart()`. Use `DevCommands::with_timestamps()` to enable timestamps by default. The first permanent failure determines the exit code while other processes can keep running.
 
 A usable Unix terminal opens the tabbed view by default. Start in the interleaved view with `--stream`. Redirected output, small terminals, Windows, `--inline`, and `--json` use the inline path. Interactive sessions return status 0 on normal exit, while inline and JSON runs report the first permanent failure.
 
 Use `1`–`9` to select a tab, or focus the sidebar with Tab and use the arrow keys. Press `s` for the stream, `t` for tabs, `f` to filter the stream, `r` to restart the selected tab's process, and `c` to clear the current view. Search with `/`, then use `n` or `N` to move between matches. Use arrows or Page Up and Page Down to scroll logs.
 
-`--buffer-size` and `--stream-buffer-size` control retained lines per tab and in the stream. The defaults are 2,000 and 10,000 lines. The application can configure these through `DevCommands::bufferSize()` and `streamBufferSize()`, and select its default mode with `tabs()`, `stream()`, or `inline()`.
+`--buffer-size` and `--stream-buffer-size` control retained lines per tab and in the stream. The defaults are 2,000 and 10,000 lines. The application can configure these through `DevCommands::buffer_size()` and `stream_buffer_size()`, and select its default mode with `tabs()`, `stream()`, or `inline()`.
 
 Press `q` or Ctrl+C to exit. Unix termination signals also request shutdown and allow up to six seconds for child processes to exit. Artisan restores the terminal and prints the retained stream to the corresponding output streams. The optional [Pail command](../the-basics/logging.md#tailing-log-messages-using-pail) can also run independently.
 
@@ -74,7 +74,7 @@ Press Ctrl+C in the Windows console to request shutdown. Each development comman
 
 ### Listing Development Processes
 
-Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. When the optional Pail provider is loaded, `logs` follows with `pail --timeout=0`, before Vite. This is a framework default, so it survives vendor-only exclusion and is removed by `withoutDefaultCommands()`. A package or application entry named `logs` can override it.
+Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. When the optional Pail provider is loaded, `logs` follows with `pail --timeout=0`, before Vite. This is a framework default, so it survives vendor-only exclusion and is removed by `without_default_commands()`. A package or application entry named `logs` can override it.
 
 ```sh
 ./artisan dev:list
@@ -90,7 +90,7 @@ In the `boot` method of your application service provider, use `openrust::founda
 DevCommands::artisan("serve --port=9000", Some("server"))?.green();
 ```
 
-Use `register` for shell commands and `node` or `nodeExec` for package-manager commands. Pass `None` to use the first word of the command as its name. `only`, `except`, `order`, `withoutVendorCommands`, and `withoutDefaultCommands` customize the application registry. Package registrations are recognized by their Rust caller's source path.
+Use `register` for shell commands and `node` or `node_exec` for package-manager commands. Pass `None` to use the first word of the command as its name. `only`, `except`, `order`, `without_vendor_commands`, and `without_default_commands` customize the application registry. Package registrations are recognized by their Rust caller's source path.
 
 ## Command Help and Output Formats {#command-help-and-output-formats}
 

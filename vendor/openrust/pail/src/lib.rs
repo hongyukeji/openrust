@@ -61,7 +61,7 @@ impl ServiceProvider for PailServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let environment = app.make::<Environment>().await?;
-            if !self.runningPailTests(&environment)?
+            if !self.running_pail_tests(&environment)?
                 && (app.running_unit_tests()? || truthy(environment.get_utf8("VAPOR_SSM_PATH")?))
             {
                 return Ok(());
@@ -107,9 +107,8 @@ impl ServiceProvider for PailServiceProvider {
 }
 
 impl PailServiceProvider {
-    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     // Env::get normalizes reserved values before PHP casts PAIL_TESTS to bool.
-    fn runningPailTests(
+    fn running_pail_tests(
         &self,
         environment: &Environment,
     ) -> Result<bool, openrust::config::ConfigError> {

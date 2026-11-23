@@ -336,9 +336,9 @@ async fn verify_token_storage(db: &Connection) {
     assert_eq!(hash.len(), 64);
     assert!(hash.bytes().all(|byte| byte.is_ascii_hexdigit()));
     assert_ne!(hash, secret);
-    assert!(store.findToken(hash).await.unwrap().is_none());
+    assert!(store.find_token(hash).await.unwrap().is_none());
     for credential in [issued.plain_text_token.as_str(), secret] {
-        let token = store.findToken(credential).await.unwrap().unwrap();
+        let token = store.find_token(credential).await.unwrap().unwrap();
         assert_eq!(token.id, issued.access_token.id);
         assert_eq!(
             (token.tokenable_type.as_str(), &token.tokenable_id),
@@ -364,7 +364,7 @@ async fn verify_token_storage(db: &Connection) {
         "18446744073709551616|invalid",
         "1|invalid",
     ] {
-        assert!(store.findToken(invalid).await.unwrap().is_none());
+        assert!(store.find_token(invalid).await.unwrap().is_none());
     }
     let (a, b) = tokio::join!(
         store.create_token("users", 42, "one", &["*"], None),
@@ -374,13 +374,13 @@ async fn verify_token_storage(db: &Connection) {
     assert_ne!(a.plain_text_token.as_str(), b.plain_text_token.as_str());
     assert!(a.access_token.can("write"));
     let id = issued.access_token.id;
-    assert!(!store.revokeToken("other", 42, id.clone()).await.unwrap());
-    assert!(!store.revokeToken("users", 43, id.clone()).await.unwrap());
-    assert!(store.revokeToken("users", 42, id.clone()).await.unwrap());
-    assert!(!store.revokeToken("users", 42, id.clone()).await.unwrap());
+    assert!(!store.revoke_token("other", 42, id.clone()).await.unwrap());
+    assert!(!store.revoke_token("users", 43, id.clone()).await.unwrap());
+    assert!(store.revoke_token("users", 42, id.clone()).await.unwrap());
+    assert!(!store.revoke_token("users", 42, id.clone()).await.unwrap());
     assert!(
         store
-            .findToken(&issued.plain_text_token)
+            .find_token(&issued.plain_text_token)
             .await
             .unwrap()
             .is_none()
@@ -613,19 +613,19 @@ async fn verify_batches(db: Connection) {
         repository.find(&batch.id).await.unwrap(),
         Some(batch.clone())
     );
-    assert!(batch.allowsFailures());
+    assert!(batch.allows_failures());
     assert!(!batch.finished());
     assert_eq!(batch.progress(), 0);
 
     let batch_id = &batch.id;
-    repository.incrementTotalJobs(batch_id, 8).await.unwrap();
+    repository.increment_total_jobs(batch_id, 8).await.unwrap();
     let mut jobs = tokio::task::JoinSet::new();
     for index in 0..8 {
         let repository = repository.clone();
         let id = batch.id.clone();
         jobs.spawn(async move {
             repository
-                .decrementPendingJobs(&id, &format!("job-{index}"))
+                .decrement_pending_jobs(&id, &format!("job-{index}"))
                 .await
                 .unwrap()
         });
@@ -633,7 +633,11 @@ async fn verify_batches(db: Connection) {
     while let Some(outcome) = jobs.join_next().await {
         assert!(outcome.unwrap().is_some());
     }
-    let batch = repository.markAsFinished(batch_id).await.unwrap().unwrap();
+    let batch = repository
+        .mark_as_finished(batch_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(batch.pending_jobs, 0);
     assert_eq!(batch.progress(), 100);
     let json = serde_json::to_value(&batch).unwrap();
@@ -644,14 +648,14 @@ async fn verify_batches(db: Connection) {
     assert!(batch.finished());
     assert!(
         repository
-            .decrementPendingJobs(batch_id, "underflow")
+            .decrement_pending_jobs(batch_id, "underflow")
             .await
             .is_err()
     );
     assert_eq!(repository.find(batch_id).await.unwrap(), Some(batch));
 
     let pending = repository
-        .incrementTotalJobs(batch_id, 2)
+        .increment_total_jobs(batch_id, 2)
         .await
         .unwrap()
         .unwrap();
@@ -659,7 +663,7 @@ async fn verify_batches(db: Connection) {
     assert!(!pending.finished());
     for _ in 0..2 {
         let failure = repository
-            .incrementFailedJobs(batch_id, "job-failed")
+            .increment_failed_jobs(batch_id, "job-failed")
             .await
             .unwrap()
             .unwrap();
@@ -668,7 +672,7 @@ async fn verify_batches(db: Connection) {
         assert_eq!(failure.failed_job_ids, ["job-failed"]);
     }
     let retried = repository
-        .decrementPendingJobs(batch_id, "job-failed")
+        .decrement_pending_jobs(batch_id, "job-failed")
         .await
         .unwrap()
         .unwrap();

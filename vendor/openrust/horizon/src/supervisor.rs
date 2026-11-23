@@ -26,11 +26,11 @@ pub struct Supervisor {
     id: String,
     pools: BTreeMap<String, ProcessPool>,
     parent: u32,
-    initiallyPaused: bool,
+    initially_paused: bool,
     balanced: BTreeMap<String, Instant>,
     targets: BTreeMap<String, Vec<usize>>,
     failures: u64,
-    fastTermination: bool,
+    fast_termination: bool,
 }
 impl Supervisor {
     pub fn new(
@@ -47,7 +47,7 @@ impl Supervisor {
             }
             option.validate()?;
         }
-        let parent = options.values().next().map_or(0, |option| option.parentId);
+        let parent = options.values().next().map_or(0, |option| option.parent_id);
         let pools = options
             .values()
             .flat_map(|option| option.pools())
@@ -57,7 +57,7 @@ impl Supervisor {
                     ProcessPool {
                         workers: Vec::new(),
                         desired: 0,
-                        restartAgainAt: Instant::now(),
+                        restart_again_at: Instant::now(),
                     },
                 )
             })
@@ -78,30 +78,30 @@ impl Supervisor {
             id,
             pools,
             parent,
-            initiallyPaused: false,
+            initially_paused: false,
             balanced: BTreeMap::new(),
             targets: BTreeMap::new(),
             failures: 0,
-            fastTermination: false,
+            fast_termination: false,
         })
     }
-    pub fn fastTermination(mut self, enabled: bool) -> Self {
-        self.fastTermination = enabled;
+    pub fn fast_termination(mut self, enabled: bool) -> Self {
+        self.fast_termination = enabled;
         self
     }
-    pub fn memoryUsage(&self) -> f64 {
+    pub fn memory_usage(&self) -> f64 {
         memory_stats::memory_stats().map_or(0., |usage| usage.physical_mem as f64 / 1024. / 1024.)
     }
     pub fn name(&self) -> &str {
         &self.id
     }
     pub fn paused(mut self, paused: bool) -> Self {
-        self.initiallyPaused = paused;
+        self.initially_paused = paused;
         self
     }
     pub async fn run(mut self, shutdown: &CancellationToken) -> Result<()> {
-        if self.initiallyPaused && !self.repository.paused().await? {
-            self.repository.pauseSupervisor(&self.id).await?;
+        if self.initially_paused && !self.repository.paused().await? {
+            self.repository.pause_supervisor(&self.id).await?;
         }
         // Upstream provisions an initial balanced worker count before auto-scaling.
         let option = self
@@ -111,7 +111,7 @@ impl Supervisor {
             .cloned()
             .ok_or(Error::InvalidConfiguration)?;
         let initial =
-            option.minProcesses.saturating_add(option.maxProcesses) / 2 / self.pools.len();
+            option.min_processes.saturating_add(option.max_processes) / 2 / self.pools.len();
         for queue in option.pools() {
             self.resize(&queue, &option, initial).await?;
         }
@@ -123,8 +123,8 @@ impl Supervisor {
                 _=shutdown.cancelled()=>break Ok(()),
                 _=ticker.tick()=>{},
                 paused=control.next()=>{
-                    if paused { self.repository.pauseSupervisor(&self.id).await?; }
-                    else { self.repository.continueSupervisor(&self.id).await?; }
+                    if paused { self.repository.pause_supervisor(&self.id).await?; }
+                    else { self.repository.continue_supervisor(&self.id).await?; }
                     continue;
                 }
             }
@@ -135,30 +135,30 @@ impl Supervisor {
             }
         };
         let cleanup = self.stop().await;
-        let forget = self.repository.forgetSupervisor(&self.id).await;
+        let forget = self.repository.forget_supervisor(&self.id).await;
         result.and(cleanup).and(forget)
     }
     async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
-        let memoryLimit = self
+        let memory_limit = self
             .options
             .values()
             .next()
             .ok_or(Error::InvalidConfiguration)?
             .memory as u64;
-        if self.memoryUsage() > memoryLimit as f64 {
+        if self.memory_usage() > memory_limit as f64 {
             return Err(Error::MemoryLimitExceeded);
         }
         if &self.repository.generation().await? != generation {
             return Ok(false);
         }
-        if self.parent > 1 && !parentIsRunning(self.parent).await? {
+        if self.parent > 1 && !parent_is_running(self.parent).await? {
             return Ok(false);
         }
-        for command in self.repository.popCommands(&self.id).await? {
+        for command in self.repository.pop_commands(&self.id).await? {
             match command.as_str() {
                 "terminate" => return Ok(false),
-                "pause" => self.repository.pauseSupervisor(&self.id).await?,
-                "continue" => self.repository.continueSupervisor(&self.id).await?,
+                "pause" => self.repository.pause_supervisor(&self.id).await?,
+                "continue" => self.repository.continue_supervisor(&self.id).await?,
                 "restart" => {
                     let option = self
                         .options
@@ -167,7 +167,7 @@ impl Supervisor {
                         .cloned()
                         .ok_or(Error::InvalidConfiguration)?;
                     for queue in option.pools() {
-                        let count = self.pools[&queue].activeProcessCount();
+                        let count = self.pools[&queue].active_process_count();
                         self.resize(&queue, &option, 0).await?;
                         self.resize(&queue, &option, count).await?;
                     }
@@ -176,7 +176,7 @@ impl Supervisor {
             }
         }
         let paused =
-            self.repository.paused().await? || self.repository.supervisorPaused(&self.id).await?;
+            self.repository.paused().await? || self.repository.supervisor_paused(&self.id).await?;
         for pool in self.pools.values_mut() {
             let mut index = 0;
             while index < pool.workers.len() {
@@ -184,7 +184,7 @@ impl Supervisor {
                     let worker = pool.workers.remove(index);
                     let result = worker.process.wait().await.map_err(|_| Error::Process)?;
                     if worker.stopping.is_none() {
-                        pool.restartAgainAt = Instant::now() + Duration::from_secs(1);
+                        pool.restart_again_at = Instant::now() + Duration::from_secs(1);
                     }
                     if result.failed() && worker.stopping.is_none() {
                         self.failures = self.failures.saturating_add(1);
@@ -213,7 +213,8 @@ impl Supervisor {
                 .ok_or(Error::InvalidConfiguration)?;
             for queue in option.pools() {
                 let pool = &self.pools[&queue];
-                if pool.activeProcessCount() < pool.desired && Instant::now() >= pool.restartAgainAt
+                if pool.active_process_count() < pool.desired
+                    && Instant::now() >= pool.restart_again_at
                 {
                     let target = pool.desired;
                     self.resize(&queue, &option, target).await?;
@@ -223,7 +224,7 @@ impl Supervisor {
                 if self
                     .balanced
                     .get(&name)
-                    .is_some_and(|at| at.elapsed() < Duration::from_secs(options.balanceCooldown))
+                    .is_some_and(|at| at.elapsed() < Duration::from_secs(options.balance_cooldown))
                 {
                     continue;
                 }
@@ -249,12 +250,12 @@ impl Supervisor {
                                 .repository
                                 .metrics(&options.connection, queue)
                                 .await?
-                                .runtimeForQueue();
+                                .runtime_for_queue();
                     }
                     sizes.push(size);
                     runtimes.push(if size == 0 { 0. } else { time / size as f64 });
                 }
-                let targets = AutoScaler::numberOfWorkersPerQueue(&options, &sizes, &runtimes)?;
+                let targets = AutoScaler::number_of_workers_per_queue(&options, &sizes, &runtimes)?;
                 let mut pools: Vec<_> = options
                     .pools()
                     .into_iter()
@@ -269,29 +270,33 @@ impl Supervisor {
                         .collect(),
                 );
                 for (queue, target) in pools {
-                    self.scalePool(&name, &queue, &options, target).await?;
+                    self.scale_pool(&name, &queue, &options, target).await?;
                 }
             }
         }
         let workers:Vec<_>=self.pools.values().flat_map(|pool| &pool.workers).map(|w|serde_json::json!({"supervisor":w.supervisor,"queue":w.queue,"pid":w.process.id(),"terminating":w.stopping.is_some()})).collect();
-        self.repository.heartbeatSupervisor(&self.id,&serde_json::json!({"name":self.id,"master":self.id.rsplit_once(':').map(|(master,_)|master),"pid":std::process::id(),"status":if paused{"paused"}else{"running"},"workers":workers,"targets":self.targets,"unexpected_exits":self.failures,"options":self.options.values().next(),"processes":self.pools.iter().map(|(queue,pool)|(format!("{}:{queue}",self.options.values().next().expect("validated options").connection),pool.activeProcessCount())).collect::<BTreeMap<_,_>>() })).await?;
+        self.repository.heartbeat_supervisor(&self.id,&serde_json::json!({"name":self.id,"master":self.id.rsplit_once(':').map(|(master,_)|master),"pid":std::process::id(),"status":if paused{"paused"}else{"running"},"workers":workers,"targets":self.targets,"unexpected_exits":self.failures,"options":self.options.values().next(),"processes":self.pools.iter().map(|(queue,pool)|(format!("{}:{queue}",self.options.values().next().expect("validated options").connection),pool.active_process_count())).collect::<BTreeMap<_,_>>() })).await?;
         Ok(true)
     }
-    async fn scalePool(
+    async fn scale_pool(
         &mut self,
         name: &str,
         queue: &str,
         options: &SupervisorOptions,
         workers: f64,
     ) -> Result<()> {
-        let totalProcessCount = self.pools[queue].totalProcessCount();
-        let supervisorProcessCount = self
+        let total_process_count = self.pools[queue].total_process_count();
+        let supervisor_process_count = self
             .pools
             .values()
-            .map(ProcessPool::totalProcessCount)
+            .map(ProcessPool::total_process_count)
             .sum();
-        let Some(target) =
-            AutoScaler::scalePool(options, totalProcessCount, supervisorProcessCount, workers)?
+        let Some(target) = AutoScaler::scale_pool(
+            options,
+            total_process_count,
+            supervisor_process_count,
+            workers,
+        )?
         else {
             return Ok(());
         };
@@ -309,7 +314,7 @@ impl Supervisor {
             .get_mut(queue)
             .ok_or(Error::InvalidConfiguration)?;
         pool.desired = target;
-        let active = pool.activeProcessCount();
+        let active = pool.active_process_count();
         if active > target {
             let mut remaining = active - target;
             for worker in pool.workers.iter_mut().filter(|w| w.stopping.is_none()) {
@@ -322,10 +327,10 @@ impl Supervisor {
             }
         } else {
             for _ in 0..target - active {
-                let mut workerOptions = options.withQueue(queue);
+                let mut worker_options = options.with_queue(queue);
                 // The dedicated supervisor already applied nice; workers inherit it.
-                workerOptions.nice = 0;
-                let args = workerOptions.toWorkerCommand(&self.executable)?;
+                worker_options.nice = 0;
+                let args = worker_options.to_worker_command(&self.executable)?;
                 let process = self
                     .factory
                     .command(args)
@@ -362,7 +367,7 @@ impl Supervisor {
         for worker in self.pools.values().flat_map(|pool| &pool.workers) {
             failed |= crate::signals::terminate(&worker.process).await.is_err();
         }
-        let wait = !self.fastTermination || self.repository.terminationWait().await?;
+        let wait = !self.fast_termination || self.repository.termination_wait().await?;
         for worker in self
             .pools
             .values_mut()
@@ -384,13 +389,13 @@ impl Supervisor {
 pub struct ProcessPool {
     workers: Vec<WorkerProcess>,
     desired: usize,
-    restartAgainAt: Instant,
+    restart_again_at: Instant,
 }
 impl ProcessPool {
-    pub fn totalProcessCount(&self) -> usize {
+    pub fn total_process_count(&self) -> usize {
         self.workers.len()
     }
-    pub fn activeProcessCount(&self) -> usize {
+    pub fn active_process_count(&self) -> usize {
         self.workers
             .iter()
             .filter(|worker| worker.stopping.is_none())
@@ -398,7 +403,7 @@ impl ProcessPool {
     }
 }
 
-async fn parentIsRunning(parent: u32) -> Result<bool> {
+async fn parent_is_running(parent: u32) -> Result<bool> {
     #[cfg(unix)]
     {
         Ok(rustix::process::getppid().is_some_and(|pid| pid.as_raw_pid() as u32 == parent))

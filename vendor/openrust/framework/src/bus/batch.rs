@@ -24,7 +24,6 @@ pub struct Batch {
     pub finished_at: Option<Timestamp>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Batch {
     /// Appends jobs to the persisted batch and returns its updated snapshot.
     #[allow(clippy::should_implement_trait, reason = "保留既定公开接口及命名")]
@@ -34,7 +33,7 @@ impl Batch {
     }
 
     /// Appends a sequence to the persisted batch.
-    pub async fn addChain(
+    pub async fn add_chain(
         &self,
         jobs: impl IntoIterator<Item = Payload>,
     ) -> QueueResult<Option<Self>> {
@@ -42,7 +41,7 @@ impl Batch {
         Queue::manager()?.append_batch(&self.id, vec![chain]).await
     }
 
-    pub fn processedJobs(&self) -> u32 {
+    pub fn processed_jobs(&self) -> u32 {
         self.total_jobs.saturating_sub(self.pending_jobs)
     }
 
@@ -51,7 +50,7 @@ impl Batch {
             return 0;
         }
         let total = u64::from(self.total_jobs);
-        let processed = u64::from(self.processedJobs());
+        let processed = u64::from(self.processed_jobs());
         ((100 * processed + total / 2) / total) as u32
     }
 
@@ -71,7 +70,7 @@ impl Batch {
         self.failed_jobs != 0
     }
 
-    pub fn allowsFailures(&self) -> bool {
+    pub fn allows_failures(&self) -> bool {
         self.options
             .get("allowFailures")
             .and_then(Value::as_bool)
@@ -86,7 +85,7 @@ impl Serialize for Batch {
         batch.serialize_field("name", &self.name)?;
         batch.serialize_field("totalJobs", &self.total_jobs)?;
         batch.serialize_field("pendingJobs", &self.pending_jobs)?;
-        batch.serialize_field("processedJobs", &self.processedJobs())?;
+        batch.serialize_field("processedJobs", &self.processed_jobs())?;
         batch.serialize_field("progress", &self.progress())?;
         batch.serialize_field("failedJobs", &self.failed_jobs)?;
         batch.serialize_field("options", &self.options)?;

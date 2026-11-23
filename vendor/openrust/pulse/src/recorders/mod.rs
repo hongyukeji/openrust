@@ -27,11 +27,11 @@ impl Recorders {
             only: None,
         }
     }
-    pub fn withBasePath(mut self, path: std::path::PathBuf) -> Self {
+    pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
         self.base_path = Some(path);
         self
     }
-    fn resolveLocation(&self) -> String {
+    fn resolve_location(&self) -> String {
         let mut location = String::new();
         backtrace::trace(|frame| {
             backtrace::resolve_frame(frame, |symbol| {
@@ -122,7 +122,7 @@ impl Recorders {
             {
                 Value::Null
             } else {
-                Value::String(self.resolveLocation())
+                Value::String(self.resolve_location())
             };
             pulse
                 .lazy(move |pulse| {
@@ -171,7 +171,7 @@ impl Recorders {
                     format!("/{}", route.uri)
                 }
             );
-            let user = pulse.resolveAuthenticatedUserId();
+            let user = pulse.resolve_authenticated_user_id();
             let duration = e.duration.as_millis() as i64;
             if self.accepts("SlowRequests", &path, Some(duration), None)? {
                 pulse
@@ -277,7 +277,7 @@ impl Recorders {
                 let uuid = job.uuid().to_owned();
                 let connection = connection.clone();
                 let queue = queue.clone();
-                let user = pulse.authenticatedUserIdResolver();
+                let user = pulse.authenticated_user_id_resolver();
                 pulse
                     .lazy(move |pulse| {
                         Box::pin(async move {
@@ -287,14 +287,14 @@ impl Recorders {
                                         kind,
                                         format!(
                                             "{connection}:{}",
-                                            recorder.normalizeSqsQueue(&connection, &queue)
+                                            recorder.normalize_sqs_queue(&connection, &queue)
                                         ),
                                         None,
                                         Some(now),
                                     )
                                     .await
                                     .count()
-                                    .onlyBuckets();
+                                    .only_buckets();
                             }
                             if kind == "queued"
                                 && let Some(user) = user(pulse)
@@ -378,7 +378,7 @@ impl Recorders {
         }
         Ok(())
     }
-    pub fn normalizeSqsQueue(&self, connection: &str, queue: &str) -> String {
+    pub fn normalize_sqs_queue(&self, connection: &str, queue: &str) -> String {
         let config = self
             .config
             .get(&format!("queue.connections.{connection}"))
@@ -415,14 +415,14 @@ impl Recorders {
             .lazy(move |pulse| {
                 Box::pin(async move {
                     recorder
-                        .outgoingNow(pulse, &method, &url, duration, timestamp)
+                        .outgoing_now(pulse, &method, &url, duration, timestamp)
                         .await
                 })
             })
             .await;
         Ok(())
     }
-    async fn outgoingNow(
+    async fn outgoing_now(
         &self,
         pulse: &Pulse,
         method: &str,
@@ -464,7 +464,7 @@ macro_rules! recorder {
             pub fn new(config: Arc<dyn Repository>) -> Self {
                 let mut inner = Recorders::new(config); inner.only = Some(stringify!($name)); Self(inner)
             }
-            pub fn withBasePath(mut self, path: std::path::PathBuf) -> Self { self.0.base_path = Some(path); self }
+            pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self { self.0.base_path = Some(path); self }
         }
         impl Recorder for $name {
             fn name(&self) -> &'static str { stringify!($name) }
@@ -535,21 +535,21 @@ impl Listener for NativeListener {
         _: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
-            if !Pulse::isIgnoring(&self.options)
+            if !Pulse::is_ignoring(&self.options)
                 && let Ok(pulse) = crate::facades::Pulse::get_facade_root()
                 && pulse
-                    .automaticRecording
+                    .automatic_recording
                     .load(std::sync::atomic::Ordering::Relaxed)
-                && pulse.isRecording()
+                && pulse.is_recording()
                 && let Err(error) = self.recorder.record(event, &pulse).await
             {
-                pulse.reportError(&error);
+                pulse.report_error(&error);
             }
             Ok(None)
         })
     }
 }
-pub(crate) fn registerRecorder(
+pub(crate) fn register_recorder(
     dispatcher: &openrust::events::Dispatcher,
     recorder: Arc<dyn Recorder>,
     options: Arc<crate::pulse::Options>,
@@ -576,9 +576,9 @@ pub(crate) fn register(
     base_path: std::path::PathBuf,
     options: Arc<crate::pulse::Options>,
 ) -> EventResult<()> {
-    let recorders = Arc::new(Recorders::new(config.clone()).withBasePath(base_path.clone()));
+    let recorders = Arc::new(Recorders::new(config.clone()).with_base_path(base_path.clone()));
     let defaults: Vec<Arc<dyn Recorder>> = vec![
-        Arc::new(SlowQueries::new(config.clone()).withBasePath(base_path)),
+        Arc::new(SlowQueries::new(config.clone()).with_base_path(base_path)),
         Arc::new(CacheInteractions::new(config.clone())),
         Arc::new(SlowRequests::new(config.clone())),
         Arc::new(UserRequests::new(config.clone())),
@@ -596,7 +596,7 @@ pub(crate) fn register(
         if settings != Value::Bool(false)
             && settings.get("enabled").and_then(Value::as_bool) != Some(false)
         {
-            registerRecorder(dispatcher, recorder, options.clone())?;
+            register_recorder(dispatcher, recorder, options.clone())?;
         }
     }
     client.global_middleware(move |request, next| {
@@ -609,12 +609,12 @@ pub(crate) fn register(
             let _ = url.set_password(None);
             let started = std::time::Instant::now();
             let result = next.run(request).await;
-            if !Pulse::isIgnoring(&options)
+            if !Pulse::is_ignoring(&options)
                 && let Ok(pulse) = crate::facades::Pulse::get_facade_root()
                 && pulse
-                    .automaticRecording
+                    .automatic_recording
                     .load(std::sync::atomic::Ordering::Relaxed)
-                && pulse.isRecording()
+                && pulse.is_recording()
                 && let Err(e) = recorders
                     .outgoing(
                         &pulse,
@@ -624,7 +624,7 @@ pub(crate) fn register(
                     )
                     .await
             {
-                pulse.reportError(&e);
+                pulse.report_error(&e);
             }
             result
         })
@@ -632,14 +632,14 @@ pub(crate) fn register(
     Ok(())
 }
 
-pub(crate) fn registerLogging(
+pub(crate) fn register_logging(
     manager: &openrust::log::LogManager,
     config: Arc<dyn Repository>,
     options: Arc<crate::pulse::Options>,
 ) -> openrust::log::LogResult<()> {
     let recorders = Arc::new(Recorders::new(config));
     manager.listen(move |event| {
-        if Pulse::isIgnoring(&options) {
+        if Pulse::is_ignoring(&options) {
             return Ok(());
         }
         let Some(exception) = &event.exception else {
@@ -649,9 +649,9 @@ pub(crate) fn registerLogging(
             return Ok(());
         };
         if !pulse
-            .automaticRecording
+            .automatic_recording
             .load(std::sync::atomic::Ordering::Relaxed)
-            || !pulse.isRecording()
+            || !pulse.is_recording()
         {
             return Ok(());
         }

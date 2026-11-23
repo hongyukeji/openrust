@@ -529,7 +529,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
     app.artisan(["vendor:publish", "--no-interaction"])
         .await
         .assert_successful();
-    events.assertDispatchedTimes(name, 0);
+    events.assert_dispatched_times(name, 0);
 
     app.artisan([
         "vendor:publish",
@@ -583,7 +583,7 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
         .await
         .assert_successful();
 
-    events.assertDispatchedTimes(name, 7);
+    events.assert_dispatched_times(name, 7);
     let published = events.dispatched(name);
     for (event, expected) in published.iter().zip([
         Some("package-assets"),

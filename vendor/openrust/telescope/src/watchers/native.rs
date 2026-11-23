@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 impl NativeWatcher {
-    pub(super) fn recordAdditional(
+    pub(super) fn record_additional(
         &self,
         event: &dyn Event,
         telescope: &Telescope,
@@ -38,7 +38,7 @@ impl NativeWatcher {
                     "replyTo":addresses(&envelope.reply_to),"to":addresses(&envelope.to),
                     "cc":addresses(&envelope.cc),"bcc":addresses(&envelope.bcc),
                     "subject":envelope.subject,
-                    "html":message.getHtmlBody().or_else(||message.getTextBody()),
+                    "html":message.get_html_body().or_else(||message.get_text_body()),
                     "raw":String::from_utf8_lossy(&message.formatted())
                 }).as_object().unwrap().clone())?.tags(tags));
             }
@@ -93,7 +93,7 @@ impl NativeWatcher {
                         .unwrap_or(false)
                         && !self.patterns("ModelWatcher", "ignore", event.model)
                     {
-                        telescope.recordHydration(event.model)?;
+                        telescope.record_hydration(event.model)?;
                     }
                 } else if matches!(
                     event.action,
@@ -142,13 +142,13 @@ impl NativeWatcher {
             }
         } else if let Some(event) = event.downcast_ref::<openrust::support::Dumped>() {
             if self.enabled("DumpWatcher") {
-                telescope.recordDump(crate::IncomingDumpEntry::make(
+                telescope.record_dump(crate::IncomingDumpEntry::make(
                     json!({"dump":event.dump}).as_object().unwrap().clone(),
                 )?);
                 event.capture();
             }
         } else if let Some(event) = event.downcast_ref::<openrust::queue::events::JobQueueing>() {
-            if !self.enabled("JobWatcher") || ignoredJob(&event.job) {
+            if !self.enabled("JobWatcher") || ignored_job(&event.job) {
                 return Ok(());
             }
             let uuid = Uuid::parse_str(event.job.uuid()).map_err(|_| crate::Error::InvalidEntry)?;
@@ -156,13 +156,13 @@ impl NativeWatcher {
             let content = json!({"status":"pending","connection":event.connection_name,"queue":event.queue,"name":event.job.name(),"tries":options.max_tries,"timeout":options.timeout.map(|value|value.as_secs_f64()),"data":event.job.data()});
             telescope.recordJob(
                 IncomingEntry::new(content.as_object().unwrap().clone(), uuid)?
-                    .withFamilyHash(event.job.batchId().map(str::to_owned)),
+                    .with_family_hash(event.job.batch_id().map(str::to_owned)),
             );
         } else if let Some(event) = event.downcast_ref::<openrust::queue::events::JobProcessed>() {
-            if self.enabled("JobWatcher") && !ignoredJob(&event.job.payload) {
+            if self.enabled("JobWatcher") && !ignored_job(&event.job.payload) {
                 let uuid = Uuid::parse_str(event.job.payload.uuid())
                     .map_err(|_| crate::Error::InvalidEntry)?;
-                telescope.recordUpdate(
+                telescope.record_update(
                     EntryUpdate::make(
                         uuid,
                         EntryType::Job,
@@ -171,20 +171,20 @@ impl NativeWatcher {
                             .unwrap()
                             .clone(),
                     )
-                    .removeTags(["failed"]),
+                    .remove_tags(["failed"]),
                 );
             }
         } else if let Some(event) = event.downcast_ref::<openrust::queue::events::JobFailed>() {
-            if self.enabled("JobWatcher") && !ignoredJob(&event.job.payload) {
+            if self.enabled("JobWatcher") && !ignored_job(&event.job.payload) {
                 let uuid = Uuid::parse_str(event.job.payload.uuid())
                     .map_err(|_| crate::Error::InvalidEntry)?;
-                telescope.recordUpdate(EntryUpdate::make(uuid,EntryType::Job,json!({"status":"failed","exception":{"message":event.exception,"trace":[],"line":null,"line_preview":[]}}).as_object().unwrap().clone()).addTags(["failed"]));
+                telescope.record_update(EntryUpdate::make(uuid,EntryType::Job,json!({"status":"failed","exception":{"message":event.exception,"trace":[],"line":null,"line_preview":[]}}).as_object().unwrap().clone()).add_tags(["failed"]));
             }
         } else if let Some(event) = event.downcast_ref::<openrust::bus::events::BatchDispatched>() {
             if self.enabled("BatchWatcher") {
                 let uuid =
                     Uuid::parse_str(&event.batch.id).map_err(|_| crate::Error::InvalidEntry)?;
-                let mut content = batchContent(&event.batch)?;
+                let mut content = batch_content(&event.batch)?;
                 content.insert(
                     "queue".into(),
                     event
@@ -203,17 +203,21 @@ impl NativeWatcher {
                         .cloned()
                         .unwrap_or("default".into()),
                 );
-                content.insert("allowsFailures".into(), event.batch.allowsFailures().into());
+                content.insert(
+                    "allowsFailures".into(),
+                    event.batch.allows_failures().into(),
+                );
                 telescope.recordBatch(
-                    IncomingEntry::new(content, uuid)?.withFamilyHash(Some(event.batch.id.clone())),
+                    IncomingEntry::new(content, uuid)?
+                        .with_family_hash(Some(event.batch.id.clone())),
                 );
             }
         } else if let Some(event) = event.downcast_ref::<openrust::bus::events::BatchStarted>() {
-            self.updateBatch(&event.batch, telescope)?;
+            self.update_batch(&event.batch, telescope)?;
         } else if let Some(event) = event.downcast_ref::<openrust::bus::events::BatchFinished>() {
-            self.updateBatch(&event.batch, telescope)?;
+            self.update_batch(&event.batch, telescope)?;
         } else if let Some(event) = event.downcast_ref::<openrust::bus::events::BatchCanceled>() {
-            self.updateBatch(&event.batch, telescope)?;
+            self.update_batch(&event.batch, telescope)?;
         } else if let Some(event) =
             event.downcast_ref::<openrust::auth::access::events::GateEvaluated>()
             && self.enabled("GateWatcher")
@@ -224,7 +228,7 @@ impl NativeWatcher {
                 .map(|arguments| {
                     arguments
                         .iter()
-                        .map(|value| formatArgument(*value))
+                        .map(|value| format_argument(*value))
                         .collect::<Vec<_>>()
                 });
             let allowed = event.result.as_ref().is_some_and(|result| result.allowed());
@@ -233,31 +237,31 @@ impl NativeWatcher {
         }
         Ok(())
     }
-    fn updateBatch(
+    fn update_batch(
         &self,
         batch: &openrust::bus::Batch,
         telescope: &Telescope,
     ) -> crate::Result<()> {
         if self.enabled("BatchWatcher") {
-            telescope.recordUpdate(EntryUpdate::make(
+            telescope.record_update(EntryUpdate::make(
                 Uuid::parse_str(&batch.id).map_err(|_| crate::Error::InvalidEntry)?,
                 EntryType::Batch,
-                batchContent(batch)?,
+                batch_content(batch)?,
             ));
         }
         Ok(())
     }
 }
-fn ignoredJob(payload: &openrust::queue::Payload) -> bool {
+fn ignored_job(payload: &openrust::queue::Payload) -> bool {
     payload.name() == crate::jobs::ProcessPendingUpdates::NAME
 }
-fn batchContent(batch: &openrust::bus::Batch) -> crate::Result<Map<String, Value>> {
+fn batch_content(batch: &openrust::bus::Batch) -> crate::Result<Map<String, Value>> {
     serde_json::to_value(batch)
         .ok()
         .and_then(|value| value.as_object().cloned())
         .ok_or(crate::Error::InvalidEntry)
 }
-pub(super) fn formatArgument(value: &openrust::auth::access::Argument) -> Value {
+pub(super) fn format_argument(value: &openrust::auth::access::Argument) -> Value {
     if let Some(value) = value.downcast_ref::<Value>() {
         return value.clone();
     }

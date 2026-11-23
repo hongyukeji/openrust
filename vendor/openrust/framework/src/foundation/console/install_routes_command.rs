@@ -809,7 +809,7 @@ fn wire_passport(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), Co
         match insert_before(
             &source,
             &model,
-            "#[cfg(feature = \"passport\")]\nimpl openrust_passport::HasApiTokens for User {\n    fn getProviderName(&self) -> &str { \"users\" }\n}\n",
+            "#[cfg(feature = \"passport\")]\nimpl openrust_passport::HasApiTokens for User {\n    fn get_provider_name(&self) -> &str { \"users\" }\n}\n",
             |line| line.trim() == "impl Authenticatable for User {",
         ) {
             Ok(updated) => replace(&model, &source, &updated)?,

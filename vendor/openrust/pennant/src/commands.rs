@@ -126,7 +126,7 @@ impl Command for FeatureMakeCommand {
                 "Feature [{}] created successfully.",
                 path.display()
             ));
-            output.stdout.push_str("Declare the generated module and register its factory using Feature::defineClass.\n");
+            output.stdout.push_str("Declare the generated module and register its factory using Feature::define_class.\n");
             Ok(0)
         })
     }

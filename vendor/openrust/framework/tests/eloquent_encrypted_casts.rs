@@ -149,7 +149,7 @@ async fn verify(config: Json) {
         .await
         .unwrap();
     let old_ciphertext = ciphertext(record.get_raw_original("secret")).to_owned();
-    assert!(Encrypter::appearsEncrypted(&old_ciphertext));
+    assert!(Encrypter::appears_encrypted(&old_ciphertext));
     assert!(!old_ciphertext.contains("private sentinel"));
     let mut loaded = Record::query_on(&old).find_or_fail(1).await.unwrap();
     for (column, expected) in [
@@ -158,7 +158,7 @@ async fn verify(config: Json) {
         ("metadata", json!({"object": true})),
         ("items", json!({"team": "ops"})),
     ] {
-        assert!(Encrypter::appearsEncrypted(ciphertext(
+        assert!(Encrypter::appears_encrypted(ciphertext(
             loaded.get_raw_original(column)
         )));
         assert_eq!(
@@ -328,7 +328,7 @@ async fn verify_projections(
         .unwrap();
     let mut record = Record::query_on(old).find_or_fail(2).await.unwrap();
     let original_ciphertext = ciphertext(record.get_raw_original("projected")).to_owned();
-    assert!(Encrypter::appearsEncrypted(&original_ciphertext));
+    assert!(Encrypter::appears_encrypted(&original_ciphertext));
     let view = record.to_array().unwrap();
     assert_eq!(
         view["projected"],
@@ -443,7 +443,7 @@ fn verify_json_edits(record: &mut Record) {
         .set_attribute_value("settings->nested.flag", true)
         .unwrap();
     let raw = ciphertext(record.get_attribute("class_items"));
-    assert!(Encrypter::appearsEncrypted(raw));
+    assert!(Encrypter::appears_encrypted(raw));
     assert!(!raw.contains("support"));
     assert!(record.get_attribute("class_items->team->name").is_none());
 }

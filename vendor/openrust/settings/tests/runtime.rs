@@ -41,8 +41,8 @@ impl ServiceProvider for Host {
             config.set("queue",json!({"default":"database","connections":{"database":{"driver":"database","connection":"testing","table":self.queue_table,"queue":"default","retry_after":90}},"failed":{"driver":"null"}}))?;
             app.container()
                 .instance::<dyn SettingsRepository>(self.repository.clone())?;
-            SettingsServiceProvider::registerSettings::<Site>(app).await?;
-            SettingsServiceProvider::registerSettings::<DeliverySettings>(app).await?;
+            SettingsServiceProvider::register_settings::<Site>(app).await?;
+            SettingsServiceProvider::register_settings::<DeliverySettings>(app).await?;
             Ok(())
         })
     }
@@ -189,7 +189,7 @@ async fn real_worker_jobs_get_new_settings_on_the_next_attempt_scope() {
     let mut app = application(&f);
     app.boot().await.unwrap();
     let queue = app.make::<QueueManager>().await.unwrap();
-    queue.withoutInterruptionPolling();
+    queue.without_interruption_polling();
     let observed = Arc::new(Mutex::new(Vec::new()));
     queue
         .register(
@@ -258,7 +258,7 @@ async fn scoped_async_bindings_coalesce_and_duplicate_groups_are_rejected() {
         })
         .await;
     assert!(
-        SettingsServiceProvider::registerSettings::<Site>(&app)
+        SettingsServiceProvider::register_settings::<Site>(&app)
             .await
             .is_err()
     );

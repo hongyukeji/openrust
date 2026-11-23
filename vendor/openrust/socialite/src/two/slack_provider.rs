@@ -22,15 +22,15 @@ impl Default for SlackProvider {
     }
 }
 impl SlackProvider {
-    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+    pub fn with_endpoints(endpoints: ProviderEndpoints) -> Self {
         Self { endpoints }
     }
 }
 impl ProviderDefinition for SlackProvider {
-    fn getAuthUrl(&self) -> &str {
+    fn get_auth_url(&self) -> &str {
         &self.endpoints.authorize
     }
-    fn getTokenUrl(&self) -> &str {
+    fn get_token_url(&self) -> &str {
         &self.endpoints.token
     }
     fn scopes(&self) -> &[&str] {
@@ -41,20 +41,20 @@ impl ProviderDefinition for SlackProvider {
             "identity.avatar",
         ]
     }
-    fn customizeCodeFields(
+    fn customize_code_fields(
         &self,
         fields: &mut Map<String, Value>,
         scopes: &[String],
-        botUser: bool,
+        bot_user: bool,
         _stateless: bool,
     ) {
-        if !botUser {
+        if !bot_user {
             fields.insert("scope".into(), "".into());
             fields.insert("user_scope".into(), scopes.join(",").into());
         }
     }
-    fn normalizeTokenResponse(&self, response: Value, botUser: bool) -> Result<Value> {
-        if botUser {
+    fn normalize_token_response(&self, response: Value, bot_user: bool) -> Result<Value> {
+        if bot_user {
             Ok(response)
         } else {
             response
@@ -64,7 +64,7 @@ impl ProviderDefinition for SlackProvider {
                 .ok_or(Error::InvalidResponse)
         }
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -81,7 +81,7 @@ impl ProviderDefinition for SlackProvider {
             )
         })
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User> {
+    fn map_user_to_object(&self, user: Value) -> Result<User> {
         let fields = [
             ("id", value(&user, &["user", "id"])),
             ("name", value(&user, &["user", "name"])),

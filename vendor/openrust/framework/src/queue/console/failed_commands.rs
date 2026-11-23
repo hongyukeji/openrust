@@ -173,7 +173,7 @@ async fn retry_failed(
         if !seen.insert(id.clone()) {
             continue;
         }
-        let Some(mut jobs) = provider.findForRetry(&id).await.map_err(error)? else {
+        let Some(mut jobs) = provider.find_for_retry(&id).await.map_err(error)? else {
             let _ = writeln!(output.stderr, "Unable to find failed job with ID [{id}].");
             continue;
         };

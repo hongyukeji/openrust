@@ -29,13 +29,13 @@ async fn validate(request: &mut Request) -> Result<AccessToken, HttpError> {
     }
     // Resolve the selected user guard first. Machine tokens continue without a user.
     if Auth::user(request).await?.is_some()
-        && let Some(token) = TokenGuard::currentToken(request)
+        && let Some(token) = TokenGuard::current_token(request)
     {
         return Ok(token.clone());
     }
     let server = ResourceServer::get_facade_root()?;
     server
-        .validateAuthenticatedRequest(request)
+        .validate_authenticated_request(request)
         .await
         .map_err(|_| HttpError::Unauthenticated)
 }

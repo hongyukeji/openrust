@@ -4,7 +4,7 @@
 
 在應用程式內使用 `openrust::support::facades` 中的 `Concurrency`。在應用程式 Provider 註冊型別化工作，再用 `Task::new(name, input)` 提交。預設 `process` 驅動會為各項工作透過隱藏的 Artisan 命令啟動應用程式執行檔。HTTP 與 Artisan 入口需裝配同一個工作 Provider。
 
-`run` 依提交順序回傳。`runNamed` 接收 `IndexMap` 並保留鍵與順序。程序驅動可為每個子程序設定選用的 `Duration` 逾時。收齊子程序結果後回傳工作錯誤。捨棄仍在執行的程序呼叫會取消其子程序。`sync` 驅動在目前程序中依序執行工作。可透過 `CONCURRENCY_DRIVER` 或 `config/concurrency.rs` 的 `default` 選擇預設驅動。程序工作沿用應用程式根目錄及 Artisan 的 `--env` 所選環境檔案。OpenRust 透過受管理的程序執行並行工作。
+`run` 依提交順序回傳。`run_named` 接收 `IndexMap` 並保留鍵與順序。程序驅動可為每個子程序設定選用的 `Duration` 逾時。收齊子程序結果後回傳工作錯誤。捨棄仍在執行的程序呼叫會取消其子程序。`sync` 驅動在目前程序中依序執行工作。可透過 `CONCURRENCY_DRIVER` 或 `config/concurrency.rs` 的 `default` 選擇預設驅動。程序工作沿用應用程式根目錄及 Artisan 的 `--env` 所選環境檔案。OpenRust 透過受管理的程序執行並行工作。
 
 ```rust
 use openrust::{

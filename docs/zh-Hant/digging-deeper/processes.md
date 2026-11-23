@@ -18,17 +18,17 @@ let result = processes.command(["/bin/sh", "-c", r#"printf '%s' "$MODE""#])
 assert_eq!(result.output(), b"test");
 ```
 
-用 `path` 設定工作目錄，用 `env` 和 `removeEnv` 增刪環境變數，用 `input` 傳送位元組。預設逾時為 60 秒。`idleTimeout` 限制沒有輸出的時間，`forever` 取消總逾時。`exit_code` 可讀取非零結束代碼，`throw` 可將其轉成錯誤。
+用 `path` 設定工作目錄，用 `env` 和 `remove_env` 增刪環境變數，用 `input` 傳送位元組。預設逾時為 60 秒。`idle_timeout` 限制沒有輸出的時間，`forever` 取消總逾時。`exit_code` 可讀取非零結束代碼，`throw` 可將其轉成錯誤。
 
 ## 非同步執行 {#running-asynchronously}
 
-用 `start` 取得執行中的程序控制代碼。可讀取 `output` 和 `errorOutput`，或透過 `latestOutput`、`latestErrorOutput` 取得未讀取的位元組。`startWithOutput` 對每個可用的 stdout 或 stderr 區塊呼叫回呼。用 `wait` 等待結果，或用 `stop` 要求終止，寬限期結束後強制終止。macOS 和 Linux 會在完成、逾時或取消時清理程序群組。
+用 `start` 取得執行中的程序控制代碼。可讀取 `output` 和 `error_output`，或透過 `latest_output`、`latest_error_output` 取得未讀取的位元組。`start_with_output` 對每個可用的 stdout 或 stderr 區塊呼叫回呼。用 `wait` 等待結果，或用 `stop` 要求終止，寬限期結束後強制終止。macOS 和 Linux 會在完成、逾時或取消時清理程序群組。
 
 用 `pool` 和 `concurrently` 並行執行具名子程序。`pipe` 把每一步成功程序的 stdout 當作下一步輸入，遇到失敗時停止。
 
 ### 等待輸出 {#waiting-for-output}
 
-對擷取輸出的程序呼叫 `waitUntil`，會逐區塊接收 stdout 和 stderr，直到述詞符合。符合時傳回 `true`，程序先結束時傳回 `false`。再次等待時會從未讀區塊繼續，若標記可能跨區塊，應累積位元組後再比對。用 `wait` 取得最終結束碼，或用 `waitWithOutput` 觀察剩餘區塊。逾時可透過 `Error::result()` 讀取已擷取的結果。
+對擷取輸出的程序呼叫 `wait_until`，會逐區塊接收 stdout 和 stderr，直到述詞符合。符合時傳回 `true`，程序先結束時傳回 `false`。再次等待時會從未讀區塊繼續，若標記可能跨區塊，應累積位元組後再比對。用 `wait` 取得最終結束碼，或用 `wait_with_output` 觀察剩餘區塊。逾時可透過 `Error::result()` 讀取已擷取的結果。
 
 ```rust
 use openrust::{process::OutputStream, support::facades::Process};
@@ -38,7 +38,7 @@ let mut process = Process::command("printf 'ready\n' >&2; sleep 0.1; printf 'don
     .timeout(Duration::from_secs(3))
     .start()?;
 let mut diagnostic = Vec::new();
-let ready = process.waitUntil(|stream, chunk| {
+let ready = process.wait_until(|stream, chunk| {
     if stream == OutputStream::Stderr {
         diagnostic.extend_from_slice(chunk);
     }
@@ -79,7 +79,7 @@ let mut process = Process::command(
 )?
 .timeout(Duration::from_secs(4))
 .start()?;
-assert!(process.waitUntil(|_, bytes| bytes == b"ready").await?);
+assert!(process.wait_until(|_, bytes| bytes == b"ready").await?);
 process.signal(Signal::Raw(number)).await?;
 let result = process.wait().await?;
 assert_eq!(result.exit_code(), 6);
@@ -88,45 +88,45 @@ assert_eq!(result.output(), b"readycaught");
 
 ## 測試 {#testing}
 
-fake 與呼叫記錄屬於各自的工廠。用 `preventStrayProcesses(true)` 讓未比對的呼叫在啟動可執行檔之前失敗。
+fake 與呼叫記錄屬於各自的工廠。用 `prevent_stray_processes(true)` 讓未比對的呼叫在啟動可執行檔之前失敗。
 
 ```rust
 use openrust::process::Factory;
 
 let processes = Factory::new();
-processes.fakeCommand("deploy *", Factory::result("deployed", "", 0));
-processes.preventStrayProcesses(true);
+processes.fake_command("deploy *", Factory::result("deployed", "", 0));
+processes.prevent_stray_processes(true);
 let result = processes.run(["deploy", "preview"]).await?;
 assert!(result.successful());
-processes.assertRan(|process, _| process.command == ["deploy", "preview"].into());
+processes.assert_ran(|process, _| process.command == ["deploy", "preview"].into());
 ```
 
 ### 模擬程序腳本 {#scripted-fakes}
 
-用 `Factory::describe()` 描述模擬程序的 ID、依順序出現的輸出行、`running()` 傳回 true 的檢查次數及結束碼。將建構後的結果註冊到 `fakeCommand` 或模擬序列。等待時依序播放輸出，訊號記錄在模擬程序本機。
+用 `Factory::describe()` 描述模擬程序的 ID、依順序出現的輸出行、`running()` 傳回 true 的檢查次數及結束碼。將建構後的結果註冊到 `fake_command` 或模擬序列。等待時依序播放輸出，訊號記錄在模擬程序本機。
 
 ```rust
 use openrust::process::{Factory, OutputStream, Signal};
 
 let processes = Factory::new();
-processes.fakeCommand("worker", Factory::describe()
+processes.fake_command("worker", Factory::describe()
     .id(321)
-    .runsFor(2)
-    .errorOutput("ready")
+    .runs_for(2)
+    .error_output("ready")
     .output("finished")
     .exit_code(0)
     .result());
-processes.preventStrayProcesses(true);
+processes.prevent_stray_processes(true);
 
 let mut worker = processes.start("worker")?;
 assert_eq!(worker.id(), Some(321));
-assert!(worker.waitUntil(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready\n").await?);
+assert!(worker.wait_until(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready\n").await?);
 worker.signal(Signal::Terminate).await?;
-assert!(worker.hasReceivedSignal(Signal::Terminate));
+assert!(worker.has_received_signal(Signal::Terminate));
 assert_eq!(worker.wait().await?.output(), b"finished\n");
 ```
 
 
 ## 順序斷言
 
-呼叫 `assertNothingRan()` 要求目前沒有呼叫紀錄。`assertNotRan(|process, result| ...)` 要求沒有紀錄符合條件。`assertRanInOrder(&[&first, &second])` 同時檢查呼叫總數與順序；每個謂詞接收 `&RecordedProcess` 和 `Option<&ProcessResult>`，失敗的模擬操作可能沒有結果。預期不符時斷言 panic。在應用作用域內也可透過 `Process` Facade 呼叫這些方法。
+呼叫 `assert_nothing_ran()` 要求目前沒有呼叫紀錄。`assert_not_ran(|process, result| ...)` 要求沒有紀錄符合條件。`assert_ran_in_order(&[&first, &second])` 同時檢查呼叫總數與順序；每個謂詞接收 `&RecordedProcess` 和 `Option<&ProcessResult>`，失敗的模擬操作可能沒有結果。預期不符時斷言 panic。在應用作用域內也可透過 `Process` Facade 呼叫這些方法。

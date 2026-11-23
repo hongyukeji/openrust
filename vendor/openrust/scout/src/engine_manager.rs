@@ -80,19 +80,19 @@ impl EngineManager {
             .insert((TypeId::of::<M>(), name.into()), Arc::new(engine));
         self
     }
-    pub fn disableSyncingFor<M: Searchable>(&self) {
+    pub fn disable_syncing_for<M: Searchable>(&self) {
         self.disabled
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .insert(TypeId::of::<M>());
     }
-    pub fn enableSyncingFor<M: Searchable>(&self) {
+    pub fn enable_syncing_for<M: Searchable>(&self) {
         self.disabled
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .remove(&TypeId::of::<M>());
     }
-    pub fn syncingDisabledFor<M: Searchable>(&self) -> bool {
+    pub fn syncing_disabled_for<M: Searchable>(&self) -> bool {
         self.disabled
             .read()
             .unwrap_or_else(|e| e.into_inner())
@@ -121,11 +121,11 @@ impl EngineManager {
             ));
         }
         self.queue.register(
-            &crate::jobs::jobName::<M>(false),
+            &crate::jobs::job_name::<M>(false),
             Arc::new(crate::jobs::MakeSearchable::<M>::new(self.clone())),
         )?;
         self.queue.register(
-            &crate::jobs::jobName::<M>(true),
+            &crate::jobs::job_name::<M>(true),
             Arc::new(crate::jobs::RemoveFromSearch::<M>::new(self.clone())),
         )?;
         if self.boolean("after_commit") {
@@ -152,7 +152,7 @@ impl EngineManager {
                         Box::pin(async move {
                             let model = M::from_state(Default::default());
                             manager
-                                .engine::<M>(model.scoutDriver().as_deref())?
+                                .engine::<M>(model.scout_driver().as_deref())?
                                 .flush(&model)
                                 .await
                         })
@@ -166,7 +166,7 @@ impl EngineManager {
         &self,
         models: &[M],
         delete: bool,
-        forceSync: bool,
+        force_sync: bool,
     ) -> Result<()> {
         let Some(first) = models.first() else {
             return Ok(());
@@ -175,25 +175,25 @@ impl EngineManager {
             .config
             .get("scout.queue")
             .is_some_and(|v| v.as_bool().unwrap_or_else(|| v.is_object()));
-        if queued && !forceSync {
+        if queued && !force_sync {
             let keys = models
                 .iter()
                 .map(|m| {
-                    m.getScoutKey()
+                    m.get_scout_key()
                         .ok_or_else(|| {
                             Error::InvalidConfiguration(
                                 "Searchable models require a Scout key".into(),
                             )
                         })
-                        .and_then(crate::jobs::keyToJson)
+                        .and_then(crate::jobs::key_to_json)
                 })
                 .collect::<Result<Vec<_>>>()?;
             let payload = openrust::queue::Payload::new(
-                crate::jobs::jobName::<M>(delete),
+                crate::jobs::job_name::<M>(delete),
                 serde_json::json!({"keys":keys,"connection":first.get_connection_name()}),
             )?;
-            let connection = first.syncWithSearchUsing(self);
-            let queue = first.syncWithSearchUsingQueue(self);
+            let connection = first.sync_with_search_using(self);
+            let queue = first.sync_with_search_using_queue(self);
             self.queue
                 .dispatch(
                     payload,
@@ -206,11 +206,11 @@ impl EngineManager {
                 )
                 .await?;
         } else {
-            let engine = self.engine::<M>(first.scoutDriver().as_deref())?;
+            let engine = self.engine::<M>(first.scout_driver().as_deref())?;
             if delete {
                 engine.delete(models).await?;
             } else {
-                let models = M::makeSearchableUsing(models.to_vec()).await?;
+                let models = M::make_searchable_using(models.to_vec()).await?;
                 if !models.is_empty() {
                     engine.update(&models).await?;
                 }

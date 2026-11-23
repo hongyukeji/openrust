@@ -43,7 +43,7 @@ fn update(
         let user = openrust::auth::Auth::user(request).await?.unwrap();
         let input = request.all().await?;
         installed::UpdateUserPassword
-            .updateFromRequest(request, user.as_ref(), &input)
+            .update_from_request(request, user.as_ref(), &input)
             .await?;
         Ok(openrust::http::Response::no_content())
     })

@@ -147,7 +147,7 @@ impl BillingStore {
             .map_err(|_| Error::OutcomeUnknown)?;
         result
     }
-    pub async fn operationStatus(&self, client: &Client, key: &str) -> Result<Option<String>> {
+    pub async fn operation_status(&self, client: &Client, key: &str) -> Result<Option<String>> {
         match self
             .connection
             .table("cashier_operations")
@@ -196,7 +196,7 @@ impl BillingStore {
             .collect::<Vec<_>>();
         if active.len() > 1 {
             return Err(Error::InvalidInput(
-                "multiple subscriptions share this name; use subscriptionById",
+                "multiple subscriptions share this name; use subscription_by_id",
             ));
         }
         if let Some(s) = active.into_iter().next() {
@@ -205,7 +205,7 @@ impl BillingStore {
         candidates.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
         Ok(candidates.pop())
     }
-    pub async fn subscriptionById(
+    pub async fn subscription_by_id(
         &self,
         client: &Client,
         owner: &str,
@@ -239,7 +239,7 @@ impl BillingStore {
     }
     /// Fetch the current provider state under the same customer lock used by webhooks.
     /// This prevents stale webhook snapshots or overlapping mutations from regressing local state.
-    pub async fn syncSubscription(
+    pub async fn sync_subscription(
         &self,
         client: &Client,
         owner: &str,
@@ -434,7 +434,7 @@ impl BillingStore {
             .await
             .map_err(map_db)
     }
-    pub async fn handleWebhook(
+    pub async fn handle_webhook(
         &self,
         client: &Client,
         event: &VerifiedEvent,

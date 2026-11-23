@@ -36,7 +36,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 }));
 ```
 
-面板使用原生 HTML、JavaScript 與 JSON 介面。透過 `./artisan vendor:publish --tag=pulse-dashboard` 發佈範本；自訂範本保留 `<!-- PULSE_STYLES -->` 和 `<!-- PULSE_SCRIPTS -->` 可注入套件資源。`Pulse::withCss` 接受可信任的應用程式 CSS 路徑或 HTML，去重並追加；`css` 與 `js` 回傳資源 HTML。Rust 將上游多載的 CSS 設定入口表達為 `withCss`。
+面板使用原生 HTML、JavaScript 與 JSON 介面。透過 `./artisan vendor:publish --tag=pulse-dashboard` 發佈範本；自訂範本保留 `<!-- PULSE_STYLES -->` 和 `<!-- PULSE_SCRIPTS -->` 可注入套件資源。`Pulse::with_css` 接受可信任的應用程式 CSS 路徑或 HTML，去重並追加；`css` 與 `js` 回傳資源 HTML。Rust 將上游多載的 CSS 設定入口表達為 `with_css`。
 
 ## 記錄器 {#recorders}
 
@@ -46,7 +46,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢查詢 `location` 嘗試還原應用程式原始碼位置；不含除錯符號的建置可能回傳空位置。`Exceptions` 接收原生帶型別的例外日誌、工作例外與 `Pulse::report`，一般 JSON 日誌內容不視為例外。Rust 錯誤未必帶有呼叫堆疊，需要時明確傳入位置。
 
-`Servers` 預設每個實例 15 秒取樣一次，儲存 CPU、記憶體與磁碟快照；`PULSE_SERVER_NAME` 與 `PULSE_SERVER_DIRECTORIES` 自訂名稱及冒號分隔的目錄。`Servers::detectCpuUsing`、`detectMemoryUsing` 可替換偵測器。
+`Servers` 預設每個實例 15 秒取樣一次，儲存 CPU、記憶體與磁碟快照；`PULSE_SERVER_NAME` 與 `PULSE_SERVER_DIRECTORIES` 自訂名稱及冒號分隔的目錄。`Servers::detect_cpu_using`、`detect_memory_using` 可替換偵測器。
 
 ## 自訂指標 {#custom-metrics}
 
@@ -59,18 +59,18 @@ Pulse::record("orders", "completed", Some(120), None).await?
     .count().sum().max().avg();
 Pulse::set("deployment", "version", "v1", None).await?;
 Pulse::ingest().await?;
-let totals = Pulse::aggregateTotal(&["orders".into()], "sum", 3600).await?;
+let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 ```
 
-`record` 回傳 Entry，可選擇 `count`、`min`、`max`、`sum`、`avg`；`onlyBuckets` 僅寫入彙總。回傳 Entry 與緩衝項目共用彙總旗標，其他欄位遵循 Rust 值所有權，修改副本不會改寫緩衝項目。`set` 為相同型別與鍵保留最後傳入的值。四種時間範圍為 1 小時、6 小時、24 小時和 7 天，圖表填入 60 個時間點。
+`record` 回傳 Entry，可選擇 `count`、`min`、`max`、`sum`、`avg`；`only_buckets` 僅寫入彙總。回傳 Entry 與緩衝項目共用彙總旗標，其他欄位遵循 Rust 值所有權，修改副本不會改寫緩衝項目。`set` 為相同型別與鍵保留最後傳入的值。四種時間範圍為 1 小時、6 小時、24 小時和 7 天，圖表填入 60 個時間點。
 
-`filter` 篩選寫入項目；`ignore(future)` 暫時忽略收集並在取消時恢復；`lazy` 延遲產生指標；`handleExceptionsUsing` 接收寫入與記錄器錯誤。`flush` 捨棄目前緩衝，`ingest` 立即提交。查詢介面包含 `values`、`graph`、`aggregate`、`aggregateTypes` 和 `aggregateTotal`。後者接收型別切片並回傳各型別結果，空集合結果為 `None`。
+`filter` 篩選寫入項目；`ignore(future)` 暫時忽略收集並在取消時恢復；`lazy` 延遲產生指標；`handle_exceptions_using` 接收寫入與記錄器錯誤。`flush` 捨棄目前緩衝，`ingest` 立即提交。查詢介面包含 `values`、`graph`、`aggregate`、`aggregate_types` 和 `aggregate_total`。後者接收型別切片並回傳各型別結果，空集合結果為 `None`。
 
 實作 `recorders::Recorder` 的 `name`、`listens` 與非同步 `record`，在套件啟動後的應用程式 Provider 呼叫 `pulse.register(vec![recorder])`，即可監聽原生事件。使用 `recorders()` 檢視註冊實例。Rust 透過編譯型型別與明確事件名稱取代 PHP 類別反射；自訂 HTML 卡片透過發佈範本實現。
 
 ## 使用者 {#users}
 
-用量記錄讀取原生認證已解析的身分。先執行認證中介層或 `Auth::user(request).await?`；投遞佇列工作時可用 `rememberUser` 明確關聯操作者。預設面板透過認證 Provider 讀取姓名、電子郵件和頭像，找不到時顯示 ID。`Pulse::user` 自訂欄位，或在擴充啟動前綁定 `ResolvesUsers` 自訂使用者鍵與載入行為。預設通用認證 Provider 按 ID 載入；需要批次最佳化時實作該契約。
+用量記錄讀取原生認證已解析的身分。先執行認證中介層或 `Auth::user(request).await?`；投遞佇列工作時可用 `remember_user` 明確關聯操作者。預設面板透過認證 Provider 讀取姓名、電子郵件和頭像，找不到時顯示 ID。`Pulse::user` 自訂欄位，或在擴充啟動前綁定 `ResolvesUsers` 自訂使用者鍵與載入行為。預設通用認證 Provider 按 ID 載入；需要批次最佳化時實作該契約。
 
 ## 命令 {#commands}
 

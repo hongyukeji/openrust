@@ -49,51 +49,51 @@ impl ProviderConfig {
 #[derive(Default)]
 pub struct ProviderOptions {
     pub fields: Option<Vec<String>>,
-    pub graphVersion: Option<String>,
+    pub graph_version: Option<String>,
     pub popup: bool,
-    pub reRequest: bool,
-    pub expectedNonce: Option<String>,
-    pub openId: Option<String>,
-    pub withUnionId: bool,
+    pub re_request: bool,
+    pub expected_nonce: Option<String>,
+    pub open_id: Option<String>,
+    pub with_union_id: bool,
 }
 /// Driver protocol customization, shared across request-owned provider instances.
 pub trait ProviderDefinition: Send + Sync {
-    fn getAuthUrl(&self) -> &str;
-    fn getTokenUrl(&self) -> &str;
+    fn get_auth_url(&self) -> &str;
+    fn get_token_url(&self) -> &str;
     fn scopes(&self) -> &[&str] {
         &[]
     }
-    fn scopeSeparator(&self) -> &str {
+    fn scope_separator(&self) -> &str {
         ","
     }
-    fn usesPKCE(&self) -> bool {
+    fn uses_pkce(&self) -> bool {
         false
     }
-    fn usesRFC3986(&self) -> bool {
+    fn uses_rfc3986(&self) -> bool {
         false
     }
-    fn refreshTokenIncludesSecret(&self) -> bool {
+    fn refresh_token_includes_secret(&self) -> bool {
         true
     }
-    fn tokenBasicAuth(&self) -> bool {
+    fn token_basic_auth(&self) -> bool {
         false
     }
-    fn directTokenBasicAuth(&self) -> bool {
-        self.tokenBasicAuth()
+    fn direct_token_basic_auth(&self) -> bool {
+        self.token_basic_auth()
     }
-    fn customizeCodeFields(
+    fn customize_code_fields(
         &self,
         _fields: &mut Map<String, Value>,
         _scopes: &[String],
-        _botUser: bool,
+        _bot_user: bool,
         _stateless: bool,
     ) {
     }
-    fn normalizeTokenResponse(&self, response: Value, _botUser: bool) -> Result<Value> {
+    fn normalize_token_response(&self, response: Value, _bot_user: bool) -> Result<Value> {
         Ok(response)
     }
     /// Override non-standard token transports while retaining the shared state validation.
-    fn getAccessTokenResponse<'a>(
+    fn get_access_token_response<'a>(
         &'a self,
         _http: &'a Factory,
         _config: &'a ProviderConfig,
@@ -101,60 +101,64 @@ pub trait ProviderDefinition: Send + Sync {
     ) -> Option<ProviderFuture<'a, Value>> {
         None
     }
-    fn refreshTokenResponse<'a>(
+    fn refresh_token_response<'a>(
         &'a self,
         _http: &'a Factory,
         _config: &'a ProviderConfig,
-        _refreshToken: &'a str,
+        _refresh_token: &'a str,
     ) -> Option<ProviderFuture<'a, Value>> {
         None
     }
     /// Stores protocol context in the request-owned options, never in the shared driver.
-    fn configureTokenResponse(
+    fn configure_token_response(
         &self,
         _response: &Value,
         _options: &mut ProviderOptions,
     ) -> Result<()> {
         Ok(())
     }
-    fn getUserByToken<'a>(
+    fn get_user_by_token<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
         scopes: &'a [String],
     ) -> ProviderFuture<'a, Value>;
-    fn getUserByTokenWithConfig<'a>(
+    fn get_user_by_token_with_config<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
         scopes: &'a [String],
         _config: &'a ProviderConfig,
     ) -> ProviderFuture<'a, Value> {
-        self.getUserByToken(http, token, scopes)
+        self.get_user_by_token(http, token, scopes)
     }
-    fn normalizeRefreshTokenResponse(&self, response: Value, _refreshToken: &str) -> Result<Value> {
+    fn normalize_refresh_token_response(
+        &self,
+        response: Value,
+        _refresh_token: &str,
+    ) -> Result<Value> {
         Ok(response)
     }
-    fn authorizationEndpoint(&self, _options: &ProviderOptions) -> String {
-        self.getAuthUrl().into()
+    fn authorization_endpoint(&self, _options: &ProviderOptions) -> String {
+        self.get_auth_url().into()
     }
-    fn tokenEndpoint(&self, _options: &ProviderOptions) -> String {
-        self.getTokenUrl().into()
+    fn token_endpoint(&self, _options: &ProviderOptions) -> String {
+        self.get_token_url().into()
     }
-    fn tokenAcceptsJson(&self) -> bool {
+    fn token_accepts_json(&self) -> bool {
         true
     }
-    fn customizeCodeFieldsWithOptions(
+    fn customize_code_fields_with_options(
         &self,
         fields: &mut Map<String, Value>,
         scopes: &[String],
-        botUser: bool,
+        bot_user: bool,
         stateless: bool,
         _options: &ProviderOptions,
     ) {
-        self.customizeCodeFields(fields, scopes, botUser, stateless);
+        self.customize_code_fields(fields, scopes, bot_user, stateless);
     }
-    fn getUserByTokenWithOptions<'a>(
+    fn get_user_by_token_with_options<'a>(
         &'a self,
         http: &'a Factory,
         token: &'a str,
@@ -163,9 +167,9 @@ pub trait ProviderDefinition: Send + Sync {
         _options: &'a ProviderOptions,
         _parameters: &'a Map<String, Value>,
     ) -> ProviderFuture<'a, Value> {
-        self.getUserByTokenWithConfig(http, token, scopes, config)
+        self.get_user_by_token_with_config(http, token, scopes, config)
     }
-    fn mapUserToObject(&self, user: Value) -> Result<User>;
+    fn map_user_to_object(&self, user: Value) -> Result<User>;
 }
 pub struct AbstractProvider<'a> {
     request: &'a mut Request,
@@ -175,10 +179,10 @@ pub struct AbstractProvider<'a> {
     parameters: Map<String, Value>,
     scopes: Vec<String>,
     stateless: bool,
-    usesPKCE: bool,
-    botUser: bool,
+    uses_pkce: bool,
+    bot_user: bool,
     options: ProviderOptions,
-    lastToken: Option<Zeroizing<String>>,
+    last_token: Option<Zeroizing<String>>,
     user: Option<User>,
 }
 impl<'a> AbstractProvider<'a> {
@@ -193,7 +197,7 @@ impl<'a> AbstractProvider<'a> {
             .iter()
             .map(|s| (*s).to_owned())
             .collect();
-        let usesPKCE = definition.usesPKCE();
+        let uses_pkce = definition.uses_pkce();
         let mut provider = Self {
             request,
             config,
@@ -202,10 +206,10 @@ impl<'a> AbstractProvider<'a> {
             parameters: Map::new(),
             scopes,
             stateless: false,
-            usesPKCE,
-            botUser: false,
+            uses_pkce,
+            bot_user: false,
             options: ProviderOptions::default(),
-            lastToken: None,
+            last_token: None,
             user: None,
         };
         provider.scopes(provider.config.scopes.clone());
@@ -219,11 +223,11 @@ impl<'a> AbstractProvider<'a> {
         }
         self
     }
-    pub fn setScopes(&mut self, scopes: Vec<String>) -> &mut Self {
+    pub fn set_scopes(&mut self, scopes: Vec<String>) -> &mut Self {
         self.scopes.clear();
         self.scopes(scopes)
     }
-    pub fn getScopes(&self) -> &[String] {
+    pub fn get_scopes(&self) -> &[String] {
         &self.scopes
     }
     pub fn with(&mut self, parameters: Map<String, Value>) -> &mut Self {
@@ -234,66 +238,66 @@ impl<'a> AbstractProvider<'a> {
         self.stateless = true;
         self
     }
-    pub fn isStateless(&self) -> bool {
+    pub fn is_stateless(&self) -> bool {
         self.stateless
     }
-    pub fn asBotUser(&mut self) -> &mut Self {
-        self.botUser = true;
+    pub fn as_bot_user(&mut self) -> &mut Self {
+        self.bot_user = true;
         self
     }
     pub fn fields(&mut self, fields: Vec<String>) -> &mut Self {
         self.options.fields = Some(fields);
         self
     }
-    pub fn usingGraphVersion(&mut self, version: impl Into<String>) -> &mut Self {
-        self.options.graphVersion = Some(version.into());
+    pub fn using_graph_version(&mut self, version: impl Into<String>) -> &mut Self {
+        self.options.graph_version = Some(version.into());
         self
     }
-    pub fn asPopup(&mut self) -> &mut Self {
+    pub fn as_popup(&mut self) -> &mut Self {
         self.options.popup = true;
         self
     }
-    pub fn reRequest(&mut self) -> &mut Self {
-        self.options.reRequest = true;
+    pub fn re_request(&mut self) -> &mut Self {
+        self.options.re_request = true;
         self
     }
-    pub fn withNonce(&mut self, nonce: impl Into<String>) -> &mut Self {
-        self.options.expectedNonce = Some(nonce.into());
+    pub fn with_nonce(&mut self, nonce: impl Into<String>) -> &mut Self {
+        self.options.expected_nonce = Some(nonce.into());
         self
     }
-    pub fn setOpenId(&mut self, openId: impl Into<String>) -> &mut Self {
-        self.options.openId = Some(openId.into());
+    pub fn set_open_id(&mut self, open_id: impl Into<String>) -> &mut Self {
+        self.options.open_id = Some(open_id.into());
         self
     }
-    pub fn withUnionId(&mut self, value: bool) -> &mut Self {
-        self.options.withUnionId = value;
+    pub fn with_union_id(&mut self, value: bool) -> &mut Self {
+        self.options.with_union_id = value;
         self
     }
-    pub fn lastToken(&self) -> Option<&str> {
-        self.lastToken.as_ref().map(|token| token.as_str())
+    pub fn last_token(&self) -> Option<&str> {
+        self.last_token.as_ref().map(|token| token.as_str())
     }
-    pub fn enablePKCE(&mut self) -> &mut Self {
-        self.usesPKCE = true;
+    pub fn enable_pkce(&mut self) -> &mut Self {
+        self.uses_pkce = true;
         self
     }
-    pub fn redirectUrl(&mut self, url: impl Into<String>) -> &mut Self {
+    pub fn redirect_url(&mut self, url: impl Into<String>) -> &mut Self {
         self.config.redirect = url.into();
         self
     }
     pub fn redirect(&mut self) -> Result<openrust::http::RedirectResponse> {
-        let target = self.authorizationUrl()?;
+        let target = self.authorization_url()?;
         Ok(openrust::support::facades::Redirect::away(
             &target,
             Default::default(),
         )?)
     }
-    pub fn authorizationUrl(&mut self) -> Result<String> {
+    pub fn authorization_url(&mut self) -> Result<String> {
         let mut fields = Map::from_iter([
             ("client_id".into(), self.config.client_id.clone().into()),
             ("redirect_uri".into(), self.config.redirect.clone().into()),
             (
                 "scope".into(),
-                self.scopes.join(self.definition.scopeSeparator()).into(),
+                self.scopes.join(self.definition.scope_separator()).into(),
             ),
             ("response_type".into(), "code".into()),
         ]);
@@ -304,7 +308,7 @@ impl<'a> AbstractProvider<'a> {
                 .put("state", state.clone().into())?;
             fields.insert("state".into(), state.into());
         }
-        if self.usesPKCE {
+        if self.uses_pkce {
             let verifier = random(96)?;
             self.request
                 .session_mut()?
@@ -320,14 +324,14 @@ impl<'a> AbstractProvider<'a> {
             fields.insert("code_challenge_method".into(), "S256".into());
         }
         fields.extend(self.parameters.clone());
-        self.definition.customizeCodeFieldsWithOptions(
+        self.definition.customize_code_fields_with_options(
             &mut fields,
             &self.scopes,
-            self.botUser,
+            self.bot_user,
             self.stateless,
             &self.options,
         );
-        let mut url = url::Url::parse(&self.definition.authorizationEndpoint(&self.options))
+        let mut url = url::Url::parse(&self.definition.authorization_endpoint(&self.options))
             .map_err(|_| Error::Configuration("authorization URL"))?;
         {
             let mut pairs = url.query_pairs_mut();
@@ -335,7 +339,7 @@ impl<'a> AbstractProvider<'a> {
                 pairs.append_pair(&key, &scalar(&value)?);
             }
         }
-        if self.definition.usesRFC3986() {
+        if self.definition.uses_rfc3986() {
             let query = url.query().map(|q| {
                 q.replace('+', "%20")
                     .replace('*', "%2A")
@@ -371,12 +375,12 @@ impl<'a> AbstractProvider<'a> {
             .await?
             .and_then(|v| v.as_str().map(str::to_owned))
             .ok_or(Error::MissingCode)?;
-        let response = self.getAccessTokenResponse(&code).await?;
+        let response = self.get_access_token_response(&code).await?;
         let credentials = self.credentials(&response)?;
-        self.lastToken = Some(credentials.token.clone());
+        self.last_token = Some(credentials.token.clone());
         let raw = self
             .definition
-            .getUserByTokenWithOptions(
+            .get_user_by_token_with_options(
                 &self.http,
                 &credentials.token,
                 &self.scopes,
@@ -385,16 +389,16 @@ impl<'a> AbstractProvider<'a> {
                 &self.parameters,
             )
             .await?;
-        let mut user = self.definition.mapUserToObject(raw)?;
+        let mut user = self.definition.map_user_to_object(raw)?;
         user.credentials = Some(credentials);
         self.user = Some(user.clone());
         Ok(user)
     }
-    pub async fn userFromToken(&mut self, token: &str) -> Result<User> {
-        self.lastToken = Some(Zeroizing::new(token.into()));
+    pub async fn user_from_token(&mut self, token: &str) -> Result<User> {
+        self.last_token = Some(Zeroizing::new(token.into()));
         let raw = self
             .definition
-            .getUserByTokenWithOptions(
+            .get_user_by_token_with_options(
                 &self.http,
                 token,
                 &self.scopes,
@@ -403,20 +407,20 @@ impl<'a> AbstractProvider<'a> {
                 &self.parameters,
             )
             .await?;
-        let mut user = self.definition.mapUserToObject(raw)?;
+        let mut user = self.definition.map_user_to_object(raw)?;
         user.credentials = Some(Token {
             token: Zeroizing::new(token.into()),
-            tokenSecret: None,
-            refreshToken: None,
-            expiresIn: None,
-            approvedScopes: vec![],
+            token_secret: None,
+            refresh_token: None,
+            expires_in: None,
+            approved_scopes: vec![],
         });
         Ok(user)
     }
-    pub async fn getAccessTokenResponse(&mut self, code: &str) -> Result<Value> {
+    pub async fn get_access_token_response(&mut self, code: &str) -> Result<Value> {
         self.exchange(code, false).await
     }
-    pub async fn getAccessToken(&mut self, code: &str) -> Result<Zeroizing<String>> {
+    pub async fn get_access_token(&mut self, code: &str) -> Result<Zeroizing<String>> {
         let response = self.exchange(code, true).await?;
         response
             .get("access_token")
@@ -435,7 +439,7 @@ impl<'a> AbstractProvider<'a> {
             ("code".into(), code.into()),
             ("redirect_uri".into(), self.config.redirect.clone().into()),
         ]);
-        if self.usesPKCE {
+        if self.uses_pkce {
             fields.insert(
                 "code_verifier".into(),
                 self.request
@@ -446,38 +450,39 @@ impl<'a> AbstractProvider<'a> {
         }
         fields.extend(self.parameters.clone());
         let basic = if direct {
-            self.definition.directTokenBasicAuth()
+            self.definition.direct_token_basic_auth()
         } else {
-            self.definition.tokenBasicAuth()
+            self.definition.token_basic_auth()
         };
         let fields = Value::Object(fields);
-        let custom = match self
-            .definition
-            .getAccessTokenResponse(&self.http, &self.config, &fields)
-        {
-            Some(response) => Some(response.await?),
-            None => None,
-        };
+        let custom =
+            match self
+                .definition
+                .get_access_token_response(&self.http, &self.config, &fields)
+            {
+                Some(response) => Some(response.await?),
+                None => None,
+            };
         let response = match custom {
             Some(response) => response,
             None => self.post(&fields, basic, true).await?,
         };
         let response = self
             .definition
-            .normalizeTokenResponse(response, self.botUser)?;
+            .normalize_token_response(response, self.bot_user)?;
         self.definition
-            .configureTokenResponse(&response, &mut self.options)?;
+            .configure_token_response(&response, &mut self.options)?;
         Ok(response)
     }
-    pub async fn refreshToken(&mut self, refreshToken: &str) -> Result<Token> {
-        let mut fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refreshToken,"client_id":self.config.client_id});
-        if self.definition.refreshTokenIncludesSecret() {
+    pub async fn refresh_token(&mut self, refresh_token: &str) -> Result<Token> {
+        let mut fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refresh_token,"client_id":self.config.client_id});
+        if self.definition.refresh_token_includes_secret() {
             fields["client_secret"] = self.config.client_secret.as_str().into();
         }
         let custom =
             match self
                 .definition
-                .refreshTokenResponse(&self.http, &self.config, refreshToken)
+                .refresh_token_response(&self.http, &self.config, refresh_token)
             {
                 Some(response) => Some(response.await?),
                 None => None,
@@ -485,13 +490,13 @@ impl<'a> AbstractProvider<'a> {
         let response = match custom {
             Some(response) => response,
             None => {
-                self.post(&fields, self.definition.tokenBasicAuth(), false)
+                self.post(&fields, self.definition.token_basic_auth(), false)
                     .await?
             }
         };
         let response = self
             .definition
-            .normalizeRefreshTokenResponse(response, refreshToken)?;
+            .normalize_refresh_token_response(response, refresh_token)?;
         self.credentials(&response)
     }
     async fn post(&mut self, fields: &Value, basic: bool, code: bool) -> Result<Value> {
@@ -501,7 +506,7 @@ impl<'a> AbstractProvider<'a> {
             .as_form()
             .redact_payload()
             .without_redirecting();
-        if !code || self.definition.tokenAcceptsJson() {
+        if !code || self.definition.token_accepts_json() {
             request = request.accept_json();
         }
         if basic {
@@ -509,7 +514,7 @@ impl<'a> AbstractProvider<'a> {
         }
         json(
             request
-                .post(&self.definition.tokenEndpoint(&self.options), fields)
+                .post(&self.definition.token_endpoint(&self.options), fields)
                 .await?,
         )
     }
@@ -523,17 +528,17 @@ impl<'a> AbstractProvider<'a> {
                     .ok_or(Error::InvalidResponse)?
                     .into(),
             ),
-            tokenSecret: None,
-            refreshToken: response
+            token_secret: None,
+            refresh_token: response
                 .get("refresh_token")
                 .and_then(Value::as_str)
                 .map(|s| Zeroizing::new(s.into())),
-            expiresIn: response.get("expires_in").and_then(Value::as_u64),
-            approvedScopes: response
+            expires_in: response.get("expires_in").and_then(Value::as_u64),
+            approved_scopes: response
                 .get("scope")
                 .and_then(Value::as_str)
                 .unwrap_or("")
-                .split(self.definition.scopeSeparator())
+                .split(self.definition.scope_separator())
                 .map(str::to_owned)
                 .collect(),
         })

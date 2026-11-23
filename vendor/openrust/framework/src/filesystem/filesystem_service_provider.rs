@@ -45,7 +45,7 @@ impl ServiceProvider for FilesystemServiceProvider {
             container.singleton::<dyn crate::contracts::filesystem::Cloud, _>(|container| {
                 let manager = container.make::<FilesystemManager>()?;
                 manager
-                    .disk(Some(&manager.getDefaultCloudDriver().map_err(
+                    .disk(Some(&manager.get_default_cloud_driver().map_err(
                         |source| {
                             crate::contracts::container::BindingResolutionError::FactoryFailed {
                                 service: "filesystem.cloud",

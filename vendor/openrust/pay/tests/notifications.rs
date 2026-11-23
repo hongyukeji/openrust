@@ -107,7 +107,7 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
         .process(&notification, &expected(), |tx, n| {
             Box::pin(async move {
                 tx.table("payment_orders")
-                    .r#where("id", "=", n.outTradeNo())
+                    .r#where("id", "=", n.out_trade_no())
                     .update([("status".into(), "paid".into())].into_iter().collect())
                     .await?;
                 Err(DatabaseError::InvalidConfiguration(
@@ -143,7 +143,7 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
             let signal = signal.clone();
             Box::pin(async move {
                 tx.table("payment_orders")
-                    .r#where("id", "=", n.outTradeNo())
+                    .r#where("id", "=", n.out_trade_no())
                     .update(
                         [("status".into(), "cancelled".into())]
                             .into_iter()
@@ -174,14 +174,14 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
                 Box::pin(async move {
                     assert_eq!(
                         tx.table("payment_orders")
-                            .r#where("id", "=", n.outTradeNo())
+                            .r#where("id", "=", n.out_trade_no())
                             .value("status")
                             .await?,
                         Value::from("pending")
                     );
                     calls.fetch_add(1, Ordering::SeqCst);
                     tx.table("payment_orders")
-                        .r#where("id", "=", n.outTradeNo())
+                        .r#where("id", "=", n.out_trade_no())
                         .update([("status".into(), "paid".into())].into_iter().collect())
                         .await?;
                     Ok(())
@@ -216,7 +216,7 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
         1
     );
     let mut wrong = expected();
-    wrong.amount = Amount::fromFen(1).unwrap();
+    wrong.amount = Amount::from_fen(1).unwrap();
     assert!(matches!(
         repository
             .process(&notification, &wrong, |_, _| Box::pin(async {
@@ -228,7 +228,7 @@ async fn durable_notifications_share_business_transaction_rollback_deduplicate_a
     let (h, b) = wechat_callback(json!({"amount":{"total":100,"currency":"CNY"}}));
     let changed = gateway.callback(&h, &b).unwrap();
     let mut other = expected();
-    other.amount = Amount::fromFen(100).unwrap();
+    other.amount = Amount::from_fen(100).unwrap();
     assert!(matches!(
         repository
             .process(&changed, &other, |_, _| Box::pin(async {

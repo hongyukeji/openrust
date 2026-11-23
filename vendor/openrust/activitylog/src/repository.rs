@@ -14,16 +14,16 @@ impl Redaction {
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn logProperties(mut self, keys: &[&str]) -> Self {
+    pub fn log_properties(mut self, keys: &[&str]) -> Self {
         self.properties.extend(keys.iter().map(|s| (*s).into()));
         self
     }
-    pub fn logOnly(mut self, attributes: &[&str]) -> Self {
+    pub fn log_only(mut self, attributes: &[&str]) -> Self {
         self.attributes
             .extend(attributes.iter().map(|s| (*s).into()));
         self
     }
-    pub fn logExcept(mut self, attributes: &[&str]) -> Self {
+    pub fn log_except(mut self, attributes: &[&str]) -> Self {
         self.excluded
             .extend(attributes.iter().map(|s| normalize(s)));
         self
@@ -100,8 +100,8 @@ pub struct ActivityRepository {
     model: std::sync::Arc<crate::models::ActivityModel>,
     policy: Option<Redaction>,
     enabled: bool,
-    pub(crate) defaultLogName: Option<String>,
-    pub(crate) defaultExceptAttributes: Vec<String>,
+    pub(crate) default_log_name: Option<String>,
+    pub(crate) default_except_attributes: Vec<String>,
 }
 impl ActivityRepository {
     pub fn new(connection: Connection) -> Self {
@@ -113,34 +113,37 @@ impl ActivityRepository {
             ),
             policy: None,
             enabled: true,
-            defaultLogName: Some("default".into()),
-            defaultExceptAttributes: Vec::new(),
+            default_log_name: Some("default".into()),
+            default_except_attributes: Vec::new(),
         }
     }
-    pub fn withActivityModel<M: openrust::database::eloquent::Model>(self) -> Self {
-        self.withModel(std::sync::Arc::new(crate::models::ActivityModel::of::<M>()))
+    pub fn with_activity_model<M: openrust::database::eloquent::Model>(self) -> Self {
+        self.with_model(std::sync::Arc::new(crate::models::ActivityModel::of::<M>()))
     }
-    pub(crate) fn withModel(mut self, model: std::sync::Arc<crate::models::ActivityModel>) -> Self {
+    pub(crate) fn with_model(
+        mut self,
+        model: std::sync::Arc<crate::models::ActivityModel>,
+    ) -> Self {
         self.table = model.table;
         self.model = model;
         self
     }
-    pub fn withDefaultExceptAttributes(mut self, names: Vec<String>) -> Self {
-        self.defaultExceptAttributes = names;
+    pub fn with_default_except_attributes(mut self, names: Vec<String>) -> Self {
+        self.default_except_attributes = names;
         self
     }
-    pub fn withDefaultLogName(mut self, name: impl IntoLogName) -> Self {
-        self.defaultLogName = name.intoLogName();
+    pub fn with_default_log_name(mut self, name: impl IntoLogName) -> Self {
+        self.default_log_name = name.into_log_name();
         self
     }
-    pub(crate) fn usesConnection(&self, connection: &Connection) -> bool {
+    pub(crate) fn uses_connection(&self, connection: &Connection) -> bool {
         self.connection.get_name() == connection.get_name()
             && self.connection.get_database_name() == connection.get_database_name()
     }
-    pub(crate) fn isEnabled(&self) -> bool {
+    pub(crate) fn is_enabled(&self) -> bool {
         self.enabled
     }
-    pub fn withRedaction(mut self, policy: Redaction) -> Self {
+    pub fn with_redaction(mut self, policy: Redaction) -> Self {
         self.policy = Some(policy);
         self
     }
@@ -185,16 +188,16 @@ impl ActivityRepository {
         {
             return Err(Error::InvalidActivity);
         }
-        sqlTimestamp(record.created_at)?;
+        sql_timestamp(record.created_at)?;
         Ok(Some(PreparedActivity(record, self.model.clone())))
     }
     pub async fn log(&self, activity: Activity) -> Result<Option<ActivityRecord>> {
         let Some(prepared) = self.prepare(activity)? else {
             return Ok(None);
         };
-        self.savePrepared(prepared).await.map(Some)
+        self.save_prepared(prepared).await.map(Some)
     }
-    pub(crate) async fn insertBuffered(&self, records: Vec<PreparedActivity>) -> Result<()> {
+    pub(crate) async fn insert_buffered(&self, records: Vec<PreparedActivity>) -> Result<()> {
         let rows: Vec<_> = records.iter().map(PreparedActivity::row).collect();
         let table = self.table;
         self.connection
@@ -208,13 +211,13 @@ impl ActivityRepository {
             .await
             .map_err(Into::into)
     }
-    pub(crate) async fn savePrepared(&self, prepared: PreparedActivity) -> Result<ActivityRecord> {
+    pub(crate) async fn save_prepared(&self, prepared: PreparedActivity) -> Result<ActivityRecord> {
         (prepared.1.save)(&self.connection, &prepared)
             .await
             .map_err(Into::into)
     }
     /// The supplied transaction selects the database. Prepare before mutating business data.
-    pub async fn logIn(
+    pub async fn log_in(
         &self,
         tx: &mut Transaction,
         activity: Activity,
@@ -224,7 +227,7 @@ impl ActivityRepository {
             .map_err(|_| DatabaseError::InvalidConfiguration("Invalid activity"))?;
         match prepared {
             None => Ok(None),
-            Some(record) => record.logIn(tx).await.map(Some),
+            Some(record) => record.log_in(tx).await.map(Some),
         }
     }
     pub fn query(&self) -> ActivityQuery {
@@ -232,27 +235,27 @@ impl ActivityRepository {
             connection: self.connection.clone(),
             table: self.table,
             filters: Vec::new(),
-            logGroups: Vec::new(),
+            log_groups: Vec::new(),
             after: None,
             limit: 50,
         }
     }
-    pub(crate) async fn deleteOldActivities(
+    pub(crate) async fn delete_old_activities(
         &self,
         before: i64,
-        logName: Option<&str>,
+        log_name: Option<&str>,
     ) -> Result<u64> {
         let mut query =
             self.connection
                 .table(self.table)
-                .r#where("created_at", "<", sqlTimestamp(before)?);
-        if let Some(name) = logName {
+                .r#where("created_at", "<", sql_timestamp(before)?);
+        if let Some(name) = log_name {
             query = query.where_exact_text("log_name", name);
         }
         query.delete().await.map_err(Into::into)
     }
     /// Deletes one bounded batch strictly before the UTC cutoff, sharing a transaction.
-    pub async fn cleanBefore(&self, before: i64, limit: u64) -> Result<u64> {
+    pub async fn clean_before(&self, before: i64, limit: u64) -> Result<u64> {
         if before < 0
             || before > jiff::Timestamp::now().as_millisecond()
             || !(1..=1000).contains(&limit)
@@ -261,7 +264,7 @@ impl ActivityRepository {
         }
         let connection = self.connection.clone();
         let table = self.table;
-        let before = sqlTimestamp(before)?;
+        let before = sql_timestamp(before)?;
         connection
             .transaction(
                 move |tx| {
@@ -299,8 +302,8 @@ impl PreparedActivity {
     pub fn record(&self) -> &ActivityRecord {
         &self.0
     }
-    pub async fn logIn(&self, tx: &mut Transaction) -> DatabaseResult<ActivityRecord> {
-        (self.1.saveIn)(self, tx).await
+    pub async fn log_in(&self, tx: &mut Transaction) -> DatabaseResult<ActivityRecord> {
+        (self.1.save_in)(self, tx).await
     }
     pub(crate) fn row(&self) -> BTreeMap<String, Value> {
         let r = &self.0;
@@ -330,13 +333,13 @@ impl PreparedActivity {
             ),
             (
                 "created_at",
-                sqlTimestamp(r.created_at)
+                sql_timestamp(r.created_at)
                     .expect("validated timestamp")
                     .into(),
             ),
             (
                 "updated_at",
-                sqlTimestamp(r.created_at)
+                sql_timestamp(r.created_at)
                     .expect("validated timestamp")
                     .into(),
             ),
@@ -351,29 +354,29 @@ pub struct ActivityQuery {
     connection: Connection,
     table: &'static str,
     filters: Vec<(&'static str, String)>,
-    logGroups: Vec<Vec<String>>,
+    log_groups: Vec<Vec<String>>,
     after: Option<i64>,
     limit: u64,
 }
 impl ActivityQuery {
-    pub fn inLog(self, name: impl Into<String>) -> Self {
-        self.inLogs([name])
+    pub fn in_log(self, name: impl Into<String>) -> Self {
+        self.in_logs([name])
     }
-    pub fn inLogs(mut self, names: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.logGroups
+    pub fn in_logs(mut self, names: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.log_groups
             .push(names.into_iter().map(Into::into).collect());
         self
     }
-    pub fn forEvent(mut self, event: impl Into<String>) -> Self {
+    pub fn for_event(mut self, event: impl Into<String>) -> Self {
         self.filters.push(("event", event.into()));
         self
     }
-    pub fn forSubject(mut self, subject: &Subject) -> Self {
+    pub fn for_subject(mut self, subject: &Subject) -> Self {
         self.filters.push(("subject_type", subject.kind.clone()));
         self.filters.push(("subject_id", subject.id.clone()));
         self
     }
-    pub fn causedBy(mut self, subject: &Subject) -> Self {
+    pub fn caused_by(mut self, subject: &Subject) -> Self {
         self.filters.push(("causer_type", subject.kind.clone()));
         self.filters.push(("causer_id", subject.id.clone()));
         self
@@ -399,7 +402,7 @@ impl ActivityQuery {
         for (column, value) in self.filters {
             query = query.where_exact_text(column, &value);
         }
-        for names in self.logGroups {
+        for names in self.log_groups {
             query = query.where_in("log_name", names.into_iter().map(Value::from).collect());
         }
         if let Some(id) = self.after {
@@ -419,9 +422,9 @@ impl ActivityQuery {
     }
 }
 fn decode(row: &Row) -> Result<ActivityRecord> {
-    decodeAttributes(&row.columns().iter().cloned().collect())
+    decode_attributes(&row.columns().iter().cloned().collect())
 }
-pub(crate) fn decodeAttributes(row: &BTreeMap<String, Value>) -> Result<ActivityRecord> {
+pub(crate) fn decode_attributes(row: &BTreeMap<String, Value>) -> Result<ActivityRecord> {
     let text = |key: &str| match row.get(key) {
         Some(Value::Text(v)) => Ok(v.clone()),
         _ => Err(Error::InvalidActivity),
@@ -448,15 +451,15 @@ pub(crate) fn decodeAttributes(row: &BTreeMap<String, Value>) -> Result<Activity
         }
     };
     Ok(ActivityRecord {
-        id: row.get("id").map(recordId).transpose()?,
+        id: row.get("id").map(record_id).transpose()?,
         log_name: optional("log_name")?,
         description: text("description")?,
         event: optional("event")?,
         subject: subject("subject")?,
         causer: subject("causer")?,
         request_id: optional("request_id")?,
-        properties: jsonColumn(row, "properties")?,
-        attribute_changes: jsonColumn(row, "attribute_changes")?,
+        properties: json_column(row, "properties")?,
+        attribute_changes: json_column(row, "attribute_changes")?,
         created_at: match row.get("created_at") {
             Some(Value::Text(value)) => format!("{}Z", value.replace(' ', "T"))
                 .parse::<jiff::Timestamp>()
@@ -467,7 +470,7 @@ pub(crate) fn decodeAttributes(row: &BTreeMap<String, Value>) -> Result<Activity
     })
 }
 
-fn recordId(value: &Value) -> Result<i64> {
+fn record_id(value: &Value) -> Result<i64> {
     match value {
         Value::Integer(value) if *value > 0 => Ok(*value),
         Value::Unsigned(value) if *value > 0 => {
@@ -477,7 +480,7 @@ fn recordId(value: &Value) -> Result<i64> {
     }
 }
 
-fn sqlTimestamp(milliseconds: i64) -> Result<String> {
+fn sql_timestamp(milliseconds: i64) -> Result<String> {
     let timestamp =
         jiff::Timestamp::from_millisecond(milliseconds).map_err(|_| Error::InvalidActivity)?;
     Ok(timestamp
@@ -485,7 +488,7 @@ fn sqlTimestamp(milliseconds: i64) -> Result<String> {
         .strftime("%Y-%m-%d %H:%M:%S")
         .to_string())
 }
-fn jsonColumn(row: &BTreeMap<String, Value>, key: &str) -> Result<serde_json::Value> {
+fn json_column(row: &BTreeMap<String, Value>, key: &str) -> Result<serde_json::Value> {
     match row.get(key) {
         Some(Value::Json(value)) => Ok(value.clone()),
         Some(Value::Text(value)) => serde_json::from_str(value).map_err(|_| Error::InvalidActivity),

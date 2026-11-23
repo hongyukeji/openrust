@@ -18,7 +18,6 @@ enum FieldKey {
     Custom(usize),
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackAttachment {
     pub fn title(&mut self, title: impl Into<String>, url: Option<&str>) -> &mut Self {
         self.attribute("title", title.into());
@@ -54,7 +53,7 @@ impl SlackAttachment {
         self
     }
 
-    pub fn fieldWith(&mut self, build: impl FnOnce(&mut SlackAttachmentField)) -> &mut Self {
+    pub fn field_with(&mut self, build: impl FnOnce(&mut SlackAttachmentField)) -> &mut Self {
         let mut field = SlackAttachmentField::default();
         build(&mut field);
         self.fields
@@ -103,7 +102,7 @@ impl SlackAttachment {
         self.attribute("footer", footer.into())
     }
 
-    pub fn footerIcon(&mut self, icon: impl Into<String>) -> &mut Self {
+    pub fn footer_icon(&mut self, icon: impl Into<String>) -> &mut Self {
         self.attribute("footer_icon", icon.into())
     }
 
@@ -111,14 +110,14 @@ impl SlackAttachment {
         self.attribute("ts", crate::support::timestamp_seconds(timestamp))
     }
 
-    pub fn timestampAfter(&mut self, seconds: i64) -> &mut Self {
+    pub fn timestamp_after(&mut self, seconds: i64) -> &mut Self {
         self.attribute(
             "ts",
             crate::support::timestamp_seconds(Timestamp::now()).saturating_add(seconds),
         )
     }
 
-    pub fn callbackId(&mut self, id: impl Into<String>) -> &mut Self {
+    pub fn callback_id(&mut self, id: impl Into<String>) -> &mut Self {
         self.attribute("callback_id", id.into())
     }
 
@@ -166,7 +165,6 @@ impl Default for SlackAttachmentField {
     }
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackAttachmentField {
     pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
         self.title = Some(title.into());

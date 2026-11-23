@@ -28,7 +28,7 @@ async fn signed_email_verification_uses_native_mysql_sessions_and_rejects_wrong_
     }
     NOTIFICATIONS.store(0, std::sync::atomic::Ordering::Relaxed);
     let server = start(email_settings(), true, |_| {}).await;
-    server.fortify.verifyEmailView(
+    server.fortify.verify_email_view(
         openrust_fortify::http::responses::SimpleViewResponse::callback(Arc::new(|_| {
             Box::pin(async { Response::json(StatusCode::OK, json!({"verification_view":true})) })
         })),
@@ -198,7 +198,7 @@ async fn fixed_php_email_verification_controllers_and_responses_match_native_htt
     ))
     .unwrap();
     let server = start(email_settings(), true, |_| {}).await;
-    server.fortify.verifyEmailView(
+    server.fortify.verify_email_view(
         openrust_fortify::http::responses::SimpleViewResponse::callback(Arc::new(|_| {
             Box::pin(async { Response::json(StatusCode::OK, json!({"verification_view":true})) })
         })),

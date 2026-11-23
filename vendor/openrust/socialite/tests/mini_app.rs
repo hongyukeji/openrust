@@ -57,9 +57,9 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
         http.clone(),
     );
     let session = manager
-        .miniApp()
+        .mini_app()
         .unwrap()
-        .codeToSession("code+&中")
+        .code_to_session("code+&中")
         .await
         .unwrap();
     assert_eq!(session.openid, "id-one");
@@ -68,7 +68,7 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
     let user = session.user();
     assert_eq!(user.get_id(), "id-one");
     assert_eq!(
-        user.getRaw(),
+        user.get_raw(),
         &json!({"openid":"id-one","unionid":"union-one"})
     );
     assert_eq!(
@@ -79,7 +79,7 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
             .clone()
     );
     assert!(user.credentials.is_none());
-    assert!(user.getNickname().is_none());
+    assert!(user.get_nickname().is_none());
     for (request, response) in http.recorded() {
         assert!(request.url.query().is_none());
         assert!(request.body.is_none());
@@ -105,7 +105,7 @@ async fn invalid_configuration_and_empty_codes_fail_before_http() {
     }
     for code in ["", " \n "] {
         assert!(matches!(
-            client(http.clone()).codeToSession(code).await,
+            client(http.clone()).code_to_session(code).await,
             Err(Error::MissingCode)
         ));
     }
@@ -135,7 +135,7 @@ async fn provider_errors_and_malformed_identities_are_rejected_without_secret_di
         let http = Arc::new(Factory::new().unwrap());
         http.fake(move |_| Some(Ok(response(200, body.clone()))));
         let error = client(http)
-            .codeToSession("private-code")
+            .code_to_session("private-code")
             .await
             .err()
             .unwrap();
@@ -146,7 +146,7 @@ async fn provider_errors_and_malformed_identities_are_rejected_without_secret_di
         let http = Arc::new(Factory::new().unwrap());
         http.fake(move |_| Some(Ok(response(status, "private-secret"))));
         assert!(
-            matches!(client(http.clone()).codeToSession("code").await, Err(Error::ProviderStatus(s)) if s==status)
+            matches!(client(http.clone()).code_to_session("code").await, Err(Error::ProviderStatus(s)) if s==status)
         );
         assert_eq!(http.recorded().len(), 1);
     }
@@ -160,9 +160,9 @@ async fn unionid_is_optional_and_session_key_is_never_a_socialite_access_token()
             .unwrap()
             .extend(extra.as_object().unwrap().clone());
         http.fake(move |_| Some(Ok(response(200, body.to_string()))));
-        let session = client(http).codeToSession("code").await.unwrap();
+        let session = client(http).code_to_session("code").await.unwrap();
         assert!(session.unionid.is_none());
-        assert_eq!(session.user().getRaw(), &json!({"openid":"id"}));
+        assert_eq!(session.user().get_raw(), &json!({"openid":"id"}));
         assert!(session.user().credentials.is_none());
     }
 }
@@ -206,20 +206,20 @@ async fn real_http_exchange_keeps_concurrent_apps_separate_and_does_not_cache_or
     http.fake(|_| None);
     let a = MiniApp::new(&json!({"app_id":"a","secret":"secret-a"}), http.clone())
         .unwrap()
-        .withEndpoint(&endpoint);
+        .with_endpoint(&endpoint);
     let b = MiniApp::new(&json!({"app_id":"b","secret":"secret-b"}), http.clone())
         .unwrap()
-        .withEndpoint(&endpoint);
+        .with_endpoint(&endpoint);
     let (one, two, three) = tokio::join!(
-        a.codeToSession("one+中"),
-        b.codeToSession("one+中"),
-        a.codeToSession("two")
+        a.code_to_session("one+中"),
+        b.code_to_session("one+中"),
+        a.code_to_session("two")
     );
     assert_eq!(one.unwrap().openid, "a:one+中");
     assert_eq!(two.unwrap().openid, "b:one+中");
     assert_eq!(three.unwrap().openid, "a:two");
     assert!(matches!(
-        a.codeToSession("two").await,
+        a.code_to_session("two").await,
         Err(Error::InvalidResponse)
     ));
     assert_eq!(http.recorded().len(), 4);
@@ -253,8 +253,8 @@ async fn credentials_are_not_forwarded_on_real_http_redirects() {
     });
     assert!(matches!(
         client(Arc::new(Factory::new().unwrap()))
-            .withEndpoint(format!("{endpoint}/exchange"))
-            .codeToSession("code")
+            .with_endpoint(format!("{endpoint}/exchange"))
+            .code_to_session("code")
             .await,
         Err(Error::ProviderStatus(302))
     ));
@@ -266,7 +266,7 @@ async fn mini_login(
     manager: &SocialiteManager,
     code: &str,
 ) -> openrust_socialite::Result<openrust_socialite::two::User> {
-    let session = manager.miniApp()?.codeToSession(code).await?;
+    let session = manager.mini_app()?.code_to_session(code).await?;
     Ok(session.user())
 }
 fn login_routes() -> Result<(), openrust::routing::RoutingError> {
@@ -282,9 +282,9 @@ fn login_handler(
             .as_ref()
             .and_then(Value::as_str)
             .ok_or(openrust::http::HttpError::InvalidRequest)?;
-        let session = openrust_socialite::facades::Socialite::miniApp()
+        let session = openrust_socialite::facades::Socialite::mini_app()
             .map_err(|_| openrust::http::HttpError::InvalidRequest)?
-            .codeToSession(code)
+            .code_to_session(code)
             .await
             .map_err(|_| openrust::http::HttpError::InvalidRequest)?;
         let user = session.user();

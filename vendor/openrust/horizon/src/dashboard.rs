@@ -23,7 +23,7 @@ type Authorize =
 #[derive(Default)]
 pub struct Dashboard {
     authorize: RwLock<Option<Authorize>>,
-    routesRegistered: AtomicBool,
+    routes_registered: AtomicBool,
 }
 impl Dashboard {
     pub(crate) fn repository(&self) -> Result<Arc<Repository>> {
@@ -42,7 +42,7 @@ impl Dashboard {
     pub async fn stats(&self) -> Result<serde_json::Value> {
         let config = openrust::support::facades::Config::get_facade_root()
             .map_err(|_| Error::Unavailable)?;
-        let options = SupervisorOptions::fromConfig(config.as_ref())?;
+        let options = SupervisorOptions::from_config(config.as_ref())?;
         let repository = self.repository()?;
         let queue = openrust::queue::QueueFacade::manager().map_err(|_| Error::Unavailable)?;
         let workload = repository.workload().get().await?;
@@ -72,7 +72,7 @@ impl Dashboard {
         }
         let paused = repository.paused().await?;
         let masters = repository.masters().await?;
-        let metrics = repository.metricsRepository();
+        let metrics = repository.metrics_repository();
         let processes = masters
             .iter()
             .filter_map(|m| m.get("workers").and_then(serde_json::Value::as_array))
@@ -91,8 +91,8 @@ impl Dashboard {
         }
         Ok(
             serde_json::json!({"paused":paused,"masters":masters,"queues":queues,"recent":repository.recent(100).await?,
-                "failedJobs":repository.jobs().countRecentlyFailed().await?,"recentJobs":repository.jobs().countRecent().await?,
-                "jobsPerMinute":metrics.jobsProcessedPerMinute().await?,"queueWithMaxRuntime":metrics.queueWithMaximumRuntime().await?,"queueWithMaxThroughput":metrics.queueWithMaximumThroughput().await?,
+                "failedJobs":repository.jobs().count_recently_failed().await?,"recentJobs":repository.jobs().count_recent().await?,
+                "jobsPerMinute":metrics.jobs_processed_per_minute().await?,"queueWithMaxRuntime":metrics.queue_with_maximum_runtime().await?,"queueWithMaxThroughput":metrics.queue_with_maximum_throughput().await?,
                 "processes":processes,"pausedMasters":masters.iter().filter(|m|m.get("status").and_then(serde_json::Value::as_str)==Some("paused")).count(),
                 "periods":{"failedJobs":config.get("horizon.trim.recent_failed").or_else(||config.get("horizon.trim.failed")).unwrap_or(10080.into()),"recentJobs":config.get("horizon.trim.recent").unwrap_or(60.into())},"status":if masters.is_empty(){"inactive"}else if masters.iter().all(|master|master["status"]=="paused"){"paused"}else{"running"},"wait":wait
             }),
@@ -126,9 +126,9 @@ impl Horizon {
             .ok_or_else(|| openrust::routing::RoutingError::InvalidUri {
                 uri: path.to_string(),
             })?;
-        Self::routesAt(&format!("/{}", path.trim_matches('/')))
+        Self::routes_at(&format!("/{}", path.trim_matches('/')))
     }
-    pub fn routesAt(path: &str) -> std::result::Result<(), openrust::routing::RoutingError> {
+    pub fn routes_at(path: &str) -> std::result::Result<(), openrust::routing::RoutingError> {
         // Static application-owned paths only; no route parameters or encoded separators.
         let path = if path == "/" {
             "/"
@@ -146,7 +146,7 @@ impl Horizon {
         }
         let dashboard = Self::manager()
             .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
-        if dashboard.routesRegistered.load(Ordering::SeqCst) {
+        if dashboard.routes_registered.load(Ordering::SeqCst) {
             return Ok(());
         }
         let config = openrust::support::facades::Config::get_facade_root()
@@ -213,7 +213,7 @@ impl Horizon {
             router.delete(&format!("{path}/api/monitoring/{{tag}}"), api)?;
             Ok(())
         })?;
-        dashboard.routesRegistered.store(true, Ordering::SeqCst);
+        dashboard.routes_registered.store(true, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -266,7 +266,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
         let id = request.route("id").map(str::to_owned);
         let repository = dashboard.repository()?;
         let jobs = repository.jobs();
-        let metrics = repository.metricsRepository();
+        let metrics = repository.metrics_repository();
         let tags = repository.tags();
         let starting = request
             .query(Some("starting_at"))?
@@ -274,7 +274,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
             .map(|value| value as usize);
         let value = match (request.method().as_str(), path.as_str()) {
             ("GET", "workload") => json!(repository.workload().get().await?),
-            ("GET", "masters") => json!(repository.masterSupervisors().all().await?),
+            ("GET", "masters") => json!(repository.master_supervisors().all().await?),
             ("GET", "monitoring") => {
                 let mut result = Vec::new();
                 for tag in tags.monitoring().await? {
@@ -297,7 +297,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                     return Err(HttpError::InvalidRequest);
                 }
                 let ids = tags.paginate(&tag, starting.unwrap_or(0), limit).await?;
-                json!({"jobs":jobs.getJobs(&ids,0).await?,"total":tags.count(&tag).await?})
+                json!({"jobs":jobs.get_jobs(&ids,0).await?,"total":tags.count(&tag).await?})
             }
             ("POST", "monitoring") => {
                 let tag = request
@@ -310,37 +310,37 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
             }
             ("DELETE", _) if path.starts_with("monitoring/") => {
                 let tag = request.route("tag").ok_or(HttpError::InvalidRequest)?;
-                tags.stopMonitoring(tag).await?;
-                jobs.deleteMonitored(&tags.jobs(tag).await?).await?;
+                tags.stop_monitoring(tag).await?;
+                jobs.delete_monitored(&tags.jobs(tag).await?).await?;
                 tags.forget(tag).await?;
                 json!({"deleted":true})
             }
-            ("GET", "metrics/jobs") => json!(metrics.measuredJobs().await?),
-            ("GET", "metrics/queues") => json!(metrics.measuredQueues().await?),
-            ("GET", _) if path.starts_with("metrics/jobs/") => snapshotResponse(
+            ("GET", "metrics/jobs") => json!(metrics.measured_jobs().await?),
+            ("GET", "metrics/queues") => json!(metrics.measured_queues().await?),
+            ("GET", _) if path.starts_with("metrics/jobs/") => snapshot_response(
                 metrics
-                    .snapshotsForJob(id.as_deref().ok_or(HttpError::InvalidRequest)?)
+                    .snapshots_for_job(id.as_deref().ok_or(HttpError::InvalidRequest)?)
                     .await?,
             ),
-            ("GET", _) if path.starts_with("metrics/queues/") => snapshotResponse(
+            ("GET", _) if path.starts_with("metrics/queues/") => snapshot_response(
                 metrics
-                    .snapshotsForQueue(id.as_deref().ok_or(HttpError::InvalidRequest)?)
+                    .snapshots_for_queue(id.as_deref().ok_or(HttpError::InvalidRequest)?)
                     .await?,
             ),
             ("GET", "jobs/pending") => {
-                json!({"jobs":jobs.getPending(starting).await?,"total":jobs.countPending().await?})
+                json!({"jobs":jobs.get_pending(starting).await?,"total":jobs.count_pending().await?})
             }
             ("GET", "jobs/completed") => {
-                json!({"jobs":jobs.getCompleted(starting).await?,"total":jobs.countCompleted().await?})
+                json!({"jobs":jobs.get_completed(starting).await?,"total":jobs.count_completed().await?})
             }
             ("GET", "jobs/silenced") => {
-                json!({"jobs":jobs.getSilenced(starting).await?,"total":jobs.countSilenced().await?})
+                json!({"jobs":jobs.get_silenced(starting).await?,"total":jobs.count_silenced().await?})
             }
             ("GET", "jobs/failed") => {
-                json!({"jobs":jobs.getFailed(starting).await?,"total":jobs.countFailed().await?})
+                json!({"jobs":jobs.get_failed(starting).await?,"total":jobs.count_failed().await?})
             }
             ("GET", _) if path.starts_with("jobs/failed/") => serde_json::to_value(
-                jobs.findFailed(id.as_deref().ok_or(HttpError::InvalidRequest)?)
+                jobs.find_failed(id.as_deref().ok_or(HttpError::InvalidRequest)?)
                     .await?
                     .ok_or(HttpError::NotFound)?,
             )
@@ -392,26 +392,26 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                 } else {
                     vec![id.into()]
                 };
-                let expectedBatch = if path.starts_with("batches/") {
+                let expected_batch = if path.starts_with("batches/") {
                     Some(id.to_owned())
                 } else {
                     None
                 };
                 let mut retried = 0;
                 for id in ids {
-                    let monitored = if expectedBatch.is_some() {
-                        jobs.findFailedByUuid(&id).await?
+                    let monitored = if expected_batch.is_some() {
+                        jobs.find_failed_by_uuid(&id).await?
                     } else {
-                        jobs.findFailed(&id).await?
+                        jobs.find_failed(&id).await?
                     };
                     let Some(monitored) = monitored else {
                         continue;
                     };
-                    let uuid = monitored.payloadUuid()?;
+                    let uuid = monitored.payload_uuid()?;
                     // A later retry can fail with the same payload UUID. Only its
                     // current transport identity may claim the native failure.
                     if jobs
-                        .findFailedByUuid(uuid)
+                        .find_failed_by_uuid(uuid)
                         .await?
                         .is_none_or(|current| current.record.id != monitored.record.id)
                     {
@@ -430,18 +430,18 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                         {
                             continue;
                         }
-                        if expectedBatch
+                        if expected_batch
                             .as_deref()
-                            .is_some_and(|batch| job.payload.batchId() != Some(batch))
+                            .is_some_and(|batch| job.payload.batch_id() != Some(batch))
                         {
                             continue;
                         }
-                        if let Some(retryId) = manager
+                        if let Some(retry_id) = manager
                             .retry_failed_with_id(failures.as_ref(), uuid, &job)
                             .await
                             .map_err(|_| HttpError::from(Error::Queue))?
                         {
-                            jobs.storeRetryReference(&monitored.record.id, &retryId)
+                            jobs.store_retry_reference(&monitored.record.id, &retry_id)
                                 .await?;
                             retried += 1;
                         }
@@ -476,7 +476,7 @@ impl Facade for Store {
     }
 }
 
-fn snapshotResponse(mut snapshots: Vec<serde_json::Value>) -> serde_json::Value {
+fn snapshot_response(mut snapshots: Vec<serde_json::Value>) -> serde_json::Value {
     for snapshot in &mut snapshots {
         if let Some(runtime) = snapshot.get("runtime").and_then(serde_json::Value::as_f64) {
             snapshot["runtime"] = serde_json::json!((runtime / 1000. * 1000.).round() / 1000.);
@@ -493,12 +493,12 @@ impl Facade for FailedJobs {
     }
 }
 
-pub(crate) fn configuredRoutes() -> std::result::Result<(), openrust::routing::RoutingError> {
+pub(crate) fn configured_routes() -> std::result::Result<(), openrust::routing::RoutingError> {
     let config = openrust::support::facades::Config::get_facade_root()
         .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
     if Horizon::manager()
         .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?
-        .routesRegistered
+        .routes_registered
         .load(Ordering::SeqCst)
     {
         return Ok(());

@@ -129,11 +129,11 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
     let calls = Arc::new(AtomicUsize::new(0));
     let counter = calls.clone();
     let servers = app.app().make::<Servers>().await.unwrap();
-    servers.detectCpuUsing(Some(Arc::new(move || {
+    servers.detect_cpu_using(Some(Arc::new(move || {
         counter.fetch_add(1, Ordering::SeqCst);
         17
     })));
-    servers.detectMemoryUsing(Some(Arc::new(|| Memory {
+    servers.detect_memory_using(Some(Arc::new(|| Memory {
         total: 4096,
         used: 1024,
     })));

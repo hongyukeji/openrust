@@ -15,7 +15,6 @@ pub struct SlackMessage {
     blocks: Vec<Value>,
 }
 
-#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackMessage {
     pub fn new() -> Self {
         Self::default()
@@ -29,11 +28,11 @@ impl SlackMessage {
         self.field("text", text.into())
     }
 
-    pub fn headerBlock(self, text: impl Into<String>) -> Self {
-        self.headerBlockWith(text, |_| {})
+    pub fn header_block(self, text: impl Into<String>) -> Self {
+        self.header_block_with(text, |_| {})
     }
 
-    pub fn headerBlockWith(
+    pub fn header_block_with(
         self,
         text: impl Into<String>,
         build: impl FnOnce(&mut HeaderBlock),
@@ -43,23 +42,23 @@ impl SlackMessage {
         self.block(block.into_json())
     }
 
-    pub fn dividerBlock(self) -> Self {
-        self.dividerBlockWith(|_| {})
+    pub fn divider_block(self) -> Self {
+        self.divider_block_with(|_| {})
     }
 
-    pub fn dividerBlockWith(self, build: impl FnOnce(&mut DividerBlock)) -> Self {
+    pub fn divider_block_with(self, build: impl FnOnce(&mut DividerBlock)) -> Self {
         let mut block = DividerBlock::default();
         build(&mut block);
         self.block(block.into_json())
     }
 
-    pub fn imageBlock(self, url: impl Into<String>, alt_text: impl Into<String>) -> Self {
-        self.imageBlockWith(url, |block| {
+    pub fn image_block(self, url: impl Into<String>, alt_text: impl Into<String>) -> Self {
+        self.image_block_with(url, |block| {
             block.alt(alt_text);
         })
     }
 
-    pub fn imageBlockWith(
+    pub fn image_block_with(
         self,
         url: impl Into<String>,
         build: impl FnOnce(&mut ImageBlock),
@@ -69,25 +68,25 @@ impl SlackMessage {
         self.block(block.into_json())
     }
 
-    pub fn contextBlock(self, build: impl FnOnce(&mut ContextBlock)) -> Self {
+    pub fn context_block(self, build: impl FnOnce(&mut ContextBlock)) -> Self {
         let mut block = ContextBlock::default();
         build(&mut block);
         self.block(block.into_json())
     }
 
-    pub fn sectionBlock(self, build: impl FnOnce(&mut SectionBlock)) -> Self {
+    pub fn section_block(self, build: impl FnOnce(&mut SectionBlock)) -> Self {
         let mut block = SectionBlock::default();
         build(&mut block);
         self.block(block.into_json())
     }
 
-    pub fn actionsBlock(self, build: impl FnOnce(&mut ActionsBlock)) -> Self {
+    pub fn actions_block(self, build: impl FnOnce(&mut ActionsBlock)) -> Self {
         let mut block = ActionsBlock::default();
         build(&mut block);
         self.block(block.into_json())
     }
 
-    pub fn tryActionsBlock(
+    pub fn try_actions_block(
         self,
         build: impl FnOnce(&mut ActionsBlock) -> NotificationResult<()>,
     ) -> NotificationResult<Self> {
@@ -111,37 +110,37 @@ impl SlackMessage {
     }
 
     pub fn metadata(self, event_type: impl Into<String>, payload: Map<String, Value>) -> Self {
-        self.withMetadata(EventMetadata::make(event_type, payload))
+        self.with_metadata(EventMetadata::make(event_type, payload))
     }
 
-    pub fn withMetadata(self, metadata: EventMetadata) -> Self {
+    pub fn with_metadata(self, metadata: EventMetadata) -> Self {
         self.field("metadata", metadata.into_array())
     }
 
-    pub fn disableMarkdownParsing(self) -> Self {
+    pub fn disable_markdown_parsing(self) -> Self {
         self.field("mrkdwn", false)
     }
 
-    pub fn unfurlLinks(self, enable: bool) -> Self {
+    pub fn unfurl_links(self, enable: bool) -> Self {
         self.field("unfurl_links", enable)
     }
 
-    pub fn unfurlMedia(self, enable: bool) -> Self {
+    pub fn unfurl_media(self, enable: bool) -> Self {
         self.field("unfurl_media", enable)
     }
 
-    pub fn threadTimestamp(self, timestamp: impl Into<String>) -> Self {
+    pub fn thread_timestamp(self, timestamp: impl Into<String>) -> Self {
         self.field("thread_ts", timestamp.into())
     }
 
     /// Remove the parent message timestamp from this message.
-    pub fn clearThreadTimestamp(mut self) -> Self {
+    pub fn clear_thread_timestamp(mut self) -> Self {
         self.fields.remove("thread_ts");
         self
     }
 
     /// Set the broadcast flag, or pass `None` to omit it from the Slack request.
-    pub fn broadcastReply(mut self, enable: impl Into<Option<bool>>) -> Self {
+    pub fn broadcast_reply(mut self, enable: impl Into<Option<bool>>) -> Self {
         if let Some(enable) = enable.into() {
             self.fields.insert("reply_broadcast".into(), enable.into());
         } else {
@@ -151,7 +150,7 @@ impl SlackMessage {
     }
 
     /// Appends blocks from a Slack Block Kit Builder JSON document.
-    pub fn usingBlockKitTemplate(mut self, template: &str) -> NotificationResult<Self> {
+    pub fn using_block_kit_template(mut self, template: &str) -> NotificationResult<Self> {
         let mut input: Value = serde_json::from_str(template)
             .map_err(|_| delivery("The Slack Block Kit template is invalid JSON."))?;
         let Some(Value::Array(blocks)) = input.get_mut("blocks").map(Value::take) else {
@@ -184,7 +183,7 @@ impl SlackMessage {
     }
 
     /// Builds a Slack Block Kit Builder URL without sending the message.
-    pub fn toBlockKitBuilderUrl(&self) -> NotificationResult<String> {
+    pub fn to_block_kit_builder_url(&self) -> NotificationResult<String> {
         let mut fields = self.to_array()?;
         for key in ["channel", "text", "username"] {
             fields.remove(key);
