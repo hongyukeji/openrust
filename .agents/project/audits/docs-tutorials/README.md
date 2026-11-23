@@ -199,3 +199,21 @@ make:rule与生成模板消费者本组闭合。逐失败首选语言、DataAwar
 本组关闭指定语言／复数及显式翻译时序子范围。DataAware／ValidatorAware可变setter、Rule fluent builders／anyOf／forEach及email扩展模式仍按原清单接续，不提前关闭Validation整章。不包含其他协作者的队列／云接线在途代码，没有新建持久化服务或容器。
 
 第九组最终三语浏览器、两种挂载全部导航与无API导出参考页检查全部退出0，failure-translation-gates.log的六个阶段均为0。新借用与原回调共同通过workspace严格门禁，未添加命名或其他lint豁免；证据与热缓存保留，临时PHP对照容器使用--rm退出，无项目数据库或卷变更。
+
+## 第十组：AnyOf备选组与原工厂／文件／数据库消费者
+
+固定Rules/AnyOf按顺序为每组调用Facade Validator::make，传入父验证器的消息和字段名，一组通过即短路；关联规则与关联值使用字段映射，其余值包装为索引0。固定来源：https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Rules/AnyOf.php 。v0.x未找到对应可复用类型。复用原Factory、RuleSet、ValidationRule、消息包与presence verifier，不新建子验证器实现或手工判断规则成功。
+
+- 新增Rule::any_of、rules::AnyOf::new、AnyOfRules::{Value,Fields}及两种From转换；.into()进入原自定义规则管线。Rust显式Vec<Rule>／RuleSet替代PHP动态数组。逐组保持声明顺序，支持混合与递归组、空备选拒绝、单个空组通过，missing／nullable仍由原外层调度决定。
+- RuleContext仅借用父消息／字段名及原始转义属性路径；每组从当前应用门面工厂创建验证器，保留已注册扩展、replacer、数据库验证与实例配置隔离。与固定实现一致，依赖活动应用门面作用域，不在无作用域时暗建另一套工厂。
+- Data私有scope只重定向当前值和上传路径，保留原上传句柄及shape，不复制文件内容。外层值不会被子验证器的过滤结果替换；额外字段是否允许仍由外层数组键规则决定。无吞掉子执行错误的分支，没有声称基准性能收益。
+
+固定PHP实际执行17种标量／关联／数字键／通配符／空组／missing／null／空串组合，并分别有／无自定义消息，34组输出落validation-any-of.json。初版候选误以为AnyOf外层自定义消息不覆盖，实际对照反例证明会覆盖，已改回原消息键管线并通过34组逐项实际HTTP回放。PHP对照补装Egulias4.0.4及锁定依赖在target/tmp下；主机php7.4缺tidy库启动失败，未改主机环境，改用已固定PHP8.5.12临时容器完成；对照容器退出即删除。
+
+实际TCP还覆盖混合／递归组、工厂扩展和replacer观察到继承消息及字段名、成功组短路不执行后续回调、外层数据不被子输入0污染。multipart验证普通文件、嵌套文件、括号内字面点字段，成功后返回真实文件句柄检查，3KB文件触发2KB规则并逐字段422。首次夹具用顶层doc.name被既有归一化成下划线，required反例及时暴露未验证字段；修正为container[doc.name]，没有修改正式请求归一化。另一次测试配置误用捕获闭包，原ConfigLoader是函数指针；已按现有基路径／环境加载方式修正夹具，不扩大框架ConfigLoader范围。
+
+最终MySQL8.4.13组合4目标28项通过、0忽略：AnyOf2、既有validation_http23、failure_translation1、rule_tutorial2。独立AnyOf数据库用例验证存在／不存在／后备组，并配置故意不可达read端口，证明沿用write presence连接。记录any-of-mysql-frozen.log；验收独占容器已清除，测试表正常DROP，无数据卷操作。三语24段正式代码（含27个函数入口）直接提取成3组HTTP Kernel消费者，覆盖两类新教程，合计本组31项，不把34组数据或multipart请求重复算功能数。
+
+最终any-of-gates.log六阶段全0：三语提取与运行、workspace/all-targets -D warnings（45.45秒）、fmt、三语构建、浏览器和根／docs挂载全部导航、无API导出参考页检查通过。实现与验收快照逐字核对，保留日志／源码／热缓存；未混入队列／云功能等在途改动。
+
+当前明确余项：ForEach的编译规则与动态字段展开、其余Rule fluent builders、DataAware／ValidatorAware可变setter、email DNS／spoof／strict／filter扩展模式。AnyOf已闭合，不再列为未实现；Validation整章仍不能宣布完整对齐。

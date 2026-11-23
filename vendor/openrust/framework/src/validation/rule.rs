@@ -4,7 +4,7 @@ use crate::contracts::validation::ValidationRule;
 
 use super::{
     ValidationError, ValidationResult, Value,
-    rules::{Dimensions, EncodingRule, Exists, File, Password, Unique},
+    rules::{AnyOf, AnyOfRules, Dimensions, EncodingRule, Exists, File, Password, Unique},
 };
 
 /// A fluent validation rule or application-defined rule.
@@ -105,6 +105,10 @@ impl Rule {
         }
         .map(|(name, parameters)| (name.to_owned(), parameters));
         Self(kind, declaration)
+    }
+
+    pub fn any_of<T: Into<AnyOfRules>>(rules: impl IntoIterator<Item = T>) -> AnyOf {
+        AnyOf::new(rules)
     }
 
     pub fn required() -> Self {

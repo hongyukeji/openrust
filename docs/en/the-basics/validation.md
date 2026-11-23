@@ -492,3 +492,42 @@ fn localized_failure(context: &RuleContext<'_>) -> RuleFailure {
     )
 }
 ```
+
+## Any complete rule group {#rule-any-of}
+
+`Rule::any_of` accepts alternative lists of rules. Every rule in one group must pass; later groups stop running after a successful group. `rules::AnyOf::new` provides the same builder. Add `required` separately when an absent field must be rejected.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleSet},
+};
+
+fn store_choice(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let choice = Rule::any_of([
+            vec![Rule::email()],
+            vec![Rule::string(), Rule::min(6)],
+        ]);
+        let rules = RuleSet::new().field("contact", [Rule::required(), choice.into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_contact(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let choice = Rule::any_of([
+            RuleSet::parse([("email", "required|email")])?,
+            RuleSet::parse([("name", "required|string|min:6")])?,
+        ]);
+        let rules = RuleSet::new().field("contact", [Rule::required(), choice.into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+For associative input, pass alternatives built with `RuleSet`; each group checks its own field mapping. Child validators use the current application factory, including extensions, database presence checks, custom messages and attribute names. Uploaded files keep their typed handles in nested groups. A group check does not replace the outer value with the child’s filtered result: use allowed array keys when additional fields must be rejected.
+
+This rule requires an active application facade scope, like the other validation facades. Empty alternatives reject a supplied value; an empty individual group passes. All-failed groups report `validation.any_of` on the outer field and support its custom message.

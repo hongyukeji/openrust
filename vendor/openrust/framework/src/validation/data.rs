@@ -88,6 +88,58 @@ impl Data {
         self.uploads.get(attribute)
     }
 
+    /// 子验证器只重定向当前值的路径，上传内容继续共享原文件句柄。
+    pub(super) fn scope(
+        &self,
+        attribute: &str,
+        input: Value,
+        wrapped: bool,
+    ) -> ValidationResult<Self> {
+        check(&input)?;
+        let prefix = format!("{attribute}.");
+        let uploads = self
+            .uploads
+            .iter()
+            .filter_map(|(path, file)| {
+                let relative = if path == attribute {
+                    ""
+                } else {
+                    path.strip_prefix(&prefix)?
+                };
+                let path = if wrapped {
+                    if relative.is_empty() {
+                        "0".to_owned()
+                    } else {
+                        format!("0.{relative}")
+                    }
+                } else {
+                    relative.to_owned()
+                };
+                Some((path, file.clone()))
+            })
+            .collect();
+        let shape = path::expand(
+            &self.upload_shape,
+            &path::parse(attribute)?,
+            &mut path::Budget::default(),
+        )?
+        .into_iter()
+        .next()
+        .and_then(|(_, value)| value)
+        .cloned()
+        .unwrap_or(Value::Null);
+        let upload_shape = if wrapped {
+            Value::Array(vec![shape])
+        } else {
+            shape
+        };
+        Ok(Self {
+            input,
+            uploads,
+            upload_shape,
+        })
+    }
+
     pub(super) fn uploads(&self) -> &BTreeMap<String, UploadedFile> {
         &self.uploads
     }

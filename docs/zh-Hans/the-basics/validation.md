@@ -492,3 +492,42 @@ fn localized_failure(context: &RuleContext<'_>) -> RuleFailure {
     )
 }
 ```
+
+## 任一完整规则组 {#rule-any-of}
+
+`Rule::any_of` 接收多组备选规则。一组中的全部规则通过即可，成功后不再执行后续组；`rules::AnyOf::new` 提供相同构造器。缺失字段也必须拒绝时，请在外层另加 `required`。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleSet},
+};
+
+fn store_choice(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let choice = Rule::any_of([
+            vec![Rule::email()],
+            vec![Rule::string(), Rule::min(6)],
+        ]);
+        let rules = RuleSet::new().field("contact", [Rule::required(), choice.into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_contact(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let choice = Rule::any_of([
+            RuleSet::parse([("email", "required|email")])?,
+            RuleSet::parse([("name", "required|string|min:6")])?,
+        ]);
+        let rules = RuleSet::new().field("contact", [Rule::required(), choice.into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+关联输入可传入由 `RuleSet` 构成的备选组，每组验证各自的字段映射。子验证器使用当前应用工厂，保留扩展、数据库存在性验证、自定义消息和字段显示名；嵌套组内的上传文件保留类型化句柄。检查规则组不会用子验证器过滤后的结果替换外层值；需要拒绝额外字段时，应声明允许的数组键。
+
+此规则与其他验证门面一样，需要活动的应用门面作用域。空备选列表拒绝已提供的值；单个空规则组则通过。所有组失败时，在外层字段报告 `validation.any_of`，并支持该规则的自定义消息。

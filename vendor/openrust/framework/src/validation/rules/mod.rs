@@ -1,5 +1,6 @@
 //! Built-in fluent rule types.
 
+mod any_of;
 mod database_rule;
 mod dimensions;
 mod email;
@@ -11,6 +12,7 @@ mod in_rule;
 mod password;
 mod unique;
 
+pub use any_of::{AnyOf, AnyOfRules};
 pub(super) use database_rule::DatabaseRule;
 pub use dimensions::Dimensions;
 pub use email::Email;

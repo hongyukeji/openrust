@@ -492,3 +492,42 @@ fn localized_failure(context: &RuleContext<'_>) -> RuleFailure {
     )
 }
 ```
+
+## 任一完整規則組 {#rule-any-of}
+
+`Rule::any_of` 接收多組備選規則。一組中的全部規則通過即可，成功後不再執行後續組；`rules::AnyOf::new` 提供相同建構器。缺失欄位也必須拒絕時，請在外層另加 `required`。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleSet},
+};
+
+fn store_choice(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let choice = Rule::any_of([
+            vec![Rule::email()],
+            vec![Rule::string(), Rule::min(6)],
+        ]);
+        let rules = RuleSet::new().field("contact", [Rule::required(), choice.into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_contact(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let choice = Rule::any_of([
+            RuleSet::parse([("email", "required|email")])?,
+            RuleSet::parse([("name", "required|string|min:6")])?,
+        ]);
+        let rules = RuleSet::new().field("contact", [Rule::required(), choice.into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+關聯輸入可傳入由 `RuleSet` 構成的備選組，每組驗證各自的欄位映射。子驗證器使用目前應用工廠，保留擴充、資料庫存在性驗證、自訂訊息和欄位顯示名稱；巢狀組內的上傳檔案保留型別化控制代碼。檢查規則組不會用子驗證器篩選後的結果替換外層值；需要拒絕額外欄位時，應宣告允許的陣列鍵。
+
+此規則與其他驗證門面一樣，需要作用中的應用門面範圍。空備選清單拒絕已提供的值；單個空規則組則通過。所有組失敗時，在外層欄位回報 `validation.any_of`，並支援該規則的自訂訊息。

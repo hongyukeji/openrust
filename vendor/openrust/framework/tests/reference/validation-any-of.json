@@ -1,0 +1,654 @@
+[
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": "abcdef"
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": "abcdef"
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": 12
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": 12
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": 3
+        },
+        "custom": false,
+        "passes": false,
+        "errors": {
+            "value": [
+                "The selected field is invalid."
+            ]
+        }
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": 3
+        },
+        "custom": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "Configured selected failure."
+            ]
+        }
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": null
+        },
+        "custom": false,
+        "passes": false,
+        "errors": {
+            "value": [
+                "The selected field is invalid."
+            ]
+        }
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": null
+        },
+        "custom": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "Configured selected failure."
+            ]
+        }
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": [],
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": [],
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": ""
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "string",
+                "min:6"
+            ],
+            [
+                "integer",
+                "min:10"
+            ]
+        ],
+        "input": {
+            "value": ""
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [],
+        "input": {
+            "value": "x"
+        },
+        "custom": false,
+        "passes": false,
+        "errors": {
+            "value": [
+                "The selected field is invalid."
+            ]
+        }
+    },
+    {
+        "kind": "scalar",
+        "groups": [],
+        "input": {
+            "value": "x"
+        },
+        "custom": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "Configured selected failure."
+            ]
+        }
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            []
+        ],
+        "input": {
+            "value": "x"
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            []
+        ],
+        "input": {
+            "value": "x"
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "nullable"
+            ]
+        ],
+        "input": {
+            "value": null
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "scalar",
+        "groups": [
+            [
+                "nullable"
+            ]
+        ],
+        "input": {
+            "value": null
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "name": "required|string",
+                "age": "required|integer|min:18"
+            },
+            {
+                "email": "required|email"
+            }
+        ],
+        "input": {
+            "value": {
+                "name": "A",
+                "age": 20
+            }
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "name": "required|string",
+                "age": "required|integer|min:18"
+            },
+            {
+                "email": "required|email"
+            }
+        ],
+        "input": {
+            "value": {
+                "name": "A",
+                "age": 20
+            }
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "name": "required|string",
+                "age": "required|integer|min:18"
+            },
+            {
+                "email": "required|email"
+            }
+        ],
+        "input": {
+            "value": {
+                "email": "a@example.com"
+            }
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "name": "required|string",
+                "age": "required|integer|min:18"
+            },
+            {
+                "email": "required|email"
+            }
+        ],
+        "input": {
+            "value": {
+                "email": "a@example.com"
+            }
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "name": "required|string",
+                "age": "required|integer|min:18"
+            },
+            {
+                "email": "required|email"
+            }
+        ],
+        "input": {
+            "value": {
+                "name": "A",
+                "age": 12
+            }
+        },
+        "custom": false,
+        "passes": false,
+        "errors": {
+            "value": [
+                "The selected field is invalid."
+            ]
+        }
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "name": "required|string",
+                "age": "required|integer|min:18"
+            },
+            {
+                "email": "required|email"
+            }
+        ],
+        "input": {
+            "value": {
+                "name": "A",
+                "age": 12
+            }
+        },
+        "custom": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "Configured selected failure."
+            ]
+        }
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            [
+                "array"
+            ]
+        ],
+        "input": {
+            "value": [
+                "a",
+                "b"
+            ]
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            [
+                "array"
+            ]
+        ],
+        "input": {
+            "value": [
+                "a",
+                "b"
+            ]
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            [
+                "array"
+            ]
+        ],
+        "input": {
+            "value": [
+                "a",
+                "b"
+            ]
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            [
+                "array"
+            ]
+        ],
+        "input": {
+            "value": [
+                "a",
+                "b"
+            ]
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            [
+                "array"
+            ]
+        ],
+        "input": {
+            "value": {
+                "a": "b"
+            }
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            [
+                "array"
+            ]
+        ],
+        "input": {
+            "value": {
+                "a": "b"
+            }
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "items.*.id": "required|integer"
+            }
+        ],
+        "input": {
+            "value": {
+                "items": [
+                    {
+                        "id": 1
+                    },
+                    {
+                        "id": 2
+                    }
+                ]
+            }
+        },
+        "custom": false,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "items.*.id": "required|integer"
+            }
+        ],
+        "input": {
+            "value": {
+                "items": [
+                    {
+                        "id": 1
+                    },
+                    {
+                        "id": 2
+                    }
+                ]
+            }
+        },
+        "custom": true,
+        "passes": true,
+        "errors": []
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "items.*.id": "required|integer"
+            }
+        ],
+        "input": {
+            "value": {
+                "items": [
+                    {
+                        "id": 1
+                    },
+                    {
+                        "id": "bad"
+                    }
+                ]
+            }
+        },
+        "custom": false,
+        "passes": false,
+        "errors": {
+            "value": [
+                "The selected field is invalid."
+            ]
+        }
+    },
+    {
+        "kind": "fields",
+        "groups": [
+            {
+                "items.*.id": "required|integer"
+            }
+        ],
+        "input": {
+            "value": {
+                "items": [
+                    {
+                        "id": 1
+                    },
+                    {
+                        "id": "bad"
+                    }
+                ]
+            }
+        },
+        "custom": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "Configured selected failure."
+            ]
+        }
+    }
+]

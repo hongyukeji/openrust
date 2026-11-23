@@ -59,6 +59,9 @@ pub type Value = serde_json::Value;
 pub struct RuleContext<'a> {
     pub data: &'a Data,
     pub(crate) translator: Option<&'a crate::translation::Translator>,
+    pub(crate) attribute: &'a str,
+    pub(crate) messages: &'a std::collections::BTreeMap<String, String>,
+    pub(crate) attributes: &'a std::collections::BTreeMap<String, String>,
 }
 
 /// A custom rule failure with a translation key or literal message.

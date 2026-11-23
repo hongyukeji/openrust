@@ -876,6 +876,9 @@ impl Validator {
             let context = RuleContext {
                 data: &self.data,
                 translator: self.translator.as_deref(),
+                attribute,
+                messages: &self.messages,
+                attributes: &self.attributes,
             };
             return rule
                 .validate(&context, &custom_rule_attribute(attribute), value)
@@ -1408,6 +1411,9 @@ impl Validator {
                 let context = RuleContext {
                     data: &self.data,
                     translator: self.translator.as_deref(),
+                    attribute,
+                    messages: &self.messages,
+                    attributes: &self.attributes,
                 };
                 return rule
                     .validate(&context, &custom_rule_attribute(attribute), Some(value))

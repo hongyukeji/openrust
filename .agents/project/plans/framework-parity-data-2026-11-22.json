@@ -298945,6 +298945,25 @@
         "email扩展模式"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_any_of",
+      "status": "AnyOf备选组及工厂/文件/数据库消费者已闭合；整章继续",
+      "implementation": "Rule::any_of、rules::AnyOf和AnyOfRules；原Factory/RuleSet验证每组，Data scope保留文件句柄和转义路径，父消息和字段名借用",
+      "consumers": [
+        "framework/tests/validation_any_of.rs",
+        "framework/tests/reference/validation-any-of.json",
+        "tests/request_tutorial_docs.py"
+      ],
+      "actual_results": "固定PHP34组实际TCP回放；MySQL8.4.13四目标28项+三语24代码块3项=31项通过；扩展/短路/multipart/写连接；严格Clippy/fmt/构建浏览器通过",
+      "remaining": [
+        "ForEach编译规则与动态展开",
+        "其他Rule fluent builders",
+        "DataAware/ValidatorAware可变setter",
+        "email DNS/spoof/strict/filter模式"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

@@ -60,6 +60,10 @@ async fn verify(register:fn(&Application)->Result<Router,RoutingError>) {
  }
  for body in ["{}",r#"{"title":""}"#] {let (status,value)=call(&kernel,"POST","http://tutorial.test/implicit-posts",body).await;assert_eq!(status,StatusCode::UNPROCESSABLE_ENTITY);assert!(value["errors"]["title"].is_array());}
  let(status,data)=call(&kernel,"POST","http://tutorial.test/translated-posts",r#"{"title":"x"}"#).await;assert_eq!(status,StatusCode::UNPROCESSABLE_ENTITY);assert_eq!(data["errors"]["title"][0],"Le champ title est invalide (X).");
+ for body in [r#"{"contact":"a@example.com"}"#,r#"{"contact":"abcdef"}"#]{assert_eq!(call(&kernel,"POST","http://tutorial.test/choice-posts",body).await.0,StatusCode::CREATED);}
+ for body in ["{}",r#"{"contact":"x"}"#]{let(status,data)=call(&kernel,"POST","http://tutorial.test/choice-posts",body).await;assert_eq!(status,StatusCode::UNPROCESSABLE_ENTITY);assert!(data["errors"]["contact"].is_array());}
+ for body in [r#"{"contact":{"email":"a@example.com"}}"#,r#"{"contact":{"name":"abcdef","extra":true}}"#]{let(status,data)=call(&kernel,"POST","http://tutorial.test/contact-posts",body).await;assert_eq!(status,StatusCode::CREATED);assert_eq!(data,serde_json::from_str::<Value>(body).unwrap());}
+ assert_eq!(call(&kernel,"POST","http://tutorial.test/contact-posts",r#"{"contact":{"name":"x"}}"#).await.0,StatusCode::UNPROCESSABLE_ENTITY);
  let data=json!({"title":"x".repeat(256)}).to_string();assert_eq!(call(&kernel,"POST","http://tutorial.test/posts",&data).await.0,StatusCode::UNPROCESSABLE_ENTITY);
 }
 '''
@@ -76,7 +80,7 @@ pub(super) fn store(request:&mut openrust::http::Request)->openrust::http::HttpF
  let rule=openrust::validation::Rule::custom(|context:&openrust::validation::RuleContext<'_>,_:&str,_:Option<&serde_json::Value>|Ok(vec![localized_failure(context)]));
  let rules=openrust::validation::RuleSet::new().field("title",[rule])?;let data=request.validate(rules).await?;openrust::http::Response::json(openrust::http::StatusCode::OK,data.into_value())
 })}
-}\n''' + '''pub fn register(router:&mut openrust::routing::Router)->Result<(),openrust::routing::RoutingError> {router.post("/posts",store)?;router.post("/custom-posts",messages::store_with_messages)?;router.post("/strict-posts",unknown_fields::store_strict)?;router.post("/callback-posts",callbacks::store_callback)?;router.post("/implicit-posts",implicit::store_implicit)?;router.post("/translated-posts",translated::store)?;Ok(())}
+}\n''' + '\nmod choices {\n' + block(locale, 'validation', 'store_choice', '{#rule-any-of}').replace('fn store_choice(', 'pub(super) fn store_choice(', 1).replace('fn store_contact(', 'pub(super) fn store_contact(', 1) + '\n}\n' + '''pub fn register(router:&mut openrust::routing::Router)->Result<(),openrust::routing::RoutingError> {router.post("/posts",store)?;router.post("/custom-posts",messages::store_with_messages)?;router.post("/strict-posts",unknown_fields::store_strict)?;router.post("/callback-posts",callbacks::store_callback)?;router.post("/implicit-posts",implicit::store_implicit)?;router.post("/translated-posts",translated::store)?;router.post("/choice-posts",choices::store_choice)?;router.post("/contact-posts",choices::store_contact)?;Ok(())}
 }
 pub fn register(_: &openrust::foundation::Application)->Result<openrust::routing::Router,openrust::routing::RoutingError> {
  let mut router=openrust::routing::Router::new();urls::register(&mut router)?;validation::register(&mut router)?;Ok(router)
@@ -88,4 +92,4 @@ if not target.resolve().is_relative_to(source):
     parser.error('生成路径不能通过符号链接逃逸源码快照')
 target.write_text(code)
 subprocess.run(['rustfmt', '+1.94.0', '--edition', '2024', str(target)], check=True)
-print('已直接提取三语共二十一段教程，生成三个 HTTP Kernel 消费者')
+print('已直接提取三语共二十四段教程（含二十七个函数入口），生成三个 HTTP Kernel 消费者')

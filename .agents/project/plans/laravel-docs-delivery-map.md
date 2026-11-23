@@ -181,8 +181,8 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 
 | 章节子范围 | 状态与边界 | 证据 |
 | --- | --- | --- |
-| URL Generation：请求实例验签 | 六入口单元中的四种签名方法已补，实际消费者通过；整章其余示例仍逐例核对 | [请求教程核对](../audits/docs-tutorials/README.md) |
-| Validation：请求实例即时验证、具名错误包与预验证 | 两种实例入口及门面统一流程，三语示例／真实HTTP通过；额外参数与完整验证章节未关闭 | [请求教程核对](../audits/docs-tutorials/README.md) |
+| URL Generation：列明教程 | 请求验签、完整URL、默认值、Uri与优先级消费者已核定；保留APP_URL优先与previous同源差异，不等于整个类型API完全无差异 | [请求教程核对](../audits/docs-tutorials/README.md) |
+| Validation：列明教程子范围 | 消息／字段名、具名包、FormRequest、未知字段、两类生成器、闭包／隐式规则、翻译和AnyOf已验收；ForEach／其余builder／setter／email模式未关闭 | [请求教程核对](../audits/docs-tutorials/README.md) |
 | Settings：既定类型化设置与单机／集群协调 | 功能已闭合；发布环境矩阵保留待验，不重开功能任务 | [最终闭合复核](../audits/settings-coordination/README.md) |
 | 其他章节及上述章节的剩余示例 | 依现有细分单元接续；未取得教程消费者证据的，不新增已通过结论 | [统一差异账本](framework-parity-data-2026-11-22.json) |
 
@@ -201,3 +201,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第八组：make:rule／--implicit与两类可发布模板已接通；修复请求／规则模板合法类型名与导入、标准库名称冲突。8项实际CLI、三语12条命令生成文件、2项真实TCP生成代码消费者通过；清理后严格workspace Clippy/fmt/三语构建通过。生成器子范围闭合，逐失败语言、规则setter、builder和email扩展模式继续按[教程记录](../audits/docs-tutorials/README.md)逐项处理，整章不提前关闭。
 
 2026-11-24 Validation第九组：RuleFailure通过显式RuleContext借用提供translate／translate_choice，当场解析首选语言与复数，保持原JSON错误包和默认消息；固定PHP包含语言切换时序、回退与嵌套替换参数的输出已用24并发真实TCP回放。20项验证回归＋三语21段直接提取的3项HTTP消费者通过，严格Clippy/fmt/三语构建通过。其余setter／builder／email差异继续，未宣称整章关闭。
+
+2026-11-24 Validation第十组：Rule::any_of／AnyOf、标量及字段备选组闭合。固定PHP34组消息／值组合，真实TCP混合与递归组、工厂消息继承与短路、typed multipart成功／超限、MySQL8.4.13写连接存在性验证均通过。4目标28项＋三语24段正式示例3项消费者=31项，严格Clippy/fmt/三语构建浏览器通过。ForEach编译展开、其余builder、可变setter和email模式仍按逐项清单接续，未关闭整章。
