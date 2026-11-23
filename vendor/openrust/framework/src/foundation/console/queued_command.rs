@@ -83,7 +83,7 @@ impl JobHandler for QueuedCommand {
             super::call_in_application(&data.command, &arguments, &mut Output::default())
                 .await
                 .map_err(|source| QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 })?;
             Ok(())
         })

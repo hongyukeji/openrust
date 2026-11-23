@@ -161,7 +161,7 @@ impl JobHandler for SendQueuedNotifications {
             }
             .await;
             result.map_err(|source| QueueError::Execution {
-                source: Box::new(source),
+                source: std::sync::Arc::new(source),
             })
         })
     }

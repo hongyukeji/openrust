@@ -61,20 +61,10 @@ impl openrust::contracts::queue::JobHandler for RenderJob {
         payload: &'a openrust::queue::Payload,
     ) -> openrust::queue::QueueFuture<'a, openrust::queue::QueueResult<()>> {
         Box::pin(async move {
-            use openrust::support::facades::Facade;
             let n = payload.data()["number"].as_i64().unwrap();
-            let factory =
-                openrust::support::facades::View::get_facade_root().map_err(|source| {
-                    openrust::queue::QueueError::Execution {
-                        source: Box::new(source),
-                    }
-                })?;
             let data = ViewData::from_iter([("numbers".into(), vec![n].into())]);
-            let rendered = factory.render("proof", &data).map_err(|source| {
-                openrust::queue::QueueError::Execution {
-                    source: Box::new(source),
-                }
-            })?;
+            let rendered = openrust::support::facades::View::render("proof", &data)
+                .map_err(openrust::queue::QueueError::execution)?;
             assert_eq!(rendered, format!("&lt;native:{n}&gt;|<native:{n}>"));
             assert!(data.get("result").is_none());
             Ok(())

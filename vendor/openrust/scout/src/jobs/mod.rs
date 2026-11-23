@@ -101,7 +101,7 @@ async fn restore<M: Searchable>(
 }
 fn failed(e: Error) -> openrust::queue::QueueError {
     openrust::queue::QueueError::Execution {
-        source: Box::new(e),
+        source: std::sync::Arc::new(e),
     }
 }
 impl<M: Searchable> JobHandler for MakeSearchable<M> {

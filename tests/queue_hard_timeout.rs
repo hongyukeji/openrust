@@ -103,7 +103,7 @@ mod acceptance {
             if payload.data() == "fail-on-exception" {
                 Box::pin(async {
                     Err(QueueError::Execution {
-                        source: Box::new(FailProbeError),
+                        source: std::sync::Arc::new(FailProbeError),
                     })
                 })
             } else {
@@ -158,7 +158,7 @@ mod acceptance {
                     "sqs-overflow"
                 });
                 let error = |source: std::io::Error| QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 };
                 if context.attempts() > 1 {
                     std::fs::write(self.0.join("retried"), []).map_err(error)?;
@@ -172,7 +172,7 @@ mod acceptance {
                 match kind {
                     "policy-terminal" => {
                         return Err(QueueError::Execution {
-                            source: Box::new(HardPolicyError),
+                            source: std::sync::Arc::new(HardPolicyError),
                         });
                     }
                     "throttle-terminal" => {
@@ -243,7 +243,7 @@ mod acceptance {
                         ))
                         .await
                         .map_err(|source| QueueError::Execution {
-                            source: Box::new(source),
+                            source: std::sync::Arc::new(source),
                         })?;
                     }
                     "runtime-memory" => {
@@ -273,13 +273,13 @@ mod acceptance {
                         ])
                         .await
                         .map_err(|source| QueueError::Execution {
-                            source: Box::new(source),
+                            source: std::sync::Arc::new(source),
                         })?;
                         #[cfg(unix)]
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > external-shell.pid; sleep 2 & child=$!; printf '%s' "$child" > external-sleep.pid; printf ready > external.started; wait "$child" && touch external.late"#,
                             self.0.display()
-                        )).await.map_err(|source| QueueError::Execution { source: Box::new(source) })?;
+                        )).await.map_err(|source| QueueError::Execution { source: std::sync::Arc::new(source) })?;
                     }
                     _ => unreachable!(),
                 }
@@ -292,7 +292,9 @@ mod acceptance {
                 Some("deadline-refresh") => Ok(Some(SystemTime::now() + Duration::from_secs(60))),
                 Some("deadline-clear") => Ok(None),
                 Some("deadline-error") => Err(QueueError::Execution {
-                    source: Box::new(std::io::Error::other("retry deadline unavailable")),
+                    source: std::sync::Arc::new(std::io::Error::other(
+                        "retry deadline unavailable",
+                    )),
                 }),
                 _ => Ok(payload.options().retry_until),
             }
@@ -308,7 +310,7 @@ mod acceptance {
                 use std::io::Write;
                 let kind = payload.data().as_str().unwrap();
                 let error = |source: std::io::Error| QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 };
                 let mut marker = std::fs::OpenOptions::new()
                     .create_new(true)

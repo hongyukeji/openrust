@@ -40,7 +40,7 @@ impl<E: Event + DeserializeOwned> JobHandler for CallQueuedListener<E> {
                 .handle(&event, &mut EventContext::new())
                 .await
                 .map_err(|source| QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 })?;
             Ok(())
         })

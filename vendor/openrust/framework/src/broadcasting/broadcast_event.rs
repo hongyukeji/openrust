@@ -112,6 +112,6 @@ impl crate::contracts::queue::JobHandler for DeliverBroadcast {
 
 fn execution(source: BroadcastException) -> QueueError {
     QueueError::Execution {
-        source: Box::new(source),
+        source: std::sync::Arc::new(source),
     }
 }

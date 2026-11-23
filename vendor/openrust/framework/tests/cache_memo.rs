@@ -161,7 +161,7 @@ impl JobHandler for MemoJob {
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             let result = exercise().await.map_err(|source| QueueError::Execution {
-                source: Box::new(source),
+                source: std::sync::Arc::new(source),
             })?;
             assert_eq!(payload.data()["initial"].as_i64(), Some(result));
             Ok(())

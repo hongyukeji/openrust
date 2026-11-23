@@ -23,11 +23,11 @@ impl ProcessPendingUpdates {
     pub async fn dispatch(self) -> QueueResult<()> {
         let name = |key| -> QueueResult<Option<String>> {
             Ok(Config::get(key)
-                .map_err(QueueError::Unavailable)?
+                .map_err(QueueError::from)?
                 .and_then(|value| value.as_str().map(str::to_owned)))
         };
         let delay = Config::get("telescope.queue.delay")
-            .map_err(QueueError::Unavailable)?
+            .map_err(QueueError::from)?
             .and_then(|value| value.as_u64())
             .filter(|value| *value > 0)
             .map(|value| std::time::Duration::from_secs(value).into());
@@ -60,12 +60,12 @@ impl JobHandler for Handler {
                 .checked_add(1)
                 .ok_or(QueueError::InvalidPayload)?;
             let telescope =
-                crate::facades::Telescope::get_facade_root().map_err(QueueError::Unavailable)?;
+                crate::facades::Telescope::get_facade_root().map_err(QueueError::from)?;
             let failed = telescope
                 .without_recording(telescope.repository.update(&pending.pending_updates))
                 .await
                 .map_err(|source| QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 })?;
             if !failed.is_empty() && pending.attempt < 3 {
                 ProcessPendingUpdates::new(failed, pending.attempt)

@@ -259,7 +259,7 @@ impl openrust::contracts::queue::JobHandler for MaintenanceJob {
         Box::pin(async move {
             let active = MaintenanceMode::active().await.map_err(|source| {
                 openrust::queue::QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 }
             })?;
             assert_eq!(active, payload.data()["active"].as_bool().unwrap());

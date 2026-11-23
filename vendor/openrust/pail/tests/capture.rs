@@ -174,7 +174,7 @@ impl JobHandler for Job {
             }
             if payload.data() == "fail" {
                 return Err(QueueError::Execution {
-                    source: Box::new(std::io::Error::other("capture failed")),
+                    source: std::sync::Arc::new(std::io::Error::other("capture failed")),
                 });
             }
             Ok(())

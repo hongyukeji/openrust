@@ -59,7 +59,7 @@ pub type QueueFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type QueueResult<T> = Result<T, QueueError>;
 
 /// A queue resolution, payload, storage, or job failure.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum QueueError {
     UnknownConnection {
@@ -72,18 +72,32 @@ pub enum QueueError {
     MaxAttempts,
     InvalidConfiguration,
     UnsupportedDriver(String),
-    Unavailable(crate::contracts::container::BindingResolutionError),
+    Unavailable(std::sync::Arc<crate::contracts::container::BindingResolutionError>),
     UnknownJob(String),
     UnknownBatchCallback(String),
     UnknownChainCallback(String),
     ChainedBatchFailed(String),
     LostReservation,
     Backend {
-        source: Box<dyn Error + Send + Sync>,
+        source: std::sync::Arc<dyn Error + Send + Sync>,
     },
     Execution {
-        source: Box<dyn Error + Send + Sync>,
+        source: std::sync::Arc<dyn Error + Send + Sync>,
     },
+}
+
+impl QueueError {
+    /// 保存原始错误对象，不要求错误实现 Clone 或序列化。
+    pub fn execution(source: impl Error + Send + Sync + 'static) -> Self {
+        Self::Execution {
+            source: std::sync::Arc::new(source),
+        }
+    }
+    pub fn backend(source: impl Error + Send + Sync + 'static) -> Self {
+        Self::Backend {
+            source: std::sync::Arc::new(source),
+        }
+    }
 }
 
 impl std::fmt::Display for QueueError {
@@ -120,7 +134,7 @@ impl std::fmt::Display for QueueError {
 impl Error for QueueError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Unavailable(source) => Some(source),
+            Self::Unavailable(source) => Some(source.as_ref()),
             Self::Backend { source } | Self::Execution { source } => Some(source.as_ref()),
             _ => None,
         }
@@ -136,9 +150,7 @@ impl From<QueueError> for crate::http::HttpError {
 }
 
 pub(super) fn backend(source: impl Error + Send + Sync + 'static) -> QueueError {
-    QueueError::Backend {
-        source: Box::new(source),
-    }
+    QueueError::backend(source)
 }
 
 /// A relative delay or absolute time before a job becomes available.
@@ -440,6 +452,6 @@ pub(super) fn new_id() -> QueueResult<String> {
 
 impl From<crate::contracts::container::BindingResolutionError> for QueueError {
     fn from(source: crate::contracts::container::BindingResolutionError) -> Self {
-        Self::Unavailable(source)
+        Self::Unavailable(std::sync::Arc::new(source))
     }
 }

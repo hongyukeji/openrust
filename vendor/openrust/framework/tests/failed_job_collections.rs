@@ -33,7 +33,7 @@ impl CollectionProvider {
             writeln!(journal, "{action}:{key}")
         })();
         result.map_err(|source| QueueError::Execution {
-            source: Box::new(source),
+            source: std::sync::Arc::new(source),
         })
     }
 
@@ -90,7 +90,9 @@ impl FailedJobProviderInterface for CollectionProvider {
                     self.record("fetch", key)?;
                     if key == "fault" {
                         return Err(QueueError::Execution {
-                            source: Box::new(std::io::Error::other("failure stream unavailable")),
+                            source: std::sync::Arc::new(std::io::Error::other(
+                                "failure stream unavailable",
+                            )),
                         });
                     }
                     Ok((key.to_owned(), Self::job(key)?))

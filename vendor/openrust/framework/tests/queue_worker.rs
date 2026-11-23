@@ -72,7 +72,7 @@ use tokio::{
 
 fn execution(source: impl std::error::Error + Send + Sync + 'static) -> QueueError {
     QueueError::Execution {
-        source: Box::new(source),
+        source: std::sync::Arc::new(source),
     }
 }
 

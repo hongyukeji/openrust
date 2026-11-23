@@ -143,7 +143,7 @@ impl JobHandler for SendQueuedMailable {
                 .send(true)
                 .await
                 .map_err(|source| QueueError::Execution {
-                    source: Box::new(source),
+                    source: std::sync::Arc::new(source),
                 })?;
             Ok(())
         })

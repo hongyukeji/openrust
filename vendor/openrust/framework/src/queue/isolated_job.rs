@@ -205,7 +205,7 @@ pub(super) async fn execute(
     };
     if !status.success() {
         return Err(QueueError::Execution {
-            source: Box::new(io::Error::other(format!(
+            source: std::sync::Arc::new(io::Error::other(format!(
                 "queue execution process exited with {status}"
             ))),
         });
@@ -232,7 +232,7 @@ pub(super) async fn execute(
     }
     Ok(Some(response.error.map_or(Ok(()), |error| {
         Err(QueueError::Execution {
-            source: Box::new(io::Error::other(error)),
+            source: std::sync::Arc::new(io::Error::other(error)),
         })
     })))
 }

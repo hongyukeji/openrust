@@ -94,9 +94,11 @@ pub async fn restore_report_models<M: Model>(
 }
 
 fn execution(source: openrust::database::DatabaseError) -> QueueError {
-    QueueError::Execution { source: Box::new(source) }
+    QueueError::execution(source)
 }
 ```
+
+用 `QueueError::execution(error)` 包裝任務執行錯誤，`QueueError::backend(error)` 包裝後端錯誤。兩者保留原始來源物件，不要求來源錯誤實作 Clone 或序列化。複製 QueueError 會共用該來源物件；直接建立變體時，source 欄位接收 `Arc<dyn Error + Send + Sync>`。佇列載荷格式維持不變。
 
 #### 模型缺失 {#ignoring-missing-models}
 
@@ -728,7 +730,7 @@ fn report_complete<'a>(batch: &'a Batch, _: Option<&'a str>) -> QueueFuture<'a, 
     Box::pin(async move {
         let context = serde_json::Map::from_iter([("batch_id".into(), batch.id.clone().into())]);
         Log::info("Reports batch completed", &context)
-            .map_err(|source| QueueError::Execution { source: Box::new(source) })
+            .map_err(|source| QueueError::execution(source))
     })
 }
 

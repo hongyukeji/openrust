@@ -51,7 +51,7 @@ impl JobHandler for Handler {
                     .scalar("select 1", &[])
                     .await
                     .map_err(|source| QueueError::Execution {
-                        source: Box::new(source),
+                        source: std::sync::Arc::new(source),
                     })?;
             }
             self.0
@@ -243,9 +243,7 @@ async fn custom_queue_connections_resolve_per_application_and_dispatch_over_http
         ));
     }
     manager.extend("custom", |container, name, settings| {
-        let manager = container
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
+        let manager = container.make::<QueueManager>().map_err(QueueError::from)?;
         let inner = manager.connection(settings["delegate"].as_str())?;
         Ok(Arc::new(ExtensionQueue {
             name: name.into(),

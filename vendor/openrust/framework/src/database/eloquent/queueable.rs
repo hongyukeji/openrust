@@ -257,7 +257,7 @@ impl<M: Model> ModelIdentifier<M> {
         self.restore().await.map_err(|source| match source {
             DatabaseError::ModelNotFound(table) => QueueError::MissingModel(table.into()),
             source => QueueError::Execution {
-                source: Box::new(source),
+                source: std::sync::Arc::new(source),
             },
         })
     }

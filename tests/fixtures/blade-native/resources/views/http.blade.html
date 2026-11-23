@@ -1,9 +1,7 @@
 @rust
 let name=context.get::<String>("name")?;
-let locale=openrust::support::facades::App::currentLocale()?;
+let locale=openrust::support::facades::App::current_locale()?;
 context.set("message",format!("<{name}:{locale}>"));
-use openrust::support::facades::Facade;
-let factory=openrust::support::facades::View::getFacadeRoot()?;
-let nested=factory.render("part",&openrust::view::ViewData::from_iter([("name".into(),"nested".into())]))?;
+let nested=openrust::support::facades::View::render("part",&openrust::view::ViewData::from_iter([("name".into(),"nested".into())]))?;
 context.set("nested",nested);
 @endrust{{ $message }}|{{ __('hello') }}|{{ $nested }}

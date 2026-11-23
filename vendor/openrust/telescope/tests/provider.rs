@@ -1090,7 +1090,7 @@ impl openrust::contracts::queue::JobHandler for QueueProbe {
             openrust::log::Log::error("queue probe executed", &serde_json::Map::new()).unwrap();
             if payload.data()["fail"] == true {
                 return Err(openrust::queue::QueueError::Execution {
-                    source: Box::new(std::io::Error::other("queue probe failed")),
+                    source: std::sync::Arc::new(std::io::Error::other("queue probe failed")),
                 });
             }
             Ok(())

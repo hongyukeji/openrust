@@ -94,9 +94,11 @@ pub async fn restore_report_models<M: Model>(
 }
 
 fn execution(source: openrust::database::DatabaseError) -> QueueError {
-    QueueError::Execution { source: Box::new(source) }
+    QueueError::execution(source)
 }
 ```
+
+Use `QueueError::execution(error)` for job failures and `QueueError::backend(error)` for backend failures. Both preserve the original source object without requiring it to implement Clone or serialization. Cloning a QueueError shares that source; directly constructed source fields take `Arc<dyn Error + Send + Sync>`. The queue payload format is unchanged.
 
 #### Missing models {#ignoring-missing-models}
 
@@ -728,7 +730,7 @@ fn report_complete<'a>(batch: &'a Batch, _: Option<&'a str>) -> QueueFuture<'a, 
     Box::pin(async move {
         let context = serde_json::Map::from_iter([("batch_id".into(), batch.id.clone().into())]);
         Log::info("Reports batch completed", &context)
-            .map_err(|source| QueueError::Execution { source: Box::new(source) })
+            .map_err(|source| QueueError::execution(source))
     })
 }
 

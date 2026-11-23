@@ -230,3 +230,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `reportable/test-second.log`：ReportableHandler3项+Exceptions10项+既有报告/渲染12项，共25项通过；PHP固定原类真实执行确认匹配、错型、前后停止、回调调用次数和false停止，日志 `reportable/oracle.log`。全workspace严格Clippy、三语构建与6项浏览器检查通过，日志同目录。
 - 固定参考目录是源码档案，不是独立Git仓库；不能用它的 `git rev-parse` 结果判定上游版本（该命令会落到父OpenRust仓库）。已重新联网逐字核对 Facade、Filesystem、BladeCompiler、异常Handler与ReportableHandler五份源码，均与固定1449bf提交的官方raw文件相等；URL及SHA256证据为 `target/tmp/facade-alignment/reference-verified.json`。
 - ReportableHandler调用/匹配/停止的当前原生路径已完成；Exceptions整体仍有fake、映射、完整上下文和全局限流回调等缺口，继续执行原门面对齐任务，不以本批通过停止。
+
+### 异常记录的源对象所有权前置
+
+- 为实际异常fake保存可判定类型的原对象，QueueError 的不透明源载荷改用标准 Arc，错误自身可clone；源对象不要求Clone/Serde，变体与错误分类保持。提供execution/backend工厂，容器错误继续通过From/`?` 转换。同步所有实际生产者、Addon、测试和三语队列示例，队列载荷/数据库/Redis协议不改。
+- `exception_ownership`两项直接验证：源为未实现Clone且包含Mutex的错误，捕获后仍指向同一对象、能看到原字段更新，最后一个持有者释放才析构；解析错误克隆继续保留同一BindingResolutionError及其类型。`error_conversions`29项与现有Exceptions10项通过。
+- `queue_worker`默认目标中的外部环境提前返回不算真实驱动通过。独立MySQL8.4与Redis8.10.3夹具强制设置对应要求变量，分别完整实跑真实Artisan Worker的重试/失败/上下文目标（64.20s/73.29s），全部通过；SQLite进程消费者亦实际通过。SQL Server/RedisCluster本批未提供环境，不计入实际驱动结果。两个临时容器均已清理，保留数据卷和既有数据库。
+- 额外构建生成应用时发现此前遗漏：`http.blade.html` 的 @rust 块仍有 currentLocale/getFacadeRoot。改为Rust原生current_locale和正式View::render；同步队列原生渲染任务也改走正式门面，不保留get_root绕行。普通Blade表达式语法不动。
+- 独立生成项目初次直接编译未装配workspace补丁，暴露pcre2/SQLx缺方法；这是夹具准备方式错误，不记通过，也未改第三方源码掩盖。沿用既有blade_native_acceptance.py的补丁与锁文件装配后，实构建/部署/self-test/三语HTTP均通过，原生队列任务与多应用/并发断言亦通过。临时部署执行文件直接删除，实测额外释放145,022,976字节。
+- 记录在 `target/tmp/facade-alignment/error-ownership/`：test-second.log、worker.log、native-consumer-resumed.log、clippy.log。初次全workspace检查触及32GB停线，已安全持锁清理66,105,139,200字节并重建；该中断不计通过，源码/日志/下载/数据库完整保留。源码目录与可复用增量缓存按现行规范保留。
+- 已核对旧版core/error与foundation/exceptions：旧统一Error仍含Box源，旧report_shared用Arc/Weak保留实例身份。本版沿用已有SharedException及其回归，不搬旧统一错误体系，也未发现可直接替代当前Fake契约的旧实现。
+- 本单元仅闭合错误共享所有权前置；异常fake实现另在途，不夹带入此提交，也不把Exceptions整体宣称完成。
