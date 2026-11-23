@@ -14,7 +14,7 @@ pub struct TaggedCache {
     pub(super) tags: Arc<TagSet>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's TaggedCache API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TaggedCache {
     pub fn new(store: Arc<dyn Store>, names: &[&str]) -> Self {
         let tags = Arc::new(TagSet::new(store, names));

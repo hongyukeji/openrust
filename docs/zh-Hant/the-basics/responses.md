@@ -70,7 +70,7 @@ Route::get("/reports/{id}", || Report)?;
 
 #### 快取控制中介層 {#cache-control-middleware}
 
-在需要快取策略的路由上使用 `cache.headers`。選項名稱使用 `snake_case`，以分號分隔。中介層處理成功的 GET 和 HEAD 回應。指定 `etag` 時沿用既有驗證器，或以與 Laravel `xxh128` 相同的 XXH3-128 摘要計算回應本文。串流回應可用 `etag=value` 明確提供驗證器，無須緩衝整個串流。
+在需要快取策略的路由上使用 `cache.headers`。選項名稱使用 `snake_case`，以分號分隔。中介層處理成功的 GET 和 HEAD 回應。指定 `etag` 時沿用既有驗證器，或以與框架`xxh128` 相同的 XXH3-128 摘要計算回應本文。串流回應可用 `etag=value` 明確提供驗證器，無須緩衝整個串流。
 
 ```rust
 Route::getWith("/cacheable", cache_response, |route| {
@@ -134,7 +134,7 @@ fn register() -> Result<(), RoutingError> {
 
 `ApiResponse::empty()` 回傳省略 `data` 的成功回應。HTTP 204 回應的本文為空。請給 `failure` 傳入可安全顯示給用戶端的訊息，需要回傳欄位錯誤時使用 `with_errors`。
 
-序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應是 OpenRust 在 [Laravel JSON 回應機制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)之上的擴充。
+序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應格式由 OpenRust 提供。
 
 ## 重新導向回應
 
@@ -233,7 +233,7 @@ source.addEventListener('update', (event) => {
 
 透過 `Response::streamJson` 和 `StreamedJson::object` 將資料列串流放進 JSON 物件。`StreamedJson::items` 在每列到達時序列化。固定值使用 `StreamedJson::value`，巢狀陣列使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可將鍵值對逐項寫入 JSON 物件。
 
-串流 JSON 與 JSON 事件資料沿用 Laravel 的預設字串跳脫。SSE JSON 保留無須跳脫的非 ASCII 文字。
+串流 JSON 與 JSON 事件資料沿用 預設字串跳脫。SSE JSON 保留無須跳脫的非 ASCII 文字。
 
 ```rust
 use futures_util::stream;

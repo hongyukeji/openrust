@@ -58,7 +58,7 @@ pub struct ImageManager {
     http: Option<Arc<Factory>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's image manager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ImageManager {
     pub fn new(limits: Limits) -> Self {
         Self {
@@ -304,7 +304,7 @@ impl Facade for ImageFacade {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Image facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ImageFacade {
     pub fn fromBytes(bytes: impl Into<Bytes>) -> Result<Image> {
         Ok(Self::getFacadeRoot()?.fromBytes(bytes))

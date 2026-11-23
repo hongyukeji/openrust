@@ -67,7 +67,7 @@ Use `request.interval("duration", None).await?` for ISO 8601 intervals or expres
 
 ### Retrieving Input via Dynamic Properties {#retrieving-input-via-dynamic-properties}
 
-Use `request.field("name").await?` for the lookup Laravel performs on dynamic request properties. It reads merged input and files first, including explicit nulls. If the field is absent, it looks for a bound model or raw parameter with that name on the matched route. Match `RequestField::RouteModel(model)` and use `model.downcast::<T>()` for a bound model. Ordinary fields, uploads and raw route parameters use `RequestField::Value`.
+Use `request.field("name").await?` for the lookup the framework performs on dynamic request properties. It reads merged input and files first, including explicit nulls. If the field is absent, it looks for a bound model or raw parameter with that name on the matched route. Match `RequestField::RouteModel(model)` and use `model.downcast::<T>()` for a bound model. Ordinary fields, uploads and raw route parameters use `RequestField::Value`.
 
 ### Retrieving a Portion of the Input Data {#retrieving-a-portion-of-the-input-data}
 
@@ -83,7 +83,7 @@ Use `request.getAcceptableContentTypes()` to read the `Accept` entries in qualit
 
 `acceptsAnyContentType()`, `acceptsJson()`, `acceptsHtml()` and `acceptsMarkdown()` check acceptance. `wantsJson()` and `wantsMarkdown()` inspect the top-ranked entry. `expectsJson()` also recognizes a non-PJAX XMLHttpRequest with an empty or wildcard `Accept` header. `isJson()` checks the request body's `Content-Type`.
 
-With repeated `Accept` header fields, the first field is used, as in the pinned Laravel request implementation. Send several types as a comma-separated list in one field.
+With repeated `Accept` header fields, the first field is used, as in the pinned the framework request implementation. Send several types as a comma-separated list in one field.
 
 ### Native HTTP Requests {#native-http-requests}
 
@@ -170,7 +170,7 @@ The default mask is `TrustedProxyHeaders::DEFAULT` for X-Forwarded fields. Use `
 
 `Request::secure` reflects the effective protocol. URL generation uses the forwarded origin and prefix while route matching uses the incoming path.
 
-When application assembly does not supply a proxy policy, HTTP startup reads `trustedproxy.proxies` from the configuration repository. Use a comma-separated string or an array. The optional `trustedproxy.headers` accepts a numeric mask or a Laravel preset name such as `HEADER_X_FORWARDED_AWS_ELB`. An explicit `trustProxies` policy takes precedence, including an empty address list.
+When application assembly does not supply a proxy policy, HTTP startup reads `trustedproxy.proxies` from the configuration repository. Use a comma-separated string or an array. The optional `trustedproxy.headers` accepts a numeric mask or the framework preset name such as `HEADER_X_FORWARDED_AWS_ELB`. An explicit `trustProxies` policy takes precedence, including an empty address list.
 
 ## Configuring Trusted Hosts {#configuring-trusted-hosts}
 

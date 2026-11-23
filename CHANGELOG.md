@@ -8,7 +8,7 @@
 - 提供最小 HTTP 应用，包含欢迎页、`/up` 健康检查、监听配置和优雅关停。
 - 提供框架路由和中间件装配，支持路由参数及约束、命名中间件组、别名和优先级。
 - 提供 macOS、Linux 和 Windows 的 Artisan 入口。命令列表支持命名空间筛选及文本、JSON、XML 和 Markdown 输出，`help` 提供命令级帮助。
-- 收录 Laravel 和 Goravel 的 Artisan 命令目录。标记为 `Planned` 的命令可以查看用途。
+- 收录 框架 和 Artisan 命令目录。标记为 `Planned` 的命令可以查看用途。
 - 接入 SQLite 与 MySQL 的迁移、数据填充、查询构建器及 Eloquent 模型、关系和属性转换。
 - 接入会话、认证、策略、验证、视图、翻译、本地文件系统及 S3 兼容磁盘。
 - 接入缓存、队列、调度、事件、通知、HTTP 客户端及后台进程。

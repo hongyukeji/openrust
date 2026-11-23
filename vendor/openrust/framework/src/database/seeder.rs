@@ -25,7 +25,7 @@ pub struct SeederEntry {
     without_model_events: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Seeder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SeederEntry {
     pub const fn new(name: &'static str, seeder: &'static dyn Seeder) -> Self {
         Self {
@@ -79,7 +79,7 @@ pub struct SeederContext<'a> {
     parameters: &'a Record,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Seeder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SeederContext<'_> {
     pub fn application(&self) -> &Application {
         self.application

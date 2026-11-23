@@ -1,0 +1,68 @@
+{
+  "command_missing": "Lệnh ':name' không được xác định.",
+  "command_ambiguous": "Lệnh ':name' không rõ ràng: :choices",
+  "confirm": {
+    "production": "ỨNG DỤNG TRONG SẢN XUẤT. Bạn có thực sự muốn chạy lệnh này không?",
+    "cancelled": "Lệnh bị hủy."
+  },
+  "make": {
+    "mail": {
+      "name": "Tên của người gửi thư là gì?",
+      "view": "Bạn có muốn tạo giao diện không?\n  1. Giao diện Markdown\n  2. Giao diện trống\n  3. Không tạo giao diện\nChọn [1]"
+    },
+    "notification": {
+      "name": "Tên của thông báo là gì?",
+      "markdown": "Bạn có muốn tạo chế độ xem đánh dấu không? [Y/n]",
+      "view": "Chế độ xem đánh dấu nên được đặt tên là gì?"
+    },
+    "message": {
+      "cancelled": "Lệnh bị hủy."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Liệt kê các lệnh"
+    },
+    "help": {
+      "description": "Hiển thị trợ giúp cho một lệnh"
+    },
+    "inspire": {
+      "description": "Hiển thị một trích dẫn đầy cảm hứng"
+    },
+    "heading": "Lệnh:"
+  },
+  "usage": "Cách sử dụng:",
+  "options": "Tùy chọn:",
+  "unknown_argument": "Cuộc tranh cãi bất ngờ",
+  "unknown_command": "Lệnh không được xác định",
+  "missing_argument": "Đối số bắt buộc bị thiếu",
+  "invalid_value": "Giá trị không hợp lệ",
+  "argument_conflict": "Xung đột lập luận",
+  "invalid_arguments": "Đối số không hợp lệ",
+  "model_fields": {
+    "title": "Bảng và trường mẫu",
+    "notice": "Được tạo từ lược đồ cơ sở dữ liệu. Không chỉnh sửa thủ công.",
+    "sync": "Chạy `./artisan model:fields :model` từ gốc dự án để đồng bộ hóa.",
+    "table": "Bảng"
+  },
+  "namespace_missing": "Không gian tên ':name' không được xác định.",
+  "available_commands": "Các lệnh có sẵn",
+  "namespace_commands": "Các lệnh có sẵn cho không gian tên ':name':",
+  "available_commands_heading": "Các lệnh có sẵn:",
+  "usage_title": "Cách sử dụng",
+  "argument_descriptions": {
+    "help": "Trợ giúp in",
+    "version": "Phiên bản in",
+    "ansi": "Kích hoạt đầu ra ANSI",
+    "no-ansi": "Tắt đầu ra ANSI",
+    "env": "Môi trường mà lệnh sẽ chạy trong",
+    "no-interaction": "Không hỏi bất kỳ câu hỏi tương tác nào",
+    "quiet": "Không xuất ra bất kỳ tin nhắn nào",
+    "silent": "Không xuất ra bất kỳ thông báo hoặc lỗi nào",
+    "verbose": "Tăng tính chi tiết của tin nhắn",
+    "format": "Chọn định dạng đầu ra",
+    "command_name": "Lệnh hiển thị",
+    "namespace": "Hiển thị các lệnh trong một không gian tên cụ thể"
+  },
+  "arguments": "Lập luận:"
+}

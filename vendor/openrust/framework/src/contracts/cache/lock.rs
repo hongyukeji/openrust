@@ -29,7 +29,7 @@ pub trait Lock: Send {
     }
 
     /// Returns whether the backend currently holds an active lock.
-    #[allow(non_snake_case, reason = "Matches Laravel's lock API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn isLocked(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async move { Ok(self.current_owner().await?.is_some()) })
     }

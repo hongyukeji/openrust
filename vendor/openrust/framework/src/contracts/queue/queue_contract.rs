@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::time::Duration;
 
@@ -17,7 +17,7 @@ pub struct QueueMetrics {
 }
 
 /// Dispatches and reserves jobs on a queue connection.
-#[allow(non_snake_case, reason = "Matches Laravel's queue monitoring API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Queue: Send + Sync {
     fn getConnectionName(&self) -> &str;
 

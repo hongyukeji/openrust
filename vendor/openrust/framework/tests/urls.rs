@@ -22,7 +22,7 @@ use tokio::{
     time::timeout,
 };
 
-const LARAVEL_KEY: &str = "base64:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=";
+const REFERENCE_KEY: &str = "base64:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=";
 
 fn article(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Response::json(StatusCode::OK, json!({"visited":true})) })
@@ -335,7 +335,7 @@ fn make() -> Application {
         .withConfig(|_, _| {
             Ok([(
                 "app".into(),
-                json!({"url":"https://example.test","key":LARAVEL_KEY}),
+                json!({"url":"https://example.test","key":REFERENCE_KEY}),
             )]
             .into())
         })
@@ -550,7 +550,7 @@ async fn signs_and_redirects_over_real_http() {
     exchange(address, &format!("{relative}&other=source"), &host, 403).await;
     config.set("app.key", json!("new-key")).unwrap();
     config
-        .set("app.previous_keys", json!([LARAVEL_KEY]))
+        .set("app.previous_keys", json!([REFERENCE_KEY]))
         .unwrap();
     exchange(address, &absolute, &host, 200).await;
     config.set("app.previous_keys", json!([])).unwrap();
@@ -824,7 +824,7 @@ async fn serves_private_local_files_only_with_the_matching_temporary_method() {
     std::fs::write(root.join("public/storage/public.txt"), b"public data").unwrap();
     let app = Application::configure(root)
         .withConfig(|_, _| Ok([
-            ("app".into(), json!({"url":"https://example.test","key":LARAVEL_KEY})),
+            ("app".into(), json!({"url":"https://example.test","key":REFERENCE_KEY})),
             ("filesystems".into(), json!({"default":"local","disks":{"local":{"driver":"local","root":"private","serve":true},"custom":{"driver":"local","root":"custom"}}})),
         ].into()))
         .withRouting(Routing::default().web(|| {

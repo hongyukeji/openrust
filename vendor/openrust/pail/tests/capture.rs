@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use openrust::{
     auth::{AuthFuture, AuthIdentifier, AuthManager},
@@ -116,10 +116,7 @@ impl Authenticatable for User {
     fn getRememberTokenName(&self) -> &str {
         "remember_token"
     }
-    #[allow(
-        non_snake_case,
-        reason = "Implements the Laravel-style authentication contract"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getAuthAttribute(
         &self,
         name: &str,

@@ -67,7 +67,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 ### 通过动态属性读取输入 {#retrieving-input-via-dynamic-properties}
 
-用 `request.field("name").await?` 执行 Laravel 动态请求属性的查找顺序。先读取合并后的输入和文件，显式 null 也算命中。字段缺失时检查当前匹配路由的同名绑定模型或原始参数。匹配 `RequestField::RouteModel(model)` 后用 `model.downcast::<T>()` 读取绑定模型。普通字段、上传文件和原始路由参数使用 `RequestField::Value`。
+用 `request.field("name").await?` 执行框架动态请求属性的查找顺序。先读取合并后的输入和文件，显式 null 也算命中。字段缺失时检查当前匹配路由的同名绑定模型或原始参数。匹配 `RequestField::RouteModel(model)` 后用 `model.downcast::<T>()` 读取绑定模型。普通字段、上传文件和原始路由参数使用 `RequestField::Value`。
 
 ### 获取部分输入 {#retrieving-a-portion-of-the-input-data}
 
@@ -83,7 +83,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 `acceptsAnyContentType()`、`acceptsJson()`、`acceptsHtml()` 和 `acceptsMarkdown()` 检查是否接受对应类型。`wantsJson()` 和 `wantsMarkdown()` 检查排序第一的条目。`expectsJson()` 也识别 `Accept` 为空或通配的非 PJAX XMLHttpRequest。`isJson()` 读取请求正文的 `Content-Type`。
 
-重复发送 `Accept` 请求头时，按固定 Laravel 实现使用首个字段。需要发送多种类型时，请在一个字段中用逗号分隔。
+重复发送 `Accept` 请求头时，按固定框架实现使用首个字段。需要发送多种类型时，请在一个字段中用逗号分隔。
 
 ### 原生 HTTP 请求 {#native-http-requests}
 
@@ -170,7 +170,7 @@ use openrust::http::TrustedProxyHeaders;
 
 `Request::secure` 反映生效的协议。URL 生成使用转发来源和前缀，路由匹配使用入站路径。
 
-应用装配未指定代理策略时，HTTP 启动从配置仓库读取 `trustedproxy.proxies`，支持逗号分隔字符串或数组。可选的 `trustedproxy.headers` 支持数值掩码或 `HEADER_X_FORWARDED_AWS_ELB` 等 Laravel 预设名。显式 `trustProxies` 优先，包括空地址列表。
+应用装配未指定代理策略时，HTTP 启动从配置仓库读取 `trustedproxy.proxies`，支持逗号分隔字符串或数组。可选的 `trustedproxy.headers` 支持数值掩码或 `HEADER_X_FORWARDED_AWS_ELB` 等框架预设名。显式 `trustProxies` 优先，包括空地址列表。
 
 ## 配置可信 Host {#configuring-trusted-hosts}
 

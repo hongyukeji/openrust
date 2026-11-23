@@ -58,7 +58,7 @@ assert!(Str::isUlid(&Str::ulid().to_string()));
 
 `match` 优先返回参与匹配的第一捕获组，否则返回完整匹配。`matchAll` 在声明了捕获组时返回每项的第一组，未匹配的组使用空字符串。正则采用 Rust 语法，例如 `(?i)` 表示忽略大小写，替换支持 `$1` 或具名捕获。`replaceMatchesWith` 接收 Rust 回调，无效模式返回 `regex::Error`。
 
-`width` 和 `limit` 使用 PHP 8.5 的东亚字符宽度表。`wordWrap` 按 Laravel 的 Unicode 标量规则在空格处换行，也可强制拆分长词。`limit` 的保留整词模式会处理基本 HTML 标签后截断。
+`width` 和 `limit` 使用 PHP 8.5 的东亚字符宽度表。`wordWrap` 按 Unicode 标量规则在空格处换行，也可强制拆分长词。`limit` 的保留整词模式会处理基本 HTML 标签后截断。
 
 ```rust
 use openrust::support::Str;

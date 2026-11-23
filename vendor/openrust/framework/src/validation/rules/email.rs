@@ -14,7 +14,7 @@ impl Email {
     }
 
     pub(in crate::validation) fn passes(value: &str) -> bool {
-        // Laravel rejects header line breaks before invoking Egulias.
+        // the framework rejects header line breaks before invoking Egulias.
         !value.contains(['\r', '\n']) && rfc::passes(value)
     }
 }

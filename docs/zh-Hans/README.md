@@ -2,7 +2,7 @@
 
 [概览](index.md)
 
-<!-- Laravel 13.x 文档导航基线 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->
+<!--框架13.x 文档导航基线 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->
 
 ## 前言
 

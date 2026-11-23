@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use crate::auth::{AuthFuture, AuthIdentifier, AuthResult, Credentials};
 
@@ -7,7 +7,7 @@ use super::Authenticatable;
 /// Loads users, verifies credentials, and persists credential changes.
 pub trait UserProvider: Send + Sync {
     /// Compiled model identity corresponding to an Eloquent provider's getModel.
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent provider API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getModel(&self) -> Option<std::any::TypeId> {
         None
     }

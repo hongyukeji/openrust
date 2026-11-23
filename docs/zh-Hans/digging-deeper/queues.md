@@ -172,7 +172,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 设置 `QUEUE_CONNECTION=beanstalkd`，并配置 `BEANSTALKD_QUEUE_HOST`、`BEANSTALKD_QUEUE_PORT`（默认 11300）、`BEANSTALKD_QUEUE` 和 `BEANSTALKD_QUEUE_RETRY_AFTER`。运行 `./artisan queue:work beanstalkd --queue=default`。每个队列映射到一个 tube，服务端管理任务延迟和预约到期。Worker 超时应短于预约有效期。可用连接配置的 `block_for` 启用阻塞预约。
 
-确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
+确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。固定 Beanstalkd 驱动同样未提供 `queue:clear`。
 
 跨队列连接时，来源 Worker 按后继任务的连接、队列和延迟配置直接派发，再确认当前任务。目标派发和来源确认可以独立失败，任务处理器应保持幂等。
 
@@ -612,7 +612,7 @@ async fn dispatch_chain_if(
 
 ## 任务批次 {#job-batching}
 
-队列存储沿用 Laravel 的结构：`jobs` 保存数据库待处理任务，`failed_jobs` 保存失败任务，`job_batches` 保存批次计数和回调选项，不需要配套恢复表。已有部署升级前，应先用原版本 Worker 处理完待发布记录和转发任务。本次变更保留旧表及数据，确认不再使用并备份后再清理。
+队列存储沿用 结构：`jobs` 保存数据库待处理任务，`failed_jobs` 保存失败任务，`job_batches` 保存批次计数和回调选项，不需要配套恢复表。已有部署升级前，应先用原版本 Worker 处理完待发布记录和转发任务。本次变更保留旧表及数据，确认不再使用并备份后再清理。
 
 运行 `./artisan migrate` 创建 `job_batches` 批次表。在应用启动时注册任务处理器，再通过 `Bus::batch` 一起派发这些任务。
 
@@ -641,7 +641,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 ### 批次中的任务链 {#chains-and-batches}
 
-在待派发批次上用 `addChain` 加入一组顺序执行的任务。它对应 Laravel `Bus::batch` 里的嵌套数组。所有成员共用批次 ID、连接和队列。批次统计每个成员，初次入队只放入各链的首任务。多个 Worker 可以并行处理不同的任务链。
+在待派发批次上用 `addChain` 加入一组顺序执行的任务。它对应框架`Bus::batch` 里的嵌套数组。所有成员共用批次 ID、连接和队列。批次统计每个成员，初次入队只放入各链的首任务。多个 Worker 可以并行处理不同的任务链。
 
 ```rust
 use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};

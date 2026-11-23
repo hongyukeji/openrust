@@ -18,10 +18,7 @@ pub struct PreventRequestForgery {
     allow_same_site: bool,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's request forgery configuration"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PreventRequestForgery {
     pub fn except(&mut self, paths: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
         self.except.extend(paths.into_iter().map(Into::into));

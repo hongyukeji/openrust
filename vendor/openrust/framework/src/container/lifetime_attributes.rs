@@ -14,7 +14,7 @@ impl Registry {
         key: &ServiceKey,
         lifetime: Lifetime,
     ) -> Option<RegisteredBinding> {
-        // Laravel chooses Singleton when both annotations are present.
+        // the framework chooses Singleton when both annotations are present.
         let active = self.lifetimes.entry(key.clone()).or_insert(lifetime);
         if lifetime == Lifetime::Singleton {
             *active = lifetime;
@@ -56,7 +56,7 @@ impl Registry {
 
 impl Container {
     /// Declares the cache lifetime of a compiled class or interface.
-    #[allow(non_snake_case, reason = "Compiled Laravel lifetime declaration")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn registerLifetime<T: ?Sized + Send + Sync + 'static>(&self, lifetime: Lifetime) {
         let retired = self
             .registry

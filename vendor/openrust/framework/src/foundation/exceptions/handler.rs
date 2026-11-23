@@ -235,10 +235,7 @@ impl Handler {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's exception handler contract"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ExceptionHandler for Handler {
     fn buildLogException(
         &self,

@@ -137,10 +137,7 @@ impl Exceptions {
     }
 
     /// Adds log context for this exact error type, including when it is a source.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel exception context terminology"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn exceptionContext<E: Error + 'static>(
         &mut self,
         callback: impl Fn(&E) -> LogContext + Send + Sync + 'static,
@@ -155,19 +152,13 @@ impl Exceptions {
         self
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn dontReport<E: Error + 'static>(&mut self) -> &mut Self {
         self.ignored.push(Rule::typed::<E>());
         self
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn stopIgnoring<E: Error + 'static>(&mut self) -> &mut Self {
         let rule = Rule::typed::<E>();
         self.ignored.retain(|existing| existing.kind != rule.kind);
@@ -175,10 +166,7 @@ impl Exceptions {
         self
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn dontReportWhen(
         &mut self,
         callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
@@ -188,10 +176,7 @@ impl Exceptions {
     }
 
     /// Stops queued job retries for the given exception type or one of its sources.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn dontRetry<E: Error + 'static>(&mut self) -> &mut Self {
         let rule = Rule::typed::<E>();
         if !self
@@ -205,10 +190,7 @@ impl Exceptions {
     }
 
     /// Stops queued job retries when the predicate matches.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn dontRetryWhen(
         &mut self,
         callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
@@ -227,10 +209,7 @@ impl Exceptions {
                 .any(|matches| matches(exception))
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn dontReportDuplicates(&mut self) -> &mut Self {
         self.without_duplicates = true;
         self
@@ -309,10 +288,7 @@ impl Exceptions {
     }
 
     /// Excludes additional input paths from validation redirects.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn dontFlash(&mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
         self.dont_flash.extend(fields.into_iter().map(Into::into));
         self
@@ -323,10 +299,7 @@ impl Exceptions {
     }
 
     /// Overrides the default request-based JSON decision.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's exception configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn shouldRenderJsonWhen(
         &mut self,
         policy: impl Fn(&Request, &HttpError) -> bool + Send + Sync + 'static,

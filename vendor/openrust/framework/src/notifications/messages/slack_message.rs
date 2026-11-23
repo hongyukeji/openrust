@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use super::SlackAttachment;
 
-/// Laravel's legacy Slack webhook message with attachments.
+/// legacy Slack webhook message with attachments.
 #[derive(Default)]
 pub struct SlackMessage {
     fields: Map<String, Value>,
@@ -11,7 +11,7 @@ pub struct SlackMessage {
     color: Option<&'static str>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's legacy Slack message API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackMessage {
     pub fn new() -> Self {
         Self::default()
@@ -103,7 +103,7 @@ impl SlackMessage {
     }
 }
 
-// Laravel filters top-level optional values and attachment fields with array_filter.
+// the framework filters top-level optional values and attachment fields with array_filter.
 pub(super) fn filled(value: &Value) -> bool {
     match value {
         Value::Null => false,

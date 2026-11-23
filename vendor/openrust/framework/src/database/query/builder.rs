@@ -129,7 +129,7 @@ pub struct Builder<'connection> {
     binding_changes: Option<Box<bindings::Changes>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection> Builder<'connection> {
     pub(crate) fn connection(
         connection: Connection,

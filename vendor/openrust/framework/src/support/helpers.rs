@@ -50,7 +50,7 @@ pub fn lang_path(
         .map(|paths| paths.langPath(path))
 }
 
-/// Tests Laravel's blank-value rules for JSON values.
+/// Tests blank-value rules for JSON values.
 pub fn blank(value: &Value) -> bool {
     match value {
         Value::Null => true,
@@ -81,7 +81,7 @@ pub struct Retry {
     fake: Option<SleepFake>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel-style helper names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Retry {
     pub fn times(attempts: NonZeroUsize, delay: Duration) -> Self {
         Self {

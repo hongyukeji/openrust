@@ -440,7 +440,7 @@ pub struct Factory<M: Model> {
     after_creating: Vec<Box<CreateCallback<M>>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's factory API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Factory<M> {
     conditional_states!();
 
@@ -1992,7 +1992,7 @@ pub struct FactoryBatch<M: Model> {
     count: AtomicUsize,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's factory API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> FactoryBatch<M> {
     conditional_states!();
 

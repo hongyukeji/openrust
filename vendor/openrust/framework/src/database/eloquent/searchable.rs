@@ -22,7 +22,7 @@ impl SearchColumn {
 }
 
 /// Opts an Eloquent model into searching its own database columns.
-#[allow(non_snake_case, reason = "Matches Laravel's model search API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Searchable: Model {
     fn searchableColumns() -> &'static [SearchColumn];
 
@@ -46,7 +46,7 @@ pub struct SearchBuilder<M: Searchable> {
     relevance: Option<(Vec<String>, String, String)>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's model search builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Searchable> SearchBuilder<M> {
     fn new(mut query: Builder<'static, M>, term: &str) -> Self {
         let columns = M::searchableColumns();

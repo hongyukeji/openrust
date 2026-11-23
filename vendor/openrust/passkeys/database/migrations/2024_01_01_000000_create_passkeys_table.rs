@@ -1,5 +1,5 @@
 use openrust::translation::__;
-// Translated from Laravel Passkeys 0.3.0 (MIT).
+// Translated from the framework Passkeys 0.3.0 (MIT).
 use openrust::database::{
     DatabaseFuture, DatabaseResult,
     migrations::{Migration, MigrationContext},

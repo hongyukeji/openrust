@@ -10,9 +10,9 @@ const CIPHERS: [Cipher; 4] = [
 ];
 
 #[test]
-fn laravel_payloads_rotate_and_authenticate_for_every_cipher() {
+fn reference_payloads_rotate_and_authenticate_for_every_cipher() {
     let fixtures: Vec<Value> =
-        serde_json::from_str(include_str!("fixtures/laravel_encryption.json")).unwrap();
+        serde_json::from_str(include_str!("fixtures/encryption_vectors.json")).unwrap();
     for (cipher, fixture) in CIPHERS.into_iter().zip(fixtures) {
         assert_eq!(
             fixture["cipher"]

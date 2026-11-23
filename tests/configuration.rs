@@ -480,7 +480,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 }
 
 #[test]
-fn laravel_slug_defaults_keep_explicit_session_cache_and_redis_names() {
+fn reference_slug_defaults_keep_explicit_session_cache_and_redis_names() {
     let root = std::env::temp_dir().join(format!("alignment-slug-{}", std::process::id()));
     fs::create_dir_all(&root).unwrap();
     struct Cleanup(std::path::PathBuf);

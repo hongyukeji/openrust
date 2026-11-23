@@ -628,7 +628,7 @@ macro_rules! predicate_methods {
 }
 pub(super) use {date_methods, predicate_methods};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Conditions {
     fn conditions(&mut self) -> &mut Self {
         self

@@ -1,6 +1,6 @@
 # 資料庫設定（擴充）
 
-`openrust-settings` 將型別化應用設定存入資料庫，可用於網站資訊、服務設定及業務策略等群組。命名參考 Spatie Laravel Settings，重用 OpenRust 的資料庫、加密、遷移與容器作用域。
+`openrust-settings` 將型別化應用設定存入資料庫，可用於網站資訊、服務設定及業務策略等群組。命名參考 Spatie框架Settings，重用 OpenRust 的資料庫、加密、遷移與容器作用域。
 
 ## 啟用與遷移
 

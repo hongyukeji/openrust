@@ -38,7 +38,7 @@ pub struct PendingMail {
     recipients: Recipients,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's PendingMail API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingMail {
     pub(super) fn new(manager: Arc<MailManager>, address: Address) -> Self {
         Self {

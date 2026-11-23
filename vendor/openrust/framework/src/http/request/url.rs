@@ -10,7 +10,7 @@ use super::{Request, matches_pattern};
 
 mod query;
 
-#[allow(non_snake_case, reason = "Matches Laravel's Request URL API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     /// Returns the effective host, excluding the port.
     pub fn host(&self) -> Result<String, HttpError> {

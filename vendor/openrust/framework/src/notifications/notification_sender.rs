@@ -166,7 +166,7 @@ pub struct NotificationSender<'a> {
     locale: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's NotificationSender API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> NotificationSender<'a> {
     pub fn new(manager: &'a ChannelManager) -> Self {
         Self {

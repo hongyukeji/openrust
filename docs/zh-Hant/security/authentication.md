@@ -152,7 +152,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
 
 ## 自訂 Guard 和提供器
 
-驗證模型依 Laravel 的機制在 `config/auth.rs` 的 `auth.providers` 中選擇。`openrust::auth::model!` 對應 PHP 的模型類別參照：回傳類別名稱，並保留編譯後的型別工廠。`AppServiceProvider` 和 `bootstrap/app.rs` 無須註冊模型：
+驗證模型依 機制在 `config/auth.rs` 的 `auth.providers` 中選擇。`openrust::auth::model!` 對應 PHP 的模型類別參照：回傳類別名稱，並保留編譯後的型別工廠。`AppServiceProvider` 和 `bootstrap/app.rs` 無須註冊模型：
 
 ```rust
 let user = openrust::auth::model!(crate::app::models::User);

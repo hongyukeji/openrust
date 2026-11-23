@@ -96,7 +96,7 @@ pub struct Driver {
     owner: Weak<Container>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Concurrency facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Driver {
     pub async fn run(
         &self,
@@ -249,7 +249,7 @@ impl Facade for Concurrency {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Concurrency facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Concurrency {
     pub fn driver(name: Option<&str>) -> Result<Driver> {
         Self::getFacadeRoot()?.driver(name)

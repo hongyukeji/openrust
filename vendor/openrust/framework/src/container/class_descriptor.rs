@@ -445,7 +445,7 @@ impl ClassDescriptor {
     }
 
     /// Declares an ordinary constructor and an independent static newInstance signature.
-    #[allow(non_snake_case, reason = "Matches Laravel's SelfBuilding name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn selfBuilding<T: SelfBuilding>(
         parameters: Vec<ConstructorParam>,
         construct: impl Fn(ResolvedArgs) -> Result<Arc<T>> + Send + Sync + 'static,
@@ -491,7 +491,7 @@ impl ClassDescriptor {
     }
 
     /// Declares the lifetime of automatic resolutions of this class.
-    #[allow(non_snake_case, reason = "Compiled Laravel lifetime declaration")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withLifetime(mut self, lifetime: Lifetime) -> Self {
         if self.lifetime != Some(Lifetime::Singleton) {
             self.lifetime = Some(lifetime);

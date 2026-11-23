@@ -40,7 +40,7 @@ pub struct RecordedProcess {
     pub tty: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's process factory API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Factory {
     pub fn new() -> Self {
         Self::default()

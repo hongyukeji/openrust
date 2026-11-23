@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{
     fmt::Write as _,
@@ -21,10 +21,7 @@ use super::{LinkMail, MailCallbacks, route_id, send_mail};
 /// Sends a temporary signed link to the user's current email address.
 pub struct VerifyEmail;
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's verification notification API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl VerifyEmail {
     /// Configure verification link creation for this application.
     pub fn createUrlUsing(

@@ -2,7 +2,7 @@ use std::{collections::HashSet, hash::Hash, rc::Rc};
 
 use super::{ArrayKey, CollectionError, CollectionResult, Entry, LazyCollection};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn unique(self) -> Self
     where

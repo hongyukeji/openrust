@@ -14,7 +14,7 @@ pub(in crate::database) struct ChunkKey {
     pub lazy: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection> Builder<'connection> {
     /// Streams rows from successive offset batches as the caller polls the stream.
     pub fn lazy(mut self, chunk_size: u64) -> DatabaseCursor<'connection, Row> {

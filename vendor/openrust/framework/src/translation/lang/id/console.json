@@ -1,0 +1,68 @@
+{
+  "command_missing": "Perintah ':name' tidak ditentukan.",
+  "command_ambiguous": "Perintah ':name' ambigu: :choices",
+  "confirm": {
+    "production": "APLIKASI DALAM PRODUKSI. Apakah Anda benar-benar ingin menjalankan perintah ini?",
+    "cancelled": "Perintah dibatalkan."
+  },
+  "make": {
+    "mail": {
+      "name": "Apa nama suratnya?",
+      "view": "Apakah Anda ingin membuat tampilan?\n  1. Tampilan Markdown\n  2. Tampilan kosong\n  3. Tanpa tampilan\nPilih [1]"
+    },
+    "notification": {
+      "name": "Apa nama notifikasinya?",
+      "markdown": "Apakah Anda ingin membuat tampilan penurunan harga? [Y/n]",
+      "view": "Apa nama tampilan penurunan harga?"
+    },
+    "message": {
+      "cancelled": "Perintah dibatalkan."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Daftar perintah"
+    },
+    "help": {
+      "description": "Tampilkan bantuan untuk suatu perintah"
+    },
+    "inspire": {
+      "description": "Tampilkan kutipan yang menginspirasi"
+    },
+    "heading": "Perintah:"
+  },
+  "usage": "Penggunaan:",
+  "options": "Pilihan:",
+  "unknown_argument": "Argumen yang tidak terduga",
+  "unknown_command": "Perintah tidak ditentukan",
+  "missing_argument": "Argumen yang diperlukan tidak ada",
+  "invalid_value": "Nilai tidak valid",
+  "argument_conflict": "Argumen bertentangan",
+  "invalid_arguments": "Argumen tidak valid",
+  "model_fields": {
+    "title": "Model Tabel dan Bidang",
+    "notice": "Dihasilkan dari skema database. Jangan mengedit secara manual.",
+    "sync": "Jalankan `./artisan model:fields :model` dari root proyek untuk menyinkronkan.",
+    "table": "Tabel"
+  },
+  "namespace_missing": "Ruang nama ':name' tidak ditentukan.",
+  "available_commands": "Perintah yang tersedia",
+  "namespace_commands": "Perintah yang tersedia untuk namespace ':name':",
+  "available_commands_heading": "Perintah yang tersedia:",
+  "usage_title": "Penggunaan",
+  "argument_descriptions": {
+    "help": "Bantuan cetak",
+    "version": "Versi cetak",
+    "ansi": "Aktifkan keluaran ANSI",
+    "no-ansi": "Nonaktifkan keluaran ANSI",
+    "env": "Lingkungan tempat perintah harus dijalankan",
+    "no-interaction": "Jangan ajukan pertanyaan interaktif apa pun",
+    "quiet": "Jangan menampilkan pesan apa pun",
+    "silent": "Jangan menampilkan pesan atau kesalahan apa pun",
+    "verbose": "Tingkatkan verbositas pesan",
+    "format": "Pilih format keluaran",
+    "command_name": "Perintah untuk ditampilkan",
+    "namespace": "Tampilkan perintah di namespace tertentu"
+  },
+  "arguments": "Argumen:"
+}

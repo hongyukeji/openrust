@@ -150,7 +150,7 @@ fn seeded_names() -> DatabaseResult<Vec<String>> {
 
 用 `unixTime(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `dateTime(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Jiff 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含實際使用的時區偏移量。五種方法皆支援 `unique`。
 
-從 Laravel 重用 PHP DateTime 格式時，呼叫 `dateWithPhpFormat(format, max)` 或 `timeWithPhpFormat(format, max)`。兩者皆以實際使用的時區轉為文字。`Y-m-d` 使用 PHP 格式符號，`%Y-%m-%d` 使用 Jiff 格式符號。兩個 PHP 入口分別與對應的 Jiff 方法共用 `unique` 歷史。
+從框架重用 PHP DateTime 格式時，呼叫 `dateWithPhpFormat(format, max)` 或 `timeWithPhpFormat(format, max)`。兩者皆以實際使用的時區轉為文字。`Y-m-d` 使用 PHP 格式符號，`%Y-%m-%d` 使用 Jiff 格式符號。兩個 PHP 入口分別與對應的 Jiff 方法共用 `unique` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};

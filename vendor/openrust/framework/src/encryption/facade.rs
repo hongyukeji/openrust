@@ -15,7 +15,7 @@ impl Facade for Crypt {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Crypt facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Crypt {
     pub fn encrypt(value: impl AsRef<[u8]>, serialize: bool) -> Result<String, EncryptException> {
         Self::getFacadeRoot()

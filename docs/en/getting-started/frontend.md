@@ -4,7 +4,7 @@
 
 **Partial native support.** Server-rendered Blade views, public files and JSON responses are available. This source line does not ship a Vue/React application scaffold, an Inertia adapter or a frontend package manager workflow.
 
-This chapter retains the Laravel navigation path for comparison. Its presence does not install a package or promise compatibility with the corresponding PHP API.
+This chapter states the supported integration boundary; the navigation entry does not install an additional package.
 
 ## Available entry points {#available-entry-points}
 
@@ -12,4 +12,4 @@ See [Views](../the-basics/views.md) for the native interfaces and usage. When in
 
 ## Scope {#scope}
 
-OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+OpenRust does not provide an installation command for this integration. Use the native interfaces and commands documented for this integration.

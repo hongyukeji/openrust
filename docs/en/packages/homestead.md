@@ -4,7 +4,7 @@
 
 **Not included in this source line.** No Homestead VM image, Vagrant configuration or VM provisioning command is shipped.
 
-This chapter retains the Laravel navigation path for comparison. Its presence does not install a package or promise compatibility with the corresponding PHP API.
+This chapter describes the currently supported integration boundary; the navigation entry does not install an additional package.
 
 ## Available entry points {#available-entry-points}
 
@@ -12,4 +12,4 @@ See [Installation](../getting-started/installation.md) for the native interfaces
 
 ## Scope {#scope}
 
-OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+OpenRust does not provide an installation command for this integration. Use the native interfaces and commands documented for this integration.

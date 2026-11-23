@@ -1,0 +1,68 @@
+{
+  "command_missing": "Commando ':name' is niet gedefinieerd.",
+  "command_ambiguous": "Commando ':name' is dubbelzinnig: :choices",
+  "confirm": {
+    "production": "TOEPASSING IN DE PRODUCTIE. Wilt u deze opdracht echt uitvoeren?",
+    "cancelled": "Commando geannuleerd."
+  },
+  "make": {
+    "mail": {
+      "name": "Wat is de naam van het poststuk?",
+      "view": "Wilt u een weergave maken?\n  1. Markdown-weergave\n  2. Lege weergave\n  3. Geen weergave\nKies [1]"
+    },
+    "notification": {
+      "name": "Wat is de naam van de melding?",
+      "markdown": "Wilt u een afprijsweergave maken? [Y/n]",
+      "view": "Hoe moet de afprijsweergave worden genoemd?"
+    },
+    "message": {
+      "cancelled": "Commando geannuleerd."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Lijstopdrachten"
+    },
+    "help": {
+      "description": "Help voor een opdracht weergeven"
+    },
+    "inspire": {
+      "description": "Laat een inspirerende quote zien"
+    },
+    "heading": "Commando's:"
+  },
+  "usage": "Gebruik:",
+  "options": "Opties:",
+  "unknown_argument": "Onverwacht argument",
+  "unknown_command": "Commando is niet gedefinieerd",
+  "missing_argument": "Vereiste argumenten ontbreken",
+  "invalid_value": "Ongeldige waarde",
+  "argument_conflict": "Argumenten conflicteren",
+  "invalid_arguments": "Ongeldige argumenten",
+  "model_fields": {
+    "title": "Modeltabel en velden",
+    "notice": "Gegenereerd op basis van het databaseschema. Niet handmatig bewerken.",
+    "sync": "Voer `./artisan model:fields :model` uit vanuit de hoofdmap van het project om te synchroniseren.",
+    "table": "Tafel"
+  },
+  "namespace_missing": "Naamruimte ':name' is niet gedefinieerd.",
+  "available_commands": "Beschikbare opdrachten",
+  "namespace_commands": "Beschikbare opdrachten voor de naamruimte ':name':",
+  "available_commands_heading": "Beschikbare commando's:",
+  "usage_title": "Gebruik",
+  "argument_descriptions": {
+    "help": "Hulp bij afdrukken",
+    "version": "Printversie",
+    "ansi": "Schakel ANSI-uitvoer in",
+    "no-ansi": "Schakel ANSI-uitvoer uit",
+    "env": "De omgeving waarin de opdracht moet worden uitgevoerd",
+    "no-interaction": "Stel geen interactieve vragen",
+    "quiet": "Geef geen bericht weer",
+    "silent": "Geef geen bericht of fout weer",
+    "verbose": "Vergroot de breedsprakigheid van berichten",
+    "format": "Kies een uitvoerformaat",
+    "command_name": "De opdracht om weer te geven",
+    "namespace": "Toon opdrachten in een specifieke naamruimte"
+  },
+  "arguments": "Argumenten:"
+}

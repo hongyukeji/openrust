@@ -340,7 +340,7 @@ pub async fn approved_subject_comments<M: Model>(
 
 ### 查詢所有多型目標型別
 
-使用非同步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 對應 Laravel 的萬用字元查詢。這些方法先從模型表讀取不同的多型別名，目前查詢的篩選條件和作用域不參與這次讀取。請在關聯上註冊已儲存的別名。查詢缺少目標的記錄時，`whereDoesntHaveMorphAll` 也會比對型別為空的記錄。
+使用非同步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 對應 萬用字元查詢。這些方法先從模型表讀取不同的多型別名，目前查詢的篩選條件和作用域不參與這次讀取。請在關聯上註冊已儲存的別名。查詢缺少目標的記錄時，`whereDoesntHaveMorphAll` 也會比對型別為空的記錄。
 
 ```rust
 use openrust::database::{
@@ -429,7 +429,7 @@ pub async fn load_post_totals<P: Model, R: Model>(author: &mut P) -> DatabaseRes
 
 ### 預設關聯計數
 
-在模型中實作 `Model::withDefaultCounts`，讓讀取模型時預設帶上關聯計數。它對應 Laravel 的 `$withCount` 屬性。計數和模型共用一次 SELECT。明確呼叫 `select` 會取代預設投影。
+在模型中實作 `Model::withDefaultCounts`，讓讀取模型時預設帶上關聯計數。它對應 `$withCount` 屬性。計數和模型共用一次 SELECT。明確呼叫 `select` 會取代預設投影。
 
 ```rust
 fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'static, Self>> {
@@ -457,7 +457,7 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 
 ### 軟刪除的多型目標 {#soft-deleted-morph-targets}
 
-在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。這些選項作用於宣告軟刪除欄位的載入目標。混合目標中未宣告軟刪除欄位的模型照常載入。框架先套用這些選項，再套用各目標約束。與 Laravel 一樣，鏈式呼叫會疊加明確的未刪除或已刪除條件。後續呼叫 `withTrashed()` 會移除預設作用域並保留這些明確條件。
+在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。這些選項作用於宣告軟刪除欄位的載入目標。混合目標中未宣告軟刪除欄位的模型照常載入。框架先套用這些選項，再套用各目標約束。鏈式呼叫會疊加明確的未刪除或已刪除條件。後續呼叫 `withTrashed()` 會移除預設作用域並保留這些明確條件。
 
 ```rust
 use openrust::database::eloquent::{Model, relations::MorphTo};
@@ -583,7 +583,7 @@ pub async fn fill_selected_comments<M: Model>(
 }
 ```
 
-一次設定多條路徑時，將多個 `MissingRelation` 項目傳給 `loadMissingPathsWith`。各項目可設定各自的謂詞，多條路徑共用的父關聯只批次載入一次。重複路徑依 Laravel 的順序將後宣告、先宣告的謂詞依序套用至同一條件群組。
+一次設定多條路徑時，將多個 `MissingRelation` 項目傳給 `loadMissingPathsWith`。各項目可設定各自的謂詞，多條路徑共用的父關聯只批次載入一次。重複路徑依 順序將後宣告、先宣告的謂詞依序套用至同一條件群組。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Collection, MissingRelation, Model}};
@@ -655,7 +655,7 @@ pub async fn fill_missing_comments<A: Model>(
 
 ### 預設預先載入
 
-在模型中實作 `Model::withDefaultRelations`，宣告預設載入的型別化關聯。它對應 Laravel 模型的 `$with` 屬性。
+在模型中實作 `Model::withDefaultRelations`，宣告預設載入的型別化關聯。它對應框架模型的 `$with` 屬性。
 
 ```rust
 fn withDefaultRelations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
@@ -1464,7 +1464,7 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 }
 ```
 
-Laravel 在 `$touches` 中列出關聯名稱。OpenRust 使用帶型別的關聯描述符。 Laravel 寫入時間戳記時移除全域作用域。OpenRust 在查詢和寫入時都保留全域作用域，因此租戶作用域可以阻止越界更新。
+OpenRust 使用帶型別的關聯描述符傳遞時間戳記。OpenRust 在查詢和寫入時都保留全域作用域，因此租戶作用域可以阻止越界更新。
 
 所屬模型是多型關聯時，透過 `Touches::morphTo` 傳入載入關聯時使用的描述符。框架根據已持久化的型別選擇已註冊模型，再用已持久化的 ID 比對該模型的所屬鍵。型別或 ID 為空時略過。未註冊的別名會回傳錯誤，需要讓子模型寫入和時間戳記更新一併回復時，請使用 `saveInTransaction`。
 

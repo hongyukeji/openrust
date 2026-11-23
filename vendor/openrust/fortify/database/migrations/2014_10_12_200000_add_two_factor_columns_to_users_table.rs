@@ -1,5 +1,5 @@
 use openrust::translation::__;
-// Translated from Laravel Fortify 1.43.0 (MIT, Taylor Otwell).
+// Translated from the framework Fortify 1.43.0 (MIT, Taylor Otwell).
 use openrust::database::{
     DatabaseFuture, DatabaseResult,
     migrations::{Migration, MigrationContext},

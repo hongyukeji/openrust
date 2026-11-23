@@ -150,7 +150,7 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Jiff format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
 
-To reuse a PHP DateTime format from Laravel, call `dateWithPhpFormat(format, max)` or `timeWithPhpFormat(format, max)`. Both render in the effective time zone. For example, `Y-m-d` uses PHP tokens and `%Y-%m-%d` uses Jiff tokens. Each PHP variant shares `unique` history with its corresponding Jiff method.
+To reuse a PHP DateTime format from the framework, call `dateWithPhpFormat(format, max)` or `timeWithPhpFormat(format, max)`. Both render in the effective time zone. For example, `Y-m-d` uses PHP tokens and `%Y-%m-%d` uses Jiff tokens. Each PHP variant shares `unique` history with its corresponding Jiff method.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};

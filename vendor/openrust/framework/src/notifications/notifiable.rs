@@ -4,7 +4,7 @@ use super::{
 };
 
 /// Resolves delivery routes and the preferred locale for a recipient.
-#[allow(non_snake_case, reason = "Matches Laravel's Notifiable API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Notifiable: Send + Sync {
     /// Stable diagnostic identity for this recipient without resolving delivery routes.
     fn notificationTag(&self) -> String {

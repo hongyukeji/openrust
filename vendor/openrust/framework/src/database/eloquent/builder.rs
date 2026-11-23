@@ -88,7 +88,7 @@ pub struct Builder<'connection, M: Model> {
     model: PhantomData<M>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Builder<'static, M> {
     pub(super) fn new(connection: Connection) -> Self {
         M::newEloquentBuilder(connection.table(M::metadata().table))
@@ -404,7 +404,7 @@ impl<M: Model> Builder<'static, M> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection, M: Model> Builder<'connection, M> {
     pub fn r#where(&mut self, column: &str, operator: &str, value: impl Into<Value>) -> &mut Self {
         self.predicates = mem::take(&mut self.predicates).r#where(column, operator, value);
@@ -826,7 +826,7 @@ impl<'connection, M: Model> Builder<'connection, M> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Builder<'static, M> {
     pub(super) fn enable_default_counts(mut self) -> Self {
         self.default_counts = true;
@@ -1347,7 +1347,7 @@ impl<M: Model> Builder<'static, M> {
         self.hasMorphCountAll(relation, "<", 1).await
     }
 
-    /// The asynchronous counterpart of Laravel's wildcard morph query.
+    /// The asynchronous counterpart of wildcard morph query.
     pub async fn hasMorphCountAll(
         self,
         relation: &MorphTo<M>,

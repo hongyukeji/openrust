@@ -309,7 +309,7 @@ impl Origins {
             return Ok(Self::Fixed(exact.remove(0)));
         }
         let patterns = patterns.iter().map(|pattern| {
-            // Laravel applications commonly use slash or hash delimiters for patterns.
+            // the framework applications commonly use slash or hash delimiters for patterns.
             let Some(delimiter) = pattern.chars().next().filter(|c| matches!(c, '/' | '#')) else {
                 return pattern.clone();
             };

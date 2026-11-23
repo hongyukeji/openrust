@@ -36,7 +36,7 @@ impl serde::Serialize for PersonalAccessToken {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Sanctum token API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PersonalAccessToken {
     pub fn can(&self, ability: &str) -> bool {
         self.abilities
@@ -99,7 +99,7 @@ pub struct PersonalAccessTokens {
     model: Box<dyn ModelStore>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Sanctum token API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PersonalAccessTokens {
     pub fn new(connection: Connection, prefix: impl Into<String>) -> Self {
         Self::for_model::<super::DefaultPersonalAccessToken>(connection, prefix.into())

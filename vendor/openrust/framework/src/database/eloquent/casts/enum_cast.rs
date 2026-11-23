@@ -3,7 +3,7 @@ use std::any::TypeId;
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
 /// Maps an application enum to its database backing value or case name.
-#[allow(non_snake_case, reason = "Matches Laravel's cast naming")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait CastableEnum: Sized + 'static {
     fn fromValue(value: &Value) -> DatabaseResult<Self>;
 

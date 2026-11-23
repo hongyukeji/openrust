@@ -69,7 +69,7 @@ impl<'source, T: 'source> Default for LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn make<I>(source: impl Fn() -> I + 'source) -> Self
     where

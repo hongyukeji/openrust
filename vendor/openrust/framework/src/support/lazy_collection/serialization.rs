@@ -8,7 +8,7 @@ use serde_json::Value;
 use super::{ArrayKey, Collection, CollectionResult, LazyCollection};
 use crate::support::{data_get, data_has, escape_html};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
     pub fn toArray(&self) -> CollectionResult<Value> {
         Self::collect(self)?.toArray()
@@ -44,7 +44,7 @@ impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: DeserializeOwned + Clone + 'source> LazyCollection<'source, T> {
     pub fn fromJson(json: &str) -> CollectionResult<Self> {
         Collection::fromJson(json).map(Into::into)
@@ -67,7 +67,7 @@ impl<'de, 'source, T: Deserialize<'de> + Clone + 'source> Deserialize<'de>
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     /// Materializes keyed entries before projecting and joining them.
     pub fn implodeBy<U: Display>(
@@ -89,7 +89,7 @@ impl<'source, T: Display + 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl LazyCollection<'_, Value> {
     pub fn value(&self, path: &str) -> CollectionResult<Option<Value>> {
         Ok(self

@@ -13,7 +13,7 @@ use crate::{
 use super::super::json::ResourceResult;
 
 /// The data projected into a JSON:API resource object.
-#[allow(non_snake_case, reason = "Uses Laravel's resource terminology")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait JsonApiSource: Sized + Send {
     fn identifier(&self) -> Option<String>;
 

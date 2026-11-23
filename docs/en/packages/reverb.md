@@ -51,7 +51,7 @@ Use signed GET requests to `/apps/{id}/connections`, `/apps/{id}/channels`, `/ap
 
 Channels beginning with `cache-`, `private-cache-`, or `presence-cache-` replay the last event after subscription succeeds, or emit `pusher:cache_miss` if there is no cached event. Channel authorization still applies. As in Reverb, each listener holds that cache while the channel has local subscribers and discards it when the last local subscriber leaves.
 
-## Laravel Echo {#laravel-echo}
+## Echo client {#echo-client}
 
 Install `laravel-echo` and `pusher-js`. This example connects to a local non-TLS Reverb listener. Set `wsPath` to the configured server path when using a path prefix.
 

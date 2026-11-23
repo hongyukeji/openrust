@@ -22,7 +22,7 @@ impl Default for Password {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Password rule API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Password {
     pub fn new(min: usize) -> Self {
         Self::min(min)

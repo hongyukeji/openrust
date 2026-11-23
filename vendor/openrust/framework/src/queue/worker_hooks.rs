@@ -57,7 +57,7 @@ impl QueueManager {
     }
 
     /// Calls the listener after a measured attempt takes strictly longer than the threshold.
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn whenJobRunsLongerThan(
         &self,
         threshold: Duration,
@@ -83,7 +83,7 @@ impl QueueManager {
 
 impl QueueFacade {
     /// Calls the listener after a measured attempt takes strictly longer than the threshold.
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn whenJobRunsLongerThan(
         threshold: Duration,
         callback: impl for<'a> Fn(
@@ -103,7 +103,7 @@ macro_rules! lifecycle_listeners {
         impl QueueManager {
             $(
                 #[doc = concat!("Registers a typed listener for `", stringify!($event), "`.")]
-                #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+                #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
                 pub fn $method(
                     &self,
                     callback: impl for<'a> Fn(&'a $event) -> EventFuture<'a, EventResult<Option<ListenerResponse>>>
@@ -117,7 +117,7 @@ macro_rules! lifecycle_listeners {
         impl QueueFacade {
             $(
                 #[doc = concat!("Registers a typed listener for `", stringify!($event), "`.")]
-                #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+                #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
                 pub fn $method(
                     callback: impl for<'a> Fn(&'a $event) -> EventFuture<'a, EventResult<Option<ListenerResponse>>>
                     + Send + Sync + 'static,

@@ -132,7 +132,7 @@ pub struct ResourceCollection<T> {
     preserve_keys: Option<bool>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's ResourceCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> ResourceCollection<T> {
     pub fn new(source: impl Into<ResourceItems<T>>) -> Self {
         Self {

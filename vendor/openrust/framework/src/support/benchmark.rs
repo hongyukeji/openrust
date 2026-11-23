@@ -3,7 +3,7 @@ use std::{future::Future, num::NonZeroU32, time::Instant};
 /// Measures work with a monotonic clock and reports milliseconds.
 pub struct Benchmark;
 
-#[allow(non_snake_case, reason = "Matches the Laravel-style public API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Benchmark {
     pub fn value<T>(callback: impl FnOnce() -> T) -> (T, f64) {
         let start = Instant::now();

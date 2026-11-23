@@ -15,24 +15,7 @@ use crate::{
 
 use super::source_edit::file_error;
 
-const CATALOGS: [(&str, &str); 4] = [
-    (
-        "auth.json",
-        include_str!("../../translation/stubs/auth.json"),
-    ),
-    (
-        "pagination.json",
-        include_str!("../../translation/stubs/pagination.json"),
-    ),
-    (
-        "passwords.json",
-        include_str!("../../translation/stubs/passwords.json"),
-    ),
-    (
-        "validation.json",
-        include_str!("../../translation/stubs/validation.json"),
-    ),
-];
+use crate::translation::bundled::CATALOGS;
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     let syntax = clap::Command::new("lang:publish")
@@ -66,11 +49,10 @@ impl Command for LangPublish {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let path = app.langPath("").join("en");
+            let path = app.langPath("");
             let existing = input.matches().get_flag("existing");
             let force = input.matches().get_flag("force");
             tokio::task::spawn_blocking(move || {
-                fs::create_dir_all(&path).map_err(|error| file_error(&path, error))?;
                 for (name, contents) in CATALOGS {
                     let target = path.join(name);
                     let published = target
@@ -79,7 +61,11 @@ impl Command for LangPublish {
                     if existing && !published || !existing && !force && published {
                         continue;
                     }
-                    let mut temporary = tempfile::NamedTempFile::new_in(&path)
+                    let directory = target
+                        .parent()
+                        .ok_or_else(|| ConsoleError::new("语言资源路径无效"))?;
+                    fs::create_dir_all(directory).map_err(|error| file_error(directory, error))?;
+                    let mut temporary = tempfile::NamedTempFile::new_in(directory)
                         .map_err(|error| file_error(&target, error))?;
                     temporary
                         .write_all(contents.as_bytes())

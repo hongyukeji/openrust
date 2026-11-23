@@ -35,7 +35,7 @@ pub struct DatabaseSessionHandler {
     request_user: Option<Arc<OnceLock<Value>>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's database session API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseSessionHandler {
     pub fn new(
         connection: Connection,

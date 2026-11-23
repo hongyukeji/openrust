@@ -28,7 +28,7 @@ impl<T: DeserializeOwned + Send + Sync + 'static> Config<T> {
         }
     }
 
-    #[allow(non_snake_case, reason = "Compiled Laravel attribute options")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withDefault(mut self, value: T) -> Self {
         self.default = ParameterValue::new(value);
         self
@@ -85,7 +85,7 @@ impl<T: ?Sized + Send + Sync + 'static> Give<T> {
         }
     }
 
-    #[allow(non_snake_case, reason = "Compiled Laravel attribute options")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withParameters(mut self, parameters: ParameterOverrides) -> Self {
         self.parameters = parameters;
         self

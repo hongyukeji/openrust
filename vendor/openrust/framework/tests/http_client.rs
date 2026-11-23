@@ -1394,7 +1394,7 @@ async fn handler_stats_include_network_response_body_reads() {
 }
 
 #[tokio::test]
-async fn laravel_header_replacement_preserves_other_keys_multi_values_and_sink_failures() {
+async fn reference_header_replacement_preserves_other_keys_multi_values_and_sink_failures() {
     async fn echo(headers: HeaderMap) -> String {
         serde_json::json!({
             "keep": headers.get("x-keep").unwrap().to_str().unwrap(),

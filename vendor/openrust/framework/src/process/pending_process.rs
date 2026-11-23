@@ -86,7 +86,7 @@ pub struct PendingProcess {
     tty: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's pending process API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingProcess {
     pub(super) fn new(factory: Factory, command: Command) -> Self {
         Self {

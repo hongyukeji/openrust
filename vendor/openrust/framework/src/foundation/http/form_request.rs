@@ -16,7 +16,7 @@ pub enum FormRequestError {
 }
 
 /// Defines the authorization and validation of a handler's input.
-#[allow(non_snake_case, reason = "Matches Laravel's FormRequest lifecycle")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait FormRequest: Send + Sync {
     fn validateResolved<'a>(
         &'a mut self,

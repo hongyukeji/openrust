@@ -1,0 +1,68 @@
+{
+  "command_missing": "':name' komutu tanımlı değil.",
+  "command_ambiguous": "':name' komutu belirsiz: :choices",
+  "confirm": {
+    "production": "ÜRETİMDE UYGULAMA. Bu komutu gerçekten çalıştırmak istiyor musunuz?",
+    "cancelled": "Komut iptal edildi."
+  },
+  "make": {
+    "mail": {
+      "name": "Postalanabilirin adı nedir?",
+      "view": "Bir görünüm oluşturmak ister misiniz?\n  1. Markdown görünümü\n  2. Boş görünüm\n  3. Görünüm yok\nSeçim [1]"
+    },
+    "notification": {
+      "name": "Bildirimin adı nedir?",
+      "markdown": "Bir işaretleme görünümü oluşturmak ister misiniz? [Y/n]",
+      "view": "Markdown görünümüne ne ad verilmelidir?"
+    },
+    "message": {
+      "cancelled": "Komut iptal edildi."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Komutları listele"
+    },
+    "help": {
+      "description": "Bir komutun yardımını görüntüleme"
+    },
+    "inspire": {
+      "description": "İlham verici bir alıntı göster"
+    },
+    "heading": "Komutlar:"
+  },
+  "usage": "Kullanımı:",
+  "options": "Seçenekler:",
+  "unknown_argument": "Beklenmeyen argüman",
+  "unknown_command": "Komut tanımlı değil",
+  "missing_argument": "Gerekli bağımsız değişkenler eksik",
+  "invalid_value": "Geçersiz değer",
+  "argument_conflict": "Argümanlar çatışması",
+  "invalid_arguments": "Geçersiz bağımsız değişkenler",
+  "model_fields": {
+    "title": "Model Tablosu ve Alanları",
+    "notice": "Veritabanı şemasından oluşturulmuştur. Manuel olarak düzenleme yapmayın.",
+    "sync": "Senkronize etmek için proje kökünden `./artisan model:fields :model`'yi çalıştırın.",
+    "table": "Tablo"
+  },
+  "namespace_missing": "':name' ad alanı tanımlı değil.",
+  "available_commands": "Mevcut komutlar",
+  "namespace_commands": "':name' ad alanı için mevcut komutlar:",
+  "available_commands_heading": "Mevcut komutlar:",
+  "usage_title": "Kullanım",
+  "argument_descriptions": {
+    "help": "Yazdırma yardımı",
+    "version": "Sürümü yazdır",
+    "ansi": "ANSI çıkışını etkinleştir",
+    "no-ansi": "ANSI çıkışını devre dışı bırak",
+    "env": "Komutun altında çalışması gereken ortam",
+    "no-interaction": "İnteraktif soru sormayın",
+    "quiet": "Herhangi bir mesaj çıkarmayın",
+    "silent": "Herhangi bir mesaj veya hata çıkarmayın",
+    "verbose": "Mesajların ayrıntı düzeyini artırın",
+    "format": "Bir çıktı formatı seçin",
+    "command_name": "Görüntülenecek komut",
+    "namespace": "Komutları belirli bir ad alanında göster"
+  },
+  "arguments": "Argümanlar:"
+}

@@ -19,7 +19,7 @@ pub use inflection::InflectionLanguage;
 pub use random::{EmptyPasswordAlphabet, PasswordOptions};
 pub use text_layout::WordWrapError;
 
-/// Unicode string helpers with Laravel-compatible names.
+/// Unicode string helpers with the framework-compatible names.
 pub struct Str;
 
 #[derive(Deserialize)]
@@ -39,7 +39,7 @@ fn data() -> &'static TransliterationData {
     })
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Str API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Str {
     pub fn of(value: impl Into<String>) -> Stringable {
         Stringable::from(value.into())
@@ -724,7 +724,7 @@ fn clean(value: &str, data: &TransliterationData) -> String {
     cleaned
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Str API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Str {
     pub fn doesntContain(value: &str, needles: &[&str], ignore_case: bool) -> bool {
         !Self::contains(value, needles, ignore_case)

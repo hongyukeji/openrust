@@ -1,6 +1,6 @@
 # Database Settings (Extension)
 
-`openrust-settings` stores typed application settings in a database. Groups may represent website information, delivery services or application-specific policies. It follows Spatie Laravel Settings naming and reuses OpenRust's database, encryption, migration and scoped container services.
+`openrust-settings` stores typed application settings in a database. Groups may represent website information, delivery services or application-specific policies. It reuses OpenRust's database, encryption, migration and scoped container services.
 
 ## Enable and migrate
 

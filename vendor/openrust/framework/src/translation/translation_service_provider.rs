@@ -23,7 +23,7 @@ impl ServiceProvider for TranslationServiceProvider {
             let container = app.container();
             let paths = container.make::<crate::foundation::Paths>()?;
             container.singletonNamed("translation.loader", move |_| {
-                Ok(Arc::new(FileLoader::new(paths.langPath(""))))
+                Ok(Arc::new(FileLoader::with_defaults(paths.langPath(""))))
             })?;
             container.singleton::<dyn Loader, _>(|container| {
                 Ok(container.get::<FileLoader>("translation.loader")?)

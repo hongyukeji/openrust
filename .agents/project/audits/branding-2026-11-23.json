@@ -1,0 +1,1042 @@
+{
+  "references": [
+    {
+      "file": "vendor/openrust/settings/NOTICE.md",
+      "line": 5,
+      "text": "- spatie/laravel-settings at `dc7c4c42bb3789c74493d756eaca2f183e9a68d5`: https://github.com/spatie/laravel-settings/tree/dc7c4c42bb3789c74493d756eaca2f183e9a68d5. License: [LICENSE-settings.md](LICENSE-settings.md)."
+    },
+    {
+      "file": "vendor/openrust/activitylog/NOTICE.md",
+      "line": 5,
+      "text": "- spatie/laravel-activitylog at `fdcc5ee063cbf91114679336c4fbf92837196419`: https://github.com/spatie/laravel-activitylog/tree/fdcc5ee063cbf91114679336c4fbf92837196419. License: [LICENSE-activitylog.md](LICENSE-activitylog.md)."
+    },
+    {
+      "file": "vendor/openrust/cashier/NOTICE.md",
+      "line": 5,
+      "text": "- laravel/cashier-stripe at `d5c015490ff77f2c138fe79b86d2a982787fe3ac`: https://github.com/laravel/cashier-stripe/tree/d5c015490ff77f2c138fe79b86d2a982787fe3ac. License: [LICENSE-cashier-stripe.md](LICENSE-cashier-stripe.md)."
+    },
+    {
+      "file": "vendor/openrust/cashier/NOTICE.md",
+      "line": 6,
+      "text": "- laravel/cashier-paddle at `82bfc68eb72c38e666a4900baeecca3621840259`: https://github.com/laravel/cashier-paddle/tree/82bfc68eb72c38e666a4900baeecca3621840259. License: [LICENSE-cashier-paddle.md](LICENSE-cashier-paddle.md)."
+    },
+    {
+      "file": "vendor/openrust/pulse/tests/reference.sources.json",
+      "line": 2,
+      "text": "  \"repository\": \"https://github.com/laravel/pulse\","
+    },
+    {
+      "file": "vendor/openrust/activitylog/tests/changes_reference.sources.json",
+      "line": 2,
+      "text": "  \"repository\": \"https://github.com/spatie/laravel-activitylog\","
+    },
+    {
+      "file": "vendor/openrust/activitylog/tests/support_reference.sources.json",
+      "line": 2,
+      "text": "  \"repository\": \"https://github.com/spatie/laravel-activitylog\","
+    },
+    {
+      "file": "docs/zh-Hant/the-basics/responses.md",
+      "line": 137,
+      "text": "序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應是 OpenRust 在 [Laravel JSON 回應機制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)之上的擴充。"
+    },
+    {
+      "file": "docs/en/README.md",
+      "line": 5,
+      "text": "<!-- Laravel 13.x navigation baseline 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->"
+    },
+    {
+      "file": "docs/zh-Hant/prologue/releases.md",
+      "line": 5,
+      "text": "目前原始碼在 `Cargo.toml` 中宣告開發版 `0.0.0`。建置時使用已提交的 `Cargo.lock`，部署時記錄原始碼提交。OpenRust 版本號描述 OpenRust 自身的版本。Laravel v13.40.0 是相容性基準，應用程式啟動與組裝參考 Goravel v1.18.0。 [Laravel 原始碼](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc) · [Goravel 原始碼](https://github.com/goravel/goravel/tree/31651f646ccedf1701471bf01285111270a9d370)"
+    },
+    {
+      "file": "vendor/openrust/reverb/NOTICE.md",
+      "line": 5,
+      "text": "- laravel/reverb at `70e3d28ed31466da34de0c055f3681b75a5a538c`: https://github.com/laravel/reverb/tree/70e3d28ed31466da34de0c055f3681b75a5a538c. License: [LICENSE-reverb.md](LICENSE-reverb.md)."
+    },
+    {
+      "file": "vendor/sqlx-mysql/README.md",
+      "line": 5,
+      "text": "The driver contains the source portion of [SQLx #4334](https://github.com/transact-rs/sqlx/commit/2cd6369be3ca1f69cd68ac71ff466486d8e3040a). It exposes `MySqlConnectOptions::found_rows` with the upstream default. OpenRust opts out for its own MySQL and MariaDB connections to use Laravel's affected-row semantics. The remaining SQLx crates still resolve from the locked registry versions."
+    },
+    {
+      "file": "vendor/openrust/socialite/NOTICE.md",
+      "line": 5,
+      "text": "- laravel/socialite at `8032bb1fa9d74aae54438f216e4d45db90d27ea9`: https://github.com/laravel/socialite/tree/8032bb1fa9d74aae54438f216e4d45db90d27ea9. License: [LICENSE-socialite.md](LICENSE-socialite.md)."
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 2,
+      "text": "  \"laravel/src/Contracts/User.php\": \"30a6c0719c2a2623d6b8b1c74b77c9f8080a09fac2409961d8927ffa3e268768\","
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 3,
+      "text": "  \"laravel/src/AbstractUser.php\": \"36c66afff21126d6b29a92919c942ba901ea5ebafcbf862ab888be973297eee2\","
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 4,
+      "text": "  \"laravel/src/Two/User.php\": \"f3d05bf8ceb09e19c3757f3f167df78490503853c11ac02283f3013c409aec93\","
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 5,
+      "text": "  \"laravel/src/Contracts/Provider.php\": \"2f212d98dd12cc6cf624786fdd7474bac278de3e89e5a518f1fcb6b1f62cbe44\","
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 6,
+      "text": "  \"laravel/src/Two/ProviderInterface.php\": \"5b9b990585248b34f545456cd2f9e3218d274b7052c5493dc436d17635e8e267\","
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 7,
+      "text": "  \"laravel/src/Two/AbstractProvider.php\": \"a3f186fd96d1a92bdeb0da17379c547808b534bd4f9eda16adda064401d755d5\","
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/reference/china-source-sha256.json",
+      "line": 8,
+      "text": "  \"laravel/src/Two/Token.php\": \"4ae3e408183daeb323d66a64f6abbd4a8551b0a9f0c44798297fd32c018e6431\","
+    },
+    {
+      "file": "docs/en/the-basics/responses.md",
+      "line": 137,
+      "text": "A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. The business envelope is an OpenRust extension to [Laravel's JSON response mechanism](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)."
+    },
+    {
+      "file": "vendor/openrust/framework/src/console/planned.rs",
+      "line": 22,
+      "text": "// Laravel Framework v13.40.0 public commands, plus console completion."
+    },
+    {
+      "file": "vendor/openrust/framework/src/console/planned.rs",
+      "line": 124,
+      "text": "// Goravel Framework v1.18.0 public commands without a Laravel counterpart."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 36,
+      "text": "- spatie/laravel-activitylog at `fdcc5ee063cbf91114679336c4fbf92837196419`: https://github.com/spatie/laravel-activitylog/tree/fdcc5ee063cbf91114679336c4fbf92837196419. License: [LICENSE-activitylog.md](vendor/openrust/activitylog/LICENSE-activitylog.md)."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 95,
+      "text": "- laravel/cashier-stripe at `d5c015490ff77f2c138fe79b86d2a982787fe3ac`: https://github.com/laravel/cashier-stripe/tree/d5c015490ff77f2c138fe79b86d2a982787fe3ac. License: [LICENSE-cashier-stripe.md](vendor/openrust/cashier/LICENSE-cashier-stripe.md)."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 96,
+      "text": "- laravel/cashier-paddle at `82bfc68eb72c38e666a4900baeecca3621840259`: https://github.com/laravel/cashier-paddle/tree/82bfc68eb72c38e666a4900baeecca3621840259. License: [LICENSE-cashier-paddle.md](vendor/openrust/cashier/LICENSE-cashier-paddle.md)."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5243,
+      "text": "- laravel/reverb at `70e3d28ed31466da34de0c055f3681b75a5a538c`: https://github.com/laravel/reverb/tree/70e3d28ed31466da34de0c055f3681b75a5a538c. License: [LICENSE-reverb.md](vendor/openrust/reverb/LICENSE-reverb.md)."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5302,
+      "text": "- spatie/laravel-settings at `dc7c4c42bb3789c74493d756eaca2f183e9a68d5`: https://github.com/spatie/laravel-settings/tree/dc7c4c42bb3789c74493d756eaca2f183e9a68d5. License: [LICENSE-settings.md](vendor/openrust/settings/LICENSE-settings.md)."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5362,
+      "text": "- laravel/socialite at `8032bb1fa9d74aae54438f216e4d45db90d27ea9`: https://github.com/laravel/socialite/tree/8032bb1fa9d74aae54438f216e4d45db90d27ea9. License: [LICENSE-socialite.md](vendor/openrust/socialite/LICENSE-socialite.md)."
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5425,
+      "text": "`vendor/openrust/framework/` are adapted from Laravel Framework v13.40.0"
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5427,
+      "text": "Source: https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc"
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5467,
+      "text": "Standard translations in `vendor/openrust/framework/src/translation/lang/` use Laravel-Lang/lang at `3fc62be68ac6d462f6a679944526fbddf5fced09`, adapted to the OpenRust key and replacement contract. Source: https://github.com/Laravel-Lang/lang/tree/3fc62be68ac6d462f6a679944526fbddf5fced09. The complete MIT notice is retained below and in `vendor/openrust/framework/src/translation/stubs/LICENSE-Laravel-Lang`."
+    },
+    {
+      "file": "docs/zh-Hant/README.md",
+      "line": 5,
+      "text": "<!-- Laravel 13.x 文件導覽基準 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->"
+    },
+    {
+      "file": "docs/en/prologue/releases.md",
+      "line": 5,
+      "text": "The current source tree declares development version `0.0.0` in `Cargo.toml`. Build with the committed `Cargo.lock` and keep the source commit with your deployment record. OpenRust version numbers describe OpenRust's own releases. Laravel v13.40.0 defines the compatibility baseline, and Goravel v1.18.0 informs application startup and assembly. [Laravel source](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc) · [Goravel source](https://github.com/goravel/goravel/tree/31651f646ccedf1701471bf01285111270a9d370)"
+    },
+    {
+      "file": "vendor/openrust/horizon/tests/autoscaler_reference.sources.json",
+      "line": 2,
+      "text": "  \"repository\": \"https://github.com/laravel/horizon\","
+    },
+    {
+      "file": "vendor/openrust/horizon/tests/worker_reference.sources.json",
+      "line": 2,
+      "text": "  \"repository\": \"https://github.com/laravel/framework\","
+    },
+    {
+      "file": "resources/views/welcome.blade.html",
+      "line": 3,
+      "text": "Welcome page adapted from the Laravel v13.11.0 application skeleton."
+    },
+    {
+      "file": "resources/views/welcome.blade.html",
+      "line": 4,
+      "text": "https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/resources/views/welcome.blade.php"
+    },
+    {
+      "file": "vendor/openrust/passport/database/migrations/2024_06_01_000001_create_oauth_device_codes_table.rs",
+      "line": 2,
+      "text": "// Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell)."
+    },
+    {
+      "file": "vendor/openrust/passport/database/migrations/2016_06_01_000002_create_oauth_access_tokens_table.rs",
+      "line": 2,
+      "text": "// Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell)."
+    },
+    {
+      "file": "vendor/openrust/passport/database/migrations/2016_06_01_000004_create_oauth_clients_table.rs",
+      "line": 2,
+      "text": "// Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell)."
+    },
+    {
+      "file": "vendor/openrust/passport/database/migrations/2016_06_01_000003_create_oauth_refresh_tokens_table.rs",
+      "line": 2,
+      "text": "// Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell)."
+    },
+    {
+      "file": "vendor/openrust/passport/database/migrations/2016_06_01_000001_create_oauth_auth_codes_table.rs",
+      "line": 2,
+      "text": "// Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell)."
+    },
+    {
+      "file": "docs/zh-Hans/README.md",
+      "line": 5,
+      "text": "<!-- Laravel 13.x 文档导航基线 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->"
+    },
+    {
+      "file": "vendor/openrust/framework/src/foundation/inspiring.rs",
+      "line": 2,
+      "text": "// Laravel Framework v13.40.0, commit 1449bf241017087fbd38c118ecaabef3f6797fdc."
+    },
+    {
+      "file": "docs/zh-Hans/the-basics/responses.md",
+      "line": 137,
+      "text": "序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应是 OpenRust 在 [Laravel JSON 响应机制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)之上的扩展。"
+    },
+    {
+      "file": "vendor/openrust/scout/tests/engine_reference.sources.json",
+      "line": 4,
+      "text": "      \"repository\": \"https://github.com/laravel/scout\","
+    },
+    {
+      "file": "vendor/openrust/scout/tests/engine_reference.sources.json",
+      "line": 13,
+      "text": "      \"repository\": \"https://github.com/laravel/framework\","
+    },
+    {
+      "file": "docs/zh-Hans/prologue/releases.md",
+      "line": 5,
+      "text": "当前源码在 `Cargo.toml` 中声明开发版 `0.0.0`。构建时使用已提交的 `Cargo.lock`，部署时记录源码提交号。OpenRust 版本号描述 OpenRust 自身的版本。Laravel v13.40.0 是兼容基线，应用启动与装配参考 Goravel v1.18.0。 [Laravel 源码](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc) · [Goravel 源码](https://github.com/goravel/goravel/tree/31651f646ccedf1701471bf01285111270a9d370)"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/validation-lifecycle.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\","
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/json-schema.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\","
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/validation-scalars.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\","
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/test-response.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\","
+    },
+    {
+      "file": "vendor/openrust/pennant/README.md",
+      "line": 11,
+      "text": "Upstream reference: laravel/pennant `9046466feb0146b6223db8b8e9c589aeba23f7f0`. MIT license attribution is retained in `LICENSE-LARAVEL`."
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/reference.sources.json",
+      "line": 2,
+      "text": "  \"repository\": \"https://github.com/laravel/pennant\","
+    },
+    {
+      "file": "vendor/openrust/framework/tests/fixtures/precognition/frontend-package-lock.json",
+      "line": 728,
+      "text": "      \"resolved\": \"https://registry.npmjs.org/laravel-precognition/-/laravel-precognition-2.0.0.tgz\","
+    },
+    {
+      "file": "vendor/openrust/framework/tests/urls.rs",
+      "line": 338,
+      "text": "                json!({\"url\":\"https://example.test\",\"key\":LARAVEL_KEY}),"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/urls.rs",
+      "line": 827,
+      "text": "            (\"app\".into(), json!({\"url\":\"https://example.test\",\"key\":LARAVEL_KEY})),"
+    },
+    {
+      "file": "vendor/openrust/framework/src/support/number/spellout/README.md",
+      "line": 7,
+      "text": "`locales.json` maps ICU 76.1 number-formatting locales to their actual spellout resource and decimal symbols. Each symbol array contains the decimal separator, grouping separator, minus sign, zero digit, infinity and NaN. The finite fixture comes from Laravel v13.40.0 running PHP 8.5.12 with ICU 76.1. The non-finite fixture comes from ICU 76.1 rule-based formatting."
+    }
+  ],
+  "renames": {
+    "vendor/openrust/reverb/tests/laravel_user_auth.rs": "vendor/openrust/reverb/tests/user_auth_contract.rs",
+    "vendor/openrust/framework/tests/laravel_alignment_validation.rs": "vendor/openrust/framework/tests/alignment_validation.rs",
+    "vendor/openrust/framework/tests/laravel_alignment_services.rs": "vendor/openrust/framework/tests/alignment_services.rs",
+    "vendor/openrust/framework/tests/laravel_alignment_http.rs": "vendor/openrust/framework/tests/alignment_http.rs",
+    "vendor/openrust/framework/tests/laravel_alignment_database.rs": "vendor/openrust/framework/tests/alignment_database.rs",
+    "vendor/openrust/framework/tests/fixtures/laravel_encryption.json": "vendor/openrust/framework/tests/fixtures/encryption_vectors.json"
+  },
+  "moved_sources": {
+    "vendor/openrust/pennant/tests/reference.sources.json": ".agents/project/references/pennant/tests/reference.sources.json",
+    "vendor/openrust/pulse/tests/reference.sources.json": ".agents/project/references/pulse/tests/reference.sources.json",
+    "vendor/openrust/scout/tests/engine_reference.sources.json": ".agents/project/references/scout/tests/engine_reference.sources.json",
+    "vendor/openrust/horizon/tests/worker_reference.sources.json": ".agents/project/references/horizon/tests/worker_reference.sources.json",
+    "vendor/openrust/horizon/tests/autoscaler_reference.sources.json": ".agents/project/references/horizon/tests/autoscaler_reference.sources.json",
+    "vendor/openrust/activitylog/tests/support_reference.sources.json": ".agents/project/references/activitylog/tests/support_reference.sources.json",
+    "vendor/openrust/activitylog/tests/changes_reference.sources.json": ".agents/project/references/activitylog/tests/changes_reference.sources.json",
+    "vendor/openrust/socialite/tests/reference/china-source-sha256.json": ".agents/project/references/socialite/tests/reference/china-source-sha256.json",
+    "vendor/openrust/framework/tests/fixtures/precognition/source-manifest.json": ".agents/project/references/framework/tests/fixtures/precognition/source-manifest.json"
+  },
+  "moved_notices": [
+    "vendor/openrust/cashier/NOTICE.md",
+    "vendor/openrust/settings/NOTICE.md",
+    "vendor/openrust/reverb/NOTICE.md",
+    "vendor/openrust/socialite/NOTICE.md",
+    "vendor/openrust/activitylog/NOTICE.md"
+  ],
+  "retained": [
+    {
+      "file": "tests/precognition_browser.mjs",
+      "line": 8,
+      "text": "const pkg = JSON.parse(await readFile(`${root}/node_modules/laravel-precognition/package.json`, 'utf8'));",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "tests/precognition_browser.mjs",
+      "line": 10,
+      "text": "const bundle = await build({stdin:{contents:'import {client, createValidator} from \"laravel-precognition\"; window.precognition = {client, createValidator};', resolveDir:root},bundle:true,write:false,format:'iife',platform:'browser'});",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "tests/queue_hard_timeout.rs",
+      "line": 2914,
+      "text": "                let pattern = redis.key(\"*laravel:sqs-payloads:*\");",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "tests/queue_hard_timeout.rs",
+      "line": 2954,
+      "text": "                let pattern = redis.key(\"*laravel:sqs-payloads:*\");",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "tests/reverb_echo.mjs",
+      "line": 62,
+      "text": "    await page.addScriptTag({ path: join(modules, \"laravel-echo/dist/echo.iife.js\") });",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "tests/maintenance_http.rs",
+      "line": 226,
+      "text": "    assert!(cookie.starts_with(\"laravel_maintenance=\"));",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "tests/maintenance_http.rs",
+      "line": 229,
+      "text": "        get(\"/\", \"application/json\", Some(\"laravel_maintenance=invalid\")).status(),",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/fixtures/oauth1.json",
+      "line": 230,
+      "text": "            \"error\": \"Laravel\\\\Socialite\\\\One\\\\MissingVerifierException\",",
+      "reason": "固定互操作验收的原始预期数据，保留实际序列化值或错误类型"
+    },
+    {
+      "file": "vendor/openrust/socialite/tests/fixtures/oauth1.json",
+      "line": 234,
+      "text": "            \"error\": \"Laravel\\\\Socialite\\\\One\\\\MissingTemporaryCredentialsException\",",
+      "reason": "固定互操作验收的原始预期数据，保留实际序列化值或错误类型"
+    },
+    {
+      "file": "vendor/openrust/pennant/src/scope.rs",
+      "line": 25,
+      "text": "            Self::Null => \"__laravel_null\".into(),",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pennant/src/scope.rs",
+      "line": 26,
+      "text": "            Self::Global => \"__laravel_global\".into(),",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/horizon/tests/configuration.rs",
+      "line": 41,
+      "text": "    assert_eq!(defaults[\"prefix\"], \"laravel_horizon:\");",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/telescope/src/watchers/mod.rs",
+      "line": 193,
+      "text": "                    \"laravel:reverb:restart\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/fixtures/scopes.json",
+      "line": 6,
+      "text": "            \"serialized\": \"__laravel_null\"",
+      "reason": "固定互操作验收的原始预期数据，保留实际序列化值或错误类型"
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/fixtures/scopes.json",
+      "line": 97,
+      "text": "    \"global\": \"__laravel_global\"",
+      "reason": "固定互操作验收的原始预期数据，保留实际序列化值或错误类型"
+    },
+    {
+      "file": "vendor/openrust/horizon/config/horizon.rs",
+      "line": 14,
+      "text": "    let name = environment.get_utf8(\"APP_NAME\")?.unwrap_or(\"laravel\");",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/auth.rs",
+      "line": 120,
+      "text": "        b\"__laravel_null\"",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/auth.rs",
+      "line": 134,
+      "text": "        b\"__laravel_null\"",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/features.rs",
+      "line": 341,
+      "text": "    assert_eq!(Scope::Null.serialize(false), \"__laravel_null\");",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pennant/tests/features.rs",
+      "line": 342,
+      "text": "    assert_eq!(Scope::Global.serialize(false), \"__laravel_global\");",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pulse/src/storage/database_storage.rs",
+      "line": 171,
+      "text": "                format!(\"{}.{}\", self.wrap(\"laravel_upsert_alias\"), self.wrap(c))",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/pulse/src/pulse.rs",
+      "line": 194,
+      "text": "            r\"/(^laravel_vapor_job_attemp(t?)s:)/\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pulse/src/pulse.rs",
+      "line": 199,
+      "text": "            r\"/^laravel:pulse:/\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pulse/src/pulse.rs",
+      "line": 200,
+      "text": "            r\"/^laravel:reverb:/\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/src/mail/mail_service_provider.rs",
+      "line": 57,
+      "text": "            self.publishes(app, &views, \"laravel-mail\")",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/pulse/config/pulse.rs",
+      "line": 51,
+      "text": "        r\"/(^laravel_vapor_job_attemp(t?)s:)/\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pulse/config/pulse.rs",
+      "line": 56,
+      "text": "        r\"/^laravel:pulse:/\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/pulse/config/pulse.rs",
+      "line": 57,
+      "text": "        r\"/^laravel:reverb:/\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/src/queue/middleware.rs",
+      "line": 123,
+      "text": "            prefix: \"laravel-queue-overlap:\".into(),",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/src/translation/stubs/NOTICE",
+      "line": 26,
+      "text": "Copyright (c) 2013-2026 Laravel Lang Team",
+      "reason": "版权原文，随代码及译文分发保留"
+    },
+    {
+      "file": "vendor/openrust/framework/src/notifications/notification_service_provider.rs",
+      "line": 59,
+      "text": "                \"laravel-notifications\",",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/src/queue/unique_job.rs",
+      "line": 41,
+      "text": "        \"laravel_unique_job:{}:{}:{}\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 4909,
+      "text": "Zend Framework rules used by the Laravel MessageSelector, as attributed by Laravel:",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5370,
+      "text": "`vendor/openrust/framework/` are adapted from Laravel Framework v13.40.0",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "line": 5415,
+      "text": "Copyright (c) 2013-2026 Laravel Lang Team",
+      "reason": "版权原文，随代码及译文分发保留"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/eloquent_events.rs",
+      "line": 872,
+      "text": "    source.setAttribute(\"laravel_through_key\", 1_i64);",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/eloquent_events.rs",
+      "line": 886,
+      "text": "        \"laravel_through_key\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/queue/middleware/throttles_exceptions.rs",
+      "line": 60,
+      "text": "            prefix: \"laravel_throttles_exceptions:\".into(),",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/src/queue/sqs_queue.rs",
+      "line": 71,
+      "text": "const POINTER_PREFIX: &str = \"laravel:sqs-payloads:\";",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/queue_worker.rs",
+      "line": 3495,
+      "text": "        \"laravel-queue-overlap:overlap_holder:resource\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/unit/extensions.rs",
+      "line": 208,
+      "text": "    assert_eq!(*c.make::<u32>().unwrap(), 1); // Laravel returns its original local object.",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/validation-lifecycle.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/unit/contextual.rs",
+      "line": 254,
+      "text": "    assert_eq!(tagged.len(), 1); // Laravel fixes count at creation, even before the first len call.",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/json-schema.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/validation-scalars.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/reference/test-response.json",
+      "line": 2,
+      "text": "    \"source\": \"laravel/framework@1449bf241017087fbd38c118ecaabef3f6797fdc\",",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/eloquent_relationships.rs",
+      "line": 7986,
+      "text": "                    assert!(post.getAttribute(\"laravel_row\").is_none());",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/eloquent_relationships.rs",
+      "line": 8005,
+      "text": "                comment.getAttribute(\"laravel_row\").is_none()",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/eloquent_relationships.rs",
+      "line": 8006,
+      "text": "                    && comment.getAttribute(\"laravel_through_key\").is_none()",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/eloquent_relationships.rs",
+      "line": 8181,
+      "text": "        assert!(posts[0].getAttribute(\"laravel_row\").is_none());",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/pagination.rs",
+      "line": 519,
+      "text": "                        .all(|key| !key.starts_with(\"laravel_pivot_\"))",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/pagination.rs",
+      "line": 526,
+      "text": "                        .all(|key| !key.starts_with(\"laravel_pivot_\"))",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/pagination.rs",
+      "line": 1240,
+      "text": "                assert!(label.getAttribute(\"laravel_pivot_0\").is_none());",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/pagination.rs",
+      "line": 1241,
+      "text": "                assert!(label.getRawOriginal(\"laravel_pivot_0\").is_none());",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/pagination.rs",
+      "line": 1373,
+      "text": "                            assert!(model.getAttribute(\"laravel_pivot_0\").is_none());",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/test_app.rs",
+      "line": 615,
+      "text": "    app.artisan([\"vendor:publish\", \"--tag=laravel-pagination\"])",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/test_app.rs",
+      "line": 635,
+      "text": "    app.artisan([\"vendor:publish\", \"--tag=laravel-pagination\"])",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/test_app.rs",
+      "line": 639,
+      "text": "    app.artisan([\"vendor:publish\", \"--tag=laravel-pagination\", \"--force\"])",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/database_query.rs",
+      "line": 747,
+      "text": "        \"select * from (select `id`, `category`, `score`, row_number() over (partition by `category` order by case when score >= ? then 0 else 1 end, `score` desc) as `laravel_row` from `app_group_items` where `active` = ?) as `laravel_table` where `laravel_row` <= ? and `laravel_row` > ? order by `laravel_row`\"",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/database_query.rs",
+      "line": 757,
+      "text": "        assert!(rows.iter().all(|row| row.get(\"laravel_row\").is_none()));",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/mail_notifications.rs",
+      "line": 2031,
+      "text": "    let publish = [\"vendor:publish\", \"--tag=laravel-mail\"];",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/mail_notifications.rs",
+      "line": 2266,
+      "text": "        &[\"vendor:publish\", \"--tag=laravel-mail\", \"--force\"],",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/mail_notifications.rs",
+      "line": 2797,
+      "text": "    artisan(&root.0, &[\"vendor:publish\", \"--tag=laravel-notifications\"]).await;",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/search.rs",
+      "line": 202,
+      "text": "            row(\"OpenRust framework\", \"laravel search foundation\"),",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/src/foundation/http/middleware/prevent_requests_during_maintenance.rs",
+      "line": 24,
+      "text": "const BYPASS_COOKIE: &str = \"laravel_maintenance\";",
+      "reason": "现有互操作或持久化键／前缀及其回归，保留避免旧缓存、Cookie或队列状态失效"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/fixtures/precognition/frontend-package-lock.json",
+      "line": 10,
+      "text": "        \"laravel-precognition\": \"^2.0.0\",",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/fixtures/precognition/frontend-package-lock.json",
+      "line": 726,
+      "text": "    \"node_modules/laravel-precognition\": {",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/fixtures/precognition/frontend-package-lock.json",
+      "line": 728,
+      "text": "      \"resolved\": \"https://registry.npmjs.org/laravel-precognition/-/laravel-precognition-2.0.0.tgz\",",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "vendor/openrust/framework/src/pagination/pagination_service_provider.rs",
+      "line": 40,
+      "text": "            self.publishes(app, &files, \"laravel-pagination\")",
+      "reason": "既有公开资源发布标签，本轮保留已交付命令契约"
+    },
+    {
+      "file": "vendor/openrust/framework/tests/fixtures/precognition/frontend-package.json",
+      "line": 5,
+      "text": "    \"laravel-precognition\": \"^2.0.0\",",
+      "reason": "真实客户端依赖坐标或测试入口，改名无法安装／运行"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/query/builder.rs",
+      "line": 721,
+      "text": "        let rank = self.grammar.quote(\"laravel_row\")?;",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/query/builder.rs",
+      "line": 722,
+      "text": "        let alias = self.grammar.quote(\"laravel_table\")?;",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/query/builder/writes.rs",
+      "line": 196,
+      "text": "                sql.push_str(\" as laravel_upsert_alias\");",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/query/builder/writes.rs",
+      "line": 214,
+      "text": "                        format!(\"`laravel_upsert_alias`.{column}\")",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/model.rs",
+      "line": 537,
+      "text": "                            && column != \"laravel_through_key\"",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/persistence.rs",
+      "line": 536,
+      "text": "            &format!(\"{quoted} {operator} ? as laravel_counter_{index}\"),",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/one_of_many.rs",
+      "line": 130,
+      "text": "            \"laravel_candidates\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/one_of_many.rs",
+      "line": 131,
+      "text": "            \"laravel_candidates_1\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/one_of_many.rs",
+      "line": 132,
+      "text": "            \"laravel_candidates_2\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/belongs_to_many.rs",
+      "line": 1985,
+      "text": "                    columns.push(format!(\"{column} as laravel_pivot_{}\", columns.len()));",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/belongs_to_many.rs",
+      "line": 1997,
+      "text": "                format!(\"{}.{column} as laravel_pivot_{index}\", self.pivot.table)",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/has_many_through.rs",
+      "line": 316,
+      "text": "                \"laravel_reserved_1\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/has_many_through.rs",
+      "line": 317,
+      "text": "                \"laravel_reserved_2\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/has_many_through.rs",
+      "line": 318,
+      "text": "                \"laravel_reserved_3\",",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/has_many_through.rs",
+      "line": 664,
+      "text": "                let match_column = format!(\"{} as laravel_through_key\", join.match_key);",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/relation.rs",
+      "line": 437,
+      "text": "            let alias = if parent_table == \"laravel_reserved_0\" {",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/relation.rs",
+      "line": 438,
+      "text": "                \"laravel_reserved_1\"",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "vendor/openrust/framework/src/database/eloquent/relations/relation.rs",
+      "line": 440,
+      "text": "                \"laravel_reserved_0\"",
+      "reason": "既有查询输出／保留字段契约，本轮文案清理不改变SQL或关系回填行为"
+    },
+    {
+      "file": "docs/zh-Hans/database/pagination.md",
+      "line": 256,
+      "text": "./artisan vendor:publish --tag=laravel-pagination",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/digging-deeper/notifications.md",
+      "line": 103,
+      "text": "未指定主题时，邮件渠道根据通知类型名生成主题。运行 `./artisan vendor:publish --tag=laravel-notifications`，可编辑 `resources/views/vendor/notifications/email.blade.html` 覆盖默认视图。 要为单条消息选择模板，可调用 `view` 设置 HTML 视图，再按需用 `text` 添加纯文本视图。对新消息直接调用 `text` 可只生成纯文本。",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/digging-deeper/mail.md",
+      "line": 268,
+      "text": "./artisan vendor:publish --tag=laravel-mail",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/packages/reverb.md",
+      "line": 56,
+      "text": "安装 `laravel-echo` 和 `pusher-js`。以下示例连接本地未启用 TLS 的 Reverb 监听器。配置路径前缀时，将 `wsPath` 设为服务端路径。",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/packages/reverb.md",
+      "line": 59,
+      "text": "import Echo from \"laravel-echo\"",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/packages/precognition.md",
+      "line": 51,
+      "text": "使用官方 `laravel-precognition` 核心 helper `2.0.0` 调用配置好的 OpenRust 路由：",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/packages/precognition.md",
+      "line": 54,
+      "text": "import { client } from 'laravel-precognition';",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/packages/fortify.md",
+      "line": 75,
+      "text": "Passkeys API 配合 `@laravel/passkeys` 0.4.1 客户端使用。`fortify:install` 发布 `passkeys` 表迁移，为默认 User 添加 `PasskeyAuthenticatable`，并在生成 Provider 中注册 `Passkeys::useUserModel::<User>()`。保留 `fortify.features` 中的 `passkeys`，重新构建并执行迁移。自定义 User 实现 `openrust_fortify::passkeys::PasskeyAuthenticatable`，并在应用 Provider 中显式注册。",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hans/packages/fortify.md",
+      "line": 94,
+      "text": "import { Passkeys } from '@laravel/passkeys';",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/database/pagination.md",
+      "line": 256,
+      "text": "./artisan vendor:publish --tag=laravel-pagination",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/digging-deeper/notifications.md",
+      "line": 103,
+      "text": "未指定主旨時，郵件管道依通知類型名稱產生主旨。執行 `./artisan vendor:publish --tag=laravel-notifications`，即可編輯 `resources/views/vendor/notifications/email.blade.html` 覆寫預設視圖。 若要為單則訊息選擇範本，可呼叫 `view` 設定 HTML 視圖，再按需使用 `text` 加入純文字視圖。對新訊息直接呼叫 `text` 可只產生純文字。",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/digging-deeper/mail.md",
+      "line": 268,
+      "text": "./artisan vendor:publish --tag=laravel-mail",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/packages/reverb.md",
+      "line": 56,
+      "text": "安裝 `laravel-echo` 與 `pusher-js`。下列範例連線到本機未啟用 TLS 的 Reverb 監聽器。設定路徑前綴時，請將 `wsPath` 設為伺服器路徑。",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/packages/reverb.md",
+      "line": 59,
+      "text": "import Echo from \"laravel-echo\"",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/packages/precognition.md",
+      "line": 51,
+      "text": "使用官方 `laravel-precognition` 核心 helper `2.0.0` 呼叫設定好的 OpenRust 路由：",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/packages/precognition.md",
+      "line": 54,
+      "text": "import { client } from 'laravel-precognition';",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/packages/fortify.md",
+      "line": 75,
+      "text": "Passkeys API 搭配 `@laravel/passkeys` 0.4.1 用戶端使用。`fortify:install` 發佈 `passkeys` 資料表遷移，為預設 User 加入 `PasskeyAuthenticatable`，並在產生的 Provider 註冊 `Passkeys::useUserModel::<User>()`。保留 `fortify.features` 中的 `passkeys`，重新建置並執行遷移。自訂 User 實作 `openrust_fortify::passkeys::PasskeyAuthenticatable`，並在應用 Provider 明確註冊。",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/zh-Hant/packages/fortify.md",
+      "line": 94,
+      "text": "import { Passkeys } from '@laravel/passkeys';",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/database/pagination.md",
+      "line": 256,
+      "text": "./artisan vendor:publish --tag=laravel-pagination",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/digging-deeper/notifications.md",
+      "line": 103,
+      "text": "The mail channel uses the notification type name as the default subject. Override the default message view by running `./artisan vendor:publish --tag=laravel-notifications` and editing `resources/views/vendor/notifications/email.blade.html`. To select templates for one message, call `view` for HTML and optionally follow it with `text` for the plain-text alternative. Call `text` on a new message for plain text only.",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/digging-deeper/mail.md",
+      "line": 242,
+      "text": "./artisan vendor:publish --tag=laravel-mail",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/packages/reverb.md",
+      "line": 56,
+      "text": "Install `laravel-echo` and `pusher-js`. This example connects to a local non-TLS Reverb listener. Set `wsPath` to the configured server path when using a path prefix.",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/packages/reverb.md",
+      "line": 59,
+      "text": "import Echo from \"laravel-echo\"",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/packages/precognition.md",
+      "line": 51,
+      "text": "Use the official `laravel-precognition` core helper `2.0.0` with the configured OpenRust routes:",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/packages/precognition.md",
+      "line": 54,
+      "text": "import { client } from 'laravel-precognition';",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/packages/fortify.md",
+      "line": 75,
+      "text": "The Passkeys API works with the `@laravel/passkeys` 0.4.1 client. `fortify:install` publishes the `passkeys` table migration, adds `PasskeyAuthenticatable` to the default User, and registers `Passkeys::useUserModel::<User>()` in the generated provider. Keep `passkeys` in `fortify.features`, rebuild and migrate. Custom User models implement `openrust_fortify::passkeys::PasskeyAuthenticatable` and require explicit registration in their application provider.",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/en/packages/fortify.md",
+      "line": 94,
+      "text": "import { Passkeys } from '@laravel/passkeys';",
+      "reason": "实际客户端依赖坐标或既有资源发布标签，保持代码示例可执行"
+    },
+    {
+      "file": "docs/tests/check_fortify.mjs",
+      "line": 18,
+      "text": "    for(const term of ['Fortify 1.43.0','API-F01','API-F02','fortify:install','FortifyResourcesServiceProvider','fortify-options.two-factor-authentication','RateLimiter::forAsync','updateFromRequest','current_password:web','Password::default()','password.reset','/two-factor-challenge','/reset-password','/email/verify/{id}/{hash}','confirmed-password-status','@laravel/passkeys','0.4.1','PasskeyAuthenticatable','Passkeys::useUserModel','/user/passkeys/options','/passkeys/login/options','/passkeys/confirm','PASSKEYS_USER_HANDLE_SECRET','Passkeys::authorizeLoginUsing','AAGUID','Passkeys::usePasskeyModel','PasskeyRecord','PasskeyRelation','PasskeysResourcesServiceProvider','passkeys-config','passkeys-migrations','authenticator_icon_light']) assert(article.includes(term),`${lang}: missing ${term}`);",
+      "reason": "实际客户端依赖坐标的文档回归检查，保持真实安装入口"
+    },
+    {
+      "file": "vendor/openrust/framework/src/translation/LICENSE-Zend.txt",
+      "line": 1,
+      "text": "Zend Framework rules used by the Laravel MessageSelector, as attributed by Laravel:",
+      "reason": "原有第三方归属声明；用户已有暂存删除不属本单元，提交保留HEAD而不夹带该删除"
+    }
+  ],
+  "runtime_literals_preserved": 33,
+  "requested_notice_rename": [
+    {
+      "file": "vendor/openrust/framework/src/translation/bundled.rs",
+      "old": "LICENSE-Laravel-Lang",
+      "new": "NOTICE"
+    },
+    {
+      "file": "vendor/openrust/framework/src/translation/bundled.rs",
+      "old": "stubs/LICENSE-Laravel-Lang",
+      "new": "NOTICE"
+    }
+  ]
+}

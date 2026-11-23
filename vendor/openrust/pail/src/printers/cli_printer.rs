@@ -9,13 +9,13 @@ use crate::{
 };
 
 /// Pail's CLI presentation, rendered directly without a PHP HTML/DOM runtime.
-#[allow(non_snake_case, reason = "Preserves Laravel Pail's printer fields")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CliPrinter<'a> {
     output: &'a mut Output,
     basePath: PathBuf,
 }
 
-#[allow(non_snake_case, reason = "Preserves Laravel Pail's printer API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> CliPrinter<'a> {
     pub fn new(output: &'a mut Output, basePath: impl Into<PathBuf>) -> Self {
         Self {

@@ -265,7 +265,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 
 ### Provider 启用条件
 
-禁用捕获时仍注册 Files 和 Handler 绑定。启动时，若容器环境名精确为 `testing`，或 `VAPOR_SSM_PATH` 为非空且非 `0` 的字符串，就跳过捕获监听。`PAIL_TESTS=true` 用于 Pail 自身验收，可以覆盖这两个条件。该旗标按 Laravel Env 规则处理 false、empty、null 和引号值；Vapor 标记按原始 PHP 字符串真假判断。
+禁用捕获时仍注册 Files 和 Handler 绑定。启动时，若容器环境名精确为 `testing`，或 `VAPOR_SSM_PATH` 为非空且非 `0` 的字符串，就跳过捕获监听。`PAIL_TESTS=true` 用于 Pail 自身验收，可以覆盖这两个条件。该旗标按框架Env 规则处理 false、empty、null 和引号值；Vapor 标记按原始 PHP 字符串真假判断。
 
 旗标来自当前应用不可变的环境快照，进程变量优先于选中的环境文件。配置缓存生效时不加载环境文件，因此文件中的 `PAIL_TESTS` 不生效。Handler 在第一条被接受的日志或队列生命周期事件到来时才解析；构造失败在该时机传播，原日志驱动已接受的写入仍保留。
 

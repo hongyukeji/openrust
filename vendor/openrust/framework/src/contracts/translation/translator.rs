@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "遵循 Laravel 翻译契约原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::collections::BTreeMap;
 

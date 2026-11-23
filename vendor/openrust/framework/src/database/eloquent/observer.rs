@@ -13,7 +13,7 @@ use super::{
 macro_rules! model_observer {
     ($($event:ident => $method:ident),+ $(,)?) => {
         /// Groups lifecycle handlers for one model type.
-        #[allow(non_snake_case, reason = "Matches Laravel's observer method names")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub trait Observer<M: Model>: Send + Sync + 'static {
             /// Lifecycle methods to register. Rust registers this list at compile time.
             const EVENTS: &'static [ModelEvent];

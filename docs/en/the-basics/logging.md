@@ -265,7 +265,7 @@ These parsing and filtering APIs also drive the live [Pail command](#tailing-log
 
 ### Provider Availability
 
-Pail still registers Files and Handler when capture is disabled. During boot it skips listeners if the bound application environment is exactly `testing`, or `VAPOR_SSM_PATH` is a nonempty string other than `0`. `PAIL_TESTS=true` enables Pail's own acceptance tests and overrides both checks. This flag follows Laravel Env normalization, including false, empty, null and quoted values; the Vapor marker uses raw PHP string truthiness.
+Pail still registers Files and Handler when capture is disabled. During boot it skips listeners if the bound application environment is exactly `testing`, or `VAPOR_SSM_PATH` is a nonempty string other than `0`. `PAIL_TESTS=true` enables Pail's own acceptance tests and overrides both checks. This flag follows the framework Env normalization, including false, empty, null and quoted values; the Vapor marker uses raw PHP string truthiness.
 
 Flags come from the current application's immutable environment snapshot. Process variables take precedence over the selected environment file. With configuration cached, environment files are not loaded, so a file-only `PAIL_TESTS` does not apply. Handler is resolved on the first accepted log or queue lifecycle event. Its construction error propagates then, after the original accepted log has been written.
 

@@ -77,7 +77,7 @@ impl QueryExecuted {
     pub const NAME: &'static str = r"OpenRust\Database\Events\QueryExecuted";
 
     /// Renders a diagnostic SQL string with the original bindings embedded.
-    #[allow(non_snake_case, reason = "Matches Laravel's QueryExecuted API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn toRawSql(&self) -> DatabaseResult<String> {
         render_query(&self.sql, &self.bindings, !self.connection.is_sqlite())
     }
@@ -348,23 +348,23 @@ database_event!(
 );
 database_event!(
     /// A migration opted out through its `shouldRun` hook.
-    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     MigrationSkipped { migrationName: String },
     MigrationEvent::NAME
 );
 database_event!(
     /// A schema snapshot was persisted at the given path.
-    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     SchemaDumped { connection: Connection, connectionName: String, path: std::path::PathBuf }
 );
 database_event!(
     /// A schema snapshot was loaded before remaining migrations.
-    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     SchemaLoaded { connection: Connection, connectionName: String, path: std::path::PathBuf }
 );
 database_event!(
     /// Application migration sources were pruned after a dump.
-    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     MigrationsPruned { connection: Connection, connectionName: String, path: std::path::PathBuf }
 );
 database_event!(

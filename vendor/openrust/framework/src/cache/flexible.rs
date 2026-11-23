@@ -20,7 +20,7 @@ pub struct FlexibleOptions {
     pub always_defer: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Cache Repository API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     /// Returns fresh or stale cache data. The durations are in seconds from the last write.
     pub async fn flexible<F>(

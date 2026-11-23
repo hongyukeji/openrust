@@ -74,13 +74,13 @@ impl Store {
     }
 
     /// Flashes input so it is available on the following request.
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn flashInput(&mut self, input: Value) -> SessionResult<()> {
         self.flash("_old_input", input)
     }
 
     /// Retrieves all old input or one nested field.
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getOldInput(&self, key: Option<&str>) -> Option<&Value> {
         let input = self.get("_old_input")?;
         match key {
@@ -90,7 +90,7 @@ impl Store {
     }
 
     /// Checks for non-null old input at a key, or any entries in the old input bag.
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn hasOldInput(&self, key: Option<&str>) -> bool {
         match key {
             Some(key) => self
@@ -105,7 +105,7 @@ impl Store {
     }
 
     /// Flashes one error bag while preserving other bags from this request.
-    #[allow(non_snake_case, reason = "Matches Laravel's error bag conventions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn flashErrors(
         &mut self,
         bag: &str,
@@ -120,33 +120,33 @@ impl Store {
         self.flash("errors", serde_json::json!(errors))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn previousUrl(&self) -> Option<&str> {
         self.get("_previous.url").and_then(Value::as_str)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setPreviousUrl(&mut self, url: &str) -> SessionResult<()> {
         self.put("_previous.url", url.into())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn previousUri(&self) -> Result<Option<crate::support::Uri>, crate::support::InvalidUri> {
         self.previousUrl().map(crate::support::Uri::of).transpose()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn previousRoute(&self) -> Option<&str> {
         self.get("_previous.route").and_then(Value::as_str)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setPreviousRoute(&mut self, name: Option<&str>) -> SessionResult<()> {
         self.put("_previous.route", name.into())
     }
 
     /// Records that the password for this session was confirmed.
-    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn passwordConfirmed(&mut self) -> SessionResult<()> {
         self.put(PASSWORD_CONFIRMED_AT, unix_seconds().into())
     }

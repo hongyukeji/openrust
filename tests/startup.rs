@@ -1042,7 +1042,7 @@ fn artisan_generates_and_registers_providers_with_concurrent_retries() {
 }
 
 #[test]
-fn artisan_generates_rust_types_with_laravel_namespaces_and_options() {
+fn artisan_generates_rust_types_with_reference_namespaces_and_options() {
     let root = TestRoot::new("make-types");
     let other = TestRoot::new("make-types-other");
     let run = |base: &Path, args: &[&str]| {
@@ -1248,7 +1248,7 @@ fn artisan_generates_event_and_listener_variants() {
 }
 
 #[test]
-fn artisan_generates_observers_with_laravel_options() {
+fn artisan_generates_observers_with_reference_options() {
     let root = TestRoot::new("make-observer");
     let other = TestRoot::new("make-observer-other");
     let run = |args: &[&str]| {

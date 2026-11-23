@@ -11,7 +11,7 @@ pub struct Encrypter {
     previous_keys: Zeroizing<Vec<Vec<u8>>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's encrypter API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Encrypter {
     pub fn new(key: impl AsRef<[u8]>, cipher: Cipher) -> Result<Self, EncryptException> {
         let key = key.as_ref();
@@ -98,7 +98,7 @@ impl Encrypter {
     }
 }
 
-#[allow(non_snake_case, reason = "Implements Laravel's encrypter contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl crate::contracts::encryption::Encrypter for Encrypter {
     fn encrypt(&self, value: &[u8], serialize: bool) -> Result<String, EncryptException> {
         self.encrypt(value, serialize)

@@ -1,4 +1,4 @@
-//! Laravel Passport's application configuration, publishable schema and key command.
+//! the framework Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
 mod api_token_cookie_factory;
 mod auth_code;
@@ -147,7 +147,7 @@ impl ServiceProvider for PassportServiceProvider {
             app.container()
                 .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
                 .register("passport", console::commands::install_command::initialize);
-            // Laravel publishes these migrations; it does not silently run package schema.
+            // the framework publishes these migrations; it does not silently run package schema.
             self.publishesMigrations(app, migrations::SOURCES, "passport-migrations")?;
             self.publishes(
                 app,

@@ -10,7 +10,7 @@ pub struct Timebox {
     fake: Option<SleepFake>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Timebox API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Timebox {
     pub fn using(mut self, fake: &SleepFake) -> Self {
         self.fake = Some(fake.clone());

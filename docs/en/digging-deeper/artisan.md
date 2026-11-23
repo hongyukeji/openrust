@@ -12,7 +12,7 @@ The Console Kernel [boots the application](../architecture-concepts/lifecycle.md
 
 The default console routes register `inspire`. Running `./artisan inspire` prints a randomly selected quote and its author, then exits with status 0.
 
-It uses the 41 quotes from the Laravel baseline. In a color terminal, the quote appears in bold and the attribution in gray. Redirected output is plain text by default. Use `--ansi` to force styles or `--no-ansi` to disable them.
+It uses the 41 quotes from the framework baseline. In a color terminal, the quote appears in bold and the attribution in gray. Redirected output is plain text by default. Use `--ansi` to force styles or `--no-ansi` to disable them.
 
 On Windows, use `artisan.bat`. The compiled application accepts the same commands through `main artisan`.
 

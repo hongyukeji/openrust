@@ -126,7 +126,7 @@ impl MailManager {
             .insert(name.into(), Arc::new(creator));
     }
 
-    #[allow(non_snake_case, reason = "遵循 Laravel 全局邮件地址配置")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn globalAddress(&self, key: &str) -> Option<Address> {
         let value = self.config.get(&format!("mail.{key}"))?;
         Some(Address {
@@ -201,10 +201,7 @@ impl MailManager {
     }
 
     /// Registers a named message callback in this application's mail manager.
-    #[allow(
-        non_snake_case,
-        reason = "Matches the Laravel-compatible mail API naming"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn registerMessageCustomizer(
         &self,
         name: impl Into<String>,

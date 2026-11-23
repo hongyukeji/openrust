@@ -1,0 +1,68 @@
+{
+  "command_missing": "O comando ':name' não está definido.",
+  "command_ambiguous": "O comando ':name' é ambíguo: :choices",
+  "confirm": {
+    "production": "APLICAÇÃO NA PRODUÇÃO. Você realmente deseja executar este comando?",
+    "cancelled": "Comando cancelado."
+  },
+  "make": {
+    "mail": {
+      "name": "Qual é o nome do mailable?",
+      "view": "Deseja criar uma vista?\n  1. Vista Markdown\n  2. Vista vazia\n  3. Sem vista\nEscolha [1]"
+    },
+    "notification": {
+      "name": "Qual é o nome da notificação?",
+      "markdown": "Você gostaria de criar uma visualização de redução? [Y/n]",
+      "view": "Qual deve ser o nome da visualização de redução?"
+    },
+    "message": {
+      "cancelled": "Comando cancelado."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Listar comandos"
+    },
+    "help": {
+      "description": "Exibir ajuda para um comando"
+    },
+    "inspire": {
+      "description": "Mostre uma citação inspiradora"
+    },
+    "heading": "Comandos:"
+  },
+  "usage": "Uso:",
+  "options": "Opções:",
+  "unknown_argument": "Argumento inesperado",
+  "unknown_command": "O comando não está definido",
+  "missing_argument": "Argumentos obrigatórios estão faltando",
+  "invalid_value": "Valor inválido",
+  "argument_conflict": "Conflito de argumentos",
+  "invalid_arguments": "Argumentos inválidos",
+  "model_fields": {
+    "title": "Tabela e campos do modelo",
+    "notice": "Gerado a partir do esquema do banco de dados. Não edite manualmente.",
+    "sync": "Execute `./artisan model:fields :model` da raiz do projeto para sincronizar.",
+    "table": "Mesa"
+  },
+  "namespace_missing": "O namespace ':name' não está definido.",
+  "available_commands": "Comandos disponíveis",
+  "namespace_commands": "Comandos disponíveis para o namespace ':name':",
+  "available_commands_heading": "Comandos disponíveis:",
+  "usage_title": "Uso",
+  "argument_descriptions": {
+    "help": "Imprimir ajuda",
+    "version": "Versão impressa",
+    "ansi": "Habilitar saída ANSI",
+    "no-ansi": "Desativar saída ANSI",
+    "env": "O ambiente em que o comando deve ser executado",
+    "no-interaction": "Não faça nenhuma pergunta interativa",
+    "quiet": "Não envie nenhuma mensagem",
+    "silent": "Não envie nenhuma mensagem ou erro",
+    "verbose": "Aumente a verbosidade das mensagens",
+    "format": "Escolha um formato de saída",
+    "command_name": "O comando para exibir",
+    "namespace": "Mostrar comandos em um namespace específico"
+  },
+  "arguments": "Argumentos:"
+}

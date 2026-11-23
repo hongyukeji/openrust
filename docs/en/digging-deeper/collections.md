@@ -670,7 +670,7 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
-Use `getCachingIteratorWithFullCache()` for Laravel’s full-cache behavior. It requires cloneable values and keeps the last yielded value for each key. `getCache()` returns the entries already yielded. Use `remember()` to replay a shared source across several traversals.
+Use `getCachingIteratorWithFullCache()` for full-cache behavior. It requires cloneable values and keeps the last yielded value for each key. `getCache()` returns the entries already yielded. Use `remember()` to replay a shared source across several traversals.
 
 The older `containsOneItem()` and `containsManyItems()` names call `hasSole()` and `hasMany()`. Use `hasSoleWhere()` to test for a single matching item with a predicate.
 
@@ -724,7 +724,7 @@ In a handler returning `HttpError`, the dump becomes a plain-text HTTP 500 respo
 
 #### Higher-Order Messages {#lazy-higher-order-proxy}
 
-Bind a collection operation with `proxy`, then pass a typed callback to `call` to read a field or call a method on each item. For example, `proxy(LazyCollection::map).call(...)` corresponds to Laravel's `$tasks->map->name`. Method arguments can be captured by the callback.
+Bind a collection operation with `proxy`, then pass a typed callback to `call` to read a field or call a method on each item. For example, `proxy(LazyCollection::map).call(...)` corresponds to `$tasks->map->name`. Method arguments can be captured by the callback.
 
 ```rust
 use openrust::support::LazyCollection;

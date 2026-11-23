@@ -190,7 +190,7 @@ fn environment_patterns_recursive_arrays_disabled_and_shared_queues_match_provis
             .unwrap()
             .is_empty()
     );
-    // Laravel chooses the first matching pattern, including an earlier wildcard.
+    // the framework chooses the first matching pattern, including an earlier wildcard.
     let mut environments = serde_json::Map::new();
     environments.insert("*".into(), json!({"one":{"maxProcesses":9}}));
     environments.insert("production".into(), json!({"one":{"maxProcesses":10}}));

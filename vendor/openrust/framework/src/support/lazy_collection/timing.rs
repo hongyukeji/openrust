@@ -7,7 +7,7 @@ use std::{
 
 use super::{Entry, LazyCollection, SourceIterator};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn takeUntilTimeout(self, timeout: Instant) -> Self {
         Self::from_iterators(move || -> SourceIterator<'source, T> {

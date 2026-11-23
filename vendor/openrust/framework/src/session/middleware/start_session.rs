@@ -58,7 +58,7 @@ async fn handle_session(
 ) -> Result<Response, HttpError> {
     session.start().await?;
     manager.collect_garbage(&mut session).await?;
-    request.setLaravelSession(session);
+    request.attachSession(session);
     let mut response = next.run(request).await;
     // Login and logout can change the identity. The guard still needs the active store.
     if !request.isPrecognitive()
@@ -89,7 +89,7 @@ async fn handle_session(
     if !request.isPrecognitive() {
         session.save().await?;
     }
-    // Laravel 请求在响应完成后仍可访问 Session，供终止回调及 HTTP 断言读取。
-    request.setLaravelSession(session);
+    // 框架 请求在响应完成后仍可访问 Session，供终止回调及 HTTP 断言读取。
+    request.attachSession(session);
     Ok(response)
 }

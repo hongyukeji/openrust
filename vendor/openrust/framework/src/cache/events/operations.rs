@@ -2,7 +2,7 @@ use crate::{cache::Value, contracts::events::Event};
 
 macro_rules! cache_event {
     ($name:ident, $event_name:expr $(, $field:ident: $ty:ty)*) => {
-        #[allow(non_snake_case, reason = "Matches Laravel's cache event fields")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         #[derive(Clone, Debug)]
         pub struct $name {
             pub storeName: Option<String>,

@@ -105,7 +105,7 @@ pub(super) fn swap(value: &str, replacements: &[(&str, &str)]) -> String {
     output
 }
 
-// Laravel's word count calls PHP's byte-oriented implementation in the C locale.
+// word count calls PHP's byte-oriented implementation in the C locale.
 pub(super) fn word_count(value: &str, additional: &str) -> usize {
     let mut mask = [false; 256];
     let mut extras = additional.as_bytes();
@@ -235,7 +235,7 @@ pub(super) fn is_url(value: &str, protocols: &[&str]) -> bool {
     let Some((scheme, rest)) = value.split_once("://") else {
         return false;
     };
-    // URL parsing normalizes several characters that Laravel's grammar rejects.
+    // URL parsing normalizes several characters that grammar rejects.
     if rest.is_empty()
         || value
             .chars()

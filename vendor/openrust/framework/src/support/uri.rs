@@ -38,7 +38,7 @@ pub struct Uri {
     value: String,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's URI API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Uri {
     /// 解析并规范化各 URI 组件。
     pub fn of(input: &str) -> Result<Self, InvalidUri> {

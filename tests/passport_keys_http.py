@@ -90,7 +90,7 @@ finally:
  log.close()
 print('actual binary: custom storage, HTTP root/health, JSON/HTML 404, absent OAuth placeholders, SIGINT and port release PASS',flush=True)
 run(['./artisan','inspire'],timeout=900)
-# The normal Laravel-style independent entry still builds without enabling the optional Passport provider.
+# The normal framework independent entry still builds without enabling the optional Passport provider.
 artisan('passport:keys','--help',expected=1)
 print('actual ./artisan inspire and default feature opt-in boundary PASS',flush=True)
 

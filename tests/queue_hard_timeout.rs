@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 //! Runs real Artisan workers and their isolated job executors.
 #[cfg(not(any(unix, windows)))]
@@ -125,7 +125,7 @@ mod acceptance {
 
     struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
-        #[allow(non_snake_case, reason = "Implements Laravel-style uniqueness policy")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         fn uniqueJob(&self, payload: &Payload) -> Option<UniqueJob> {
             let kind = payload.data().as_str()?;
             kind.starts_with("unique-").then(|| UniqueJob {
@@ -290,7 +290,7 @@ mod acceptance {
             })
         }
 
-        #[allow(non_snake_case, reason = "Implements Laravel's retryUntil job method")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
             match payload.data().as_str() {
                 Some("deadline-refresh") => Ok(Some(SystemTime::now() + Duration::from_secs(60))),

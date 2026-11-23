@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-/// Laravel protects verbatim blocks before removing comments from the full source.
+/// the framework protects verbatim blocks before removing comments from the full source.
 pub(super) struct PreparedSource<'a> {
     pub text: Cow<'a, str>,
     pub raw: Vec<String>,

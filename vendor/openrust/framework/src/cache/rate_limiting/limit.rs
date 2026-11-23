@@ -6,7 +6,7 @@ use super::{AfterCallback, ResponseCallback, Unlimited};
 
 /// An attempt budget and decay period, with an optional key and response hooks.
 #[derive(Clone)]
-#[allow(non_snake_case, reason = "Matches Laravel's Limit API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Limit {
     pub key: String,
     pub maxAttempts: u64,
@@ -21,7 +21,7 @@ impl Default for Limit {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Limit API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Limit {
     pub fn new(key: impl Into<String>, max_attempts: u64, decay_seconds: u64) -> Self {
         Self {

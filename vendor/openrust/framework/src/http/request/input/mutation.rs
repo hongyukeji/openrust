@@ -7,7 +7,7 @@ use crate::{
 
 use super::{InputSource, as_fields, empty, input_is_empty, lookup};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Request input API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     /// Tests whether all keys exist, including explicit nulls and uploaded files.
     pub async fn has(&mut self, keys: &[&str]) -> Result<bool, HttpError> {

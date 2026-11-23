@@ -14,7 +14,7 @@ pub struct BatchProgress {
     pub failed_requests: usize,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's HTTP batch API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl BatchProgress {
     pub fn processedRequests(self) -> usize {
         self.total_requests - self.pending_requests
@@ -41,7 +41,7 @@ pub struct Batch<'a> {
     finally: Option<Finished<'a>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's HTTP batch API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> Batch<'a> {
     pub(super) fn new(factory: Factory) -> Self {
         Self {

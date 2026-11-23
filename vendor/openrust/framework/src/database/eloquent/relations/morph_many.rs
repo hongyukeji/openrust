@@ -17,10 +17,7 @@ use super::{ExistenceRelation, HasMany, MorphOne, Relation};
 /// Links a parent model to many related records tagged with a morph alias.
 pub struct MorphMany<P: Model, R: Model>(pub(super) HasMany<P, R>);
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's relationship pagination API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> MorphMany<P, R> {
     pub async fn paginate(
         &self,
@@ -116,13 +113,13 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutChaperone(self) -> Self {
         Self(self.0.withoutChaperone())
     }
 
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutInverse(self) -> Self {
         self.withoutChaperone()
     }
@@ -171,7 +168,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 
     /// Constructs unsaved children in input order.
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn makeMany(
         &self,
         parent: &P,
@@ -200,14 +197,14 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.cursor(parent)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         self.0.findOrNew(parent, key).await
     }
 
     super::lookup::relation_lookup!(.0);
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn firstOrNew<'a>(
         &self,
         parent: &P,
@@ -217,7 +214,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.firstOrNew(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn firstOrCreate<'a>(
         &self,
         parent: &P,
@@ -227,7 +224,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.firstOrCreate(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createOrFirst<'a>(
         &self,
         parent: &P,
@@ -237,7 +234,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.createOrFirst(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn updateOrCreate<'a>(
         &self,
         parent: &P,
@@ -247,7 +244,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.updateOrCreate(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn restoreOrCreate<'a>(
         &self,
         parent: &P,
@@ -257,7 +254,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.restoreOrCreate(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createOrRestore<'a>(
         &self,
         parent: &P,
@@ -267,7 +264,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.createOrRestore(parent, attributes, values).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn incrementOrCreate(
         &self,
         parent: &P,
@@ -282,27 +279,27 @@ impl<P: Model, R: Model> MorphMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.0.saveQuietly(parent, model).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
         self.0.saveMany(parent, models).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
         self.0.saveManyQuietly(parent, models).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.createQuietly(parent, attributes).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createMany(
         &self,
         parent: &P,
@@ -311,7 +308,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.createMany(parent, records).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createManyQuietly(
         &self,
         parent: &P,
@@ -320,12 +317,12 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.createManyQuietly(parent, records).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.forceCreate(parent, attributes).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreateQuietly(
         &self,
         parent: &P,
@@ -334,7 +331,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.forceCreateQuietly(parent, attributes).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreateMany(
         &self,
         parent: &P,
@@ -343,7 +340,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.forceCreateMany(parent, records).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreateManyQuietly(
         &self,
         parent: &P,
@@ -357,7 +354,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for MorphMany<P, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
@@ -421,7 +418,7 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for MorphMany<P, R> {
     fn getRelationExistenceQuery(
         &self,

@@ -1,4 +1,4 @@
-//! Personal access tokens for Laravel-style API authentication.
+//! Personal access tokens for framework API authentication.
 
 mod personal_access_token;
 
@@ -118,7 +118,7 @@ pub enum AccessToken {
     Transient,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Sanctum token API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl AccessToken {
     pub fn currentAccessToken(request: &Request) -> Option<&Self> {
         let name = crate::auth::AuthManager::selected_guard(request);

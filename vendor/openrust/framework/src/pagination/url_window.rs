@@ -15,7 +15,7 @@ pub struct UrlWindow<'a, T> {
     paginator: &'a LengthAwarePaginator<T>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's UrlWindow API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a, T> UrlWindow<'a, T> {
     pub fn new(paginator: &'a LengthAwarePaginator<T>) -> Self {
         Self { paginator }

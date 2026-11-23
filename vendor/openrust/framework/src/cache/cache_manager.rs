@@ -84,7 +84,7 @@ enum Options {
     },
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's cache manager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CacheManager {
     pub fn new(config: Arc<dyn Config>, database: Arc<DatabaseManager>, base: PathBuf) -> Self {
         let redis = Arc::new(RedisManager::new(config.clone()));

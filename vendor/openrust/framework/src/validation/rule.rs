@@ -137,7 +137,7 @@ impl Rule {
     pub fn email() -> Self {
         Self::new(Kind::Email)
     }
-    #[allow(non_snake_case, reason = "Matches Laravel rule naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn currentPassword(guard: Option<&str>) -> Self {
         Self::new(Kind::CurrentPassword(guard.map(str::to_owned)))
     }

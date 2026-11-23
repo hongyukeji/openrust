@@ -149,7 +149,7 @@ pub(crate) fn context_identity() -> Option<Arc<()>> {
 #[allow(
     non_snake_case,
     non_upper_case_globals,
-    reason = "Matches Laravel's Facade API"
+    reason = "保留既定公开接口及命名"
 )]
 pub trait Facade {
     type Service: ?Sized + Send + Sync + 'static;

@@ -1,7 +1,7 @@
 use openrust::cookie::CookieValuePrefix;
 
 #[test]
-fn laravel_cookie_prefix_binds_name_and_accepts_previous_keys() {
+fn reference_cookie_prefix_binds_name_and_accepts_previous_keys() {
     let current = [b'b'; 32];
     let previous = [b'a'; 32];
     let prefix = CookieValuePrefix::create("session", &previous);

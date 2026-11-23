@@ -6,7 +6,11 @@ use clap::Command;
 impl Application {
     /// Registers the framework's planned command catalog before application commands.
     pub fn register_planned_commands(&mut self) -> Result<(), ConsoleError> {
-        for &(name, description) in LARAVEL.iter().chain(GORAVEL_ONLY).chain(SKELETON_PACKAGES) {
+        for &(name, description) in FRAMEWORK_COMMANDS
+            .iter()
+            .chain(RUNTIME_COMMANDS)
+            .chain(SKELETON_PACKAGES)
+        {
             self.add_planned(
                 Command::new(name).about(description).visible_aliases(
                     ALIASES
@@ -19,8 +23,8 @@ impl Application {
     }
 }
 
-// Laravel Framework v13.40.0 public commands, plus console completion.
-const LARAVEL: &[(&str, &str)] = &[
+// the reference implementation public commands, plus console completion.
+const FRAMEWORK_COMMANDS: &[(&str, &str)] = &[
     ("about", "Show application and environment information"),
     ("cache:clear", "Clear application cache entries"),
     ("cache:forget", "Delete one cache entry by key"),
@@ -121,8 +125,8 @@ const LARAVEL: &[(&str, &str)] = &[
     ("view:clear", "Remove compiled views"),
 ];
 
-// Goravel Framework v1.18.0 public commands without a Laravel counterpart.
-const GORAVEL_ONLY: &[(&str, &str)] = &[
+// the reference implementation public commands without a the framework counterpart.
+const RUNTIME_COMMANDS: &[(&str, &str)] = &[
     ("build", "Compile the application for a target platform"),
     ("jwt:secret", "Generate a JWT signing secret"),
     ("make:agent", "Generate an AI agent"),
@@ -136,13 +140,13 @@ const GORAVEL_ONLY: &[(&str, &str)] = &[
     ("package:uninstall", "Remove an installed extension package"),
 ];
 
-// Commands provided by packages referenced by the Laravel application skeleton.
+// Commands provided by packages referenced by the framework application skeleton.
 const SKELETON_PACKAGES: &[(&str, &str)] = &[
     ("pail", "Follow the application's log output"),
     ("tinker", "Open an interactive application shell"),
 ];
 
-// Public aliases exposed by the fixed Laravel baseline.
+// Public aliases exposed by the fixed the framework baseline.
 const ALIASES: &[(&str, &str)] = &[
     ("make:cache-table", "cache:table"),
     ("make:config", "config:make"),

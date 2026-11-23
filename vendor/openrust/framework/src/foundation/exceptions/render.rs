@@ -84,7 +84,7 @@ fn error_page(request: &Request, status: StatusCode, message: &str) -> Option<St
     if let Some(html) = views.render_error(&exact, status.as_u16(), message) {
         return Some(html);
     }
-    // Laravel supplies dedicated fallback pages for these statuses.
+    // the framework supplies dedicated fallback pages for these statuses.
     if matches!(
         status,
         StatusCode::NOT_FOUND | StatusCode::INTERNAL_SERVER_ERROR | StatusCode::SERVICE_UNAVAILABLE

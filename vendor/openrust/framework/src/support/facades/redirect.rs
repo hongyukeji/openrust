@@ -10,7 +10,7 @@ use super::URL;
 /// Creates redirect responses for the current application.
 pub struct Redirect;
 
-#[allow(non_snake_case, reason = "Matches Laravel's Redirector API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Redirect {
     pub fn redirector() -> UrlResult<Redirector> {
         Ok(Redirector::new(URL::generator()?))

@@ -29,7 +29,7 @@ pub enum ModelKeyType {
 }
 
 /// A model type implemented by the application.
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent Model API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Model: Sized + Send + Sync + 'static {
     fn metadata() -> &'static ModelMetadata;
     fn from_state(state: ModelState) -> Self;

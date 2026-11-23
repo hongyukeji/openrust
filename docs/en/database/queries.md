@@ -149,7 +149,7 @@ Call `union(&other)?` to remove duplicate rows, or `unionAll(&other)?` to keep t
 
 ## Basic Where Clauses
 
-Use `r#where(column, operator, value)` for Laravel's `where`, since `where` is reserved in Rust. `orWhere` combines predicates with OR. Group them with `whereNested` or negate the group with `whereNot`. Use `whereNull`, `whereNotNull`, `whereIn`, `whereNotIn`, `whereBetween`, or `whereColumn` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
+Use `r#where(column, operator, value)` for `where`, since `where` is reserved in Rust. `orWhere` combines predicates with OR. Group them with `whereNested` or negate the group with `whereNot`. Use `whereNull`, `whereNotNull`, `whereIn`, `whereNotIn`, `whereBetween`, or `whereColumn` for those comparisons. An empty IN matches no rows. An empty NOT IN matches all rows.
 
 `whereLike` accepts a case-sensitivity flag. `whereDate` and `whereTime` use `jiff::civil::Date` and `jiff::civil::Time`. Use `toSql()` and `getBindings()` to inspect the SQL and parameters in execution order.
 
@@ -499,7 +499,7 @@ pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult
 
 ### PostgreSQL updates from joined sources {#postgresql-update-from}
 
-Use `updateFrom` on PostgreSQL to update a target using joined sources. PostgreSQL lists the sources in `FROM` and applies their join conditions after the query predicates in `WHERE`. As in Laravel, this form ignores ordering, limit, and offset. Use a `Record` for bound values or `ValueOperand` to mix bound values with trusted SQL expressions.
+Use `updateFrom` on PostgreSQL to update a target using joined sources. PostgreSQL lists the sources in `FROM` and applies their join conditions after the query predicates in `WHERE`. As in the framework, this form ignores ordering, limit, and offset. Use a `Record` for bound values or `ValueOperand` to mix bound values with trusted SQL expressions.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, query::Record};
@@ -516,7 +516,7 @@ pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> 
 
 ### SQL Server joined and limited writes {#sql-server-bounded-writes}
 
-Update and delete operations with joins target the table or its alias using `FROM`. For writes without joins, a positive limit uses `TOP`. With an order, SQL Server selects the target rows using an ordered `TOP` subquery. As in Laravel, joined writes and writes with a positive offset apply no limit. A zero limit also omits `TOP`.
+Update and delete operations with joins target the table or its alias using `FROM`. For writes without joins, a positive limit uses `TOP`. With an order, SQL Server selects the target rows using an ordered `TOP` subquery. As in the framework, joined writes and writes with a positive offset apply no limit. A zero limit also omits `TOP`.
 
 ```rust
 use std::collections::BTreeMap;

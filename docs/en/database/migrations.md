@@ -282,7 +282,7 @@ async fn create_users() -> DatabaseResult<()> {
 }
 ```
 
-For localization, reuse `__()` and Laravel-style grouped translations in JSON files. For example, put the following entries in `lang/zh-Hans/schema.json`:
+For localization, reuse `__()` and framework grouped translations in JSON files. For example, put the following entries in `lang/zh-Hans/schema.json`:
 
 ```json
 {
@@ -296,13 +296,13 @@ For localization, reuse `__()` and Laravel-style grouped translations in JSON fi
 }
 ```
 
-`app.locale` (`APP_LOCALE`) and `app.fallback_locale` select translations through the existing translator. Add `lang/ja/schema.json`, `lang/fr/schema.json`, or another locale to support more languages; no schema API changes are needed. Missing entries use the configured fallback; if both catalogs lack the key, the translator returns the key as Laravel does. A plain `.comment("Email")` stores that literal text. Language identifiers follow the same normalization as other application translations.
+`app.locale` (`APP_LOCALE`) and `app.fallback_locale` select translations through the existing translator. Add `lang/ja/schema.json`, `lang/fr/schema.json`, or another locale to support more languages; no schema API changes are needed. Missing entries use the configured fallback; if both catalogs lack the key, the translator returns the key as the framework does. A plain `.comment("Email")` stores that literal text. Language identifiers follow the same normalization as other application translations.
 
-The callback returns `DatabaseResult<()>` so translation errors can propagate with `?` before its DDL is executed. Existing callbacks returning `()` still work. The standard migration generator keeps Laravel’s `id()` and `timestamps()` skeleton; add comments and translations as needed. Timestamp helpers can be expanded into explicit columns when each column needs its own comment.
+The callback returns `DatabaseResult<()>` so translation errors can propagate with `?` before its DDL is executed. Existing callbacks returning `()` still work. The standard migration generator keeps `id()` and `timestamps()` skeleton; add comments and translations as needed. Timestamp helpers can be expanded into explicit columns when each column needs its own comment.
 
 PostgreSQL, MySQL, and MariaDB store these comments. The current SQLite and SQL Server implementations do not store them. Each database object stores one comment, selected when the migration runs. Changing application locale or editing an executed create migration does not rewrite existing comments. Use a new migration with `table.comment(...)` for table comments. To modify a column through Schema, provide its complete definition with `.comment(...).change()`. For a PostgreSQL metadata-only update, use `MigrationContext::statement` with a trusted `COMMENT ON COLUMN` statement; this does not require a new schema API.
 
-The initial application migrations follow Laravel: `0001_01_01_000000_create_users_table`, `0001_01_01_000001_create_cache_table`, and `0001_01_01_000002_create_jobs_table`. The jobs migration creates and rolls back `jobs`, `job_batches`, and `failed_jobs` together. Application-specific migrations use normal timestamped names. Rust uses `.rs` files, registered migration types, asynchronous execution and `Result` in place of PHP’s anonymous classes and exceptions. Existing databases created with separate queue migrations must have their migration history reconciled after backup before using the combined migration; renaming source files alone is insufficient.
+The initial application migrations follow the framework: `0001_01_01_000000_create_users_table`, `0001_01_01_000001_create_cache_table`, and `0001_01_01_000002_create_jobs_table`. The jobs migration creates and rolls back `jobs`, `job_batches`, and `failed_jobs` together. Application-specific migrations use normal timestamped names. Rust uses `.rs` files, registered migration types, asynchronous execution and `Result` in place of PHP’s anonymous classes and exceptions. Existing databases created with separate queue migrations must have their migration history reconciled after backup before using the combined migration; renaming source files alone is insufficient.
 
 ### Temporary Tables {#temporary-tables}
 
@@ -409,7 +409,7 @@ Column metadata reports `auto_increment` when an integer primary key aliases the
 
 ### Editing a Blueprint {#editing-a-blueprint}
 
-Use `idWith("import_id")` to name an auto-incrementing primary key. It corresponds to Laravel’s `id("import_id")`. Use `id()` for the default name.
+Use `idWith("import_id")` to name an auto-incrementing primary key. It corresponds to `id("import_id")`. Use `id()` for the default name.
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -660,7 +660,7 @@ fn define_import_status(table: &mut Blueprint) {
 
 #### Floating-Point Precision and Raw Columns {#float-precision-and-raw-columns}
 
-`float()` uses Laravel’s default precision of 53 bits. Use `floatWith(name, precision)` to set it explicitly. On MySQL, precision 1–24 selects FLOAT and 25–53 selects DOUBLE. Use precision 0 for a native FLOAT declaration without a precision argument. SQLite uses its native floating-point behavior regardless of the requested precision.
+`float()` uses default precision of 53 bits. Use `floatWith(name, precision)` to set it explicitly. On MySQL, precision 1–24 selects FLOAT and 25–53 selects DOUBLE. Use precision 0 for a native FLOAT declaration without a precision argument. SQLite uses its native floating-point behavior regardless of the requested precision.
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

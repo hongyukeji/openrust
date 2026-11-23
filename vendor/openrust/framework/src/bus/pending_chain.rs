@@ -37,7 +37,7 @@ pub struct PendingChain {
     catches: Vec<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel PendingChain")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingChain {
     pub(super) fn new(jobs: impl IntoIterator<Item = Payload>) -> Self {
         Self {

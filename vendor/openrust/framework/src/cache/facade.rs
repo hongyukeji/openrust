@@ -25,7 +25,7 @@ impl Facade for Cache {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Cache facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cache {
     /// Registers a creator on the current application's cache manager.
     pub fn extend(

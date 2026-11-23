@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 use super::{Collection, CollectionError, CollectionResult};
 use crate::support::{Arr, data, data_get, data_has};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Collection<Value> {
     pub fn select(self, keys: &[&str]) -> CollectionResult<Self> {
         Ok(Self::fromValue(Arr::select(&self.toArray()?, keys)))

@@ -6,7 +6,7 @@ use super::{Cache, CacheError, CacheResult, Repository, Value};
 
 macro_rules! typed_reads {
     ($($name:ident, $lazy:ident, $return:ty, $parse:expr, $expected:literal;)+) => {
-        #[allow(non_snake_case, reason = "Matches Laravel's cache API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl Repository {
             $(
                 #[doc = concat!("Reads a cached ", $expected, " or checks the default on a miss.")]
@@ -25,7 +25,7 @@ macro_rules! typed_reads {
             )+
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's cache API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl Cache {
             $(
                 #[doc = concat!("Reads a cached ", $expected, " from the default store.")]

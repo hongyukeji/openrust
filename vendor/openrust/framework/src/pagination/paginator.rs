@@ -19,7 +19,7 @@ pub struct Paginator<T> {
     pub(super) more: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Paginator API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Paginator<T> {
     /// Creates a paginator from the current slice plus one look-ahead item.
     pub fn new(
@@ -249,10 +249,7 @@ impl<T: Serialize> Paginator<T> {
 }
 
 /// Application-wide view defaults shared by all three paginator types.
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's paginator configuration API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Paginator<()> {
     pub fn defaultView(view: impl Into<String>) -> ViewResult<()> {
         super::views::DefaultViews::configure(Some(view.into()), None)

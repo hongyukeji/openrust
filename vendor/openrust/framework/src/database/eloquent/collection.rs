@@ -84,7 +84,7 @@ impl<M: Model> Deref for CollectionModel<'_, M> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> CollectionModel<'_, M> {
     /// Reads a relationship using the owning collection's autoload policy.
     pub async fn getRelationOrLoad<R: Relation<Parent = M>>(
@@ -150,7 +150,7 @@ impl<T: Model, P> Deref for BorrowedRelatedModel<'_, T, P> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: Model, P> BorrowedRelatedModel<'_, T, P> {
     /// Accesses a descendant and writes its loaded relationship back to the root collection.
     pub async fn getRelationOrLoad<R: Relation<Parent = T>>(
@@ -462,7 +462,7 @@ where
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> Collection<M> {
     pub fn new(models: Vec<M>) -> Self {
         Self {

@@ -3,7 +3,7 @@ use openrust::console::{ConsoleError, Input};
 use crate::value_objects::MessageLogged;
 
 /// Filters applied together to each captured message, following Pail's options.
-#[allow(non_snake_case, reason = "Preserves Laravel Pail option field names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Options {
     timeout: i64,
     authId: Option<String>,
@@ -12,7 +12,7 @@ pub struct Options {
     message: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Preserves Laravel Pail's option API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Options {
     pub fn new(
         timeout: i64,

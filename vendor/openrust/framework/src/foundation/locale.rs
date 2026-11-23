@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "遵循 Laravel 应用语言方法名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use super::{Application, events::LocaleUpdated};
 use crate::{

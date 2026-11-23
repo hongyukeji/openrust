@@ -1,6 +1,6 @@
 use super::{ArrayKey, Collection, CollectionError, CollectionResult};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn forPage(self, page: usize, per_page: usize) -> Self {
         let offset = page.saturating_sub(1).saturating_mul(per_page);

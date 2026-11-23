@@ -670,7 +670,7 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
-用 `getCachingIteratorWithFullCache()` 启用 Laravel 的完整缓存行为。条目值需要支持克隆，每个键保留最近返回的值。`getCache()` 提供已返回的条目。要在多次遍历间复用同一来源，请用 `remember()`。
+用 `getCachingIteratorWithFullCache()` 启用 完整缓存行为。条目值需要支持克隆，每个键保留最近返回的值。`getCache()` 提供已返回的条目。要在多次遍历间复用同一来源，请用 `remember()`。
 
 旧名称 `containsOneItem()` 和 `containsManyItems()` 分别调用 `hasSole()` 和 `hasMany()`。要检查是否恰有一项符合条件，使用 `hasSoleWhere()`。
 
@@ -724,7 +724,7 @@ HTTP 处理器返回 `HttpError` 时，快照成为纯文本 HTTP 500 响应。�
 
 #### 高阶消息 {#lazy-higher-order-proxy}
 
-用 `proxy` 绑定集合操作，再用 `call` 传入类型化回调，读取各项的字段或调用其方法。`proxy(LazyCollection::map).call(...)` 对应 Laravel 的 `$tasks->map->name`。回调可以捕获传给方法的参数。
+用 `proxy` 绑定集合操作，再用 `call` 传入类型化回调，读取各项的字段或调用其方法。`proxy(LazyCollection::map).call(...)` 对应 `$tasks->map->name`。回调可以捕获传给方法的参数。
 
 ```rust
 use openrust::support::LazyCollection;

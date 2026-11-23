@@ -149,7 +149,7 @@ pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 
 ## 基本 WHERE 子句
 
-Rust 中 `where` 是關鍵字，使用 `r#where(column, operator, value)` 對應 Laravel 的 `where`。`orWhere` 用 OR 連接條件，用 `whereNested` 加上括號分組，用 `whereNot` 否定分組。可用 `whereNull`、`whereNotNull`、`whereIn`、`whereNotIn`、`whereBetween` 或 `whereColumn` 表達對應比較。空 IN 不符合任何資料列，空 NOT IN 符合所有資料列。
+Rust 中 `where` 是關鍵字，使用 `r#where(column, operator, value)` 對應 `where`。`orWhere` 用 OR 連接條件，用 `whereNested` 加上括號分組，用 `whereNot` 否定分組。可用 `whereNull`、`whereNotNull`、`whereIn`、`whereNotIn`、`whereBetween` 或 `whereColumn` 表達對應比較。空 IN 不符合任何資料列，空 NOT IN 符合所有資料列。
 
 `whereLike` 接受區分大小寫參數。`whereDate` 和 `whereTime` 分別接受 `jiff::civil::Date` 和 `jiff::civil::Time`。可用 `toSql()` 和 `getBindings()` 檢視 SQL 及依執行順序排列的參數。
 
@@ -499,7 +499,7 @@ pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult
 
 ### PostgreSQL 聯結來源更新 {#postgresql-update-from}
 
-在 PostgreSQL 上呼叫 `updateFrom`，依聯結來源更新目標資料表。PostgreSQL 在 `FROM` 中列出來源，並將聯結條件接在 `WHERE` 的查詢條件之後。與 Laravel 相同，此寫法會忽略排序、限額與位移。繫結一般值可使用 `Record`。需要混合繫結值與可信的 SQL 運算式時使用 `ValueOperand`。
+在 PostgreSQL 上呼叫 `updateFrom`，依聯結來源更新目標資料表。PostgreSQL 在 `FROM` 中列出來源，並將聯結條件接在 `WHERE` 的查詢條件之後。與框架相同，此寫法會忽略排序、限額與位移。繫結一般值可使用 `Record`。需要混合繫結值與可信的 SQL 運算式時使用 `ValueOperand`。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, query::Record};
@@ -516,7 +516,7 @@ pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> 
 
 ### SQL Server 聯結與限額寫入 {#sql-server-bounded-writes}
 
-聯結更新和刪除使用 `FROM` 指定目標資料表或其別名。無聯結時，正數限額使用 `TOP`。有排序時，SQL Server 透過帶排序的 `TOP` 子查詢決定目標資料列。依 Laravel 的行為，帶聯結或正數位移的寫入會忽略限額，限額為零也會省略 `TOP`。
+聯結更新和刪除使用 `FROM` 指定目標資料表或其別名。無聯結時，正數限額使用 `TOP`。有排序時，SQL Server 透過帶排序的 `TOP` 子查詢決定目標資料列。依 行為，帶聯結或正數位移的寫入會忽略限額，限額為零也會省略 `TOP`。
 
 ```rust
 use std::collections::BTreeMap;

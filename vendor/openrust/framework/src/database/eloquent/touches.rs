@@ -86,7 +86,7 @@ impl<M: Model, R: Model> Touch<M> for BelongsToMany<M, R> {
     }
 }
 
-/// Typed relationships corresponding to Laravel's model `$touches` list.
+/// Typed relationships corresponding to model `$touches` list.
 pub struct Touches<M: Model>(Vec<Box<dyn Touch<M>>>);
 
 impl<M: Model> Default for Touches<M> {
@@ -98,7 +98,7 @@ impl<M: Model> Default for Touches<M> {
 impl<M: Model> Touches<M> {
     /// Adds a belongs-to relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn belongsTo<R: Model>(mut self, relation: BelongsTo<M, R>) -> Self {
         self.0.push(Box::new(relation));
         self
@@ -106,7 +106,7 @@ impl<M: Model> Touches<M> {
 
     /// Adds a polymorphic belongs-to relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn morphTo(mut self, relation: MorphTo<M>) -> Self {
         self.0.push(Box::new(relation));
         self
@@ -114,7 +114,7 @@ impl<M: Model> Touches<M> {
 
     /// Adds a many-to-many relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn belongsToMany<R: Model>(mut self, relation: BelongsToMany<M, R>) -> Self {
         self.0.push(Box::new(relation));
         self
@@ -122,7 +122,7 @@ impl<M: Model> Touches<M> {
 
     /// Adds a polymorphic many-to-many relationship to touch after a dirty save.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn morphToMany<R: Model>(self, relation: MorphToMany<M, R>) -> Self {
         self.belongsToMany(relation.into_inner())
     }

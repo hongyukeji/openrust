@@ -32,7 +32,7 @@ pub struct Builder<'connection> {
     blueprint_resolver: Option<BlueprintResolver>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'connection> Builder<'connection> {
     pub(crate) fn connection(connection: Connection) -> Builder<'static> {
         let grammar = Grammar::new(&connection);

@@ -15,7 +15,7 @@ impl Facade for Hash {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Hash facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Hash {
     pub fn extend(
         name: impl Into<String>,

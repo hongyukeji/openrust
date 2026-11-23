@@ -282,7 +282,7 @@ async fn create_users() -> DatabaseResult<()> {
 }
 ```
 
-多语言复用现有 `__()` 和 Laravel 风格的 JSON 翻译文件。例如在 `lang/zh-Hans/schema.json` 中配置：
+多语言复用现有 `__()` 和 的 JSON 翻译文件。例如在 `lang/zh-Hans/schema.json` 中配置：
 
 ```json
 {
@@ -296,13 +296,13 @@ async fn create_users() -> DatabaseResult<()> {
 }
 ```
 
-翻译由现有翻译器按照 `app.locale`（`APP_LOCALE`）及 `app.fallback_locale` 选择。增加 `lang/ja/schema.json`、`lang/fr/schema.json` 或其他语言文件即可扩展语言，不需要修改 Schema API。条目缺失时使用配置的回退语言；两者均缺失则与 Laravel 一样返回翻译键。直接 `.comment("邮箱")` 则保存原样文本。语言标识的规范化与应用其他翻译保持一致。
+翻译由现有翻译器按照 `app.locale`（`APP_LOCALE`）及 `app.fallback_locale` 选择。增加 `lang/ja/schema.json`、`lang/fr/schema.json` 或其他语言文件即可扩展语言，不需要修改 Schema API。条目缺失时使用配置的回退语言；两者均缺失则与框架一样返回翻译键。直接 `.comment("邮箱")` 则保存原样文本。语言标识的规范化与应用其他翻译保持一致。
 
-回调返回 `DatabaseResult<()>`，以便通过 `?` 传递翻译错误；该回调中的 DDL 在配置成功后才执行。原有返回 `()` 的回调继续可用。迁移生成器保持 Laravel 的 `id()`、`timestamps()` 骨架，按需添加注释和翻译。需要分别注释时间字段时，可将时间辅助方法展开为显式字段定义。
+回调返回 `DatabaseResult<()>`，以便通过 `?` 传递翻译错误；该回调中的 DDL 在配置成功后才执行。原有返回 `()` 的回调继续可用。迁移生成器保持 `id()`、`timestamps()` 骨架，按需添加注释和翻译。需要分别注释时间字段时，可将时间辅助方法展开为显式字段定义。
 
 PostgreSQL、MySQL 和 MariaDB 会保存这些注释；当前 SQLite、SQL Server 实现不保存。每个数据库对象仅保存一条注释，其语言在迁移执行时确定。修改应用语言或已经执行过的建表迁移，不会自动更新数据库注释。更新表注释使用新迁移中的 `table.comment(...)`。通过 Schema 修改字段时，给出完整字段定义并调用 `.comment(...).change()`；PostgreSQL 仅更新元数据时，可以通过现有 `MigrationContext::statement` 执行可信的 `COMMENT ON COLUMN` 语句，无须另设 Schema API。
 
-初始应用迁移遵循 Laravel：`0001_01_01_000000_create_users_table`、`0001_01_01_000001_create_cache_table`、`0001_01_01_000002_create_jobs_table`。任务迁移统一创建和回滚 `jobs`、`job_batches`、`failed_jobs`。应用专属迁移使用正常时间戳命名。Rust 以 `.rs` 文件、注册的迁移类型、异步执行和 `Result` 对应 PHP 匿名类及异常。已有数据库若使用拆分的队列迁移，须先备份并校准迁移记录，再使用合并迁移；仅重命名源码文件不能完成升级。
+初始应用迁移遵循 框架：`0001_01_01_000000_create_users_table`、`0001_01_01_000001_create_cache_table`、`0001_01_01_000002_create_jobs_table`。任务迁移统一创建和回滚 `jobs`、`job_batches`、`failed_jobs`。应用专属迁移使用正常时间戳命名。Rust 以 `.rs` 文件、注册的迁移类型、异步执行和 `Result` 对应 PHP 匿名类及异常。已有数据库若使用拆分的队列迁移，须先备份并校准迁移记录，再使用合并迁移；仅重命名源码文件不能完成升级。
 
 ### 临时表 {#temporary-tables}
 
@@ -409,7 +409,7 @@ async fn inspect_title() -> DatabaseResult<(String, String)> {
 
 ### 编辑 Blueprint {#editing-a-blueprint}
 
-用 `idWith("import_id")` 指定自增主键列名，对应 Laravel 的 `id("import_id")`。默认列名使用 `id()`。
+用 `idWith("import_id")` 指定自增主键列名，对应 `id("import_id")`。默认列名使用 `id()`。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -660,7 +660,7 @@ fn define_import_status(table: &mut Blueprint) {
 
 #### 浮点精度与原生列定义 {#float-precision-and-raw-columns}
 
-`float()` 使用 Laravel 默认的 53 位精度。用 `floatWith(name, precision)` 显式设置精度。MySQL 的 1–24 位对应 FLOAT，25–53 位对应 DOUBLE。用 0 声明不带精度参数的原生 FLOAT。SQLite 按原生浮点规则存储，精度参数不改变存储行为。
+`float()` 使用框架默认的 53 位精度。用 `floatWith(name, precision)` 显式设置精度。MySQL 的 1–24 位对应 FLOAT，25–53 位对应 DOUBLE。用 0 声明不带精度参数的原生 FLOAT。SQLite 按原生浮点规则存储，精度参数不改变存储行为。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

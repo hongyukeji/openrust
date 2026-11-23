@@ -2,7 +2,7 @@ use serde_json::Value;
 
 use crate::http::{HttpError, Request};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Request flash data API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     /// Retrieves old input from the current session.
     pub fn old(&self, key: Option<&str>) -> Option<&Value> {

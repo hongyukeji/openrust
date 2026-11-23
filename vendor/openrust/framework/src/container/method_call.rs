@@ -1,4 +1,4 @@
-//! Compiled instance/static declarations and Laravel method-binding overrides.
+//! Compiled instance/static declarations and the framework method-binding overrides.
 use super::class_descriptor::validate_signature;
 use super::{
     CallArguments, CallFuture, ConstructorParam, Container, ParameterOverrides, ServiceKey, call,

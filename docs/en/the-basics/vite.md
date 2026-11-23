@@ -4,7 +4,7 @@
 
 **Partial native support.** Blade supports the documented @fonts consumer for version 1 Vite font manifests. A full Vite integration, JavaScript/CSS entrypoint manifest resolver and frontend dev-server lifecycle are not shipped.
 
-This chapter retains the Laravel navigation path for comparison. Its presence does not install a package or promise compatibility with the corresponding PHP API.
+This chapter states the supported integration boundary; the navigation entry does not install an additional package.
 
 ## Available entry points {#available-entry-points}
 
@@ -12,4 +12,4 @@ See [Blade Templates](blade.md) for the native interfaces and usage. When integr
 
 ## Scope {#scope}
 
-OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+OpenRust does not provide an installation command for this integration. Use the native interfaces and commands documented for this integration.

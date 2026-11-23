@@ -62,7 +62,7 @@ fn data(case: &Value) -> ViewData {
         .collect()
 }
 #[test]
-fn pinned_laravel_statement_boundaries_escaping_and_whitespace_match() {
+fn pinned_reference_statement_boundaries_escaping_and_whitespace_match() {
     assert_eq!(CORPUS["php"], "8.4.14");
     assert!(
         CORPUS["illuminate"]

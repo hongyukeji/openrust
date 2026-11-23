@@ -8,7 +8,7 @@ use ::http::{HeaderName, HeaderValue};
 pub struct Precognition;
 
 impl Precognition {
-    #[allow(non_snake_case, reason = "Matches Laravel's Precognition hook")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn afterValidationHook(
         request: &Request,
     ) -> impl Fn(&dyn Validator) -> Result<(), HttpError> + use<> {

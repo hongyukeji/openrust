@@ -31,7 +31,7 @@ impl Facade for Http {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's HTTP facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Http {
     pub fn globalMiddleware(
         middleware: impl for<'a> Fn(super::Request, super::Next<'a>) -> HttpFuture<'a, Result<Response>>

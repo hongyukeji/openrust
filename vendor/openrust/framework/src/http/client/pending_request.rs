@@ -101,7 +101,7 @@ pub struct PendingRequest {
     after_response: Vec<Box<ResponseMiddleware>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's pending HTTP request API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingRequest {
     pub(super) fn new(factory: Factory) -> Self {
         let middleware = factory.middleware();

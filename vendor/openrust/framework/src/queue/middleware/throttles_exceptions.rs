@@ -51,10 +51,7 @@ impl Default for ThrottlesExceptions {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel queue middleware configuration names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ThrottlesExceptions {
     pub fn new(max_attempts: u64, decay_seconds: u64) -> Self {
         Self {
@@ -307,10 +304,7 @@ impl From<ThrottlesExceptions> for ThrottlesExceptionsWithRedis {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel queue middleware configuration names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ThrottlesExceptionsWithRedis {
     pub fn new(max_attempts: u64, decay_seconds: u64) -> Self {
         Self::from(ThrottlesExceptions::new(max_attempts, decay_seconds))

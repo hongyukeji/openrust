@@ -24,10 +24,10 @@ pub struct Batch {
     pub finished_at: Option<Timestamp>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel batch methods")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Batch {
     /// Appends jobs to the persisted batch and returns its updated snapshot.
-    #[allow(clippy::should_implement_trait, reason = "Matches Laravel Batch::add")]
+    #[allow(clippy::should_implement_trait, reason = "保留既定公开接口及命名")]
     pub async fn add(&self, jobs: impl IntoIterator<Item = Payload>) -> QueueResult<Option<Self>> {
         let jobs = jobs.into_iter().map(BatchJob::Job).collect();
         Queue::manager()?.append_batch(&self.id, jobs).await

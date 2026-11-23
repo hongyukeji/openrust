@@ -15,12 +15,12 @@ impl Facade for Sms {
 }
 
 impl Sms {
-    #[allow(non_snake_case, reason = "Matches Laravel Manager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getDefaultDriver() -> NotificationResult<String> {
         Self::getFacadeRoot().map_err(delivery)?.getDefaultDriver()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Manager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forgetDrivers() -> NotificationResult<()> {
         Self::getFacadeRoot().map_err(delivery)?.forgetDrivers();
         Ok(())

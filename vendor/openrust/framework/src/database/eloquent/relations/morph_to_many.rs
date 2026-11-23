@@ -11,7 +11,7 @@ use super::{BelongsToMany, ExistenceRelation, Relation, pivot_constraints::pivot
 /// Links two models through an intermediate table with a morph discriminator.
 pub struct MorphToMany<P: Model, R: Model>(BelongsToMany<P, R>);
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> MorphToMany<P, R> {
     pub const fn new(
         table: &'static str,
@@ -170,7 +170,7 @@ impl<P: Model, R: Model> Deref for MorphToMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
     type Parent = P;
     type Output = <BelongsToMany<P, R> as Relation>::Output;
@@ -234,7 +234,7 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for MorphToMany<P, R> {
     fn getRelationExistenceQuery(
         &self,

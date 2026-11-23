@@ -3,7 +3,7 @@ use serde_json::Value;
 use super::{ArrayKey, CollectionResult, LazyCollection};
 use crate::support::data;
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn mapInto<U: From<T> + 'source>(self) -> LazyCollection<'source, U> {
         LazyCollection::from_iterators(move || {
@@ -20,7 +20,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, Vec<T>> {
     pub fn mapSpread<U: 'source>(
         self,
@@ -46,7 +46,7 @@ impl LazyCollection<'_, ArrayKey> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source> LazyCollection<'source, Value> {
     pub fn select(self, keys: &'source [&'source str]) -> Self {
         self.map(move |item, _| {

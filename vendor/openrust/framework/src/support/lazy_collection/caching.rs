@@ -13,7 +13,7 @@ struct FullCache<T> {
     copy: fn(&T) -> T,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's iterator API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> LazyCachingIterator<'_, T> {
     /// Indicates whether another result, including a pending error, is available.
     pub fn hasNext(&mut self) -> bool {
@@ -43,7 +43,7 @@ impl<T> Iterator for LazyCachingIterator<'_, T> {
 
 impl<T> FusedIterator for LazyCachingIterator<'_, T> {}
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     /// Creates a traversal with one entry of lookahead.
     pub fn getCachingIterator(&self) -> LazyCachingIterator<'source, T> {

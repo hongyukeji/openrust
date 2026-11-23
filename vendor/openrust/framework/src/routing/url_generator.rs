@@ -236,15 +236,15 @@ impl UrlGenerator {
         }
     }
 
-    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forceScheme(&mut self, scheme: Option<&str>) {
         self.force_scheme = scheme.map(str::to_owned);
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forceHttps(&mut self, force: bool) {
         self.forceScheme(force.then_some("https"));
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forceRootUrl(&mut self, root: Option<&str>) {
         self.force_root = root.map(|root| root.trim_end_matches('/').to_owned());
     }
@@ -292,14 +292,14 @@ impl UrlGenerator {
         ))
     }
 
-    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn formatHostUsing(
         &mut self,
         formatter: impl Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync + 'static,
     ) {
         self.host_formatter = Some(Arc::new(formatter));
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel URL 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn formatPathUsing(
         &mut self,
         formatter: impl Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + Sync + 'static,
@@ -343,7 +343,7 @@ impl UrlGenerator {
     }
 
     /// Returns a generator with additional defaults, without mutating the application service.
-    #[allow(non_snake_case, reason = "Matches Laravel's URL vocabulary")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withDefaults(mut self, defaults: &[(&str, &str)]) -> Self {
         self.defaults.extend(
             defaults
@@ -378,10 +378,7 @@ impl UrlGenerator {
         );
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's request-scoped URL generator"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forRequest(&self, request: &Request) -> Self {
         let mut urls = self
             .with_uri(Some(request_uri(request)))
@@ -552,7 +549,7 @@ fn is_expired(expires: &str, now: u64) -> bool {
         .is_ok_and(|seconds| (now as f64) > seconds)
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's URL generator")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Contract for UrlGenerator {
     fn full(&self) -> UrlResult<String> {
         let root = self.root(None)?;

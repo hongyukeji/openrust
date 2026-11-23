@@ -161,7 +161,7 @@ impl Logger {
         merged.extend(context.clone());
         merged
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel 日志原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withContext(&self, context: LogContext) -> &Self {
         let state = self.channel_context();
         let mut fields = state.0.lock().expect("日志上下文锁中毒");
@@ -174,7 +174,7 @@ impl Logger {
             .extend(context);
         self
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel 日志原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutContext(&self, keys: Option<&[&str]>) -> &Self {
         let state = self.channel_context();
         let mut fields = state.0.lock().expect("日志上下文锁中毒");
@@ -199,7 +199,7 @@ impl Logger {
     }
 
     /// Returns a logger with the same handlers and context under a different name.
-    #[allow(non_snake_case, reason = "Matches Laravel's logger naming API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[must_use]
     pub fn withName(&self, name: impl Into<String>) -> Self {
         let mut native = (*self.native).clone();
@@ -255,10 +255,7 @@ impl Logger {
     }
 
     /// Logs an error and its source chain as structured exception data.
-    #[allow(
-        non_snake_case,
-        reason = "Rust adapter for an exception in Laravel log context"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn logException<E: std::error::Error + Send + Sync + 'static>(
         &self,
         level: Level,

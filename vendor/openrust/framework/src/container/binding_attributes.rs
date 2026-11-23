@@ -1,4 +1,4 @@
-//! Compiled binding attributes selected in Laravel declaration order.
+//! Compiled binding attributes selected in the framework declaration order.
 
 use std::{
     cell::RefCell,
@@ -178,7 +178,7 @@ impl Bind {
         }
     }
 
-    #[allow(non_snake_case, reason = "Compiled Laravel binding declaration")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forEnvironments(
         mut self,
         environments: impl IntoIterator<Item = impl Into<String>>,
@@ -244,7 +244,7 @@ impl BindingAttribute {
 
 impl Container {
     /// Registers the ordered attributes for a compiled service type.
-    #[allow(non_snake_case, reason = "Compiled Laravel binding declaration")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn registerBindingAttributes<T: ?Sized + Send + Sync + 'static>(
         &self,
         attributes: Vec<BindingAttribute>,

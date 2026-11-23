@@ -112,7 +112,7 @@ impl Default for Number {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Number API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Number {
     pub fn useLocale(&mut self, locale: &str) -> Result<(), NumberError> {
         self.locale = crate::translation::canonical_locale(locale)

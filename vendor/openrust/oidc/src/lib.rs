@@ -1,6 +1,6 @@
 //! OpenID Connect relying-party client: authorization code, PKCE and verified identities.
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "Uses OpenRust's Laravel-style service API")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 mod config;
 mod identity;
 mod provider;

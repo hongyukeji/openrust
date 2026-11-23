@@ -190,10 +190,7 @@ impl RequestValue {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's Fluent attribute accessors"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Fluent<RequestValue> {
     /// Reads a nested attribute, with the same selectors as request input.
     pub fn get(&self, key: &str) -> Option<RequestValue> {
@@ -265,10 +262,7 @@ impl Request {
     }
 
     /// Selects fields from all input and files. Missing fields become explicit null.
-    #[allow(
-        non_snake_case,
-        reason = "Typed form of Laravel's all with field selection"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn allOnly(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
         let input = self.all().await?;
         if keys.is_empty() {
@@ -314,18 +308,12 @@ impl Request {
         Ok(input)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Typed form of Laravel's array with field selection"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn arrayOnly(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
         self.only(keys).await
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Typed form of Laravel's collect with field selection"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn collectOnly(
         &mut self,
         keys: &[&str],
@@ -337,10 +325,7 @@ impl Request {
     }
 
     /// Wraps selected input and uploads in an independent typed Fluent bag.
-    #[allow(
-        non_snake_case,
-        reason = "Typed form of Laravel's fluent with field selection"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn fluentOnly(&mut self, keys: &[&str]) -> Result<Fluent<RequestValue>, HttpError> {
         Ok(Fluent::from_attributes(self.only(keys).await?))
     }

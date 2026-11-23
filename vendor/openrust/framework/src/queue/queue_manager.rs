@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{
     borrow::Cow,
@@ -264,7 +264,7 @@ impl QueueManager {
     }
 
     /// Sets or removes a custom reservation callback for a worker name.
-    #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn popUsing(&self, worker: &str, callback: Option<JobPopCallback>) {
         let previous = {
             let mut callbacks = self
@@ -313,7 +313,7 @@ impl QueueManager {
         Ok(self.resolve(None)?.synchronous)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutInterruptionPolling(&self) {
         self.interruption_polling.store(false, Ordering::Relaxed);
     }
@@ -324,7 +324,7 @@ impl QueueManager {
     }
 
     /// Pauses one queue until the supplied cache deadline or duration expires.
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn pauseFor(&self, connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
         self.set_queue_pause(connection, queue, Some(ttl)).await
     }
@@ -347,7 +347,7 @@ impl QueueManager {
     }
 
     /// Pauses all queues on all connections in this application's cache.
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn pauseAll(&self) -> QueueResult<()> {
         self.worker_control()?.pause(None, None).await?;
         self.emit_control_event(QueuesPaused {}).await
@@ -366,21 +366,21 @@ impl QueueManager {
     }
 
     /// Clears the global pause while preserving individual pauses.
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn resumeAll(&self) -> QueueResult<()> {
         self.worker_control()?.resume(None).await?;
         self.emit_control_event(QueuesResumed {}).await
     }
 
     /// Checks both the global and individual pause state.
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn isPaused(&self, connection: &str, queue: &str) -> QueueResult<bool> {
         let control = self.worker_control()?;
         Ok(control.all_paused().await? || control.queue_paused(connection, queue).await?)
     }
 
     /// Returns the paused queues in the requested order.
-    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn getPausedQueues<'a>(
         &self,
         connection: &str,

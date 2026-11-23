@@ -1,7 +1,7 @@
 use crate::contracts::events::Event;
 
 /// 应用语言已切换；监听器执行时配置和译器均已更新。
-#[allow(non_snake_case, reason = "遵循 Laravel LocaleUpdated 字段名")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 #[derive(Clone, Debug)]
 pub struct LocaleUpdated {
     pub locale: String,

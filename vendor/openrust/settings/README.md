@@ -1,6 +1,6 @@
 # OpenRust Settings
 
-Optional typed database settings, following Spatie Laravel Settings conventions.
+Optional typed database settings, following Spatie the framework Settings conventions.
 Application code declares groups; the repository persists overrides in `settings`.
 No backend routes, automatic service configuration overrides or shared cache are installed.
 

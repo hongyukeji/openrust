@@ -36,7 +36,7 @@ enum RepositoryDispatcher {
     Explicit(Arc<dyn EventDispatcher>),
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Cache Repository API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     /// Builds a concurrency limiter on this repository's store.
     pub fn funnel(&self, name: impl Into<String>) -> CacheResult<ConcurrencyLimiterBuilder> {

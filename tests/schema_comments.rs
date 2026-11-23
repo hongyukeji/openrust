@@ -327,7 +327,7 @@ async fn builtin_migrations_run_on_mysql_and_sqlite() {
                     assert_eq!(tables.iter().find(|t| t.name == "users").unwrap().comment.as_deref(), Some(users));
                     assert_eq!(schema.getColumns("users").await.unwrap().iter().find(|c| c.name == "email").unwrap().comment.as_deref(), Some(email));
                 } else {
-                    // SQLite has no table/column comment metadata. Laravel ignores these modifiers.
+                    // SQLite has no table/column comment metadata. the framework ignores these modifiers.
                     let version = db.select("select sqlite_version() as version", &[]).await.unwrap();
                     println!("SQLite {version:?}: {locale}");
                     assert!(tables.iter().all(|t| t.comment.is_none()));

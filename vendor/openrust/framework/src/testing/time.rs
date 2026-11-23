@@ -8,7 +8,7 @@ use super::TestApp;
 
 type TimeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
-#[allow(non_snake_case, reason = "Matches Laravel's testing time controls")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Freezes the fixture's clock at the given instant.
     pub fn travelTo(&self, time: Date) {

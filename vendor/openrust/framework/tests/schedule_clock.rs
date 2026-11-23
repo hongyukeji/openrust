@@ -252,7 +252,7 @@ fn relative_list(_: &mut Artisan) -> Result<(), ConsoleError> {
 }
 
 #[tokio::test]
-async fn schedule_list_json_shifts_cron_and_keeps_laravel_metadata() -> TestResult {
+async fn schedule_list_json_shifts_cron_and_keeps_reference_metadata() -> TestResult {
     let mut app = TestApp::create(|builder| configure(builder).withCommands(list_json))?;
     app.travelTo(date("2023-10-29T00:00:00Z"));
     let reply = app

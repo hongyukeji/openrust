@@ -21,7 +21,7 @@ pub struct EventFake {
     recorded: Mutex<RecordedEvents>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's EventFake assertions")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl EventFake {
     pub(crate) fn new(events: &[&str], except: &[&str]) -> Arc<Self> {
         Arc::new(Self {

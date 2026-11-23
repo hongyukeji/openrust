@@ -16,7 +16,7 @@ cargo build
 ./artisan migrate
 ```
 
-資料庫 `expiration` 欄位儲存 Unix 秒數。永久紀錄採用十年有效期，與 Laravel DatabaseStore 一致。亞秒有效期與鎖租約向上取整至下一秒；需要更細到期精度時使用 Redis。
+資料庫 `expiration` 欄位儲存 Unix 秒數。永久紀錄採用十年有效期，與框架DatabaseStore 一致。亞秒有效期與鎖租約向上取整至下一秒；需要更細到期精度時使用 Redis。
 
 ## Memcached {#memcached}
 
@@ -52,7 +52,7 @@ CACHE_STORAGE_DISK=local
 CACHE_STORAGE_PATH=framework/cache/items
 ```
 
-本機磁碟與 S3 共用相同的快取介面。到期或無法讀取的記錄視為未命中，後續寫入可以覆蓋到期檔案，清除也可刪除這些檔案。和 Laravel 的磁碟驅動程式相同，讀取後修改並寫回的操作沒有跨程序原子性。此驅動程式沒有鎖與標籤。
+本機磁碟與 S3 共用相同的快取介面。到期或無法讀取的記錄視為未命中，後續寫入可以覆蓋到期檔案，清除也可刪除這些檔案。和 磁碟驅動程式相同，讀取後修改並寫回的操作沒有跨程序原子性。此驅動程式沒有鎖與標籤。
 
 `./artisan cache:clear storage` 會清除快取目錄中所有前綴的檔案。快取路徑為空時，會清除所選磁碟內的檔案。磁碟同時保存一般檔案時，請使用專用快取目錄。
 
@@ -179,7 +179,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 `cache!()` 或 `openrust::support::cache()` 取得目前應用程式的快取管理員。呼叫 `.store(None)?` 取得預設儲存庫。`cache!(key).await?` 回傳 `Option<Value>`，`cache!(key, default).await?` 支援預設值。
 
-寫入形式接受至少一組鍵值和 `Option<Ttl>`。與固定 Laravel 的輔助工具一致，它只寫入第一項。需要寫入全部項目時使用 `Cache::putMany`。
+寫入形式接受至少一組鍵值和 `Option<Ttl>`。與固定 輔助工具一致，它只寫入第一項。需要寫入全部項目時使用 `Cache::putMany`。
 
 ```rust
 use openrust::{cache, cache::{CacheResult, Ttl, Value}};

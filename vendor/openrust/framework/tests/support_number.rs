@@ -1,7 +1,7 @@
 use openrust::support::{Number, NumberError, NumberValue};
 
 #[test]
-fn decimal_precision_and_negative_zero_follow_laravel() -> Result<(), NumberError> {
+fn decimal_precision_and_negative_zero_follow_reference() -> Result<(), NumberError> {
     let number = Number::default();
     assert_eq!(number.format(1_234.567_8, None, None)?, "1,234.568");
     assert_eq!(number.format(1.2, Some(4), Some(3))?, "1.2");
@@ -114,7 +114,7 @@ fn numeric_operations_preserve_types_and_boundaries() -> Result<(), NumberError>
 }
 
 #[test]
-fn spellout_matches_the_fixed_laravel_locale_matrix() -> Result<(), NumberError> {
+fn spellout_matches_the_fixed_reference_locale_matrix() -> Result<(), NumberError> {
     let mut number = Number::default();
     for line in include_str!("fixtures/number-spellout-php85.tsv").lines() {
         let [locale, value, words, ordinal] = spellout_fields(line);

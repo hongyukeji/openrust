@@ -12,7 +12,7 @@ use crate::{
 ///
 /// Streaming bodies are never polled or buffered to create this event. Metadata and
 /// the attribute map are detached snapshots; shared values retain their normal ownership.
-#[allow(non_snake_case, reason = "Matches Laravel route naming")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct RequestHandled {
     pub request: RequestParts,
     pub response: ResponseParts,

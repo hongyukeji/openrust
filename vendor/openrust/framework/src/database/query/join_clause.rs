@@ -6,7 +6,7 @@ use super::Conditions;
 #[derive(Clone, Default)]
 pub struct JoinClause(pub(super) Conditions);
 
-#[allow(non_snake_case, reason = "Matches Laravel's JoinClause API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JoinClause {
     pub fn on(self, column: &str, operator: &str, other: &str) -> Self {
         Self(self.0.whereColumn(column, operator, other))

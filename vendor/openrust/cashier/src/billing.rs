@@ -726,7 +726,7 @@ impl Billable {
         }
     }
 }
-/// Fluent subscription setup follows Laravel's price, trial and Checkout vocabulary.
+/// Fluent subscription setup follows price, trial and Checkout vocabulary.
 pub struct SubscriptionBuilder {
     billable: Billable,
     name: String,

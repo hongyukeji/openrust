@@ -252,7 +252,7 @@ impl Payload {
 
     /// Acknowledges this job if an explicitly restored model is missing.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's queued model policy")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn deleteWhenMissingModels(mut self) -> Self {
         self.delete_when_missing_models = true;
         self
@@ -263,14 +263,14 @@ impl Payload {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queueable")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn onGroup(mut self, group: impl Into<String>) -> Self {
         self.sqs_group = Some(group.into());
         self
     }
 
     /// An empty ID selects the FIFO queue's content-based deduplication.
-    #[allow(non_snake_case, reason = "Matches Laravel's queue payload naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withDeduplicationId(mut self, id: impl Into<String>) -> Self {
         self.sqs_deduplication = Some(id.into());
         self
@@ -280,7 +280,7 @@ impl Payload {
         self.version
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel batch identifier")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn batchId(&self) -> Option<&str> {
         self.batch_id.as_deref()
     }

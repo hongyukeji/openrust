@@ -7,7 +7,7 @@ use crate::contracts::events::Event;
 use super::scheduling;
 
 /// A parsed Artisan command is about to execute in its native execution scope.
-#[allow(non_snake_case, reason = "Matches Laravel command event fields")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CommandStarting {
     pub command: String,
     pub input: clap::ArgMatches,
@@ -23,7 +23,7 @@ impl Event for CommandStarting {
 }
 
 /// A command returned an exit code. Duration excludes event listeners.
-#[allow(non_snake_case, reason = "Matches Laravel command event fields")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CommandFinished {
     pub command: String,
     pub input: clap::ArgMatches,

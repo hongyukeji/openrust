@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-#![allow(non_snake_case, reason = "Preserves Laravel Settings public names")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 #[path = "../config/settings.rs"]
 mod configuration;

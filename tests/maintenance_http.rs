@@ -319,7 +319,7 @@ fn artisan_maintenance_cache_is_shared_by_http_instances() {
 }
 
 #[test]
-fn artisan_prerenders_laravels_standard_maintenance_error_view() {
+fn artisan_prerenders_references_standard_maintenance_error_view() {
     let fixture = TestApp::create(|app| app).unwrap();
     let root = fixture.root();
     let live = Server::start(root, &[("APP_MAINTENANCE_DRIVER", "file")]);

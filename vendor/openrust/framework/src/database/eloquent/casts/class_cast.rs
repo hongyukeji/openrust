@@ -80,7 +80,7 @@ pub trait CastsAttributes: CastsInboundAttributes {
 }
 
 /// Constructs a caster from an attribute's declared arguments.
-#[allow(non_snake_case, reason = "Matches Laravel's Castable contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Castable {
     type Arguments: Send + Sync + 'static;
     type Caster: CastsInboundAttributes + 'static;

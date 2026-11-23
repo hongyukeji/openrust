@@ -1,0 +1,68 @@
+{
+  "command_missing": "':name' 명령이 정의되지 않았습니다.",
+  "command_ambiguous": "':name' 명령이 모호합니다: :choices",
+  "confirm": {
+    "production": "생산에 적용. 정말로 이 명령을 실행하시겠습니까?",
+    "cancelled": "명령이 취소되었습니다."
+  },
+  "make": {
+    "mail": {
+      "name": "우편물의 이름은 무엇입니까?",
+      "view": "뷰를 생성하시겠습니까?\n  1. Markdown 뷰\n  2. 빈 뷰\n  3. 뷰 없음\n선택 [1]"
+    },
+    "notification": {
+      "name": "알림 이름이 무엇인가요?",
+      "markdown": "마크다운 보기를 만들고 싶나요? [Y/n]",
+      "view": "마크다운 뷰의 이름은 무엇으로 지정해야 합니까?"
+    },
+    "message": {
+      "cancelled": "명령이 취소되었습니다."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "명령 나열"
+    },
+    "help": {
+      "description": "명령에 대한 도움말 표시"
+    },
+    "inspire": {
+      "description": "감동적인 인용문 표시"
+    },
+    "heading": "명령:"
+  },
+  "usage": "사용법:",
+  "options": "옵션:",
+  "unknown_argument": "예상치 못한 인수",
+  "unknown_command": "명령이 정의되지 않았습니다.",
+  "missing_argument": "필수 인수가 누락되었습니다.",
+  "invalid_value": "잘못된 값",
+  "argument_conflict": "인수 충돌",
+  "invalid_arguments": "잘못된 인수",
+  "model_fields": {
+    "title": "모델 테이블 및 필드",
+    "notice": "데이터베이스 스키마에서 생성됩니다. 수동으로 편집하지 마십시오.",
+    "sync": "동기화하려면 프로젝트 루트에서 `./artisan model:fields :model`를 실행하세요.",
+    "table": "테이블"
+  },
+  "namespace_missing": "네임스페이스 ':name'가 정의되지 않았습니다.",
+  "available_commands": "사용 가능한 명령",
+  "namespace_commands": "':name' 네임스페이스에 사용 가능한 명령:",
+  "available_commands_heading": "사용 가능한 명령:",
+  "usage_title": "사용법",
+  "argument_descriptions": {
+    "help": "도움말 인쇄",
+    "version": "인쇄 버전",
+    "ansi": "ANSI 출력 활성화",
+    "no-ansi": "ANSI 출력 비활성화",
+    "env": "명령이 실행되어야 하는 환경",
+    "no-interaction": "대화형 질문을 하지 마세요.",
+    "quiet": "어떤 메시지도 출력하지 않음",
+    "silent": "메시지나 오류를 출력하지 않음",
+    "verbose": "메시지의 자세한 정도를 높입니다.",
+    "format": "출력 형식을 선택하세요",
+    "command_name": "표시하는 명령",
+    "namespace": "특정 네임스페이스의 명령 표시"
+  },
+  "arguments": "인수:"
+}

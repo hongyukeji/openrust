@@ -48,7 +48,7 @@ pub(super) struct TruncationState {
     pending: Option<JoinHandle<TestResult<()>>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's DatabaseTruncation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Rebuilds the default schema on the first call, then clears and reseeds the
     /// selected schemas before subsequent tests on this fixture.

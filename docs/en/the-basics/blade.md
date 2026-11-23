@@ -33,7 +33,7 @@ Use `+`, `-`, `*`, `/`, `%` and `**` in echoes, conditions, array entries, inclu
 
 The first three echoes output `7`, `9` and `512`. Signed 64-bit integer overflow promotes to a double. Numeric strings, booleans and null follow PHP arithmetic conversion; non-numeric operands, division by zero and undefined variables fail rendering. `??`, `@isset` and `@empty` permit absent values; `&&`, `||` and `??` short-circuit. A failed render uses the application's exception response policy.
 
-Fractional floating-point modulo operands truncate to integers, and a zero base with a negative exponent produces infinity. These operations emit deprecations rather than failing rendering, following Laravel's exception bootstrap. Configure `logging.deprecations.channel` to retain them; logging failures do not interrupt rendering. Testing skips these warnings unless `LOG_DEPRECATIONS_WHILE_TESTING` is truthy. Optional trace logging records a native Rust backtrace and error snapshot, and source locations identify the native evaluator rather than a PHP compiled template.
+Fractional floating-point modulo operands truncate to integers, and a zero base with a negative exponent produces infinity. These operations emit deprecations rather than failing rendering, following exception bootstrap. Configure `logging.deprecations.channel` to retain them; logging failures do not interrupt rendering. Testing skips these warnings unless `LOG_DEPRECATIONS_WHILE_TESTING` is truthy. Optional trace logging records a native Rust backtrace and error snapshot, and source locations identify the native evaluator rather than a PHP compiled template.
 
 Direct scalar echoes, arithmetic, truth tests and comparisons preserve `INF`, `NAN` and signed zero. Native [view data](./views.md#native-view-values) also preserves these values through arrays, includes, components and custom directives. Templates do not execute arbitrary PHP or call unregistered functions. The compiler invalidates older expression artifacts automatically.
 
@@ -153,7 +153,7 @@ Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($s
 
 ### Directive Boundaries and Whitespace {#directive-whitespace}
 
-Built-in directive names follow Laravel's case-insensitive compiler methods; registered custom names remain case-sensitive. Separate a directive from a preceding ASCII letter, digit or underscore. For example, `word@if(...)` is text, while `<b>word</b>@if(...)` starts a condition. HTML comments and punctuation can provide a boundary; Blade comments cannot separate a preceding ASCII word from a directive. Non-ASCII text does not count as an ASCII word byte.
+Built-in directive names follow case-insensitive compiler methods; registered custom names remain case-sensitive. Separate a directive from a preceding ASCII letter, digit or underscore. For example, `word@if(...)` is text, while `<b>word</b>@if(...)` starts a condition. HTML comments and punctuation can provide a boundary; Blade comments cannot separate a preceding ASCII word from a directive. Non-ASCII text does not count as an ASCII word byte.
 
 ```html
 @if (true)
@@ -253,7 +253,7 @@ Render one partial per entry with `@each`. The partial gets `$key`, the named it
 @each('partials.job', $jobs, 'job', 'partials.empty')
 ```
 
-`@each` also accepts collections registered with `withExactSizeIterator` or `withIterator`. An exact-size iterator supplies its count without reading any entries and renders on that iterator. An unknown-length iterator is consumed to count its entries. If non-empty, Blade opens a fresh iterator to render the rows, following Laravel’s `LazyCollection` behavior. Supply a finite iterator factory that can reopen the collection. Empty fallbacks receive shared data only.
+`@each` also accepts collections registered with `withExactSizeIterator` or `withIterator`. An exact-size iterator supplies its count without reading any entries and renders on that iterator. An unknown-length iterator is consumed to count its entries. If non-empty, Blade opens a fresh iterator to render the rows, following `LazyCollection` behavior. Supply a finite iterator factory that can reopen the collection. Empty fallbacks receive shared data only.
 
 ### Expressions and Conditional Attributes {#conditional-attributes}
 
@@ -566,7 +566,7 @@ Mark part of a template with `@fragment` and `@endfragment`. Return `view("dashb
 
 `fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. Each name triggers a render of the same view in order, including duplicate names. The composer runs each time. A missing name returns the full output of that render. An empty name list performs no renders. `allFragments()` collects fragments from one render.
 
-Named fragment buffers retain their own leading whitespace. A missing name falls back to the full view after PHP leading-whitespace removal. `allFragments()` corresponds to Laravel's public `fragments()` call without a names argument; PHP's internal `allFragments` method is protected.
+Named fragment buffers retain their own leading whitespace. A missing name falls back to the full view after PHP leading-whitespace removal. `allFragments()` corresponds to public `fragments()` call without a names argument; PHP's internal `allFragments` method is protected.
 
 ## Service Injection {#service-injection}
 

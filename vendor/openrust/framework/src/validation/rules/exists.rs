@@ -11,7 +11,7 @@ pub struct Exists {
     pub(in crate::validation) target: DatabaseRule,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's database validation rules")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Exists {
     pub fn new(table: &str, column: Option<&str>) -> Self {
         Self {

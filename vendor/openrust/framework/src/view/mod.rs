@@ -233,20 +233,20 @@ impl View {
     }
 
     /// Selects every captured Blade fragment.
-    #[allow(non_snake_case, reason = "Matches Laravel's View API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn allFragments(mut self) -> Self {
         self.options.get_or_insert_default().fragments = Some(FragmentSelection::All);
         self
     }
 
     /// Selects a fragment when the caller's condition is true.
-    #[allow(non_snake_case, reason = "Matches Laravel's View API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn fragmentIf(self, condition: bool, name: impl Into<String>) -> Self {
         self.fragmentsIf(condition, [name])
     }
 
     /// Selects fragments when the caller's condition is true.
-    #[allow(non_snake_case, reason = "Matches Laravel's View API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn fragmentsIf(
         mut self,
         condition: bool,

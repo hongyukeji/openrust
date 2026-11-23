@@ -42,18 +42,26 @@ impl Root {
         for (locale, data, language_name) in [
             (
                 "en",
-                include_str!("../lang/en/welcome.json"),
-                include_str!("../lang/en/languages.json"),
+                include_str!("../vendor/openrust/framework/src/translation/lang/en/welcome.json"),
+                include_str!("../vendor/openrust/framework/src/translation/lang/en/languages.json"),
             ),
             (
                 "zh-Hans",
-                include_str!("../lang/zh-Hans/welcome.json"),
-                include_str!("../lang/zh-Hans/languages.json"),
+                include_str!(
+                    "../vendor/openrust/framework/src/translation/lang/zh-Hans/welcome.json"
+                ),
+                include_str!(
+                    "../vendor/openrust/framework/src/translation/lang/zh-Hans/languages.json"
+                ),
             ),
             (
                 "zh-Hant",
-                include_str!("../lang/zh-Hant/welcome.json"),
-                include_str!("../lang/zh-Hant/languages.json"),
+                include_str!(
+                    "../vendor/openrust/framework/src/translation/lang/zh-Hant/welcome.json"
+                ),
+                include_str!(
+                    "../vendor/openrust/framework/src/translation/lang/zh-Hant/languages.json"
+                ),
             ),
         ] {
             fs::create_dir_all(path.join("lang").join(locale)).unwrap();
@@ -380,7 +388,7 @@ async fn browser_preferences_localize_the_real_welcome_view_and_links() {
         ("zh-TW-1901", "zh-Hant"),
         ("ZH-hk", "zh-Hant"),
         ("en;q=0.2, zh-TW;q=0.9, zh-CN;q=0.5", "zh-Hant"),
-        ("fr-FR, zh-CN;q=0.8, en;q=0.7", "zh-Hans"),
+        ("sv-SE, zh-CN;q=0.8, en;q=0.7", "zh-Hans"),
         ("zh-TW;q=0, en;q=0.5", "en"),
         ("zh-CN;q=0.5, zh-TW;q=0.5", "zh-Hans"),
         ("zh-TW;q=1.000, en;q=0.999", "zh-Hant"),
@@ -396,7 +404,9 @@ async fn browser_preferences_localize_the_real_welcome_view_and_links() {
 async fn invalid_or_unsupported_preferences_use_the_supported_default() {
     for (default, expected) in [("zh-Hant", "zh-Hant"), ("zh-Hans", "zh-Hans"), ("fr", "en")] {
         let root = Root::new(default);
-        let kernel = root.kernel().await;
+        let kernel = root
+            .kernel_options(true, None, Some(vec!["en", "zh-Hans", "zh-Hant"]))
+            .await;
         for language in [
             None,
             Some(""),
@@ -451,7 +461,7 @@ async fn concurrent_languages_do_not_change_request_or_application_defaults() {
 }
 
 #[tokio::test]
-async fn missing_translation_uses_the_existing_english_fallback() {
+async fn missing_application_translation_uses_framework_defaults() {
     let root = Root::new("en");
     let path = root.0.join("lang/zh-Hant/welcome.json");
     let mut copy: serde_json::Value =
@@ -462,7 +472,7 @@ async fn missing_translation_uses_the_existing_english_fallback() {
     let (headers, html) = send(&kernel, "/", &["zh-TW"]).await;
     assert_eq!(headers["content-language"], "zh-Hant");
     assert!(html.contains("開始使用"));
-    assert!(html.contains("View changelog"));
+    assert!(html.contains("查看更新日誌"));
     assert!(!html.contains("welcome.changelog"));
 }
 
@@ -524,10 +534,10 @@ async fn browser_language_policy_does_not_require_extra_application_configuratio
     let root = Root::new("zh-Hant");
     let kernel = root.kernel().await;
     for (header, expected) in [
-        ("fr-CA", "zh-Hant"),
+        ("fr-CA", "fr"),
         ("zh-CN", "zh-Hans"),
         ("zh-TW", "zh-Hant"),
-        ("de", "zh-Hant"),
+        ("de", "de"),
         ("en-US", "en"),
     ] {
         assert_eq!(send(&kernel, "/locale", &[header]).await.1, expected);
@@ -537,8 +547,8 @@ async fn browser_language_policy_does_not_require_extra_application_configuratio
 #[tokio::test]
 async fn welcome_without_browser_detection_uses_configured_translation_fallback() {
     for (locale, fallback, title) in [
-        ("fr", "en", "Let’s get started"),
-        ("fr", "zh-Hant", "開始使用"),
+        ("sv", "en", "Let’s get started"),
+        ("sv", "zh-Hant", "開始使用"),
         ("zh-Hans", "en", "开始使用"),
     ] {
         let root = Root::new(locale);
@@ -552,10 +562,10 @@ async fn welcome_without_browser_detection_uses_configured_translation_fallback(
         assert!(html.contains(title));
         assert!(html.contains(&format!("<html lang=\"{locale}\">")));
         assert_links(&html, locale);
-        if locale == "fr" {
+        if locale == "sv" {
             assert!(
                 !PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("docs/fr")
+                    .join("docs/sv")
                     .exists()
             );
         }
@@ -566,7 +576,7 @@ async fn welcome_without_browser_detection_uses_configured_translation_fallback(
 }
 
 #[tokio::test]
-async fn custom_welcome_translation_keeps_current_language_links() {
+async fn custom_welcome_translation_uses_english_documentation_links() {
     for fallback in ["en", "zh-Hant"] {
         let root = Root::new("fr");
         fs::write(
@@ -586,11 +596,11 @@ async fn custom_welcome_translation_keeps_current_language_links() {
         assert!(html.contains("<html lang=\"fr\">"));
         assert!(html.contains("Bienvenue"));
         assert_links(&html, "fr");
-        assert!(html.contains(if fallback == "zh-Hant" {
-            "開發文件"
-        } else {
-            "Documentation"
-        }));
+        let defaults: serde_json::Value = serde_json::from_str(include_str!(
+            "../vendor/openrust/framework/src/translation/lang/fr/welcome.json"
+        ))
+        .unwrap();
+        assert!(html.contains(defaults["documentation"].as_str().unwrap()));
         assert_eq!(send(&kernel, "/locale", &[]).await.1, "fr");
     }
 }
@@ -611,14 +621,18 @@ async fn partial_translations_do_not_guess_the_page_language_from_the_heading() 
     let (headers, html) = send(&kernel, "/", &[]).await;
     assert_eq!(headers["content-language"], "fr");
     assert!(html.contains("<html lang=\"fr\">"));
-    assert!(html.contains("Let’s get started"));
+    let defaults: serde_json::Value = serde_json::from_str(include_str!(
+        "../vendor/openrust/framework/src/translation/lang/fr/welcome.json"
+    ))
+    .unwrap();
+    assert!(html.contains(defaults["heading"].as_str().unwrap()));
     assert!(html.contains("Une application Rust."));
     assert_links(&html, "fr");
     assert_eq!(send(&kernel, "/locale", &[]).await.1, "fr");
 }
 
 #[tokio::test]
-async fn missing_display_text_uses_fallback_without_changing_links() {
+async fn missing_display_text_uses_framework_defaults_without_changing_links() {
     let root = Root::new("zh-Hans");
     let path = root.0.join("lang/zh-Hans/welcome.json");
     let mut data: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
@@ -628,7 +642,7 @@ async fn missing_display_text_uses_fallback_without_changing_links() {
     let (headers, html) = send(&kernel, "/", &["zh-CN"]).await;
     assert_eq!(headers["content-language"], "zh-Hans");
     assert!(html.contains("开始使用"));
-    assert!(html.contains("Documentation"));
+    assert!(html.contains("开发文档"));
     assert_links(&html, "zh-Hans");
     assert!(html.contains("docs/zh-Hans/getting-started/deployment.md"));
 }
@@ -644,7 +658,12 @@ async fn missing_display_text_does_not_prevent_link_rendering() {
     let kernel = root.kernel_with_browser(false).await;
     let (headers, html) = send(&kernel, "/", &[]).await;
     assert_eq!(headers["content-language"], "fr");
-    assert!(html.contains("welcome.heading"));
+    assert!(!html.contains("welcome.heading"));
+    let defaults: serde_json::Value = serde_json::from_str(include_str!(
+        "../vendor/openrust/framework/src/translation/lang/fr/welcome.json"
+    ))
+    .unwrap();
+    assert!(html.contains(defaults["heading"].as_str().unwrap()));
     assert_links(&html, "fr");
     assert!(html.contains("docs/en/README.md"));
 }
@@ -1128,7 +1147,7 @@ async fn preference_submission_rejects_bad_input_and_requires_csrf() {
     let cookies = response_cookies(&headers);
     let token = csrf_token(&html);
     for value in [
-        "locale=fr",
+        "locale=sv",
         "locale=auto",
         "locale=bad_tag",
         "locale[]=en",
@@ -1443,12 +1462,12 @@ async fn default_locale_ignores_old_query_and_explicit_lang_configuration_still_
 }
 
 #[tokio::test]
-async fn discovered_languages_render_native_names_and_support_eighteen_choices() {
+async fn discovered_languages_render_native_names_and_include_framework_and_application_sources() {
     let root = Root::new("en");
     let extra = [
         ("ar", "العربية"),
         ("de", "Deutsch"),
-        ("es", ""),
+        ("es", "Español"),
         ("fr", "Français"),
         ("he", "עברית"),
         ("id", "Bahasa Indonesia"),
@@ -1456,7 +1475,7 @@ async fn discovered_languages_render_native_names_and_support_eighteen_choices()
         ("ja", "日本語"),
         ("ko", "한국어"),
         ("nl", "Nederlands"),
-        ("pl", "Polski"),
+        ("pl", ""),
         ("pt", "Português"),
         ("ru", "Русский"),
         ("th", "ไทย"),
@@ -1474,7 +1493,7 @@ async fn discovered_languages_render_native_names_and_support_eighteen_choices()
     let kernel = root.kernel().await;
     let (headers, html) = send(&kernel, "/?locale=ja", &["en"]).await;
     assert_eq!(headers["content-language"], "ja");
-    assert_eq!(html.matches("name=\"locale\" value=").count(), 19);
+    assert_eq!(html.matches("name=\"locale\" value=").count(), 21);
     for (locale, name) in extra {
         assert!(html.contains(&format!("value=\"{locale}\"")));
         assert!(html.contains(&format!(
@@ -1482,8 +1501,8 @@ async fn discovered_languages_render_native_names_and_support_eighteen_choices()
             if name.is_empty() { locale } else { name }
         )));
     }
-    // 西语缺少名称时显示代码，不能使用英文资源中的 English。
-    assert!(html.contains("lang=\"es\" dir=\"auto\">es</button>"));
+    // 非框架内置语言缺少名称时显示代码，不能使用英文资源中的English。
+    assert!(html.contains("lang=\"pl\" dir=\"auto\">pl</button>"));
     assert!(!html.contains("languages.name"));
     for locale in ["ar", "he"] {
         let (headers, html) = send(&kernel, &format!("/?locale={locale}"), &["en"]).await;
@@ -1494,7 +1513,7 @@ async fn discovered_languages_render_native_names_and_support_eighteen_choices()
     fs::write(root.0.join("locale-cookie.json"), "null").unwrap();
     let temporary = root.kernel().await;
     let (_, html) = send(&temporary, "/", &["ja"]).await;
-    assert_eq!(html.matches("<a href=\"/?locale=").count(), 18);
+    assert_eq!(html.matches("<a href=\"/?locale=").count(), 20);
     assert!(html.contains("lang=\"ja\" dir=\"auto\">日本語</a>"));
 }
 
@@ -1614,7 +1633,7 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     .unwrap();
     let automatic = root.kernel().await;
     let (_, html) = send(&automatic, "/", &["ja"]).await;
-    assert_eq!(html.matches("name=\"locale\" value=").count(), 5);
+    assert_eq!(html.matches("name=\"locale\" value=").count(), 19);
 }
 
 #[tokio::test]

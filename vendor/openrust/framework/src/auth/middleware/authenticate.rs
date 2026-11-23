@@ -19,10 +19,7 @@ impl Authenticate {
         }
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's authentication redirect configuration"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn redirectTo(mut self, path: &str) -> AuthResult<Self> {
         self.login = Some(redirect_target(path)?);
         Ok(self)

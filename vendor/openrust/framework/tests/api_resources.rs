@@ -1568,7 +1568,7 @@ fn wrapping_metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Res
 #[derive(Default)]
 struct PreparedResource(Option<Json>);
 
-#[allow(non_snake_case, reason = "Implements the Laravel JsonResource API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JsonResource for PreparedResource {
     fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
         let name = request.query(Some("name"));

@@ -15,7 +15,7 @@ pub struct SlackMessage {
     blocks: Vec<Value>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack message API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackMessage {
     pub fn new() -> Self {
         Self::default()

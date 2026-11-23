@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use super::{ArrayKey, CollectionResult, LazyCollection};
 use crate::support::collection::{CollectionNumber, percentage_from_counts};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn reduce<U>(
         &self,

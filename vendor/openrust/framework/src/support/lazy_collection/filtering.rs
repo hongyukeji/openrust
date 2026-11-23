@@ -5,7 +5,7 @@ use serde_json::Value;
 use super::LazyCollection;
 use crate::support::{arr::truthy, data_get};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn r#where<U: PartialEq + 'source>(
         self,
@@ -75,7 +75,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: PartialEq + 'source> LazyCollection<'source, T> {
     pub fn takeUntilValue(self, expected: T) -> Self {
         self.takeUntil(move |item, _| item == &expected)
@@ -94,7 +94,7 @@ impl<'source, T: PartialEq + 'source> LazyCollection<'source, T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, Option<T>> {
     pub fn whereNull(self) -> Self {
         self.filter(|value, _| value.is_none())
@@ -105,7 +105,7 @@ impl<'source, T: 'source> LazyCollection<'source, Option<T>> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source> LazyCollection<'source, Value> {
     /// Keeps values that are truthy using PHP's associative-array rules for JSON.
     pub fn filterTruthy(self) -> Self {
@@ -129,7 +129,7 @@ impl<'source> LazyCollection<'source, Value> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source> LazyCollection<'source, Box<dyn Any>> {
     pub fn whereInstanceOf<T: 'static>(self) -> LazyCollection<'source, Box<T>> {
         LazyCollection::from_iterators(move || {

@@ -112,7 +112,7 @@ impl RateLimiter {
         .count)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn tooManyAttempts(&self, key: &str, max_attempts: u64) -> CacheResult<bool> {
         Ok(self.attempts(key).await? >= max_attempts)
     }
@@ -121,7 +121,7 @@ impl RateLimiter {
         Ok(max_attempts.saturating_sub(self.attempts(key).await?))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn availableIn(&self, key: &str) -> CacheResult<u64> {
         Ok(counters::snapshot(
             self.repository()?.as_ref(),
@@ -162,10 +162,7 @@ impl RateLimiter {
     }
 
     /// Registers a request policy that can await body parsing and propagate HTTP errors.
-    #[allow(
-        non_snake_case,
-        reason = "Async adapter for Laravel's limiter registration"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forAsync(
         &self,
         name: impl Into<String>,
@@ -191,10 +188,7 @@ impl RateLimiter {
         self
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Uses Laravel's naming for typed job limiter registration"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forJob<R>(
         &self,
         name: impl Into<String>,
@@ -232,7 +226,7 @@ impl RateLimiter {
     }
 
     /// Returns the asynchronous policy, or None for an absent or synchronous registration.
-    #[allow(non_snake_case, reason = "Async adapter for Laravel's limiter lookup")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn asyncLimiter(&self, name: &str) -> Option<Arc<AsyncLimiter>> {
         match self.named_limiter(name)? {
             NamedLimiter::Async(callback) => Some(callback),

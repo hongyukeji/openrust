@@ -18,7 +18,7 @@ pub struct DatabaseBatchRepository {
     table: String,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel batch repository methods")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseBatchRepository {
     pub fn new(connection: Connection, table: impl Into<String>) -> QueueResult<Self> {
         let table = table.into();

@@ -26,7 +26,7 @@ macro_rules! statements {
     };
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's DB Facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DB {
     pub fn table(table: &str) -> DatabaseResult<super::query::Builder<'static>> {
         Ok(Self::connection(None)?.table(table))

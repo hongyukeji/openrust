@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::time::Duration;
 
@@ -243,7 +243,7 @@ impl Command for WorkCommand {
     }
 }
 
-// Laravel selects max(backoff, delay) before Worker splits the backoff schedule.
+// the framework selects max(backoff, delay) before Worker splits the backoff schedule.
 // PHP compares a comma-separated nonnumeric string to the decimal delay lexically.
 fn backoff(args: &clap::ArgMatches) -> Vec<Duration> {
     let values: Vec<u32> = args

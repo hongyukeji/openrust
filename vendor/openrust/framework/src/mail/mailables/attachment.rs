@@ -29,7 +29,7 @@ enum Source {
     Url(String),
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's attachment constructors")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Attachment {
     pub fn fromPath(path: impl Into<PathBuf>) -> AttachmentSource {
         AttachmentSource {
@@ -118,7 +118,7 @@ impl AttachmentSource {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's attachment MIME override")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withMime(mut self, mime: impl Into<String>) -> Self {
         self.mime = Some(mime.into());
         self

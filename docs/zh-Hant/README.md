@@ -2,7 +2,7 @@
 
 [概覽](index.md)
 
-<!-- Laravel 13.x 文件導覽基準 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->
+<!--框架13.x 文件導覽基準 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->
 
 ## 前言
 

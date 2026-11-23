@@ -265,7 +265,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 
 ### Provider 啟用條件
 
-停用擷取時仍註冊 Files 和 Handler 綁定。啟動時，若容器環境名稱精確為 `testing`，或 `VAPOR_SSM_PATH` 為非空且非 `0` 的字串，就略過擷取監聽。`PAIL_TESTS=true` 用於 Pail 自身驗收，可以覆蓋這兩個條件。該旗標按 Laravel Env 規則處理 false、empty、null 和引號值；Vapor 標記按原始 PHP 字串真假判斷。
+停用擷取時仍註冊 Files 和 Handler 綁定。啟動時，若容器環境名稱精確為 `testing`，或 `VAPOR_SSM_PATH` 為非空且非 `0` 的字串，就略過擷取監聽。`PAIL_TESTS=true` 用於 Pail 自身驗收，可以覆蓋這兩個條件。該旗標按框架Env 規則處理 false、empty、null 和引號值；Vapor 標記按原始 PHP 字串真假判斷。
 
 旗標來自目前應用不可變的環境快照，處理程序變數優先於選定的環境檔案。設定快取生效時不載入環境檔案，因此檔案中的 `PAIL_TESTS` 不生效。Handler 在第一條被接受的日誌或佇列生命週期事件到來時才解析；建構失敗在該時機傳遞，原日誌驅動已接受的寫入仍保留。
 

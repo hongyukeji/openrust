@@ -19,7 +19,7 @@ impl Facade for Auth {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Auth API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Auth {
     pub fn manager() -> AuthResult<Arc<AuthManager>> {
         Self::getFacadeRoot().map_err(AuthError::backend)

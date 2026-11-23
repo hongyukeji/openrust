@@ -117,7 +117,7 @@ impl PivotOperation {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> BelongsToMany<P, R> {
     pub const fn new(
         table: &'static str,
@@ -2188,7 +2188,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
@@ -2674,7 +2674,7 @@ async fn sync_pivot(
     Ok(changes)
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for BelongsToMany<P, R> {
     fn getRelationExistenceQuery(
         &self,

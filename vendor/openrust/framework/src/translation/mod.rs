@@ -1,5 +1,7 @@
 //! Translation lookup, file loading, and plural selection.
 
+pub(crate) mod bundled;
+
 mod choice_case;
 mod facade;
 mod file_loader;

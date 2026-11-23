@@ -28,13 +28,13 @@ impl PendingQueuedCommand {
         }
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queueable")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn onConnection(mut self, name: impl Into<String>) -> Self {
         self.options.connection = Some(name.into());
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queueable")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn onQueue(mut self, name: impl Into<String>) -> Self {
         self.options.queue = Some(name.into());
         self
@@ -81,7 +81,7 @@ impl JobHandler for QueuedCommand {
             let data: CommandInvocation = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
             let arguments: Vec<OsString> = data.arguments.into_iter().map(OsString::from).collect();
-            // Laravel acknowledges a returned status and retries only on an execution error.
+            // the framework acknowledges a returned status and retries only on an execution error.
             super::call_in_application(&data.command, &arguments, &mut Output::default())
                 .await
                 .map_err(|source| QueueError::Execution {

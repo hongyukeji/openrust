@@ -22,7 +22,7 @@ pub struct ModelMetadata {
     pub(super) appends: &'static [&'static str],
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent model options")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ModelMetadata {
     pub const fn new(table: &'static str) -> Self {
         Self {

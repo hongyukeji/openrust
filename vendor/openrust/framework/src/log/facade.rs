@@ -15,7 +15,7 @@ impl Facade for Log {
     }
 }
 
-#[allow(non_snake_case, reason = "遵循 Laravel 日志原名")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Log {
     pub fn withContext(context: LogContext) -> LogResult<Arc<Logger>> {
         Self::getFacadeRoot()?.withContext(context)
@@ -62,7 +62,7 @@ impl Log {
         Self::getFacadeRoot()?.stack(names, name)
     }
 
-    #[allow(non_snake_case, reason = "Typed adapter for Laravel's mixed log stack")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn stackChannels(
         channels: &[StackChannel<'_>],
         name: Option<&str>,
@@ -87,10 +87,7 @@ impl Log {
             .await
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Rust adapter for an exception in Laravel log context"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn logException<E: std::error::Error + Send + Sync + 'static>(
         level: Level,
         message: &str,

@@ -49,7 +49,7 @@ assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 
 `Number::default()` 預設使用英語和 USD。透過 `useLocale` 和 `useCurrency` 設定實例預設值，或透過 `withLocale` 和 `withCurrency` 將區域設定傳給回呼。設定屬於實例，可在並行請求中使用各自的設定。
 
-`format`、`percentage` 和 `currency` 使用 CLDR 資料。`parseInt` 保留 64 位元整數，`parseFloat` 讀取本地化數字前綴。`fileSize`、`abbreviate`、`forHumans`、`clamp`、`pairs` 和 `trim` 沿用 Laravel 數字規則。
+`format`、`percentage` 和 `currency` 使用 CLDR 資料。`parseInt` 保留 64 位元整數，`parseFloat` 讀取本地化數字前綴。`fileSize`、`abbreviate`、`forHumans`、`clamp`、`pairs` 和 `trim` 沿用框架數字規則。
 
 ```rust
 use openrust::support::Number;

@@ -116,7 +116,7 @@ impl IndexDefinition {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's index modifiers")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl IndexDefinition {
     /// Controls whether a PostgreSQL unique constraint treats NULL values as equal.
     pub fn nullsNotDistinct(&mut self, enabled: bool) -> &mut Self {

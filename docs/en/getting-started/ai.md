@@ -4,7 +4,7 @@
 
 **Not provided.** OpenRust does not include a framework AI agent runtime or an installer for AI services. Integrate an external AI service through your application code.
 
-This chapter retains the Laravel navigation path for comparison. Its presence does not install a package or promise compatibility with the corresponding PHP API.
+This chapter states the supported integration boundary; the navigation entry does not install an additional package.
 
 ## Available entry points {#available-entry-points}
 
@@ -12,4 +12,4 @@ See [Contribution Guide](../prologue/contributions.md) for the native interfaces
 
 ## Scope {#scope}
 
-OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+OpenRust does not provide an installation command for this integration. Use the native interfaces and commands documented for this integration.

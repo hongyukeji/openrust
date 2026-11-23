@@ -14,7 +14,7 @@ pub struct LengthAwarePaginator<T> {
     on_each_side: u8,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LengthAwarePaginator API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> LengthAwarePaginator<T> {
     /// Creates a paginator from an already sliced page and the unsliced total.
     pub fn new(
@@ -149,7 +149,7 @@ impl<T: Serialize> Serialize for LengthAwarePaginator<T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's pagination metadata API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> LengthAwarePaginator<T> {
     pub(crate) fn serialize_metadata<S: serde::ser::SerializeMap>(
         &self,

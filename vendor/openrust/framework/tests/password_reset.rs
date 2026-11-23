@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::time::Duration;
 
@@ -44,10 +44,7 @@ impl Authenticatable for ResetUser {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Implements Laravel's password reset capability"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CanResetPassword for ResetUser {
     fn getEmailForPasswordReset(&self) -> &str {
         &self.0

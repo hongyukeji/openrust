@@ -189,10 +189,7 @@ impl Request {
     }
 
     /// Uses default attributes for an absent or null input value.
-    #[allow(
-        non_snake_case,
-        reason = "Expresses the default argument of Laravel's fluent"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn fluentOr(&mut self, key: &str, default: Value) -> Result<Fluent, HttpError> {
         self.fluent_value(Some(key), Some(default)).await
     }
@@ -247,7 +244,7 @@ impl Request {
         }
     }
 
-    /// Reads Laravel's boolean tokens, with a fallback for invalid strict values.
+    /// Reads boolean tokens, with a fallback for invalid strict values.
     pub async fn boolean(
         &mut self,
         key: &str,
@@ -439,17 +436,14 @@ impl Request {
     }
 
     /// Returns all uploads with their original field keys and groups.
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn allFiles(&mut self) -> Result<UploadedFileValue, HttpError> {
         let payload = self.payload().await?;
         Ok(payload.upload_value(&payload.file_indices))
     }
 
     /// Resolves a file or group by dotted path, including wildcard selections.
-    #[allow(
-        non_snake_case,
-        reason = "Typed counterpart to Laravel's grouped file lookup"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn fileValue(&mut self, key: &str) -> Result<Option<UploadedFileValue>, HttpError> {
         let payload = self.payload().await?;
         Ok(data_get(&payload.file_indices, Some(key)).map(|value| payload.upload_value(&value)))
@@ -463,7 +457,7 @@ impl Request {
             .transpose()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn hasFile(&mut self, key: &str) -> Result<bool, HttpError> {
         let payload = self.payload().await?;
         let Some(value) = data_get(&payload.file_indices, Some(key)) else {
@@ -804,7 +798,7 @@ fn field_keys(value: &Value) -> impl Iterator<Item = ArrayKey> {
         )
 }
 
-// Like Laravel's filterFiles, discard empty uploads and groups without reindexing.
+// Like filterFiles, discard empty uploads and groups without reindexing.
 fn filter_file_indices(value: Value) -> Option<Value> {
     match value {
         Value::String(index) => (!index.is_empty()).then_some(Value::String(index)),

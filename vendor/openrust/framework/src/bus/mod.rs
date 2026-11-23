@@ -29,7 +29,7 @@ use crate::{
 /// The application-scoped job bus.
 pub struct Bus;
 
-#[allow(non_snake_case, reason = "Matches Laravel Bus")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Bus {
     /// Dispatches a queueable payload through the application's queue manager.
     pub async fn dispatch(

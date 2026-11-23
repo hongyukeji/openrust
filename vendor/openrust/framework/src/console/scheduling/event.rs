@@ -74,7 +74,7 @@ pub struct Event {
     pub(super) background: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Event {
     pub(super) fn new(action: Action) -> Self {
         Self {

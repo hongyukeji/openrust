@@ -13,10 +13,7 @@ pub struct Paths {
     state: RwLock<State>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Preserves Laravel application path field names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 #[derive(Default)]
 struct State {
     storagePath: Option<PathBuf>,
@@ -37,7 +34,7 @@ impl Paths {
         }
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Application::storagePath")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn storagePath(&self, path: &str) -> PathBuf {
         let state = self
             .state
@@ -94,7 +91,7 @@ impl Paths {
     }
 }
 
-// Laravel join_paths appends without normalizing the base or resolving traversal.
+// the framework join_paths appends without normalizing the base or resolving traversal.
 pub(crate) fn join(base: &Path, path: &str) -> PathBuf {
     if path.is_empty() {
         return base.into();

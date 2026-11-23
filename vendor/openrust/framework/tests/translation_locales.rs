@@ -151,29 +151,41 @@ async fn request(kernel: &Kernel, path: &str, language: &str) -> serde_json::Val
     .unwrap()
 }
 
+fn bundled_candidates(extra: &[&str]) -> serde_json::Value {
+    let mut locales = [
+        "en", "zh-Hans", "zh-Hant", "ja", "ko", "fr", "de", "es", "pt", "it", "ru", "ar", "hi",
+        "id", "vi", "th", "tr", "nl",
+    ]
+    .into_iter()
+    .collect::<std::collections::BTreeSet<_>>();
+    locales.extend(extra.iter().copied());
+    serde_json::json!(locales)
+}
+
 #[tokio::test]
 async fn default_candidates_are_a_per_kernel_startup_snapshot_and_callback_uses_them() {
     let root = tempfile::tempdir().unwrap();
-    write(root.path(), "lang/en/messages.json");
-    write(root.path(), "lang/ja/messages.json");
     let mut first = kernel(root.path(), None).await;
     assert_eq!(
         request(&first, "/?locale=ja", "en").await,
-        serde_json::json!({"locale":"ja", "supported":["en", "ja"]})
+        serde_json::json!({"locale":"ja", "supported":bundled_candidates(&[])})
     );
-    write(root.path(), "lang/fr/messages.json");
+    // 使用不在框架默认集合中的语言，验证应用新增来源仍只在启动时发现。
+    write(root.path(), "lang/sv/messages.json");
     first.bootstrap().await.unwrap();
-    assert_eq!(request(&first, "/", "fr").await["locale"], "en");
+    assert_eq!(request(&first, "/", "sv").await["locale"], "en");
     let second = kernel(root.path(), None).await;
-    let (old, new) = tokio::join!(request(&first, "/", "fr"), request(&second, "/", "fr"));
-    assert_eq!(old["supported"], serde_json::json!(["en", "ja"]));
-    assert_eq!(new["locale"], "fr");
-    assert_eq!(new["supported"], serde_json::json!(["en", "fr", "ja"]));
+    let (old, new) = tokio::join!(request(&first, "/", "sv"), request(&second, "/", "sv"));
+    assert_eq!(old["supported"], bundled_candidates(&[]));
+    assert_eq!(new["locale"], "sv");
+    assert_eq!(new["supported"], bundled_candidates(&["sv"]));
     fs::remove_dir_all(root.path().join("lang")).unwrap();
-    assert_eq!(request(&second, "/", "ja").await["locale"], "ja");
+    assert_eq!(request(&second, "/", "sv").await["locale"], "sv");
     let third = kernel(root.path(), None).await;
-    let value = request(&third, "/?locale=ignored", "ja").await;
-    assert_eq!(value, serde_json::json!({"locale":"en", "supported":null}));
+    assert_eq!(
+        request(&third, "/", "ja").await,
+        serde_json::json!({"locale":"ja", "supported":bundled_candidates(&[])})
+    );
 }
 
 #[tokio::test]
@@ -225,14 +237,14 @@ async fn discovery_uses_selected_language_root_and_provider_registered_sources()
     selected.bootstrap().await.unwrap();
     assert_eq!(
         request(&selected, "/", "de").await,
-        serde_json::json!({"locale":"ja", "supported":["en", "ja"]})
+        serde_json::json!({"locale":"ja", "supported":bundled_candidates(&[])})
     );
     let other = tempfile::tempdir().unwrap();
     write(other.path(), "lang/fr.json");
     let independent = kernel(other.path(), None).await;
     assert_eq!(
         request(&independent, "/", "ja").await,
-        serde_json::json!({"locale":"fr", "supported":["fr"]})
+        serde_json::json!({"locale":"ja", "supported":bundled_candidates(&[])})
     );
 }
 
@@ -251,7 +263,7 @@ async fn failed_explicit_configuration_retains_automatic_discovery() {
     selected.bootstrap().await.unwrap();
     assert_eq!(
         request(&selected, "/", "ja").await["supported"],
-        serde_json::json!(["ja"])
+        bundled_candidates(&[])
     );
 }
 
@@ -316,7 +328,7 @@ async fn wildcard_discovers_but_configured_lists_and_explicit_candidates_skip_so
     automatic.bootstrap().await.unwrap();
     assert_eq!(
         request(&automatic, "/", "ja").await["supported"],
-        serde_json::json!(["ja"])
+        bundled_candidates(&[])
     );
     fs::remove_dir_all(root.path().join("lang")).unwrap();
     fs::write(root.path().join("lang"), "not a directory").unwrap();
@@ -355,12 +367,12 @@ async fn malformed_candidate_configuration_fails_at_startup_and_can_be_retried()
     for value in [
         serde_json::Value::Null,
         serde_json::json!("null"),
-        serde_json::json!(["*"]),
-        serde_json::json!(["en", "*"]),
         serde_json::json!("en,ja"),
         serde_json::json!(false),
         serde_json::json!({"en":true}),
         serde_json::json!(["en", 42]),
+        serde_json::json!(["*"]),
+        serde_json::json!(["en", "*"]),
         serde_json::json!([""]),
         serde_json::json!(["zh_CN"]),
     ] {
@@ -434,4 +446,30 @@ async fn cached_candidates_win_over_live_configuration_and_keep_applications_iso
     );
     assert_eq!(cached["locale"], "en");
     assert_eq!(other["locale"], "fr");
+}
+
+#[tokio::test]
+async fn wildcard_enables_all_bundled_and_application_languages_and_respects_explicit_override() {
+    let root = tempfile::tempdir().unwrap();
+    write(root.path(), "lang/sv/messages.json");
+    let mut all = Kernel::new(configured_application(
+        root.path(),
+        serde_json::json!("*"),
+        None,
+    ));
+    all.bootstrap().await.unwrap();
+    assert_eq!(
+        request(&all, "/", "sv").await,
+        serde_json::json!({"locale":"sv", "supported":bundled_candidates(&["sv"])})
+    );
+    let mut explicit = Kernel::new(configured_application(
+        root.path(),
+        serde_json::json!("*"),
+        Some(vec!["en"]),
+    ));
+    explicit.bootstrap().await.unwrap();
+    assert_eq!(
+        request(&explicit, "/", "sv").await,
+        serde_json::json!({"locale":"en", "supported":["en"]})
+    );
 }

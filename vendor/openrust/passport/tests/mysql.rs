@@ -80,7 +80,7 @@ fn application(registered: bool) -> TestApp {
     std::fs::create_dir_all(&directory).unwrap();
     std::fs::write(
         directory.join("schema.json"),
-        include_str!("../../../../lang/en/schema.json"),
+        include_str!("../../framework/src/translation/lang/en/schema.json"),
     )
     .unwrap();
     app
@@ -170,8 +170,10 @@ async fn mysql_published_schema_matches_fixed_php_and_migration_connections_are_
             .unwrap();
         let mut actual = oauth.getSchemaBuilder().getColumns(table).await.unwrap();
         // 项目明确增加了本地化元数据注释；单独验证后再对照上游的结构契约。
-        let labels: serde_json::Value =
-            serde_json::from_str(include_str!("../../../../lang/en/schema.json")).unwrap();
+        let labels: serde_json::Value = serde_json::from_str(include_str!(
+            "../../framework/src/translation/lang/en/schema.json"
+        ))
+        .unwrap();
         for column in &mut actual {
             let expected_label = labels["columns"][&column.name].as_str().unwrap();
             assert_eq!(

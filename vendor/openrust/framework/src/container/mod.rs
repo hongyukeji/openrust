@@ -614,7 +614,7 @@ impl Container {
     }
 
     /// Returns the current constructor or method consumer in this execution.
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn currentlyResolving(&self) -> Option<ServiceKey> {
         self.consumer()
     }
@@ -808,7 +808,7 @@ impl container::Container for Container {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn isAlias(&self, name: impl Into<ServiceKey>) -> bool {
         let key = name.into();
         !scope::alias_removed(self, &key)
@@ -820,7 +820,7 @@ impl container::Container for Container {
                 .contains_key(&key)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getAlias(&self, name: impl Into<ServiceKey>) -> Result<ServiceKey, BindingResolutionError> {
         self.registry
             .read()
@@ -845,7 +845,7 @@ impl container::Container for Container {
                 .is_some_and(|loader| loader.contains(&id))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn isShared(&self, id: impl Into<ServiceKey>) -> bool {
         let id = id.into();
         if scope::lookup(self, &id).is_some() {
@@ -866,7 +866,7 @@ impl container::Container for Container {
         Ok(registry.resolved_raw(self, &key))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn forgetInstance(&self, id: impl Into<ServiceKey>) {
         let key = id.into();
         if scope::active(self)
@@ -893,7 +893,7 @@ impl container::Container for Container {
         drop(previous);
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn forgetInstances(&self) {
         scope::clear(self);
         let previous = {
@@ -913,10 +913,7 @@ impl container::Container for Container {
         drop(previous);
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn bindIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -925,10 +922,7 @@ impl container::Container for Container {
         self.insert_if_absent(ServiceKey::typed::<T>(), Binding::factory(factory))
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn singletonIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -946,10 +940,7 @@ impl container::Container for Container {
         )
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn bindIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -958,10 +949,7 @@ impl container::Container for Container {
         self.insert_if_absent(ServiceKey::named(name), Binding::factory(factory))
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn singletonIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -979,7 +967,7 @@ impl container::Container for Container {
         )
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn forgetScopedInstances(&self) {
         if scope::active(self) {
             scope::clear(self);
@@ -1005,10 +993,7 @@ impl container::Container for Container {
         }
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn scoped<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1017,10 +1002,7 @@ impl container::Container for Container {
         self.insert_scoped(ServiceKey::typed::<T>(), factory, false)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn scopedIf<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1029,10 +1011,7 @@ impl container::Container for Container {
         self.insert_scoped(ServiceKey::typed::<T>(), factory, true)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn scopedNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1041,10 +1020,7 @@ impl container::Container for Container {
         self.insert_scoped(ServiceKey::named(name), factory, false)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's container API with explicit named overloads"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn scopedIfNamed<T, F>(&self, name: &str, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1053,7 +1029,7 @@ impl container::Container for Container {
         self.insert_scoped(ServiceKey::named(name), factory, true)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn addContextualBinding<T, F>(
         &self,
         concrete: impl Into<ServiceKey>,
@@ -1100,7 +1076,7 @@ impl container::Container for Container {
         self.tagged_sequence(tag, count)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn beforeResolving(
         &self,
         selector: Option<ServiceKey>,
@@ -1112,7 +1088,7 @@ impl container::Container for Container {
         self.register_hook(selector, Phase::Before, callback)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn resolving(
         &self,
         selector: Option<ServiceKey>,
@@ -1124,7 +1100,7 @@ impl container::Container for Container {
         self.register_hook(selector, Phase::Resolving, callback)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn afterResolving(
         &self,
         selector: Option<ServiceKey>,
@@ -1160,7 +1136,7 @@ impl container::Container for Container {
         self.extend_value(r#abstract, closure)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn forgetExtenders(
         &self,
         r#abstract: impl Into<ServiceKey>,
@@ -1168,10 +1144,7 @@ impl container::Container for Container {
         self.forget_extenders(r#abstract)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Async companion to Laravel container resolution"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn getAsync<T: ?Sized + Send + Sync + 'static>(
         &self,
         id: impl Into<ServiceKey> + Send,
@@ -1179,7 +1152,7 @@ impl container::Container for Container {
         self.get_async(id.into()).await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn bindAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1189,7 +1162,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn bindAsyncNamed<T, F>(
         &self,
         name: &str,
@@ -1203,7 +1176,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn bindIfAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1213,7 +1186,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn bindIfAsyncNamed<T, F>(
         &self,
         name: &str,
@@ -1227,7 +1200,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn singletonAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1237,7 +1210,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn singletonAsyncNamed<T, F>(
         &self,
         name: &str,
@@ -1251,7 +1224,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn singletonIfAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1261,7 +1234,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn singletonIfAsyncNamed<T, F>(
         &self,
         name: &str,
@@ -1275,7 +1248,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn scopedAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1285,7 +1258,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn scopedAsyncNamed<T, F>(
         &self,
         name: &str,
@@ -1299,7 +1272,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn scopedIfAsync<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
     where
         T: ?Sized + Send + Sync + 'static,
@@ -1309,7 +1282,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async factory adapter for Laravel binding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn scopedIfAsyncNamed<T, F>(
         &self,
         name: &str,
@@ -1323,7 +1296,7 @@ impl container::Container for Container {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Async companion to Laravel rebinding")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn rebindingAsync<T, F>(
         &self,
         key: impl Into<ServiceKey> + Send,
@@ -1336,7 +1309,7 @@ impl container::Container for Container {
         self.register_rebinding_async(key, callback).await
     }
 
-    #[allow(non_snake_case, reason = "Async companion to Laravel extend")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn extendAsync<T, F>(
         &self,
         key: impl Into<ServiceKey> + Send,
@@ -1383,7 +1356,7 @@ impl container::Container for Container {
     ) -> Result<(), BindingResolutionError> {
         self.contextual_services::<T>(consumer.into(), need.into(), services)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn registerMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
@@ -1395,7 +1368,7 @@ impl container::Container for Container {
     {
         self.declare_method::<C, R, F>(name, signature, callback)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn registerStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
@@ -1407,7 +1380,7 @@ impl container::Container for Container {
     {
         self.declare_static::<C, R, F>(name, signature, callback)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn bindMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
@@ -1418,7 +1391,7 @@ impl container::Container for Container {
     {
         self.bind_method::<C, R, F>(name, callback)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn bindStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
         &self,
         name: &str,
@@ -1429,11 +1402,11 @@ impl container::Container for Container {
     {
         self.bind_static::<C, R, F>(name, callback)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn hasMethodBinding<C: ?Sized + 'static>(&self, name: &str) -> bool {
         self.has_method::<C>(name)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn callMethodBinding<'a, C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
         &'a self,
         name: &'a str,
@@ -1441,25 +1414,25 @@ impl container::Container for Container {
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
         self.invoke_binding(name, receiver)
     }
-    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn callStaticMethodBinding<'a, C: ?Sized + 'static, R: Send + 'static>(
         &'a self,
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
         self.invoke_static_binding::<C, R>(name)
     }
-    #[allow(non_snake_case, reason = "Matches Laravel's container environment API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn resolveEnvironmentUsing(&self, callback: Option<EnvironmentResolver>) {
         self.set_environment_resolver(callback);
     }
-    #[allow(non_snake_case, reason = "Matches Laravel's container environment API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn currentEnvironmentIs<'a>(
         &self,
         environments: impl Into<EnvironmentQuery<'a>>,
     ) -> Result<EnvironmentResult, BindingResolutionError> {
         self.query_environment(environments.into())
     }
-    #[allow(non_snake_case, reason = "Matches Laravel's binding directory API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getBindings(&self) -> Bindings {
         self.bindings_snapshot()
     }
@@ -1533,18 +1506,18 @@ impl container::Container for Container {
         self.build_class_async().await
     }
 
-    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getLastParameterOverride(&self) -> ParameterOverrides {
         parameters::current(self)
     }
-    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn makeWith<T: ?Sized + Send + Sync + 'static>(
         &self,
         parameters: ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError> {
         self.make_with_parameters(ServiceKey::typed::<T>(), parameters)
     }
-    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn makeWithNamed<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey>,
@@ -1552,7 +1525,7 @@ impl container::Container for Container {
     ) -> Result<Arc<T>, BindingResolutionError> {
         self.make_with_parameters(key.into(), parameters)
     }
-    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn makeWithAsync<T: ?Sized + Send + Sync + 'static>(
         &self,
         parameters: ParameterOverrides,
@@ -1560,7 +1533,7 @@ impl container::Container for Container {
         self.get_async_with_parameters(ServiceKey::typed::<T>(), parameters)
             .await
     }
-    #[allow(non_snake_case, reason = "Laravel parameter override API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     async fn makeWithAsyncNamed<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: impl Into<ServiceKey> + Send,

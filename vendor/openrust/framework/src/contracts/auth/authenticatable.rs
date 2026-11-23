@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::any::Any;
 
@@ -18,7 +18,7 @@ pub trait Authenticatable: Any + Send + Sync {
     fn getRememberTokenName(&self) -> &str;
 
     /// Reads a named attribute used by authentication-aware middleware.
-    #[allow(non_snake_case, reason = "Matches Laravel's model attribute naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getAuthAttribute(&self, _name: &str) -> AuthResult<Option<Value>> {
         Ok(None)
     }

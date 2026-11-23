@@ -1,6 +1,6 @@
 # OpenRust Documentation
 
-OpenRust provides a native Rust application runtime with Laravel-style APIs. Start with installation and configuration, then use the feature guides for the exact supported interface. Package chapters state their implementation status explicitly.
+OpenRust provides a native Rust application runtime with framework APIs. Start with installation and configuration, then use the feature guides for the exact supported interface. Package chapters state their implementation status explicitly.
 
 - [Installation](getting-started/installation.md)
 - [Configuration](getting-started/configuration.md)

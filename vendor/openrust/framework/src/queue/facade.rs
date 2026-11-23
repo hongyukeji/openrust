@@ -33,7 +33,7 @@ impl QueueFacade {
     }
 
     /// Sets or removes a reservation callback for a named worker in the current application.
-    #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn popUsing(worker: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
         Self::manager()?.popUsing(worker, callback);
         Ok(())
@@ -55,7 +55,7 @@ impl QueueFacade {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutInterruptionPolling() -> QueueResult<()> {
         Self::manager()?.withoutInterruptionPolling();
         Ok(())
@@ -65,12 +65,12 @@ impl QueueFacade {
         Self::manager()?.pause(connection, queue).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn pauseFor(connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
         Self::manager()?.pauseFor(connection, queue, ttl).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn pauseAll() -> QueueResult<()> {
         Self::manager()?.pauseAll().await
     }
@@ -79,17 +79,17 @@ impl QueueFacade {
         Self::manager()?.resume(connection, queue).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn resumeAll() -> QueueResult<()> {
         Self::manager()?.resumeAll().await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn isPaused(connection: &str, queue: &str) -> QueueResult<bool> {
         Self::manager()?.isPaused(connection, queue).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn getPausedQueues<'a>(
         connection: &str,
         queues: &[&'a str],

@@ -33,7 +33,7 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 前三行分別輸出 `7`、`9` 和 `512`。有符號 64 位整數溢位後轉為雙精度浮點數。數值字串、布林值和 null 依 PHP 算術規則轉換；非數值運算元、除零和未定義變數使渲染失敗。`??`、`@isset` 和 `@empty` 允許值缺失；`&&`、`||` 和 `??` 保持短路。失敗回應由應用例外策略處理。
 
-浮點取模會將運算元截斷為整數；零底數的負冪產生無窮大。這兩類運算依 Laravel 例外引導機制發出棄用提示，繼續渲染。透過 `logging.deprecations.channel` 保留提示；日誌失敗不會中斷渲染。testing 環境預設略過，`LOG_DEPRECATIONS_WHILE_TESTING` 為真時啟用。可選 trace 記錄原生 Rust 呼叫堆疊與例外快照；來源位置指向原生求值器，不冒充 PHP 編譯模板。
+浮點取模會將運算元截斷為整數；零底數的負冪產生無窮大。這兩類運算依框架例外引導機制發出棄用提示，繼續渲染。透過 `logging.deprecations.channel` 保留提示；日誌失敗不會中斷渲染。testing 環境預設略過，`LOG_DEPRECATIONS_WHILE_TESTING` 為真時啟用。可選 trace 記錄原生 Rust 呼叫堆疊與例外快照；來源位置指向原生求值器，不冒充 PHP 編譯模板。
 
 直接標量輸出、算術、真假判斷和比較保留 `INF`、`NAN` 及有符號零。[原生視圖資料](./views.md#native-view-values)在陣列、引入視圖、元件和自訂指令之間也保留這些值。模板不執行任意 PHP 或呼叫未註冊函式。編譯器會自動使舊運算式快取失效。
 
@@ -153,7 +153,7 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 ### 指令邊界與空白 {#directive-whitespace}
 
-內建指令名稱依 Laravel 編譯方法忽略大小寫，註冊的自訂名稱仍區分大小寫。指令前應與 ASCII 字母、數字或底線隔開。例如 `word@if(...)` 是文字，`<b>word</b>@if(...)` 才開始條件。HTML 註解與標點可提供邊界；Blade 註解不能隔開前面的 ASCII 單字與指令。非 ASCII 文字不屬於 ASCII 單字位元組。
+內建指令名稱依框架編譯方法忽略大小寫，註冊的自訂名稱仍區分大小寫。指令前應與 ASCII 字母、數字或底線隔開。例如 `word@if(...)` 是文字，`<b>word</b>@if(...)` 才開始條件。HTML 註解與標點可提供邊界；Blade 註解不能隔開前面的 ASCII 單字與指令。非 ASCII 文字不屬於 ASCII 單字位元組。
 
 ```html
 @if (true)
@@ -253,7 +253,7 @@ fn article_page(article: Article) -> View {
 @each('partials.job', $jobs, 'job', 'partials.empty')
 ```
 
-`@each` 也接受透過 `withExactSizeIterator` 或 `withIterator` 註冊的集合。已知長度的疊代器會直接提供項目數，並使用同一個疊代器呈現。未知長度的疊代器會先完整讀取以計數，非空時重新開啟疊代器呈現，沿用 Laravel `LazyCollection` 的行為。請提供有限且可重新開啟的疊代器工廠。空集合的備用視圖只接收共用資料。
+`@each` 也接受透過 `withExactSizeIterator` 或 `withIterator` 註冊的集合。已知長度的疊代器會直接提供項目數，並使用同一個疊代器呈現。未知長度的疊代器會先完整讀取以計數，非空時重新開啟疊代器呈現，沿用框架`LazyCollection` 的行為。請提供有限且可重新開啟的疊代器工廠。空集合的備用視圖只接收共用資料。
 
 ### 運算式與條件屬性 {#conditional-attributes}
 
@@ -566,7 +566,7 @@ POST 請求優先使用 `X-HTTP-Method-Override` 標頭，其次使用表單欄�
 
 `fragments(["summary", "details"])` 依參數順序回傳指定片段。`allFragments()` 回傳全部已擷取片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在條件為假時傳送完整範本。每個名稱都會依序重新呈現同一個視圖，重複名稱也會觸發呈現。組合器在每次呈現時執行。名稱不存在時傳回該次呈現的完整輸出。空名稱清單不會觸發呈現。`allFragments()` 從一次呈現中收集所有片段。
 
-命名片段緩衝區保留自身的開頭空白；名稱缺失時退回經過 PHP 開頭空白清理的完整視圖。`allFragments()` 對應 Laravel 不傳名稱參數的公開 `fragments()` 呼叫，PHP 內部的 `allFragments` 方法受到保護。
+命名片段緩衝區保留自身的開頭空白；名稱缺失時退回經過 PHP 開頭空白清理的完整視圖。`allFragments()` 對應框架不傳名稱參數的公開 `fragments()` 呼叫，PHP 內部的 `allFragments` 方法受到保護。
 
 ## 服務注入 {#service-injection}
 

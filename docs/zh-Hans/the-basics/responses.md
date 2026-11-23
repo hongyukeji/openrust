@@ -70,7 +70,7 @@ Route::get("/reports/{id}", || Report)?;
 
 #### 缓存控制中间件 {#cache-control-middleware}
 
-在需要缓存策略的路由上使用 `cache.headers`。选项名使用 `snake_case`，用分号分隔。中间件处理成功的 GET 和 HEAD 响应。指定 `etag` 时沿用已有的验证器，或用与 Laravel `xxh128` 相同的 XXH3-128 摘要计算响应体。流式响应可用 `etag=value` 显式提供验证器，无需缓冲整个流。
+在需要缓存策略的路由上使用 `cache.headers`。选项名使用 `snake_case`，用分号分隔。中间件处理成功的 GET 和 HEAD 响应。指定 `etag` 时沿用已有的验证器，或用与框架`xxh128` 相同的 XXH3-128 摘要计算响应体。流式响应可用 `etag=value` 显式提供验证器，无需缓冲整个流。
 
 ```rust
 Route::getWith("/cacheable", cache_response, |route| {
@@ -134,7 +134,7 @@ fn register() -> Result<(), RoutingError> {
 
 `ApiResponse::empty()` 返回省略 `data` 的成功响应。HTTP 204 响应的正文为空。请给 `failure` 传入可安全展示给客户端的消息，需要返回字段错误时使用 `with_errors`。
 
-序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应是 OpenRust 在 [Laravel JSON 响应机制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)之上的扩展。
+序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应格式由 OpenRust 提供。
 
 ## 重定向响应
 
@@ -233,7 +233,7 @@ source.addEventListener('update', (event) => {
 
 通过 `Response::streamJson` 和 `StreamedJson::object` 将数据行流放进 JSON 对象。`StreamedJson::items` 在每行到达时序列化。固定值使用 `StreamedJson::value`，嵌套数组使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可将键值对逐项写入 JSON 对象。
 
-流式 JSON 与 JSON 事件载荷沿用 Laravel 的默认字符串转义。SSE JSON 保留无需转义的非 ASCII 文本。
+流式 JSON 与 JSON 事件载荷沿用 默认字符串转义。SSE JSON 保留无需转义的非 ASCII 文本。
 
 ```rust
 use futures_util::stream;

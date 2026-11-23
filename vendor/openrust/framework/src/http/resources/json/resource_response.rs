@@ -14,7 +14,7 @@ use super::{JsonResource, ResourceResult};
 /// Configures the default resource wrapper for the application that owns the request.
 pub struct ResourceWrapping(Option<String>);
 
-#[allow(non_snake_case, reason = "Matches Laravel's resource wrapping API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ResourceWrapping {
     pub fn wrap(name: impl Into<String>) -> Self {
         Self(Some(name.into()))
@@ -42,7 +42,7 @@ pub struct ResourceResponse<'a, R: ?Sized> {
     additional: Map<String, Value>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's resource response API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
     pub fn new(resource: &'a R) -> Self {
         Self {

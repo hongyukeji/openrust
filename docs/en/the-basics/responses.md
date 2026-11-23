@@ -70,7 +70,7 @@ Use `withoutHeader` with one typed header name or `withoutHeaders` with a collec
 
 #### Cache Control Middleware {#cache-control-middleware}
 
-Apply `cache.headers` to the routes that need a cache policy. Separate directives with semicolons and write option names in `snake_case`. The middleware applies to successful GET and HEAD responses. With `etag`, it reuses an existing validator or hashes the available response body with XXH3-128, the same digest Laravel uses for `xxh128`. Use `etag=value` to provide a validator for a stream without buffering it.
+Apply `cache.headers` to the routes that need a cache policy. Separate directives with semicolons and write option names in `snake_case`. The middleware applies to successful GET and HEAD responses. With `etag`, it reuses an existing validator or hashes the available response body with XXH3-128, the same digest the framework uses for `xxh128`. Use `etag=value` to provide a validator for a stream without buffering it.
 
 ```rust
 Route::getWith("/cacheable", cache_response, |route| {
@@ -134,7 +134,7 @@ fn register() -> Result<(), RoutingError> {
 
 `ApiResponse::empty()` returns a success envelope without a `data` field. HTTP 204 responses have an empty body. Supply a client-safe message to `failure` and attach field messages with `with_errors` when needed.
 
-A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. The business envelope is an OpenRust extension to [Laravel's JSON response mechanism](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses).
+A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. OpenRust provides the business response envelope.
 
 ## Redirect responses
 
@@ -233,7 +233,7 @@ source.addEventListener('update', (event) => {
 
 Use `Response::streamJson` with `StreamedJson::object` to wrap a stream of rows in a JSON object. `StreamedJson::items` serializes each row as it arrives. Use `StreamedJson::value` for fixed values and `StreamedJson::array` for nested arrays. Use `StreamedJson::entries` to stream key-value pairs into a JSON object.
 
-Streamed JSON and JSON event payloads use Laravel's default string escaping. SSE JSON preserves non-ASCII text apart from characters that require escaping.
+Streamed JSON and JSON event payloads use default string escaping. SSE JSON preserves non-ASCII text apart from characters that require escaping.
 
 ```rust
 use futures_util::stream;

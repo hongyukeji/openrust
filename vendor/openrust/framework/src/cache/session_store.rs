@@ -19,7 +19,7 @@ pub struct SessionStore(StoreCore, Arc<SessionBackend>);
 
 super::store::impl_store!(SessionStore);
 
-#[allow(non_snake_case, reason = "Matches Laravel's session cache API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SessionStore {
     pub fn new(application: Weak<Container>, namespace: String) -> CacheResult<Self> {
         if namespace.is_empty() {

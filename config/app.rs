@@ -84,7 +84,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en-US")?,
         // "*" 自动发现全部可用语言；数组限制候选，空数组关闭语言协商。
-        "supported_locales": supported_locales(env)?,
+        "supported_locales": get_supported_locales(env, "APP_SUPPORTED_LOCALES", "*")?,
         // 保存语言偏好的表单字段名。
         "locale_form_field": get(env, "APP_LOCALE_FORM_FIELD", "locale")?,
         // 浏览器手动语言偏好 Cookie；JSON null 表示关闭。
@@ -184,10 +184,14 @@ fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigE
     })
 }
 
-fn supported_locales(env: &Environment) -> Result<Value, ConfigError> {
-    let value = get(env, "APP_SUPPORTED_LOCALES", "*")?;
+fn get_supported_locales(
+    env: &Environment,
+    key: &str,
+    default: &str,
+) -> Result<Value, ConfigError> {
+    let value = get(env, key, default)?;
     let invalid = || ConfigError::InvalidType {
-        key: "APP_SUPPORTED_LOCALES".into(),
+        key: key.into(),
         expected: "* 或逗号分隔的 BCP 47 语言标签，空值关闭",
     };
     let value = value.as_str().ok_or_else(invalid)?.trim();

@@ -111,9 +111,9 @@ fn main() {
 
 上下文規則只作用於最近的消費者，優先於預設實例、單例和作用域快取，但不替換預設快取，也不將依賴記為全域已解析。上下文工廠可以再次解析同一依賴取得預設綁定；實際遞迴工廠仍傳回循環依賴錯誤。消費者別名在呼叫 `when` 時正規化，依賴別名在呼叫 `give` 時正規化，解析時還會檢查後續增加的直接別名。
 
-`give` 接收型別明確的工廠。`giveService(key)` 對應 Laravel 中傳服務名稱的 `give`，目標須按預期回傳契約登記；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的轉換在工廠中明確完成。`giveConfig(key, default)` 在解析依賴時讀取目前 `config` 服務，`None` 對應 Laravel 省略預設值。鍵缺失時使用預設值，明確 JSON null 保持 null。反序列化會檢查 Rust 宣告型別，不符則傳回錯誤，不隱含執行 PHP 純量轉換。
+`give` 接收型別明確的工廠。`giveService(key)` 對應框架中傳服務名稱的 `give`，目標須按預期回傳契約登記；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的轉換在工廠中明確完成。`giveConfig(key, default)` 在解析依賴時讀取目前 `config` 服務，`None` 對應框架省略預設值。鍵缺失時使用預設值，明確 JSON null 保持 null。反序列化會檢查 Rust 宣告型別，不符則傳回錯誤，不隱含執行 PHP 純量轉換。
 
-`tag(keys, tags)` 保留登記順序和重複項。`tagged::<T>(tag)` 迭代至某項時才解析服務，每次迭代按原服務生命週期重新解析。未知標籤取得空序列；既有序列的下一次迭代可看到之前追加的服務。`len()` 傳回建立序列時固定的數量，對應 Laravel 可重複產生器的行為。`giveTagged` 收集為 `Vec<Arc<T>>`，未綁定或型別不符的項目傳播錯誤。
+`tag(keys, tags)` 保留登記順序和重複項。`tagged::<T>(tag)` 迭代至某項時才解析服務，每次迭代按原服務生命週期重新解析。未知標籤取得空序列；既有序列的下一次迭代可看到之前追加的服務。`len()` 傳回建立序列時固定的數量，對應框架可重複產生器的行為。`giveTagged` 收集為 `Vec<Arc<T>>`，未綁定或型別不符的項目傳播錯誤。
 
 ```rust
 use std::sync::Arc;
@@ -193,7 +193,7 @@ fn main() {
 
 尚無快取實例時，`extend` 儲存閉包供未來建構，不提前解析服務。裝飾器按登記順序在建構完成後、解析回呼前執行，上下文建構同樣適用。共享服務快取裝飾後的值。明確提供的 `instance` 略過待執行鏈；清除實例後恢復原工廠及該鏈。
 
-已有快取實例時，`extend` 立即替換快取值，這次閉包不加入未來建構鏈。既有呼叫方保留原 `Arc`，下一次查找取得新值。與 Laravel 一樣，清除快取後不保留這種僅即時生效的裝飾。`forgetExtenders(key)` 移除未來裝飾器，不撤銷已經裝飾的快取實例。
+已有快取實例時，`extend` 立即替換快取值，這次閉包不加入未來建構鏈。既有呼叫方保留原 `Arc`，下一次查找取得新值。清除快取後不保留這種僅即時生效的裝飾。`forgetExtenders(key)` 移除未來裝飾器，不撤銷已經裝飾的快取實例。
 
 建構和快取替換在登錄表鎖外執行使用者程式碼；建構等待期間登記的裝飾器在發布前納入。同一快取槽的更新循序處理，其他讀取方等待更新完成，裝飾器可讀取自身槽的舊值。已退役槽上的更新不會覆寫新綁定。遞迴擴展或依賴循環傳回循環依賴錯誤。發布前失敗或 panic 的共享建構可重試；快取更新失敗保留舊指標，不回復共享物件內部已經發生的修改。
 
@@ -237,7 +237,7 @@ fn main() {
 
 回呼在新綁定或快取提交後執行，錯誤和 panic 向呼叫方傳播，不回復已提交狀態，失敗事件中後續監聽器不再執行。同服務遞迴通知在巢狀變更提交後傳回循環錯誤。因此綁定登記方法傳回 `Result`，應透過 `?` 傳播錯誤；`instance` 和 `instanceNamed` 成功時傳回傳入的 `Arc`。
 
-`refresh::<T, _, _>(key, target, setter)` 對應 Laravel 的目標物件/方法重新整理，接收明確的 `Arc` 目標與 setter，替代 PHP 方法名稱字串。登記傳回目前服務，不立即呼叫 setter，後續重綁定才呼叫。回呼使用明確回傳契約，在登錄表鎖外執行，保持應用及作用域隔離。門面 swap 先更新門面快取，再綁定容器；監聽器失敗時兩邊的新值都保留。
+`refresh::<T, _, _>(key, target, setter)` 對應 目標物件/方法重新整理，接收明確的 `Arc` 目標與 setter，替代 PHP 方法名稱字串。登記傳回目前服務，不立即呼叫 setter，後續重綁定才呼叫。回呼使用明確回傳契約，在登錄表鎖外執行，保持應用及作用域隔離。門面 swap 先更新門面快取，再綁定容器；監聽器失敗時兩邊的新值都保留。
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -464,13 +464,13 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-Laravel 的類別服務 `give(array)` 對應 `needs::<T>().giveServices(keys)`。服務鍵在原消費者情境中按順序解析，保留重複項目；登記不預先建構，相依鍵的別名會正規化，進行中的建構持有不可變鍵快照。非同步建構通道會等待延遲或非同步服務，無需另一套清單登記介面。
+類別服務 `give(array)` 對應 `needs::<T>().giveServices(keys)`。服務鍵在原消費者情境中按順序解析，保留重複項目；登記不預先建構，相依鍵的別名會正規化，進行中的建構持有不可變鍵快照。非同步建構通道會等待延遲或非同步服務，無需另一套清單登記介面。
 
 標籤或計算型集合工廠沿用既有型別化集合契約：`needs::<Vec<Arc<T>>>().giveTagged(tag)` 或 `giveTaggedAsync(tag)`，可變參數建構式可使用該集合。`T` 的直接情境綁定優先於集合轉接。集合工廠作為自己的解析執行，項目不會繼承消費者類別的情境綁定；直接 `giveServices` 陣列則保留該類別情境。集合回呼使用 `Vec<Arc<T>>` 身分，這是 Rust 清單輸出契約的轉換。
 
 原始值的 `$name` 情境可提供 `Vec<Arc<T>>` 或 `Vec<ParameterValue>`。例如 `needsNamed::<Vec<Arc<String>>>("$names").giveConfig("app.names", None)` 讀取目前設定陣列；框架啟用 Serde 的 `rc` 特性支援這些型別化清單。共用項目無需實作 Clone，異質載體保留 null 並逐項驗證。所有權表示有參數包裝與參考計數成本。
 
-原始值情境閉包在建構情境內直接執行，對應 Laravel 的原始值解析器；保留建構參數快照，不為 `$name` 增加服務事件、快取或解析歷史。閉包內的普通相依服務仍按容器機制解析，非同步閉包可在相同情境等待初始化。
+原始值情境閉包在建構情境內直接執行，對應 原始值解析器；保留建構參數快照，不為 `$name` 增加服務事件、快取或解析歷史。閉包內的普通相依服務仍按容器機制解析，非同步閉包可在相同情境等待初始化。
 
 類別可變參數遇到缺少綁定或相依服務的原始值無法解析錯誤時，將整個參數退回空清單，包括已部分解析的服務陣列。業務失敗、型別錯誤、相依/別名環、非同步解析要求、Provider 失敗與生命週期關閉仍傳播；原始值可變參數的錯誤亦傳播。取消時在原情境釋放部分項目，共用服務與應用主動保留的值仍按原所有權存活。
 
@@ -552,7 +552,7 @@ async fn main() {
 
 `bindMethod` 替代原方法本體，並跳過原參數注入與驗證。`hasMethodBinding` 檢查替代綁定，`callMethodBinding` 直接執行它，不額外建立類別情境。靜態重載為 `bindStaticMethod`、`callStaticMethodBinding`。`StaticCall::qualified` 對應 `Class::method` 字串，不查詢方法綁定；`StaticCall::array` 對應類別陣列呼叫，會查詢綁定。錯誤的接收者形式或回傳型別回傳型別化錯誤。
 
-實際可呼叫的物件或靜態方法，只在邏輯建構堆疊尚無該類別時加入類別情境。`Class@method` 按 Laravel BoundMethod.callClass 保留父情境；相依仍建立自己的正常建構情境。逐次非同步 poll 與取消時恢復情境，確保並行與多應用隔離。Application 入口同時建立該應用的 Facade 情境。進行中的呼叫保留選定綁定、原始參數與接收者，直到完成或取消。
+實際可呼叫的物件或靜態方法，只在邏輯建構堆疊尚無該類別時加入類別情境。`Class@method` 按框架BoundMethod.callClass 保留父情境；相依仍建立自己的正常建構情境。逐次非同步 poll 與取消時恢復情境，確保並行與多應用隔離。Application 入口同時建立該應用的 Facade 情境。進行中的呼叫保留選定綁定、原始參數與接收者，直到完成或取消。
 
 編譯型別 `C` 替代 PHP 類名反射；Rust trait 別名與具體類別間不自動投影方法。介接器以 `Result<R, BindingResolutionError>` 傳播注入錯誤，`R` 本身可為業務 Result。為支援 Rust 1.94 的非同步借用，儲存回呼及呼叫分派 Future 使用 Box。
 
@@ -603,7 +603,7 @@ async fn main() {
 
 `getBindings()` 回傳擁有所有權、保留插入順序的 `Bindings` 快照。`get(&ServiceKey)` 精確查鍵，`iter`、`keys` 與所有權迭代保留登記順序；替換綁定不移動位置。每個 `BindingDefinition` 暴露原始 `concrete` 工廠及宣告的 `shared`，明確執行個體覆寫不改變該旗標。別名單獨鍵、僅執行個體鍵、情境綁定及自動類別中繼資料不在其中。讀取或修改快照不會解析服務或修改容器。
 
-保留的 `FactoryHandle` 對應直接執行 Laravel 綁定陣列中的 concrete 閉包。`call::<T>(&container, parameters)` 與 `callAsync::<T>(...)` 使用傳入容器及明確參數框架，不加入目標類別情境。它們繞過目標快取、裝飾器、事件和解析歷史；工廠內部相依仍正常解析，使用新參數框架。因此共享原工廠每次也產生新結果。輸出型別錯誤在執行使用者程式碼前拒絕；同步呼叫非同步工廠會失敗，即使一般解析已快取結果。`sameFactory` 比較保留配方的身分。
+保留的 `FactoryHandle` 對應直接執行框架綁定陣列中的 concrete 閉包。`call::<T>(&container, parameters)` 與 `callAsync::<T>(...)` 使用傳入容器及明確參數框架，不加入目標類別情境。它們繞過目標快取、裝飾器、事件和解析歷史；工廠內部相依仍正常解析，使用新參數框架。因此共享原工廠每次也產生新結果。輸出型別錯誤在執行使用者程式碼前拒絕；同步呼叫非同步工廠會失敗，即使一般解析已快取結果。`sameFactory` 比較保留配方的身分。
 
 ```rust
 use openrust::{
@@ -639,7 +639,7 @@ async fn main() {
 }
 ```
 
-`flush()` 清空綁定、別名及反向別名、明確/共享/scoped 執行個體、scoped 登記和解析歷史。按 Laravel 基礎 Container 保留情境規則、標籤、裝飾器、解析/重新綁定回呼、方法宣告/綁定及編譯類別中繼資料。同時解除本容器所有活動生命週期的快取，不關閉這些生命週期。使用者值於狀態提交後、登錄表與快取鎖外釋放，允許解構重入。flush 與正常生命週期結束均在中立的 Facade、參數及類別情境中釋放 scoped 快取值。解構 panic 不回滾清理，也不污染登錄表鎖。
+`flush()` 清空綁定、別名及反向別名、明確/共享/scoped 執行個體、scoped 登記和解析歷史。按框架基礎 Container 保留情境規則、標籤、裝飾器、解析/重新綁定回呼、方法宣告/綁定及編譯類別中繼資料。同時解除本容器所有活動生命週期的快取，不關閉這些生命週期。使用者值於狀態提交後、登錄表與快取鎖外釋放，允許解構重入。flush 與正常生命週期結束均在中立的 Facade、參數及類別情境中釋放 scoped 快取值。解構 panic 不回滾清理，也不污染登錄表鎖。
 
 應用自行持有的物件及原工廠快照仍有效，已准入建構可回傳舊值，但不能回填已移除或替換的綁定及其歷史。此基礎容器操作不重新啟動 Application Provider，也不清除獨立 Facade 快取；應用終止由生命週期職責負責。
 
@@ -649,7 +649,7 @@ Rust 使用型別化定義與擁有所有權的 ServiceKey 替代動態 PHP 陣�
 
 `resolveEnvironmentUsing(Some(Arc::new(callback)))` 安裝基礎容器環境解析回呼，`None` 清除。無回呼時，`currentEnvironmentIs(query)` 回傳 `Ok(EnvironmentResult::Boolean(false))`。基礎容器不解析環境檔案、不比對萬用字元，也不重新解釋空參數，而是原樣轉交 `EnvironmentQuery::Name` 或 `Names`，保留陣列順序、重複項與空字串。同步回呼借用查詢字串，不複製參數。
 
-回呼可回傳 `EnvironmentResult::Boolean` 或 `String`，保留 PHP 支援的兩種結果形狀；`Result` 將回呼例外作為容器錯誤傳播。`bool::from(result)` 或 `bool::from(&result)` 按 PHP 真值轉換，false、空字串及字串 "0" 為假。範例刻意採用明確自訂策略：空陣列回傳名稱，並不代表 Laravel Application 預設環境比對規則。
+回呼可回傳 `EnvironmentResult::Boolean` 或 `String`，保留 PHP 支援的兩種結果形狀；`Result` 將回呼例外作為容器錯誤傳播。`bool::from(result)` 或 `bool::from(&result)` 按 PHP 真值轉換，false、空字串及字串 "0" 為假。範例刻意採用明確自訂策略：空陣列回傳名稱，並不代表框架Application 預設環境比對規則。
 
 ```rust
 use openrust::{

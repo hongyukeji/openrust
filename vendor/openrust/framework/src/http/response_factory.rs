@@ -36,7 +36,7 @@ pub struct ResponseFactory {
     macros: RwLock<HashMap<String, ResponseMacro>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's response macro API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ResponseFactory {
     pub fn r#macro<Fut>(
         &self,

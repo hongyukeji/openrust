@@ -123,7 +123,7 @@ Use `DB::connection(Some("reporting"))` to select a configured connection by nam
 
 #### Direct Connection Alias {#direct-connection-alias}
 
-On MySQL and SQLite, `DB::connection(Some("mysql::direct"))` (using your configured connection name) selects the write endpoint for both reads and writes. Query logs and events identify the role as `QueryRole::Direct`. Without a separate direct endpoint, Laravel also uses the write endpoint.
+On MySQL and SQLite, `DB::connection(Some("mysql::direct"))` (using your configured connection name) selects the write endpoint for both reads and writes. Query logs and events identify the role as `QueryRole::Direct`. Without a separate direct endpoint, the framework also uses the write endpoint.
 
 For PostgreSQL, a nonempty `direct` configuration selects a separate endpoint for `DB::connection(Some("pgsql::direct"))`. Set `DB_DIRECT_HOST`, `DB_DIRECT_PORT`, `DB_DIRECT_USERNAME`, `DB_DIRECT_PASSWORD`, and `DB_DIRECT_SSLMODE` as needed. A named connection’s `direct` options inherit its base configuration. Migrations select that endpoint by default, including ledger access. Explicit `::read`, `::write`, and `::direct` suffixes preserve the caller’s choice.
 

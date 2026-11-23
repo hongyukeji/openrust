@@ -47,7 +47,7 @@ cargo build
 
 在 `config/mod.rs` 中增加 `mod passport;`，并在配置条目中增加 `("passport".to_owned(), passport::load(env)?),`，随后重新构建。这对应 PHP 载入发布配置的机制。发布的加载器与包默认值使用同一份实现。`config:cache` 保存解析后的值；加载新的环境变量前先清理配置缓存。
 
-`PASSPORT_CONNECTION` 为五个迁移定义选择命名连接；null 使用应用默认连接。迁移账本仍放在迁移命令选定的连接，保持 Laravel 职责。迁移显式读取所属应用配置，并发应用不会串用连接名。
+`PASSPORT_CONNECTION` 为五个迁移定义选择命名连接；null 使用应用默认连接。迁移账本仍放在迁移命令选定的连接，保持框架职责。迁移显式读取所属应用配置，并发应用不会串用连接名。
 
 在 Provider boot 期间解析 `Passport`，在首次解析密钥服务前设置目录：
 
@@ -95,7 +95,7 @@ pub async fn create_client(
 }
 ```
 
-参数顺序保留 Laravel 原意。Rust 显式传递默认参数：`true` 创建机密客户端，`owner` 可空，最后的 `false` 不额外启用设备授权。使用 `ClientOwner::forUser(&user)` 从编译注册的 `Model + Authenticatable` 创建所有者，取模型主键和多态类型，不取可能不同的认证标识。公开客户端将机密参数设为 `false`。
+参数顺序保留框架原意。Rust 显式传递默认参数：`true` 创建机密客户端，`owner` 可空，最后的 `false` 不额外启用设备授权。使用 `ClientOwner::forUser(&user)` 从编译注册的 `Model + Authenticatable` 创建所有者，取模型主键和多态类型，不取可能不同的认证标识。公开客户端将机密参数设为 `false`。
 
 `createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 选择对应授权类型。创建记录不会启用可选的 Password 或 Implicit 协议；设备端点遵循应用设备开关。`update` 修改名称和重定向地址，`regenerateSecret` 生成新秘密；两者经 Eloquent 保存并返回其布尔结果。`findForUser` 和 `forUser` 排除已撤销客户端，后者按名称排序。`personalAccessClient(provider)` 选择对应用户提供者的最新有效个人客户端，仅当提供者等于 `auth.guards.api.provider` 时也接受空提供者，找不到时返回错误。
 

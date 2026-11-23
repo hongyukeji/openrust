@@ -172,7 +172,7 @@ Configure `failover.connections` in priority order. Publication tries the next c
 
 Set `QUEUE_CONNECTION=beanstalkd` and configure `BEANSTALKD_QUEUE_HOST`, `BEANSTALKD_QUEUE_PORT` (default 11300), `BEANSTALKD_QUEUE` and `BEANSTALKD_QUEUE_RETRY_AFTER`. Run `./artisan queue:work beanstalkd --queue=default`. A queue maps to a tube. The server manages delayed jobs and reservation expiry. Keep the worker timeout below the reservation lifetime. Use the connection’s `block_for` setting to allow blocking reservations.
 
-Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
+Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. The fixed the framework Beanstalkd driver also leaves `queue:clear` unavailable.
 
 Across queue connections, the source worker dispatches the successor directly using its connection, queue, and delay settings, then acknowledges the current job. Publication and source acknowledgment can fail independently. Keep job handlers idempotent.
 
@@ -612,7 +612,7 @@ The methods return `None` when the chain is skipped and `Some(DispatchResult)` w
 
 ## Job batching {#job-batching}
 
-Queue storage follows the Laravel layout: `jobs` holds pending database jobs, `failed_jobs` holds failures, and `job_batches` holds batch counters and callback options. No companion recovery tables are required. Existing installations should drain pending publications and forwarding jobs with the previous worker before upgrading. This change leaves old tables and data intact; remove them only after confirming they are unused and backed up.
+Queue storage follows the framework layout: `jobs` holds pending database jobs, `failed_jobs` holds failures, and `job_batches` holds batch counters and callback options. No companion recovery tables are required. Existing installations should drain pending publications and forwarding jobs with the previous worker before upgrading. This change leaves old tables and data intact; remove them only after confirming they are unused and backed up.
 
 Run `./artisan migrate` to create the `job_batches` table. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.
 
@@ -641,7 +641,7 @@ A database queue and its batch repository must use the same SQL connection. Thei
 
 ### Chains within batches {#chains-and-batches}
 
-Use `addChain` on a pending batch to add an ordered sequence of jobs. It represents a nested array in Laravel’s `Bus::batch`. All members share the batch ID, connection, and queue. The batch counts every member, and initially enqueues only the first job of each chain. Multiple workers can process different chains in parallel.
+Use `addChain` on a pending batch to add an ordered sequence of jobs. It represents a nested array in `Bus::batch`. All members share the batch ID, connection, and queue. The batch counts every member, and initially enqueues only the first job of each chain. Multiple workers can process different chains in parallel.
 
 ```rust
 use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};

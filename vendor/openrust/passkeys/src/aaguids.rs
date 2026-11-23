@@ -1,4 +1,4 @@
-//! Fixed Laravel Passkeys 0.3.0 display resources (MIT); never authentication evidence.
+//! Fixed the framework Passkeys 0.3.0 display resources (MIT); never authentication evidence.
 use crate::{PasskeyError, PasskeyResult};
 use std::{
     collections::BTreeMap,

@@ -121,7 +121,7 @@ impl Request {
     }
 
     /// Returns the transport method before a POST method override.
-    #[allow(non_snake_case, reason = "Matches the Laravel Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getRealMethod(&self) -> &Method {
         self.real_method.as_ref().unwrap_or(&self.parts.method)
     }
@@ -173,7 +173,7 @@ impl Request {
         })
     }
 
-    #[allow(non_snake_case, reason = "遵循 Laravel Request 命名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn userAgent(&self) -> Option<&str> {
         self.headers()
             .get("user-agent")
@@ -234,13 +234,13 @@ impl Request {
             .transpose()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn hasHeader(&self, name: &str) -> bool {
         self.headers().contains_key(name)
     }
 
     /// Extracts the token after the last ASCII case-insensitive Bearer marker.
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn bearerToken(&self) -> Result<Option<&str>, super::HttpError> {
         Ok(self.header("authorization")?.and_then(|header| {
             let position = header
@@ -258,7 +258,7 @@ impl Request {
     }
 
     /// An empty cookie is present. Missing values and failed decryptions are absent.
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn hasCookie(&self, key: &str) -> Result<bool, super::HttpError> {
         Ok(self.cookie_value(Some(key))?.is_some())
     }
@@ -304,7 +304,7 @@ impl Request {
             .is_some_and(|encryption| !encryption.exceptions.contains(name))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn hasSession(&self) -> bool {
         self.session.is_some()
     }
@@ -323,8 +323,8 @@ impl Request {
             .ok_or(crate::session::SessionError::Configuration)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
-    pub(crate) fn setLaravelSession(&mut self, session: crate::session::Store) {
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
+    pub(crate) fn attachSession(&mut self, session: crate::session::Store) {
         context::set_session_cache(self, Some(session.cache_attributes().clone()));
         self.session = Some(session);
     }
@@ -358,7 +358,7 @@ impl Request {
         })
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's request URL API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getBaseUrl(&self) -> &str {
         &self.proxy.prefix
     }
@@ -376,7 +376,7 @@ impl Request {
     }
 
     /// Percent-decodes the request path.
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn decodedPath(&self) -> Cow<'_, str> {
         percent_decode_str(self.path()).decode_utf8_lossy()
     }
@@ -399,13 +399,13 @@ impl Request {
             .map(str::to_owned)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn isMethod(&self, method: &str) -> bool {
         self.method().as_str().eq_ignore_ascii_case(method)
     }
 
     /// Matches the resolved route name against any supplied wildcard pattern.
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn routeIs(&self, patterns: &[&str]) -> bool {
         self.route_name.as_deref().is_some_and(|name| {
             patterns

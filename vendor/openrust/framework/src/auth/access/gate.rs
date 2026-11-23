@@ -109,7 +109,7 @@ pub struct GateRegistry {
     owner: Weak<Container>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Gate registration API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl GateRegistry {
     pub(crate) fn for_application(owner: Weak<Container>) -> Self {
         Self {
@@ -242,7 +242,7 @@ pub struct Gate {
     user: Option<Arc<dyn Authenticatable>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Gate evaluation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Gate {
     pub fn has(&self, ability: &str) -> bool {
         self.registry

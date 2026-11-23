@@ -45,7 +45,7 @@ pub(super) fn format(
     Ok(formatter.format_fixed_decimal(&rounded).to_string())
 }
 
-// ICU4X's public currency options use the CLDR fraction count. Laravel
+// ICU4X's public currency options use the CLDR fraction count. the framework
 // accepts an override, so supply that one datum with the same CLDR patterns.
 struct Precision(u8);
 

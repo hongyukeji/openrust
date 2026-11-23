@@ -12,7 +12,7 @@ Console Kernel [引導應用程式](../architecture-concepts/lifecycle.md)後分
 
 預設控制台路由登記了 `inspire`。執行 `./artisan inspire` 會隨機輸出一則引言及其作者，結束代碼為 0。
 
-名言庫與固定版 Laravel 一致，共 41 則。支援色彩的終端機會將正文顯示為粗體、署名顯示為灰色。重新導向時預設輸出純文字。可以用 `--ansi` 強制開啟樣式，或用 `--no-ansi` 關閉。
+名言庫與固定版框架一致，共 41 則。支援色彩的終端機會將正文顯示為粗體、署名顯示為灰色。重新導向時預設輸出純文字。可以用 `--ansi` 強制開啟樣式，或用 `--no-ansi` 關閉。
 
 Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 接收相同的命令。
 

@@ -48,12 +48,12 @@ pub(crate) type PackageCommands = fn() -> Result<(), ConsoleError>;
 pub(super) type MiddlewareConfigurator = Box<dyn FnOnce(&mut Middleware) + Send + Sync>;
 
 /// Owns the application root, service container, and provider lifecycle.
-#[allow(non_snake_case, reason = "Retains Laravel's basePath property name")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Application {
     pub(super) shared: Arc<ApplicationState>,
 }
 
-#[allow(non_snake_case, reason = "Retains Laravel application state names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub(super) struct ApplicationState {
     basePath: PathBuf,
     pub(super) lifecycle: Mutex<[Vec<LifecycleCallback>; 3]>,
@@ -128,7 +128,7 @@ impl Application {
     }
 
     /// Checks a compiled provider class name after successful registration.
-    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn providerIsLoaded(&self, provider: &str) -> bool {
         self.shared
             .loadedProviders
@@ -137,7 +137,7 @@ impl Application {
             .contains(provider)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's registration lifecycle")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub(super) fn markAsRegistered(&self, provider: &dyn ServiceProvider) {
         let class = provider.providerClass();
         self.shared
@@ -147,13 +147,13 @@ impl Application {
             .insert(class);
     }
 
-    #[allow(non_snake_case, reason = "Uses Laravel's basePath argument name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn configure(basePath: PathBuf) -> ApplicationBuilder {
         ApplicationBuilder::new(basePath)
     }
 
     /// Resolves an explicit override, a source root, or the executable's directory.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn inferBasePath(source_root: Option<&str>) -> Result<PathBuf, BootstrapError> {
         let basePath = match (std::env::var_os("APP_BASE_PATH"), source_root) {
             (Some(path), _) => PathBuf::from(path),
@@ -224,7 +224,7 @@ impl Application {
     }
 
     /// Returns the application's configured public directory.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn publicPath(&self) -> PathBuf {
         self.shared
             .publicPath
@@ -235,7 +235,7 @@ impl Application {
     }
 
     /// Overrides the public directory. Relative paths are resolved from the application root.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn usePublicPath(&mut self, path: impl AsRef<Path>) -> &mut Self {
         *self
             .shared
@@ -245,12 +245,12 @@ impl Application {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's storage path API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn storagePath(&self, path: &str) -> PathBuf {
         self.shared.paths.storagePath(path)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's storage path API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn useStoragePath(
         &self,
         path: impl Into<PathBuf>,
@@ -284,7 +284,7 @@ impl Application {
     }
 
     /// Whether bootstrap loaded an existing configuration snapshot.
-    #[allow(non_snake_case, reason = "Matches Laravel's configuration cache API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn configurationIsCached(&self) -> bool {
         self.shared
             .container
@@ -301,10 +301,7 @@ impl Application {
     }
 
     /// Checks the bound environment name, independently of the test harness.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel Application::runningUnitTests"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn runningUnitTests(
         &self,
     ) -> Result<bool, crate::contracts::container::BindingResolutionError> {
@@ -402,7 +399,7 @@ impl Application {
     }
 
     /// Returns the route cache path after the application resolves its environment.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getCachedRoutesPath(&self) -> Option<&Path> {
         self.shared
             .route_cache
@@ -411,7 +408,7 @@ impl Application {
     }
 
     /// Reports whether this application loaded a valid route matching index during boot.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn routesAreCached(&self) -> bool {
         self.shared
             .route_cache
@@ -420,13 +417,13 @@ impl Application {
     }
 
     /// Returns the event cache path after the application's environment is resolved.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getCachedEventsPath(&self) -> Option<&Path> {
         self.shared.event_cache_path.get().map(PathBuf::as_path)
     }
 
     /// Returns the package manifest export path after the application's environment is resolved.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getCachedPackagesPath(&self) -> Option<&Path> {
         self.shared.package_cache_path.get().map(PathBuf::as_path)
     }
@@ -479,7 +476,7 @@ impl Application {
     }
 
     /// Executes an Artisan invocation and terminates its console kernel.
-    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn handleCommand(
         self,
         arguments: &[OsString],
@@ -504,7 +501,7 @@ impl Application {
         }
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's constructor")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub(super) fn new(
         basePath: PathBuf,
         load_config: ConfigLoader,
@@ -664,7 +661,7 @@ impl Application {
     }
 
     /// Resolve a fresh service when explicit parameters are supplied.
-    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn makeWith<T: ?Sized + Send + Sync + 'static>(
         &self,
         parameters: crate::container::ParameterOverrides,
@@ -741,7 +738,7 @@ impl Application {
         .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn callMethodBinding<C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
         &self,
         method: &str,
@@ -770,7 +767,7 @@ impl Application {
         .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn isDeferredService(&self, key: impl Into<ServiceKey>) -> bool {
         use crate::container::deferred::DeferredServices as _;
         self.shared
@@ -780,7 +777,7 @@ impl Application {
             .contains(&key.into())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn loadDeferredProviders(
         &self,
     ) -> Result<(), crate::contracts::container::BindingResolutionError> {
@@ -828,10 +825,7 @@ impl Application {
             .register_load_events(dispatcher)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel Application::maintenanceMode"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn maintenanceMode(
         &self,
     ) -> Result<
@@ -841,10 +835,7 @@ impl Application {
         self.shared.container.make()
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel Application::isDownForMaintenance"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn isDownForMaintenance(&self) -> Result<bool, super::maintenance::MaintenanceError> {
         self.maintenanceMode()?.active().await
     }

@@ -3,7 +3,7 @@ use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult};
 use super::{Builder, Column, Expression};
 use crate::database::query::{embeddings, vector};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     /// Adds the cosine distance to the selected columns.
     pub fn selectVectorDistance(

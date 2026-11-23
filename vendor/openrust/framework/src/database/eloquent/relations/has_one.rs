@@ -20,7 +20,7 @@ pub struct HasOne<P: Model, R: Model>(
     Option<Box<ConfigureDefault<P, R>>>,
 );
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> HasOne<P, R> {
     pub const fn new(local_key: &'static str, foreign_key: &'static str) -> Self {
         HasMany::new(local_key, foreign_key).one()
@@ -339,7 +339,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for HasOne<P, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
@@ -429,7 +429,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for HasOne<P, R> {
     fn getRelationExistenceQuery(
         &self,

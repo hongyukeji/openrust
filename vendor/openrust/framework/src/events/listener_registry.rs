@@ -63,7 +63,7 @@ impl ListenerRegistry {
     }
 
     /// Resolves the listener from the dispatcher's application container on delivery.
-    #[allow(non_snake_case, reason = "Matches Laravel's listener naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn listenClass<L: Listener + 'static>(
         &mut self,
         event: &str,
@@ -131,7 +131,7 @@ impl ListenerRegistry {
             .push(registration);
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's queued listener naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn listenQueued<E: Event + serde::Serialize + serde::de::DeserializeOwned>(
         &mut self,
         event: &str,
@@ -178,7 +178,7 @@ impl ListenerRegistry {
             .collect()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's after-commit terminology")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn listenAfterCommit(
         &mut self,
         event: &str,

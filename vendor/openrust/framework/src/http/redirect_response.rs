@@ -18,7 +18,7 @@ use super::{Body, HeaderMap, HttpError, Request, Response, StatusCode};
 /// An HTTP redirect with fluent session flashing.
 pub struct RedirectResponse(Response);
 
-#[allow(non_snake_case, reason = "Matches Laravel's RedirectResponse")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl RedirectResponse {
     pub(crate) fn new(target: &str, status: StatusCode, headers: HeaderMap) -> UrlResult<Self> {
         if !matches!(status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308) {

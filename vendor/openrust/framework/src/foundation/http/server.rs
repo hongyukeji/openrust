@@ -49,7 +49,7 @@ impl Runner for HttpRunner {
         runner::HTTP
     }
 
-    #[allow(non_snake_case, reason = "Matches the Goravel Runner contract")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn shouldRun(&self) -> crate::http::HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(
             async move { http_eligible(self.0.application.config()?.as_ref()).map_err(Into::into) },

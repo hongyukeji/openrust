@@ -19,7 +19,7 @@ pub struct StorageStore {
     prefix: String,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's storage cache API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl StorageStore {
     pub fn new(disk: Arc<FilesystemAdapter>, directory: &str, prefix: String) -> CacheResult<Self> {
         let directory = directory.trim_matches('/').to_owned();

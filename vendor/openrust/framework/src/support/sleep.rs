@@ -28,10 +28,7 @@ impl Sleep {
         )
     }
 
-    #[allow(
-        clippy::self_named_constructors,
-        reason = "Matches Laravel Sleep::sleep"
-    )]
+    #[allow(clippy::self_named_constructors, reason = "保留既定公开接口及命名")]
     pub fn sleep(seconds: u64) -> Self {
         Self::r#for(Duration::from_secs(seconds))
     }
@@ -106,7 +103,7 @@ struct SleepLog {
 #[derive(Clone, Default)]
 pub struct SleepFake(Arc<Mutex<SleepLog>>);
 
-#[allow(non_snake_case, reason = "Matches Laravel's Sleep assertions")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SleepFake {
     pub fn sequence(&self) -> Vec<Duration> {
         self.0.lock().expect("sleep log mutex").durations.clone()

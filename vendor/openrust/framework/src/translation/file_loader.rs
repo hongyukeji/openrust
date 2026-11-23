@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "Matches Laravel's translation loader API")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -21,11 +21,13 @@ pub struct FileLoader {
     paths: RwLock<Vec<PathBuf>>,
     json_paths: RwLock<Vec<PathBuf>>,
     namespaces: RwLock<HashMap<String, PathBuf>>,
+    bundled: bool,
 }
 
 impl Clone for FileLoader {
     fn clone(&self) -> Self {
         Self {
+            bundled: self.bundled,
             paths: RwLock::new(self.paths.read().unwrap().clone()),
             json_paths: RwLock::new(self.json_paths.read().unwrap().clone()),
             namespaces: RwLock::new(self.namespaces.read().unwrap().clone()),
@@ -36,9 +38,18 @@ impl Clone for FileLoader {
 impl FileLoader {
     pub fn new(path: PathBuf) -> Self {
         Self {
+            bundled: false,
             paths: RwLock::new(vec![path]),
             json_paths: RwLock::default(),
             namespaces: RwLock::default(),
+        }
+    }
+
+    // Provider装配框架默认来源；直接构造的FileLoader仍只加载调用方指定来源。
+    pub(super) fn with_defaults(path: PathBuf) -> Self {
+        Self {
+            bundled: true,
+            ..Self::new(path)
         }
     }
 
@@ -64,6 +75,9 @@ impl FileLoader {
         let paths = self.paths.read().unwrap().clone();
         let json_paths = self.json_paths.read().unwrap().clone();
         let mut locales = BTreeSet::new();
+        if self.bundled {
+            locales.extend(super::bundled::locales().map(str::to_owned));
+        }
         for (root, grouped) in paths
             .iter()
             .map(|path| (path, true))
@@ -92,7 +106,13 @@ impl FileLoader {
         let mut lines = Lines::new();
         if group == "*" && namespace == Some("*") {
             let json_paths = self.json_paths.read().unwrap().clone();
-            for root in json_paths.iter().chain(paths.iter()) {
+            for root in &json_paths {
+                lines.extend(read(root, Path::new(&format!("{locale}.json")))?);
+            }
+            if self.bundled {
+                lines.extend(super::bundled::load(locale, "*")?);
+            }
+            for root in paths.iter() {
                 lines.extend(read(root, Path::new(&format!("{locale}.json")))?);
             }
             return Ok(lines);
@@ -114,6 +134,9 @@ impl FileLoader {
                 );
             }
         } else {
+            if self.bundled {
+                lines = super::bundled::load(locale, group)?;
+            }
             for root in paths.iter() {
                 merge(&mut lines, read(root, &relative)?);
             }

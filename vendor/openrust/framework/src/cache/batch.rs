@@ -6,7 +6,7 @@ use crate::contracts::cache::Repository as _;
 
 use super::{Cache, CacheResult, Repository, Ttl, Value};
 
-#[allow(non_snake_case, reason = "Matches Laravel's cache repository API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     /// Reads a set of keys with a separate default for each key.
     pub async fn manyOr(&self, entries: &[(&str, Value)]) -> CacheResult<IndexMap<String, Value>> {
@@ -102,7 +102,7 @@ impl Repository {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's cache facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cache {
     pub async fn manyOr(entries: &[(&str, Value)]) -> CacheResult<IndexMap<String, Value>> {
         Self::store(None)?.manyOr(entries).await

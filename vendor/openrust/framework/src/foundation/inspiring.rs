@@ -1,5 +1,5 @@
 // Quote list and formatting adapted from Illuminate/Foundation/Inspiring.php.
-// Laravel Framework v13.40.0, commit 1449bf241017087fbd38c118ecaabef3f6797fdc.
+// the reference implementation, commit 1449bf241017087fbd38c118ecaabef3f6797fdc.
 /*
 The MIT License (MIT)
 
@@ -81,9 +81,9 @@ impl Inspiring {
         &QUOTES
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Inspiring formatter name")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn formatForConsole(quote: &str) -> String {
-        // Laravel takes the first two fields from explode('-').
+        // the framework takes the first two fields from explode('-').
         let mut fields = quote.split('-').map(str::trim);
         let text = fields.next().expect("quote text");
         let author = fields.next().expect("quote author");

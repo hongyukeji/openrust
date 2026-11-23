@@ -6,10 +6,7 @@ pub struct TestCommand {
     pub stderr: String,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's console testing assertions"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestCommand {
     #[track_caller]
     pub fn assertExitCode(&self, expected: i32) -> &Self {

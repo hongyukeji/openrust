@@ -93,7 +93,7 @@ pub struct Sanctum {
     authentication: RwLock<Option<Arc<Authentication>>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Sanctum API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Sanctum {
     pub(crate) fn configured(config: Arc<dyn Repository>) -> Self {
         Self {

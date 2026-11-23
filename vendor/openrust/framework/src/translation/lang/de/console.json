@@ -1,0 +1,68 @@
+{
+  "command_missing": "Der Befehl „:name“ ist nicht definiert.",
+  "command_ambiguous": "Der Befehl „:name“ ist mehrdeutig: :choices",
+  "confirm": {
+    "production": "ANWENDUNG IN DER PRODUKTION. Möchten Sie diesen Befehl wirklich ausführen?",
+    "cancelled": "Befehl abgebrochen."
+  },
+  "make": {
+    "mail": {
+      "name": "Wie heißt das Mailing?",
+      "view": "Möchten Sie eine Ansicht erstellen?\n  1. Markdown-Ansicht\n  2. Leere Ansicht\n  3. Keine Ansicht\nAuswahl [1]"
+    },
+    "notification": {
+      "name": "Wie lautet der Name der Benachrichtigung?",
+      "markdown": "Möchten Sie eine Markdown-Ansicht erstellen? [Y/n]",
+      "view": "Wie soll die Markdown-Ansicht heißen?"
+    },
+    "message": {
+      "cancelled": "Befehl abgebrochen."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Befehle auflisten"
+    },
+    "help": {
+      "description": "Hilfe zu einem Befehl anzeigen"
+    },
+    "inspire": {
+      "description": "Zeigen Sie ein inspirierendes Zitat an"
+    },
+    "heading": "Befehle:"
+  },
+  "usage": "Verwendung:",
+  "options": "Optionen:",
+  "unknown_argument": "Unerwarteter Streit",
+  "unknown_command": "Befehl ist nicht definiert",
+  "missing_argument": "Erforderliche Argumente fehlen",
+  "invalid_value": "Ungültiger Wert",
+  "argument_conflict": "Argumente widersprechen",
+  "invalid_arguments": "Ungültige Argumente",
+  "model_fields": {
+    "title": "Modelltabelle und -felder",
+    "notice": "Aus dem Datenbankschema generiert. Bearbeiten Sie nicht manuell.",
+    "sync": "Führen Sie `./artisan model:fields :model` vom Projektstammverzeichnis aus aus, um die Synchronisierung durchzuführen.",
+    "table": "Tisch"
+  },
+  "namespace_missing": "Der Namespace „:name“ ist nicht definiert.",
+  "available_commands": "Verfügbare Befehle",
+  "namespace_commands": "Verfügbare Befehle für den Namespace „:name“:",
+  "available_commands_heading": "Verfügbare Befehle:",
+  "usage_title": "Nutzung",
+  "argument_descriptions": {
+    "help": "Hilfe drucken",
+    "version": "Druckversion",
+    "ansi": "Aktivieren Sie die ANSI-Ausgabe",
+    "no-ansi": "Deaktivieren Sie die ANSI-Ausgabe",
+    "env": "Die Umgebung, in der der Befehl ausgeführt werden soll",
+    "no-interaction": "Stellen Sie keine interaktiven Fragen",
+    "quiet": "Keine Meldung ausgeben",
+    "silent": "Geben Sie keine Meldung oder Fehler aus",
+    "verbose": "Erhöhen Sie die Ausführlichkeit von Nachrichten",
+    "format": "Wählen Sie ein Ausgabeformat",
+    "command_name": "Der anzuzeigende Befehl",
+    "namespace": "Befehle in einem bestimmten Namespace anzeigen"
+  },
+  "arguments": "Argumente:"
+}

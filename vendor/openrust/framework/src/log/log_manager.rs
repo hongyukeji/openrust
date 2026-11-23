@@ -87,7 +87,7 @@ struct ChannelDirectory {
     entries: HashMap<String, Arc<Logger>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's LogManager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl LogManager {
     fn channel_context(&self) -> Arc<super::channel_context::ChannelContext> {
         use crate::contracts::container::Container as _;
@@ -409,7 +409,7 @@ impl LogManager {
         Ok(())
     }
 
-    /// Registers an application-wide observer using Laravel's synchronous log boundary.
+    /// Registers an application-wide observer using synchronous log boundary.
     pub fn listen(
         &self,
         listener: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,

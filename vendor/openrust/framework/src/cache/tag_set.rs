@@ -13,7 +13,7 @@ pub struct TagSet {
     pub(super) redis: Option<RedisTagSet>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's TagSet API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TagSet {
     pub fn new(store: Arc<dyn Store>, names: &[&str]) -> Self {
         Self {

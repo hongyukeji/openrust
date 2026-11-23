@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{
     sync::{Arc, Mutex},
@@ -98,7 +98,7 @@ impl Worker {
     }
 
     /// Sets or removes a custom reservation callback in this worker's application.
-    #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn popUsing(&self, name: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
         self.app.make::<QueueManager>()?.popUsing(name, callback);
         Ok(())

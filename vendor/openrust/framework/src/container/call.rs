@@ -1,4 +1,4 @@
-//! Laravel BoundMethod argument policy; it deliberately differs from constructor injection.
+//! the framework BoundMethod argument policy; it deliberately differs from constructor injection.
 use super::class_descriptor::{Argument, validate_arguments, validate_signature};
 use super::{
     ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue, ResolvedArgs,

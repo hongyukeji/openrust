@@ -4,7 +4,7 @@ use ::http::header::{ACCEPT, CONTENT_TYPE};
 
 use super::{HeaderMap, Request};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     /// Returns the Accept entries in descending quality order.
     pub fn getAcceptableContentTypes(&self) -> &[String] {

@@ -17,7 +17,7 @@ pub struct Json {
     decoder: Option<Arc<Decoder>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent JSON API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Json {
     pub(super) const DEFAULT: Self = Self {
         encoder: None,

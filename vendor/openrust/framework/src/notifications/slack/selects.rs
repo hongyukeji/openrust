@@ -37,7 +37,7 @@ pub struct StaticSelectElement {
     initial_option: Option<SelectOption>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack select API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl StaticSelectElement {
     pub(super) fn new(placeholder: impl Into<String>) -> Self {
         let mut menu = Self {
@@ -101,7 +101,7 @@ pub struct UsersSelectElement {
     initial_user: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack select API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl UsersSelectElement {
     pub(super) fn new(placeholder: impl Into<String>) -> Self {
         let mut menu = Self {

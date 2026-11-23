@@ -1,5 +1,5 @@
 use openrust::translation::__;
-// Translated from Laravel Passport v13.10.0 (MIT, Taylor Otwell).
+// Translated from the framework Passport v13.10.0 (MIT, Taylor Otwell).
 use openrust::{
     contracts::config::Repository,
     database::{

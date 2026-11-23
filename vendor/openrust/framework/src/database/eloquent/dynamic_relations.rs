@@ -137,7 +137,7 @@ impl<R: Relation> DynamicRelation<R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<R: Relation> Relation for DynamicRelation<R> {
     type Parent = R::Parent;
     type Output = R::Output;
@@ -187,7 +187,7 @@ impl<R: Relation> Relation for DynamicRelation<R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<R: ExistenceRelation> ExistenceRelation for DynamicRelation<R> {
     fn getRelationExistenceQuery(
         &self,

@@ -23,7 +23,7 @@ impl Default for JsonApi {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's JSON:API configuration")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JsonApi {
     pub fn configure(
         version: Option<String>,

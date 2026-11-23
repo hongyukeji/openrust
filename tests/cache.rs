@@ -1268,7 +1268,7 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
 }
 
 #[tokio::test]
-async fn null_results_end_failover_and_emit_laravel_event_payloads() {
+async fn null_results_end_failover_and_emit_reference_event_payloads() {
     use openrust::{
         cache::events::{CacheFailedOver, CacheMissed, KeyWriteFailed},
         events::Dispatcher,

@@ -9,7 +9,7 @@ APP_LOCALE=en
 APP_FALLBACK_LOCALE=en
 ```
 
-Following the Laravel tutorial, use `App::setLocale` to change the locale for an HTTP request, `App::currentLocale` to read it, and `App::isLocale("en")?` to check it. For example:
+Following the framework tutorial, use `App::setLocale` to change the locale for an HTTP request, `App::currentLocale` to read it, and `App::isLocale("en")?` to check it. For example:
 
 ```rust
 use openrust::{
@@ -45,13 +45,13 @@ Service failures propagate at the step where they occur: configuration is writte
 
 Language identifiers use BCP 47 throughout configuration, APIs, resources, documentation URLs, HTML and HTTP. `setLocale("zh-CN")` keeps `zh-CN`; `isLocale("ZH-cn")` is true and `isLocale("zh-Hans")` is false. Normalization preserves script, region, variants and supported extensions; choosing a translation resource is a separate operation. Old underscore input returns an error.
 
-The `App` facade currently exposes these locale methods; other Laravel App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::withLocale` provides a temporary translator-only locale scope without changing application locale configuration.
+The `App` facade currently exposes these locale methods; other the framework App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::withLocale` provides a temporary translator-only locale scope without changing application locale configuration.
 
 ### Browser Language {#welcome-page-language}
 
 OpenRust automatically installs `openrust::http::middleware::SetLocale`. Applications do not need a locale middleware file or manual registration in `bootstrap/app.rs`.
 
-Default candidates are discovered once at HTTP startup from the application translation resources; the shipped resources provide `en`, `zh-Hans`, and `zh-Hant`. The middleware shares the request language parser for its configured negotiation header, respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then the first candidate in stable tag order. Controllers, validation, and Blade share the current request locale.
+Default candidates are discovered once at HTTP startup from framework and application translation resources; the framework provides all 18 bundled locales. The middleware shares the request language parser for its configured negotiation header, respects quality weights, skips `q=0`, and keeps browser order for equal weights. Without a match, it uses a supported `APP_LOCALE`, then the first candidate in stable tag order. Controllers, validation, and Blade share the current request locale.
 
 `zh-Hans`, `zh-CN`, `zh-SG`, and bare `zh` select Simplified Chinese; `zh-Hant`, `zh-TW`, `zh-HK`, and `zh-MO` select Traditional Chinese. An explicit script takes precedence over region; unknown scripts are not inferred from Chinese regions. Numeric variants are not scripts. Other languages match an exact tag or base language. This selection policy does not change public locale canonicalization.
 
@@ -69,7 +69,19 @@ Before dispatching downstream, the middleware calls `App::setLocale`, updating c
 
 Remove the previous application `SetLocale` file and its `append` registration to avoid duplicate execution. Use the empty-list setting above to disable detection.
 
-The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Display text uses the configured translation fallback. Repository links use the framework package metadata, and the template builds documentation paths with the current application locale. The default `en`, `zh-Hans`, and `zh-Hant` locales have matching documentation directories. If detection is disabled and `APP_LOCALE=fr`, text may fall back to English, but documentation links still point to `docs/fr`, which is not included. For another application locale, provide the corresponding documentation or customize the welcome template.
+The welcome page uses the current application locale for HTML `lang` and `Content-Language`. Text follows the configured translation fallback. Documentation links use the corresponding `en`, `zh-Hans` or `zh-Hant` directory; other runtime languages link to English documentation. This mapping only selects documentation links and does not change the application locale or message fallback.
+
+### Framework defaults and application overrides {#default-translations}
+
+The 18 default locales live in `vendor/openrust/framework/src/translation/lang/` and are embedded in the binary. The default application keeps editable `en`, `zh-Hans` and `zh-Hant` welcome.json files under `lang/`; other built-in catalogs do not need application copies. Create only the keys you want to override, for example `lang/fr/validation.json`:
+
+```json
+{"required": "Custom message for :attribute", "min": {"string": "At least :min characters"}}
+```
+
+Grouped resources are merged recursively: these keys win while other French validation messages remain available from the framework. A sentence catalog such as `lang/fr.json` overrides matching top-level sentence keys. Missing keys then follow the configured fallback language. Invalid application JSON remains an error; defaults do not hide broken files. Changing an override requires refreshing an already-loaded translator by restarting persistent processes.
+
+Framework defaults require neither runtime source files nor publishing. `lang:publish` optionally publishes all bundled groups and sentence catalogs for customization; existing files remain protected unless overwrite is requested. Namespaced package translation rules stay separate.
 
 ### Available Languages {#available-locales}
 
@@ -84,7 +96,7 @@ An unset variable defaults to `*`, discovering all available framework and appli
 Candidate precedence is explicit `middleware.setLocale(...)` → `app.supported_locales` → resource discovery. An explicit empty list also takes precedence. Configured and explicit lists skip scanning. The default middleware captures candidates once at HTTP startup; changes require restarting the application and rebuilding configuration cache when used. This setting does not alter `app.locale`, `app.fallback_locale` or request-source priority.
 
 
-`FileLoader::availableLocales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `addPath` and top-level JSON files registered with `addJsonPath`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
+The Provider loader includes embedded framework locales. `FileLoader::new(path)` alone remains a loader for explicitly supplied files. `FileLoader::availableLocales()` discovers `<locale>.json` files and locale directories containing grouped JSON resources, including nested groups. It uses the same selected application root as translation loading (`resources/lang` when present, otherwise `lang`), plus application paths registered with `addPath` and top-level JSON files registered with `addJsonPath`. Package namespaces, `vendor`, hidden entries, symbolic links and empty locale directories do not enable languages. Names must already match their canonical BCP 47 tag; for example, use `zh-Hans`, not `zh_CN` or `ZH-hans`. Results are deduplicated and sorted by tag. Discovery does not parse message contents or assess translation completeness.
 
 The default middleware captures this list after application Providers finish booting and before serving requests. It does not scan on each request; restart the application after adding or removing language files. This list is independent of the configuration cache. Explicit `setLocale` candidates override configuration; otherwise an `app.supported_locales` array skips discovery. An empty discovered list leaves the configured application locale in effect and hides the welcome switcher. Database-only languages require explicit candidates; discovery never queries the database or enables every package language.
 
@@ -250,7 +262,7 @@ Read translations directly in templates. The controller only supplies page data:
 
 ## Publishing Language Files {#publishing-the-language-files}
 
-Run `./artisan lang:publish` to publish the English authentication, pagination, password reset, and validation JSON catalogs. The command writes to `lang/en` or to `resources/lang/en` when the application already uses `resources/lang`. It preserves existing files by default. Use `--force` to replace all four files, or `--existing` to replace only previously published files. When both flags are set, `--existing` determines the scope.
+Run `./artisan lang:publish` to publish all eight bundled groups and notification sentence catalogs for the 18 bundled locales. The command uses `lang/`, or `resources/lang/` when that directory already exists. Existing files are preserved by default. `--force` replaces the bundled files; `--existing` only replaces bundled files already present. When both flags are set, `--existing` determines the scope. Custom groups and other locales are preserved.
 
 ## Defining Translation Strings
 
@@ -332,7 +344,7 @@ pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> 
 }
 ```
 
-The schema follows Spatie’s Laravel Translation Loader: one row per group/key; `text` is a JSON object such as `{"en":"Hello :name","fr":"Bonjour :name"}`. Use canonical locale keys (`en-US`, `zh-Hans`). A missing or null locale leaves the file value available. Translation values must be strings; empty strings are valid. Group `*` stores literal keys, including dots. Other groups expand dotted keys such as `nested.title` or `items.0`. Package namespaces use only the file source, matching Spatie. Duplicate or overlapping keys, invalid JSON, empty key segments, and keys deeper than 128 segments fail the load.
+The schema follows Spatie’s the framework Translation Loader: one row per group/key; `text` is a JSON object such as `{"en":"Hello :name","fr":"Bonjour :name"}`. Use canonical locale keys (`en-US`, `zh-Hans`). A missing or null locale leaves the file value available. Translation values must be strings; empty strings are valid. Group `*` stores literal keys, including dots. Other groups expand dotted keys such as `nested.title` or `items.0`. Package namespaces use only the file source, matching Spatie. Duplicate or overlapping keys, invalid JSON, empty key segments, and keys deeper than 128 segments fail the load.
 
 Call this function inside an asynchronous application scope, such as a provider's `boot`, after migrations are available:
 
@@ -467,7 +479,7 @@ To override a package translation such as `shop::cart.summary.heading`, define t
 
 ## Artisan translations {#artisan-translations}
 
-Artisan uses `APP_LOCALE` for list headings, help and argument errors. Built-in text is available in English, Simplified Chinese and Traditional Chinese. An application can override text in `lang/<locale>/console.json`. Lookup uses the active locale and then `APP_FALLBACK_LOCALE` before built-in text. A command without a translated description uses its registered description.
+Artisan uses `APP_LOCALE` for list headings, help and argument errors. The application ships console catalogs for the 18 locales listed below. Override text in `lang/<locale>/console.json`. Lookup uses the active locale and then `APP_FALLBACK_LOCALE` before built-in text. A command without a translated description uses its registered description.
 
 ```sh
 APP_LOCALE=en ./artisan help list
@@ -510,6 +522,29 @@ Faker keeps native provider keys private; `locale()` and `randomLocale()` return
 
 `Translator::getSelector()` returns the active `Arc<dyn Selector>`. Implement `openrust::translation::Selector` and pass the instance to `setSelector` to customize plural branch selection. Its `choose` method receives the untranslated line, `PluralCount`, and resolved locale, and returns `TranslationResult<String>`. Replacement of `:count` and other placeholders happens afterward. Restore the default with `setSelector(MessageSelector)`. `getLoader()` returns the actual shared `Arc<FileLoader>`; previously returned selector and loader handles remain valid.
 
+## Bundled Language Resources {#bundled-locales}
+
+`en`, `zh-Hans`, `zh-Hant`, `ja`, `ko`, `fr`, `de`, `es`, `pt`, `it`, `ru`, `ar`, `hi`, `id`, `vi`, `th`, `tr`, `nl`.
+
+Deploy the binary, welcome template and any application language overrides together; built-in translations do not need a separate lang/ tree. Rebuild configuration and view caches and restart workers. Explicit candidate lists remain application-controlled. Resources, number formatting, plural selection and regional Faker datasets are separate capabilities; configure Faker independently.
+
+
+### Locale capability boundaries
+
+| Capability | Scope |
+| --- | --- |
+| Runtime resources | All 18 bundled locales have welcome, language names, console, schema, authentication, password, pagination and validation groups, plus notification sentence catalogs. |
+| Plural selection | Uses the existing message selector. Arabic uses six branches, Russian three; invariant languages use the first branch. Decimal modulo behavior follows the selector contract, independently of ICU number formatting. |
+| Numbers | Decimal formatting accepts all 18 locale tags through ICU. This does not promise localized spelling for every language. |
+| Faker | Configure `app.faker_locale` independently. A generic UI locale such as `fr` does not automatically select `fr-FR`; formatter-specific regional datasets and fallback behavior remain in effect. `zh-Hans` / `zh-Hant` retain the existing Chinese provider mappings. |
+| Developer documentation | English, Simplified Chinese and Traditional Chinese. Other welcome-page languages link to the English documentation. |
+
+The welcome view reads the documentation directory from `welcome.documentation_locale` in the active language resources. Bundled languages without corresponding documentation use `en`; a custom language without this key also uses `en`. When adding documentation for another language, override this key in that language’s application `welcome.json` (for example, `"documentation_locale": "ja"`). This changes only the documentation links, not the page language.
+
+The welcome description uses a `:name` placeholder. The view passes `config('app.name')`, so changing `APP_NAME` updates the introduction in every bundled language; the rendered text is HTML-escaped.
+
+Standard translations retain the bundled MIT attribution. OpenRust-specific additions are technically checked translations, including machine-assisted drafts; native-language editorial review is separate. Neither local capture nor queue delivery tests certify delivery through an external mail provider.
+
 ## Language directories
 
 At application creation, OpenRust uses `resources/lang/` when that directory exists; otherwise it selects the root `lang/`. Path selection does not create directories. The application contract exposes `langPath("")` and accepts a suffix such as `langPath("en/validation.json")`.
@@ -525,7 +560,3 @@ app.useLangPath(app.base_path().join("translations"))?;
 `App::langPath("")` and `openrust::support::lang_path("")` read the same application path inside an HTTP, Artisan or queue scope. `App::useLangPath(...)` is also available. These paths are application-wide; do not switch them per request. A loader that has already been resolved keeps its original directory, so configure paths before loading services rather than expecting live reload.
 
 `lang:publish` writes to this directory and preserves existing files by default. `--force` overwrites available templates, while `--existing` overwrites only templates already published. For package resources, use `app.langPath("vendor/package/...")` as the destination passed to `publishesPaths`; `vendor:publish` supports explicitly configured absolute paths, including directories outside the application. Relative traversal and symbolic links remain rejected. Application package overrides are loaded from this same language directory.
-
-The welcome view reads the documentation directory from `welcome.documentation_locale` in the active language resources. Bundled languages without corresponding documentation use `en`; a custom language without this key also uses `en`. When adding documentation for another language, override this key in that language’s application `welcome.json` (for example, `"documentation_locale": "ja"`). This changes only the documentation links, not the page language.
-
-The welcome description uses a `:name` placeholder. The view passes `config('app.name')`, so changing `APP_NAME` updates the introduction in every bundled language; the rendered text is HTML-escaped.

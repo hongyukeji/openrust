@@ -30,7 +30,7 @@ pub type PageSizeResolver<'a> = dyn Fn(u64) -> DatabaseResult<Option<u64>> + Sen
 /// Supplies a precomputed total. Returning `None` allows the query to count rows.
 pub type PageTotalResolver<'a> = dyn Fn() -> DatabaseResult<Option<u64>> + Send + Sync + 'a;
 
-#[allow(non_snake_case, reason = "Matches Laravel's pagination options")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct PageOptions<'a> {
     pub perPage: Option<u64>,
     pub columns: &'a [&'a str],
@@ -74,7 +74,7 @@ impl PageOptions<'_> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's pagination options")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct CursorOptions<'a> {
     pub perPage: Option<u64>,
     pub columns: &'a [&'a str],
@@ -95,7 +95,7 @@ impl Default for CursorOptions<'_> {
 
 /// Link options for in-memory pagination. Omitted values use the current request.
 #[derive(Clone, Copy, Debug, Default)]
-#[allow(non_snake_case, reason = "Matches Laravel's pagination options")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct PaginatorOptions<'a> {
     pub path: Option<&'a str>,
     pub query: &'a [(String, String)],
@@ -123,7 +123,7 @@ pub(crate) fn page_offset(page: u64, size: u64) -> PaginationResult<u64> {
 
 macro_rules! paginator_json {
     ($type:ident) => {
-        #[allow(non_snake_case, reason = "Matches Laravel's paginator JSON API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl<T: serde::Serialize> $type<T> {
             pub fn toArray(&self) -> serde_json::Result<serde_json::Value> {
                 serde_json::to_value(self)
@@ -144,10 +144,7 @@ pub(super) use paginator_json;
 
 macro_rules! paginator_morph {
     ($paginator:ident) => {
-        #[allow(
-            non_snake_case,
-            reason = "Matches Laravel's paginator relationship API"
-        )]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl<M: crate::database::eloquent::Model> $paginator<M> {
             /// Loads a nested relation for a typed morph target on this page.
             pub async fn loadMorph<T: crate::database::eloquent::Model>(

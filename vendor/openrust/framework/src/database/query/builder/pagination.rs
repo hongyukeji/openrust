@@ -10,7 +10,7 @@ use crate::{
 
 use super::{Builder, Column, Conditions, Order};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<Row>> {
         self.paginateWith(PageOptions {
@@ -88,7 +88,7 @@ impl Builder<'_> {
     ) -> DatabaseResult<CursorPaginator<Row>> {
         let size = page_size(options.perPage)?;
         let links = Links::current(options.cursorName);
-        // Laravel starts at the first page when an incoming token cannot be decoded.
+        // the framework starts at the first page when an incoming token cannot be decoded.
         let cursor = links.current_cursor(options.cursor);
         if !self.unions.is_empty()
             || !self.groups.is_empty()

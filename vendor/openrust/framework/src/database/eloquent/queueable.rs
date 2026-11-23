@@ -231,7 +231,7 @@ fn restoration_query<M: Model>(connection: Option<&str>) -> DatabaseResult<Build
     Ok(M::queryOn(&connection).withoutGlobalScopes().useWritePdo())
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's queue naming")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> ModelIdentifier<M> {
     pub fn capture(model: &M) -> DatabaseResult<Self> {
         Ok(Self {
@@ -289,7 +289,7 @@ impl<M: Model> ModelIdentifier<M> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's queue naming")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<M: Model> ModelCollectionIdentifier<M> {
     pub fn capture(models: &Collection<M>) -> DatabaseResult<Self> {
         let connection = models.getQueueableConnection()?.map(str::to_owned);

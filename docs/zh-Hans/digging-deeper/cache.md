@@ -16,7 +16,7 @@ cargo build
 ./artisan migrate
 ```
 
-数据库 `expiration` 列保存 Unix 秒数。永久记录采用十年有效期，与 Laravel DatabaseStore 一致。亚秒有效期和锁租约向上取整到下一秒；需要更细过期精度时使用 Redis。
+数据库 `expiration` 列保存 Unix 秒数。永久记录采用十年有效期，与框架DatabaseStore 一致。亚秒有效期和锁租约向上取整到下一秒；需要更细过期精度时使用 Redis。
 
 ## Memcached {#memcached}
 
@@ -52,7 +52,7 @@ CACHE_STORAGE_DISK=local
 CACHE_STORAGE_PATH=framework/cache/items
 ```
 
-本地磁盘与 S3 共享同一缓存接口。过期或无法读取的记录视为未命中，后续写入可覆盖过期文件，清理也可删除它们。与 Laravel 的磁盘驱动相同，读改写操作没有跨进程原子性。该驱动不提供锁和标签。
+本地磁盘与 S3 共享同一缓存接口。过期或无法读取的记录视为未命中，后续写入可覆盖过期文件，清理也可删除它们。与 磁盘驱动相同，读改写操作没有跨进程原子性。该驱动不提供锁和标签。
 
 `./artisan cache:clear storage` 会清理该缓存目录中所有前缀的文件。缓存路径为空时会清理所选磁盘中的文件。磁盘还保存普通文件时，请指定专用缓存目录。
 
@@ -179,7 +179,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 `cache!()` 或 `openrust::support::cache()` 获取当前应用的缓存管理器。调用 `.store(None)?` 取得默认仓库。`cache!(key).await?` 返回 `Option<Value>`，`cache!(key, default).await?` 支持默认值。
 
-写入形式接受至少一组键值和 `Option<Ttl>`。与固定 Laravel 的助手一样，它只写入第一项。需要写入全部条目时使用 `Cache::putMany`。
+写入形式接受至少一组键值和 `Option<Ttl>`。与固定 助手一样，它只写入第一项。需要写入全部条目时使用 `Cache::putMany`。
 
 ```rust
 use openrust::{cache, cache::{CacheResult, Ttl, Value}};

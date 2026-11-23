@@ -5,7 +5,7 @@ use std::{path::Path, sync::Arc};
 use crate::view::{ViewData, ViewResult, ViewValue};
 
 /// A view and its rendering data.
-#[allow(non_snake_case, reason = "Matches Laravel's view contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait View: Send + Sync {
     fn name(&self) -> &str;
     fn with(&mut self, key: &str, value: ViewValue) -> &mut dyn View;
@@ -17,7 +17,7 @@ pub trait View: Send + Sync {
 pub type ViewCallback = dyn Fn(&mut dyn View) -> ViewResult<()> + Send + Sync;
 
 /// Creates views with application-specific configuration.
-#[allow(non_snake_case, reason = "Matches Laravel's view factory contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Factory: Send + Sync {
     fn exists(&self, view: &str) -> bool;
     fn file(&self, path: &Path, data: ViewData, merge_data: ViewData) -> ViewResult<Box<dyn View>>;

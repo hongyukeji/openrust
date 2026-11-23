@@ -47,7 +47,7 @@ pub struct DatabaseManager {
     test_query_counts: Option<Weak<TestQueryCounts>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseManager {
     pub fn new(config: Arc<dyn Repository>, root: impl Into<PathBuf>) -> Self {
         Self {

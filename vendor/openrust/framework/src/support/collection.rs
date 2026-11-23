@@ -130,7 +130,7 @@ impl<T: PartialEq> PartialEq for Collection<T> {
 
 impl<T: Eq> Eq for Collection<T> {}
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn new() -> Self {
         Self::default()

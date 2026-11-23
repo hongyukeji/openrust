@@ -7,7 +7,7 @@ pub struct EventMetadata {
     payload: Map<String, Value>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack event metadata API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl EventMetadata {
     pub fn make(event_type: impl Into<String>, payload: Map<String, Value>) -> Self {
         Self {

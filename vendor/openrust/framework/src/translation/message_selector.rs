@@ -38,10 +38,7 @@ impl std::fmt::Display for PluralCount {
 }
 
 impl PluralCount {
-    #[allow(
-        clippy::cast_precision_loss,
-        reason = "Laravel converts mixed integer and double operands to double"
-    )]
+    #[allow(clippy::cast_precision_loss, reason = "保留既定公开接口及命名")]
     fn as_float(self) -> f64 {
         match self {
             Self::Integer(value) => value as f64,
@@ -212,10 +209,7 @@ impl ModuloRule {
         // PHP 8.5 在显式整数转换超界时发出 E_WARNING，固定上游的默认异常处理将其升级。
         let integer = match count {
             PluralCount::Integer(value) => value,
-            #[allow(
-                clippy::cast_possible_truncation,
-                reason = "Laravel truncates finite fractional operands before modulo"
-            )]
+            #[allow(clippy::cast_possible_truncation, reason = "保留既定公开接口及命名")]
             PluralCount::Float(value) if value < TWO_TO_63 => value as i64,
             PluralCount::Float(_) => return Err(TranslationError::InvalidCount),
         };

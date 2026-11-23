@@ -52,13 +52,13 @@ impl ValidationException {
         }
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's ValidationException API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn errorBag(&mut self, name: impl Into<String>) -> &mut Self {
         self.error_bag = Some(name.into());
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's ValidationException API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn redirectTo(&mut self, path: impl Into<String>) -> &mut Self {
         self.redirect_target = Some(path.into());
         self

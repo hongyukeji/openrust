@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, percentage_from_counts};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn containsStrict(&self, value: &T) -> bool
     where

@@ -152,7 +152,7 @@ fn register_password_routes() -> Result<(), RoutingError> {
 
 ## Custom Guards and Providers
 
-Authentication models are selected in `config/auth.rs`, following Laravel's `auth.providers` configuration. `openrust::auth::model!` is the Rust counterpart of a PHP model class reference: it returns the class name and retains its compiled factory. Neither `AppServiceProvider` nor `bootstrap/app.rs` needs model registration:
+Authentication models are selected in `config/auth.rs`, following `auth.providers` configuration. `openrust::auth::model!` is the Rust counterpart of a PHP model class reference: it returns the class name and retains its compiled factory. Neither `AppServiceProvider` nor `bootstrap/app.rs` needs model registration:
 
 ```rust
 let user = openrust::auth::model!(crate::app::models::User);

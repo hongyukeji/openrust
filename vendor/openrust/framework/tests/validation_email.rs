@@ -5,7 +5,7 @@ use openrust::{
 use serde_json::{Value, json};
 
 #[tokio::test]
-async fn default_email_matches_fixed_laravel_and_egulias_cases() {
+async fn default_email_matches_fixed_reference_and_egulias_cases() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../../../.agents/project/audits/api-f01/fixtures/email_rule.json"
     ))

@@ -5,7 +5,7 @@ use openrust::{
 use serde_json::{Value, json};
 
 #[tokio::test]
-async fn password_and_confirmed_match_fixed_laravel_validator() {
+async fn password_and_confirmed_match_fixed_reference_validator() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../../../.agents/project/audits/api-f01/fixtures/password_rule.json"
     ))

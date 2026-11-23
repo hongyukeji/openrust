@@ -27,7 +27,7 @@ impl Default for CookieJar {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's CookieJar API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl CookieJar {
     pub fn new() -> Self {
         Self::default()

@@ -45,7 +45,7 @@ pub struct Image {
     dominant_color: OnceCell<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Image API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Image {
     pub(super) fn new(manager: ImageManager, source: Source) -> Self {
         let file = match &source {

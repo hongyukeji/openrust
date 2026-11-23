@@ -9,10 +9,7 @@ pub struct TransferStats {
     pub(super) duration: std::time::Duration,
     pub(super) network: bool,
 }
-#[allow(
-    non_snake_case,
-    reason = "Matches Guzzle transfer statistics consumed by Laravel"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TransferStats {
     pub fn getTransferTime(&self) -> f64 {
         self.duration.as_secs_f64()
@@ -28,10 +25,7 @@ impl TransferStats {
 
 /// A response whose body is available for repeated inspection.
 #[derive(Clone)]
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel Response transferStats property"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct Response {
     pub transferStats: Option<TransferStats>,
     status: StatusCode,
@@ -48,7 +42,7 @@ impl std::fmt::Debug for Response {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's HTTP response API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Response {
     pub fn new(status: StatusCode, headers: HeaderMap, body: impl Into<Vec<u8>>) -> Self {
         Self {

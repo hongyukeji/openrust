@@ -3,7 +3,7 @@ use std::{fmt::Display, num::NonZeroUsize, ops::RangeInclusive};
 use super::{ArrayKey, Collection, CollectionError, CollectionResult};
 use crate::support::Arr;
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn collect(self) -> Self {
         self
@@ -312,7 +312,7 @@ impl Collection<i64> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<Vec<T>> {
     pub fn mapSpread<U>(self, mut callback: impl FnMut(&[T], &ArrayKey) -> U) -> Collection<U> {
         self.map(|chunk, key| callback(chunk, key))
@@ -323,7 +323,7 @@ impl<T> Collection<Vec<T>> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<Option<T>> {
     pub fn whereNull(self) -> Self {
         self.filter(|value, _| value.is_none())
@@ -338,7 +338,7 @@ fn sample_index(len: usize) -> CollectionResult<usize> {
     crate::support::arr::random_index(len).map_err(Into::into)
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Collection<Box<dyn std::any::Any>> {
     pub fn whereInstanceOf<T: 'static>(self) -> Collection<Box<T>> {
         Collection::fromEntries(

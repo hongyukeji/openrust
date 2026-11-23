@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use super::data;
 
-/// Ordered attributes with Laravel-style dot-path access.
+/// Ordered attributes with framework dot-path access.
 #[derive(Clone, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct Fluent<T = Value>(T);
@@ -22,7 +22,7 @@ impl<T> fmt::Debug for Fluent<T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Fluent API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Fluent<T> {
     pub(crate) fn from_attributes(attributes: T) -> Self {
         Self(attributes)
@@ -40,7 +40,7 @@ impl<T> Fluent<T> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Fluent API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Fluent {
     /// Constructs an attribute bag from JSON array or object data.
     pub fn make(attributes: Value) -> Result<Self, FluentError> {

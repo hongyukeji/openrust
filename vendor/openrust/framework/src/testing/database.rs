@@ -85,10 +85,7 @@ impl ServiceProvider for Sqlite {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's database testing assertions"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Creates a test application with a private SQLite file.
     ///

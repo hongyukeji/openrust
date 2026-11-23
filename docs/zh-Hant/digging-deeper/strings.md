@@ -58,7 +58,7 @@ assert!(Str::isUlid(&Str::ulid().to_string()));
 
 `match` 優先傳回有比對結果的第一個擷取群組，否則傳回完整比對。`matchAll` 在宣告擷取群組時傳回每筆的第一組，未比對的群組使用空字串。正規表示式採用 Rust 語法，例如 `(?i)` 表示忽略大小寫，替換支援 `$1` 或具名擷取。`replaceMatchesWith` 接收 Rust 回呼，無效模式傳回 `regex::Error`。
 
-`width` 和 `limit` 使用 PHP 8.5 的東亞字元寬度表。`wordWrap` 依 Laravel 的 Unicode 純量規則在空格處換行，也可強制拆分長字。`limit` 的保留整字模式會處理基本 HTML 標籤後截斷。
+`width` 和 `limit` 使用 PHP 8.5 的東亞字元寬度表。`wordWrap` 依 Unicode 純量規則在空格處換行，也可強制拆分長字。`limit` 的保留整字模式會處理基本 HTML 標籤後截斷。
 
 ```rust
 use openrust::support::Str;

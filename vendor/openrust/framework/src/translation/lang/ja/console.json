@@ -1,0 +1,68 @@
+{
+  "command_missing": "コマンド「:name」が定義されていません。",
+  "command_ambiguous": "コマンド「:name」があいまいです: :choices",
+  "confirm": {
+    "production": "本番環境でのアプリケーション。本当にこのコマンドを実行しますか?",
+    "cancelled": "コマンドがキャンセルされました。"
+  },
+  "make": {
+    "mail": {
+      "name": "郵送物の名前は何ですか?",
+      "view": "ビューを作成しますか？\n  1. Markdown ビュー\n  2. 空のビュー\n  3. ビューなし\n選択 [1]"
+    },
+    "notification": {
+      "name": "通知の名前は何ですか?",
+      "markdown": "マークダウン ビューを作成しますか? [Y/n]",
+      "view": "マークダウン ビューにはどのような名前を付ける必要がありますか?"
+    },
+    "message": {
+      "cancelled": "コマンドがキャンセルされました。"
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "リストコマンド"
+    },
+    "help": {
+      "description": "コマンドのヘルプを表示する"
+    },
+    "inspire": {
+      "description": "感動的な引用を表示する"
+    },
+    "heading": "コマンド:"
+  },
+  "usage": "使用法:",
+  "options": "オプション:",
+  "unknown_argument": "予期せぬ引数",
+  "unknown_command": "コマンドが定義されていません",
+  "missing_argument": "必須の引数がありません",
+  "invalid_value": "無効な値",
+  "argument_conflict": "引数の矛盾",
+  "invalid_arguments": "無効な引数",
+  "model_fields": {
+    "title": "モデルのテーブルとフィールド",
+    "notice": "データベース スキーマから生成されます。手動で編集しないでください。",
+    "sync": "プロジェクトのルートから `./artisan model:fields :model` を実行して同期します。",
+    "table": "テーブル"
+  },
+  "namespace_missing": "名前空間「:name」が定義されていません。",
+  "available_commands": "利用可能なコマンド",
+  "namespace_commands": "「:name」名前空間で使用可能なコマンド:",
+  "available_commands_heading": "利用可能なコマンド:",
+  "usage_title": "使用法",
+  "argument_descriptions": {
+    "help": "ヘルプを印刷する",
+    "version": "印刷版",
+    "ansi": "ANSI出力を有効にする",
+    "no-ansi": "ANSI出力を無効にする",
+    "env": "コマンドを実行する環境",
+    "no-interaction": "インタラクティブな質問はしないでください",
+    "quiet": "メッセージを出力しない",
+    "silent": "メッセージやエラーを出力しない",
+    "verbose": "メッセージの冗長性を高める",
+    "format": "出力形式を選択してください",
+    "command_name": "表示するコマンドは",
+    "namespace": "特定の名前空間のコマンドを表示する"
+  },
+  "arguments": "引数:"
+}

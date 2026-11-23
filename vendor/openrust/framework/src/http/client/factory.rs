@@ -103,10 +103,7 @@ struct Sequence {
     fallback: Option<Response>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's fake response sequence API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ResponseSequence {
     pub fn push(&self, response: Result<Response>) -> &Self {
         self.0
@@ -172,7 +169,7 @@ pub(super) fn build_client(connect_timeout: Duration, verify_tls: bool) -> Resul
         .map_err(|_| Error::Configuration)
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's HTTP factory API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Factory {
     pub fn new() -> Result<Self> {
         Ok(Self {

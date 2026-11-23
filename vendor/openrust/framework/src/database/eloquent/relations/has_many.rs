@@ -20,10 +20,7 @@ use super::{ExistenceRelation, HasOne, Relation, relation::RelationKeys};
 /// Links a parent key to a foreign key on many related models.
 pub struct HasMany<P: Model, R: Model>(pub(super) RelationKeys<P, R>);
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's relationship pagination API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> HasMany<P, R> {
     pub async fn paginate(
         &self,
@@ -129,7 +126,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn eachById<Fut>(
         &self,
         parent: &P,
@@ -149,7 +146,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
 
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn orderedChunkById<Fut>(
         &self,
         parent: &P,
@@ -232,14 +229,14 @@ impl<P: Model, R: Model> HasMany<P, R> {
         self.chaperone(relation)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[must_use]
     pub fn withoutChaperone(mut self) -> Self {
         self.0.inverse = None;
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[must_use]
     pub fn withoutInverse(self) -> Self {
         self.withoutChaperone()
@@ -256,7 +253,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Resolves one routed child through this parent's relationship.
-    #[allow(non_snake_case, reason = "Matches Laravel's route binding API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn resolveRouteBinding(
         &self,
         parent: &P,
@@ -279,7 +276,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Finds the related primary key or prepares an unsaved child for this parent.
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         match self.find(parent, key).await? {
             Some(model) => Ok(model),
@@ -317,7 +314,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Creates a child with an initial counter or increments a matching child.
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn firstOrNew<'a>(
         &self,
         parent: &P,
@@ -333,7 +330,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn firstOrCreate<'a>(
         &self,
         parent: &P,
@@ -344,7 +341,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createOrFirst<'a>(
         &self,
         parent: &P,
@@ -355,7 +352,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn updateOrCreate<'a>(
         &self,
         parent: &P,
@@ -373,7 +370,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn restoreOrCreate<'a>(
         &self,
         parent: &P,
@@ -388,7 +385,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createOrRestore<'a>(
         &self,
         parent: &P,
@@ -403,7 +400,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn incrementOrCreate(
         &self,
         parent: &P,
@@ -538,7 +535,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     /// Constructs unsaved children in input order.
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn makeMany(
         &self,
         parent: &P,
@@ -621,12 +618,12 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         R::withoutEvents(self.save(parent, model)).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
         for model in models {
             self.save(parent, model).await?;
@@ -634,17 +631,17 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
         R::withoutEvents(self.saveMany(parent, models)).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         R::withoutEvents(self.create(parent, attributes)).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createMany(
         &self,
         parent: &P,
@@ -657,7 +654,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(models)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn createManyQuietly(
         &self,
         parent: &P,
@@ -666,7 +663,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         R::withoutEvents(self.createMany(parent, records)).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         let connection = self.0.connection(parent)?;
         let query = self.0.configure(R::queryOn(&connection))?;
@@ -680,7 +677,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(model)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreateQuietly(
         &self,
         parent: &P,
@@ -689,7 +686,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         R::withoutEvents(self.forceCreate(parent, attributes)).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreateMany(
         &self,
         parent: &P,
@@ -702,7 +699,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(models)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn forceCreateManyQuietly(
         &self,
         parent: &P,
@@ -718,7 +715,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for HasMany<P, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
@@ -785,7 +782,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for HasMany<P, R> {
     fn getRelationExistenceQuery(
         &self,

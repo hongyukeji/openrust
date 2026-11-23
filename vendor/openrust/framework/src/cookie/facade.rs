@@ -19,7 +19,7 @@ impl Facade for Cookie {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Cookie facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Cookie {
     pub(crate) fn factory() -> Result<Arc<CookieJar>, CookieError> {
         Self::getFacadeRoot().map_err(|_| CookieError)

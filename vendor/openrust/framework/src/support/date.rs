@@ -52,7 +52,7 @@ pub enum MonthOverflow {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Date(Zoned);
 
-#[allow(non_snake_case, reason = "Matches Laravel's date helpers")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Date {
     /// Resolve an IANA name using the framework's bundled IANA 2025b database.
     pub fn timezone(name: &str) -> Result<DateTimezone, DateError> {

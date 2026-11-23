@@ -8,7 +8,7 @@ const HEX: &[u8; 16] = b"0123456789abcdef";
 pub struct CookieValuePrefix;
 
 impl CookieValuePrefix {
-    /// Creates Laravel's hexadecimal HMAC-SHA1 prefix and separator.
+    /// Creates hexadecimal HMAC-SHA1 prefix and separator.
     pub fn create(cookie_name: &str, key: &[u8]) -> [u8; PREFIX_BYTES] {
         let key = hmac::Key::new(hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY, key);
         let mut context = hmac::Context::with_key(&key);

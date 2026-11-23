@@ -35,10 +35,7 @@ pub struct NotificationFake {
     records: Mutex<Vec<RecordedNotification>>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's NotificationFake assertions"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl NotificationFake {
     pub fn sentNotifications(&self) -> Vec<RecordedNotification> {
         self.matching(|_| true)

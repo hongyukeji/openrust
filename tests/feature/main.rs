@@ -376,7 +376,7 @@ fn artisan_uses_application_translation_fallback() {
         root.join("lang/fr/console.json"),
         r#"{"options":"Options de secours :","commands":{"list":{"description":"Liste de secours"}}}"#,
     ).unwrap();
-    let output = artisan_in(&["help", "list"], "de", Some(&root));
+    let output = artisan_in(&["help", "list"], "sv", Some(&root));
     std::fs::remove_dir_all(root).unwrap();
     assert!(
         output.status.success(),

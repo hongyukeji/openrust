@@ -13,7 +13,7 @@ pub struct Session;
 impl Facade for Session {
     type Service = SessionManager;
 
-    #[allow(non_snake_case, reason = "Matches Laravel's facade contract")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn getFacadeAccessor() -> ServiceKey {
         "session".into()
     }

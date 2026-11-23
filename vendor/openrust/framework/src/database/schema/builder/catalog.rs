@@ -12,7 +12,7 @@ use crate::database::schema::{
 const MYSQL_SYSTEM_SCHEMAS: &str =
     "('information_schema', 'mysql', 'ndbinfo', 'performance_schema', 'sys')";
 
-#[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     fn catalog_table(&self, name: &str) -> DatabaseResult<Table> {
         let table = self.resolve_table(name)?;

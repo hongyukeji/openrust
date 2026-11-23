@@ -43,7 +43,7 @@ pub struct AnonymousEvent {
     immediate: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's anonymous broadcast API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl AnonymousEvent {
     pub const NAME: &'static str = "AnonymousEvent";
 
@@ -63,7 +63,7 @@ impl AnonymousEvent {
         self
     }
 
-    /// Sets the wire name (Laravel's `as`).
+    /// Sets the wire name (`as`).
     pub fn r#as(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

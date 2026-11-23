@@ -36,10 +36,7 @@ pub struct ApplicationBuilder {
     runners: Option<RunnerRegistrar>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Application setup uses Laravel's builder naming"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ApplicationBuilder {
     pub(crate) fn new(base_path: PathBuf) -> Self {
         Self {

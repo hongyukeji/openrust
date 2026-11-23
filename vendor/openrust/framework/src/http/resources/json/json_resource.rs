@@ -11,7 +11,7 @@ use super::{
 };
 
 /// Transforms an application resource for the current request.
-#[allow(non_snake_case, reason = "Matches Laravel's JsonResource API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait JsonResource {
     #[doc(hidden)]
     const JSON_API: bool = false;

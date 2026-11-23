@@ -9,7 +9,7 @@ use crate::contracts::support::Htmlable;
 #[serde(transparent)]
 pub struct HtmlString(String);
 
-#[allow(non_snake_case, reason = "Matches Laravel's HtmlString API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl HtmlString {
     pub fn new(html: impl Into<String>) -> Self {
         Self(html.into())

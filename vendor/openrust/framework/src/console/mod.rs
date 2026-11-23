@@ -229,9 +229,9 @@ pub(crate) use confirmToProceed as confirm_production;
 
 /// Confirms a command before proceeding in production using the shared localized prompt.
 ///
-/// The caller supplies its production condition (Laravel's confirmation callback).
+/// The caller supplies its production condition (confirmation callback).
 /// An absent `--force` option never bypasses confirmation. Non-interactive input refuses.
-#[allow(non_snake_case, reason = "Matches Laravel's ConfirmableTrait method")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub fn confirmToProceed(
     production: bool,
     matches: &clap::ArgMatches,

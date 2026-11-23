@@ -1,12 +1,12 @@
 # SMS
 
-The unified SMS API is an OpenRust extension based on Laravel’s [file storage](filesystem.md) design. Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
+The unified SMS API is an OpenRust extension based on [file storage](filesystem.md) design. Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
 
 The application supplies the default `log` profile in `config/sms.rs`. If a custom configuration loader replaces the SMS settings, it must provide both `default` and the selected entry under `drivers`; missing settings produce an error.
 
 ## Driver Lifecycle {#sms-driver-lifecycle}
 
-`SmsManager` follows Laravel's named driver pattern. The first resolution of a profile creates its driver; subsequent calls reuse the driver and the profile's template settings within the same application. Different profiles and applications have independent instances. The default profile name is read when `default_driver` or a default send method is called.
+`SmsManager` follows named driver pattern. The first resolution of a profile creates its driver; subsequent calls reuse the driver and the profile's template settings within the same application. Different profiles and applications have independent instances. The default profile name is read when `default_driver` or a default send method is called.
 
 Update configuration or register a replacement factory before clearing the resolved drivers:
 

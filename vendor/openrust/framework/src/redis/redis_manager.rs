@@ -73,7 +73,7 @@ impl RedisManager {
         }
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setEventDispatcher(&self, dispatcher: Arc<crate::events::Dispatcher>) {
         *self
             .events
@@ -82,12 +82,12 @@ impl RedisManager {
             .unwrap_or_else(|error| error.into_inner()) = Some(dispatcher);
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn enableEvents(&self) {
         self.events.enabled.store(true, Ordering::Release);
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Redis manager API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn disableEvents(&self) {
         self.events.enabled.store(false, Ordering::Release);
     }

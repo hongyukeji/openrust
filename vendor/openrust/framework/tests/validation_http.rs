@@ -527,7 +527,7 @@ impl FormRequest for Injected {
 
 struct InjectedResponse(Value);
 
-#[allow(non_snake_case, reason = "Implements the Laravel Responsable contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl openrust::contracts::support::Responsable for InjectedResponse {
     async fn toResponse(self, _: &mut Request) -> Result<Response, HttpError> {
         Response::json(StatusCode::OK, self.0)
@@ -2159,7 +2159,7 @@ async fn real_uploads_classify_file_content_and_distinguish_legacy_encodings() {
 }
 
 #[tokio::test]
-async fn transfer_encoding_and_canonical_base64_follow_laravel_over_http() {
+async fn transfer_encoding_and_canonical_base64_follow_reference_over_http() {
     let (address, server) = start(std::env::temp_dir()).await;
     for encoded in ["Zg==", "AAAA", "aGVsbG8="] {
         send(

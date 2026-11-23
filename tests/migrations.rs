@@ -29,8 +29,9 @@ impl Root {
         for locale in ["en", "zh-Hans", "zh-Hant"] {
             fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
             fs::copy(
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join(format!("lang/{locale}/schema.json")),
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+                    "vendor/openrust/framework/src/translation/lang/{locale}/schema.json"
+                )),
                 path.join(format!("lang/{locale}/schema.json")),
             )
             .unwrap();

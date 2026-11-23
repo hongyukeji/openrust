@@ -12,7 +12,7 @@ use super::{
     controller_dispatcher::{Action, FormAction},
 };
 
-/// An action in a Laravel-style resource controller.
+/// An action in a framework resource controller.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ResourceAction {
     Index,
@@ -150,7 +150,7 @@ impl<C> ResourceController<C> {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's FormRequest terminology")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn actionWithFormRequest<F: FormRequest + Default + 'static>(
         mut self,
         action: ResourceAction,
@@ -245,7 +245,7 @@ impl<C> ResourceController<C> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's resource router")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Router {
     #[track_caller]
     pub fn resource<C: Send + Sync + 'static>(

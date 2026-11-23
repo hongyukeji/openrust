@@ -13,7 +13,7 @@ pub struct ForeignKeyDefinition {
     pub(super) lock: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's ForeignKeyDefinition API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ForeignKeyDefinition {
     pub(super) fn new(columns: &[&str], name: Option<&str>) -> Self {
         Self {

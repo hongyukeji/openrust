@@ -29,7 +29,7 @@ pub struct ModelState {
     pub(in crate::database::eloquent) prevent_lazy_loading: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's model attribute API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ModelState {
     pub(crate) fn loaded_pivot_table(&self, name: &str) -> Option<&'static str> {
         self.relations.pivot_table(name)

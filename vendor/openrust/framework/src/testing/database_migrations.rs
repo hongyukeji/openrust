@@ -34,7 +34,7 @@ pub(super) struct MigrationRun {
     rollback: Option<MigrationTask>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's DatabaseMigrations API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Rebuilds the managed default MySQL schema, runs one test, and rolls back
     /// the migration batch. The callback can commit its own transactions.

@@ -186,7 +186,7 @@ impl Driver {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's hash API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Hasher for Driver {
     fn info(&self, hashed: &str) -> HashResult<HashInfo> {
         Ok(inspect(hashed))
@@ -393,7 +393,7 @@ macro_rules! define_hasher {
             }
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's hash API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl crate::contracts::hashing::Hasher for $name {
             fn info(&self, hashed: &str) -> super::HashResult<super::HashInfo> {
                 self.0.info(hashed)

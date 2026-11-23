@@ -1,4 +1,4 @@
-// Byte positions accepted by the PHP mbstring encodings used by Laravel.
+// Byte positions accepted by the PHP mbstring encodings used by the framework.
 pub(super) fn big5(lead: u8, trail: u8) -> bool {
     match lead {
         0xa1 => matches!(trail, 0x40..=0x59 | 0x5b..=0x7e | 0xa1..=0xc2 | 0xc4 | 0xc6..=0xfd),

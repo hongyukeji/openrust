@@ -27,15 +27,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/activitylog/NOTICE.md
-
-# Upstream attribution
-
-The Support contracts, change detection, logger flow, and reference fixtures translate and adapt selected Spatie Activitylog behavior. The original Spatie MIT notice is retained verbatim. OpenRust additions are covered by the repository LICENSE.
-
-- spatie/laravel-activitylog at `fdcc5ee063cbf91114679336c4fbf92837196419`: https://github.com/spatie/laravel-activitylog/tree/fdcc5ee063cbf91114679336c4fbf92837196419. License: [LICENSE-activitylog.md](vendor/openrust/activitylog/LICENSE-activitylog.md).
-
-
 ## vendor/openrust/cashier/LICENSE-cashier-paddle.md
 
 The MIT License (MIT)
@@ -84,18 +75,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-
-## vendor/openrust/cashier/NOTICE.md
-
-# Upstream attribution
-
-Selected customer API branches and public contracts adapt Laravel Cashier Stripe and Paddle. HTTP transport, operation claims and transactional storage are independent Rust implementations using OpenRust services; no PHP SDK is bundled. The upstream MIT notices are retained verbatim. OpenRust additions are covered by the repository LICENSE.
-
-- laravel/cashier-stripe at `d5c015490ff77f2c138fe79b86d2a982787fe3ac`: https://github.com/laravel/cashier-stripe/tree/d5c015490ff77f2c138fe79b86d2a982787fe3ac. License: [LICENSE-cashier-stripe.md](vendor/openrust/cashier/LICENSE-cashier-stripe.md).
-- laravel/cashier-paddle at `82bfc68eb72c38e666a4900baeecca3621840259`: https://github.com/laravel/cashier-paddle/tree/82bfc68eb72c38e666a4900baeecca3621840259. License: [LICENSE-cashier-paddle.md](vendor/openrust/cashier/LICENSE-cashier-paddle.md).
-
-Vendor HTTP protocols and signature verification use OpenRust HTTP and existing cryptography. No PHP vendor SDK is bundled; SDK references do not imply those SDKs execute in Rust.
 
 
 ## vendor/openrust/fortify/LICENSE.google2fa.md
@@ -4961,7 +4940,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-## vendor/openrust/framework/src/translation/stubs/LICENSE-Laravel.md
+## vendor/openrust/framework/src/translation/stubs/NOTICE
 
 The MIT License (MIT)
 
@@ -5009,7 +4988,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/horizon/LICENSE-LARAVEL
+## vendor/openrust/horizon/LICENSE-UPSTREAM
 
 The MIT License (MIT)
 
@@ -5134,7 +5113,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pennant/LICENSE-LARAVEL
+## vendor/openrust/pennant/LICENSE-UPSTREAM
 
 The MIT License (MIT)
 
@@ -5184,7 +5163,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/pulse/LICENSE-LARAVEL
+## vendor/openrust/pulse/LICENSE-UPSTREAM
 
 The MIT License (MIT)
 
@@ -5232,15 +5211,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-
-## vendor/openrust/reverb/NOTICE.md
-
-# Upstream attribution
-
-The Rust Axum/Redis Pusher transport is independently implemented against the protocol; Laravel Reverb supplies the configuration, command and channel lifecycle reference. Redis member leases are OpenRust-specific. No PHP server or upstream browser asset is bundled here. The original reference project MIT notice is retained for traceability; independent additions are covered by the repository LICENSE.
-
-- laravel/reverb at `70e3d28ed31466da34de0c055f3681b75a5a538c`: https://github.com/laravel/reverb/tree/70e3d28ed31466da34de0c055f3681b75a5a538c. License: [LICENSE-reverb.md](vendor/openrust/reverb/LICENSE-reverb.md).
 
 
 ## vendor/openrust/scout/LICENSE.md
@@ -5293,15 +5263,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/settings/NOTICE.md
-
-# Upstream attribution
-
-The typed group/repository API uses Spatie Settings as a design reference. Rust persistence, conflict/version handling and encryption integration are independently implemented; this is not a source-for-source translation of PHP Settings. The reference project MIT notice is retained verbatim for traceability without attributing independent additions to Spatie. OpenRust additions are covered by the repository LICENSE.
-
-- spatie/laravel-settings at `dc7c4c42bb3789c74493d756eaca2f183e9a68d5`: https://github.com/spatie/laravel-settings/tree/dc7c4c42bb3789c74493d756eaca2f183e9a68d5. License: [LICENSE-settings.md](vendor/openrust/settings/LICENSE-settings.md).
-
-
 ## vendor/openrust/socialite/LICENSE-easywechat.md
 
 The MIT License (MIT)
@@ -5351,22 +5312,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-
-## vendor/openrust/socialite/NOTICE.md
-
-# Upstream attribution
-
-Provider request/user mapping and public Manager/One/Two contracts adapt Laravel Socialite and selected ecosystem providers. HTTP, session and cryptographic transport reuse OpenRust services. The applicable original notices are retained; independent additions are covered by the repository LICENSE.
-
-- laravel/socialite at `8032bb1fa9d74aae54438f216e4d45db90d27ea9`: https://github.com/laravel/socialite/tree/8032bb1fa9d74aae54438f216e4d45db90d27ea9. License: [LICENSE-socialite.md](vendor/openrust/socialite/LICENSE-socialite.md).
-
-Additional translated provider request/user mapping and protocol references:
-
-- SocialiteProviders/WeChat `e61ce5d0f0ebf1c1ff57c6645815985203538908`: https://github.com/SocialiteProviders/WeChat/tree/e61ce5d0f0ebf1c1ff57c6645815985203538908. Composer declares MIT; authors: xyxu, xiami. The pinned tree has no standalone license file or source copyright header; no copyright statement is fabricated here.
-- SocialiteProviders/WeChat-Web `8b19355caf083bc092c7b25fe1189ae0744dbfbf`: https://github.com/SocialiteProviders/WeChat-Web/tree/8b19355caf083bc092c7b25fe1189ae0744dbfbf. Composer declares MIT; authors: xyxu. The pinned tree has no standalone license file or source copyright header; no copyright statement is fabricated here.
-- SocialiteProviders/QQ `b2b3652ef74f49d6eb0ba9804cfe118511a6c467`: https://github.com/SocialiteProviders/QQ/tree/b2b3652ef74f49d6eb0ba9804cfe118511a6c467. Composer declares MIT; authors: heui. The pinned tree has no standalone license file or source copyright header; no copyright statement is fabricated here.
-- EasyWeChat `ba8022698a613e37b10ed1e4db604c5a96af0a63`: https://github.com/w7corp/easywechat/tree/ba8022698a613e37b10ed1e4db604c5a96af0a63. MiniApp request/response reference, not a bundled PHP runtime. [Original MIT notice](vendor/openrust/socialite/LICENSE-easywechat.md).
 
 
 ## vendor/openrust/telescope/LICENSE.md
@@ -5424,7 +5369,6 @@ THE SOFTWARE.
 The JSON Schema implementation and selected support, validation, manager and process contracts in
 `vendor/openrust/framework/` are adapted from Laravel Framework v13.40.0
 (commit `1449bf241017087fbd38c118ecaabef3f6797fdc`).
-Source: https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc
 
 The MIT License (MIT)
 
@@ -5460,3 +5404,30 @@ The tag-removal state machine in
 `ext/standard/string.c` (`php_strip_tags_ex` and `php_tag_find`), under the PHP
 License 3.01 reproduced above. The HTML401 entity-name set is generated from
 PHP's standard translation table; named character values reuse web_atoms.
+
+
+## Translation resource notices
+
+Translation resources retain the complete MIT notice below. Detailed source provenance is maintained in project reference records.
+
+# MIT License
+
+Copyright (c) 2013-2026 Laravel Lang Team
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in
+> all copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+> THE SOFTWARE.

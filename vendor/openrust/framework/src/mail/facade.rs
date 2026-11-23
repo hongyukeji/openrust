@@ -18,7 +18,7 @@ impl Facade for Mail {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Mail facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Mail {
     pub(crate) async fn render_for_assertions(
         mailable: &dyn Mailable,

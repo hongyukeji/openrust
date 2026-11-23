@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{
     collections::HashMap,
@@ -52,7 +52,7 @@ pub struct AuthManager {
     extensions: RwLock<Extensions>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's AuthManager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl AuthManager {
     pub(crate) fn new(container: Weak<Container>, config: Arc<dyn Repository>) -> Self {
         Self {
@@ -269,7 +269,7 @@ impl AuthManager {
         factory(&container, &Value::Null)?.retrieveById(id).await
     }
 
-    /// Registers a compiled guard resolver with Laravel's guard name and configuration.
+    /// Registers a compiled guard resolver with guard name and configuration.
     /// The ordinary RequestGuard owns its request-local identity and resolution cache.
     pub fn extend(
         &self,

@@ -300,10 +300,10 @@ impl Registry {
 }
 
 /// Registers processes for the current application, typically from a service provider.
-#[allow(non_snake_case, reason = "Preserves Laravel development command names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct DevCommands;
 
-#[allow(non_snake_case, reason = "Preserves Laravel development command names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DevCommands {
     #[track_caller]
     pub fn register(command: &str, name: Option<&str>) -> Result<DevCommand, ConsoleError> {

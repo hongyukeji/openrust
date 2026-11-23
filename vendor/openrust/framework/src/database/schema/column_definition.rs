@@ -122,7 +122,7 @@ pub struct ColumnDefinition {
     pub(super) start: Option<u64>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's column modifiers")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ColumnDefinition {
     pub(super) fn new(name: &str, kind: ColumnType) -> Self {
         Self {

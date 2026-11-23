@@ -23,7 +23,7 @@ pub struct MailFake {
     records: Mutex<Vec<RecordedMail>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's MailFake assertions")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MailFake {
     pub fn sent(&self, kind: &str) -> Vec<RecordedMail> {
         self.matching(|mail| mail.queue.is_none() && mail.kind == kind)

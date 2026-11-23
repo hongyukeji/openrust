@@ -22,7 +22,7 @@ pub struct BelongsTo<P: Model, R: Model>(
     Option<&'static str>,
 );
 
-#[allow(non_snake_case, reason = "Matches Laravel's default relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> BelongsTo<P, R> {
     pub(in crate::database::eloquent) fn identity_columns(&self) -> (&str, &str) {
         (self.0.parent, self.0.related)
@@ -257,7 +257,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
@@ -336,7 +336,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for BelongsTo<P, R> {
     fn getRelationExistenceQuery(
         &self,

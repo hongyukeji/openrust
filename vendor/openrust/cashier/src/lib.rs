@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "Preserves Laravel Cashier public vocabulary")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 mod billing;
 mod client;
 #[path = "../config/cashier.rs"]

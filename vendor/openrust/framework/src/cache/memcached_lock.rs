@@ -124,7 +124,7 @@ impl Lock for MemcachedLock {
 
 fn lease_expiration(lease: Option<Duration>) -> CacheResult<u32> {
     let lease = lease.unwrap_or_default();
-    // The fixed Laravel MemcachedLock converts leases beyond 10 days.
+    // The fixed the framework MemcachedLock converts leases beyond 10 days.
     let seconds = lease
         .as_secs()
         .checked_add(u64::from(lease.subsec_nanos() != 0))

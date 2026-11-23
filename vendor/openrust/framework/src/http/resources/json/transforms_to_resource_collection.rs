@@ -8,7 +8,7 @@ use crate::{
 use super::{JsonOptions, JsonResource, ResourceCollection, ResourceItems, ResourceResult};
 
 /// Declares the default resource associated with an Eloquent model.
-#[allow(non_snake_case, reason = "Matches Laravel's resource API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait UseResource: Model {
     type Resource: JsonResource + From<Self> + Send;
 
@@ -19,7 +19,7 @@ pub trait UseResource: Model {
 }
 
 /// Transforms model collections and paginator results into JSON resources.
-#[allow(non_snake_case, reason = "Matches Laravel's resource API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait TransformsToResourceCollection<M: Model>: Sized + Into<ResourceItems<M>> {
     fn toResourceCollection(self) -> impl JsonResource + Send
     where

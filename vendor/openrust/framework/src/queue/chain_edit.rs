@@ -50,7 +50,7 @@ pub(crate) struct ChainUpdate {
     pub(crate) next: Payload,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel Queueable")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl JobContext<'_> {
     /// Runs a job or batch immediately after this job succeeds.
     pub fn prependToChain(&mut self, job: impl Into<ChainJob>) -> QueueResult<()> {

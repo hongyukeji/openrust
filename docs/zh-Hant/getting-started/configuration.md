@@ -2,7 +2,7 @@
 
 應用程式名稱和版本預設使用應用程式 `Cargo.toml` 中的 `name` 和 `version`，在編譯時嵌入。可在 `.env` 中透過 `APP_NAME` 和 `APP_VERSION` 分別覆寫。骨架的 `.env.example` 明確設定了 `APP_NAME=OpenRust`，此值優先於套件名稱。
 
-在應用程式根目錄將 `.env.example` 複製為 `.env`，即可自訂本機設定。`APP_HOST` 和 `APP_PORT` 設定 HTTP 監聽位址，預設為 `127.0.0.1:8000`。範本沿用 Laravel 的本機開發預設值。應用程式將 `config/` 下的各區段載入同一個儲存庫，可以透過 `application.config()?.get("app.url")` 讀取最終生效的值。應用程式、驗證、資料庫與 Redis、快取、工作階段、日誌、郵件、佇列、檔案系統、廣播、CORS、並行、雜湊、影像、第三方服務、Reverb、gRPC 和檢視各有獨立設定。載入設定時不連線至外部服務。
+在應用程式根目錄將 `.env.example` 複製為 `.env`，即可自訂本機設定。`APP_HOST` 和 `APP_PORT` 設定 HTTP 監聽位址，預設為 `127.0.0.1:8000`。範本沿用 本機開發預設值。應用程式將 `config/` 下的各區段載入同一個儲存庫，可以透過 `application.config()?.get("app.url")` 讀取最終生效的值。應用程式、驗證、資料庫與 Redis、快取、工作階段、日誌、郵件、佇列、檔案系統、廣播、CORS、並行、雜湊、影像、第三方服務、Reverb、gRPC 和檢視各有獨立設定。載入設定時不連線至外部服務。
 
 `app.url` 優先使用明確設定的 `APP_URL`。未設定時，使用具體的 `APP_HOST` 和 `APP_PORT` 產生 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未設定主機，或使用 `127.0.0.1`、`::1` 等回送位址或 `0.0.0.0`、`::` 等萬用監聽位址時，使用 `http://localhost:{port}`。環境範本設定了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用範本預設值時會展開為 `http://127.0.0.1:8000`。
 
@@ -25,7 +25,7 @@ let current_framework_version = App::version()?;
 
 ## 目前設定儲存庫
 
-設定在 boot 中、Provider register 前可用。與 Laravel LoadConfiguration 一樣，boot 先綁定新儲存庫，再執行設定載入器並填入該儲存庫；`create()` 不提前放入空設定服務。`Application::config()` 每次解析目前 `config` 服務，傳回 `Result<Arc<dyn Repository>, BindingResolutionError>`；引導前存取或替換為不相容型別後存取會傳回錯誤。
+設定在 boot 中、Provider register 前可用。與框架LoadConfiguration 一樣，boot 先綁定新儲存庫，再執行設定載入器並填入該儲存庫；`create()` 不提前放入空設定服務。`Application::config()` 每次解析目前 `config` 服務，傳回 `Result<Arc<dyn Repository>, BindingResolutionError>`；引導前存取或替換為不相容型別後存取會傳回錯誤。
 
 在應用作用域內，匯入 `openrust::support::facades::Config`，透過 `Config::get("app.name")?` 讀取設定。門面每次呼叫都解析目前應用的儲存庫。鍵缺少時傳回 `None`，顯式空值傳回 `Some(Value::Null)`。在應用作用域外或儲存庫註冊前呼叫會傳回綁定錯誤。
 
@@ -202,9 +202,9 @@ async fn activate_maintenance(
 
 `app.storagePath("")` 傳回儲存根目錄，傳入 `"pail"` 等字串可取得子路徑。`app.useStoragePath(path)?` 覆蓋它並重新綁定 `path.storage`，應用契約也提供 getter。`openrust::support::storage_path(path)?` 讀取目前應用作用域。唯讀的 `foundation::Paths` 服務讓編譯型套件共用相同狀態，避免透過容器強持有 Application。
 
-優先順序是非空且非 `0` 的明確覆蓋、應用環境快照中的 `APP_STORAGE_PATH`、應用根目錄下的 `storage`。該無品牌變數對應 Laravel 的 `LARAVEL_STORAGE_PATH`；環境中明確存在的空值仍會保留。Setter 傳入相對路徑時保持相對。串接追加本機分隔符並去掉子路徑開頭的本機分隔符，保留重複分隔符和 `..`。Rust 沒有預設參數，讀取根目錄時明確傳入 `""`。
+優先順序是非空且非 `0` 的明確覆蓋、應用環境快照中的 `APP_STORAGE_PATH`、應用根目錄下的 `storage`。環境中明確存在的空值仍會保留。Setter 傳入相對路徑時保持相對。串接追加本機分隔符並去掉子路徑開頭的本機分隔符，保留重複分隔符和 `..`。Rust 沒有預設參數，讀取根目錄時明確傳入 `""`。
 
-建構時初始化 `path.storage`，後載入的環境檔案可以改變 getter，但不會自動重寫該綁定；`useStoragePath` 則明確重新綁定，沿用 Laravel 的順序。重新綁定錯誤透過 `Result` 傳回，此時路徑狀態已更新。
+建構時初始化 `path.storage`，後載入的環境檔案可以改變 getter，但不會自動重寫該綁定；`useStoragePath` 則明確重新綁定，沿用 順序。重新綁定錯誤透過 `Result` 傳回，此時路徑狀態已更新。
 
 日誌、檔案 Session、檔案快取資料與鎖、編譯檢視以及預設 local/public 磁碟在載入設定時採用儲存根目錄。`FILESYSTEM_LOCAL_ROOT`、`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可個別覆蓋，公開 URL 和掛載順序不變。`storage:link` 指向設定的公開磁碟。啟動前設定絕對路徑的 `APP_STORAGE_PATH`，或在載入設定前呼叫 `useStoragePath`。
 

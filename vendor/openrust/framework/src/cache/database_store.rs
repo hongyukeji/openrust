@@ -200,7 +200,7 @@ fn expiration(row: &Row) -> Option<i64> {
 
 /*
  * 标准缓存迁移的 expiration 为整数秒；共享引擎使用毫秒，仅在数据库边界转换。
- * 永久缓存按 Laravel DatabaseStore 保存十年，避免将无限哨兵写入整数列。
+ * 永久缓存按 框架 DatabaseStore 保存十年，避免将无限哨兵写入整数列。
  * 亚秒租约向上取整，防止存入后立即过期。
  */
 #[allow(

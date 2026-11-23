@@ -29,7 +29,7 @@ impl Facade for Broadcast {
     }
 }
 
-#[allow(non_snake_case, reason = "遵循 Laravel 广播用户认证原名")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Broadcast {
     pub fn userRoutes(
         attributes: Option<crate::routing::RouteGroup>,
@@ -95,7 +95,7 @@ impl Broadcast {
     }
 
     /// Resolves the current application's channel authorization registry.
-    #[allow(non_snake_case, reason = "Matches Laravel's broadcast facade naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn channelRegistry() -> BroadcastResult<Arc<ChannelRegistry>> {
         crate::support::facades::current_container()
             .ok_or(BroadcastException::NoRegistrationScope)?
@@ -108,10 +108,7 @@ impl Broadcast {
     }
 
     /// Registers a channel with an explicit authentication guard order.
-    #[allow(
-        non_snake_case,
-        reason = "Rust adapter for Laravel's optional channel options"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn channelWithOptions(
         pattern: &str,
         handler: impl ChannelHandler + 'static,
@@ -121,7 +118,7 @@ impl Broadcast {
     }
 
     /// Registers channel parameters that use model route binding.
-    #[allow(non_snake_case, reason = "Matches Laravel channel binding naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn channelWithBindings(
         pattern: &str,
         handler: impl ChannelHandler + 'static,

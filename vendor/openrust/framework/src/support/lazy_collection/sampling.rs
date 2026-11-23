@@ -1,7 +1,7 @@
 use super::{Collection, CollectionError, CollectionResult, LazyCollection};
 use crate::support::arr::random_index;
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn crossJoin(self, others: &'source [&'source [T]]) -> LazyCollection<'source, Vec<T>>
     where

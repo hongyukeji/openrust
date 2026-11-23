@@ -78,7 +78,7 @@ pub enum ModelEventResponse {
 }
 
 /// Handles model lifecycle events with access to the current operation's connection.
-#[allow(non_snake_case, reason = "Uses Laravel-style lifecycle names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ModelEventListener<M: Model>: Send + Sync {
     fn handle<'a>(
         &'a self,

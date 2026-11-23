@@ -90,7 +90,7 @@ impl Join {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Builder<'_> {
     /// Starts a query to be embedded as SQL in another builder on this connection.
     pub fn subquery(&self, table: &str) -> Builder<'static> {

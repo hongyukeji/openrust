@@ -144,10 +144,7 @@ impl Middleware {
     }
 
     /// Skips CORS for requests matching this callback in the current application.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's middleware configuration names"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn skipCorsWhen(
         &mut self,
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
@@ -157,7 +154,7 @@ impl Middleware {
     }
 
     /// Adds field patterns excluded from the default trimming middleware.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn trimStrings(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
@@ -167,7 +164,7 @@ impl Middleware {
     }
 
     /// Skips trimming for requests which match this callback.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn skipTrimStringsWhen(
         &mut self,
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
@@ -177,7 +174,7 @@ impl Middleware {
     }
 
     /// Skips empty-string conversion for requests which match this callback.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn convertEmptyStringsToNull(
         &mut self,
         except: impl Fn(&Request) -> bool + Send + Sync + 'static,
@@ -186,28 +183,19 @@ impl Middleware {
         self
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's middleware configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn trustProxies(&mut self, at: &[&str], headers: u8) -> Result<&mut Self, ConfigError> {
         self.trusted_proxies = Some(crate::http::ProxyPolicy::new(at, headers)?);
         Ok(self)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's middleware configuration API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn trustHosts(&mut self, at: &[&str], subdomains: bool) -> Result<&mut Self, ConfigError> {
         self.trusted_hosts = Some(crate::http::TrustedHosts::new(at, subdomains)?);
         Ok(self)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's dynamic trusted-host configuration"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn trustHostsWith<Fut>(
         &mut self,
         at: impl Fn() -> Fut + Send + Sync + 'static,
@@ -266,7 +254,7 @@ impl Middleware {
     }
 
     /// Excludes the named cookies from encryption in the default web group.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn encryptCookies(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
@@ -276,7 +264,7 @@ impl Middleware {
     }
 
     /// Allows the given paths to remain accessible during maintenance mode.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn preventRequestsDuringMaintenance(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
@@ -287,7 +275,7 @@ impl Middleware {
     }
 
     /// Configures request forgery protection in the default web group.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn preventRequestForgery(
         &mut self,
         except: impl IntoIterator<Item = impl Into<String>>,
@@ -352,7 +340,7 @@ impl Middleware {
 
     /// Enables first-party session authentication on the API middleware group.
     #[cfg(feature = "sanctum")]
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn statefulApi(&mut self) -> &mut Self {
         self.stateful_api = true;
         self
@@ -456,7 +444,7 @@ impl Middleware {
     }
 
     /// Resolves the throttle alias through the Redis duration limiter.
-    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn throttleWithRedis(&mut self) -> &mut Self {
         self.registry.throttle_with_redis = true;
         self

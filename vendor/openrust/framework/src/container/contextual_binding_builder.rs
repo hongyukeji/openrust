@@ -27,7 +27,7 @@ impl<'a, C: Container> ContextualBindingBuilder<'a, C> {
         self.needs_key(ServiceKey::typed::<T>())
     }
 
-    #[allow(non_snake_case, reason = "Named overload for Laravel's needs")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn needsNamed<T: ?Sized + Send + Sync + 'static>(
         self,
         name: &str,
@@ -65,7 +65,7 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
     }
 
     /// Resolves an explicitly registered implementation using the same output contract.
-    #[allow(non_snake_case, reason = "Rust form of Laravel's service-name give")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn giveService(
         self,
         service: impl Into<ServiceKey>,
@@ -79,7 +79,7 @@ impl<'a, C: Container, T: serde::de::DeserializeOwned + Send + Sync + 'static>
     ContextualBinding<'a, C, T>
 {
     /// Reads the current configuration repository at resolution time.
-    #[allow(non_snake_case, reason = "Matches Laravel's contextual builder API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn giveConfig(
         self,
         key: impl Into<String>,
@@ -102,7 +102,7 @@ impl<'a, C: Container, T: serde::de::DeserializeOwned + Send + Sync + 'static>
 }
 
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, Vec<Arc<T>>> {
-    #[allow(non_snake_case, reason = "Matches Laravel's contextual builder API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn giveTagged(
         self,
         tag: impl Into<String>,
@@ -201,8 +201,8 @@ impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, 
 }
 
 impl<'a, C: Container, T: ?Sized + Send + Sync + 'static> ContextualBinding<'a, C, T> {
-    /// Rust array overload of Laravel's give: resolve these service keys in the consumer context.
-    #[allow(non_snake_case, reason = "Typed Rust overload for Laravel give(array)")]
+    /// Rust array overload of give: resolve these service keys in the consumer context.
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn giveServices(
         self,
         services: impl IntoIterator<Item = impl Into<ServiceKey>>,

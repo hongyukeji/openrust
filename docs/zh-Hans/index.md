@@ -1,6 +1,6 @@
 # OpenRust 文档
 
-OpenRust 提供原生 Rust 应用运行时与 Laravel 风格 API。先阅读安装与配置，再按功能文档使用实际支持的接口。扩展包章节会明确说明实现状态。
+OpenRust 提供原生 Rust 应用运行时与 API。先阅读安装与配置，再按功能文档使用实际支持的接口。扩展包章节会明确说明实现状态。
 
 - [安装](getting-started/installation.md)
 - [配置](getting-started/configuration.md)

@@ -189,7 +189,7 @@ impl StreamedEvent {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's streamed response API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Response {
     pub fn streamJson(status: StatusCode, data: StreamedJson) -> Self {
         if status.is_informational()

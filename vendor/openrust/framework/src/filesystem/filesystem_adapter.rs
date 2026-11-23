@@ -35,7 +35,7 @@ enum Driver {
     S3(Box<AwsS3V3Adapter>),
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's filesystem adapter API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl FilesystemAdapter {
     pub(super) fn local(
         local: LocalFilesystemAdapter,

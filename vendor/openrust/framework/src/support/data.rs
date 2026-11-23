@@ -1,4 +1,4 @@
-//! Helpers for ordered JSON arrays and objects, using Laravel dot paths.
+//! Helpers for ordered JSON arrays and objects, using the framework dot paths.
 
 use serde_json::{Map, Value};
 
@@ -38,7 +38,7 @@ pub(super) fn read(value: &Value, parts: &[&str]) -> Option<Value> {
     read(child, rest)
 }
 
-// Laravel collapses nested wildcard results with array_merge semantics.
+// the framework collapses nested wildcard results with array_merge semantics.
 pub(super) fn collapse(values: impl IntoIterator<Item = Value>) -> Value {
     let mut result = Map::new();
     let mut next = 0_usize;

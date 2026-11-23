@@ -2,7 +2,7 @@
 
 应用名称和版本默认使用应用 `Cargo.toml` 中的 `name` 和 `version`，在编译时嵌入。可在 `.env` 中通过 `APP_NAME` 和 `APP_VERSION` 分别覆盖。骨架的 `.env.example` 显式设置了 `APP_NAME=OpenRust`，该值优先于包名。
 
-在应用根目录将 `.env.example` 复制为 `.env`，即可自定义本地配置。`APP_HOST` 和 `APP_PORT` 配置 HTTP 监听地址，默认为 `127.0.0.1:8000`。模板沿用 Laravel 的本地开发默认值。应用将 `config/` 下的配置分区加载到同一个仓库，可以通过 `application.config()?.get("app.url")` 读取最终生效的值。应用、认证、数据库与 Redis、缓存、会话、日志、邮件、队列、文件系统、广播、CORS、并发、哈希、图像、第三方服务、Reverb、gRPC 和视图各有独立配置。加载配置时不连接外部服务。
+在应用根目录将 `.env.example` 复制为 `.env`，即可自定义本地配置。`APP_HOST` 和 `APP_PORT` 配置 HTTP 监听地址，默认为 `127.0.0.1:8000`。模板沿用 本地开发默认值。应用将 `config/` 下的配置分区加载到同一个仓库，可以通过 `application.config()?.get("app.url")` 读取最终生效的值。应用、认证、数据库与 Redis、缓存、会话、日志、邮件、队列、文件系统、广播、CORS、并发、哈希、图像、第三方服务、Reverb、gRPC 和视图各有独立配置。加载配置时不连接外部服务。
 
 `app.url` 优先使用显式设置的 `APP_URL`。未设置时，使用具体的 `APP_HOST` 和 `APP_PORT` 生成 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未设置主机，或使用 `127.0.0.1`、`::1` 等回环地址或 `0.0.0.0`、`::` 等通配监听地址时，使用 `http://localhost:{port}`。环境模板设置了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用模板默认值时展开为 `http://127.0.0.1:8000`。
 
@@ -25,7 +25,7 @@ let current_framework_version = App::version()?;
 
 ## 当前配置仓储
 
-配置在 boot 中、Provider register 前可用。与 Laravel LoadConfiguration 一样，boot 先绑定新仓储，再执行配置加载器并填充该仓储；`create()` 不提前放入空配置服务。`Application::config()` 每次解析当前 `config` 服务，返回 `Result<Arc<dyn Repository>, BindingResolutionError>`；引导前访问或替换为不兼容类型后访问会返回错误。
+配置在 boot 中、Provider register 前可用。与框架LoadConfiguration 一样，boot 先绑定新仓储，再执行配置加载器并填充该仓储；`create()` 不提前放入空配置服务。`Application::config()` 每次解析当前 `config` 服务，返回 `Result<Arc<dyn Repository>, BindingResolutionError>`；引导前访问或替换为不兼容类型后访问会返回错误。
 
 在应用作用域内，导入 `openrust::support::facades::Config`，通过 `Config::get("app.name")?` 读取配置。门面每次调用都解析当前应用仓储。键缺失时返回 `None`，显式空值返回 `Some(Value::Null)`。在应用作用域外或仓储注册前调用会返回绑定错误。
 
@@ -202,9 +202,9 @@ async fn activate_maintenance(
 
 `app.storagePath("")` 返回存储根目录，传入 `"pail"` 等字符串可获取子路径。`app.useStoragePath(path)?` 覆盖它并重绑 `path.storage`，应用契约也提供 getter。`openrust::support::storage_path(path)?` 读取当前应用作用域。只读的 `foundation::Paths` 服务让编译型包共享同一状态，避免通过容器强持有 Application。
 
-优先级是非空且非 `0` 的显式覆盖、应用环境快照中的 `APP_STORAGE_PATH`、应用根目录下的 `storage`。该无品牌变量对应 Laravel 的 `LARAVEL_STORAGE_PATH`；环境中显式存在的空值仍会保留。Setter 传入相对路径时保持相对。拼接追加本机分隔符并去掉子路径开头的本机分隔符，保留重复分隔符和 `..`。Rust 没有默认参数，读取根目录时显式传 `""`。
+优先级是非空且非 `0` 的显式覆盖、应用环境快照中的 `APP_STORAGE_PATH`、应用根目录下的 `storage`。环境中显式存在的空值仍会保留。Setter 传入相对路径时保持相对。拼接追加本机分隔符并去掉子路径开头的本机分隔符，保留重复分隔符和 `..`。Rust 没有默认参数，读取根目录时显式传 `""`。
 
-构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 Laravel 的顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
+构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
 
 日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`FILESYSTEM_LOCAL_ROOT`、`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
 

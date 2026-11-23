@@ -9,7 +9,7 @@ pub enum ComponentOutput {
 /// A class-based component exposed to the template engine.
 pub trait Component: Send + Sync {
     /// Controls whether the component and its slots render.
-    #[allow(non_snake_case, reason = "Matches the Laravel Component API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn shouldRender(&self) -> bool {
         true
     }

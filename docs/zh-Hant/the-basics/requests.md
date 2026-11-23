@@ -67,7 +67,7 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 ### 透過動態屬性讀取輸入 {#retrieving-input-via-dynamic-properties}
 
-用 `request.field("name").await?` 執行 Laravel 動態請求屬性的查找順序。先讀取合併後的輸入和檔案，明確的 null 也算命中。欄位缺少時檢查目前比對路由的同名繫結模型或原始參數。比對 `RequestField::RouteModel(model)` 後用 `model.downcast::<T>()` 讀取繫結模型。一般欄位、上傳檔案和原始路由參數使用 `RequestField::Value`。
+用 `request.field("name").await?` 執行框架動態請求屬性的查找順序。先讀取合併後的輸入和檔案，明確的 null 也算命中。欄位缺少時檢查目前比對路由的同名繫結模型或原始參數。比對 `RequestField::RouteModel(model)` 後用 `model.downcast::<T>()` 讀取繫結模型。一般欄位、上傳檔案和原始路由參數使用 `RequestField::Value`。
 
 ### 取得部分輸入 {#retrieving-a-portion-of-the-input-data}
 
@@ -83,7 +83,7 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 `acceptsAnyContentType()`、`acceptsJson()`、`acceptsHtml()` 和 `acceptsMarkdown()` 檢查是否接受對應類型。`wantsJson()` 和 `wantsMarkdown()` 檢查排序第一的項目。`expectsJson()` 也識別 `Accept` 為空或萬用字元的非 PJAX XMLHttpRequest。`isJson()` 讀取請求本文的 `Content-Type`。
 
-重複傳送 `Accept` 請求標頭時，依固定 Laravel 實作使用首個欄位。需要傳送多種類型時，請在同一欄位中以逗號分隔。
+重複傳送 `Accept` 請求標頭時，依固定框架實作使用首個欄位。需要傳送多種類型時，請在同一欄位中以逗號分隔。
 
 ### 原生 HTTP 請求 {#native-http-requests}
 
@@ -170,7 +170,7 @@ use openrust::http::TrustedProxyHeaders;
 
 `Request::secure` 反映生效的協定。URL 產生使用轉送來源及前綴，路由比對使用傳入路徑。
 
-應用程式裝配未指定代理策略時，HTTP 啟動會從設定儲存庫讀取 `trustedproxy.proxies`，支援以逗號分隔的字串或陣列。選用的 `trustedproxy.headers` 支援數值遮罩或 `HEADER_X_FORWARDED_AWS_ELB` 等 Laravel 預設名稱。明確的 `trustProxies` 優先，包含空位址清單。
+應用程式裝配未指定代理策略時，HTTP 啟動會從設定儲存庫讀取 `trustedproxy.proxies`，支援以逗號分隔的字串或陣列。選用的 `trustedproxy.headers` 支援數值遮罩或 `HEADER_X_FORWARDED_AWS_ELB` 等框架預設名稱。明確的 `trustProxies` 優先，包含空位址清單。
 
 ## 設定可信任 Host {#configuring-trusted-hosts}
 

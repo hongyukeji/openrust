@@ -130,7 +130,7 @@ impl Router {
                     .or_insert_with(|| route.url_pattern());
             }
         }
-        // Laravel rebuilds the action lookup with domain routes first.
+        // the framework rebuilds the action lookup with domain routes first.
         for domain in [true, false] {
             for (index, route) in self.routes.iter().enumerate() {
                 if route.domain.is_some() == domain
@@ -146,7 +146,7 @@ impl Router {
         urls
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getRoutes(&self) -> Vec<RouteInfo> {
         self.routes_with_info().map(|(_, info)| info).collect()
     }
@@ -388,7 +388,7 @@ impl Router {
     }
 
     #[track_caller]
-    #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn permanentRedirect(
         &mut self,
         uri: &str,

@@ -33,7 +33,7 @@ impl Model for Author {
         true
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn newCollection(models: Vec<Self>) -> Collection<Self> {
         Collection::fromEntries(
             models
@@ -63,7 +63,7 @@ impl Model for Author {
 }
 
 impl Model for Entry {
-    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn newCollection(mut models: Vec<Self>) -> Collection<Self> {
         for model in &mut models {
             if model.getAttribute("name") == Some(&"explicit child".into()) {

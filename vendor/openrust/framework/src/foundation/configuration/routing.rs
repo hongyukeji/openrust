@@ -46,7 +46,7 @@ impl Routing {
     }
 
     /// Overrides the configured URL prefix for API routes.
-    #[allow(non_snake_case, reason = "Matches Laravel's apiPrefix option")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn apiPrefix(mut self, prefix: impl Into<String>) -> Self {
         self.api_prefix = Some(prefix.into());
         self

@@ -113,10 +113,7 @@ impl Default for WithoutOverlapping {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel queue middleware configuration names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl WithoutOverlapping {
     pub fn new(key: impl Into<String>) -> Self {
         Self {

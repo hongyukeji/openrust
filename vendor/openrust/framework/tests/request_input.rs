@@ -88,7 +88,7 @@ impl EchoController {
 
 struct ContextResponse(&'static str);
 
-#[allow(non_snake_case, reason = "Implements the Laravel Responsable contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl openrust::contracts::support::Responsable for ContextResponse {
     async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
         let slug = request.route("slug").unwrap_or_default().to_owned();
@@ -1296,7 +1296,7 @@ fn negotiate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
 }
 
 #[tokio::test]
-async fn laravel_content_negotiation_uses_quality_order_and_media_types_over_http() {
+async fn reference_content_negotiation_uses_quality_order_and_media_types_over_http() {
     let (address, server) = start("negotiation").await;
     let client = reqwest::Client::new();
     let url = format!("http://{address}/negotiation");
@@ -2676,7 +2676,7 @@ async fn response_streams_preserve_failure_and_lazy_sources() {
 async fn real_http_removes_headers_and_applies_cache_validators() {
     let (address, server) = start("cache-headers").await;
     let (headers, body) = send(address, "GET", "/cacheable", "", b"", 200).await;
-    // Fixed Laravel / PHP 8.5 hash('xxh128', 'cache me').
+    // Fixed the framework / PHP 8.5 hash('xxh128', 'cache me').
     let tag = "\"a9c4c77c2e3f060abb5bb0773cfe00bf\"";
     assert_eq!(body, "cache me");
     assert!(headers.contains("\r\ncache-control: max-age=2628000, public"));

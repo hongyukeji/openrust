@@ -2,7 +2,7 @@ use std::{iter, rc::Rc};
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, LazyCollection};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn forPage(self, page: usize, per_page: usize) -> Self {
         let offset = page.saturating_sub(1).saturating_mul(per_page);

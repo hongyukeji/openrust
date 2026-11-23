@@ -18,7 +18,7 @@ enum FieldKey {
     Custom(usize),
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack attachment API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackAttachment {
     pub fn title(&mut self, title: impl Into<String>, url: Option<&str>) -> &mut Self {
         self.attribute("title", title.into());
@@ -166,10 +166,7 @@ impl Default for SlackAttachmentField {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's Slack attachment field API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SlackAttachmentField {
     pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
         self.title = Some(title.into());

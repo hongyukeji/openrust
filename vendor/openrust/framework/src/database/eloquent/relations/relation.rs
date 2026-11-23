@@ -17,7 +17,7 @@ use super::{
 };
 
 /// The typed result and batch matching contract shared by relationships.
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Relation: Send + Sync + 'static {
     type Parent: Model;
     type Output: Send + Sync + 'static;
@@ -123,7 +123,7 @@ pub trait NestedRelation: Relation {
 }
 
 /// Builds a correlated subquery for filtering parent models by a relationship.
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ExistenceRelation: Relation {
     fn getRelationExistenceQuery(
         &self,

@@ -1,6 +1,6 @@
 # 数据库设置（扩展）
 
-`openrust-settings` 将类型化应用设置存入数据库，可用于网站信息、服务配置及业务策略等设置组。命名参考 Spatie Laravel Settings，复用 OpenRust 的数据库、加密、迁移和容器作用域。
+`openrust-settings` 将类型化应用设置存入数据库，可用于网站信息、服务配置及业务策略等设置组。命名参考 Spatie框架Settings，复用 OpenRust 的数据库、加密、迁移和容器作用域。
 
 ## 启用与迁移
 

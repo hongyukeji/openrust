@@ -11,10 +11,7 @@ pub use origin::Origin;
 
 /// A parsed capture record, separate from the framework's live log event.
 #[derive(Clone, Debug, Deserialize)]
-#[allow(
-    non_snake_case,
-    reason = "Preserves Laravel Pail value object field names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub struct MessageLogged {
     message: String,
     datetime: String,
@@ -23,7 +20,7 @@ pub struct MessageLogged {
     context: LogContext,
 }
 
-#[allow(non_snake_case, reason = "Preserves Laravel Pail's value object API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MessageLogged {
     pub fn fromJson(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)

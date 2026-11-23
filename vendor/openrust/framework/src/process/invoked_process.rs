@@ -92,7 +92,7 @@ pub struct InvokedProcess {
     stderr_offset: usize,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's invoked process API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl InvokedProcess {
     pub(super) fn spawn(command: Command, child: ChildGroup, options: Options) -> Self {
         let id = child.child.id();

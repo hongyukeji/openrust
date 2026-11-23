@@ -36,7 +36,7 @@ impl<'a> BindingContext<'a> {
         self.field
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's route binding API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn allowsTrashedBindings(&self) -> bool {
         self.with_trashed
     }

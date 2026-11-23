@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "Matches Laravel’s token repository API")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use crate::{
     auth::{AuthFuture, AuthResult},

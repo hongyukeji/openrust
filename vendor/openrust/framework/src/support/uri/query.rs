@@ -38,7 +38,7 @@ impl<'a> UriQueryString<'a> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's URI API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Uri {
     pub fn query(&self) -> UriQueryString<'_> {
         UriQueryString(self.queryString().unwrap_or_default())

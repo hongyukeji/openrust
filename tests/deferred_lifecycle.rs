@@ -556,7 +556,7 @@ impl ServiceProvider for EagerTrigger {
     }
 }
 #[tokio::test]
-async fn deferred_first_use_during_register_and_boot_preserves_laravel_callback_order() {
+async fn deferred_first_use_during_register_and_boot_preserves_reference_callback_order() {
     let root = Root::new();
     for during_register in [true, false] {
         let trace = Arc::new(Mutex::new(Vec::new()));

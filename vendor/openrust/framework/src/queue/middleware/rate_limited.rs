@@ -25,10 +25,7 @@ pub struct RateLimited {
     should_release: bool,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel queue middleware configuration names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl RateLimited {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
@@ -127,10 +124,7 @@ pub struct RateLimitedWithRedis {
     connection: Option<String>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel queue middleware configuration names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl RateLimitedWithRedis {
     pub fn new(name: impl Into<String>) -> Self {
         Self {

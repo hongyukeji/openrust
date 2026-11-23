@@ -45,7 +45,7 @@ pub struct HashManager {
     state: Mutex<DriverState>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's hash manager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl HashManager {
     pub fn new(config: Arc<dyn Repository>) -> HashResult<Self> {
         Self::for_container(config, Weak::new())
@@ -183,7 +183,7 @@ impl HashManager {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's hash manager API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Hasher for HashManager {
     fn as_hash_manager(&self) -> Option<&HashManager> {
         Some(self)

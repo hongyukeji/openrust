@@ -192,7 +192,7 @@ macro_rules! field_methods {
     };
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Context repository API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Repository {
     fn with_fields<T>(&self, operation: impl FnOnce(&mut Fields) -> T) -> T {
         let identity = std::ptr::from_ref(self).addr();

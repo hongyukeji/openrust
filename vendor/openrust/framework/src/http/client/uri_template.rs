@@ -13,7 +13,7 @@ use crate::support::Arr;
 
 use super::{Error, Result};
 
-/// Laravel joins the base URL and target before expanding URI parameters.
+/// the framework joins the base URL and target before expanding URI parameters.
 pub(super) fn expand<'a>(
     base: Option<&str>,
     target: &'a str,

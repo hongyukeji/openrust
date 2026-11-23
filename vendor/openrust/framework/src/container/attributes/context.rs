@@ -20,10 +20,7 @@ pub struct Context<T> {
     output: PhantomData<fn() -> T>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches compiled Laravel contextual attribute options"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T: DeserializeOwned + Send + Sync + 'static> Context<T> {
     pub fn new(key: impl Into<Arc<str>>) -> Self {
         Self {

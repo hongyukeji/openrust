@@ -2,7 +2,7 @@
 
 [Overview](index.md)
 
-<!-- Laravel 13.x navigation baseline 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->
+<!-- the framework 13.x navigation baseline 960eedf0911155ad16326ade49c0ea5d18eda0b8 -->
 
 ## Prologue
 

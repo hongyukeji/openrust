@@ -172,7 +172,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 設定 `QUEUE_CONNECTION=beanstalkd`，並設定 `BEANSTALKD_QUEUE_HOST`、`BEANSTALKD_QUEUE_PORT`（預設 11300）、`BEANSTALKD_QUEUE` 和 `BEANSTALKD_QUEUE_RETRY_AFTER`。執行 `./artisan queue:work beanstalkd --queue=default`。每個佇列對應一個 tube，由伺服器管理工作延遲與預約到期。Worker 逾時應短於預約有效期。可用連線設定的 `block_for` 啟用阻塞預約。
 
-確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
+確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。固定 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
 
 跨佇列連線時，來源 Worker 按後繼工作的連線、佇列和延遲設定直接派送，再確認目前工作。目的端派送和來源確認可以獨立失敗，工作處理常式應保持冪等。
 
@@ -612,7 +612,7 @@ async fn dispatch_chain_if(
 
 ## 工作批次 {#job-batching}
 
-佇列儲存沿用 Laravel 的結構：`jobs` 儲存資料庫待處理工作，`failed_jobs` 儲存失敗工作，`job_batches` 儲存批次計數和回呼選項，不需要配套復原資料表。既有部署升級前，應先以原版本 Worker 處理完待發佈記錄和轉送工作。本次變更保留舊資料表及資料，確認不再使用並備份後再清理。
+佇列儲存沿用 結構：`jobs` 儲存資料庫待處理工作，`failed_jobs` 儲存失敗工作，`job_batches` 儲存批次計數和回呼選項，不需要配套復原資料表。既有部署升級前，應先以原版本 Worker 處理完待發佈記錄和轉送工作。本次變更保留舊資料表及資料，確認不再使用並備份後再清理。
 
 執行 `./artisan migrate` 建立 `job_batches` 批次資料表。在應用程式啟動時註冊工作處理器，再透過 `Bus::batch` 一起派送這些工作。
 
@@ -641,7 +641,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 ### 批次中的工作鏈 {#chains-and-batches}
 
-在待派送批次上使用 `addChain` 加入一組依序執行的工作。它對應 Laravel `Bus::batch` 裡的巢狀陣列。所有成員共用批次 ID、連線和佇列。批次統計每個成員，首次入列只放入各鏈的第一個工作。多個 Worker 可以平行處理不同的工作鏈。
+在待派送批次上使用 `addChain` 加入一組依序執行的工作。它對應框架`Bus::batch` 裡的巢狀陣列。所有成員共用批次 ID、連線和佇列。批次統計每個成員，首次入列只放入各鏈的第一個工作。多個 Worker 可以平行處理不同的工作鏈。
 
 ```rust
 use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};

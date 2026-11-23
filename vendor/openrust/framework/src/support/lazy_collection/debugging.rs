@@ -6,7 +6,7 @@ use std::{
 
 use super::{CollectionError, CollectionResult, LazyCollection};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: Debug + 'source> LazyCollection<'source, T> {
     /// Writes a snapshot of the collection to standard output and returns the source.
     pub fn dump(self) -> CollectionResult<Self> {

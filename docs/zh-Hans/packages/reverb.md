@@ -51,7 +51,7 @@ Redis Pub/Sub 跨节点投递签名的 HTTP 发布和已授权的客户端事件
 
 带有 `cache-`、`private-cache-` 或 `presence-cache-` 前缀的频道，在订阅成功后重放最近一次事件。缓存为空时发送 `pusher:cache_miss`。频道授权仍然适用。遵循 Reverb 的缓存生命周期，各监听器在有本机订阅者时保留缓存，最后一位本机订阅者离开后清除。
 
-## Laravel Echo {#laravel-echo}
+## Echo 客户端 {#echo-client}
 
 安装 `laravel-echo` 和 `pusher-js`。以下示例连接本地未启用 TLS 的 Reverb 监听器。配置路径前缀时，将 `wsPath` 设为服务端路径。
 

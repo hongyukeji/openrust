@@ -16,7 +16,7 @@ cargo build
 ./artisan migrate
 ```
 
-Database `expiration` columns store Unix seconds. Permanent entries use a ten-year lifetime, matching Laravel DatabaseStore. Subsecond expiry and lock leases round up to the next second; use Redis when finer expiry precision is required.
+Database `expiration` columns store Unix seconds. Permanent entries use a ten-year lifetime, matching the framework DatabaseStore. Subsecond expiry and lock leases round up to the next second; use Redis when finer expiry precision is required.
 
 ## Memcached {#memcached}
 
@@ -52,7 +52,7 @@ CACHE_STORAGE_DISK=local
 CACHE_STORAGE_PATH=framework/cache/items
 ```
 
-Local and S3 disks use the same cache API. Expired or unreadable records are cache misses. Expired files can be overwritten by a later write or removed by a clear. Like Laravel's storage driver, read-modify-write operations do not provide cross-process atomicity. This driver has no cache locks or tags.
+Local and S3 disks use the same cache API. Expired or unreadable records are cache misses. Expired files can be overwritten by a later write or removed by a clear. Like storage driver, read-modify-write operations do not provide cross-process atomicity. This driver has no cache locks or tags.
 
 `./artisan cache:clear storage` clears all cache-directory files across cache prefixes. An empty cache path clears files across the selected disk. Use a dedicated cache directory on a disk shared with ordinary files.
 
@@ -179,7 +179,7 @@ On Redis, `flushStale().await?` forwards to the selected tags and removes stale 
 
 `cache!()` or `openrust::support::cache()` resolves the current application's manager. Use `.store(None)?` on it to get the default repository. `cache!(key).await?` reads a value as `Option<Value>`, and `cache!(key, default).await?` supplies a default.
 
-The write form accepts a nonempty set of key/value pairs and an `Option<Ttl>`. Like the fixed Laravel helper, it writes the first entry. Use `Cache::putMany` to write all entries.
+The write form accepts a nonempty set of key/value pairs and an `Option<Ttl>`. Like the fixed the framework helper, it writes the first entry. Use `Cache::putMany` to write all entries.
 
 ```rust
 use openrust::{cache, cache::{CacheResult, Ttl, Value}};

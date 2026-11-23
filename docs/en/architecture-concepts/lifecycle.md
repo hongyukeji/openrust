@@ -2,7 +2,7 @@
 
 The Tokio entry point passes `bootstrap::create_application` to `openrust::foundation::run_application`. The framework selects the entry point before creating the application. With no arguments it calls `Application::start()` for HTTP. With `artisan` as the first argument it calls [`Application::handleCommand`](../digging-deeper/artisan.md).
 
-The application entry declares its root as `basePath` and passes it to `Application::configure(basePath)`, matching Laravel’s `configure(basePath: ...)`. It then calls `create()` to validate the root and create the service container. The selected kernel boots the application. Boot loads environment variables and configuration, runs every eager provider’s `register` before their `boot` hooks, and registers shared routes. Process environment variables take precedence over the environment file.
+The application entry declares its root as `basePath` and passes it to `Application::configure(basePath)`, matching `configure(basePath: ...)`. It then calls `create()` to validate the root and create the service container. The selected kernel boots the application. Boot loads environment variables and configuration, runs every eager provider’s `register` before their `boot` hooks, and registers shared routes. Process environment variables take precedence over the environment file.
 
 An absolute `APP_BASE_PATH` in the process environment takes precedence. Otherwise, source builds use the application crate directory recorded at build time, including when you run `cargo run --release`. Builds with the `standalone` feature use the executable’s directory as the application root. HTTP and Artisan both read `.env` from the selected root, regardless of the working directory.
 

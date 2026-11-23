@@ -22,7 +22,7 @@ impl NoLock {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's NoLock API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Lock for NoLock {
     fn get(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async { Ok(true) })

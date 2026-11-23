@@ -10,7 +10,7 @@ use super::{AttributeCast, CastWrite, Json};
 /// Maps a Rust value object to model columns and a serializable value.
 ///
 /// Cloning must give edits independent mutable state.
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent naming")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait CastableObject: Clone + Send + Sync + 'static {
     const WITHOUT_OBJECT_CACHING: bool = false;
     /// Resolves the application's codec for the JSON-specific read and write methods.

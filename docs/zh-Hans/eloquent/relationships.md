@@ -340,7 +340,7 @@ pub async fn approved_subject_comments<M: Model>(
 
 ### 查询所有多态目标类型
 
-使用异步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 对应 Laravel 的通配查询。它们先从模型表读取不同的多态别名，当前查询的筛选条件和作用域不参与这次读取。需要在关系上注册存储的别名。查询缺失目标时，`whereDoesntHaveMorphAll` 也匹配类型为空的记录。
+使用异步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 对应 通配查询。它们先从模型表读取不同的多态别名，当前查询的筛选条件和作用域不参与这次读取。需要在关系上注册存储的别名。查询缺失目标时，`whereDoesntHaveMorphAll` 也匹配类型为空的记录。
 
 ```rust
 use openrust::database::{
@@ -429,7 +429,7 @@ pub async fn load_post_totals<P: Model, R: Model>(author: &mut P) -> DatabaseRes
 
 ### 默认关系计数
 
-在模型中实现 `Model::withDefaultCounts`，让读取模型时默认带上关系计数。它对应 Laravel 的 `$withCount` 属性。计数和模型共用一次 SELECT。显式 `select` 会替换默认投影。
+在模型中实现 `Model::withDefaultCounts`，让读取模型时默认带上关系计数。它对应 `$withCount` 属性。计数和模型共用一次 SELECT。显式 `select` 会替换默认投影。
 
 ```rust
 fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'static, Self>> {
@@ -457,7 +457,7 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 
 ### 软删除的多态目标 {#soft-deleted-morph-targets}
 
-在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。这些选项作用于声明软删除列的加载目标。混合目标中未声明软删除列的模型照常加载。框架先应用这些选项，再应用各目标约束。与 Laravel 一样，链式调用会叠加显式的未删除或已删除条件。后续调用 `withTrashed()` 会移除默认作用域并保留这些显式条件。
+在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。这些选项作用于声明软删除列的加载目标。混合目标中未声明软删除列的模型照常加载。框架先应用这些选项，再应用各目标约束。链式调用会叠加显式的未删除或已删除条件。后续调用 `withTrashed()` 会移除默认作用域并保留这些显式条件。
 
 ```rust
 use openrust::database::eloquent::{Model, relations::MorphTo};
@@ -583,7 +583,7 @@ pub async fn fill_selected_comments<M: Model>(
 }
 ```
 
-一次配置多条路径时，将多个 `MissingRelation` 条目传给 `loadMissingPathsWith`。各条目可设置各自的谓词，多条路径共用的父关系只批量加载一次。重复路径按 Laravel 的顺序将后声明、先声明的谓词依次应用于同一条件组。
+一次配置多条路径时，将多个 `MissingRelation` 条目传给 `loadMissingPathsWith`。各条目可设置各自的谓词，多条路径共用的父关系只批量加载一次。重复路径按 顺序将后声明、先声明的谓词依次应用于同一条件组。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Collection, MissingRelation, Model}};
@@ -655,7 +655,7 @@ pub async fn fill_missing_comments<A: Model>(
 
 ### 默认预加载
 
-在模型中实现 `Model::withDefaultRelations`，声明默认加载的类型化关系。它对应 Laravel 模型的 `$with` 属性。
+在模型中实现 `Model::withDefaultRelations`，声明默认加载的类型化关系。它对应框架模型的 `$with` 属性。
 
 ```rust
 fn withDefaultRelations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
@@ -1464,7 +1464,7 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 }
 ```
 
-Laravel 在 `$touches` 中列出关系名称。OpenRust 使用带类型的关系描述符。 Laravel 写入时间戳时移除全局作用域。OpenRust 在查询和写入时都保留全局作用域，因此租户作用域可以阻止越界更新。
+OpenRust 使用带类型的关系描述符传递时间戳。OpenRust 在查询和写入时都保留全局作用域，因此租户作用域可以阻止越界更新。
 
 所属模型是多态关系时，通过 `Touches::morphTo` 传入加载关系时使用的描述符。框架根据已持久化的类型选择已注册模型，再用已持久化的 ID 匹配该模型的所属键。类型或 ID 为空时跳过。未注册的别名会返回错误，需要让子模型写入和时间戳更新一并回滚时，请使用 `saveInTransaction`。
 

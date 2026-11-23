@@ -11,10 +11,7 @@ use super::super::json::{JsonResource, ResourceResult};
 use super::{JsonApi, JsonApiAttributes, JsonApiRelationships, JsonApiSource, add_included};
 
 /// Projects a data source into a JSON:API resource object.
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's JSON:API resource contract"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait JsonApiResource: Sized + Send {
     /// Eloquent models and JSON object maps are supported data sources.
     type Model: JsonApiSource;

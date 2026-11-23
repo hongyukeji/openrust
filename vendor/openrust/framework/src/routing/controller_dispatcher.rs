@@ -36,7 +36,7 @@ pub(super) type FormAction<C, F, T = Response> = for<'a> fn(
     -> HttpFuture<'a, Result<T, HttpError>>;
 
 impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
-    #[allow(non_snake_case, reason = "Matches Laravel's FormRequest terminology")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withFormRequest<F: FormRequest + Default + 'static>(
         action: FormAction<C, F, T>,
     ) -> Self {

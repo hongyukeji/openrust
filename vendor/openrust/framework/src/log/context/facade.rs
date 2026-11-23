@@ -32,7 +32,7 @@ macro_rules! forward {
     };
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Context Facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Context {
     pub fn repository() -> Result<Arc<Repository>, ContextError> {
         Self::getFacadeRoot().map_err(Into::into)

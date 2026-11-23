@@ -14,10 +14,7 @@ use super::{
     engine::{Change, Engine, Record, expires},
 };
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's callback-based lock operations"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl dyn LockContract {
     /// Compares the backend owner with the given token. `None` tests for no owner.
     pub async fn isOwnedBy<'a>(&mut self, owner: impl Into<Option<&'a str>>) -> CacheResult<bool> {

@@ -22,10 +22,7 @@ impl Default for FakeProcessDescription {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's fake process description API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl FakeProcessDescription {
     pub fn id(mut self, id: u32) -> Self {
         self.id = id;

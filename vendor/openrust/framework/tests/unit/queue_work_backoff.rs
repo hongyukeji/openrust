@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn deprecated_delay_matches_unmodified_laravel_worker_options() {
+fn deprecated_delay_matches_unmodified_reference_worker_options() {
     let reference: serde_json::Value =
         serde_json::from_str(include_str!("../fixtures/queue_work_backoff.json")).unwrap();
     assert_eq!(

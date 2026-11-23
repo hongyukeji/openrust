@@ -24,7 +24,7 @@ impl Facade for Event {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Event facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Event {
     pub fn push(event: impl Payload) -> EventResult<()> {
         Self::dispatcher()?.push(Arc::new(event))

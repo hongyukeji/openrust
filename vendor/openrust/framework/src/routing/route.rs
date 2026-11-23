@@ -101,7 +101,7 @@ impl Route {
     }
 
     /// Associates a stable controller action identifier with the registered handler.
-    #[allow(non_snake_case, reason = "Matches Laravel route action naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setAction(&mut self, action: &str) -> Result<&mut Self, RoutingError> {
         let action = action.trim_matches('\\');
         if action.is_empty()
@@ -141,13 +141,13 @@ impl Route {
     }
 
     /// Clears the route-specific session blocking settings.
-    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutBlocking(&mut self) -> &mut Self {
         self.session_block = None;
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getName(&self) -> Option<&str> {
         (!self.name.is_empty()).then_some(&self.name)
     }
@@ -174,7 +174,7 @@ impl Route {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's route middleware API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutMiddleware(&mut self, name: impl Into<String>) -> &mut Self {
         self.excluded_middleware.push(name.into());
         self.resolved_middleware = None;
@@ -207,17 +207,17 @@ impl Route {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn scopeBindings(&mut self) -> &mut Self {
         self.scope_bindings()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutScopedBindings(&mut self) -> &mut Self {
         self.without_scoped_bindings()
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withTrashed(&mut self) -> &mut Self {
         self.with_trashed_bindings = true;
         self

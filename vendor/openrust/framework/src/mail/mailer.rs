@@ -35,7 +35,7 @@ pub struct Mailer {
     pub(super) customizers: Arc<MessageCustomizers>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Mailer API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Mailer {
     fn changeAddress(
         &self,

@@ -20,7 +20,7 @@ impl Facade for URL {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's URL facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl URL {
     pub(crate) fn service() -> UrlResult<Arc<UrlGenerator>> {
         Self::getFacadeRoot().map_err(|_| UrlError::Unavailable)

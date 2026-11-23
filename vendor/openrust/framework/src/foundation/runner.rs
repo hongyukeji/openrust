@@ -23,7 +23,7 @@ pub type RunningService = HttpFuture<'static, RuntimeResult<()>>;
 
 /// A long-running application service. A successful return from run can also
 /// mean that the runner started its own background work.
-#[allow(non_snake_case, reason = "Matches the Goravel Runner contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Runner: Send + Sync + 'static {
     fn signature(&self) -> &str;
 

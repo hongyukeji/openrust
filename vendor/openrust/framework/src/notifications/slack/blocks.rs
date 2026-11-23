@@ -216,7 +216,7 @@ pub struct ContextBlock {
     id: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack block API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ContextBlock {
     pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
         self.elements
@@ -263,7 +263,7 @@ pub struct SectionBlock {
     id: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack block API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl SectionBlock {
     pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
         self.text.insert(TextObject::new(text))
@@ -337,7 +337,7 @@ pub struct ActionsBlock {
     id: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack action API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ActionsBlock {
     pub fn button(&mut self, text: impl Into<String>) -> &mut ButtonElement {
         let text = text.into();
@@ -400,7 +400,7 @@ pub struct ButtonElement {
     confirm: Option<ConfirmObject>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Slack button API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ButtonElement {
     fn new(text: String, action_id: String) -> Self {
         Self {

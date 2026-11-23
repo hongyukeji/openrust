@@ -1,0 +1,68 @@
+{
+  "command_missing": "لم يتم تعريف الأمر \":name\".",
+  "command_ambiguous": "الأمر \":name\" غامض: :choices",
+  "confirm": {
+    "production": "التطبيق في الإنتاج. هل ترغب حقًا في تشغيل هذا الأمر؟",
+    "cancelled": "تم إلغاء الأمر."
+  },
+  "make": {
+    "mail": {
+      "name": "ما هو اسم المرسلة؟",
+      "view": "هل تريد إنشاء عرض؟\n  1. عرض Markdown\n  2. عرض فارغ\n  3. بدون عرض\nاختر [1]"
+    },
+    "notification": {
+      "name": "ما هو اسم الإخطار؟",
+      "markdown": "هل ترغب في إنشاء طريقة عرض تخفيض السعر؟ [Y/n]",
+      "view": "ما الذي يجب تسمية طريقة عرض تخفيض السعر؟"
+    },
+    "message": {
+      "cancelled": "تم إلغاء الأمر."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "أوامر القائمة"
+    },
+    "help": {
+      "description": "عرض المساعدة لأمر"
+    },
+    "inspire": {
+      "description": "عرض اقتباس ملهم"
+    },
+    "heading": "الأوامر:"
+  },
+  "usage": "الاستخدام:",
+  "options": "الخيارات:",
+  "unknown_argument": "حجة غير متوقعة",
+  "unknown_command": "لم يتم تعريف الأمر",
+  "missing_argument": "الوسائط المطلوبة مفقودة",
+  "invalid_value": "قيمة غير صالحة",
+  "argument_conflict": "صراع الحجج",
+  "invalid_arguments": "وسائط غير صالحة",
+  "model_fields": {
+    "title": "الجدول النموذجي والحقول",
+    "notice": "تم إنشاؤها من مخطط قاعدة البيانات. لا تقم بالتحرير يدويًا.",
+    "sync": "قم بتشغيل `./artisan model:fields :model` من جذر المشروع للمزامنة.",
+    "table": "الجدول"
+  },
+  "namespace_missing": "لم يتم تعريف مساحة الاسم \":name\".",
+  "available_commands": "الأوامر المتاحة",
+  "namespace_commands": "الأوامر المتاحة لمساحة الاسم \":name\":",
+  "available_commands_heading": "الأوامر المتاحة:",
+  "usage_title": "الاستخدام",
+  "argument_descriptions": {
+    "help": "مساعدة في الطباعة",
+    "version": "نسخة مطبوعة",
+    "ansi": "تمكين إخراج ANSI",
+    "no-ansi": "تعطيل إخراج ANSI",
+    "env": "البيئة التي يجب أن يعمل بها الأمر",
+    "no-interaction": "لا تسأل أي سؤال تفاعلي",
+    "quiet": "لا تخرج أي رسالة",
+    "silent": "لا تقم بإخراج أي رسالة أو خطأ",
+    "verbose": "زيادة لفظ الرسائل",
+    "format": "اختر تنسيق الإخراج",
+    "command_name": "الأمر للعرض",
+    "namespace": "إظهار الأوامر في مساحة اسم محددة"
+  },
+  "arguments": "الحجج:"
+}

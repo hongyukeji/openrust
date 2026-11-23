@@ -1,7 +1,7 @@
 // Keep the public forwarding methods identical on relationships with the same chunk contract.
 macro_rules! key_chunks {
     ($collection:ty) => {
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn chunkById<Fut>(
             &self,
             parent: &P,
@@ -17,7 +17,7 @@ macro_rules! key_chunks {
                 .await
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn chunkByIdDesc<Fut>(
             &self,
             parent: &P,
@@ -48,7 +48,7 @@ macro_rules! key_chunks {
             self.$field.each(parent, callback, count).await
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn eachById<Fut>(
             &self,
             parent: &P,
@@ -65,7 +65,7 @@ macro_rules! key_chunks {
                 .await
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn orderedChunkById<Fut>(
             &self,
             parent: &P,
@@ -96,7 +96,7 @@ macro_rules! lazy_chunks {
             self.lazy_relation(parent, chunk_size, None)
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub fn lazyById<'a>(
             &'a self,
             parent: &'a P,
@@ -107,7 +107,7 @@ macro_rules! lazy_chunks {
             self.lazy_relation(parent, chunk_size, Some((column, alias, false)))
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub fn lazyByIdDesc<'a>(
             &'a self,
             parent: &'a P,
@@ -118,7 +118,7 @@ macro_rules! lazy_chunks {
             self.lazy_relation(parent, chunk_size, Some((column, alias, true)))
         }
 
-        #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn chunkMap<T, Fut>(
             &self,
             parent: &P,

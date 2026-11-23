@@ -17,7 +17,7 @@ impl<P: ServiceProvider + DeferrableProvider> ServiceProvider for DeferredProvid
     fn name(&self) -> &'static str {
         std::any::type_name::<P>()
     }
-    #[allow(non_snake_case, reason = "Matches Laravel provider metadata")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn isDeferred(&self) -> bool {
         true
     }

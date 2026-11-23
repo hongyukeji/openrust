@@ -138,7 +138,7 @@ pub(super) struct Attributes {
     after: Vec<(ServiceKey, Vec<Arc<After>>)>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's contextual attribute API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Container {
     /// Overrides the resolver for a contextual attribute in this container.
     pub fn whenHasAttribute<A: ContextualAttribute>(

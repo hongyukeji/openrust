@@ -251,7 +251,7 @@ impl Validator {
         self
     }
 
-    #[allow(non_snake_case, reason = "遵循 Laravel Validator 命名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn stopOnFirstFailure(&mut self, stop: bool) -> &mut Self {
         self.stop_on_first_failure = stop;
         self
@@ -302,7 +302,7 @@ impl Validator {
         Ok(self)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Validator API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn validateWithBag(&mut self, error_bag: &str) -> ValidationResult<ValidatedInput> {
         self.validate().await.map_err(|mut error| {
             if let ValidationError::Invalid(exception) = &mut error {
@@ -314,10 +314,7 @@ impl Validator {
 
     /// Supplies identities explicitly when validation runs outside an HTTP request.
     /// The resolver receives the rule's guard argument; None means the application's default.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's authentication resolver naming"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setUserResolver(
         &mut self,
         resolver: impl Fn(
@@ -332,7 +329,7 @@ impl Validator {
     }
 
     /// Validates using this request's real named authentication guards.
-    #[allow(non_snake_case, reason = "Matches Laravel's request validation naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn validateRequest(
         &mut self,
         request: &mut crate::http::Request,

@@ -4,7 +4,7 @@
 
 在应用内使用 `openrust::support::facades` 中的 `Concurrency`。在应用 Provider 中注册类型化任务，用 `Task::new(name, input)` 提交。默认 `process` 驱动为每个任务通过隐藏 Artisan 命令启动应用可执行文件。HTTP 和 Artisan 入口需要装配同一个任务 Provider。
 
-`run` 按提交顺序返回。`runNamed` 接收 `IndexMap` 并保留键和顺序。进程驱动支持为每个子进程设置可选 `Duration` 超时。收齐子进程结果后返回任务错误。丢弃尚在运行的进程调用会取消其子进程。`sync` 驱动在当前进程顺序运行任务。可通过 `CONCURRENCY_DRIVER` 或 `config/concurrency.rs` 的 `default` 选择默认驱动。进程任务沿用应用根目录和 Artisan 的 `--env` 所选环境文件。OpenRust 用受管进程执行并行任务。Laravel 的 `fork` 驱动依赖 PHP CLI 和 `spatie/fork`。
+`run` 按提交顺序返回。`runNamed` 接收 `IndexMap` 并保留键和顺序。进程驱动支持为每个子进程设置可选 `Duration` 超时。收齐子进程结果后返回任务错误。丢弃尚在运行的进程调用会取消其子进程。`sync` 驱动在当前进程顺序运行任务。可通过 `CONCURRENCY_DRIVER` 或 `config/concurrency.rs` 的 `default` 选择默认驱动。进程任务沿用应用根目录和 Artisan 的 `--env` 所选环境文件。OpenRust 用受管进程执行并行任务。
 
 ```rust
 use openrust::{

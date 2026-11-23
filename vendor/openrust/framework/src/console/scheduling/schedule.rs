@@ -54,7 +54,7 @@ impl Default for Schedule {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Schedule {
     /// 阈值与回调耗时均用 Duration 表达，避免秒和毫秒混淆。
     pub fn whenTaskRunsLongerThan(

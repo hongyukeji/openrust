@@ -9,7 +9,7 @@ APP_LOCALE=en
 APP_FALLBACK_LOCALE=en
 ```
 
-依照 Laravel 教學，使用 `App::setLocale` 切換一次 HTTP 請求的語言，使用 `App::currentLocale` 讀取語言，使用 `App::isLocale("en")?` 判斷語言。路由範例：
+依照框架教學，使用 `App::setLocale` 切換一次 HTTP 請求的語言，使用 `App::currentLocale` 讀取語言，使用 `App::isLocale("en")?` 判斷語言。路由範例：
 
 ```rust
 use openrust::{
@@ -45,13 +45,13 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 設定、API、資源、文件 URL、HTML 與 HTTP 統一使用 BCP 47。`setLocale("zh-CN")` 後仍為 `zh-CN`；`isLocale("ZH-cn")` 為真，`isLocale("zh-Hans")` 為假。正規化保留文字體系、地區、變體及支援的擴充，資源選擇另行處理。舊底線輸入會明確報錯。
 
-`App` Facade 目前提供上述語言方法；其他 Laravel App 方法尚未透過此 Facade 提供。範本繼續使用下文的翻譯助手。`Lang::withLocale` 僅用於暫時的譯器語言作用域，不修改應用程式語言設定。
+`App` Facade 目前提供上述語言方法；其他框架App 方法尚未透過此 Facade 提供。範本繼續使用下文的翻譯助手。`Lang::withLocale` 僅用於暫時的譯器語言作用域，不修改應用程式語言設定。
 
 ### 瀏覽器語言 {#welcome-page-language}
 
 OpenRust 預設自動裝配 `openrust::http::middleware::SetLocale`，應用程式不必建立語言中介軟體或在 `bootstrap/app.rs` 手動註冊。
 
-預設候選在 HTTP 啟動時從應用程式翻譯資源發現一次；隨附資源提供 `en`、`zh-Hans`、`zh-Hant`。中介軟體為配置的協商標頭共用請求語言解析器，依權重選擇、略過 `q=0`，同權重保留瀏覽器順序。沒有符合項目時使用支援的 `APP_LOCALE`，否則使用按標籤穩定排序後的首個候選。控制器、驗證與 Blade 模板共用目前請求語言。
+預設候選在 HTTP 啟動時從框架及應用翻譯資源發現一次；框架內建全部18語。中介軟體為配置的協商標頭共用請求語言解析器，依權重選擇、略過 `q=0`，同權重保留瀏覽器順序。沒有符合項目時使用支援的 `APP_LOCALE`，否則使用按標籤穩定排序後的首個候選。控制器、驗證與 Blade 模板共用目前請求語言。
 
 `zh-Hans`、`zh-CN`、`zh-SG` 與單獨 `zh` 對應簡體；`zh-Hant`、`zh-TW`、`zh-HK`、`zh-MO` 對應繁體，明確的文字體系優先於地區，未知文字體系不依中文地區猜測。數字變體不視為文字體系。其他語言比對完整標識或基礎語言。此選擇規則不改變公開語言標籤的正規化語意。
 
@@ -69,7 +69,19 @@ OpenRust 預設自動裝配 `openrust::http::middleware::SetLocale`，應用程�
 
 原先應用程式中的 `SetLocale` 檔案與 `append` 註冊應移除，避免重複執行；需要關閉辨識時改用上述空清單設定。
 
-歡迎頁的 HTML `lang` 與 `Content-Language` 使用應用程式目前語言，顯示文案依設定進行翻譯備援。儲存庫網址來自框架套件中繼資料，範本使用應用程式目前語言組合文件路徑。預設的 `en`、`zh-Hans`、`zh-Hant` 均有對應文件目錄。關閉辨識並設定 `APP_LOCALE=fr` 時，文案可以備援至英文，但文件連結仍指向儲存庫未提供的 `docs/fr`。使用其他應用程式語言時，請提供對應文件或自訂歡迎頁範本。
+歡迎頁的 HTML `lang` 與 `Content-Language` 使用應用程式目前語言，文案依設定備援。文件連結為 `en`、`zh-Hans`、`zh-Hant` 選擇對應目錄，其他執行階段語言使用英文文件。此映射僅選擇文件位址，不改變應用語言或詞條備援。
+
+### 框架預設譯文與應用覆寫 {#default-translations}
+
+18語預設資源位於 `vendor/openrust/framework/src/translation/lang/`，隨二進位檔編譯交付；預設應用在 `lang/` 保留英語、簡體中文、繁體中文三份可編輯的 `welcome.json`；其他預設詞典無需複製到應用。只建立需要覆寫的鍵，例如 `lang/fr/validation.json`：
+
+```json
+{"required": "自訂提示：:attribute 必填", "min": {"string": "至少輸入 :min 個字元"}}
+```
+
+群組資源按鍵遞迴合併：上述鍵優先，其他法語驗證訊息繼續使用框架預設值。原句詞典 `lang/fr.json` 按頂層原句鍵覆寫。仍缺失的鍵再走已設定的回退語言；應用JSON損壞會報錯，不用預設值掩蓋錯誤。已載入的譯器會快取資源，修改覆寫檔後應重新啟動常駐程序。
+
+框架預設資源不依賴執行期原始碼目錄，也不要求先發佈。需要整份自訂時可執行 `lang:publish`，按需發佈所有內建群組及原句詞典；未要求覆寫時保留已有檔案。套件命名空間仍按獨立的套件翻譯覆寫機制處理。
 
 ### 可用語言 {#available-locales}
 
@@ -84,7 +96,7 @@ APP_SUPPORTED_LOCALES=en,zh-Hans,zh-Hant,ja
 候選優先序為明確 `middleware.setLocale(...)` → `app.supported_locales` → 資源自動發現，明確空清單同樣優先。設定清單和明確清單均略過掃描。預設中介軟體在 HTTP 啟動時儲存一次候選；修改後重新啟動應用，使用設定快取時同時重建快取。本設定不改變 `app.locale`、`app.fallback_locale` 或請求來源優先序。
 
 
-`FileLoader::availableLocales()` 發現 `<語言>.json` 和包含分組 JSON 資源的語言目錄，也支援巢狀分組。掃描路徑與翻譯載入一致：存在 `resources/lang` 時使用該目錄，否則使用 `lang`，並包含 `addPath` 登記的應用程式路徑和 `addJsonPath` 登記的頂層 JSON 檔案。套件命名空間、`vendor`、隱藏項目、符號連結和空語言目錄不會啟用語言。檔案及目錄名必須已是規範 BCP 47 標籤，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。結果去重並按標籤排序；發現過程不剖析詞條內容，也不判斷翻譯是否完整。
+Provider載入器包含框架內建語言；直接 `FileLoader::new(path)` 仍只載入指定的檔案來源。`FileLoader::availableLocales()` 發現 `<語言>.json` 和包含分組 JSON 資源的語言目錄，也支援巢狀分組。掃描路徑與翻譯載入一致：存在 `resources/lang` 時使用該目錄，否則使用 `lang`，並包含 `addPath` 登記的應用程式路徑和 `addJsonPath` 登記的頂層 JSON 檔案。套件命名空間、`vendor`、隱藏項目、符號連結和空語言目錄不會啟用語言。檔案及目錄名必須已是規範 BCP 47 標籤，例如使用 `zh-Hans`，不用 `zh_CN` 或 `ZH-hans`。結果去重並按標籤排序；發現過程不剖析詞條內容，也不判斷翻譯是否完整。
 
 預設中介軟體在應用程式 Provider 啟動完成後、接收請求前保存這份候選。每個請求不再掃描；新增或移除語言資源後需重新啟動應用程式。候選發現獨立於設定快取。明確 `setLocale` 優先於設定；未明確設定時，`app.supported_locales` 陣列略過掃描。未發現語言時保留應用程式設定的語言並隱藏歡迎頁切換選單。僅來自資料庫的語言透過明確候選啟用；發現過程不查詢資料庫，也不自動啟用所有套件的語言。
 
@@ -250,7 +262,7 @@ pub fn register() -> Result<(), RoutingError> {
 
 ## 發佈語言檔案 {#publishing-the-language-files}
 
-執行 `./artisan lang:publish` 發佈驗證身分、分頁、密碼重設和欄位驗證的英文 JSON 語言檔案。預設寫入 `lang/en`，應用程式已有 `resources/lang` 時寫入 `resources/lang/en`。預設保留既有檔案。用 `--force` 覆寫四份檔案，用 `--existing` 僅覆寫已發佈的檔案。兩個選項同時使用時，由 `--existing` 決定範圍。
+執行 `./artisan lang:publish` 發布隨附十八語的身分驗證、分頁、密碼重設、欄位驗證與通知原句詞條。預設使用 `lang/`，已有 `resources/lang/` 時使用後者。預設保留既有檔案；`--force` 覆寫隨附檔案，`--existing` 僅覆寫已存在的隨附檔案。兩者同時使用時由 `--existing` 決定範圍。應用自訂群組與其他語言檔案維持不變。
 
 ## 定義翻譯字串
 
@@ -332,7 +344,7 @@ pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> 
 }
 ```
 
-資料表結構沿用 Spatie Laravel Translation Loader：每個群組與鍵儲存一列，`text` 是語言到字串的 JSON 物件，例如 `{"en":"Hello :name","fr":"Bonjour :name"}`。語言鍵使用標準識別碼（`en-US`、`zh-Hans`）。缺少或為 null 的語言保留檔案值；翻譯值必須為字串，空字串也是有效覆寫。群組 `*` 儲存字面鍵並保留句點，其他群組展開 `nested.title`、`items.0` 等點分鍵。套件命名空間與 Spatie 一樣僅使用檔案來源。重複鍵、父子鍵衝突、無效 JSON、鍵中空段及超過 128 層的鍵會使載入失敗。
+資料表結構沿用 Spatie框架Translation Loader：每個群組與鍵儲存一列，`text` 是語言到字串的 JSON 物件，例如 `{"en":"Hello :name","fr":"Bonjour :name"}`。語言鍵使用標準識別碼（`en-US`、`zh-Hans`）。缺少或為 null 的語言保留檔案值；翻譯值必須為字串，空字串也是有效覆寫。群組 `*` 儲存字面鍵並保留句點，其他群組展開 `nested.title`、`items.0` 等點分鍵。套件命名空間與 Spatie 一樣僅使用檔案來源。重複鍵、父子鍵衝突、無效 JSON、鍵中空段及超過 128 層的鍵會使載入失敗。
 
 在非同步應用程式作用域中呼叫以下函式，例如遷移就緒後由 Provider 的 `boot` 載入：
 
@@ -467,7 +479,7 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 
 ## Artisan 翻譯 {#artisan-translations}
 
-Artisan 使用 `APP_LOCALE` 顯示命令清單標題、說明和引數錯誤。內建英文、簡體中文和繁體中文。應用程式可在 `lang/<locale>/console.json` 覆寫文字。翻譯先查目前語言，再查 `APP_FALLBACK_LOCALE`，最後使用內建文字。沒有翻譯的命令說明沿用註冊時的文字。
+Artisan 使用 `APP_LOCALE` 顯示命令清單標題、說明和引數錯誤。應用隨附下列十八語 console 資源，可在 `lang/<locale>/console.json` 覆寫。翻譯先查目前語言，再查 `APP_FALLBACK_LOCALE`，最後使用內建文字。沒有翻譯的命令說明沿用註冊文字。
 
 ```sh
 APP_LOCALE=en ./artisan help list
@@ -510,6 +522,29 @@ Faker 原生 provider 鍵僅保留於私有邊界，`locale()`、`randomLocale()
 
 `Translator::getSelector()` 傳回目前的 `Arc<dyn Selector>`。實作 `openrust::translation::Selector` 後傳入 `setSelector`，即可自訂複數分支選擇。其 `choose` 接收原始文案、`PluralCount` 和解析後的語言，傳回 `TranslationResult<String>`，之後才替換 `:count` 等預留位置。透過 `setSelector(MessageSelector)` 恢復預設選擇器。`getLoader()` 傳回實際共用的 `Arc<FileLoader>`；先前取出的選擇器和載入器控制代碼仍然有效。
 
+## 隨附語言資源 {#bundled-locales}
+
+`en`, `zh-Hans`, `zh-Hant`, `ja`, `ko`, `fr`, `de`, `es`, `pt`, `it`, `ru`, `ar`, `hi`, `id`, `vi`, `th`, `tr`, `nl`.
+
+一起部署二進位檔、歡迎頁範本及應用自訂語言覆寫；預設譯文無需獨立複製。重建設定與視圖快取，並重啟常駐 Worker。明確候選清單仍由應用控制。語言資源、數字格式、訊息複數與地區 Faker 資料屬於不同能力，請另行設定 Faker。
+
+
+### 語言能力邊界
+
+| 能力 | 範圍 |
+| --- | --- |
+| 執行期資源 | 18語均包含歡迎頁、語言名、命令、欄位說明、驗證身分、密碼、分頁、資料驗證群組及通知原句詞典。 |
+| 訊息複數 | 沿用既有訊息選擇器；阿語六分支、俄語三分支，不變形語言取首分支。小數取模按選擇器契約處理，與ICU數字格式化分開。 |
+| 數字 | ICU小數格式化接受18個語言標識，不表示所有語言都有數字拼寫能力。 |
+| Faker | 獨立設定 `app.faker_locale`。介面通用語言 `fr` 不會自動選擇 `fr-FR`；各格式器仍按其地區資料與既有回退運行。`zh-Hans`／`zh-Hant` 保留既有中文提供者對應。 |
+| 開發者文件 | 英語、簡體中文、繁體中文；歡迎頁其餘語言連結至英語文件。 |
+
+歡迎頁視圖透過目前語言資源中的 `welcome.documentation_locale` 取得文件目錄。隨附語言尚無對應文件時使用 `en`；自訂語言缺少此鍵時也使用 `en`。新增某種語言的文件後，在該語言的應用程式 `welcome.json` 中覆寫此鍵即可，例如 `"documentation_locale": "ja"`。這只改變文件連結，不改變頁面語言。
+
+歡迎頁介紹使用 `:name` 預留位置，視圖傳入 `config('app.name')`。修改 `APP_NAME` 後，各隨附語言的介紹都會使用新的應用程式名稱，輸出維持 HTML 跳脫。
+
+標準譯文隨附完整MIT聲明。OpenRust專有譯文包含機器輔助初稿，已做技術校驗，母語編輯審校須單獨進行。本機捕獲及佇列投遞測試不代表外部郵件供應商投遞驗收。
+
 ## 語言目錄
 
 應用程式建立時，若 `resources/lang/` 已存在，OpenRust 優先使用它，否則選擇根目錄的 `lang/`。讀取路徑不會建立目錄。應用程式 Contract 提供 `langPath("")`，也可傳入 `langPath("en/validation.json")` 等後綴。
@@ -525,7 +560,3 @@ app.useLangPath(app.base_path().join("translations"))?;
 在 HTTP、Artisan 或佇列作用域內，`App::langPath("")` 與 `openrust::support::lang_path("")` 讀取相同的應用程式路徑，也可使用 `App::useLangPath(...)`。目錄屬於整個應用程式，不應逐請求切換。已解析的載入器保留原目錄，因此應在載入服務之前設定，不依賴熱切換。
 
 `lang:publish` 發布至此目錄，預設保留既有檔案；`--force` 覆寫可發布範本，`--existing` 只覆寫已發布的範本。套件資源可將 `app.langPath("vendor/package/...")` 傳給 `publishesPaths` 作為目標；`vendor:publish` 支援明確設定的絕對路徑，包括專案外目錄，仍拒絕相對路徑穿越及符號連結。套件翻譯的應用程式覆寫也從此語言目錄載入。
-
-歡迎頁視圖透過目前語言資源中的 `welcome.documentation_locale` 取得文件目錄。隨附語言尚無對應文件時使用 `en`；自訂語言缺少此鍵時也使用 `en`。新增某種語言的文件後，在該語言的應用程式 `welcome.json` 中覆寫此鍵即可，例如 `"documentation_locale": "ja"`。這只改變文件連結，不改變頁面語言。
-
-歡迎頁介紹使用 `:name` 預留位置，視圖傳入 `config('app.name')`。修改 `APP_NAME` 後，各隨附語言的介紹都會使用新的應用程式名稱，輸出維持 HTML 跳脫。

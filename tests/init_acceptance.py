@@ -232,8 +232,8 @@ def main():
                     assert response.headers['Content-Language'] == resource_locale
                     assert f'lang="{resource_locale}"' in body and heading in body
                     assert f'/docs/{resource_locale}/README.md' in body
-            assert (source / 'lang/zh-Hans/welcome.json').is_file()
-            assert (source / 'lang/zh-Hant/welcome.json').is_file()
+            assert (source / 'vendor/openrust/framework/src/translation/lang/zh-Hans/welcome.json').is_file()
+            assert (source / 'vendor/openrust/framework/src/translation/lang/zh-Hant/welcome.json').is_file()
             assert not (source / 'lang/zh_CN').exists()
             assert not (source / 'lang/zh_TW').exists()
             if os.environ.get('OPENRUST_INIT_TEST_INTEGRATIONS'):

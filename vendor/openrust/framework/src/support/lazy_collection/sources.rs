@@ -42,7 +42,7 @@ impl LazyCollection<'_, i64> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl LazyCollection<'_, Value> {
     pub fn fromValue(value: Value) -> Self {
         Collection::fromValue(value).into()

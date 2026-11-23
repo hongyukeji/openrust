@@ -20,7 +20,7 @@ pub trait Mailable: Send + Sync {
     address_assertions!(hasBcc, assertHasBcc, bcc);
     address_assertions!(hasReplyTo, assertHasReplyTo, reply_to);
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasTo(&self, address: &str, name: Option<&str>) -> &Self
     where
@@ -29,12 +29,12 @@ pub trait Mailable: Send + Sync {
         self.assertTo(address, name)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn hasSubject(&self, subject: &str) -> MailResult<bool> {
         Ok(self.envelope()?.subject == subject)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasSubject(&self, subject: &str) -> &Self
     where
@@ -48,7 +48,7 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's HTML assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assertSeeInHtml<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -60,7 +60,7 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's HTML assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assertDontSeeInHtml<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -72,7 +72,7 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's HTML assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assertSeeInOrderInHtml<'a>(
         &'a self,
         values: &'a [&'a str],
@@ -88,7 +88,7 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's plain-text assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assertSeeInText<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -96,7 +96,7 @@ pub trait Mailable: Send + Sync {
         Box::pin(assert_body(self, Rendered::Text, Rule::Contains(value)))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's plain-text assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assertDontSeeInText<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -108,7 +108,7 @@ pub trait Mailable: Send + Sync {
         ))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's plain-text assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn assertSeeInOrderInText<'a>(&'a self, values: &'a [&'a str]) -> MailFuture<'a, &'a Self>
     where
         Self: Sized,
@@ -116,12 +116,12 @@ pub trait Mailable: Send + Sync {
         Box::pin(assert_body(self, Rendered::Text, Rule::InOrder(values)))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn hasTag(&self, tag: &str) -> MailResult<bool> {
         Ok(self.envelope()?.tags.iter().any(|value| value == tag))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn hasMetadata(&self, name: &str, value: &str) -> MailResult<bool> {
         Ok(self
             .envelope()?
@@ -130,7 +130,7 @@ pub trait Mailable: Send + Sync {
             .is_some_and(|metadata| metadata == value))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasTag(&self, tag: &str) -> &Self
     where
@@ -143,7 +143,7 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasMetadata(&self, name: &str, value: &str) -> &Self
     where
@@ -166,7 +166,7 @@ pub trait Mailable: Send + Sync {
     }
 
     /// Checks the declared source and options without reading attachment files.
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn hasAttachment(&self, attachment: &AttachmentSource) -> MailResult<bool> {
         if self
             .attachment_sources()?
@@ -181,7 +181,7 @@ pub trait Mailable: Send + Sync {
             .any(|item| attachment.matches_materialized(item)))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasAttachment(&self, attachment: &AttachmentSource) -> &Self
     where
@@ -195,7 +195,7 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasNoAttachments(&self) -> &Self
     where
@@ -214,7 +214,7 @@ pub trait Mailable: Send + Sync {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasAttachedData(&self, data: &[u8], name: &str, mime: Option<&str>) -> &Self
     where
@@ -223,7 +223,7 @@ pub trait Mailable: Send + Sync {
         self.assertHasAttachment(&Attachment::fromData(data, name).with_metadata(None, mime))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasAttachmentFromStorage(
         &self,
@@ -237,7 +237,7 @@ pub trait Mailable: Send + Sync {
         self.assertHasAttachment(&Attachment::fromStorage(path).with_metadata(name, mime))
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     #[track_caller]
     fn assertHasAttachmentFromStorageDisk(
         &self,
@@ -273,7 +273,7 @@ pub trait Mailable: Send + Sync {
     }
 
     /// Renders an HTTP response for a preview route.
-    #[allow(non_snake_case, reason = "Matches Laravel's response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn toResponse(
         &self,
     ) -> crate::http::HttpFuture<'_, Result<crate::http::Response, crate::http::HttpError>>

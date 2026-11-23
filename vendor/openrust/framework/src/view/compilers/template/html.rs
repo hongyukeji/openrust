@@ -36,7 +36,7 @@ fn entity_length(text: &str) -> Option<usize> {
     valid.then_some(length + 1)
 }
 
-// HTML 4.01 named character references accepted by Laravel's default e() helper.
+// HTML 4.01 named character references accepted by default e() helper.
 const HTML4_ENTITIES: &[&str] = &[
     "AElig", "Aacute", "Acirc", "Agrave", "Alpha", "Aring", "Atilde", "Auml", "Beta", "Ccedil",
     "Chi", "Dagger", "Delta", "ETH", "Eacute", "Ecirc", "Egrave", "Epsilon", "Eta", "Euml",

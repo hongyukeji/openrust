@@ -25,7 +25,7 @@ pub type ProviderResult = Result<(), Box<dyn Error + Send + Sync>>;
 pub type ProviderFactory = dyn Fn() -> Box<dyn ServiceProvider> + Send + Sync;
 
 /// Registers service bindings before starting application services.
-#[allow(non_snake_case, reason = "Matches Laravel's provider API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ServiceProvider: Any + Send + Sync {
     /// Names the provider in startup diagnostics.
     fn name(&self) -> &'static str {
@@ -51,7 +51,7 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     /// Declare deferred service keys instead of eagerly registering this provider.
-    #[allow(non_snake_case, reason = "Matches Laravel's provider API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn isDeferred(&self) -> bool {
         false
     }

@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// Builds a response for the request that produced this object.
-#[allow(non_snake_case, reason = "Matches Laravel's Responsable API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Responsable: Send {
     fn toResponse(
         self,
@@ -22,7 +22,7 @@ impl<T: ResponseOutput + Send> Responsable for T {
 }
 
 /// Provides the original HTML markup.
-#[allow(non_snake_case, reason = "Matches Laravel's Htmlable API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Htmlable {
     fn toHtml(&self) -> &str;
 }

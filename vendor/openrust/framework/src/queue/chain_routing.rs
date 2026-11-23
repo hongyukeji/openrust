@@ -13,7 +13,7 @@ pub(super) struct JobDispatch {
     pub(super) delay: Option<Delay>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel Queueable")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Payload {
     pub fn onConnection(mut self, name: impl Into<String>) -> Self {
         self.dispatch_options.get_or_insert_default().connection = Some(name.into());

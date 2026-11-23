@@ -1,0 +1,68 @@
+{
+  "command_missing": "Il comando ':name' non è definito.",
+  "command_ambiguous": "Il comando ':name' è ambiguo: :choices",
+  "confirm": {
+    "production": "APPLICAZIONE IN PRODUZIONE. Vuoi davvero eseguire questo comando?",
+    "cancelled": "Comando annullato."
+  },
+  "make": {
+    "mail": {
+      "name": "Qual è il nome della classe di posta?",
+      "view": "Vuoi creare una vista?\n  1. Vista Markdown\n  2. Vista vuota\n  3. Nessuna vista\nScegli [1]"
+    },
+    "notification": {
+      "name": "Qual è il nome della notifica?",
+      "markdown": "Vuoi creare una vista Markdown? [Y/n]",
+      "view": "Quale nome vuoi assegnare alla vista Markdown?"
+    },
+    "message": {
+      "cancelled": "Comando annullato."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Elenca i comandi"
+    },
+    "help": {
+      "description": "Mostra la guida di un comando"
+    },
+    "inspire": {
+      "description": "Mostra una citazione stimolante"
+    },
+    "heading": "Comandi:"
+  },
+  "usage": "Utilizzo:",
+  "options": "Opzioni:",
+  "unknown_argument": "Argomento inaspettato",
+  "unknown_command": "Il comando non è definito",
+  "missing_argument": "Mancano gli argomenti richiesti",
+  "invalid_value": "Valore non valido",
+  "argument_conflict": "Argomenti in conflitto",
+  "invalid_arguments": "Argomenti non validi",
+  "model_fields": {
+    "title": "Tabella e campi del modello",
+    "notice": "Generato dallo schema del database. Non modificare manualmente.",
+    "sync": "Esegui `./artisan model:fields :model` dalla radice del progetto per sincronizzare.",
+    "table": "Tabella"
+  },
+  "namespace_missing": "Lo spazio dei nomi ':name' non è definito.",
+  "available_commands": "Comandi disponibili",
+  "namespace_commands": "Comandi disponibili per lo spazio dei nomi ':name':",
+  "available_commands_heading": "Comandi disponibili:",
+  "usage_title": "Utilizzo",
+  "argument_descriptions": {
+    "help": "Stampa aiuto",
+    "version": "Versione stampabile",
+    "ansi": "Abilita l'uscita ANSI",
+    "no-ansi": "Disabilita l'uscita ANSI",
+    "env": "L'ambiente in cui deve essere eseguito il comando",
+    "no-interaction": "Non fare alcuna domanda interattiva",
+    "quiet": "Non emettere alcun messaggio",
+    "silent": "Non emettere alcun messaggio o errore",
+    "verbose": "Aumentare la verbosità dei messaggi",
+    "format": "Scegli un formato di output",
+    "command_name": "Il comando da visualizzare",
+    "namespace": "Mostra i comandi in uno spazio dei nomi specifico"
+  },
+  "arguments": "Argomenti:"
+}

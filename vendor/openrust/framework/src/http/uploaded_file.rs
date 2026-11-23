@@ -42,7 +42,7 @@ impl fmt::Debug for UploadedFile {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's uploaded-file API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl UploadedFile {
     pub(super) fn new(path: String, media_type: Option<String>, content: Bytes) -> Self {
         Self {

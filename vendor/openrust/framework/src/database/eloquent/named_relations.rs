@@ -318,7 +318,7 @@ impl<M: Model> NamedRelations<M> {
 
     /// Registers an inverse polymorphic relation and its typed target paths.
     #[must_use]
-    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn morphTo(
         mut self,
         name: &'static str,
@@ -525,7 +525,7 @@ fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, EagerP
         } else {
             let entry = grouped.entry(names).or_default();
             if let Some(columns) = columns {
-                // Laravel evaluates the first projection last when a path is repeated.
+                // the framework evaluates the first projection last when a path is repeated.
                 entry.columns.get_or_insert(parse_columns(columns)?);
             }
         }

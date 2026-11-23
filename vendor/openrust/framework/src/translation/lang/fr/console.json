@@ -1,0 +1,68 @@
+{
+  "command_missing": "La commande ':name' n'est pas définie.",
+  "command_ambiguous": "La commande ':name' est ambiguë : :choices",
+  "confirm": {
+    "production": "APPLICATION EN PRODUCTION. Souhaitez-vous vraiment exécuter cette commande ?",
+    "cancelled": "Commande annulée."
+  },
+  "make": {
+    "mail": {
+      "name": "Quel est le nom du mailable ?",
+      "view": "Voulez-vous créer une vue ?\n  1. Vue Markdown\n  2. Vue vide\n  3. Aucune vue\nChoisir [1]"
+    },
+    "notification": {
+      "name": "Quel est le nom de la notification ?",
+      "markdown": "Souhaitez-vous créer une vue markdown ? [Y/n]",
+      "view": "Comment doit être nommée la vue markdown ?"
+    },
+    "message": {
+      "cancelled": "Commande annulée."
+    }
+  },
+  "commands": {
+    "list": {
+      "description": "Liste des commandes"
+    },
+    "help": {
+      "description": "Afficher l'aide d'une commande"
+    },
+    "inspire": {
+      "description": "Afficher une citation inspirante"
+    },
+    "heading": "Commandes :"
+  },
+  "usage": "Utilisation :",
+  "options": "Possibilités :",
+  "unknown_argument": "Dispute inattendue",
+  "unknown_command": "La commande n'est pas définie",
+  "missing_argument": "Les arguments requis sont manquants",
+  "invalid_value": "Valeur invalide",
+  "argument_conflict": "Conflit d'arguments",
+  "invalid_arguments": "Arguments invalides",
+  "model_fields": {
+    "title": "Table et champs du modèle",
+    "notice": "Généré à partir du schéma de base de données. Ne modifiez pas manuellement.",
+    "sync": "Exécutez `./artisan model:fields :model` à partir de la racine du projet pour synchroniser.",
+    "table": "Tableau"
+  },
+  "namespace_missing": "L'espace de noms « :name » n'est pas défini.",
+  "available_commands": "Commandes disponibles",
+  "namespace_commands": "Commandes disponibles pour l'espace de noms « :name » :",
+  "available_commands_heading": "Commandes disponibles :",
+  "usage_title": "Utilisation",
+  "argument_descriptions": {
+    "help": "Imprimer l'aide",
+    "version": "Version imprimable",
+    "ansi": "Activer la sortie ANSI",
+    "no-ansi": "Désactiver la sortie ANSI",
+    "env": "L'environnement dans lequel la commande doit s'exécuter",
+    "no-interaction": "Ne posez aucune question interactive",
+    "quiet": "Ne pas afficher de message",
+    "silent": "Ne générer aucun message ou erreur",
+    "verbose": "Augmenter la verbosité des messages",
+    "format": "Choisissez un format de sortie",
+    "command_name": "La commande à afficher",
+    "namespace": "Afficher les commandes dans un espace de noms spécifique"
+  },
+  "arguments": "Arguments :"
+}

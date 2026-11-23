@@ -282,7 +282,7 @@ impl Container {
             group.global.clone()
         };
         // Snapshot each stage separately: a global callback can register a keyed callback
-        // for the same lookup, matching Laravel's dispatch order.
+        // for the same lookup, matching dispatch order.
         let _dispatch = Dispatch::enter(self, event, phase)?;
         for callback in global {
             callback(event, self)?;

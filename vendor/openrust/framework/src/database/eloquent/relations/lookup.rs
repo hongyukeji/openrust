@@ -48,14 +48,14 @@ pub(in crate::database::eloquent) fn sole_match<M: Model>(mut models: Vec<M>) ->
 macro_rules! relation_lookup {
     ($($delegate:tt)*) => {
         /// Finds one related model by its primary key.
-        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn find(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<Option<R>> {
             let keys = super::lookup::primary_key::<R>(key.into());
             Ok(self$($delegate)*.lookup_models(parent, &keys, 1).await?.into_iter().next())
         }
 
         /// Finds the matching related primary keys in relationship query order.
-        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn findMany(
             &self, parent: &P, keys: &[crate::database::Value],
         ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
@@ -66,7 +66,7 @@ macro_rules! relation_lookup {
         }
 
         /// Requires every requested primary key to match the relationship.
-        #[allow(non_snake_case, reason = "Rust entry point for Laravel's array findOrFail")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn findManyOrFail(
             &self,
             parent: &P,
@@ -78,7 +78,7 @@ macro_rules! relation_lookup {
         }
 
         /// Runs the fallback if any requested primary key is missing.
-        #[allow(non_snake_case, reason = "Rust entry point for Laravel's array findOr")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn findManyOr<Fut>(
             &self,
             parent: &P,
@@ -97,13 +97,13 @@ macro_rules! relation_lookup {
         }
 
         /// Requires a related model by its primary key.
-        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn findOrFail(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
             self.find(parent, key).await?.ok_or(crate::database::DatabaseError::ModelNotFound(R::metadata().table))
         }
 
         /// Requires exactly one related match for the primary key.
-        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn findSole(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
             let keys = super::lookup::primary_key::<R>(key.into());
             super::lookup::sole_match(self$($delegate)*.lookup_models(parent, &keys, 2).await?)
@@ -115,7 +115,7 @@ macro_rules! relation_lookup {
         }
 
         /// Runs the fallback only when no row matches the related primary key.
-        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn findOr<Fut>(
             &self,
             parent: &P,
@@ -132,7 +132,7 @@ macro_rules! relation_lookup {
         }
 
         /// Runs the fallback only when the relationship has no matching rows.
-        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         pub async fn firstOr<Fut>(
             &self,
             parent: &P,

@@ -111,9 +111,9 @@ fn main() {
 
 上下文规则只作用于最近的消费者，优先于默认实例、单例和作用域缓存，但不替换默认缓存，也不把依赖记为全局已解析。上下文工厂可以再次解析同一依赖取得默认绑定；实际递归工厂仍返回循环依赖错误。消费者别名在调用 `when` 时规范化，依赖别名在调用 `give` 时规范化，解析时还会检查后续增加的直接别名。
 
-`give` 接收类型明确的工厂。`giveService(key)` 对应 Laravel 中传服务名的 `give`，目标须按预期返回契约登记；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的转换在工厂中显式完成。`giveConfig(key, default)` 在解析依赖时读取当前 `config` 服务，`None` 对应 Laravel 省略默认值。键缺失时使用默认值，显式 JSON null 保持 null。反序列化会检查 Rust 声明类型，不匹配返回错误，不隐式执行 PHP 标量转换。
+`give` 接收类型明确的工厂。`giveService(key)` 对应框架中传服务名的 `give`，目标须按预期返回契约登记；`Arc<Concrete>` 到 `Arc<dyn Trait>` 的转换在工厂中显式完成。`giveConfig(key, default)` 在解析依赖时读取当前 `config` 服务，`None` 对应框架省略默认值。键缺失时使用默认值，显式 JSON null 保持 null。反序列化会检查 Rust 声明类型，不匹配返回错误，不隐式执行 PHP 标量转换。
 
-`tag(keys, tags)` 保留登记顺序和重复项。`tagged::<T>(tag)` 迭代到某项时才解析服务，每次迭代按原服务生命周期重新解析。未知标签得到空序列；已有序列的下一次迭代可看到之前追加的服务。`len()` 返回创建序列时固定的数量，对应 Laravel 可重复生成器的行为。`giveTagged` 收集为 `Vec<Arc<T>>`，未绑定或类型不符的项传播错误。
+`tag(keys, tags)` 保留登记顺序和重复项。`tagged::<T>(tag)` 迭代到某项时才解析服务，每次迭代按原服务生命周期重新解析。未知标签得到空序列；已有序列的下一次迭代可看到之前追加的服务。`len()` 返回创建序列时固定的数量，对应框架可重复生成器的行为。`giveTagged` 收集为 `Vec<Arc<T>>`，未绑定或类型不符的项传播错误。
 
 ```rust
 use std::sync::Arc;
@@ -193,7 +193,7 @@ fn main() {
 
 尚无缓存实例时，`extend` 保存闭包供未来构造，不提前解析服务。装饰器按登记顺序在构造完成后、解析回调前执行，上下文构造同样适用。共享服务缓存装饰后的值。显式 `instance` 跳过待执行链；清掉实例后恢复原工厂及该链。
 
-已有缓存实例时，`extend` 立即替换缓存值，这次闭包不加入未来构造链。已有调用方保留原 `Arc`，下一次查找取得新值。与 Laravel 一样，清掉缓存后不保留这种仅即时生效的装饰。`forgetExtenders(key)` 移除未来装饰器，不撤销已经装饰的缓存实例。
+已有缓存实例时，`extend` 立即替换缓存值，这次闭包不加入未来构造链。已有调用方保留原 `Arc`，下一次查找取得新值。清掉缓存后不保留这种仅即时生效的装饰。`forgetExtenders(key)` 移除未来装饰器，不撤销已经装饰的缓存实例。
 
 构造和缓存替换在注册表锁外执行用户代码；构造等待期间登记的装饰器在发布前纳入。同一缓存槽的更新串行处理，其他读取方等待更新完成，装饰器可读取自身槽的旧值。已退役槽上的更新不会覆盖新绑定。递归扩展或依赖循环返回循环依赖错误。发布前失败或 panic 的共享构造可重试；缓存更新失败保留旧指针，不回滚共享对象内部已经发生的修改。
 
@@ -237,7 +237,7 @@ fn main() {
 
 回调在新绑定或缓存提交后执行，错误和 panic 向调用方传播，不回滚已提交状态，失败事件中后续监听器不再执行。同服务递归通知在嵌套变更提交后返回循环错误。因此绑定登记方法返回 `Result`，应通过 `?` 传播错误；`instance` 和 `instanceNamed` 成功时返回传入的 `Arc`。
 
-`refresh::<T, _, _>(key, target, setter)` 对应 Laravel 的目标对象/方法刷新，接收明确的 `Arc` 目标与 setter，替代 PHP 方法名字符串。登记返回当前服务，不立即调用 setter，后续重绑定才调用。回调使用显式返回契约，在注册表锁外执行，保持应用及作用域隔离。门面 swap 先更新门面缓存，再绑定容器；监听器失败时两边的新值都保留。
+`refresh::<T, _, _>(key, target, setter)` 对应 目标对象/方法刷新，接收明确的 `Arc` 目标与 setter，替代 PHP 方法名字符串。登记返回当前服务，不立即调用 setter，后续重绑定才调用。回调使用显式返回契约，在注册表锁外执行，保持应用及作用域隔离。门面 swap 先更新门面缓存，再绑定容器；监听器失败时两边的新值都保留。
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -464,13 +464,13 @@ fn main() -> Result<(), BindingResolutionError> {
 }
 ```
 
-Laravel 的类服务 `give(array)` 对应 `needs::<T>().giveServices(keys)`。服务键在原消费者上下文中按顺序解析，保留重复项；登记不提前构造，依赖别名会归一化，进行中的构造持有不可变键快照。异步构造通道会等待延迟或异步服务，不需要另一套列表登记接口。
+类服务 `give(array)` 对应 `needs::<T>().giveServices(keys)`。服务键在原消费者上下文中按顺序解析，保留重复项；登记不提前构造，依赖别名会归一化，进行中的构造持有不可变键快照。异步构造通道会等待延迟或异步服务，不需要另一套列表登记接口。
 
 标签或计算型集合工厂沿用现有类型化集合契约：`needs::<Vec<Arc<T>>>().giveTagged(tag)` 或 `giveTaggedAsync(tag)`，变参构造器可消费该集合。`T` 的直接上下文绑定优先于集合适配。集合工厂作为自己的解析执行，条目不会继承消费者类的上下文绑定；直接 `giveServices` 数组则保留该类上下文。集合回调使用 `Vec<Arc<T>>` 身份，这是 Rust 列表输出契约的适配。
 
 原始值的 `$name` 上下文可提供 `Vec<Arc<T>>` 或 `Vec<ParameterValue>`。例如 `needsNamed::<Vec<Arc<String>>>("$names").giveConfig("app.names", None)` 读取当前配置数组；框架启用 Serde 的 `rc` 特性支持这些类型化列表。共享条目无需实现 Clone，异构载体保留 null 并逐项校验。所有权表示有参数包装与引用计数开销。
 
-原始值上下文闭包在构造上下文内直接执行，对应 Laravel 的原始值解析器；保留构造参数快照，不为 `$name` 增加服务事件、缓存或解析历史。闭包内的普通依赖仍按容器机制解析，异步闭包可在相同上下文等待初始化。
+原始值上下文闭包在构造上下文内直接执行，对应 原始值解析器；保留构造参数快照，不为 `$name` 增加服务事件、缓存或解析历史。闭包内的普通依赖仍按容器机制解析，异步闭包可在相同上下文等待初始化。
 
 类变参遇到缺少绑定或依赖中的原始值不可解析错误时，将整个参数回退为空列表，包括已经部分解析的服务数组。业务失败、类型错误、依赖/别名环、异步解析要求、Provider 失败和生命周期关闭仍传播；原始值变参的错误也传播。取消在原上下文释放部分条目，共享服务和应用主动保留的值仍按原所有权存活。
 
@@ -552,7 +552,7 @@ async fn main() {
 
 `bindMethod` 替代原方法体，并跳过原参数注入与校验。`hasMethodBinding` 检查替代绑定，`callMethodBinding` 直接执行它，不额外建立类上下文。静态重载为 `bindStaticMethod`、`callStaticMethodBinding`。`StaticCall::qualified` 对应 `Class::method` 字符串，不查询方法绑定；`StaticCall::array` 对应类数组调用，会查询绑定。错误的接收者形式或返回类型返回类型化错误。
 
-实际可调用的对象或静态方法，只在逻辑构造栈尚无该类时添加类上下文。`Class@method` 按 Laravel BoundMethod.callClass 保留父上下文；依赖仍建立自己的正常构造上下文。逐次异步 poll 和取消时恢复上下文，保证并发与多应用隔离。Application 入口同时建立该应用的 Facade 上下文。进行中的调用保留选定绑定、原始参数与接收者，直到完成或取消。
+实际可调用的对象或静态方法，只在逻辑构造栈尚无该类时添加类上下文。`Class@method` 按框架BoundMethod.callClass 保留父上下文；依赖仍建立自己的正常构造上下文。逐次异步 poll 和取消时恢复上下文，保证并发与多应用隔离。Application 入口同时建立该应用的 Facade 上下文。进行中的调用保留选定绑定、原始参数与接收者，直到完成或取消。
 
 编译类型 `C` 替代 PHP 类名反射；Rust trait 别名与具体类之间不自动投影方法。适配器以 `Result<R, BindingResolutionError>` 传播注入错误，`R` 本身可为业务 Result。为支持 Rust 1.94 的异步借用，存储回调和调用分派 Future 使用 Box。
 
@@ -603,7 +603,7 @@ async fn main() {
 
 `getBindings()` 返回拥有所有权、保留插入顺序的 `Bindings` 快照。`get(&ServiceKey)` 精确查键，`iter`、`keys` 和所有权迭代保留登记顺序；替换绑定不移动位置。每个 `BindingDefinition` 暴露原始 `concrete` 工厂及声明的 `shared`，显式实例覆盖不改变该标志。别名单独键、仅实例键、上下文绑定和自动类元数据不在其中。读取或修改快照不会解析服务或修改容器。
 
-保留的 `FactoryHandle` 对应直接执行 Laravel 绑定数组中的 concrete 闭包。`call::<T>(&container, parameters)` 与 `callAsync::<T>(...)` 使用传入容器及显式参数帧，不添加目标类上下文。它们绕过目标缓存、装饰器、事件和解析历史；工厂内部依赖仍正常解析，使用新参数帧。因此共享原工厂每次也产生新结果。输出类型错误在执行用户代码前拒绝；同步调用异步工厂会失败，即使普通解析已缓存结果。`sameFactory` 比较保留配方的身份。
+保留的 `FactoryHandle` 对应直接执行框架绑定数组中的 concrete 闭包。`call::<T>(&container, parameters)` 与 `callAsync::<T>(...)` 使用传入容器及显式参数帧，不添加目标类上下文。它们绕过目标缓存、装饰器、事件和解析历史；工厂内部依赖仍正常解析，使用新参数帧。因此共享原工厂每次也产生新结果。输出类型错误在执行用户代码前拒绝；同步调用异步工厂会失败，即使普通解析已缓存结果。`sameFactory` 比较保留配方的身份。
 
 ```rust
 use openrust::{
@@ -639,7 +639,7 @@ async fn main() {
 }
 ```
 
-`flush()` 清空绑定、别名及反向别名、显式/共享/scoped 实例、scoped 登记和解析历史。按 Laravel 基础 Container 保留上下文规则、标签、装饰器、解析/重绑定回调、方法声明/绑定及编译类元数据。同时解除本容器所有活动生命周期的缓存，不关闭这些生命周期。用户值在状态提交后、注册表与缓存锁外释放，允许析构重入。flush 和正常生命周期结束均在中立的 Facade、参数及类上下文中释放 scoped 缓存值。析构 panic 不回滚清理，也不污染注册表锁。
+`flush()` 清空绑定、别名及反向别名、显式/共享/scoped 实例、scoped 登记和解析历史。按框架基础 Container 保留上下文规则、标签、装饰器、解析/重绑定回调、方法声明/绑定及编译类元数据。同时解除本容器所有活动生命周期的缓存，不关闭这些生命周期。用户值在状态提交后、注册表与缓存锁外释放，允许析构重入。flush 和正常生命周期结束均在中立的 Facade、参数及类上下文中释放 scoped 缓存值。析构 panic 不回滚清理，也不污染注册表锁。
 
 应用自行持有的对象及原工厂快照仍有效，已准入构造可返回旧值，但不能回填已移除或替换的绑定及其历史。此基础容器操作不重新启动 Application Provider，也不清除独立 Facade 缓存；应用终止由生命周期职责负责。
 
@@ -649,7 +649,7 @@ Rust 使用类型化定义和拥有所有权的 ServiceKey 替代动态 PHP 数�
 
 `resolveEnvironmentUsing(Some(Arc::new(callback)))` 安装基础容器环境解析回调，`None` 清除。无回调时，`currentEnvironmentIs(query)` 返回 `Ok(EnvironmentResult::Boolean(false))`。基础容器不解析环境文件、不匹配通配符，也不重新解释空参数，而是原样转交 `EnvironmentQuery::Name` 或 `Names`，保留数组顺序、重复项与空字符串。同步回调借用查询字符串，不复制参数。
 
-回调可返回 `EnvironmentResult::Boolean` 或 `String`，保留 PHP 支持的两种结果形状；`Result` 将回调异常作为容器错误传播。`bool::from(result)` 或 `bool::from(&result)` 按 PHP 真值转换，false、空字符串和字符串 "0" 为假。示例刻意采用显式自定义策略：空数组返回名称，并不代表 Laravel Application 默认环境匹配规则。
+回调可返回 `EnvironmentResult::Boolean` 或 `String`，保留 PHP 支持的两种结果形状；`Result` 将回调异常作为容器错误传播。`bool::from(result)` 或 `bool::from(&result)` 按 PHP 真值转换，false、空字符串和字符串 "0" 为假。示例刻意采用显式自定义策略：空数组返回名称，并不代表框架Application 默认环境匹配规则。
 
 ```rust
 use openrust::{

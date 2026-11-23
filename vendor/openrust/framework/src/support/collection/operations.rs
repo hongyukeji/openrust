@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashSet, hash::Hash};
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult};
 
-#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> Collection<T> {
     pub fn map<U>(self, mut callback: impl FnMut(&T, &ArrayKey) -> U) -> Collection<U> {
         Collection::fromEntries(self.into_iter().map(|(key, value)| {

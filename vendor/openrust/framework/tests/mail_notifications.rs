@@ -94,10 +94,7 @@ struct AttachmentReceipt {
 struct RemoteReport(String);
 
 impl Attachable for RemoteReport {
-    #[allow(
-        non_snake_case,
-        reason = "Implements the Laravel-compatible attachment contract"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
         Attachment::fromUrl(&self.0)
     }
@@ -5258,11 +5255,27 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
     config["mail"]["default"] = json!("locale");
     config["mail"]["mailers"]["locale"] = json!({"transport":"locale","path":records});
     std::fs::write(config_path, config.to_string()).unwrap();
-    for (locale, title) in [
+    let translated_titles = [
         ("en", "English receipt"),
         ("zh-Hans", "简体收据"),
         ("zh-Hant", "繁體收據"),
-    ] {
+        ("ja", "領収書"),
+        ("ko", "영수증"),
+        ("fr", "Reçu"),
+        ("de", "Beleg"),
+        ("es", "Recibo"),
+        ("pt", "Recibo"),
+        ("it", "Ricevuta"),
+        ("ru", "Квитанция"),
+        ("ar", "إيصال"),
+        ("hi", "रसीद"),
+        ("id", "Kuitansi"),
+        ("vi", "Biên lai"),
+        ("th", "ใบเสร็จ"),
+        ("tr", "Makbuz"),
+        ("nl", "Ontvangstbewijs"),
+    ];
+    for (locale, title) in translated_titles {
         std::fs::create_dir_all(root.0.join("lang").join(locale)).unwrap();
         std::fs::write(
             root.0.join("lang").join(locale).join("receipt.json"),
@@ -5284,7 +5297,13 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
             Callback::new(&[], move |_| {
                 let manager = manager.clone();
                 async move {
-                    for locale in ["ZH-hans", "ZH-hant"] {
+                    for (locale, _) in translated_titles {
+                        // 同时保留真实Worker对标签大小写规范化的回归。
+                        let locale = match locale {
+                            "zh-Hans" => "ZH-hans",
+                            "zh-Hant" => "ZH-hant",
+                            other => other,
+                        };
                         Mail::to("locale@example.test")
                             .unwrap()
                             .locale(locale)
@@ -5318,7 +5337,7 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
         )
         .await
         .unwrap();
-    assert_eq!(db.table("jobs").count("*").await.unwrap(), 7);
+    assert_eq!(db.table("jobs").count("*").await.unwrap(), 55);
     let serialized = db.table("jobs").pluck("payload").await.unwrap();
     let payloads = serialized
         .iter()
@@ -5343,19 +5362,15 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
     .await;
     assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
-    assert_eq!(db.table("notifications").count("*").await.unwrap(), 2);
+    assert_eq!(db.table("notifications").count("*").await.unwrap(), 18);
     let records: Vec<Json> = std::fs::read_to_string(records)
         .unwrap()
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    assert_eq!(records.len(), 5);
+    assert_eq!(records.len(), 37);
 
-    for (locale, title) in [
-        ("zh-Hans", "简体收据"),
-        ("zh-Hant", "繁體收據"),
-        ("en", "English receipt"),
-    ] {
+    for (locale, title) in translated_titles {
         let mail = records
             .iter()
             .find(|row| row["html"] == format!("<p>{title}</p>"))
@@ -5364,7 +5379,7 @@ async fn real_artisan_worker_preserves_bcp47_mail_and_notification_locales() {
         // 邮件的临时语言只包围 compose；传输阶段已恢复任务默认语言。
         assert_eq!(mail["locale"], "en", "{locale}");
     }
-    for locale in ["zh-Hans", "zh-Hant"] {
+    for (locale, _) in translated_titles {
         let notice = records
             .iter()
             .find(|row| row["subject"] == format!("OpenRust payment ({locale})"))

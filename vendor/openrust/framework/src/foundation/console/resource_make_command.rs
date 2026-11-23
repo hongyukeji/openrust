@@ -77,7 +77,7 @@ impl Command for ResourceMakeCommand {
             .map_err(|error| ConsoleError::new(error.to_string()))?;
             match result {
                 Ok(()) => {}
-                // Laravel's resource command reports the conflict while exiting successfully.
+                // resource command reports the conflict while exiting successfully.
                 Err(error) if !force && error.kind() == ErrorKind::AlreadyExists => {
                     output
                         .stderr

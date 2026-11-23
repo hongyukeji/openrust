@@ -4,7 +4,7 @@
 
 **未提供。** OpenRust 沒有 Dusk 套件、WebDriver 管理器或 `dusk` Artisan 命令。可使用外部瀏覽器測試工具測試正在執行的應用程式。
 
-本章保留 Laravel 導航路徑供對照；存在導航入口不代表已經安裝相應套件，也不承諾對應 PHP API 相容。
+本章保留框架導航路徑供對照；存在導航入口不代表已經安裝相應套件，也不承諾對應 PHP API 相容。
 
 ## 可用入口 {#available-entry-points}
 
@@ -12,4 +12,4 @@
 
 ## 範圍 {#scope}
 
-OpenRust 不提供此整合的安裝命令。不要因存在此導航入口就將 Laravel Composer 或 Artisan 命令照搬至 OpenRust。
+OpenRust 不提供此整合的安裝命令。不要因存在此導航入口就將框架Composer 或 Artisan 命令照搬至 OpenRust。

@@ -24,10 +24,7 @@ pub struct PasswordBrokerManager {
     brokers: Mutex<HashMap<String, Arc<PasswordBroker>>>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's password broker manager API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PasswordBrokerManager {
     pub(crate) fn new(config: Arc<dyn Repository>, container: Weak<Container>) -> Self {
         Self {

@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.94"
 license = "MIT"
 repository = "https://github.com/hongyukeji/openrust"
-description = "OpenRust — Laravel 的 Rust 实现"
+description = "OpenRust — Rust Web 应用框架"
 readme = "README.md"
 publish = false
 

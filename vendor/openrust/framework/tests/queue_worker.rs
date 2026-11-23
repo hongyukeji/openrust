@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{
     ffi::OsString,
@@ -108,7 +108,7 @@ impl JobMiddleware for Tag {
 struct QueuedModel(ModelState);
 
 impl Model for QueuedModel {
-    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn newCollection(models: Vec<Self>) -> Collection<Self> {
         Collection::fromEntries(
             models
@@ -208,7 +208,7 @@ impl JobHandler for RestoreModels {
 struct QueuedPivot(ModelState);
 
 impl Model for QueuedPivot {
-    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     fn newCollection(models: Vec<Self>) -> Collection<Self> {
         Collection::fromEntries(
             models

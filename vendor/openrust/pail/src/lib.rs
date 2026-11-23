@@ -107,7 +107,7 @@ impl ServiceProvider for PailServiceProvider {
 }
 
 impl PailServiceProvider {
-    #[allow(non_snake_case, reason = "Matches Laravel Pail's provider helper")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     // Env::get normalizes reserved values before PHP casts PAIL_TESTS to bool.
     fn runningPailTests(
         &self,

@@ -385,7 +385,7 @@ fn replaceRecursive(default: &mut serde_json::Value, replacement: &serde_json::V
 
 pub struct AutoScaler;
 impl AutoScaler {
-    /// Laravel's floating-point recommendations, in the original pool order.
+    /// floating-point recommendations, in the original pool order.
     /// Apply smaller recommendations first so shrinking pools release capacity.
     pub fn numberOfWorkersPerQueue(
         options: &SupervisorOptions,
@@ -439,7 +439,7 @@ impl AutoScaler {
             .collect())
     }
 
-    /// Return the active pool size requested by Laravel's scalePool, if changed.
+    /// Return the active pool size requested by scalePool, if changed.
     /// Both counts include terminating workers; ProcessPool scales active workers.
     pub fn scalePool(
         options: &SupervisorOptions,

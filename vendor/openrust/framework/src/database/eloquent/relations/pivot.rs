@@ -9,7 +9,7 @@ pub struct Pivot {
     attributes: Attributes,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's model attribute API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Pivot {
     pub(in crate::database::eloquent) fn serialize(
         &self,

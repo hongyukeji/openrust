@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-#![allow(non_snake_case, reason = "Preserves Laravel Scout API names")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 mod builder;
 mod collection;
 pub use collection::SearchableCollection;

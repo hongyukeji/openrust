@@ -24,7 +24,7 @@ use zeroize::Zeroizing;
 
 pub type TokenEncryptionKey = fn(&openrust::encryption::Encrypter) -> Vec<u8>;
 
-/// Application-local counterpart of Laravel Passport's configuration state.
+/// Application-local counterpart of the framework Passport's configuration state.
 #[allow(non_snake_case)]
 pub struct Passport {
     /// Mirrors Passport::$validateKeyPermissions without process-global state.

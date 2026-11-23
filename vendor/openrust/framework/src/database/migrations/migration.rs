@@ -1,7 +1,7 @@
 use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, Value, schema};
 
 /// A compiled migration registered with the application.
-#[allow(non_snake_case, reason = "Matches Laravel's Migration API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait Migration: Send + Sync {
     /// Resolves a potentially configuration-derived name from the owning application.
     fn getConnection(
@@ -40,7 +40,7 @@ pub struct MigrationContext {
     statements: Option<Vec<String>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's connection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MigrationContext {
     pub(super) fn new(connection: Connection, pretend: bool) -> Self {
         Self {

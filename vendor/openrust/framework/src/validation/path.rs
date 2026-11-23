@@ -1,4 +1,4 @@
-//! Resolves Laravel-style field paths within a bounded input and match budget.
+//! Resolves framework field paths within a bounded input and match budget.
 use super::{ValidationError, ValidationResult as Result};
 use serde_json::Value;
 

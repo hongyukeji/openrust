@@ -11,7 +11,7 @@ use super::{
 /// Schema operations on the current application's default database connection.
 pub struct Schema;
 
-#[allow(non_snake_case, reason = "Matches Laravel's Schema facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Schema {
     /// Sets the default for subsequent polymorphic columns in this application.
     pub fn defaultMorphKeyType(kind: MorphKeyType) -> DatabaseResult<()> {

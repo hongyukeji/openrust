@@ -12,10 +12,7 @@ use super::ResourceResult;
 /// Selects values lazily and keeps omitted fields distinct from explicit JSON nulls.
 pub struct Conditional;
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's conditional resource helpers"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Conditional {
     pub fn when<T>(condition: bool, value: impl FnOnce() -> T) -> Option<T> {
         condition.then(value)

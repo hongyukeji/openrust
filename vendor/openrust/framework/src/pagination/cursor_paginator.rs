@@ -19,7 +19,7 @@ pub struct CursorPaginator<T> {
     more: bool,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's CursorPaginator API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<T> CursorPaginator<T> {
     /// Creates a page from ordered items and one optional look-ahead item.
     /// Supply items in reverse fetch order for a previous-page cursor.

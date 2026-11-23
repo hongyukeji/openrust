@@ -6,10 +6,7 @@ use super::TestApp;
 
 type AssertionResult = Result<(), Box<dyn Error + Send + Sync>>;
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's database testing assertions"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestApp {
     /// Expects exactly this many queries from this point until fixture teardown.
     /// With no connection name, all connections of this application count.

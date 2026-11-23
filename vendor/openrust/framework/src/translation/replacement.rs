@@ -220,7 +220,7 @@ fn replace_tag(
     }
     let close = format!("</{name}>");
     let mut result = String::with_capacity(text.len());
-    // Match the nearest closing tag on the same line, as in the Laravel callback.
+    // Match the nearest closing tag on the same line, as in the framework callback.
     for segment in text.split_inclusive('\n') {
         let mut remaining = segment;
         while let Some(start) = remaining.find(&open) {

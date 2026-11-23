@@ -78,7 +78,7 @@ fn concurrency_error(error: &DatabaseError) -> bool {
         })
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's transaction API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Connection {
     /// Registers a hook before starting a transaction or savepoint.
     pub fn beforeStartingTransaction(
@@ -257,7 +257,7 @@ macro_rules! observed_transaction_query {
     }};
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's transaction API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Transaction {
     pub fn getSchemaBuilder(&mut self) -> super::schema::Builder<'_> {
         super::schema::Builder::transaction(self)
@@ -269,7 +269,7 @@ impl Transaction {
     }
 
     /// Returns the connection whose transaction this handle borrows.
-    #[allow(non_snake_case, reason = "Matches Laravel's connection accessor")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getConnection(&self) -> &Connection {
         &self.connection
     }

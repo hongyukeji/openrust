@@ -7,10 +7,7 @@ pub struct ForeignIdColumnDefinition<'a> {
     model_target: Option<(&'static str, &'static str)>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's ForeignIdColumnDefinition API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> ForeignIdColumnDefinition<'a> {
     pub(super) fn new(blueprint: &'a mut Blueprint, name: &str) -> Self {
         Self {

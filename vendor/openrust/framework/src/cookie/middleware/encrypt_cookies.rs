@@ -17,7 +17,7 @@ pub struct EncryptCookies {
     except: Arc<HashSet<String>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's EncryptCookies API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl EncryptCookies {
     pub fn new(encrypter: Arc<dyn Encrypter>) -> Self {
         Self {

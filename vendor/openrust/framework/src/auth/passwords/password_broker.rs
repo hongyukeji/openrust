@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 use std::{sync::Arc, time::Duration};
 
@@ -26,7 +26,7 @@ pub struct PasswordBroker {
     timebox: Duration,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's PasswordBroker API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PasswordBroker {
     pub fn new(
         tokens: Arc<dyn TokenRepository>,

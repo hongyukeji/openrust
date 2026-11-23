@@ -53,7 +53,7 @@ pub struct PendingBatch {
     pub(crate) options: Map<String, Value>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel PendingBatch")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl PendingBatch {
     pub(super) fn new(jobs: impl IntoIterator<Item = Payload>) -> Self {
         Self {
@@ -68,10 +68,7 @@ impl PendingBatch {
         self
     }
 
-    #[allow(
-        clippy::should_implement_trait,
-        reason = "Matches Laravel PendingBatch::add"
-    )]
+    #[allow(clippy::should_implement_trait, reason = "保留既定公开接口及命名")]
     pub fn add(mut self, jobs: impl IntoIterator<Item = Payload>) -> Self {
         self.jobs.extend(jobs.into_iter().map(BatchJob::Job));
         self

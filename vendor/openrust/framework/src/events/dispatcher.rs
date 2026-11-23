@@ -94,7 +94,7 @@ pub struct Dispatcher {
     pushed: Arc<PushedEvents>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's dispatcher names")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Dispatcher {
     pub fn new() -> Self {
         Self::default()

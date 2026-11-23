@@ -10,7 +10,7 @@ use super::{
 /// A pooled connection honors the requested read role. A transaction always
 /// uses its own session. Begin, commit and rollback belong to the concrete
 /// connection and transaction APIs because the transaction owns that session.
-#[allow(non_snake_case, reason = "Matches Laravel's database connection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 pub trait ConnectionInterface: Send {
     fn table(&mut self, table: &str, alias: Option<&str>) -> query::Builder<'_>;
     fn getSchemaBuilder(&mut self) -> schema::Builder<'_>;

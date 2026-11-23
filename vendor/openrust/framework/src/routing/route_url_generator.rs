@@ -76,7 +76,7 @@ impl RouteUrlGenerator {
         } else {
             format!("{root_text}{path}")
         };
-        // Laravel 先格式化完整 URL，编码后才移除相对 URL 的源和基础路径。
+        // 框架 先格式化完整 URL，编码后才移除相对 URL 的源和基础路径。
         let mut output = utf8_percent_encode(&output, ROUTE_ENCODE).to_string();
         if !absolute {
             let parsed = ::url::Url::parse(&output).map_err(|_| UrlError::InvalidParameter)?;
@@ -135,7 +135,7 @@ impl RouteUrlGenerator {
             .iter()
             .filter(|item| matches!(item, RouteParameter::Positional(_)))
             .count();
-        // Laravel assigns an exact positional match to the required slots first.
+        // the framework assigns an exact positional match to the required slots first.
         // Otherwise it packs supplied values into the available slots from the calculated offset.
         let slots = if count == required.len() {
             vacant

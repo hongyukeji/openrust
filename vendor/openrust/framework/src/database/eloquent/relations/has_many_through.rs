@@ -42,7 +42,7 @@ pub struct HasManyThrough<P: Model, I: Model, R: Model> {
     intermediate: PhantomData<fn() -> I>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's through relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     pub const fn new(
         first_key: &'static str,
@@ -584,7 +584,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             {
                 return Ok(model);
             }
-            // Laravel's through firstOrCreate passes the merged attributes to createOrFirst.
+            // through firstOrCreate passes the merged attributes to createOrFirst.
             attributes.extend(values.clone());
         }
         let connection = self.keys.connection(parent)?;
@@ -731,7 +731,7 @@ impl ThroughJoin {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
@@ -798,7 +798,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, I: Model, R: Model> ExistenceRelation for HasManyThrough<P, I, R> {
     fn getRelationExistenceQuery(
         &self,

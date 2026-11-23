@@ -20,10 +20,7 @@ pub struct ConcurrencyLimiterBuilder {
     interval: Duration,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's cache concurrency limiter API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl ConcurrencyLimiterBuilder {
     pub(in crate::cache) fn new(store: Arc<dyn Store>, name: String) -> Self {
         Self {

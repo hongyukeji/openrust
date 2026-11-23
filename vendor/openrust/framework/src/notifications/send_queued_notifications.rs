@@ -40,7 +40,7 @@ impl SendQueuedNotifications {
     pub(crate) const NAME: &str = "notifications.send_queued_notifications";
 
     /// Registers a middleware chain for notifications selecting this name.
-    #[allow(non_snake_case, reason = "Uses Laravel's queue API naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn registerMiddleware(
         queue: &QueueManager,
         name: &str,

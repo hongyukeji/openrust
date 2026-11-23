@@ -103,7 +103,7 @@ impl MemoizedStore {
 
     async fn memo_namespace(&self) -> CacheResult<Option<String>> {
         match &self.tags {
-            // Laravel's RedisTagSet uses stable tag keys for memoized lookups.
+            // RedisTagSet uses stable tag keys for memoized lookups.
             Some(tags) if tags.redis.is_none() => tags.getNamespace().await.map(Some),
             _ => Ok(None),
         }

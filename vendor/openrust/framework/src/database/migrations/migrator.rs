@@ -88,7 +88,7 @@ impl Migrator {
     }
 
     /// Replaces the pending migrations excluded by this application.
-    #[allow(non_snake_case, reason = "Matches Laravel's Migrator API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutMigrations(&self, migrations: &[&str]) {
         let names = migrations
             .iter()
@@ -113,7 +113,7 @@ impl Migrator {
     }
 
     /// Resolves a migration connection, preferring a configured PostgreSQL direct endpoint.
-    #[allow(non_snake_case, reason = "Matches Laravel's Migrator API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn resolveConnection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
         self.manager.migration_connection(name)
     }
@@ -458,7 +458,7 @@ impl Migrator {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel schema event payloads")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub(crate) async fn dump_schema(
         &self,
         database: Option<&str>,

@@ -39,7 +39,7 @@ struct Mapping {
 #[derive(Default)]
 pub struct MorphMap(RwLock<Mapping>);
 
-#[allow(non_snake_case, reason = "Matches Laravel's polymorphic mapping API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MorphMap {
     pub fn morphMap(
         app: &Application,

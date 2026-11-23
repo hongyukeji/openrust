@@ -15,7 +15,7 @@ pub struct ResetPassword<'a> {
     token: &'a str,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's reset notification API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'a> ResetPassword<'a> {
     pub fn new(token: &'a str) -> Self {
         Self { token }

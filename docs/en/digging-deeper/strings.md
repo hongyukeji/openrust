@@ -58,7 +58,7 @@ assert!(Str::isUlid(&Str::ulid().to_string()));
 
 `match` returns the first capture when it participates, then falls back to the whole match. `matchAll` returns the first capture for each match when the pattern declares one, using an empty string for an unmatched group. Supply Rust regex syntax, such as `(?i)` for case insensitivity. Replacements use `$1` or named captures. Use `replaceMatchesWith` for a Rust callback. Invalid patterns return `regex::Error`.
 
-`width` and `limit` use the PHP 8.5 East Asian width table. `wordWrap` follows Laravel’s scalar-counting wrap and breaks at spaces or cuts long words on request. `limit` can preserve words, trimming basic HTML markup before truncating.
+`width` and `limit` use the PHP 8.5 East Asian width table. `wordWrap` follows scalar-counting wrap and breaks at spaces or cuts long words on request. `limit` can preserve words, trimming basic HTML markup before truncating.
 
 ```rust
 use openrust::support::Str;

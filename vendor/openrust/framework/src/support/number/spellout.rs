@@ -1,4 +1,4 @@
-//! Laravel spellout rules from ICU 76.1 / CLDR 46. See spellout/README.md.
+//! the framework spellout rules from ICU 76.1 / CLDR 46. See spellout/README.md.
 
 mod rbnf;
 

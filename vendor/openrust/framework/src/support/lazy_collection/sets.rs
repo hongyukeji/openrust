@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use super::{ArrayKey, Collection, CollectionResult, LazyCollection, SourceIterator};
 
-#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
     pub fn diff(self, other: impl Into<Self>) -> Self
     where

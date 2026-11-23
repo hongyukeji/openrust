@@ -24,7 +24,7 @@ impl Facade for Process {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Process facade API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Process {
     pub fn command(command: impl Into<Command>) -> Result<PendingProcess> {
         Ok(Self::getFacadeRoot()?.command(command))

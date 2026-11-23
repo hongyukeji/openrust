@@ -30,10 +30,7 @@ pub struct MailMessage {
     pub mailer: Option<String>,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's notification mail message methods"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MailMessage {
     pub fn new() -> Self {
         Self::default()

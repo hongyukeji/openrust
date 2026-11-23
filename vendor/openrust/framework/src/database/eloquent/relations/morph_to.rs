@@ -100,7 +100,7 @@ impl MorphTarget {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's polymorphic query API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model> MorphTo<P> {
     /// Resolves the stored morph alias before comparing the owner key.
     pub fn is<R: Model>(&self, parent: &P, related: Option<&R>) -> bool {
@@ -1406,7 +1406,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model> Relation for MorphTo<P> {
     type Parent = P;
     type Output = Option<MorphTarget>;

@@ -23,7 +23,7 @@ impl Facade for Gate {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Gate facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Gate {
     pub fn registry() -> AuthResult<Arc<GateRegistry>> {
         Self::getFacadeRoot().map_err(AuthError::backend)

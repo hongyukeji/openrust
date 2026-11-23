@@ -4,7 +4,7 @@
 
 **Not included in this source line.** No ready-made starter-kit UI, dashboard or React/Vue/Livewire kit is shipped. The native init wizard and Fortify provide application setup and headless authentication; applications supply their own pages.
 
-This chapter retains the Laravel navigation path for comparison. Its presence does not install a package or promise compatibility with the corresponding PHP API.
+This chapter states the supported integration boundary; the navigation entry does not install an additional package.
 
 ## Available entry points {#available-entry-points}
 
@@ -12,4 +12,4 @@ See [Fortify](../packages/fortify.md) for the native interfaces and usage. When 
 
 ## Scope {#scope}
 
-OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.
+OpenRust does not provide an installation command for this integration. Use the native interfaces and commands documented for this integration.

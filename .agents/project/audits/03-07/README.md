@@ -87,3 +87,7 @@
 
 - 对照固定 [CompilesEchos](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesEchos.php)。Rust 按类型在所属 Blade 编译器注册 `stringable` 回调，通过 `View::withStringable` 将类型化数据投影为视图文本。`stringableIterable` 在模板输出时处理数组及映射。二者保留普通和原样输出的转义规则。旧版 MiniJinja 未提供相同的应用级 Rust 类型回调。
 - macOS ARM64、Rust 1.94.0。8 项共享工作区定向测试通过，真实 HTTP 验证双应用独立注册、原样及转义输出、数组处理和无处理器回退。隔离工作区格式及严格 Clippy 通过，实际 Artisan 用三语 Rust 片段在 Provider 注册回调并缓存和清理三份模板。三语构建和 12 项浏览器组合通过。
+
+## 18语资源与分发
+
+欢迎页、标准资源发布、邮件通知、真实Worker语言传递、数字／复数、生成器终端及Linux镜像验收见[18语验收记录](localization-18-locales-2026-11-23.md)。译文来源、机器辅助范围、固定社区版本及母语审校边界分别记录，不将技术通过视为母语认证。

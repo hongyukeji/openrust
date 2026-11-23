@@ -51,7 +51,7 @@ Redis Pub/Sub 跨節點投遞已簽署的 HTTP 發佈和已授權的用戶端事
 
 帶有 `cache-`、`private-cache-` 或 `presence-cache-` 前綴的頻道，在訂閱成功後重播最近一次事件。快取為空時傳送 `pusher:cache_miss`。頻道授權依然適用。遵循 Reverb 的快取生命週期，各監聽器在有本機訂閱者時保留快取，最後一位本機訂閱者離開後清除。
 
-## Laravel Echo {#laravel-echo}
+## Echo 用戶端 {#echo-client}
 
 安裝 `laravel-echo` 與 `pusher-js`。下列範例連線到本機未啟用 TLS 的 Reverb 監聽器。設定路徑前綴時，請將 `wsPath` 設為伺服器路徑。
 

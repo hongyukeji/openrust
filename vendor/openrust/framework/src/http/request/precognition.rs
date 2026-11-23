@@ -2,7 +2,7 @@ use crate::validation::{RuleSet, ValidationResult};
 
 use super::Request;
 
-#[allow(non_snake_case, reason = "Matches Laravel's CanBePrecognitive concern")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Request {
     pub fn isAttemptingPrecognition(&self) -> bool {
         self.headers()

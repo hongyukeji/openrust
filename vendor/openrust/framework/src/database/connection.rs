@@ -823,7 +823,7 @@ macro_rules! observed_query {
     }};
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Connection API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Connection {
     pub(super) fn model_container(
         connection: Option<&Self>,
@@ -1384,7 +1384,7 @@ impl Connection {
         Some(value.clone())
     }
 
-    /// Returns the configured database driver's Laravel name.
+    /// Returns the configured database driver's the framework name.
     pub fn getDriverName(&self) -> &'static str {
         if self.grammar.is_mariadb() {
             "mariadb"

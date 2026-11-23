@@ -18,7 +18,7 @@ impl Facade for NotificationFacade {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Notification facade")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl NotificationFacade {
     pub fn fake() -> NotificationResult<Arc<NotificationFake>> {
         Ok(Self::getFacadeRoot().map_err(delivery)?.fake())

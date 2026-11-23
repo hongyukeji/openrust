@@ -14,10 +14,7 @@ pub struct Data {
     upload_shape: Value,
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's request-based validation API"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Data {
     /// Builds validation input from a JSON object or array.
     pub fn new(input: Value) -> ValidationResult<Self> {

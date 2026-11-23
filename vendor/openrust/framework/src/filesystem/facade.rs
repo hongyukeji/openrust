@@ -23,11 +23,11 @@ impl Facade for Storage {
 }
 
 impl Storage {
-    #[allow(non_snake_case, reason = "遵循 Laravel Storage 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn readStream(path: &str) -> FilesystemResult<Option<super::FilesystemReader>> {
         Self::disk(None)?.readStream(path).await
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel Storage 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn writeStream(
         path: &str,
         reader: &mut (impl tokio::io::AsyncRead + Unpin),
@@ -35,7 +35,7 @@ impl Storage {
         Self::disk(None)?.writeStream(path, reader).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getDefaultCloudDriver() -> FilesystemResult<String> {
         Self::getFacadeRoot()?.getDefaultCloudDriver()
     }
@@ -64,10 +64,7 @@ impl Storage {
         Self::getFacadeRoot()?.build(config)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Typed counterpart of Laravel's Storage::build"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn buildWithPermissions(
         config: LocalDiskConfig,
         permissions: LocalPermissions,
@@ -75,10 +72,7 @@ impl Storage {
         Self::getFacadeRoot()?.buildWithPermissions(config, permissions)
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Typed counterpart of Laravel's Storage::build"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn buildS3(config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
         Self::getFacadeRoot()?.buildS3(config)
     }
@@ -87,7 +81,7 @@ impl Storage {
         Self::disk(None)?.put(path, contents).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn putFile(
         directory: &str,
         file: &UploadedFile,
@@ -96,7 +90,7 @@ impl Storage {
         Self::disk(None)?.putFile(directory, file, options).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn putFileAs(
         directory: &str,
         file: &UploadedFile,
@@ -116,12 +110,12 @@ impl Storage {
         Self::disk(None)?.size(path).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn lastModified(path: &str) -> FilesystemResult<SystemTime> {
         Self::disk(None)?.lastModified(path).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn mimeType(path: &str) -> FilesystemResult<Option<String>> {
         Self::disk(None)?.mimeType(path).await
     }
@@ -130,10 +124,7 @@ impl Storage {
         Self::disk(None)?.checksum(path).await
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Typed counterpart of Laravel's checksum options"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn checksumWith<D: md5::Digest>(path: &str) -> FilesystemResult<Option<String>> {
         Self::disk(None)?.checksumWith::<D>(path).await
     }
@@ -142,12 +133,12 @@ impl Storage {
         Self::disk(None)?.url(path)
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn temporaryUrl(path: &str, expiration: SystemTime) -> FilesystemResult<String> {
         Self::disk(None)?.temporaryUrl(path, expiration).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn temporaryUploadUrl(
         path: &str,
         expiration: SystemTime,
@@ -155,7 +146,7 @@ impl Storage {
         Self::disk(None)?.temporaryUploadUrl(path, expiration).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn temporaryUrlWith(
         path: &str,
         expiration: SystemTime,
@@ -166,7 +157,7 @@ impl Storage {
             .await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn temporaryUploadUrlWith(
         path: &str,
         expiration: SystemTime,
@@ -193,7 +184,7 @@ impl Storage {
         Self::disk(None)?.files(directory).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn allFiles(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
         Self::disk(None)?.allFiles(directory).await
     }
@@ -202,17 +193,17 @@ impl Storage {
         Self::disk(None)?.directories(directory).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn allDirectories(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
         Self::disk(None)?.allDirectories(directory).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn makeDirectory(path: &str) -> FilesystemResult<bool> {
         Self::disk(None)?.makeDirectory(path).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn deleteDirectory(path: &str) -> FilesystemResult<bool> {
         Self::disk(None)?.deleteDirectory(path).await
     }

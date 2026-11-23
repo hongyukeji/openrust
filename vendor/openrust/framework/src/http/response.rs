@@ -136,7 +136,7 @@ impl From<Response> for http::Response<Body> {
 
 impl Response {
     /// Attaches an exception for application code that inspects this response.
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withException(mut self, error: impl Error + Send + Sync + 'static) -> Self {
         self.parts
             .extensions
@@ -152,7 +152,7 @@ impl Response {
     }
 
     /// Returns an error that exits the handler with this response.
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn throwResponse(self) -> HttpError {
         abortResponse(self)
     }
@@ -171,7 +171,7 @@ impl Response {
     }
 
     /// Replaces the body with known bytes, preserving a shared diagnostic snapshot.
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setContent(&mut self, content: impl Into<Bytes>) -> &mut Self {
         let content = content.into();
         self.body = Body::from(content.clone());
@@ -185,7 +185,7 @@ impl Response {
     }
 
     /// Returns an already-buffered body without polling a stream.
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getContent(&self) -> Option<&Bytes> {
         if self.binary_file.is_some() {
             None
@@ -199,7 +199,7 @@ impl Response {
     }
 
     /// Creates an empty 204 response. Use `empty` to select another status.
-    #[allow(non_snake_case, reason = "Matches Laravel's response factory API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn noContent() -> Self {
         Self::empty(StatusCode::NO_CONTENT)
     }
@@ -285,13 +285,13 @@ impl Response {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withHeaders(mut self, headers: HeaderMap) -> Self {
         self.parts.headers.extend(headers);
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutHeader(mut self, name: HeaderName) -> Self {
         if name == ::http::header::SET_COOKIE {
             self.parts
@@ -302,7 +302,7 @@ impl Response {
         self
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutHeaders(mut self, names: impl IntoIterator<Item = HeaderName>) -> Self {
         for name in names {
             self = self.withoutHeader(name);
@@ -316,14 +316,14 @@ impl Response {
     }
 
     /// Attaches one cookie to the response.
-    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withCookie(mut self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
         self.setCookie(cookie, request.is_secure())?;
         Ok(self)
     }
 
     /// Attaches cookies in order, replacing cookies with the same name, path and domain.
-    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withCookies<'a>(
         mut self,
         cookies: impl IntoIterator<Item = &'a Cookie>,
@@ -336,7 +336,7 @@ impl Response {
     }
 
     /// Expires one cookie using the application's Cookie factory.
-    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutCookie(
         self,
         name: &str,
@@ -348,7 +348,7 @@ impl Response {
     }
 
     /// Expires cookies using the given path and domain or the application defaults.
-    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn withoutCookies<'a>(
         mut self,
         names: impl IntoIterator<Item = &'a str>,
@@ -366,7 +366,7 @@ impl Response {
     }
 
     /// Sets a cookie, replacing an existing cookie with the same name, path and domain.
-    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn setCookie(&mut self, cookie: &Cookie, secure_default: bool) -> Result<(), HttpError> {
         use ::http::header::SET_COOKIE;
 

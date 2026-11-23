@@ -340,7 +340,7 @@ pub async fn approved_subject_comments<M: Model>(
 
 ### Querying All Related Models
 
-Use the asynchronous `whereHasMorphAll`, `whereDoesntHaveMorphAll`, and `hasMorphCountAll` methods for Laravel's wildcard behavior. They first read distinct morph aliases from the model table, independently of the current query's filters and scopes. Register the stored aliases on the relation. When looking for absent targets, `whereDoesntHaveMorphAll` also matches a null morph type.
+Use the asynchronous `whereHasMorphAll`, `whereDoesntHaveMorphAll`, and `hasMorphCountAll` methods for wildcard behavior. They first read distinct morph aliases from the model table, independently of the current query's filters and scopes. Register the stored aliases on the relation. When looking for absent targets, `whereDoesntHaveMorphAll` also matches a null morph type.
 
 ```rust
 use openrust::database::{
@@ -429,7 +429,7 @@ pub async fn load_post_totals<P: Model, R: Model>(author: &mut P) -> DatabaseRes
 
 ### Default Relationship Counts
 
-Implement `Model::withDefaultCounts` to add count projections whenever the model is read. This corresponds to Laravel's `$withCount` property. The counts share the model's SELECT. An explicit `select` replaces the default projection.
+Implement `Model::withDefaultCounts` to add count projections whenever the model is read. This corresponds to `$withCount` property. The counts share the model's SELECT. An explicit `select` replaces the default projection.
 
 ```rust
 fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'static, Self>> {
@@ -457,7 +457,7 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 
 ### Soft-deleted morph targets {#soft-deleted-morph-targets}
 
-Use `withTrashed()`, `withoutTrashed()`, or `onlyTrashed()` on a `MorphTo` relation. These options affect loaded targets that declare a soft-delete column. Targets without one load normally, including in a mixed group. The options run before target-specific constraints. As in Laravel, explicit live or deleted predicates accumulate when chained. A later `withTrashed()` removes the default scope and preserves those explicit predicates.
+Use `withTrashed()`, `withoutTrashed()`, or `onlyTrashed()` on a `MorphTo` relation. These options affect loaded targets that declare a soft-delete column. Targets without one load normally, including in a mixed group. The options run before target-specific constraints. As in the framework, explicit live or deleted predicates accumulate when chained. A later `withTrashed()` removes the default scope and preserves those explicit predicates.
 
 ```rust
 use openrust::database::eloquent::{Model, relations::MorphTo};
@@ -583,7 +583,7 @@ pub async fn fill_selected_comments<M: Model>(
 }
 ```
 
-Pass several `MissingRelation` entries to `loadMissingPathsWith` to configure paths in one call. Each entry can supply its own predicate. A parent shared by several paths is loaded together. If a path is repeated, Laravel applies the later predicate first and then the earlier one to the same condition group.
+Pass several `MissingRelation` entries to `loadMissingPathsWith` to configure paths in one call. Each entry can supply its own predicate. A parent shared by several paths is loaded together. If a path is repeated, the framework applies the later predicate first and then the earlier one to the same condition group.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Collection, MissingRelation, Model}};
@@ -655,7 +655,7 @@ pub async fn fill_missing_comments<A: Model>(
 
 ### Eager Loading by Default
 
-Implement `Model::withDefaultRelations` to declare the typed relationships loaded by default. This is the model's equivalent of Laravel's `$with` property.
+Implement `Model::withDefaultRelations` to declare the typed relationships loaded by default. This is the model's equivalent of `$with` property.
 
 ```rust
 fn withDefaultRelations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
@@ -1464,7 +1464,7 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 }
 ```
 
-Laravel declares these relationships by name in `$touches`. OpenRust uses typed relation descriptors. Laravel removes global scopes for the timestamp write. OpenRust keeps them on both the owner lookup and the write, so a tenant scope can prevent an out-of-scope update.
+OpenRust uses typed relation descriptors for timestamp propagation. OpenRust keeps them on both the owner lookup and the write, so a tenant scope can prevent an out-of-scope update.
 
 For a polymorphic owner, use `Touches::morphTo` with the same descriptor used to load the relationship. The persisted type selects the registered model, and the persisted ID is matched against that model’s owner key. Null type or ID values are skipped. An unregistered alias returns an error, so use `saveInTransaction` if the child write and the touch must roll back together.
 

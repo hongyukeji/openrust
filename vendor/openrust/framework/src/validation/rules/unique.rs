@@ -19,7 +19,7 @@ pub(in crate::validation) enum Exclusion {
     Input(String, String),
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's database validation rules")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Unique {
     pub fn new(table: &str, column: Option<&str>) -> Self {
         Self {
@@ -102,7 +102,7 @@ impl From<Unique> for Rule {
     }
 }
 
-/// Normalize a string-rule ID using Laravel's integer and backslash handling.
+/// Normalize a string-rule ID using integer and backslash handling.
 pub(in crate::validation) fn prepare_id(id: &str) -> Option<Value> {
     if id.eq_ignore_ascii_case("null") {
         return None;

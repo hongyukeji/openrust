@@ -14,7 +14,7 @@ pub struct Console {
     pub command: Option<String>,
 }
 
-#[allow(non_snake_case, reason = "Preserves Laravel Pail's origin fields")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct Http {
     pub method: String,
@@ -34,7 +34,7 @@ pub struct Queue {
 
 macro_rules! from_array {
     ($($kind:ty),+ $(,)?) => {$(
-        #[allow(non_snake_case, reason = "Matches Laravel Pail's value object factories")]
+        #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
         impl $kind {
             pub fn fromArray(value: &Value) -> Result<Self, serde_json::Error> {
                 serde_json::from_value(value.clone())
@@ -45,10 +45,7 @@ macro_rules! from_array {
 from_array!(Console, Http, Queue);
 
 impl Origin {
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel Pail's value object factories"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn fromArray(value: &Value) -> Result<Self, serde_json::Error> {
         match value.get("type").and_then(Value::as_str) {
             Some("console") => Console::fromArray(value).map(Self::Console),

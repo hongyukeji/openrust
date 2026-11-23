@@ -27,7 +27,7 @@ impl Default for RedirectOptions {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Redirector")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Redirector {
     pub fn new(urls: UrlGenerator) -> Self {
         Self { urls }

@@ -49,7 +49,7 @@ assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 
 Use `Number::default()` for English and USD defaults. Set locale and currency on an instance with `useLocale` and `useCurrency`. Use `withLocale` and `withCurrency` to pass scoped settings to a callback. These settings belong to the instance and can be used concurrently across requests.
 
-`format`, `percentage`, and `currency` use CLDR data. `parseInt` preserves 64-bit integers and `parseFloat` reads a localized numeric prefix. `fileSize`, `abbreviate`, `forHumans`, `clamp`, `pairs`, and `trim` follow Laravel’s numeric conventions.
+`format`, `percentage`, and `currency` use CLDR data. `parseInt` preserves 64-bit integers and `parseFloat` reads a localized numeric prefix. `fileSize`, `abbreviate`, `forHumans`, `clamp`, `pairs`, and `trim` follow numeric conventions.
 
 ```rust
 use openrust::support::Number;

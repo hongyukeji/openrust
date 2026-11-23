@@ -12,7 +12,7 @@ pub fn cache() -> CacheResult<Arc<CacheManager>> {
 /// Accesses the active cache manager, reads a value, or writes an entry.
 ///
 /// `cache!()` returns the manager. Read and write forms return futures.
-/// With an entry map, the first entry is written, as in Laravel's `cache` helper.
+/// With an entry map, the first entry is written, as in `cache` helper.
 #[macro_export]
 macro_rules! cache {
     () => {

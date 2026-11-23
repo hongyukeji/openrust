@@ -1,4 +1,4 @@
-//! Ordered, independently owned snapshots of Laravel's concrete/shared binding definitions.
+//! Ordered, independently owned snapshots of concrete/shared binding definitions.
 use super::{
     Binding, Container, ParameterOverrides, RegisteredBinding, Registry, ServiceKey, parameters,
     scope,
@@ -13,10 +13,7 @@ type Result<T> = std::result::Result<T, BindingResolutionError>;
 
 static INSTANCE: Mutex<Option<Arc<Container>>> = Mutex::new(None);
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's container instance and ArrayAccess APIs"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Container {
     /// Returns the active application's container or the lazily created process default.
     pub fn getInstance() -> Arc<Self> {

@@ -48,7 +48,7 @@ fn as_key(value: Value) -> Result<String, ArrValueError> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Arr API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Arr {
     pub fn arrayable(value: &Value) -> bool {
         Self::accessible(value)

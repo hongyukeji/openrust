@@ -24,10 +24,7 @@ impl Facade for Config {
     }
 }
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's public configuration names"
-)]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Config {
     /// Returns the value at a dot-separated key, if it exists.
     pub fn get(key: &str) -> Result<Option<Value>, BindingResolutionError> {

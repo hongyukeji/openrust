@@ -19,7 +19,7 @@
 
 OpenRust 是一个 Rust Web 应用框架，提供完整的应用目录与统一的开发方式。应用通过服务容器和服务提供者完成装配，通过路由和中间件处理 HTTP 请求。Artisan 与 Web 服务共用应用入口，部署时可使用同一个二进制文件。
 
-框架的固定参考版本与行为依据见[项目基线](.agents/project/plans/laravel-rebuild-baseline.md)。
+项目机制与开发约定见[项目指引](.agents/project/README.md)。
 
 ## 快速开始
 

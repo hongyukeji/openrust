@@ -84,10 +84,7 @@ impl RateLimiter {
         Ok(())
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Async adapter for Laravel's limiter registration"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forAsync(
         name: impl Into<String>,
         callback: impl for<'a> Fn(
@@ -103,17 +100,14 @@ impl RateLimiter {
         Ok(())
     }
 
-    #[allow(non_snake_case, reason = "Async adapter for Laravel's limiter lookup")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn asyncLimiter(
         name: &str,
     ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::AsyncLimiter>>> {
         Ok(Self::getFacadeRoot()?.asyncLimiter(name))
     }
 
-    #[allow(
-        non_snake_case,
-        reason = "Uses Laravel's naming for typed job limiter registration"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn forJob<R>(
         name: impl Into<String>,
         callback: impl Fn(&crate::queue::Payload) -> R + Send + Sync + 'static,
@@ -144,7 +138,7 @@ impl RateLimiter {
         Self::getFacadeRoot()?.attempts(key).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn tooManyAttempts(key: &str, max_attempts: u64) -> crate::cache::CacheResult<bool> {
         Self::getFacadeRoot()?
             .tooManyAttempts(key, max_attempts)
@@ -155,7 +149,7 @@ impl RateLimiter {
         Self::getFacadeRoot()?.remaining(key, max_attempts).await
     }
 
-    #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn availableIn(key: &str) -> crate::cache::CacheResult<u64> {
         Self::getFacadeRoot()?.availableIn(key).await
     }
@@ -183,7 +177,7 @@ impl Facade for View {
 }
 
 impl View {
-    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn renderWhen(
         condition: bool,
         view: &str,
@@ -191,7 +185,7 @@ impl View {
     ) -> crate::view::ViewResult<String> {
         Self::getFacadeRoot()?.renderWhen(condition, view, data)
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn renderUnless(
         condition: bool,
         view: &str,
@@ -199,7 +193,7 @@ impl View {
     ) -> crate::view::ViewResult<String> {
         Self::getFacadeRoot()?.renderUnless(condition, view, data)
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn renderEach(
         view: &str,
         data: impl IntoIterator<Item = (crate::view::ViewValue, crate::view::ViewValue)>,
@@ -208,7 +202,7 @@ impl View {
     ) -> crate::view::ViewResult<String> {
         Self::getFacadeRoot()?.renderEach(view, data, iterator, empty)
     }
-    #[allow(non_snake_case, reason = "遵循 Laravel View 原名")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn getShared() -> crate::view::ViewResult<crate::view::ViewData> {
         Ok(Self::getFacadeRoot()?.getShared())
     }
@@ -346,7 +340,7 @@ impl Route {
     }
 
     /// Mounts an explicitly public local disk using its configured root and URL.
-    #[allow(non_snake_case, reason = "Matches Laravel-style public API naming")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn staticDisk(disk: &str) -> Result<(), RoutingError> {
         ROUTER
             .try_with(|scope| {
@@ -541,7 +535,7 @@ impl Route {
     }
 
     #[track_caller]
-    #[allow(non_snake_case, reason = "Matches Laravel's Route facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn permanentRedirect(uri: &str, target: &str) -> Result<(), RoutingError> {
         Self::redirect(uri, target, crate::http::StatusCode::MOVED_PERMANENTLY)
     }
@@ -579,7 +573,7 @@ impl Route {
     }
 
     #[track_caller]
-    #[allow(non_snake_case, reason = "Matches Laravel's Route facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn apiResource<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
@@ -596,7 +590,7 @@ impl Route {
     }
 
     #[track_caller]
-    #[allow(non_snake_case, reason = "Matches Laravel's Route facade")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub fn apiSingleton<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
@@ -722,7 +716,7 @@ impl Artisan {
     }
 
     /// Runs a registered command and discards its console output.
-    #[allow(non_snake_case, reason = "Matches Laravel's command API")]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn callSilently(command: &str, arguments: &[OsString]) -> Result<i32, ConsoleError> {
         Self::call(command, arguments, &mut Output::default()).await
     }

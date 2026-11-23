@@ -16,7 +16,7 @@ pub struct TestResponse {
     encrypter: Option<std::sync::Arc<dyn crate::contracts::encryption::Encrypter>>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's HTTP testing assertions")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl TestResponse {
     pub(super) fn new(status: StatusCode, headers: HeaderMap, body: Bytes) -> Self {
         Self {

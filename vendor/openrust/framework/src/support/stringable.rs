@@ -24,7 +24,7 @@ pub use scan::{ScanError, ScanValue};
 #[must_use]
 pub struct Stringable(String);
 
-#[allow(non_snake_case, reason = "Matches Laravel's Stringable API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Stringable {
     pub fn value(&self) -> &str {
         &self.0
@@ -307,7 +307,7 @@ pub(super) fn trim_character(value: char) -> bool {
 }
 
 impl Stringable {
-    /// Scans typed captures using Laravel's byte-oriented PHP format grammar.
+    /// Scans typed captures using byte-oriented PHP format grammar.
     pub fn scan(&self, format: &str) -> Result<super::Collection<Option<ScanValue>>, ScanError> {
         scan::scan(&self.0, format)
     }

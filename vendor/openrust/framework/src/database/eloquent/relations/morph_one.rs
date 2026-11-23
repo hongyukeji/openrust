@@ -13,7 +13,7 @@ use super::{ExistenceRelation, HasMany, HasOne, OneOfManyAggregate, Relation};
 /// Links a parent model to one related record tagged with a morph alias.
 pub struct MorphOne<P: Model, R: Model>(pub(super) HasOne<P, R>);
 
-#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> MorphOne<P, R> {
     /// Configures an unsaved model for a missing polymorphic match.
     #[must_use]
@@ -321,7 +321,7 @@ impl<P: Model, R: Model> MorphOne<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> Relation for MorphOne<P, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
@@ -380,7 +380,7 @@ impl<P: Model, R: Model> MorphOne<P, R> {
     }
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl<P: Model, R: Model> ExistenceRelation for MorphOne<P, R> {
     fn getRelationExistenceQuery(
         &self,

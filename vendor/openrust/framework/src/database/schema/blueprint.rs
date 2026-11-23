@@ -52,7 +52,7 @@ macro_rules! column_types {
     };
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Blueprint API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Blueprint {
     pub(super) fn has_online_index(&self) -> bool {
         self.commands
@@ -346,7 +346,7 @@ impl Blueprint {
         self.index(&[&kind, &id], index);
     }
 
-    /// Adds a floating-point column using Laravel's default precision of 53 bits.
+    /// Adds a floating-point column using default precision of 53 bits.
     pub fn float(&mut self, name: &str) -> &mut ColumnDefinition {
         self.floatWith(name, 53)
     }

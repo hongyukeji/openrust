@@ -15,7 +15,7 @@ pub struct MemcachedStore {
     prefix: String,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's Memcached store API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl MemcachedStore {
     pub fn new(client: Arc<Client>, prefix: String) -> Self {
         Self { client, prefix }

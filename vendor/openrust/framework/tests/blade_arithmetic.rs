@@ -60,7 +60,7 @@ fn data(case: &Value) -> ViewData {
         .collect()
 }
 #[test]
-fn pinned_laravel_php_arithmetic_and_contexts_match() {
+fn pinned_reference_php_arithmetic_and_contexts_match() {
     assert_eq!(CORPUS["php"], "8.4.14");
     assert!(
         CORPUS["illuminate"]

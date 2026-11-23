@@ -69,7 +69,7 @@ fn field<'a>(user: &'a AccountUser, name: &str) -> Option<&'a str> {
         _ => None,
     }
 }
-#[allow(non_snake_case, reason = "认证契约沿用 Laravel 原名")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Authenticatable for AccountUser {
     fn getAuthIdentifierName(&self) -> &str {
         "identity"

@@ -2,7 +2,7 @@
 
 Tokio 入口将 `bootstrap::create_application` 交给 `openrust::foundation::run_application`。框架先选择运行入口，再创建应用。无参数时调用 `Application::start()` 运行 HTTP，首个参数为 `artisan` 时调用 [`Application::handleCommand`](../digging-deeper/artisan.md)。
 
-应用入口将选定的根目录命名为 `basePath`，传给 `Application::configure(basePath)`，对应 Laravel 的 `configure(basePath: ...)`。随后 `create()` 校验根目录并建立服务容器，由选定的 Kernel 引导应用。引导时加载环境和配置，执行所有普通 Provider 的 `register`，再执行各 Provider 的 `boot`，然后注册共享路由。进程环境变量优先于环境文件。
+应用入口将选定的根目录命名为 `basePath`，传给 `Application::configure(basePath)`，对应 `configure(basePath: ...)`。随后 `create()` 校验根目录并建立服务容器，由选定的 Kernel 引导应用。引导时加载环境和配置，执行所有普通 Provider 的 `register`，再执行各 Provider 的 `boot`，然后注册共享路由。进程环境变量优先于环境文件。
 
 进程环境中的绝对路径 `APP_BASE_PATH` 优先。未设置时，源码构建使用构建时记录的应用 crate 目录，`cargo run --release` 也采用这条规则。启用 `standalone` 特性的构建使用可执行文件所在目录。HTTP 和 Artisan 都从选定的应用根目录读取 `.env`，启动时的工作目录不影响选择。
 

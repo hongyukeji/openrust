@@ -1,4 +1,4 @@
-#![allow(non_snake_case, reason = "认证与队列公开契约沿用 Laravel 原名")]
+#![allow(non_snake_case, reason = "保留既定公开接口及命名")]
 
 /// An unauthenticated subscription channel.
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -26,7 +26,7 @@ pub enum BroadcastChannel {
     Presence(PresenceChannel),
 }
 impl BroadcastChannel {
-    /// Uses Laravel's public, private and presence wire names.
+    /// Uses public, private and presence wire names.
     pub fn wire_name(&self) -> std::borrow::Cow<'_, str> {
         match self {
             Self::Public(channel) => (&channel.name).into(),
@@ -194,10 +194,7 @@ impl ChannelRegistry {
     }
 
     /// Resolves the matching rule's guards against the incoming request.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's broadcast authorization API"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn authorizeRequest(
         &self,
         channel: &str,
@@ -207,10 +204,7 @@ impl ChannelRegistry {
     }
 
     /// Returns the identity selected by the channel's guards together with its authorization.
-    #[allow(
-        non_snake_case,
-        reason = "Rust adapter for Laravel's channel user lookup"
-    )]
+    #[allow(non_snake_case, reason = "保留既定公开接口及命名")]
     pub async fn authorizeRequestWithIdentity(
         &self,
         channel: &str,

@@ -220,7 +220,7 @@ impl ReverbBroadcaster {
     }
 }
 
-#[allow(non_snake_case, reason = "遵循 Laravel 广播契约原名")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl Broadcaster for ReverbBroadcaster {
     fn resolveAuthenticatedUserUsing(
         &self,

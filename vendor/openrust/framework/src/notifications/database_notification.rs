@@ -119,7 +119,7 @@ pub struct DatabaseNotification {
     pub read_at: Option<Timestamp>,
 }
 
-#[allow(non_snake_case, reason = "Matches Laravel's DatabaseNotification API")]
+#[allow(non_snake_case, reason = "保留既定公开接口及命名")]
 impl DatabaseNotification {
     /// Defines the table while allowing the application to select the model key column type.
     pub fn schema(table: &mut Blueprint, key_column: impl FnOnce(&mut Blueprint)) {
