@@ -25,12 +25,9 @@ impl WelcomeController {
         request: &mut Request,
     ) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let redirect = match request.post(Some("redirect")).await? {
-                None => "/".to_owned(),
-                Some(serde_json::Value::String(path)) => path,
-                _ => return Err(HttpError::InvalidRequest),
-            };
-            let target = SetLocale::url_without_locale(request, &redirect)?;
+            let redirect = request.post_or("redirect", "/").await?;
+            let redirect = redirect.as_str().ok_or(HttpError::InvalidRequest)?;
+            let target = SetLocale::url_without_locale(request, redirect)?;
             SetLocale::store_preference_from_request(
                 request,
                 &Config::string("app.locale_form_field")?,

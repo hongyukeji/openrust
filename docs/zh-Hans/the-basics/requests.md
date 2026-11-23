@@ -35,9 +35,19 @@ let preferred = request.get_preferred_language(Some(&["en", "fr-FR"]))?;
 
 ### 获取单个输入值 {#retrieving-an-input-value}
 
-用 `request.query(Some("key"))` 读取精确的顶层查询键。用 `request.input(Some("team.name")).await` 读取嵌套输入，传入 `None` 可读取整组输入。JSON 和表单的顶层字段优先于查询参数。只读取 JSON 正文时使用 `request.json`。
+字段名可以直接传入，已有 `Some(key)` 和 `None` 调用仍可使用。默认值分别用 `request.input_or("name", "访客").await?`、`request.query_or("page", "1")?` 和 `request.post_or("name", "访客").await?`。`input_or` 保留显式 null；`query_or`、`post_or` 在缺失或 null 时使用默认值。空字符串、零和 false 均保留。解析错误仍向上传播。读取查询参数优先用 `query`，不另加含义重叠的 `get` 别名。
 
-用 `request.post(None).await?` 读取正文参数集合，或用 `request.post(Some("name")).await?` 读取精确的顶层键。JSON 请求会读取解码后的正文。查询参数和 multipart 上传对象各自通过独立集合读取。显式 null 在完整集合中保留，按名称读取该值时返回 `None`。
+```rust
+let name = request.string_or("name", "访客").await?;
+let page = request.integer_or("page", 1).await?;
+let remember = request.boolean("remember").await?;
+let keyword = request.query_or("keyword", "")?;
+let title = request.post_or("title", "").await?;
+```
+
+用 `request.query("key")` 读取精确的顶层查询键。用 `request.input("team.name").await` 读取嵌套输入，传入 `None` 可读取整组输入。JSON 和表单的顶层字段优先于查询参数。只读取 JSON 正文时使用 `request.json`。
+
+用 `request.post(None).await?` 读取正文参数集合，或用 `request.post("name").await?` 读取精确的顶层键。JSON 请求会读取解码后的正文。查询参数和 multipart 上传对象各自通过独立集合读取。显式 null 在完整集合中保留，按名称读取该值时返回 `None`。
 
 用 `request.fluent(Some("user")).await?` 将一组普通输入包装为独立的 `Fluent` 属性集合。传入 `None` 可包装全部普通输入，字段缺失或为 null 时可用 `fluent_or("user", default)` 提供默认属性集合。标量无法构造属性集合，返回 HTTP 400。用 `fluent_only(&["user.name", "document"]).await?` 获取保留上传对象的独立类型化快照。用 `get` 读取路径，用 `value` 读取精确的顶层键。
 
@@ -51,11 +61,13 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 ### 类型化输入
 
-用 `request.integer("value", 42, true).await?`、`request.float("value", 1.25, true).await?` 或 `request.boolean("value", true, true).await?` 读取。参数依次是输入键、默认值和严格模式，点号路径和输入优先级与 `request.input` 相同。
+用 `request.integer("page").await?`、`request.float("price").await?`、`request.boolean("remember").await?` 或 `request.string("name").await?` 读取。缺失时分别使用 `0`、`0.0`、`false` 和空字符串。自定义默认值用 `integer_or("page", 1)`、`float_or("price", 1.25)`、`boolean_or("remember", true)` 或 `string_or("name", "访客")`，再加 `.await?`。显式 null 不会被普通默认值替换，而是按原有规则转换。
+
+严格转换用 `integer_strict("value", 42)`、`float_strict("value", 1.25)`、`boolean_strict("value", true)` 或 `string_strict("label", "fallback")`。缺失或类型无效时采用默认值；严格模式不是表单验证，不会因此返回 422。点号路径和输入优先级保持不变。`str`、`str_or`、`str_strict` 分别是对应字符串方法的同义入口。
 
 缺失值使用默认值。启用严格模式后，无效值也使用默认值。例如，`"01"` 无法作为严格整数读取，但可以作为浮点数读取。关闭严格模式后，数值按 PHP 强制转换，可读取字符串开头的数字部分。布尔读取忽略大小写，识别 `1`、`true`、`on`、`yes` 为真，`0`、`false`、`off`、`no` 为假。宽松模式下未识别的布尔输入返回 false。正文格式错误仍会返回输入错误。
 
-用 `request.string("label", "fallback", true).await?.trim()` 获取可链式操作的字符串，`request.str` 是同义入口。严格模式接受文本和数字。`request.array(Some("items")).await?` 保留列表和关联对象，将标量包成单项列表，缺失值或 null 返回空列表。`request.collect` 返回保留原键的集合。传入 `None` 可读取整组输入。
+用 `request.string_strict("label", "fallback").await?.trim()` 获取可链式操作的字符串，`request.str` 是同义入口。严格模式接受文本和数字。`request.array(Some("items")).await?` 保留列表和关联对象，将标量包成单项列表，缺失值或 null 返回空列表。`request.collect` 返回保留原键的集合。传入 `None` 可读取整组输入。
 
 实现 `BackedEnum`，并以 `String` 或 `i64` 为 backing 类型。用 `request.r#enum::<Stage>("stage", None).await?` 读取单项，用 `request.enums::<Stage>("list").await?` 读取集合。集合保留原键和重复项，跳过未知 case。单项遇到未知 case 时采用给定默认值。无法转换的 backing 类型返回 HTTP 400。
 
@@ -82,7 +94,7 @@ use openrust::{http::HttpError, support::facades::{Request, Route}};
 use serde_json::json;
 
 Route::post("/profile", || async {
-    let name = Request::input(Some("name")).await?;
+    let name = Request::input("name").await?;
     Request::merge(json!({"verified": true})).await?;
     Ok::<_, HttpError>(json!({"name": name}))
 })?;

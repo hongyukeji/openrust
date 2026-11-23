@@ -186,7 +186,7 @@ fn action(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         match op.as_str() {
             "enable" => {
                 EnableTwoFactorAuthentication::new(fixture.engine.clone(), fixture.fortify.clone())
-                    .call(&mut user, request.boolean("force", false, false).await?)
+                    .call(&mut user, request.boolean("force").await?)
                     .await?
             }
             "confirm" => {

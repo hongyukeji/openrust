@@ -286,7 +286,7 @@ impl PasskeyLoginController {
             {
                 return Err(invalid("Unable to sign in with this account."));
             }
-            let remember = request.boolean("remember", false, false).await?;
+            let remember = request.boolean("remember").await?;
             Auth::session_guard(request, Some(&service.string("passkeys.guard", "web")))?
                 .login(owner, remember)
                 .await?;

@@ -35,9 +35,19 @@ let preferred = request.get_preferred_language(Some(&["en", "fr-FR"]))?;
 
 ### 取得單一輸入值 {#retrieving-an-input-value}
 
-用 `request.query(Some("key"))` 讀取精確的頂層查詢鍵。用 `request.input(Some("team.name")).await` 讀取巢狀輸入，傳入 `None` 可讀取整組輸入。JSON 和表單的頂層欄位優先於查詢參數。只讀取 JSON 本文時使用 `request.json`。
+欄位名稱可直接傳入，既有 `Some(key)` 和 `None` 呼叫仍可使用。預設值分別用 `request.input_or("name", "訪客").await?`、`request.query_or("page", "1")?` 和 `request.post_or("name", "訪客").await?`。`input_or` 保留明確的 null；`query_or`、`post_or` 在缺少值或 null 時使用預設值。空字串、零和 false 均保留。解析錯誤仍向上傳遞。讀取查詢參數優先用 `query`，不另加意義重疊的 `get` 別名。
 
-用 `request.post(None).await?` 讀取本文參數集合，或用 `request.post(Some("name")).await?` 讀取精確的頂層鍵。JSON 請求會讀取解碼後的本文。查詢參數和 multipart 上傳物件各自透過獨立集合讀取。明確的 null 在完整集合中保留，依名稱讀取該值時回傳 `None`。
+```rust
+let name = request.string_or("name", "訪客").await?;
+let page = request.integer_or("page", 1).await?;
+let remember = request.boolean("remember").await?;
+let keyword = request.query_or("keyword", "")?;
+let title = request.post_or("title", "").await?;
+```
+
+用 `request.query("key")` 讀取精確的頂層查詢鍵。用 `request.input("team.name").await` 讀取巢狀輸入，傳入 `None` 可讀取整組輸入。JSON 和表單的頂層欄位優先於查詢參數。只讀取 JSON 本文時使用 `request.json`。
+
+用 `request.post(None).await?` 讀取本文參數集合，或用 `request.post("name").await?` 讀取精確的頂層鍵。JSON 請求會讀取解碼後的本文。查詢參數和 multipart 上傳物件各自透過獨立集合讀取。明確的 null 在完整集合中保留，依名稱讀取該值時回傳 `None`。
 
 用 `request.fluent(Some("user")).await?` 將一組一般輸入包裝為獨立的 `Fluent` 屬性集合。傳入 `None` 可包裝全部一般輸入，欄位缺少或為 null 時可用 `fluent_or("user", default)` 提供預設屬性集合。純量無法建構屬性集合，會回傳 HTTP 400。用 `fluent_only(&["user.name", "document"]).await?` 取得保留上傳物件的獨立型別化快照。用 `get` 讀取路徑，用 `value` 讀取精確的頂層鍵。
 
@@ -51,11 +61,13 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 ### 型別化輸入
 
-使用 `request.integer("value", 42, true).await?`、`request.float("value", 1.25, true).await?` 或 `request.boolean("value", true, true).await?` 讀取。參數依序為輸入鍵、預設值與嚴格模式，點號路徑和輸入優先順序與 `request.input` 相同。
+用 `request.integer("page").await?`、`request.float("price").await?`、`request.boolean("remember").await?` 或 `request.string("name").await?` 讀取。缺少值時分別使用 `0`、`0.0`、`false` 和空字串。自訂預設值用 `integer_or("page", 1)`、`float_or("price", 1.25)`、`boolean_or("remember", true)` 或 `string_or("name", "訪客")`，再加 `.await?`。明確的 null 不會被一般預設值取代，而是依原有規則轉換。
+
+嚴格轉換用 `integer_strict("value", 42)`、`float_strict("value", 1.25)`、`boolean_strict("value", true)` 或 `string_strict("label", "fallback")`。缺少值或型別無效時採用預設值；嚴格模式不是表單驗證，不會因此回傳 422。點號路徑和輸入優先順序保持不變。`str`、`str_or`、`str_strict` 分別是對應字串方法的同義入口。
 
 缺少值時使用預設值。啟用嚴格模式後，無效值也使用預設值。例如，`"01"` 無法讀作嚴格整數，但可以讀作浮點數。關閉嚴格模式後，數值依 PHP 強制轉換，可讀取字串開頭的數字部分。布林讀取忽略大小寫，識別 `1`、`true`、`on`、`yes` 為真，`0`、`false`、`off`、`no` 為假。寬鬆模式下無法識別的布林輸入會傳回 false。正文格式錯誤仍會傳回輸入錯誤。
 
-使用 `request.string("label", "fallback", true).await?.trim()` 取得可鏈式操作的字串，`request.str` 是同義入口。嚴格模式接受文字和數字。`request.array(Some("items")).await?` 保留清單和關聯物件，將純量包成單項清單，缺少值或 null 時傳回空清單。`request.collect` 傳回保留原始鍵的集合。傳入 `None` 可讀取整組輸入。
+使用 `request.string_strict("label", "fallback").await?.trim()` 取得可鏈式操作的字串，`request.str` 是同義入口。嚴格模式接受文字和數字。`request.array(Some("items")).await?` 保留清單和關聯物件，將純量包成單項清單，缺少值或 null 時傳回空清單。`request.collect` 傳回保留原始鍵的集合。傳入 `None` 可讀取整組輸入。
 
 實作 `BackedEnum`，並以 `String` 或 `i64` 為 backing 型別。用 `request.r#enum::<Stage>("stage", None).await?` 讀取單項，用 `request.enums::<Stage>("list").await?` 讀取集合。集合保留原始鍵和重複項目，略過未知 case。單項遇到未知 case 時採用給定的預設值。無法轉換的 backing 型別會傳回 HTTP 400。
 
@@ -82,7 +94,7 @@ use openrust::{http::HttpError, support::facades::{Request, Route}};
 use serde_json::json;
 
 Route::post("/profile", || async {
-    let name = Request::input(Some("name")).await?;
+    let name = Request::input("name").await?;
     Request::merge(json!({"verified": true})).await?;
     Ok::<_, HttpError>(json!({"name": name}))
 })?;

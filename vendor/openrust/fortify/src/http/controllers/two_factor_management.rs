@@ -47,7 +47,7 @@ impl TwoFactorAuthenticationController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let force = request.boolean("force", false, false).await?;
+            let force = request.boolean("force").await?;
             mutate(request, Mutation::Enable(force)).await?;
             super::respond::<dyn contracts::TwoFactorEnabledResponse>(request).await
         })

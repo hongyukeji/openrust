@@ -27,7 +27,7 @@ async fn canonicalize(request: &mut Request, fortify: &Fortify) -> Result<(), Ht
     let email = fortify.email();
     if fortify.truthy("fortify.lowercase_usernames")
         && request.has(&[&email]).await?
-        && let Some(value) = request.input(Some(&email)).await?
+        && let Some(value) = request.input(email.as_str()).await?
     {
         request
             .merge(serde_json::json!({email:Str::lower(&scalar_string(value)?)}))
@@ -57,7 +57,7 @@ fn scalar_string(value: serde_json::Value) -> Result<String, HttpError> {
 async fn credentials(request: &mut Request, fortify: &Fortify) -> Result<Credentials, HttpError> {
     let email = fortify.email();
     let value = request
-        .input(Some(&email))
+        .input(email.as_str())
         .await?
         .and_then(|v| v.as_str().map(str::to_owned))
         .unwrap_or_default();

@@ -35,9 +35,19 @@ Use `request.all_only(&["items.1.photo", "name"]).await?` to select paths and re
 
 ### Retrieving an Input Value {#retrieving-an-input-value}
 
-Use `request.query(Some("key"))` to read an exact top-level query key. Use `request.input(Some("team.name")).await` for nested input. Pass `None` to retrieve the input bag. JSON and form fields take precedence over query values at the top level. Use `request.json` to read the JSON body alone.
+Keys can be passed directly; existing `Some(key)` and `None` calls remain valid. Use `request.input_or("name", "Guest").await?`, `request.query_or("page", "1")?`, and `request.post_or("name", "Guest").await?` for defaults. `input_or` preserves explicit null. `query_or` and `post_or` use the fallback for missing or null values, matching their default-value contract. All preserve empty strings, zero, and false. Parsing failures still propagate as errors. For query parameters prefer `query`, rather than introducing a second `get` alias.
 
-Use `request.post(None).await?` for the body parameter bag or `request.post(Some("name")).await?` for an exact top-level key. On a JSON request this reads the decoded JSON body. Query parameters and multipart file objects use their own bags. An explicit null remains in the full body bag, and a named lookup of that value returns `None`.
+```rust
+let name = request.string_or("name", "Guest").await?;
+let page = request.integer_or("page", 1).await?;
+let remember = request.boolean("remember").await?;
+let keyword = request.query_or("keyword", "")?;
+let title = request.post_or("title", "").await?;
+```
+
+Use `request.query("key")` to read an exact top-level query key. Use `request.input("team.name").await` for nested input. Pass `None` to retrieve the input bag. JSON and form fields take precedence over query values at the top level. Use `request.json` to read the JSON body alone.
+
+Use `request.post(None).await?` for the body parameter bag or `request.post("name").await?` for an exact top-level key. On a JSON request this reads the decoded JSON body. Query parameters and multipart file objects use their own bags. An explicit null remains in the full body bag, and a named lookup of that value returns `None`.
 
 Use `request.fluent(Some("user")).await?` to wrap a group of ordinary input as an independent `Fluent` bag. Pass `None` for all ordinary input, or use `fluent_or("user", default)` for a default attribute bag if the field is missing or null. A scalar cannot initialize the bag and returns HTTP 400. Use `fluent_only(&["user.name", "document"]).await?` for an independent typed snapshot that retains uploads. Use `get` for paths and `value` for exact top-level keys.
 
@@ -51,11 +61,13 @@ The kernel rejects a path with invalid UTF-8 after percent decoding with HTTP 40
 
 ### Typed Input Values
 
-Use `request.integer("value", 42, true).await?`, `request.float("value", 1.25, true).await?`, or `request.boolean("value", true, true).await?`. The arguments specify the input key, fallback, and strict mode. All three methods use the same dotted keys and input precedence as `request.input`.
+Use `request.integer("page").await?`, `request.float("price").await?`, `request.boolean("remember").await?`, or `request.string("name").await?`. Missing values use `0`, `0.0`, `false`, and an empty string respectively. Custom defaults use `integer_or("page", 1)`, `float_or("price", 1.25)`, `boolean_or("remember", true)`, or `string_or("name", "Guest")`, followed by `.await?`. Defaults do not replace explicit null; ordinary conversions still apply to present values.
+
+Use `integer_strict("value", 42)`, `float_strict("value", 1.25)`, `boolean_strict("value", true)`, or `string_strict("label", "fallback")` for strict conversion with a fallback. These methods use the fallback for a missing or invalid value; strict mode is not validation and does not produce a 422 response. Dotted paths and input precedence are unchanged. `str`, `str_or`, and `str_strict` are aliases for the corresponding string methods.
 
 A missing value uses the fallback. With strict mode enabled, invalid values also use the fallback. For example, `"01"` is invalid as a strict integer but is valid as a float. With strict mode disabled, numeric reads use PHP casts and can read a leading numeric portion. Boolean reads recognize `1`, `true`, `on`, and `yes` case-insensitively. The recognized false values are `0`, `false`, `off`, and `no`. Unrecognized boolean input returns false in permissive mode. Malformed request bodies still return an input error.
 
-Use `request.string("label", "fallback", true).await?.trim()` for a fluent string. `request.str` is an alias. Strict strings accept text and numbers. `request.array(Some("items")).await?` preserves lists and keyed objects, wraps scalars into a one-item list, and returns an empty list for null or missing values. `request.collect` returns a collection with the same keys. Pass `None` to read the input bag.
+Use `request.string_strict("label", "fallback").await?.trim()` for a fluent string. `request.str` is an alias. Strict strings accept text and numbers. `request.array(Some("items")).await?` preserves lists and keyed objects, wraps scalars into a one-item list, and returns an empty list for null or missing values. `request.collect` returns a collection with the same keys. Pass `None` to read the input bag.
 
 Implement `BackedEnum` with a `String` or `i64` backing. Use `request.r#enum::<Stage>("stage", None).await?` for one case, or `request.enums::<Stage>("list").await?` for a collection. The list keeps original keys and duplicate cases while skipping unknown cases. A single unknown case uses the supplied fallback. An invalid backing type returns HTTP 400.
 
@@ -82,7 +94,7 @@ use openrust::{http::HttpError, support::facades::{Request, Route}};
 use serde_json::json;
 
 Route::post("/profile", || async {
-    let name = Request::input(Some("name")).await?;
+    let name = Request::input("name").await?;
     Request::merge(json!({"verified": true})).await?;
     Ok::<_, HttpError>(json!({"name": name}))
 })?;

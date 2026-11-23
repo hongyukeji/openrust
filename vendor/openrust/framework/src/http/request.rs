@@ -154,7 +154,11 @@ impl Request {
         self.proxy.uri.as_ref().unwrap_or(&self.parts.uri)
     }
     /// Returns the query bag or an exact top-level key, independently of the body.
-    pub fn query(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
+    pub fn query<'a>(
+        &self,
+        key: impl Into<Option<&'a str>>,
+    ) -> Result<Option<serde_json::Value>, super::HttpError> {
+        let key = key.into();
         let values = self.query_values()?;
         let value = match (key, values) {
             (None, values) => Some(values),
@@ -167,6 +171,18 @@ impl Request {
             _ => None,
         };
         Ok(value.cloned())
+    }
+
+    /// 读取查询参数的精确顶层键，缺失或 null 时采用默认值。
+    pub fn query_or(
+        &self,
+        key: &str,
+        default: impl Into<serde_json::Value>,
+    ) -> Result<serde_json::Value, super::HttpError> {
+        Ok(self
+            .query(key)?
+            .filter(|value| !value.is_null())
+            .unwrap_or_else(|| default.into()))
     }
 
     fn query_values(&self) -> Result<&serde_json::Value, super::HttpError> {

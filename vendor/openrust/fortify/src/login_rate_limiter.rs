@@ -17,7 +17,7 @@ impl LoginRateLimiter {
     }
     pub async fn throttleKey(&self, request: &mut Request) -> Result<String, HttpError> {
         let username = request
-            .input(Some(&self.fortify.username()))
+            .input(self.fortify.username().as_str())
             .await?
             .and_then(|v| v.as_str().map(str::to_owned))
             .unwrap_or_default();

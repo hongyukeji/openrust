@@ -286,8 +286,13 @@ impl Request {
     pub fn has_cookie(key: &str) -> Result<bool, HttpError> {
         Self::instance()?.with(|request| request.has_cookie(key))?
     }
-    pub fn query(key: Option<&str>) -> Result<Option<Value>, HttpError> {
+    pub fn query<'a>(key: impl Into<Option<&'a str>>) -> Result<Option<Value>, HttpError> {
+        let key = key.into();
         Self::instance()?.with(|request| request.query(key))?
+    }
+    /// 查询参数读取与请求实例保持一致。
+    pub fn query_or(key: &str, default: impl Into<Value>) -> Result<Value, HttpError> {
+        Self::instance()?.with(|request| request.query_or(key, default))?
     }
     pub fn cookie(key: Option<&str>) -> Result<Option<Value>, HttpError> {
         Self::instance()?.with(|request| request.cookie(key))?
@@ -321,15 +326,29 @@ impl Request {
     pub fn matches_type(actual: &str, content_type: &str) -> bool {
         HttpRequest::matches_type(actual, content_type)
     }
-    pub async fn input(key: Option<&str>) -> Result<Option<Value>, HttpError> {
+    pub async fn input<'a>(key: impl Into<Option<&'a str>>) -> Result<Option<Value>, HttpError> {
+        let key = key.into();
         let root = Self::instance()?;
         let mut request = root.borrow()?;
         request.input(key).await
     }
-    pub async fn post(key: Option<&str>) -> Result<Option<Value>, HttpError> {
+    pub async fn post<'a>(key: impl Into<Option<&'a str>>) -> Result<Option<Value>, HttpError> {
+        let key = key.into();
         let root = Self::instance()?;
         let mut request = root.borrow()?;
         request.post(key).await
+    }
+    /// 路径缺失时使用默认值，显式 null 保留。
+    pub async fn input_or(key: &str, default: impl Into<Value>) -> Result<Value, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.input_or(key, default).await
+    }
+    /// 正文顶层键缺失或 null 时使用默认值。
+    pub async fn post_or(key: &str, default: impl Into<Value>) -> Result<Value, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.post_or(key, default).await
     }
     pub async fn json(key: Option<&str>) -> Result<Option<Value>, HttpError> {
         let root = Self::instance()?;
@@ -436,30 +455,80 @@ impl Request {
         let mut request = root.borrow()?;
         request.fluent_or(key, default).await
     }
-    pub async fn integer(key: &str, default: i64, strict: bool) -> Result<i64, HttpError> {
+    pub async fn integer(key: &str) -> Result<i64, HttpError> {
         let root = Self::instance()?;
         let mut request = root.borrow()?;
-        request.integer(key, default, strict).await
+        request.integer(key).await
     }
-    pub async fn float(key: &str, default: f64, strict: bool) -> Result<f64, HttpError> {
+    pub async fn integer_or(key: &str, default: i64) -> Result<i64, HttpError> {
         let root = Self::instance()?;
         let mut request = root.borrow()?;
-        request.float(key, default, strict).await
+        request.integer_or(key, default).await
     }
-    pub async fn boolean(key: &str, default: bool, strict: bool) -> Result<bool, HttpError> {
+    pub async fn integer_strict(key: &str, default: i64) -> Result<i64, HttpError> {
         let root = Self::instance()?;
         let mut request = root.borrow()?;
-        request.boolean(key, default, strict).await
+        request.integer_strict(key, default).await
     }
-    pub async fn string(key: &str, default: &str, strict: bool) -> Result<Stringable, HttpError> {
+    pub async fn float(key: &str) -> Result<f64, HttpError> {
         let root = Self::instance()?;
         let mut request = root.borrow()?;
-        request.string(key, default, strict).await
+        request.float(key).await
     }
-    pub async fn str(key: &str, default: &str, strict: bool) -> Result<Stringable, HttpError> {
+    pub async fn float_or(key: &str, default: f64) -> Result<f64, HttpError> {
         let root = Self::instance()?;
         let mut request = root.borrow()?;
-        request.str(key, default, strict).await
+        request.float_or(key, default).await
+    }
+    pub async fn float_strict(key: &str, default: f64) -> Result<f64, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.float_strict(key, default).await
+    }
+    pub async fn boolean(key: &str) -> Result<bool, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.boolean(key).await
+    }
+    pub async fn boolean_or(key: &str, default: bool) -> Result<bool, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.boolean_or(key, default).await
+    }
+    pub async fn boolean_strict(key: &str, default: bool) -> Result<bool, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.boolean_strict(key, default).await
+    }
+    pub async fn string(key: &str) -> Result<Stringable, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.string(key).await
+    }
+    pub async fn string_or(key: &str, default: &str) -> Result<Stringable, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.string_or(key, default).await
+    }
+    pub async fn string_strict(key: &str, default: &str) -> Result<Stringable, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.string_strict(key, default).await
+    }
+    pub async fn str(key: &str) -> Result<Stringable, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.str(key).await
+    }
+    pub async fn str_or(key: &str, default: &str) -> Result<Stringable, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.str_or(key, default).await
+    }
+    pub async fn str_strict(key: &str, default: &str) -> Result<Stringable, HttpError> {
+        let root = Self::instance()?;
+        let mut request = root.borrow()?;
+        request.str_strict(key, default).await
     }
     pub async fn r#enum<E: BackedEnum>(
         key: &str,
@@ -745,7 +814,7 @@ impl Request {
         if min > max || !min.is_finite() || !max.is_finite() {
             return Err(HttpError::InvalidRequest);
         }
-        Ok(Self::float(key, default, false).await?.clamp(min, max))
+        Ok(Self::float_or(key, default).await?.clamp(min, max))
     }
     pub async fn when_has<T>(
         key: &str,

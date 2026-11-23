@@ -204,7 +204,11 @@ impl Request {
 
     /// Reads the input source and adds query keys that the source does not supply.
     /// A dotted key can select nested objects or arrays.
-    pub async fn input(&mut self, key: Option<&str>) -> Result<Option<Value>, HttpError> {
+    pub async fn input<'a>(
+        &mut self,
+        key: impl Into<Option<&'a str>>,
+    ) -> Result<Option<Value>, HttpError> {
+        let key = key.into();
         let source = self.input_source()?;
         if matches!(source, InputSource::Query) {
             let query = self.query_values()?;
@@ -230,7 +234,11 @@ impl Request {
     }
 
     /// Reads the body parameter bag or an exact top-level key without query fallback.
-    pub async fn post(&mut self, key: Option<&str>) -> Result<Option<Value>, HttpError> {
+    pub async fn post<'a>(
+        &mut self,
+        key: impl Into<Option<&'a str>>,
+    ) -> Result<Option<Value>, HttpError> {
+        let key = key.into();
         let source = match self.input_source()? {
             InputSource::Json => InputSource::Json,
             _ => InputSource::Form,
@@ -241,6 +249,24 @@ impl Request {
             Some(key) => child(body, key).filter(|value| !value.is_null()),
         }
         .cloned())
+    }
+
+    /// 读取合并输入，只有路径缺失时使用默认值；显式 null 原样保留。
+    pub async fn input_or(
+        &mut self,
+        key: &str,
+        default: impl Into<Value>,
+    ) -> Result<Value, HttpError> {
+        Ok(self.input(key).await?.unwrap_or_else(|| default.into()))
+    }
+
+    /// 读取正文顶层键；与 post 一致，缺失或 null 时使用默认值。
+    pub async fn post_or(
+        &mut self,
+        key: &str,
+        default: impl Into<Value>,
+    ) -> Result<Value, HttpError> {
+        Ok(self.post(key).await?.unwrap_or_else(|| default.into()))
     }
 
     /// Wraps ordinary input or one nested group in an independent Fluent bag.
@@ -279,8 +305,87 @@ impl Request {
             .collect())
     }
 
+    /// 读取整数，缺失时使用 0；转换规则与普通输入一致。
+    pub async fn integer(&mut self, key: &str) -> Result<i64, HttpError> {
+        self.integer_or(key, 0).await
+    }
+
+    /// 读取整数并指定缺失时的默认值，不吞掉请求解析错误。
+    pub async fn integer_or(&mut self, key: &str, default: i64) -> Result<i64, HttpError> {
+        self.integer_value(key, default, false).await
+    }
+
+    /// 严格转换整数，缺失或类型无效时使用默认值；不是表单验证。
+    pub async fn integer_strict(&mut self, key: &str, default: i64) -> Result<i64, HttpError> {
+        self.integer_value(key, default, true).await
+    }
+
+    /// 读取浮点数，缺失时使用 0.0；转换规则与普通输入一致。
+    pub async fn float(&mut self, key: &str) -> Result<f64, HttpError> {
+        self.float_or(key, 0.0).await
+    }
+
+    /// 读取浮点数并指定缺失时的默认值，不吞掉请求解析错误。
+    pub async fn float_or(&mut self, key: &str, default: f64) -> Result<f64, HttpError> {
+        self.float_value(key, default, false).await
+    }
+
+    /// 严格转换浮点数，缺失或类型无效时使用默认值；不是表单验证。
+    pub async fn float_strict(&mut self, key: &str, default: f64) -> Result<f64, HttpError> {
+        self.float_value(key, default, true).await
+    }
+
+    /// 读取布尔值，缺失时使用 false；转换规则与普通输入一致。
+    pub async fn boolean(&mut self, key: &str) -> Result<bool, HttpError> {
+        self.boolean_or(key, false).await
+    }
+
+    /// 读取布尔值并指定缺失时的默认值，不吞掉请求解析错误。
+    pub async fn boolean_or(&mut self, key: &str, default: bool) -> Result<bool, HttpError> {
+        self.boolean_value(key, default, false).await
+    }
+
+    /// 严格转换布尔值，缺失或类型无效时使用默认值；不是表单验证。
+    pub async fn boolean_strict(&mut self, key: &str, default: bool) -> Result<bool, HttpError> {
+        self.boolean_value(key, default, true).await
+    }
+
+    /// 读取字符串，缺失时使用 ""；转换规则与普通输入一致。
+    pub async fn string(&mut self, key: &str) -> Result<Stringable, HttpError> {
+        self.string_or(key, "").await
+    }
+
+    /// 读取字符串并指定缺失时的默认值，不吞掉请求解析错误。
+    pub async fn string_or(&mut self, key: &str, default: &str) -> Result<Stringable, HttpError> {
+        self.string_value(key, default, false).await
+    }
+
+    /// 严格转换字符串，缺失或类型无效时使用默认值；不是表单验证。
+    pub async fn string_strict(
+        &mut self,
+        key: &str,
+        default: &str,
+    ) -> Result<Stringable, HttpError> {
+        self.string_value(key, default, true).await
+    }
+
+    /// [`Self::string`] 的同义入口。
+    pub async fn str(&mut self, key: &str) -> Result<Stringable, HttpError> {
+        self.string(key).await
+    }
+
+    /// [`Self::string_or`] 的同义入口。
+    pub async fn str_or(&mut self, key: &str, default: &str) -> Result<Stringable, HttpError> {
+        self.string_or(key, default).await
+    }
+
+    /// [`Self::string_strict`] 的同义入口。
+    pub async fn str_strict(&mut self, key: &str, default: &str) -> Result<Stringable, HttpError> {
+        self.string_strict(key, default).await
+    }
+
     /// Reads a signed 64-bit input, using `default` for missing or invalid strict values.
-    pub async fn integer(
+    async fn integer_value(
         &mut self,
         key: &str,
         default: i64,
@@ -295,7 +400,12 @@ impl Request {
     }
 
     /// Reads a floating-point input, using `default` for missing or invalid strict values.
-    pub async fn float(&mut self, key: &str, default: f64, strict: bool) -> Result<f64, HttpError> {
+    async fn float_value(
+        &mut self,
+        key: &str,
+        default: f64,
+        strict: bool,
+    ) -> Result<f64, HttpError> {
         match self.input(Some(key)).await? {
             Some(value) if !strict || input_scalars::valid_float(&value) => {
                 Ok(input_scalars::float(&value))
@@ -305,7 +415,7 @@ impl Request {
     }
 
     /// Reads boolean tokens, with a fallback for invalid strict values.
-    pub async fn boolean(
+    async fn boolean_value(
         &mut self,
         key: &str,
         default: bool,
@@ -318,7 +428,7 @@ impl Request {
     }
 
     /// Reads input as a fluent string.
-    pub async fn string(
+    async fn string_value(
         &mut self,
         key: &str,
         default: &str,
@@ -331,16 +441,6 @@ impl Request {
             }
             _ => default.to_owned(),
         }))
-    }
-
-    /// Alias for [`Self::string`].
-    pub async fn str(
-        &mut self,
-        key: &str,
-        default: &str,
-        strict: bool,
-    ) -> Result<Stringable, HttpError> {
-        self.string(key, default, strict).await
     }
 
     /// Reads a keyed input as a PHP-style array, or the entire input bag when omitted.

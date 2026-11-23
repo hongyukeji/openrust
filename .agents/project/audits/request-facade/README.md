@@ -60,3 +60,7 @@
 初次将三个既有 MySQL Session 用例并发指向同一临时库时，固定 `sessions` 表建表冲突发生在请求处理前；未改断言或被测实现，改按既有固定表夹具顺序执行。早期失败日志与两项独立复验日志 `mysql-session-recheck.log` 保留；独占最终批次完整17项通过。
 
 未验证范围：Windows／Linux 原生部署矩阵、PostgreSQL／SQLite、Session 的 Redis／MySQL+Redis 可选路径及需浏览器夹具的前端用例。本批未把环境缺失时提前返回的 Redis 分支计作真实 Redis 通过。三语页面构建与锚点检查属于静态文档交付，不宣称新增浏览器端交互验收。
+
+## 后续接口调整
+
+- [Request 输入读取简化](input-ergonomics-20261123.md)：直接字段名、默认值与类型读取的 Rust 入口调整；历史清单与上方验收只代表当时接口，最新签名及验收边界见该记录。

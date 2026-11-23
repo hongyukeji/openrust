@@ -568,9 +568,9 @@ fn scalar_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         let mut values = Vec::new();
         for strict in [false, true] {
             values.push(json!({
-                "integer": request.integer("value", 42, strict).await?,
-                "float": request.float("value", 1.25, strict).await?,
-                "boolean": request.boolean("value", true, strict).await?,
+                "integer": if strict { request.integer_strict("value", 42).await? } else { request.integer_or("value", 42).await? },
+                "float": if strict { request.float_strict("value", 1.25).await? } else { request.float_or("value", 1.25).await? },
+                "boolean": if strict { request.boolean_strict("value", true).await? } else { request.boolean_or("value", true).await? },
             }));
         }
         Response::json(StatusCode::OK, values)
@@ -615,8 +615,8 @@ impl BackedEnum for Toggle {
 
 fn typed_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let text = request.string("label", "fallback", true).await?.trim();
-        let loose = request.str("label", "fallback", false).await?;
+        let text = request.string_strict("label", "fallback").await?.trim();
+        let loose = request.str_or("label", "fallback").await?;
         let items = request.array(Some("items")).await?;
         let collected: Vec<_> = request.collect(Some("items")).await?.into_iter().collect();
         let stage = request.r#enum("stage", Some(Stage::Draft)).await?;

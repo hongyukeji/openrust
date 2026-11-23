@@ -31,10 +31,41 @@ async fn input() -> Result<Value, HttpError> {
         R::get_payload().await?,
         json!({"name":"Ada","n":"7","empty":null,"flag":"yes"})
     );
-    assert_eq!(R::integer("n", 0, false).await?, 7);
-    assert_eq!(R::float("n", 0., false).await?, 7.);
-    assert!(R::boolean("flag", false, false).await?);
-    assert_eq!(R::string("name", "", false).await?.to_string(), "Ada");
+    assert_eq!(R::input("name").await?, Some(json!("Ada")));
+    assert_eq!(R::input_or("missing", "fallback").await?, json!("fallback"));
+    assert_eq!(R::input_or("empty", "fallback").await?, Value::Null);
+    assert_eq!(R::query("q")?, Some(json!("url")));
+    assert_eq!(R::query_or("missing", "fallback")?, json!("fallback"));
+    assert_eq!(R::post("name").await?, Some(json!("Ada")));
+    assert_eq!(R::post_or("missing", "fallback").await?, json!("fallback"));
+    assert_eq!(R::post_or("empty", "fallback").await?, json!("fallback"));
+    assert_eq!(R::integer_or("missing", 9).await?, 9);
+    assert_eq!(R::integer_strict("name", 9).await?, 9);
+    assert_eq!(R::float_or("missing", 1.5).await?, 1.5);
+    assert_eq!(R::float_strict("name", 1.5).await?, 1.5);
+    assert!(R::boolean_or("missing", true).await?);
+    assert!(R::boolean_strict("name", true).await?);
+    assert_eq!(
+        R::string_or("missing", "fallback").await?.to_string(),
+        "fallback"
+    );
+    assert_eq!(
+        R::string_strict("empty", "fallback").await?.to_string(),
+        "fallback"
+    );
+    assert_eq!(R::str("name").await?.to_string(), "Ada");
+    assert_eq!(
+        R::str_or("missing", "fallback").await?.to_string(),
+        "fallback"
+    );
+    assert_eq!(
+        R::str_strict("empty", "fallback").await?.to_string(),
+        "fallback"
+    );
+    assert_eq!(R::integer("n").await?, 7);
+    assert_eq!(R::float("n").await?, 7.);
+    assert!(R::boolean("flag").await?);
+    assert_eq!(R::string("name").await?.to_string(), "Ada");
     assert!(R::has(&["empty"]).await?);
     assert!(R::exists(&["empty"]).await?);
     assert!(!R::filled(&["empty"]).await?);

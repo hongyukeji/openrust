@@ -44,7 +44,7 @@ pub(crate) async fn credentials(
 ) -> Result<Credentials, HttpError> {
     let username = fortify.username();
     let value = request
-        .input(Some(&username))
+        .input(username.as_str())
         .await?
         .and_then(|v| v.as_str().map(str::to_owned))
         .unwrap_or_default();
@@ -73,7 +73,7 @@ impl AttemptToAuthenticate {
         Self { fortify, limiter }
     }
     pub async fn handle(&self, request: &mut Request) -> Result<(), HttpError> {
-        let remember = request.boolean("remember", false, false).await?;
+        let remember = request.boolean("remember").await?;
         let credentials = credentials(request, &self.fortify).await?;
         let success = if let Some(callback) = self.fortify.authenticate_callback() {
             match callback(request).await? {
@@ -149,7 +149,7 @@ impl CanonicalizeUsername {
     pub async fn handle(&self, request: &mut Request) -> Result<(), HttpError> {
         let name = self.fortify.username();
         if let Some(value) = request
-            .input(Some(&name))
+            .input(name.as_str())
             .await?
             .and_then(|v| v.as_str().map(str::to_owned))
         {

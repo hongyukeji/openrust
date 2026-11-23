@@ -82,7 +82,7 @@ impl RedirectIfTwoFactorAuthenticatable {
         {
             return Ok(None);
         }
-        let remember = request.boolean("remember", false, false).await?;
+        let remember = request.boolean("remember").await?;
         request
             .session_mut()
             .map_err(internal)?
