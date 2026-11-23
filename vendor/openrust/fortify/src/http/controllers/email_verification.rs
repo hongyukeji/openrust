@@ -74,7 +74,7 @@ impl VerifyEmailController {
         Box::pin(async move {
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let mut account = crate::email_verification_model::account(user.as_ref())?;
-            account.verify().await?;
+            crate::actions::verify_email(account.user_mut()).await?;
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             Auth::session_guard(request, fortify.guard().as_deref())?.set_user(account.into_user());
             super::respond::<dyn contracts::VerifyEmailResponse>(request).await

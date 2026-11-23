@@ -239,6 +239,29 @@ impl CompletePasswordReset {
                     "Password reset model has not been registered",
                 ))
             })?;
-        model.complete(user).await
+        model.persist(user, Str::random(60)).await?;
+        emit(
+            openrust::auth::events::PasswordReset {
+                user: user.get_auth_identifier(),
+            },
+            &[],
+        )
+        .await
     }
+}
+
+// 类型擦除仅提供模型能力；验证结果与事件顺序由业务动作负责。
+pub(crate) async fn verify_email(
+    user: &mut dyn openrust::contracts::auth::MustVerifyEmail,
+) -> Result<(), HttpError> {
+    if !user.has_verified_email() && user.mark_email_as_verified().await? {
+        emit(
+            openrust::auth::events::Verified {
+                user: user.get_auth_identifier(),
+            },
+            &[],
+        )
+        .await?;
+    }
+    Ok(())
 }

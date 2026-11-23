@@ -3,7 +3,7 @@ use crate::resolver::internal;
 use openrust::{
     contracts::auth::{Authenticatable, MustVerifyEmail},
     database::{Value, eloquent::Model},
-    http::{HttpError, HttpFuture},
+    http::HttpError,
 };
 use std::{any::Any, marker::PhantomData};
 
@@ -26,7 +26,7 @@ impl<T: Model + MustVerifyEmail + Clone> RegisteredModel for ModelAdapter<T> {
 pub(crate) trait Account: Send + Sync {
     fn key(&self) -> Result<String, HttpError>;
     fn email(&self) -> &str;
-    fn verify(&mut self) -> HttpFuture<'_, Result<(), HttpError>>;
+    fn user_mut(&mut self) -> &mut dyn MustVerifyEmail;
     fn into_user(self: Box<Self>) -> Box<dyn Authenticatable>;
 }
 struct TypedAccount<T>(T);
@@ -44,19 +44,8 @@ impl<T: Model + MustVerifyEmail> Account for TypedAccount<T> {
     fn email(&self) -> &str {
         self.0.get_email_for_verification()
     }
-    fn verify(&mut self) -> HttpFuture<'_, Result<(), HttpError>> {
-        Box::pin(async move {
-            if !self.0.has_verified_email() && self.0.mark_email_as_verified().await? {
-                crate::actions::emit(
-                    openrust::auth::events::Verified {
-                        user: self.0.get_auth_identifier(),
-                    },
-                    &[],
-                )
-                .await?;
-            }
-            Ok(())
-        })
+    fn user_mut(&mut self) -> &mut dyn MustVerifyEmail {
+        &mut self.0
     }
     fn into_user(self: Box<Self>) -> Box<dyn Authenticatable> {
         Box::new(self.0)

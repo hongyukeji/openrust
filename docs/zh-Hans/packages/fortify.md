@@ -60,11 +60,15 @@ Fortify 管理注册、Session 登录和凭据变更。[Sanctum](sanctum.md) 的
 
 `POST /forgot-password` 接收配置的邮件字段，通过选定的密码代理发送原生重置通知。将 `token`、邮件地址、`password` 和 `password_confirmation` 提交到 `POST /reset-password`。安装的 `ResetsUserPasswords` 动作验证、哈希并保存代理提供的实际用户。完成后轮换 remember 令牌并发出 `PasswordReset`，不会自动登录。动作输入不合法时可以重试；成功消费的令牌不能再次使用。
 
+自定义 `ResetsUserPasswords` 动作负责在真实 broker 用户上校验并保存密码。随后 Fortify 持久化 remember token 轮换并派发 `PasswordReset`；自定义动作与此完成步骤保持分工，避免重复执行这些副作用。
+
 JSON 重置结果包含翻译后的消息，失败使用验证错误；Web 结果使用跳转和 Session 状态。可实现密码响应契约替换这些响应，其 Rust `to_response` 方法显式接收代理状态。
 
 ## 邮件验证
 
 为实现 `MustVerifyEmail` 的用户启用 `email-verification`。注册和资料邮件变更使用原生验证通知，`POST /email/verification-notification` 重新发送。带签名的 `GET /email/verify/{id}/{hash}` 链接验证当前用户和当前邮件地址，更新验证状态并发出验证事件。可通过已有的 `verified` 中间件保护应用路由。实际投递须配置真实邮件传输；默认 `log` 邮件器仅记录消息。
+
+`MustVerifyEmail` 实现应返回持久化验证状态是否实际发生变化。Fortify 为该状态转移派发 `Verified`，然后更新 Session 用户；重复验证不会再次派发事件。实现模型能力时，将事件派发留在验证流程中。
 
 ## 密码确认
 

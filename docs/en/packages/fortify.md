@@ -60,11 +60,15 @@ Use `create_users_using`, `update_user_profile_information_using`, `update_user_
 
 `POST /forgot-password` accepts the configured email field and sends a native password reset notification through the selected broker. Submit `token`, email, `password` and `password_confirmation` to `POST /reset-password`. The installed `ResetsUserPasswords` action validates, hashes and saves the actual broker user. Completion rotates the remember token and emits `PasswordReset`; it does not log the user in. Invalid action input leaves the reset claim available for retry, while a successfully consumed token cannot be reused.
 
+Custom `ResetsUserPasswords` actions validate and save the password on the actual broker user. Fortify then persists remember-token rotation and dispatches `PasswordReset`; keep this completion step separate from the custom action to avoid repeating those effects.
+
 JSON reset outcomes include a translated message; failures use validation errors. Web outcomes use redirects and session status. Implement the password response contracts to replace them; their Rust `to_response` method receives the broker status explicitly.
 
 ## Email verification
 
 Enable `email-verification` for users implementing `MustVerifyEmail`. Registration and changed profile emails use the native verification notification. `POST /email/verification-notification` resends it. The signed `GET /email/verify/{id}/{hash}` link validates the current user and current email, updates verification and emits the verification event. Use the existing `verified` middleware to protect application routes. Configure a real mail transport for delivery; the default `log` mailer records messages.
+
+A `MustVerifyEmail` implementation reports whether the persisted verification state actually changed. Fortify dispatches `Verified` for that transition and then updates the session user; repeated verification does not emit the event again. Keep event dispatch in the verification flow when implementing the model capability.
 
 ## Password confirmation
 
