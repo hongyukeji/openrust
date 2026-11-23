@@ -57,9 +57,24 @@ Vite::use_fonts_manifest_filename("fonts-manifest.json")?;
 let fonts = Vite::fonts(Some(&["sans", "mono"]))?;
 ```
 
+## 资源预取 {#prefetching}
+
+`prefetch(None, None)` 在浏览器 `load` 事件后启用激进预取；传入 `Some(3)` 使用最多三个并发链接的瀑布策略，第二参数 `Some("vite:ready")` 可改为自定义 window 事件。
+
+`use_waterfall_prefetching(None)` 沿用之前的并发数，初始值为 3；`use_aggressive_prefetching()` 改为一次插入全部链接。`use_prefetch_strategy(None, None)` 关闭预取，受支持的策略名称是 `Some("waterfall")` 和 `Some("aggressive")`；未知名称在渲染时返回错误。开发热更新模式不输出预取脚本。
+
+生产清单中的动态导入及其依赖和 CSS 按原顺序发现，按 URL 去重并排除已经预加载的资源。脚本在指定事件后执行；瀑布策略在链接加载成功或失败后各释放一个名额，激进策略一次插入全部链接。现有预加载属性回调也会用于预取，脚本使用当前 CSP nonce。
+
+启用预取时，预加载属性回调返回 `None` 会产生 `DisabledPrefetchAttributes`，对应固定源码无法展开禁用值的错误边界。请返回受支持的属性映射，或明确关闭预取策略，不把渲染失败静默当成成功。事件名和标签属性来自受信任的应用配置。
+
+```rust
+Vite::prefetch(Some(3), Some("vite:ready"))?;
+Vite::use_prefetch_strategy(None, None)?;
+```
+
 ## 支持边界 {#support-status}
 
-预取策略和具类型 Vite 宏仍在补齐，不应根据本页推断这些入口已经可用。
+具类型 Vite 宏与继承的 Facade 测试辅助入口仍在核对。
 
 ## 运行范围 {#scope}
 

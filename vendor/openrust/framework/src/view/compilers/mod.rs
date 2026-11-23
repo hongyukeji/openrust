@@ -16,3 +16,10 @@ pub trait Compiler: Send + Sync {
     fn is_expired(&self, path: &Path) -> ViewResult<bool>;
     fn compile(&self, path: &Path) -> ViewResult<()>;
 }
+
+/// 内部资源脚本复用模板现有的安全JavaScript序列化，避免两套编码规则。
+pub(crate) fn javascript_expression(value: &crate::view::ViewValue) -> ViewResult<String> {
+    let mut output = String::new();
+    template::javascript::write_expression(&mut output, value)?;
+    Ok(output)
+}

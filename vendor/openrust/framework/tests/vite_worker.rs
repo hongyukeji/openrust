@@ -44,9 +44,16 @@ impl JobHandler for ViteJob {
                     ]
                     .into(),
                 )?;
+                if id == 1 {
+                    Vite::prefetch(Some(2), Some("job:ready"))?;
+                }
                 let html = Vite::render(["resources/js/app.js"], None)?
                     .to_html()
                     .to_owned();
+                assert_eq!(
+                    html.contains("window.addEventListener('job:ready'"),
+                    id == 1
+                );
                 assert!(html.contains(&format!("nonce=\"{nonce}\"")));
                 assert!(html.contains(&format!("data-job=\"{id}\"")));
                 if id > 1 {

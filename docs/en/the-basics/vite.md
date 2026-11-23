@@ -57,9 +57,24 @@ Vite::use_fonts_manifest_filename("fonts-manifest.json")?;
 let fonts = Vite::fonts(Some(&["sans", "mono"]))?;
 ```
 
+## Prefetching {#prefetching}
+
+`prefetch(None, None)` enables aggressive prefetching on the browser `load` event. Pass `Some(3)` to use waterfall loading with three concurrent links, or `Some("vite:ready")` as the second argument for a custom window event.
+
+`use_waterfall_prefetching(None)` reuses the previous concurrency, initially 3; `use_aggressive_prefetching()` switches to all-at-once loading. `use_prefetch_strategy(None, None)` disables prefetching; `Some("waterfall")` and `Some("aggressive")` are the supported strategy names. An unknown strategy fails at render time. Hot mode emits no prefetch script.
+
+The production manifest’s dynamic imports, their imports and CSS are discovered in order, deduplicated by URL and filtered against already-preloaded assets. The script runs only after its event. Waterfall releases one slot after either a load or error; aggressive loading inserts all links together. Existing preload attribute resolvers also apply, and the generated script uses the current CSP nonce.
+
+When prefetching is enabled, returning `None` from a preload attribute resolver produces `DisabledPrefetchAttributes`, matching the pinned source’s unpacking failure. Use supported attribute maps or disable the prefetch strategy explicitly; a failed render is not silently treated as success. Event names and tag attributes are trusted application configuration.
+
+```rust
+Vite::prefetch(Some(3), Some("vite:ready"))?;
+Vite::use_prefetch_strategy(None, None)?;
+```
+
 ## Boundaries {#support-status}
 
-Prefetch strategies and typed Vite macros are still being completed; do not infer those APIs from this page.
+Typed Vite macros and inherited Facade test helpers remain under review.
 
 ## Scope {#scope}
 

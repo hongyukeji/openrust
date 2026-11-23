@@ -1,6 +1,7 @@
 //! 前端资源清单、开发服务器与资源标签生成。
 mod facade;
 mod fonts;
+mod prefetch;
 mod provider;
 mod render;
 pub use facade::ViteFacade;
@@ -47,6 +48,8 @@ pub enum ViteError {
     InvalidChunk(String),
     InvalidAttribute(String),
     InvalidFonts(String),
+    InvalidPrefetchStrategy(String),
+    DisabledPrefetchAttributes,
     Url(crate::routing::UrlError),
     Callback(Box<dyn Error + Send + Sync>),
 }
@@ -64,6 +67,8 @@ impl fmt::Display for ViteError {
             Self::MissingChunk(name) => write!(f, "前端资源清单中没有此入口：{name}"),
             Self::InvalidChunk(name) => write!(f, "前端资源块格式无效：{name}"),
             Self::InvalidAttribute(name) => write!(f, "资源标签属性必须是标量：{name}"),
+            Self::DisabledPrefetchAttributes => write!(f, "资源预取不能展开被禁用的预加载属性"),
+            Self::InvalidPrefetchStrategy(strategy) => write!(f, "资源预取策略无效：{strategy}"),
             Self::InvalidFonts(message) => write!(f, "字体清单无效：{message}"),
             Self::Callback(e) => write!(f, "前端资源回调失败：{e}"),
             Self::Url(e) => write!(f, "前端资源URL生成失败：{e}"),
@@ -128,6 +133,9 @@ struct Settings {
     script_attributes: Vec<Arc<AttributeResolver>>,
     style_attributes: Vec<Arc<AttributeResolver>>,
     preload_attributes: Vec<Arc<PreloadResolver>>,
+    prefetch_strategy: Option<String>,
+    prefetch_concurrency: i64,
+    prefetch_event: String,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -143,6 +151,9 @@ impl Default for Settings {
             script_attributes: vec![],
             style_attributes: vec![],
             preload_attributes: vec![],
+            prefetch_strategy: None,
+            prefetch_concurrency: 3,
+            prefetch_event: "load".into(),
         }
     }
 }

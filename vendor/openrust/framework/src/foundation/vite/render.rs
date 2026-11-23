@@ -20,7 +20,7 @@ fn css(path: &str) -> bool {
     });
     CSS.is_match(path)
 }
-fn strings(chunk: &Value, key: &str) -> ViteResult<Vec<String>> {
+pub(super) fn strings(chunk: &Value, key: &str) -> ViteResult<Vec<String>> {
     let Some(value) = chunk.get(key) else {
         return Ok(vec![]);
     };
@@ -112,7 +112,10 @@ fn tag(vite: &Vite, context: &TagContext<'_>) -> ViteResult<String> {
         format!("<script {attributes}></script>")
     })
 }
-fn preload(vite: &Vite, context: &TagContext<'_>) -> ViteResult<Option<(String, Vec<String>)>> {
+pub(super) fn preload_attributes(
+    vite: &Vite,
+    context: &TagContext<'_>,
+) -> ViteResult<Option<Attributes>> {
     let settings = vite.settings()?;
     let style = css(context.url);
     let nonce = settings
@@ -152,6 +155,12 @@ fn preload(vite: &Vite, context: &TagContext<'_>) -> ViteResult<Option<(String, 
         };
         attributes.extend(resolved);
     }
+    Ok(Some(attributes))
+}
+fn preload(vite: &Vite, context: &TagContext<'_>) -> ViteResult<Option<(String, Vec<String>)>> {
+    let Some(mut attributes) = preload_attributes(vite, context)? else {
+        return Ok(None);
+    };
     let tag = format!("<link {} />", parse_attributes(&attributes)?.join(" "));
     attributes.shift_remove("href");
     Ok(Some((tag, parse_attributes(&attributes)?)))
@@ -268,6 +277,7 @@ impl Vite {
                 }
             }
         }
+        self.render_prefetch(&entries, build, &manifest, &mut output)?;
         Ok(HtmlString::new(output))
     }
     fn add_css(

@@ -18,7 +18,7 @@ mod fonts;
 mod helpers;
 mod html;
 mod includes;
-mod javascript;
+pub(super) mod javascript;
 mod loops;
 mod preparation;
 mod translations;

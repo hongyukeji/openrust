@@ -31,8 +31,8 @@
 | DB | `support::facades::Db` | 核对管理器和连接全部委托、事务、事件、查询、危险命令限制 |
 | Date | 只有 `support::Date` 值对象 | 缺门面/工厂；核对时钟、解析、日历、语言、格式化、工厂替换及冻结时间，复用已有 jiff/测试时钟 |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
-| Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 已补报告/渲染/映射/上下文、运行期配置及具类型fake与实际Worker；withoutExceptionHandling、全局限流回调及共享基类测试能力仍待闭合 |
-| File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行与宏已实测；require/条件代理、完整标志与平台边界仍待闭合 |
+| Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 已补报告/渲染/映射/上下文、运行期配置、具类型fake、withoutExceptionHandling与全局限流；共享基类测试能力及逐入口最终裁决仍待闭合 |
+| File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行、宏、编译模块加载和条件代理已实测；JSON/glob/hash/MIME完整标志、平台及继承测试仍待闭合 |
 | Gate | `support::facades::Gate` | 核对策略、用户/资源、前后钩子、授权响应和事件 |
 | Hash | `support::facades::Hash` | 核对管理器/驱动、校验、重哈希、配置校验与未知算法 |
 | Http | `support::facades::Http` | 核对 Factory/PendingRequest 委托、fake/sequence、禁止逸出、批次/并发和断言 |
@@ -60,7 +60,7 @@
 | URL | `support::facades::Url` | 核对 Generator 全部入口、当前请求/默认值、签名、密钥轮换与回调 |
 | Validator | `support::facades::Validator` | 核对 Factory/规则扩展、解析器/存在性/回退消息及 make/validate 委托 |
 | View | `support::facades::View` | 核对 Factory/编译器、命名视图、组件、共享数据、事件、缓存与宏 |
-| Vite | 未开放对应门面及运行服务 | 核对 manifest/hot、资源标签、入口、CSP/SRI、SSR、预取及模板实际消费者；需要实际补模块，不能只导出同名类型 |
+| Vite | 已接 `support::facades::Vite` 与 `foundation::Vite` | 清单/热模式、资源标签、CSP/SRI、字体、预取与真实模板/Worker/浏览器已实测；宏与共享Facade测试契约、逐入口最终裁决仍待闭合 |
 
 `Sms` 是已批准的框架扩展，单独跟踪，不计入上游 46 个具体门面的对齐数量。
 
@@ -364,3 +364,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `tests-delivery.log`：字体6、Vite12、原视图5，共23项返回通过，其中Vite的1项无浏览器环境早返回不计，实际本机22项。既有视图测试包含真实监听器、两应用/不同公开路径、开发与正式字体、重复去重、未知别名及危险CSS失败；新增真实HTTP跨域名、正式门面与Blade共用状态、缓存变更/flush、无缓存错误恢复、回调重入和真实错误。测试夹具初始语法/trait/Value错误已修正，失败日志保留。
 - `workers.log`：独立MySQL8.4.13与Redis8.10.3各1项真实Artisan queue:work，每后端两任务；每任务字体使用自己的nonce，首次输出链接、重复调用去重，后续任务不继承预加载。临时容器与测试表已清理；未修改队列协议或数据库迁移。
 - 三语Vite字体章节、Blade直达链接同步，`docs-fixed.log`实际构建和`browser.log`三语桌面/移动6项通过；初次命令名错误及Vue内联插值构建失败保留，修正文档表达后验收，未屏蔽站点检查。`clippy-final.log`、吸收后续已提交父树的`clippy-parent.log`及`fmt.log`记录全workspace/all-targets严格Clippy及格式门禁。预取策略、宏与共享Facade测试契约仍继续处理。
+
+
+### Vite：预取策略与真实浏览器调度（2026-11-24，仍 partial）
+
+- 继续核对固定Vite.php的prefetch/useWaterfallPrefetching/useAggressivePrefetching/usePrefetchStrategy及实际__invoke，不把标签存在当完成。四个正式服务/门面入口已补齐：prefetch的None并发选aggressive，None事件用load；waterfall默认3且后续复用既有并发值；策略None关闭，未知名称在生产渲染时错误，hot不运行预取。Rust第二配置参数明确为唯一生效的concurrency，不新增动态配置系统。
+- 复用实际预加载属性解析器、URL生成器和Blade现有JavaScript编码；两种脚本来自固定原类模板。动态import/imports/CSS按原遍历顺序、共享发现集合与URL去重；显式栈处理循环依赖，不把递归层数放到调用栈。预取不写入preloaded_assets，静态已预加载URL会被排除；回调及当前nonce仍参与实际执行。
+- `oracle.json`固定PHP原类执行：完整waterfall/aggressive脚本、并发保留、切换事件、禁用、特殊字符安全编码、循环导入顺序、无效策略及hot。初次夹具误将useCspNonce返回字符串链式调用已修复，失败日志保留。确认基线在启用预取且预加载属性返回false时实际抛展开错误；本地对应DisabledPrefetchAttributes，不静默成功，三语列明该边界。
+- `tests-final.log`共33项返回通过，其中Vite和预取各1项无浏览器环境早返回不计，实际本机31项；包括原Blade表达式5、原生值6、Vite11、字体6与预取3。`browser.log`另外实际运行两次真实HTTP Kernel生成入口（各1项），Chrome自定义事件前0请求，waterfall最初2链接/网络峰值2，aggressive最初5链接/网络峰值5。首请求503后继续剩余资源，全部5 URL各请求一次，无页面脚本异常。页面由本地HTTP夹具承载，不作为Rust部署验收。
+- `workers.log`独立MySQL8.4.13和Redis8.10.3各1项实际Artisan queue:work，两任务连续消费：首任务启用job:ready预取，第二任务没有继承策略；同时保留nonce/字体/预加载隔离。临时容器和测试表已清理。
+- 三语资源预取章节、默认值、错误与示例同步；`docs.log`构建、`docs-browser.log`桌面/移动共6项通过，`clippy.log`、吸收已提交父树的`clippy-parent.log`及`fmt.log`严格全workspace/all-targets与格式检查通过。修正总表中Vite未实现、Exceptions/File已补入口仍列缺口的过时描述，历史记录原样保留；宏及共享Facade测试仍待闭合。

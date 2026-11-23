@@ -1,0 +1,18 @@
+
+<script__NONCE__>
+     window.addEventListener('__EVENT__', () => window.setTimeout(() => {
+        const makeLink = (asset) => {
+            const link = document.createElement('link')
+
+            Object.keys(asset).forEach((attribute) => {
+                link.setAttribute(attribute, asset[attribute])
+            })
+
+            return link
+        }
+
+        const fragment = new DocumentFragment;
+        __ASSETS__.forEach((asset) => fragment.append(makeLink(asset)))
+        document.head.append(fragment)
+     }))
+</script>

@@ -48,6 +48,10 @@ setters! {
     fn use_style_tag_attributes(attributes:Attributes);
     fn use_preload_tag_attributes(attributes:Option<Attributes>);
     fn clear_asset_path_resolver();
+    fn prefetch(concurrency:Option<i64>,event:Option<&str>);
+    fn use_waterfall_prefetching(concurrency:Option<i64>);
+    fn use_aggressive_prefetching();
+    fn use_prefetch_strategy(strategy:Option<&str>,concurrency:Option<i64>);
 }
 impl ViteFacade {
     pub fn with_entry_points<I, S>(entries: I) -> ViteResult<Arc<Vite>>

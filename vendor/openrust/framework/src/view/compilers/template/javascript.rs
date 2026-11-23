@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 use super::{ViewResult, ViewValue, render_error};
 
-pub(super) fn write_expression(output: &mut String, value: &ViewValue) -> ViewResult<()> {
+pub(crate) fn write_expression(output: &mut String, value: &ViewValue) -> ViewResult<()> {
     match value {
         ViewValue::String(value) => {
             output.push('\'');

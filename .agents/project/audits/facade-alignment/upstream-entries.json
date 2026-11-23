@@ -2518,24 +2518,24 @@
           "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
         },
         "prefetch": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "prefetch(Option<i64>,Option<&str>)",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
         },
         "useWaterfallPrefetching": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "use_waterfall_prefetching",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
         },
         "useAggressivePrefetching": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "use_aggressive_prefetching",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
         },
         "usePrefetchStrategy": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "use_prefetch_strategy(Option<&str>,Option<i64>)",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_prefetch.rs; fixed source oracle, real HTTP/browser custom event and max concurrency, MySQL/Redis actual Worker in target/tmp/facade-alignment/vite-prefetch; disabled preload resolver preserves explicit error"
         },
         "reactRefresh": {
           "local": "react_refresh",
@@ -2609,7 +2609,6 @@
         }
       },
       "remaining": [
-        "prefetch / waterfall / aggressive / custom strategy",
         "macro / mixin / hasMacro / flushMacros",
         "Facade继承测试契约，完整逐入口最终裁决",
         "发布环境及React应用HMR实机不计当前浏览器验收"

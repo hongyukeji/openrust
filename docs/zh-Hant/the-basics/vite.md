@@ -57,9 +57,24 @@ Vite::use_fonts_manifest_filename("fonts-manifest.json")?;
 let fonts = Vite::fonts(Some(&["sans", "mono"]))?;
 ```
 
+## 資源預取 {#prefetching}
+
+`prefetch(None, None)` 在瀏覽器 `load` 事件後啟用積極預取；傳入 `Some(3)` 使用最多三個並行連結的瀑布策略，第二參數 `Some("vite:ready")` 可改為自訂 window 事件。
+
+`use_waterfall_prefetching(None)` 沿用之前的並行數，初始值為 3；`use_aggressive_prefetching()` 改為一次插入全部連結。`use_prefetch_strategy(None, None)` 關閉預取，支援的策略名稱是 `Some("waterfall")` 和 `Some("aggressive")`；未知名稱在渲染時回傳錯誤。開發熱更新模式不輸出預取腳本。
+
+正式清單中的動態匯入及其相依項和 CSS 按原順序發現，按 URL 去重並排除已預載的資源。腳本在指定事件後執行；瀑布策略在連結載入成功或失敗後各釋放一個名額，積極策略一次插入全部連結。現有預載屬性回呼也會用於預取，腳本使用目前 CSP nonce。
+
+啟用預取時，預載屬性回呼回傳 `None` 會產生 `DisabledPrefetchAttributes`，對應固定原始碼無法展開停用值的錯誤邊界。請回傳受支援的屬性對應，或明確關閉預取策略，不把渲染失敗靜默當成成功。事件名稱和標籤屬性來自受信任的應用程式設定。
+
+```rust
+Vite::prefetch(Some(3), Some("vite:ready"))?;
+Vite::use_prefetch_strategy(None, None)?;
+```
+
 ## 支援邊界 {#support-status}
 
-預取策略和具型別 Vite 巨集仍在補齊，不應根據本頁推斷這些入口已經可用。
+具型別 Vite 巨集與繼承的 Facade 測試輔助入口仍在核對。
 
 ## 執行範圍 {#scope}
 

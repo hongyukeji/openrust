@@ -8,3 +8,6 @@
 
 
 `fonts.json` 和 `fonts-contract.json` 对照同一固定提交的 Foundation/ViteFonts.php 与 Vite::fonts 原实现，涵盖别名顺序、重复预加载、nonce、清理缓存、自定义属性、字体清单名称、自定义 hot 目录和回调中修改配置。来源记录及PHP实际执行输出保存在 `target/tmp/facade-alignment/vite-fonts/`；不将本地对照脚本作为运行依赖。OpenRust沿用既有字体CSS公开目录能力边界及style结束标签检查，其余受信任标签属性遵循固定资源输出契约。
+
+
+`prefetch-manifest.json` 与 `prefetch-contract.json` 对照固定Vite.php的动态导入遍历及两种脚本输出，包含循环、共享导入、CSS、特殊字符、事件切换和失败分支。`foundation/vite/stubs/`中的脚本保留同一固定源码的可观察调度行为；本地对照、真实Worker及Chrome网络并发证据保存在 `target/tmp/facade-alignment/vite-prefetch/`。序列化复用框架已有Blade JavaScript编码。
