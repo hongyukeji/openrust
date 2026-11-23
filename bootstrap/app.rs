@@ -5,11 +5,10 @@ use openrust::foundation::{Application, configuration::Routing};
 use crate::{app::console::commands, config, database, routes};
 
 pub(crate) fn create_application() -> Result<Application, Box<dyn Error + Send + Sync>> {
-    #[allow(non_snake_case, reason = "Preserves Laravel's basePath spelling")]
-    let basePath = Application::inferBasePath(
+    let base_path = Application::inferBasePath(
         (!cfg!(feature = "standalone")).then_some(env!("CARGO_MANIFEST_DIR")),
     )?;
-    Application::configure(basePath)
+    Application::configure(base_path)
         .withConfig(config::load)
         .withPackages(super::packages::manifest())
         .withProviders(super::providers::providers())
