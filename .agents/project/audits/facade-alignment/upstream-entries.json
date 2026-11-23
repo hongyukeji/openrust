@@ -980,9 +980,9 @@
           "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
         },
         "reportable": {
-          "local": "reportable::<E>(Fn(&E)->ReportDecision)",
-          "status": "partial",
-          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
+          "local": "reportable::<E>(callback) -> ReportableHandler; reportable_all(callback) handles all errors",
+          "status": "verified-native-handler-paths",
+          "evidence": "reportable_handler 3 tests + current Exceptions 10 + existing report/render12; actual PHP ReportableHandler oracle; registered stop handle affects real reporting"
         },
         "renderable": {
           "local": "renderable::<E>(Fn(&E,&Request)->Option<Response>)",
@@ -1162,7 +1162,7 @@
         "handler getter currently returns current contract Arc as native convenience, not yet Laravel fake original-handler unwrapping",
         "all custom handler/fake request, async, multi-app, Worker and failure restoration consumers plus shared Facade base mocks/spy still pending",
         "register and map, contextForException/buildContextForException runtime public contracts remain to implement and verify",
-        "ReportableHandler fluent stop behavior; global throttleUsing callback replacement/default grouping vs native typed policy; full result/chain defaults",
+        "global throttleUsing callback replacement/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work"
       ],
       "runtime_configuration": {
@@ -1171,7 +1171,18 @@
         "isReporting": "tracks active owner-handler + actual exception identity in lexical async task-local report scope; false outside, true for same error during reporter callback, false for other error, restores on panic/completion; does not mean report eligibility",
         "shouldReport": "now pure duplicate/ignore eligibility; sampling/throttle admission moved to actual report/HTTP report phases. Repeated eligibility calls do not invoke admission; actual reporting invokes once",
         "owned_report": "Facade owned errors retain Arc-backed SharedException identity; existing SharedException clones are not rewrapped, preserving duplicates and actual type/source callbacks",
-        "limits": "typed throttling registration reuses existing per-type policy; full global callback replacement and ReportableHandler stop-builder remain open"
+        "limits": "typed throttling registration reuses existing per-type policy; full global callback replacement remains open"
+      },
+      "reportable_handler": {
+        "local_type": "foundation::exceptions::ReportableHandler",
+        "upstream_type": "Illuminate\\Foundation\\Exceptions\\ReportableHandler",
+        "public_entries": {
+          "__invoke": "invoke(&Exception) -> Result<bool,ReportableTypeError>; callback Stop maps PHP false; check stop after callback; incompatible type returns explicit error",
+          "handles": "handles(&Exception)->bool; typed root/source-chain matcher; reportable_all matches any error",
+          "stop": "stop()->&Self; shared atomic flag reflected by already registered callback and cloned handles"
+        },
+        "registration": "same existing configuration reporter vector; old configuration report() fluent return preserved; no parallel dispatcher",
+        "evidence": "fixed PHP matches true/other false/before true/self true/after false/calls2/wrong type error/return false; Rust typed/direct/incompatible/clone/registered/global consumers passed"
       }
     },
     {

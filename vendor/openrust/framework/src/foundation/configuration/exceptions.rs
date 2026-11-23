@@ -81,12 +81,38 @@ impl Exceptions {
         &mut self,
         callback: impl Fn(&E) -> ReportDecision + Send + Sync + 'static,
     ) -> &mut Self {
-        self.reporters.push(Arc::new(move |exception| {
-            exception
-                .downcast_ref::<E>()
-                .map_or(ReportDecision::Continue, &callback)
-        }));
+        self.reportable(callback);
         self
+    }
+
+    pub fn reportable<E: Error + 'static>(
+        &mut self,
+        callback: impl Fn(&E) -> ReportDecision + Send + Sync + 'static,
+    ) -> crate::foundation::exceptions::ReportableHandler {
+        self.register_reportable(crate::foundation::exceptions::ReportableHandler::for_type(
+            callback,
+        ))
+    }
+    pub fn reportable_all(
+        &mut self,
+        callback: impl Fn(&Exception<'_>) -> ReportDecision + Send + Sync + 'static,
+    ) -> crate::foundation::exceptions::ReportableHandler {
+        self.register_reportable(crate::foundation::exceptions::ReportableHandler::new(
+            callback,
+        ))
+    }
+    fn register_reportable(
+        &mut self,
+        handler: crate::foundation::exceptions::ReportableHandler,
+    ) -> crate::foundation::exceptions::ReportableHandler {
+        let registered = handler.clone();
+        self.reporters.push(Arc::new(move |exception| {
+            match registered.invoke(exception) {
+                Ok(false) => ReportDecision::Stop,
+                Ok(true) | Err(_) => ReportDecision::Continue,
+            }
+        }));
+        handler
     }
 
     /// Sets a sampling or rate limit policy for matching exception reports.

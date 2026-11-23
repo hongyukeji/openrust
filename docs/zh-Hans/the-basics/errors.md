@@ -181,3 +181,19 @@ async fn report_failure() -> LogResult<()> {
 ```
 
 `report` 接收拥有所有权的 Rust 错误；`should_report`、`should_stop_retries`、`render` 和 `render_for_console` 转发既有契约，`handler` 返回当前 Arc。`should_report` 只查询报告资格，不消耗采样或限流配额，实际报告时才执行这些策略。启动配置继续写在 `with_exceptions`。运行期现已提供 `reportable`、`renderable`、`dont_report`、`ignore`、`stop_ignoring`、`dont_report_when`、`dont_retry`、`dont_retry_when`、`dont_flash`、`level`、`build_context_using`、`respond_using`、`should_render_json_when`、`dont_report_duplicates` 和带类型的 `throttle_using`。`is_reporting` 查询同一异常实例是否正在被报告，不是报告资格查询，也不消耗报告限流配额。自定义处理器须显式支持运行期配置与此只读查询，否则返回错误。异常 fake／断言接口仍待补齐。
+
+### 可报告回调句柄 {#reportable-handlers}
+
+`reportable` 返回已注册的 `ReportableHandler`。回调返回 `ReportDecision::Stop` 时，本次报告不再执行后续回调或默认日志。调用 `.stop()` 也会设置此行为，注册完成后修改句柄仍生效；句柄及其克隆共享停止标志。需要匹配所有错误时使用 `reportable_all`，无需逐类型注册。
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, foundation::configuration::ReportDecision, support::facades::Exceptions};
+
+fn configure_reports() -> Result<(), BindingResolutionError> {
+    Exceptions::reportable::<std::io::Error>(|_| ReportDecision::Continue)?.stop();
+    Exceptions::reportable_all(|_| ReportDecision::Stop)?;
+    Ok(())
+}
+```
+
+`handles` 用于检查类型回调是否匹配某个 `Exception`；`invoke` 遇到不匹配类型会返回错误。停止标志不阻止当前回调本身执行，而是在它返回后阻止后续报告。已有启动配置 `exceptions.report(...)` 保留原来的链式配置返回值，需要句柄时使用启动配置 `exceptions.reportable(...)`。

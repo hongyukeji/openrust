@@ -57,14 +57,19 @@ impl Exceptions {
 }
 
 impl Exceptions {
-    fn configure(
-        update: impl FnOnce(&mut crate::foundation::configuration::Exceptions),
-    ) -> Result<(), BindingResolutionError> {
+    fn configure<T>(
+        update: impl FnOnce(&mut crate::foundation::configuration::Exceptions) -> T,
+    ) -> Result<T, BindingResolutionError> {
         let mut update = Some(update);
+        let mut result = None;
         Self::get_facade_root()?.configure(&mut |configuration| {
             if let Some(update) = update.take() {
-                update(configuration);
+                result = Some(update(configuration));
             }
+        })?;
+        result.ok_or_else(|| BindingResolutionError::FactoryFailed {
+            service: "ExceptionHandler",
+            source: Box::new(std::io::Error::other("处理器未执行配置注册")),
         })
     }
     pub fn is_reporting(exception: &Exception<'_>) -> Result<bool, BindingResolutionError> {
@@ -82,10 +87,16 @@ impl Exceptions {
         + Send
         + Sync
         + 'static,
-    ) -> Result<(), BindingResolutionError> {
-        Self::configure(|configuration| {
-            configuration.report(callback);
-        })
+    ) -> Result<super::ReportableHandler, BindingResolutionError> {
+        Self::configure(|configuration| configuration.reportable(callback))
+    }
+    pub fn reportable_all(
+        callback: impl Fn(&Exception<'_>) -> crate::foundation::configuration::ReportDecision
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<super::ReportableHandler, BindingResolutionError> {
+        Self::configure(|configuration| configuration.reportable_all(callback))
     }
     pub fn renderable<E: Error + 'static>(
         callback: impl Fn(&E, &Request) -> Option<Response> + Send + Sync + 'static,

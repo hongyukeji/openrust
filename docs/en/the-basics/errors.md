@@ -181,3 +181,19 @@ async fn report_failure() -> LogResult<()> {
 ```
 
 `report` accepts an owned Rust error. `should_report`, `should_stop_retries`, `render` and `render_for_console` forward the existing contract, while `handler` returns its current Arc. `should_report` checks eligibility without consuming sampling or throttling admissions; actual reporting applies those policies. Bootstrap configuration remains in `with_exceptions`. Runtime forwards now include `reportable`, `renderable`, `dont_report`, `ignore`, `stop_ignoring`, `dont_report_when`, `dont_retry`, `dont_retry_when`, `dont_flash`, `level`, `build_context_using`, `respond_using`, `should_render_json_when`, `dont_report_duplicates` and typed `throttle_using`. `is_reporting` checks whether that exact exception instance is currently being reported; it does not test report eligibility or consume a throttling admission. Custom handlers must explicitly support runtime configuration and this read-only query; otherwise these operations return an error. Exception fake/assertion APIs are still pending.
+
+### Reportable handlers {#reportable-handlers}
+
+`reportable` returns a live `ReportableHandler`. Returning `ReportDecision::Stop` stops subsequent callbacks and default logging for that report. Calling `.stop()` sets the same behavior on the registered handler, including when called after registration. The handle and its clones share the flag. Use `reportable_all` for a callback that matches every error without a type-specific registration.
+
+```rust
+use openrust::{contracts::container::BindingResolutionError, foundation::configuration::ReportDecision, support::facades::Exceptions};
+
+fn configure_reports() -> Result<(), BindingResolutionError> {
+    Exceptions::reportable::<std::io::Error>(|_| ReportDecision::Continue)?.stop();
+    Exceptions::reportable_all(|_| ReportDecision::Stop)?;
+    Ok(())
+}
+```
+
+`handles` checks a typed handler against an `Exception`; `invoke` returns an error for an incompatible type. Callback execution still occurs before the stop flag is applied. Existing bootstrap `exceptions.report(...)` keeps its fluent configuration return; use bootstrap `exceptions.reportable(...)` when a reportable handle is needed.

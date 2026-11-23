@@ -221,3 +221,12 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 门面拥有所有权的错误采用 SharedException 保存真实对象，已有SharedException不二次包装；重复抑制和类型回调保留身份。未以字符串快照替代真实错误。
 - `exceptions-config/test-fifth.log`：当前门面10项+既有报告7项+渲染5项，共22项通过。原first日志的编译失败为测试调用既有API写法错误；初始eligibility版isReporting未提交，已按固定源码纠正，相关失败与中间成功日志完整保留，最终以本节行为和交付日志为准。
 - 自定义处理器不支持配置或当前报告查询时显式返回错误，不提供空操作或默认true来冒充支持。fake/原始异常所有权传播、map、context getters、ReportableHandler链式停止及全局throttle回调仍未闭合，继续原任务。
+
+### ReportableHandler 与全局报告回调
+
+- `Exceptions::reportable` 返回已注册的正式 ReportableHandler；`.stop()` 在回调执行后阻止后续报告器与默认日志，注册后修改或克隆句柄均作用于同一标志。`reportable_all` 支持所有异常，开发者不必绕行到底层配置。
+- 正式类型提供 `new`（所有异常）、`for_type`（具名Rust类型）、`handles`、`invoke` 和 `stop`。直接调用不匹配类型时返回类型错误；`ReportDecision::Stop` 对应上游回调的 false。类型选择可检查原错误及transport源链，不假造Rust类继承。
+- 继续复用现有配置的报告器有序列表。启动配置 `report` 仍返回配置对象以兼容原链；新增 `reportable` 可取得句柄，未另起一套分派或状态系统。
+- `reportable/test-second.log`：ReportableHandler3项+Exceptions10项+既有报告/渲染12项，共25项通过；PHP固定原类真实执行确认匹配、错型、前后停止、回调调用次数和false停止，日志 `reportable/oracle.log`。全workspace严格Clippy、三语构建与6项浏览器检查通过，日志同目录。
+- 固定参考目录是源码档案，不是独立Git仓库；不能用它的 `git rev-parse` 结果判定上游版本（该命令会落到父OpenRust仓库）。已重新联网逐字核对 Facade、Filesystem、BladeCompiler、异常Handler与ReportableHandler五份源码，均与固定1449bf提交的官方raw文件相等；URL及SHA256证据为 `target/tmp/facade-alignment/reference-verified.json`。
+- ReportableHandler调用/匹配/停止的当前原生路径已完成；Exceptions整体仍有fake、映射、完整上下文和全局限流回调等缺口，继续执行原门面对齐任务，不以本批通过停止。
