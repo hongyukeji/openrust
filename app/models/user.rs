@@ -21,6 +21,7 @@ use openrust::{
 */
 openrust::model_fields! {
     User {
+        /// 用户表
         TABLE = "users";
         /// 主键
         ID = "id";

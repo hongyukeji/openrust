@@ -7,7 +7,7 @@ pub mod events;
 pub mod generator_command;
 mod help_command;
 mod list_command;
-mod localization;
+pub(crate) mod localization;
 mod planned;
 pub mod scheduling;
 pub(crate) mod task_command;

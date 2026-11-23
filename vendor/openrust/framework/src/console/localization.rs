@@ -3,13 +3,25 @@
 use crate::support::facades::Lang;
 
 pub(crate) fn text(key: &str, english: &str, simplified: &str, traditional: &str) -> String {
+    text_for_locale(key, english, simplified, traditional, None)
+}
+
+pub(crate) fn text_for_locale(
+    key: &str,
+    english: &str,
+    simplified: &str,
+    traditional: &str,
+    locale: Option<&str>,
+) -> String {
     let key = format!("console.{key}");
-    if let Ok(translated) = Lang::get(&key, &Default::default(), None)
+    if let Ok(translated) = Lang::get(&key, &Default::default(), locale)
         && translated != key
     {
         return translated;
     }
-    let locale = Lang::getLocale().unwrap_or_default();
+    let locale = locale
+        .map(str::to_owned)
+        .unwrap_or_else(|| Lang::getLocale().unwrap_or_default());
     let mut parts = locale.split('-');
     if parts.next() != Some("zh") {
         return english.into();

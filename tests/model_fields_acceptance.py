@@ -24,7 +24,7 @@ def main():
     if driver == 'sqlite':
         (work / 'fields.sqlite').touch()
     url = {'postgres': 'OPENRUST_TEST_POSTGRES_URL', 'mysql': 'OPENRUST_TEST_MYSQL_URL'}
-    environment = dict(os.environ, APP_BASE_PATH=str(source), APP_ENV='testing',
+    environment = dict(os.environ, APP_BASE_PATH=str(source), APP_ENV='testing', APP_LOCALE='zh-Hans',
                        DB_CONNECTION={'postgres': 'pgsql'}.get(driver, driver),
                        DB_URL=os.environ[url[driver]] if driver in url else '',
                        DB_DATABASE=str(work / 'fields.sqlite') if driver == 'sqlite' else 'openrust_acceptance',
@@ -107,6 +107,7 @@ async fn main() {
         assert [(field, json.loads(value)) for field, value in declarations] == [
             ('TABLE', table), ('NAME', 'name'), ('ID', 'id'), ('ORDER', 'order'),
             ('PARENT_ID', 'parent_id'), ('DISPLAY_NAME', 'display-name'), ('COLUMN_1ST', '1st')]
+        assert '/// 表名\n        TABLE' in original
         assert 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in original
         assert original.count('"' + table + '"') == 1, '表名只在 TABLE 中维护一处'
         assert 'NAME = "name"' in original and 'DISPLAY_NAME = "display-name"' in original
@@ -116,7 +117,23 @@ async fn main() {
         assert original.index('use openrust::') < original.index('openrust::model_fields!')
         assert ('/// 姓名' in original) == (driver != 'sqlite')
         if driver == 'sqlite':
-            assert '#[doc =' not in original and '/// ' not in original, '没有列注释时不得猜测字段说明'
+            assert '#[doc =' not in original and original.count('/// ') == 1, '无注释时仅生成默认表名标签'
+        for locale, title, label in [('en', 'Model Table and Fields', 'Table'),
+                                     ('zh-Hant', '模型資料表與欄位', '表名'),
+                                     ('zh-Hans', '模型表与字段', '表名')]:
+            environment['APP_LOCALE'] = locale
+            before = (generated.read_bytes(), generated.stat().st_mtime_ns)
+            artisan('locale-' + locale + '-stale', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+            assert before == (generated.read_bytes(), generated.stat().st_mtime_ns)
+            artisan('locale-' + locale, 'model:fields', 'FieldReferenceProbe')
+            localized = generated.read_text()
+            assert f'| {title}\n' in localized
+            assert f'/// {label}\n        TABLE' in localized
+            assert './artisan model:fields FieldReferenceProbe' in localized
+            assert ('/// 姓名' in localized) == (driver != 'sqlite'), '数据库注释不自动翻译'
+            compile_code('locale-' + locale, localized, deny_warnings=True)
+            artisan('locale-' + locale + '-check', 'model:fields', 'FieldReferenceProbe', '--check')
+        assert generated.read_text() == original
         artisan('refresh', 'model:fields', 'FieldReferenceProbe')
         assert generated.read_text() == original, '重复刷新应保持相同内容'
         generated.write_text(generated.read_text() + '\n// 保留业务代码\n')
@@ -151,7 +168,26 @@ async fn main() {
             for label, empty in [('blank-comment', ' \t\n'), ('deleted-comment', '')]:
                 comment(label, empty)
                 artisan(label + '-refresh', 'model:fields', 'FieldReferenceProbe')
-                assert '#[doc =' not in generated.read_text() and '/// ' not in generated.read_text(), '空白或删除的注释不生成文档'
+                assert '#[doc =' not in generated.read_text() and generated.read_text().count('/// ') == 1, '空白或删除的列注释仅保留表名说明'
+            for label, description in [('table-description', '测试表'),
+                                       ('table-special', '表 "注释"\n第二行\r控制字符'),
+                                       ('table-blank', ' \t\n'), ('table-empty', '')]:
+                escaped = description.replace('\\', '\\\\') if driver == 'mysql' else description
+                literal = "'" + escaped.replace("'", "''") + "'"
+                statement = (f'alter table {table} comment = {literal}' if driver == 'mysql'
+                             else f'comment on table {table} is {literal}')
+                sql(label, statement)
+                before = (generated.read_bytes(), generated.stat().st_mtime_ns)
+                artisan(label + '-check', 'model:fields', 'FieldReferenceProbe', '--check', success=(label == 'table-empty'))
+                assert before == (generated.read_bytes(), generated.stat().st_mtime_ns)
+                artisan(label + '-refresh', 'model:fields', 'FieldReferenceProbe')
+                text = generated.read_text()
+                if label == 'table-description':
+                    assert '/// 测试表\n        TABLE' in text
+                if not description.strip():
+                    assert '/// 表名\n        TABLE' in text
+                compile_code(label, text + reference, deny_warnings=True)
+                artisan(label + '-fresh', 'model:fields', 'FieldReferenceProbe', '--check')
             model = generated.read_text()
         # 真正执行生成模型的查询，包含保留字、NULL 和参数绑定。
         sql('insert', f"insert into {table} (id, name, {quote}order{quote}) values (1, '张三', 2)")
@@ -214,10 +250,13 @@ fn load(_: &std::path::Path, _: &openrust::config::Environment)
         "sqlite" => object(&[("driver", "sqlite".into()), ("database", std::env::var("FIELD_SQLITE").unwrap().into())]),
         _ => object(&[("url", std::env::var("DB_URL").unwrap().into())]),
     };
-    Ok(BTreeMap::from([("database".into(), object(&[
-        ("default", "not_configured".into()),
-        ("connections", object(&[(&std::env::var("DB_CONNECTION").unwrap(), configuration)])),
-    ]))]))
+    Ok(BTreeMap::from([
+        ("app".into(), object(&[("locale", std::env::var("APP_LOCALE").unwrap().into()), ("fallback_locale", "en".into())])),
+        ("database".into(), object(&[
+            ("default", "not_configured".into()),
+            ("connections", object(&[(&std::env::var("DB_CONNECTION").unwrap(), configuration)])),
+        ])),
+    ]))
 }
 #[tokio::main]
 async fn main() {

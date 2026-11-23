@@ -287,3 +287,24 @@ python3 -B target/tmp/model-fields-sync-20261123/table-docs.py
 本范围无剩余实现阻塞。未运行完整workspace测试、all-features、SQL Server、Windows、release、性能或生产部署；其他工作流改动不因本节通过获得验收结论。字段常量仍是未限定表名的字符串，只保证关联标识存在性，不保证查询模型归属、值类型或外部数据库列存在。普通构建无需数据库；结构及描述变更后仍需显式刷新并重新构建。动态表名逻辑不承诺自动改写或完整源码反射。
 
 提交授权补记：用户于2026-11-23追加“提交代码”指令，本主题模型布局、表名及字段生成、既有密码／令牌常量引用、测试、三语文档与验收记录一起纳入本次本地提交；未推送。上文“未授权／未提交”均描述当时验收阶段，不再代表本次追加授权后的状态。提交前11项技术／正文文件仍与通过验收的隔离源码逐字节一致，未重复构建。
+
+
+## 生成说明本地化与表注释（2026-11-23）
+
+按用户最终格式，`TABLE` 有数据库表描述时直接生成描述原文，不添加“表名：”等前缀；缺失或空白描述时生成当前语言的通用标签，英文为`Table`，简体／繁体中文为“表名”。生成分区标题与两行同步说明跟随应用`app.locale`／`APP_LOCALE`，复用既有Artisan翻译入口及`console.model_fields`键，不新增依赖。数据库表／列描述保持原文，不做自动翻译；控制字符沿用转义doc属性。保留模型模板原有`{{table_reference}}`占位符。
+
+复用既有Schema `getColumns`／`getTables`及当前schema查找顺序、连接前缀，未引入平行元数据来源。参考本主题前节固定Laravel Schema及IDE Helper数据库说明生成实践；本次仅调整生成文本和既有本地化复用，不改变查询契约。
+
+方案与实现已完成，本节范围验收通过。隔离源码、独占Cargo缓存、子进程TMPDIR及日志位于`target/tmp/model-table-doc-20261123/`。为保护同文件协作WIP，另以HEAD加本次差异的隔离组合复验，未将其他任务的安全刷新修改纳入本次提交。
+
+实际命令：
+
+```sh
+python3 -B tests/build_guard.py --workflow model-table-doc-20261123 -- python3 -B target/tmp/model-table-doc-20261123/verify.py
+python3 -B tests/build_guard.py --workflow model-table-doc-20261123 -- python3 -B target/tmp/model-table-doc-20261123/verify_docs.py
+python3 -B tests/build_guard.py --workflow model-table-doc-20261123 -- python3 -B tests/mysql_acceptance.py -- python3 -B target/tmp/model-table-doc-20261123/refresh_user.py
+```
+
+Rust 1.94.0的fmt、框架all-targets严格Clippy、main构建通过。SQLite、隔离MySQL 8.4及PostgreSQL 18消费者分别验证三语刷新、只读check、无表描述的本地化标签、有描述的原文、描述变更／空白／删除、特殊字符及生成源码实际编译；既有查询与字段编译正反例通过。三语正文检查、站点构建、12组页面和6组导航浏览器检查通过。日志为`scoped-{fmt,clippy,build,sqlite,mysql,postgres,docs-content}.log`及`scoped-docs-{build,browser,scope}.log`。真实User使用隔离MySQL迁移后刷新及check通过，生成`/// 用户表`，字段描述保持原文；证据为`generated-user.rs`与`user-{migrate,refresh,check}.log`。
+
+未验证完整workspace测试、all-features、SQL Server、Windows、release或生产部署；自定义翻译历史任意变更后的旧分区识别不作完整承诺。未推送或发布，其他协作者改动保留。

@@ -8,7 +8,7 @@ use crate::{
         Output, generator_command::snake_case,
     },
     contracts::{container::Container as _, foundation::Application as _},
-    database::{DatabaseManager, eloquent::FieldModel},
+    database::{DatabaseManager, eloquent::FieldModel, schema::SchemaFallback},
     foundation::Application,
 };
 
@@ -20,6 +20,60 @@ const PREVIOUS_SECTION: &str = "/*\n|-------------------------------------------
 const SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成表名、字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/";
 const PREVIOUS_SINGLE_LINE_SECTION: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库结构自动生成，请在项目根目录执行 `./artisan model:fields {model}` 同步，勿手动修改。\n|\n*/";
 const SECTION_TEMPLATE: &str = "/*\n|--------------------------------------------------------------------------\n| 模型表与字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库结构自动生成，勿手动修改。\n| 请在项目根目录执行 `./artisan model:fields {model}` 同步。\n|\n*/";
+
+fn generated_text(
+    key: &str,
+    english: &str,
+    simplified: &str,
+    traditional: &str,
+    locale: &str,
+) -> String {
+    crate::console::localization::text_for_locale(
+        &format!("model_fields.{key}"),
+        english,
+        simplified,
+        traditional,
+        Some(locale),
+    )
+}
+
+fn generated_section(locale: &str, model: &str) -> String {
+    let title = generated_text(
+        "title",
+        "Model Table and Fields",
+        "模型表与字段",
+        "模型資料表與欄位",
+        locale,
+    );
+    let notice = generated_text(
+        "notice",
+        "Generated from the database schema. Do not edit manually.",
+        "根据数据库结构自动生成，勿手动修改。",
+        "根據資料庫結構自動產生，請勿手動修改。",
+        locale,
+    );
+    let sync = generated_text(
+        "sync",
+        "Run `./artisan model:fields :model` from the project root to sync.",
+        "请在项目根目录执行 `./artisan model:fields :model` 同步。",
+        "請在專案根目錄執行 `./artisan model:fields :model` 同步。",
+        locale,
+    )
+    .replace(":model", model);
+    // 翻译属于配置数据，不能让注释结束符或换行逃逸生成的说明区域。
+    let lines = |text: &str| {
+        text.replace("*/", "* /")
+            .lines()
+            .map(|line| format!("| {line}\n"))
+            .collect::<String>()
+    };
+    format!(
+        "/*\n|--------------------------------------------------------------------------\n{}|--------------------------------------------------------------------------\n|\n{}{}|\n*/",
+        lines(&title),
+        lines(&notice),
+        lines(&sync)
+    )
+}
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(ModelFieldsCommand(CommandDefinition::new(
@@ -195,13 +249,31 @@ async fn generate_for(
         .container()
         .get::<DatabaseManager>("db")
         .map_err(error)?;
-    let columns = manager
-        .connection(database)
-        .map_err(error)?
-        .getSchemaBuilder()
-        .getColumns(table)
-        .await
+    let connection = manager.connection(database).map_err(error)?;
+    let mut schema = connection.getSchemaBuilder();
+    let columns = schema.getColumns(table).await.map_err(error)?;
+    let (namespace, logical_name) = schema
+        .parseSchemaAndTable(table, SchemaFallback::None)
         .map_err(error)?;
+    let physical_name = format!("{}{logical_name}", connection.getTablePrefix());
+    let namespaces = namespace.map_or_else(
+        || schema.getCurrentSchemaListing(),
+        |name| vec![name.to_owned()],
+    );
+    let mut table_comment = None;
+    // 按连接的 schema 查找顺序读取同一张表，避免拿到其他 schema 的同名表说明。
+    for namespace in namespaces {
+        if let Some(info) = schema
+            .getTables(Some(&namespace))
+            .await
+            .map_err(error)?
+            .into_iter()
+            .find(|info| info.name == physical_name)
+        {
+            table_comment = info.comment;
+            break;
+        }
+    }
     if columns.is_empty() {
         return Err(ConsoleError::new(format!(
             "表 [{table}] 不存在或没有可生成的列。"
@@ -220,32 +292,48 @@ async fn generate_for(
         }
         fields.push((field, column));
     }
-    let section = SECTION_TEMPLATE.replace("{model}", name);
-    let mut block = format!(
-        "{section}\nopenrust::model_fields! {{\n    {class} {{\n        TABLE = {table:?};\n"
-    );
+    let locale = app
+        .container()
+        .get::<crate::translation::Translator>("translator")
+        .map_err(error)?
+        .getLocale();
+    let section = generated_section(&locale, name);
+    let mut block = format!("{section}\nopenrust::model_fields! {{\n    {class} {{\n");
+    let table_documentation = table_comment
+        .as_deref()
+        .filter(|comment| !comment.trim().is_empty())
+        .map_or_else(
+            || generated_text("table", "Table", "表名", "表名", &locale),
+            str::to_owned,
+        );
+    append_documentation(&mut block, &table_documentation);
+    block.push_str(&format!("        TABLE = {table:?};\n"));
     for (field, column) in fields {
         if let Some(comment) = column
             .comment
             .as_deref()
             .filter(|text| !text.trim().is_empty())
         {
-            // 普通说明使用文档注释；控制字符退回转义属性，防止生成非法源码。
-            if comment
-                .chars()
-                .any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
-            {
-                block.push_str(&format!("        #[doc = {comment:?}]\n"));
-            } else {
-                for line in comment.split('\n') {
-                    block.push_str(&format!("        /// {line}\n"));
-                }
-            }
+            append_documentation(&mut block, comment);
         }
         block.push_str(&format!("        {field} = {:?};\n", column.name));
     }
     block.push_str("    }\n}\n");
     Ok(block)
+}
+
+fn append_documentation(block: &mut String, comment: &str) {
+    // 控制字符使用转义属性，其余说明采用易读的文档注释。
+    if comment
+        .chars()
+        .any(|ch| ch.is_control() && ch != '\n' && ch != '\t')
+    {
+        block.push_str(&format!("        #[doc = {comment:?}]\n"));
+    } else {
+        for line in comment.split('\n') {
+            block.push_str(&format!("        /// {line}\n"));
+        }
+    }
 }
 
 fn constant_name(column: &str) -> Result<String, ConsoleError> {
@@ -354,6 +442,11 @@ pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, Con
     .into_iter()
     .flat_map(|section| [section.replace('\n', "\r\n"), section])
     .collect::<Vec<_>>();
+    let locale = crate::support::facades::Lang::getLocale().map_err(error)?;
+    for locale in ["en", "zh-Hans", "zh-Hant", locale.as_str()] {
+        let section = generated_section(locale, name);
+        headers.extend([section.replace('\n', "\r\n"), section]);
+    }
     headers.sort();
     headers.dedup();
     let sections = headers

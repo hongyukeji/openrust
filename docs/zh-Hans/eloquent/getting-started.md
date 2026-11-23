@@ -112,6 +112,10 @@ let users = query.orderBy(User::ID, "asc").get().await?;
 
 数据库列注释会生成为 Rust 文档注释 `///`（需要转义控制字符时使用 `#[doc = "…"]`），IDE 悬停即可查看字段描述。MySQL、PostgreSQL 通过现有结构接口提供列注释；SQLite 不保存原生列注释。缺失或空白注释时不生成描述。修改列注释后也需刷新，`--check` 会检测这类变化。描述直接取自数据库，不根据字段名猜测，也不在生成时翻译。
 
+`TABLE` 上方直接显示数据库表注释，不添加前缀；没有注释或注释为空白时使用当前语言的默认说明，例如“表名”。表注释变更后也需同步，`--check` 会检测这类变化。
+
+分区标题、同步说明及表名标签跟随 `app.locale`（`APP_LOCALE`），内置英文、简体中文与繁体中文；可通过现有 Artisan 的 `console.model_fields` 翻译键定制。切换语言后重新同步模型；数据库表注释和字段注释保持原文。
+
 ### 刷新模型 {#refreshing-models}
 
 `fresh()` 回读独立实例，`freshWithPaths(&["posts.comments"])` 还能预加载已登记路径。`refresh()` 更新当前实例，并重载已加载的登记关系。两者都按原主键从写连接回读，跳过全局作用域并包含软删除记录。未保存的模型调用 `fresh()` 得到 `None`，调用 `refresh()` 保持原状。数据库记录已移除时，`refresh()` 返回 `ModelNotFound`。需要重载的关系须在 `namedRelations()` 登记，中间表 Pivot 投影保留。关系重载失败时，当前属性保留刚读到的值，原始快照保持此前的值。
