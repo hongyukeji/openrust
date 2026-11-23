@@ -91,7 +91,7 @@ impl ServiceProvider for SettingsServiceProvider {
                         namespace,
                         refresh_interval: std::time::Duration::from_secs(seconds(
                             "settings.refresh_interval",
-                            5,
+                            60,
                         )?),
                         cache_ttl: std::time::Duration::from_secs(seconds(
                             "settings.cache.ttl",

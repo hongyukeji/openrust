@@ -22,6 +22,7 @@ use tokio::sync::Mutex;
 #[derive(Clone, Debug)]
 pub struct SettingsOptions {
     pub namespace: String,
+    /// 自动版本检查间隔；零表示关闭后台及读取时的自动检查，保留显式刷新。
     pub refresh_interval: Duration,
     pub cache_ttl: Duration,
 }
@@ -29,7 +30,7 @@ impl Default for SettingsOptions {
     fn default() -> Self {
         Self {
             namespace: "settings".into(),
-            refresh_interval: Duration::from_secs(5),
+            refresh_interval: Duration::from_secs(60),
             cache_ttl: Duration::from_secs(3600),
         }
     }
@@ -141,7 +142,8 @@ impl SettingsManager {
         if options.namespace.is_empty()
             || options.namespace.len() > 1024
             || options.namespace.chars().any(char::is_control)
-            || options.refresh_interval < Duration::from_millis(10)
+            || (!options.refresh_interval.is_zero()
+                && options.refresh_interval < Duration::from_millis(10))
             || options.refresh_interval > Duration::from_secs(86400)
             || options.cache_ttl.is_zero()
             || options.cache_ttl > Duration::from_secs(604800)
@@ -192,6 +194,9 @@ impl SettingsManager {
         }
     }
     fn start(&self) {
+        if self.inner.options.refresh_interval.is_zero() {
+            return;
+        }
         // 与 shutdown 在同一把短锁下交接句柄，避免关闭后才留下新的后台任务。
         let mut slot = self
             .inner
@@ -353,12 +358,35 @@ impl SettingsManager {
         entry.checked = Some(Instant::now());
         Ok(())
     }
-    async fn reconcile(&self, groups: &[String]) -> SettingsResult<()> {
+    async fn reconcile(&self, groups: &[String], reuse_fresh: bool) -> SettingsResult<()> {
         if groups.is_empty() {
             return Ok(());
         }
         let result = async {
             let _gate = self.inner.gate.lock().await;
+            // 并发读取等到锁后再核对快照，避免同一轮过期引发重复数据库检查。
+            let due: Vec<String> = if reuse_fresh {
+                let state = self.inner.groups.lock().await;
+                groups
+                    .iter()
+                    .filter(|name| {
+                        !state.get(*name).is_some_and(|g| {
+                            g.snapshot.is_some()
+                                && g.checked.is_some_and(|checked| {
+                                    self.inner.options.refresh_interval.is_zero()
+                                        || checked.elapsed() < self.inner.options.refresh_interval
+                                })
+                        })
+                    })
+                    .cloned()
+                    .collect()
+            } else {
+                groups.to_vec()
+            };
+            if due.is_empty() {
+                return Ok(());
+            }
+            let groups = &due;
             let versions =
                 tokio::time::timeout(Duration::from_secs(5), self.inner.source.versions(groups))
                     .await
@@ -419,7 +447,7 @@ impl SettingsManager {
                 due.push(group.clone());
             }
         }
-        let result = self.reconcile(&due).await;
+        let result = self.reconcile(&due, false).await;
         // 版本未变也重试失败的处理器；成功处理器按版本去重。
         for group in &active {
             self.dispatch(group).await;
@@ -452,7 +480,7 @@ impl SettingsManager {
             self.dispatch(&notification.group).await;
             return Ok(false);
         }
-        self.reconcile(std::slice::from_ref(&notification.group))
+        self.reconcile(std::slice::from_ref(&notification.group), false)
             .await?;
         self.dispatch(&notification.group).await;
         let current = self
@@ -627,7 +655,7 @@ impl SettingsManager {
     async fn published(&self, group: &str, version: Option<String>) {
         self.announce(group, version).await;
         // 数据库提交已成功；缓存、通知或处理器失败不能伪装成事务回滚。
-        let _ = self.reconcile(&[group.into()]).await;
+        let _ = self.reconcile(&[group.into()], false).await;
     }
 }
 impl SettingsRepository for SettingsManager {
@@ -649,13 +677,16 @@ impl SettingsRepository for SettingsManager {
                 let entry = &groups[group];
                 entry
                     .checked
-                    .filter(|t| t.elapsed() < self.inner.options.refresh_interval)
+                    .filter(|t| {
+                        self.inner.options.refresh_interval.is_zero()
+                            || t.elapsed() < self.inner.options.refresh_interval
+                    })
                     .and_then(|_| entry.snapshot.clone())
             };
             if let Some(snapshot) = cached {
                 return Ok(snapshot);
             }
-            self.reconcile(&[group.into()]).await?;
+            self.reconcile(&[group.into()], true).await?;
             self.inner
                 .groups
                 .lock()

@@ -135,6 +135,10 @@ async fn unknown_cache_store_fails_configuration_and_disabled_cache_is_explicit(
         .unwrap()
         .set("settings.cache.enabled", json!(false))
         .unwrap();
+    app.config()
+        .unwrap()
+        .set("settings.refresh_interval", json!(0))
+        .unwrap();
     let manager = app.make::<SettingsManager>().await.unwrap();
     assert_eq!(
         app.make::<Settings<Site>>().await.unwrap().get().await.name,

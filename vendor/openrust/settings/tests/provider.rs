@@ -64,6 +64,10 @@ async fn discovered_provider_boots_without_database_and_owns_default_migration()
         );
         std::fs::File::create(&database).unwrap();
         let app = kernel.get_application();
+        assert_eq!(
+            app.config().unwrap().get("settings.refresh_interval"),
+            Some(json!(60))
+        );
         let migrations = app.make::<Migrator>().await.unwrap();
         let results = migrations
             .run(None, &[], RunOptions::default())

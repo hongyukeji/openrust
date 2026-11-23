@@ -696,3 +696,110 @@ async fn shared_snapshots_keep_encrypted_properties_and_notifications_contain_on
     second.shutdown().await;
     f.close().await;
 }
+
+#[tokio::test]
+async fn disabled_refresh_does_not_poll_or_recheck_reads_but_explicit_operations_work() {
+    assert_eq!(
+        SettingsOptions::default().refresh_interval,
+        Duration::from_secs(60)
+    );
+    for cached in [false, true] {
+        let f = Fixture::new().await;
+        let source = Arc::new(Unavailable {
+            source: f.repository.clone(),
+            offline: AtomicBool::new(false),
+            versions: AtomicUsize::new(0),
+            loads: AtomicUsize::new(0),
+        });
+        let manager = SettingsManager::new(
+            source.clone(),
+            SettingsOptions {
+                namespace: f.table.clone(),
+                refresh_interval: Duration::ZERO,
+                ..Default::default()
+            },
+            cached.then(cache),
+        )
+        .unwrap();
+        let local = settings(&manager, &f).await;
+        let before = source.versions.load(Ordering::SeqCst);
+        let writer = f.site().await;
+        writer
+            .fill(json!({"name":"manual notification"}))
+            .await
+            .unwrap();
+        writer.save().await.unwrap();
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        for _ in 0..10 {
+            assert_eq!(settings(&manager, &f).await.get().await.name, "Default");
+        }
+        assert_eq!(source.versions.load(Ordering::SeqCst), before);
+        let notice = SettingsNotification {
+            namespace: f.table.clone(),
+            group: "site".into(),
+            version: f
+                .repository
+                .load("site")
+                .await
+                .unwrap()
+                .version()
+                .map(str::to_owned),
+        };
+        assert!(manager.notify(&notice).await.unwrap());
+        assert_eq!(
+            settings(&manager, &f).await.get().await.name,
+            "manual notification"
+        );
+        assert_eq!(local.get().await.name, "Default");
+        writer.fill(json!({"name":"manual poll"})).await.unwrap();
+        writer.save().await.unwrap();
+        manager.poll().await.unwrap();
+        assert_eq!(settings(&manager, &f).await.get().await.name, "manual poll");
+        writer.fill(json!({"name":"manual refresh"})).await.unwrap();
+        writer.save().await.unwrap();
+        local.refresh().await.unwrap();
+        assert_eq!(local.get().await.name, "manual refresh");
+        local.fill(json!({"name":"local save"})).await.unwrap();
+        local.save().await.unwrap();
+        assert_eq!(settings(&manager, &f).await.get().await.name, "local save");
+        manager.shutdown().await;
+        f.close().await;
+    }
+}
+
+#[tokio::test]
+async fn concurrent_initial_reads_share_one_database_version_check() {
+    let f = Fixture::new().await;
+    let source = Arc::new(Unavailable {
+        source: f.repository.clone(),
+        offline: AtomicBool::new(false),
+        versions: AtomicUsize::new(0),
+        loads: AtomicUsize::new(0),
+    });
+    let manager = SettingsManager::new(
+        source.clone(),
+        SettingsOptions {
+            namespace: f.table.clone(),
+            ..Default::default()
+        },
+        None,
+    )
+    .unwrap();
+    let barrier = Arc::new(tokio::sync::Barrier::new(12));
+    let mut tasks = Vec::new();
+    for _ in 0..12 {
+        let m = manager.clone();
+        let b = barrier.clone();
+        tasks.push(tokio::spawn(async move {
+            b.wait().await;
+            m.load("site").await.unwrap();
+        }));
+    }
+    for task in tasks {
+        task.await.unwrap();
+    }
+    assert_eq!(source.versions.load(Ordering::SeqCst), 1);
+    assert_eq!(source.loads.load(Ordering::SeqCst), 1);
+    manager.shutdown().await;
+    f.close().await;
+}

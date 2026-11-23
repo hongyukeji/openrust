@@ -56,7 +56,7 @@ impl SettingsGroup for DeliverySettings {
 
 `save()` updates the instance's persisted snapshot after successful commit. `save_in(&mut transaction)` uses a savepoint in a caller-owned transaction and does not publish a new persisted snapshot. Supply the intended database transaction; refresh after the outer commit. After rollback the pending edit can be retried. If an operation is cancelled, its owner must roll back or drop the transaction.
 
-A group uses a versioned process snapshot within the existing request/job scope. With `SettingsServiceProvider`, the next scope sees changes after reconciliation (five seconds by default), rather than querying all properties on every request. Existing scopes and unsaved edits keep their original snapshot. Use `refresh()` to bypass that interval and discard local edits. Long-running commands, scheduler iterations and streams must define their refresh boundary. Multiple groups do not form one global snapshot. Database failures and malformed data fail explicitly when checked; only missing overrides use defaults.
+A group uses a versioned process snapshot within the existing request/job scope. With `SettingsServiceProvider`, the next scope sees changes after reconciliation (60 seconds by default), rather than querying all properties on every request. Existing scopes and unsaved edits keep their original snapshot. Use `refresh()` to bypass that interval and discard local edits. Long-running commands, scheduler iterations and streams must define their refresh boundary. Multiple groups do not form one global snapshot. Database failures and malformed data fail explicitly when checked; only missing overrides use defaults.
 
 The default repository bounds groups to 256 properties and 1 MiB of persisted JSON, excluding small internal metadata overhead. No shared cache is required. Static `Config` remains unchanged; database settings are not embedded in `config:cache`.
 
@@ -68,7 +68,7 @@ Published `config/settings.rs` contains these optional settings:
 
 ```rust,ignore
 "namespace": null,
-"refresh_interval": 5,
+"refresh_interval": 60,
 "cache": {
     "enabled": true,
     "store": null,
@@ -76,7 +76,7 @@ Published `config/settings.rs` contains these optional settings:
 },
 ```
 
-`refresh_interval` is in seconds (1–86400 through the provider). `cache.store = null` reuses the application's default Cache store. The configured store must exist; set `cache.enabled` to `false` to omit cache acceleration. The default namespace combines environment, database driver, database name, table prefix and table. Keep it stable and identical across nodes. Independent applications sharing a Cache must use distinct namespaces and separate settings tables or connections. A namespace isolates cache/notifications, **not database rows**; set it explicitly when the default identity cannot distinguish deployments or database schemas.
+`refresh_interval` is in seconds (default 60; 1–86400 through the provider). Set it to **0** to disable background checks and automatic expiry of loaded snapshots. After the initial load, reads reuse the snapshot until an explicit `refresh()`, `poll()` or `notify()` updates it, or a local save updates it. Automatic handler retries are also stopped; drive them with `poll()` or `notify()` when needed. Cache enablement is independent. Concurrent reads of the same group reuse the completed version check instead of queuing identical queries. A minute is a conservative default for infrequently changed settings, not a capacity guarantee: account for active processes and groups when sizing the database. `cache.store = null` reuses the application's default Cache store. The configured store must exist; set `cache.enabled` to `false` to omit cache acceleration. The default namespace combines environment, database driver, database name, table prefix and table. Keep it stable and identical across nodes. Independent applications sharing a Cache must use distinct namespaces and separate settings tables or connections. A namespace isolates cache/notifications, **not database rows**; set it explicitly when the default identity cannot distinguish deployments or database schemas.
 
 The checker batch-reads persistent group versions from the **write connection**, only for groups used by this process. Changed groups reload their complete snapshot; unchanged groups do not reload property values. The existing Cache stores a versioned raw snapshot and a metadata-only change hint, with at most two keys per group/namespace. It does not create a new cache key on each update. Encrypted properties remain ciphertext in the shared snapshot. Hints are checked at up to one-second intervals; database reconciliation still runs without shared cache, with a local cache, or after missed hints, expired entries and Redis restarts. This is eventual convergence, not simultaneous activation on every node. Slow databases or application handlers can extend the normal interval.
 
@@ -108,7 +108,7 @@ let state = manager.status("site").await;
 manager.forget_handler("site", handler).await;
 ```
 
-Callbacks run in independent async tasks, without the current HTTP/job facade scope. Capture the dependencies they need. When a callback needs the manager itself, capture `manager.downgrade()` and call `upgrade()` inside it to avoid a reference cycle. The five-second callback timeout records a redacted error and leaves the version pending; callbacks can be retried even when no newer version appears. Initial loading establishes a baseline and does not fire a change callback. `status()` reports this process's registered handlers, **not acknowledgement from every cluster node**. Do not use it as a deployment-wide barrier or a durable audit trail.
+Callbacks run in independent async tasks, without the current HTTP/job facade scope. Capture the dependencies they need. When a callback needs the manager itself, capture `manager.downgrade()` and call `upgrade()` inside it to avoid a reference cycle. The five-second callback timeout records a redacted error and leaves the version pending; while automatic checks are enabled, callbacks retry even when no newer version appears. Initial loading establishes a baseline and does not fire a change callback. `status()` reports this process's registered handlers, **not acknowledgement from every cluster node**. Do not use it as a deployment-wide barrier or a durable audit trail.
 
 `poll().await?` explicitly reconciles all active groups; `notify(&SettingsNotification { namespace, group, version }).await?` accepts metadata hints from an optional application transport. It verifies against the database, ignores other namespaces/inactive groups and never trusts an incoming value. Neither method requires Redis Pub/Sub. `shutdown().await` stops this manager's background task without closing shared connections. Explicit load/refresh/poll remain available afterwards.
 
