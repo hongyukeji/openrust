@@ -36,6 +36,54 @@ Route::any("/callback", CallbackController::handle)?;
 
 对于相同方法、域名和注册路径，后声明覆盖先声明的处理器；`any` 和 `r#match` 也遵循此规则，没有独立优先级。不同但重叠的路径模式按声明顺序首次匹配，因此应将具体路径放在较宽泛的模式之前。
 
+## 视图路由
+
+GET/HEAD 路由只返回视图时，使用 `Route::view`。前两个参数是 URI 和视图名称。Rust 要求显式传入第三个选项参数；`Default::default()` 表示空数据、状态 200 和不附加响应头。
+
+```rust
+use openrust::{routing::ViewRouteOptions, support::facades::Route, view::ViewData};
+
+Route::view("/welcome", "welcome", Default::default())?;
+Route::view("/hello/{name}", "welcome", ViewRouteOptions {
+    data: ViewData::from_iter([("name".into(), "Taylor".into())]),
+    ..Default::default()
+})?;
+```
+
+模板放在 `resources/views`，例如 `welcome.blade.html`。路径和域名捕获参数覆盖 `data` 的同名值，随后执行视图创建器和组合器。用 `ViewRouteOptions` 的 `status` 和 `headers` 设置自定义响应。PHP 中在状态参数位置传响应头数组的写法，改用显式 `headers` 字段。参数名称不要使用 `view`、`data`、`status` 或 `headers`。当前路由默认值只承载字符串，不支持通过 `Route::defaults` 任意修改这四项类型化视图设置；绑定模型对象也不会自动转换为视图数据。
+
+`Router::view` 返回可变路由。Facade 声明使用 `Route::viewWith(uri, view, options, |route| { route.name("welcome"); Ok(()) })`，在注册借用范围内配置路由。渲染使用当前应用的视图工厂和中间件。模板不存在或创建器／组合器失败时，沿用普通 HTTP 异常管线。
+
+## 后备路由
+
+在 `routes/web.rs` 中声明后备路由，处理没有普通路由匹配的 GET/HEAD 请求。后备路由继承当前组的前缀、域名和中间件。已匹配处理器返回错误或 404 响应时，不会再次尝试后备路由。
+
+```rust
+use openrust::support::facades::Route;
+
+Route::fallback(NotFoundController::show)?;
+```
+
+普通路由始终优先，即使后备路由先声明。多个后备路由可匹配时按注册顺序选择；同一方法、域名和注册路径的后声明覆盖先声明。未匹配的 POST 在后备路由匹配其路径时返回 405 和 `Allow: GET, HEAD`；自动 OPTIONS 返回 200。后备路由也是已注册路由，优先于下文的静态文件挂载。
+
+Facade 需要配置时使用 `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })`。`Router::fallback` 返回可变路由；`route.fallback()` 可标记已有路由，`route.setFallback(false)` 取消标记。路由缓存保持该优先级。
+
+
+处理器可以显式返回另一条命名路由的响应。`respondWithRoute` 使用同一个请求 URI 重新绑定目标路由、运行其路由中间件，并替换请求的当前路由参数与名称；不会生成重定向，也不会将请求 URI 改成目标路径。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    support::facades::Route,
+};
+
+fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(Route::respondWithRoute("missing", request))
+}
+```
+
+先按上文用 `fallbackWith` 登记 `missing`，再将 `show_missing` 登记为处理器。Rust 显式借用可变请求；HTTP 内核通过应用容器提供共享的运行期路由器，每个请求保留独立路由状态。名称不存在时返回错误，渲染为 HTTP 500。直接使用 `Router` 时也提供同名方法。运行期路由器在 HTTP 启动后可解析；路由注册仍使用注册作用域。
+
 ## 挂载静态目录
 
 应用骨架先挂载网站公共目录，再挂载公共存储磁盘。目录和 URL 前缀见[公共文件配置](../getting-started/configuration.md#public-files)。

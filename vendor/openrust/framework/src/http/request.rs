@@ -479,6 +479,10 @@ impl Request {
             .map(|(_, value)| value.as_str())
     }
 
+    pub(crate) fn route_parameters(&self) -> &[(String, String)] {
+        &self.route_parameters
+    }
+
     pub fn route_model<T: std::any::Any>(&self, name: &str) -> Option<&T> {
         self.route_models.get(name)?.downcast_ref()
     }

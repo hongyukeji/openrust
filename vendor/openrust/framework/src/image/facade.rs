@@ -1,16 +1,16 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, MutexGuard, RwLock, Weak},
 };
 
 use axum::body::Bytes;
 use tokio::{io::AsyncRead, sync::Semaphore};
 
 use crate::{
-    container::ServiceKey,
+    container::{Container, ServiceKey},
     contracts::{config::Repository, container::Container as _, foundation::Application as _},
-    filesystem::{FilesystemAdapter, Storage},
+    filesystem::{FilesystemAdapter, FilesystemManager, Storage},
     foundation::Application,
     http::{HttpFuture, UploadedFile, client::Factory},
     support::{ProviderResult, ServiceProvider, facades::Facade},
@@ -23,14 +23,36 @@ use super::{
 };
 
 type TransformationHandlers = HashMap<String, indexmap::IndexMap<String, TransformationHandler>>;
+type DriverCreator = dyn Fn(&ImageManager) -> Result<Arc<dyn Driver>> + Send + Sync;
+
+#[derive(Default)]
+struct DriverState {
+    creators: HashMap<String, Arc<DriverCreator>>,
+    drivers: HashMap<String, Arc<dyn Driver>>,
+    creating: HashSet<String>,
+    generation: Arc<()>,
+    handlers: TransformationHandlers,
+    handlers_generation: Arc<()>,
+}
+
+struct DriverCreation<'a> {
+    manager: &'a ImageManager,
+    name: &'a str,
+}
+
+impl Drop for DriverCreation<'_> {
+    fn drop(&mut self) {
+        self.manager.driver_state().creating.remove(self.name);
+    }
+}
 
 /// Resolves named drivers and limits processing within one application.
 #[derive(Clone)]
 pub struct ImageManager {
     default: Arc<str>,
     config: Option<Arc<dyn Repository>>,
-    drivers: Arc<RwLock<HashMap<String, Arc<dyn Driver>>>>,
-    transformation_handlers: Arc<RwLock<TransformationHandlers>>,
+    state: Arc<Mutex<DriverState>>,
+    container: Arc<RwLock<Weak<Container>>>,
     limits: Limits,
     workers: Arc<Semaphore>,
     http: Option<Arc<Factory>>,
@@ -42,11 +64,8 @@ impl ImageManager {
         Self {
             default: "image".into(),
             config: None,
-            drivers: Arc::new(RwLock::new(HashMap::from([(
-                "image".into(),
-                Arc::new(NativeDriver::default()) as Arc<dyn Driver>,
-            )]))),
-            transformation_handlers: Arc::default(),
+            state: Arc::default(),
+            container: Arc::default(),
             limits,
             workers: Arc::new(Semaphore::new(
                 std::thread::available_parallelism()
@@ -57,23 +76,49 @@ impl ImageManager {
         }
     }
 
-    pub fn extend(&self, name: impl Into<String>, driver: impl Driver) -> Result<&Self> {
-        let name = name.into();
-        let handlers = self
-            .transformation_handlers
-            .read()
-            .map_err(|_| Error::Io(std::io::Error::other("图片转换处理器锁中毒")))?
-            .get(&name)
-            .cloned()
-            .unwrap_or_default();
-        for (transformation, callback) in handlers {
-            driver.transformUsing(&transformation, callback)?;
-        }
-        self.drivers
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(name, Arc::new(driver));
+    /// 登记惰性创建器；回调通过管理器访问所属容器和配置。
+    pub fn extend(
+        &self,
+        name: impl Into<String>,
+        creator: impl Fn(&ImageManager) -> Result<Arc<dyn Driver>> + Send + Sync + 'static,
+    ) -> Result<&Self> {
+        let previous = self
+            .driver_state()
+            .creators
+            .insert(name.into(), Arc::new(creator));
+        drop(previous);
         Ok(self)
+    }
+
+    pub fn getContainer(&self) -> Option<Arc<Container>> {
+        self.container
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .upgrade()
+    }
+
+    pub fn setContainer(&self, container: Arc<Container>) -> &Self {
+        *self
+            .container
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::downgrade(&container);
+        self
+    }
+
+    pub fn forgetDrivers(&self) -> &Self {
+        let previous = {
+            let mut state = self.driver_state();
+            state.generation = Arc::new(());
+            std::mem::take(&mut state.drivers)
+        };
+        drop(previous);
+        self
+    }
+
+    fn driver_state(&self) -> MutexGuard<'_, DriverState> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub fn transformUsing(
@@ -82,20 +127,23 @@ impl ImageManager {
         transformation: &str,
         callback: TransformationHandler,
     ) -> Result<&Self> {
-        self.transformation_handlers
-            .write()
-            .map_err(|_| Error::Io(std::io::Error::other("图片转换处理器锁中毒")))?
-            .entry(driver.to_owned())
-            .or_default()
-            .insert(transformation.to_owned(), callback.clone());
-        let resolved = self
-            .drivers
-            .read()
-            .map_err(|_| Error::Io(std::io::Error::other("图片驱动锁中毒")))?
-            .get(driver)
-            .cloned();
+        let (resolved, handlers) = {
+            let mut state = self.driver_state();
+            state
+                .handlers
+                .entry(driver.to_owned())
+                .or_default()
+                .insert(transformation.to_owned(), callback);
+            state.handlers_generation = Arc::new(());
+            (
+                state.drivers.get(driver).cloned(),
+                state.handlers[driver].clone(),
+            )
+        };
         if let Some(resolved) = resolved {
-            resolved.transformUsing(transformation, callback)?;
+            for (transformation, callback) in handlers {
+                resolved.transformUsing(&transformation, callback)?;
+            }
         }
         Ok(self)
     }
@@ -109,22 +157,61 @@ impl ImageManager {
     }
 
     pub fn getDrivers(&self) -> HashMap<String, Arc<dyn Driver>> {
-        self.drivers
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone()
+        self.driver_state().drivers.clone()
     }
 
     pub fn driver(&self, name: Option<&str>) -> Result<Arc<dyn Driver>> {
         let name = name
+            .filter(|name| !matches!(*name, "" | "0"))
             .map(str::to_owned)
             .unwrap_or_else(|| self.getDefaultDriver());
-        self.drivers
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&name)
-            .cloned()
-            .ok_or_else(|| Error::UnknownDriver(name))
+        let (creator, generation) = {
+            let mut state = self.driver_state();
+            if let Some(driver) = state.drivers.get(&name) {
+                return Ok(driver.clone());
+            }
+            let creator = state.creators.get(&name).cloned();
+            if creator.is_none() && name != "image" {
+                return Err(Error::UnknownDriver(name));
+            }
+            if !state.creating.insert(name.clone()) {
+                return Err(Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "图片驱动正在创建，不能递归解析同一驱动",
+                )));
+            }
+            (creator, state.generation.clone())
+        };
+        let _creation = DriverCreation {
+            manager: self,
+            name: &name,
+        };
+        let driver: Arc<dyn Driver> = match creator {
+            Some(creator) => creator(self)?,
+            None => Arc::new(NativeDriver::default()),
+        };
+        driver.ensureRequirementsAreMet()?;
+        loop {
+            let (handlers, revision) = {
+                let state = self.driver_state();
+                (
+                    state.handlers.get(&name).cloned().unwrap_or_default(),
+                    state.handlers_generation.clone(),
+                )
+            };
+            for (transformation, callback) in handlers {
+                driver.transformUsing(&transformation, callback)?;
+            }
+            let mut state = self.driver_state();
+            if !Arc::ptr_eq(&state.handlers_generation, &revision) {
+                continue;
+            }
+            if Arc::ptr_eq(&state.generation, &generation) {
+                state.drivers.insert(name.clone(), driver.clone());
+            }
+            break;
+        }
+        Ok(driver)
     }
 
     pub(super) fn limits(&self) -> Limits {
@@ -174,15 +261,35 @@ impl ImageManager {
     }
 
     pub fn fromStorage(&self, path: impl Into<String>, disk: Option<&str>) -> Result<Image> {
-        Ok(self.fromDisk(Storage::disk(disk).map_err(Error::Filesystem)?, path))
+        Ok(Image::new(
+            self.clone(),
+            Source::ConfiguredStorage(disk.map(str::to_owned), path.into()),
+        ))
     }
 
     pub fn fromUrl(&self, url: impl Into<String>) -> Result<Image> {
-        let factory = match &self.http {
-            Some(factory) => factory.clone(),
-            None => Arc::new(Factory::new().map_err(Error::Http)?),
-        };
-        Ok(Image::new(self.clone(), Source::Url(factory, url.into())))
+        Ok(Image::new(self.clone(), Source::Url(url.into())))
+    }
+
+    pub(super) fn storage(&self, disk: Option<&str>) -> Result<Arc<FilesystemAdapter>> {
+        match self.getContainer() {
+            Some(container) => container
+                .get::<FilesystemManager>("filesystem")
+                .map_err(Error::Unavailable)?
+                .disk(disk)
+                .map_err(Error::Filesystem),
+            None => Storage::disk(disk).map_err(Error::Filesystem),
+        }
+    }
+
+    pub(super) fn http(&self) -> Result<Arc<Factory>> {
+        match self.getContainer() {
+            Some(container) => container.make::<Factory>().map_err(Error::Unavailable),
+            None => match &self.http {
+                Some(factory) => Ok(factory.clone()),
+                None => Ok(Arc::new(Factory::new().map_err(Error::Http)?)),
+            },
+        }
     }
 }
 
@@ -253,8 +360,25 @@ impl ImageFacade {
         Ok(Self::getFacadeRoot()?.getDrivers())
     }
 
-    pub fn extend(name: impl Into<String>, driver: impl Driver) -> Result<()> {
-        Self::getFacadeRoot()?.extend(name, driver).map(|_| ())
+    pub fn getContainer() -> Result<Option<Arc<Container>>> {
+        Ok(Self::getFacadeRoot()?.getContainer())
+    }
+
+    pub fn setContainer(container: Arc<Container>) -> Result<()> {
+        Self::getFacadeRoot()?.setContainer(container);
+        Ok(())
+    }
+
+    pub fn forgetDrivers() -> Result<()> {
+        Self::getFacadeRoot()?.forgetDrivers();
+        Ok(())
+    }
+
+    pub fn extend(
+        name: impl Into<String>,
+        creator: impl Fn(&ImageManager) -> Result<Arc<dyn Driver>> + Send + Sync + 'static,
+    ) -> Result<()> {
+        Self::getFacadeRoot()?.extend(name, creator).map(|_| ())
     }
 }
 
@@ -263,13 +387,19 @@ pub(crate) struct ImageServiceProvider;
 impl ServiceProvider for ImageServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().singleton::<ImageManager, _>(|container| {
-                let config = container.get::<dyn Repository>("config")?;
-                let mut manager = ImageManager::new(Limits::default());
-                manager.config = Some(config);
-                manager.http = Some(container.make::<Factory>()?);
-                Ok(Arc::new(manager))
-            })?;
+            let owner = Arc::downgrade(&app.container_handle());
+            app.container()
+                .singleton::<ImageManager, _>(move |container| {
+                    let config = container.get::<dyn Repository>("config")?;
+                    let mut manager = ImageManager::new(Limits::default());
+                    *manager
+                        .container
+                        .write()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = owner.clone();
+                    manager.config = Some(config);
+                    manager.http = Some(container.make::<Factory>()?);
+                    Ok(Arc::new(manager))
+                })?;
             Ok(())
         })
     }

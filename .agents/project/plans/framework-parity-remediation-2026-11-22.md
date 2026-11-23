@@ -122,6 +122,42 @@ C35在既有原生Driver/Pipeline上实现transformUsing，不另引图片引擎
 
 联网逐字核对固定Image.php与ImageManager.php；v0.x未找到对应图片实现。PHP8.5.12使用真实UploadedFile和固定Image/ImageManager，验证渲染后四种分支保留同一文件对象及原始名称。Driver与Storage仍是职责测试桩，不属于PHP原生像素验收。Rust真实multipart上传后执行存储、再次cover、toPng及using，逐分支检查上传名称，并实际核对新旧尺寸与格式；非上传图像确认None。普通测试读取更新的reference/image-lifecycle.json。完整图片22项、fmt、严格workspace/all-targets Clippy及三语站点构建、根路径/子路径页面和导航检查全部通过。证据为target/tmp/framework-parity-20261122/下image-upload-{reference.json,reference.log,source.json}、images-upload.log、fmt-image-upload.log、clippy-image-upload.log及docs-{build,browser,scope}-image-upload.log。C35其余公开接口与适配差异保持未完成。
 
+### 路由公开入口与官方用法（2026-11-23）
+
+从固定Router、Route、Registrar、BindingRegistrar、RouteRegistrar及Facade入口向本地核对，连同Router/Route所用trait、ViewController父类及固定routing官方章节建立逐项记录。统一JSON的routing_public_surface_and_shortcuts区分公开声明候选、@method动态候选与已追踪实现；尚未裁决的条目分别保留待核对，不由同名或局部测试宣布模块完整。
+
+本批补Router::fallback/view、Route Facade对应入口及With配置闭包，Route::isFallback/fallback/setFallback；普通路由先匹配，最后返回第一个匹配的后备路由，同身份覆盖仍沿原by_method规则。缓存只复用候选索引，运行期仍核对后备标记，不另建通配符引擎。Facade不能返回跨RefCell借用的可变Route，沿既有With配置方式；Router直接返回可变路由。GET自动包含HEAD；组前缀/域名/中间件照常应用；已匹配处理器的404不重新匹配其他路由。
+
+视图入口复用默认View Facade工厂和Response::view，路径/域名参数先覆盖data，随后执行创建器/组合器；状态、响应头、HEAD、失败及模板缓存继续走已有HTTP机制。Rust没有省略位置参数及int/array自动重载，data/status/headers合并为显式ViewRouteOptions，Default对应空数据/200/无附加头，headers-in-status重载由headers字段表达。ViewController::new使用静态view/options并从当前应用解析工厂，不等同上游注入ResponseFactory的构造器；该类型构造与callAction/父类入口仍待完整裁决。混合类型Route::defaults、setDefaults与模型对象自动转换视图数据属于实现缺口，不能解释成Rust不支持，三语正文明确保留。
+
+同时发现Contracts::Routing::Registrar仅有add_route，补get/post/put/delete/patch/options/match的对象安全薄封装；trait接收Arc<dyn Handler>，具体Router继续接受IntoRouteHandler。将原match大写规范化移至同一契约默认实现，避免两套逻辑。resource/group/substituteBindings/substituteImplicitBindings及BindingRegistrar完整公开契约仍未关闭。
+
+联网读取固定Router、AbstractRouteCollection、ViewController、官方routing与Integration/Routing/{FallbackRouteTest,RouteViewTest}；旧v0.x存在Axum后备路由，但限制每scope一个fallback及静态前缀，与当前集合顺序/参数化组契约不同，不复制旧限制与独立分发引擎。PHP8.5.12实际运行固定路由器/普通集合与CompiledRouteCollection，两种匹配逐例相同；使用Symfony Routing/HttpKernel/HttpFoundation7.4.0，依赖仅在target/tmp。ViewController以ResponseFactory职责替身核对data合并，不声称执行PHP Blade或完整PHPUnit。普通Rust回归读取reference/routing-shortcuts.json。
+
+Rust1.94.0的routing_shortcuts、routing_methods、routing_groups及route_metadata均通过，覆盖真实TCP HTTP、组与域名、根路径/多段路径、普通优先/标记撤销、同身份覆盖、405/Allow及自动OPTIONS、默认与自定义视图数据/状态/响应头、创建器/组合器顺序及异常、并发请求、route:cache/clear与view:cache。严格workspace/all-targets Clippy、fmt、三语build/12组浏览器/6组导航通过。首轮测试导入HeaderValue与Middleware返回类型有误，已修正并复跑；浏览器首轮在文档构建完成前启动而报ENOENT，等待构建完成后重跑通过，保留失败日志。随后扩展应用startup路由回归触32 GB磁盘停线（退出75，不计通过）；相关构建自然退出后取得Cargo锁，清理项目构建产物并保留锁inode、源码、日志、下载依赖和数据，释放98,484,879,360字节。恢复后发现欢迎页旧测试夹具仍读取已移除的name/version注入，改用已确认公开config用法，保留原断言；应用startup路由4项通过。
+
+初核从官方命名fallback示例确认respondWithRoute缺口，没有删掉该用例或以普通GET绕行称通过；随后按下节完成命名分发核心行为与运行期绑定，事件/完整resolver等具体剩余继续登记。完整Router/Route/Facade/trait、Registrar其余契约与官方其余章节、Windows/Docker/release等保持未完成。未改数据库/缓存驱动，本批不计三库或缓存矩阵。用户仅授权审计/开发/验收，未暂存/提交/推送/发布或操作开发生产数据；共享错误转换WIP保留。证据在target/tmp/framework-parity-20261122/routing-shortcuts-{third.log,cached-final.log,cached-reference.json,cached-reference.log}、routing-startup.log、clippy-routing-shortcuts.log、fmt-routing-shortcuts-final.log及docs-{build,browser,scope}-routing-shortcuts日志，浏览器采用-final后缀。最终以7136605b6完整源码加本任务明确文件组合验收：图片28项、路由8项、应用startup路由4项通过，fmt、严格workspace/all-targets Clippy、三语构建/12组浏览器/6组导航均通过。最终日志为routing-image-combined-final.log、routing-startup-combined.log、clippy-routing-image-final.log、fmt-routing-image-final.log与docs-{build,browser,scope}-routing-image-final.log；routing-image-final-closure.json确认本任务源码/测试/三语文档与快照逐字节一致。其他未提交View/模型等WIP保留，未混入本批通过结论。
+
+### 命名路由分发与运行期绑定（2026-11-23）
+
+接续官方FallbackRouteTest暴露的respondWithRoute缺口，新增Router与Route Facade同名公开入口。Kernel将已配置中间件的同一Arc<Router>登记为router单例并建立typed别名；Facade运行期沿用现有容器，不使用注册期RefCell或请求全局变量。注册期配置闭包继续走原注册作用域。共享run_route负责目标路由参数/绑定计划/元数据/路由名称、路由中间件及终结器；命名分发不重写URI或HTTP方法。RoutePattern不再假设必须先匹配，目标路径不匹配时仍按上游用默认值绑定，覆盖Linear和PCRE两种捕获分支。
+
+联网重新读取固定Router、RouteParameterBinder、RouteCollection及官方FallbackRouteTest，保存SHA256；v0.x没有可复用的respondWithRoute入口。PHP8.5.12真实Router/Container/CallableDispatcher和中间件对照验证命名fallback、原路径参数、不匹配目标默认值及缺失名称500；首轮使用了错误的CallableDispatcher契约命名空间，修正后实际重跑，失败日志保留。PHP的Error与消息不作为Rust异常类型承诺，Rust用Result<HttpError>内部错误保留失败/500语义。
+
+Rust显式respondWithRoute(name, &mut Request)使请求独占借用可追踪；不引入不安全的隐式可变请求。公开Router与Facade、普通Application/Kernel真实HTTP和route:cache、两应用交错请求、嵌套分发、HEAD、目标失败/未知名称、参数替换、终结器顺序和取消后作用域释放均通过。config:cache不能在普通测试进程中重启应用，这是既有可执行入口约束；另编译临时独立消费者，通过run_application正式入口执行config:cache/route:cache并实际启动HTTP，不能把普通测试返回1算通过。最终独立消费者通过冷启动、config:cache/route:cache、清除缓存后重启三轮HTTP；框架图片28项/路由11项及应用startup路由4项通过，无ignored。fmt、严格workspace/all-targets Clippy、三语构建/12组浏览器/6组导航均通过。本任务源码/测试/三语正文与最终门禁快照逐字节一致，产品Cargo清单一致；临时example只为实际消费者追加目标声明与host/port配置，最终门禁前已恢复Cargo清单并移出临时fixture，保留reference/parity_named.rs用于复现。未混入其他协作者未提交View/模型等WIP；未执行完整workspace测试/all-features/Windows/Docker/release及本批未受影响的数据库/缓存驱动矩阵。
+
+本项不关闭整个接口或Routing：固定runRoute的RouteMatched事件和完整Route对象resolver尚未实现；current/getCurrentRequest、Provider注册期解析/用户替换Router生命周期及其余类型/官方章节继续开放。这些属于实现或待核对项，不能解释为Rust不支持。三语路由正文仅介绍已实现的显式调用方式与HTTP启动后绑定边界。证据目录仍为target/tmp/framework-parity-20261122，新增routing-named-accepted.log、routing-named-startup-final.log、routing-named-consumer-final.log、routing-named-consumer-results.json、clippy-routing-named-final.log、fmt-routing-named-final.log、routing-named-final-closure.json、docs-{build,browser,scope}-routing-named.log、reference/named-routing-sources.json和reference/parity_named.rs；不新增分散计划材料。
+
+### 图片管理器惰性创建与官方用法（2026-11-23）
+
+按固定ImageManager继承的Support Manager实现extend惰性创建、driver缓存、getContainer/setContainer/forgetDrivers；原生驱动也在首次选择时创建。替换creator保留已缓存实例，forget保留creator与transformUsing登记；失败不缓存。构造器和转换处理器在状态锁外执行，创建中同名递归/并发返回WouldBlock，忘记缓存期间的旧创建不回填。复用现有HashManager模式，无新增依赖/平行管理器。PHP闭包绑定this与容器参数转换为显式&ImageManager；闭包Send+Sync+static，Weak容器避免服务环，独立管理器getContainer为None。这些是具体适配，非逐字签名等价。
+
+setContainer按上游只改后续解析容器，保留原config与已解析driver；同时修复fromStorage/fromUrl过早捕获磁盘/HTTP工厂，改为首次加载解析当时容器，成功来源仍缓存一次。File/Path及借用流的容器替换与惰性流边界继续登记。已读固定官方images章节、ImageManagerTest和ImageTest并保存来源摘要；统一JSON新增17个管理器入口及每个官方小节裁决，不用本批局部修复关闭整个Image。
+
+PHP8.5.12实际固定ImageManager/Manager与容器：验证创建/覆盖/缓存/forget/失败重试、config保持、容器切换及Storage/URL来源；Driver/Storage为明确桩，URL为真实HttpFactory fake，未跑PHP原生像素。最初依赖缺Guzzle Promise，复用已有php-sink-reference Guzzle7.10后复验通过。Rust图片27项通过，包括真实multipart、原生像素、两个容器的真实磁盘与HTTP fake源；另在Provider::boot通过Image Facade登记thumbnail，以images.default选中，经默认应用正常HTTP并发/重复请求确认两应用隔离及惰性缓存。严格workspace/all-targets Clippy、fmt及三语构建、12组浏览器和6组导航通过。导航首次因协作磁盘清理移除dist报ENOENT；复建后重跑通过，不将失败批记为通过。
+
+证据在target/tmp/framework-parity-20261122/：images-manager-final.log、image-manager-sources-reference-second.json/.log、image-manager-source.json、reference/image-official-sources.json、clippy-image-manager-final.log、fmt-image-manager-final.log及docs-browser-image-manager-final.log、docs-{build,scope}-image-manager-recovered.log。随后已实现Driver::ensureRequirementsAreMet默认钩子：创建后、处理器前在状态锁外调用，失败原错误传播且不缓存，缓存命中不重复检查，forget后重新检查。PHP固定Manager次序对照与Rust回归通过，最终组合图片28项；严格Clippy/fmt/三语与本任务快照一致性均通过，证据见上述最终组合日志及image-requirements-reference.json。协作错误转换已进入7136605b6基础提交，最终验收已含该基础。当前仍未完成Image公开直接构造/任意Closure、惰性流、默认driver完整转发、任意存储选项/Conditionable和完整官方示例/后端矩阵；未改数据库/缓存驱动，不重复计其矩阵。用户最新授权审计开发验收，不暂存/提交/推送/发布及不操作开发生产数据；本批保持工作区。
+
 ### 分页解析器与视图工厂（2026-11-23）
 
 C39按固定AbstractPaginator、AbstractCursorPaginator及PaginationState核对，实际联网比较六个固定分页源码与本地参考逐字一致；v0.x只有第三方sea-orm分页器，无可复用的当前框架入口。应用容器登记PaginationState保存路径、页码、查询、游标和视图工厂回调，Paginator与LengthAwarePaginator共享偏移分页解析状态，CursorPaginator共享视图工厂并持独立游标回调。回调取Arc后释放锁再执行，支持重入；不使用进程级可变全局。

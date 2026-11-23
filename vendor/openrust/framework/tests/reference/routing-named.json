@@ -1,0 +1,59 @@
+{
+  "/to-fallback/one": {
+    "status": 200,
+    "body": {
+      "parameters": {
+        "fallbackPlaceholder": "to-fallback/one"
+      },
+      "named": "named-fallback",
+      "trace": [
+        "before"
+      ]
+    },
+    "target": "ran"
+  },
+  "/to-fallback/two": {
+    "status": 200,
+    "body": {
+      "parameters": {
+        "fallbackPlaceholder": "to-fallback/two"
+      },
+      "named": "named-fallback",
+      "trace": [
+        "before"
+      ]
+    },
+    "target": "ran"
+  },
+  "/to-target/original": {
+    "status": 200,
+    "body": {
+      "parameters": {
+        "value": "default"
+      },
+      "named": "target",
+      "trace": [
+        "before"
+      ]
+    },
+    "target": "ran"
+  },
+  "/target/actual": {
+    "status": 200,
+    "body": {
+      "parameters": {
+        "value": "actual"
+      },
+      "named": "target",
+      "trace": [
+        "before"
+      ]
+    },
+    "target": "ran"
+  },
+  "/unknown": {
+    "error": "Error",
+    "status": 500,
+    "message": "Call to a member function bind() on null"
+  }
+}

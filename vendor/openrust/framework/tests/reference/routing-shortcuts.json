@@ -1,0 +1,282 @@
+{
+    "matches": [
+        {
+            "method": "GET",
+            "path": "/",
+            "host": "example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": []
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/missing/nested",
+            "host": "example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "missing/nested"
+                }
+            }
+        },
+        {
+            "method": "HEAD",
+            "path": "/missing",
+            "host": "example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "missing"
+                }
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/missing",
+            "host": "example.test",
+            "result": {
+                "error": "Symfony\\Component\\HttpKernel\\Exception\\MethodNotAllowedHttpException",
+                "status": 405,
+                "headers": {
+                    "Allow": "GET, HEAD"
+                }
+            }
+        },
+        {
+            "method": "OPTIONS",
+            "path": "/missing",
+            "host": "example.test",
+            "result": {
+                "route": null,
+                "parameters": []
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/root",
+            "host": "example.test",
+            "result": {
+                "route": "root",
+                "parameters": []
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/terminal",
+            "host": "example.test",
+            "result": {
+                "route": "ordinary",
+                "parameters": {
+                    "value": "terminal"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope/known",
+            "host": "one.example.test",
+            "result": {
+                "route": "known",
+                "parameters": {
+                    "tenant": "one"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope/other/path",
+            "host": "one.example.test",
+            "result": {
+                "route": "scoped-fallback",
+                "parameters": {
+                    "tenant": "one",
+                    "fallbackPlaceholder": "other/path"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope",
+            "host": "one.example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "scope"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope/other",
+            "host": "elsewhere.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "scope/other"
+                }
+            }
+        }
+    ],
+    "cached_matches": [
+        {
+            "method": "GET",
+            "path": "/",
+            "host": "example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": []
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/missing/nested",
+            "host": "example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "missing/nested"
+                }
+            }
+        },
+        {
+            "method": "HEAD",
+            "path": "/missing",
+            "host": "example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "missing"
+                }
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/missing",
+            "host": "example.test",
+            "result": {
+                "error": "Symfony\\Component\\HttpKernel\\Exception\\MethodNotAllowedHttpException",
+                "status": 405,
+                "headers": {
+                    "Allow": "GET, HEAD"
+                }
+            }
+        },
+        {
+            "method": "OPTIONS",
+            "path": "/missing",
+            "host": "example.test",
+            "result": {
+                "route": null,
+                "parameters": []
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/root",
+            "host": "example.test",
+            "result": {
+                "route": "root",
+                "parameters": []
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/terminal",
+            "host": "example.test",
+            "result": {
+                "route": "ordinary",
+                "parameters": {
+                    "value": "terminal"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope/known",
+            "host": "one.example.test",
+            "result": {
+                "route": "known",
+                "parameters": {
+                    "tenant": "one"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope/other/path",
+            "host": "one.example.test",
+            "result": {
+                "route": "scoped-fallback",
+                "parameters": {
+                    "tenant": "one",
+                    "fallbackPlaceholder": "other/path"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope",
+            "host": "one.example.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "scope"
+                }
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/scope/other",
+            "host": "elsewhere.test",
+            "result": {
+                "route": "root-fallback",
+                "parameters": {
+                    "fallbackPlaceholder": "scope/other"
+                }
+            }
+        }
+    ],
+    "view": {
+        "methods": [
+            "GET",
+            "HEAD"
+        ],
+        "defaults": {
+            "view": "welcome",
+            "data": {
+                "name": "Taylor"
+            },
+            "status": 200,
+            "headers": []
+        }
+    },
+    "view_headers_overload": {
+        "view": "welcome",
+        "data": [],
+        "status": 200,
+        "headers": {
+            "X-Probe": "yes"
+        }
+    },
+    "view_custom": {
+        "view": "welcome",
+        "data": {
+            "role": "reader"
+        },
+        "status": 201,
+        "headers": {
+            "X-Probe": "yes"
+        }
+    },
+    "view_data": {
+        "view": "welcome",
+        "data": {
+            "name": "Ada",
+            "role": "reader",
+            "tenant": "one"
+        },
+        "status": 200,
+        "headers": []
+    }
+}

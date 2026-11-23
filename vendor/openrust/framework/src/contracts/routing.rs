@@ -40,6 +40,70 @@ where
 /// Registers handlers with HTTP methods and URI patterns.
 pub trait Registrar {
     #[track_caller]
+    fn get(&mut self, uri: &str, handler: Arc<dyn Handler>) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::GET, Method::HEAD], uri, handler)
+    }
+
+    #[track_caller]
+    fn post(&mut self, uri: &str, handler: Arc<dyn Handler>) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::POST], uri, handler)
+    }
+
+    #[track_caller]
+    fn put(&mut self, uri: &str, handler: Arc<dyn Handler>) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::PUT], uri, handler)
+    }
+
+    #[track_caller]
+    fn delete(&mut self, uri: &str, handler: Arc<dyn Handler>) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::DELETE], uri, handler)
+    }
+
+    #[track_caller]
+    fn patch(&mut self, uri: &str, handler: Arc<dyn Handler>) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::PATCH], uri, handler)
+    }
+
+    #[track_caller]
+    fn options(
+        &mut self,
+        uri: &str,
+        handler: Arc<dyn Handler>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.r#match(&[Method::OPTIONS], uri, handler)
+    }
+
+    #[track_caller]
+    fn r#match(
+        &mut self,
+        methods: &[Method],
+        uri: &str,
+        handler: Arc<dyn Handler>,
+    ) -> Result<&mut Route, RoutingError> {
+        let methods = {
+            if methods.iter().any(|method| {
+                method
+                    .as_str()
+                    .bytes()
+                    .any(|byte| byte.is_ascii_lowercase())
+            }) {
+                std::borrow::Cow::Owned(
+                    methods
+                        .iter()
+                        .map(|method| {
+                            Method::from_bytes(method.as_str().to_ascii_uppercase().as_bytes())
+                                .expect("有效的 HTTP 方法转换为大写后仍然有效")
+                        })
+                        .collect(),
+                )
+            } else {
+                std::borrow::Cow::Borrowed(methods)
+            }
+        };
+        self.add_route(&methods, uri, handler)
+    }
+
+    #[track_caller]
     fn add_route(
         &mut self,
         methods: &[Method],

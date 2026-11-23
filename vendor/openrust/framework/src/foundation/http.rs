@@ -37,7 +37,7 @@ pub struct Kernel {
     views: Option<Arc<Factory>>,
     ready: bool,
     termination_tasks: TaskTracker,
-    routes: Option<crate::routing::Router>,
+    routes: Option<Arc<crate::routing::Router>>,
 }
 
 impl Kernel {
@@ -198,18 +198,39 @@ impl Kernel {
                 );
                 let maintenance = self.application.maintenanceMode()?;
                 if self.routes.is_none() {
-                    self.routes = self
+                    let mut routes = self
                         .application
                         .shared
                         .routes
                         .lock()
                         .expect("application routes lock poisoned")
-                        .take();
+                        .take()
+                        .expect("boot assembled the application routes");
+                    if let Err(error) = routes.configure_middleware(
+                        &self.middleware.registry,
+                        &self.middleware.set_locale,
+                    ) {
+                        *self
+                            .application
+                            .shared
+                            .routes
+                            .lock()
+                            .expect("application routes lock poisoned") = Some(routes);
+                        return Err(error.into());
+                    }
+                    self.routes = Some(Arc::new(routes));
                 }
-                self.routes
-                    .as_mut()
-                    .expect("boot assembled the application routes")
-                    .configure_middleware(&self.middleware.registry, &self.middleware.set_locale)?;
+                self.application.container().instanceNamed(
+                    "router",
+                    self.routes
+                        .as_ref()
+                        .expect("boot assembled the application routes")
+                        .clone(),
+                )?;
+                self.application.container().alias(
+                    "router",
+                    crate::container::ServiceKey::typed::<crate::routing::Router>(),
+                )?;
                 let maintenance_index = self.middleware.prepended + usize::from(cors.is_some());
                 if let Some(cors) = cors {
                     self.middleware
@@ -352,7 +373,7 @@ impl http::Kernel for Kernel {
                                 Ok(()) => {
                                     Next::new(
                                         &self.middleware.global,
-                                        self.routes.as_ref().expect("ready kernel has routes"),
+                                        self.routes.as_deref().expect("ready kernel has routes"),
                                     )
                                     .run(request)
                                     .await

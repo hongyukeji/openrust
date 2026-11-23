@@ -1783,7 +1783,9 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     for heading in ["Welcome", "Updated"] {
         fs::write(
             &welcome,
-            format!("<h1>{heading} {{{{ $name }}}} {{{{ $version }}}}</h1>"),
+            format!(
+                "<h1>{heading} {{{{ config('app.name') }}}} {{{{ config('app.version') }}}}</h1>"
+            ),
         )
         .unwrap();
         let html = format!(

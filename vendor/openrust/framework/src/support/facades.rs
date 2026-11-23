@@ -275,7 +275,24 @@ struct RouteRegistration {
 /// Registers routes on the router bound by the current application.
 pub struct Route;
 
+impl Facade for Route {
+    type Service = Router;
+
+    fn getFacadeAccessor() -> crate::container::ServiceKey {
+        "router".into()
+    }
+}
+
 impl Route {
+    /// 在当前应用的路由器上分发命名路由；请求借用保持显式以保证并发隔离。
+    #[allow(non_snake_case, reason = "沿用固定上游 Router 公开方法")]
+    pub async fn respondWithRoute(
+        name: &str,
+        request: &mut crate::http::Request,
+    ) -> Result<crate::http::Response, crate::http::HttpError> {
+        Self::getFacadeRoot()?.respondWithRoute(name, request).await
+    }
+
     /// Registers an explicit model binding in the current application's router.
     pub fn model<T: crate::contracts::routing::UrlRoutable>(
         name: &str,
@@ -436,6 +453,57 @@ impl Route {
         handler: impl IntoRouteHandler<Arguments>,
     ) -> Result<(), RoutingError> {
         Self::r#match(&Router::all_methods(), uri, handler)
+    }
+
+    /// 在普通路由均未匹配时执行 GET/HEAD 后备路由。
+    #[track_caller]
+    pub fn fallback<Arguments>(
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        Self::fallbackWith(handler, |_| Ok(()))
+    }
+
+    /// 在登记作用域内配置后备路由，避免返回超出借用范围的可变引用。
+    #[track_caller]
+    #[allow(non_snake_case, reason = "沿用现有 Facade 的 With 配置方式")]
+    pub fn fallbackWith<Arguments>(
+        handler: impl IntoRouteHandler<Arguments>,
+        configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
+        Self::register_configured(
+            &[crate::http::Method::GET],
+            "/{fallbackPlaceholder}",
+            handler,
+            |route| {
+                route.r#where("fallbackPlaceholder", ".*")?.fallback();
+                configure(route)
+            },
+        )
+    }
+
+    /// 通过当前应用视图工厂渲染 GET/HEAD 路由。
+    #[track_caller]
+    pub fn view(
+        uri: &str,
+        view: &str,
+        options: crate::routing::ViewRouteOptions,
+    ) -> Result<(), RoutingError> {
+        Self::viewWith(uri, view, options, |_| Ok(()))
+    }
+
+    #[track_caller]
+    #[allow(non_snake_case, reason = "沿用现有 Facade 的 With 配置方式")]
+    pub fn viewWith(
+        uri: &str,
+        view: &str,
+        options: crate::routing::ViewRouteOptions,
+        configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
+        Self::getWith(
+            uri,
+            crate::routing::ViewController::new(view, options),
+            configure,
+        )
     }
 
     /// Configures a GET/HEAD route while its registration scope is active.

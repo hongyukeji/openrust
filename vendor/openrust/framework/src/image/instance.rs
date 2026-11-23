@@ -12,7 +12,7 @@ use tokio::{
 
 use crate::{
     filesystem::{FilesystemAdapter, Storage, Visibility, WriteOptions},
-    http::{UploadedFile, client::Factory},
+    http::UploadedFile,
 };
 
 use super::{
@@ -27,7 +27,8 @@ pub(super) enum Source {
     Path(PathBuf),
     Storage(Arc<FilesystemAdapter>, String),
     Upload(UploadedFile),
-    Url(Arc<Factory>, String),
+    ConfiguredStorage(Option<String>, String),
+    Url(String),
 }
 
 /// An owned, lazy image pipeline. Clone it to branch the transformations.
@@ -439,13 +440,7 @@ impl Image {
                     .map_err(Error::Base64)?
                     .into()
             }
-            Source::Path(path) => {
-                read_bounded(
-                    tokio::fs::File::open(path).await.map_err(Error::Io)?,
-                    limits,
-                )
-                .await?
-            }
+            Source::Path(path) => read_bounded(tokio::fs::File::open(path).await?, limits).await?,
             Source::Storage(disk, path) => {
                 read_bounded(
                     disk.readStream(path)
@@ -456,8 +451,21 @@ impl Image {
                 )
                 .await?
             }
-            Source::Url(factory, url) => {
-                let response = factory
+            Source::ConfiguredStorage(disk, path) => {
+                let disk = self.manager.storage(disk.as_deref())?;
+                read_bounded(
+                    disk.readStream(path)
+                        .await
+                        .map_err(Error::Filesystem)?
+                        .ok_or(Error::Missing)?,
+                    limits,
+                )
+                .await?
+            }
+            Source::Url(url) => {
+                let response = self
+                    .manager
+                    .http()?
                     .pendingRequest()
                     .maxResponseBytes(limits.max_input_bytes)
                     .get(url)
@@ -481,7 +489,7 @@ impl Image {
 pub(super) async fn read_bounded(reader: impl AsyncRead, limits: Limits) -> Result<Bytes> {
     let mut reader = Box::pin(reader.take((limits.max_input_bytes as u64).saturating_add(1)));
     let mut buffer = Vec::new();
-    reader.read_to_end(&mut buffer).await.map_err(Error::Io)?;
+    reader.read_to_end(&mut buffer).await?;
     if buffer.len() > limits.max_input_bytes {
         return Err(Error::InputTooLarge);
     }
@@ -494,10 +502,6 @@ impl crate::contracts::support::Responsable for Image {
         self,
         request: &mut crate::http::Request,
     ) -> std::result::Result<crate::http::Response, crate::http::HttpError> {
-        Image::toResponse(&self, request)
-            .await
-            .map_err(|source| crate::http::HttpError::Internal {
-                source: Box::new(source),
-            })
+        Image::toResponse(&self, request).await.map_err(Into::into)
     }
 }

@@ -256,20 +256,20 @@ impl RoutePattern {
     ) -> Vec<(String, String)> {
         match &self.regex {
             Matcher::Linear(regex) => {
-                let captures = regex.captures(path).expect("route already matched");
+                let captures = regex.captures(path);
                 self.parameter_values(defaults, |name| {
-                    captures.name(name).map(|value| value.as_str())
+                    captures
+                        .as_ref()
+                        .and_then(|captures| captures.name(name))
+                        .map(|value| value.as_str())
                 })
             }
             Matcher::Pcre(regex) => {
-                let captures = regex
-                    .captures(path.as_bytes())
-                    .ok()
-                    .flatten()
-                    .expect("route already matched");
+                let captures = regex.captures(path.as_bytes()).ok().flatten();
                 self.parameter_values(defaults, |name| {
                     captures
-                        .name(name)
+                        .as_ref()
+                        .and_then(|captures| captures.name(name))
                         .and_then(|value| std::str::from_utf8(value.as_bytes()).ok())
                 })
             }

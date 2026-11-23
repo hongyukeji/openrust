@@ -36,6 +36,54 @@ Use `r#match` to share a handler across an explicit set of methods. GET in that 
 
 For the same method, domain and registered path, a later declaration replaces the earlier handler. This also applies to `any` and `r#match`: they have no separate priority. For different overlapping patterns, the first matching declaration wins. Declare specific paths before broader patterns.
 
+## View Routes
+
+Use `Route::view` when a GET/HEAD route only returns a view. The first two arguments are the URI and view name. Rust requires the third options argument explicitly; `Default::default()` supplies empty data, status 200 and no additional headers.
+
+```rust
+use openrust::{routing::ViewRouteOptions, support::facades::Route, view::ViewData};
+
+Route::view("/welcome", "welcome", Default::default())?;
+Route::view("/hello/{name}", "welcome", ViewRouteOptions {
+    data: ViewData::from_iter([("name".into(), "Taylor".into())]),
+    ..Default::default()
+})?;
+```
+
+Put templates in `resources/views`, for example `welcome.blade.html`. Captured path and domain parameters override matching keys in `data`, before view creators and composers run. Set `status` and `headers` in `ViewRouteOptions` for a custom response. PHP's alternative headers-in-status argument is represented by the explicit `headers` field. Do not use `view`, `data`, `status` or `headers` as parameter names. Route defaults currently carry strings; arbitrary typed changes to these four view settings through `Route::defaults` are not supported. Bound model objects are not automatically converted into view data.
+
+`Router::view` returns a mutable route. For facade declarations, use `Route::viewWith(uri, view, options, |route| { route.name("welcome"); Ok(()) })` to configure the route inside its registration borrow. Rendering uses the current application's view factory and middleware. A missing template or failing creator/composer follows the normal HTTP exception pipeline.
+
+## Fallback Routes
+
+Declare a fallback in `routes/web.rs` to handle GET/HEAD requests that no ordinary route matches. It inherits the current group's prefix, domain and middleware. A handler's returned error or 404 response does not cause another fallback attempt.
+
+```rust
+use openrust::support::facades::Route;
+
+Route::fallback(NotFoundController::show)?;
+```
+
+Ordinary routes take precedence even when the fallback was declared earlier. Among matching fallbacks, registration order applies; a later declaration for the same method, domain and registered URI replaces the earlier one. An unmatched POST returns 405 with `Allow: GET, HEAD` when the fallback matches its path; automatic OPTIONS returns 200. A fallback is a registered route, so it takes precedence over the static file mounts described below.
+
+Use `Route::fallbackWith(handler, |route| { route.name("missing"); Ok(()) })` for facade configuration. `Router::fallback` returns a mutable route; `route.fallback()` marks an existing route, and `route.setFallback(false)` removes the marker. Routing cache preserves this precedence.
+
+
+A handler can explicitly return another named route's response. `respondWithRoute` binds that route against the same request URI, runs its middleware and replaces the request's current route parameters and name; it does not generate a redirect or substitute the target URI.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    support::facades::Route,
+};
+
+fn show_missing(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(Route::respondWithRoute("missing", request))
+}
+```
+
+Register `missing` using `fallbackWith` as above, then register `show_missing` as a handler. Rust requires an explicit mutable request borrow; the HTTP kernel supplies the shared runtime router through the application container. Each request keeps its own route state. Missing names return an error rendered as HTTP 500. The same public method is available on `Router` for direct consumers. Runtime router resolution is available after HTTP bootstrap; registration continues to use the route registration scope.
+
 ## Mounting a static directory
 
 The application skeleton mounts the website directory first and the public storage disk second. See [public file configuration](../getting-started/configuration.md#public-files) for the directories and URL prefixes.

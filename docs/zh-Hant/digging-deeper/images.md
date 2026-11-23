@@ -52,9 +52,13 @@ AVIF 與 HEIC 序列的變換和相互轉換保留每個顯示畫格各自的 IC
 
 ## 影像驅動 {#image-drivers}
 
-應用程式預設使用 `image` 驅動。`IMAGE_DRIVER` 可選擇已註冊的驅動。用 `Image::extend` 註冊 `Driver` 實作，用 `using` 為影像選擇驅動。預設限制為每個輸入 32 MiB、每邊 16,384 像素、每張影像 2,400 萬像素。
+應用程式預設使用 `image` 驅動。`IMAGE_DRIVER` 可選擇已註冊的驅動。用 `using` 為影像選擇驅動。預設限制為每個輸入 32 MiB、每邊 16,384 像素、每張影像 2,400 萬像素。
 
 內建驅動可讀寫 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 與 BMP。可使用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 轉換格式。`heif` 別名輸出副檔名為 `.heic`、MIME 類型為 `image/heic` 的檔案。JPEG、WebP、AVIF、HEIC 與 JPEG XL 套用指定品質。WebP 和 JPEG XL 在品質為 100 時採用無損編碼。編解碼皆在 Rust 中執行。
+
+用 `Image::extend("custom", creator)` 登記自訂驅動；回呼回傳 `Result<Arc<dyn Driver>>`。建立器在首次呼叫 `driver` 時執行，接收管理器，可透過 `getContainer()` 解析應用程式服務。替換建立器不會替換已快取驅動；`forgetDrivers()` 清除驅動實例，保留建立器與轉換處理器。`setContainer(container)` 改變後續建立器及尚未載入的儲存、URL 來源所用的容器，保留原設定儲存庫與已解析驅動。應用程式須繼續持有容器；獨立管理器的 `getContainer()` 回傳 `None`。
+
+後端需要檢查依賴時，在 `Driver` trait 中實作 `ensureRequirementsAreMet`，預設實作直接成功。管理器在建立之後、登記轉換處理器與快取之前呼叫；失敗會傳回錯誤且不快取該驅動，後續解析可重試。
 
 ### 自訂轉換處理器 {#custom-transformation-handlers}
 

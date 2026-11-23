@@ -1,6 +1,5 @@
 use std::{
     any::type_name_of_val,
-    borrow::Cow,
     collections::{HashMap, HashSet},
     panic::Location,
     path::Path,
@@ -313,6 +312,28 @@ impl Router {
         VERBS.map(|verb| Method::from_bytes(verb.as_bytes()).expect("有效的 HTTP 方法"))
     }
 
+    /// 注册 GET/HEAD 后备路由；仍继承组的前缀、域名和中间件。
+    #[track_caller]
+    pub fn fallback<Arguments>(
+        &mut self,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        let route = self.get("/{fallbackPlaceholder}", handler)?;
+        route.r#where("fallbackPlaceholder", ".*")?;
+        Ok(route.fallback())
+    }
+
+    /// 注册直接渲染视图的 GET/HEAD 路由。
+    #[track_caller]
+    pub fn view(
+        &mut self,
+        uri: &str,
+        view: &str,
+        options: super::ViewRouteOptions,
+    ) -> Result<&mut Route, RoutingError> {
+        self.get(uri, super::ViewController::new(view, options))
+    }
+
     #[track_caller]
     pub fn r#match<Arguments>(
         &mut self,
@@ -330,27 +351,8 @@ impl Router {
         handler: impl IntoRouteHandler<Arguments>,
         definition: &'static Location<'static>,
     ) -> Result<&mut Route, RoutingError> {
-        // match 将方法名统一为大写；标准方法直接借用原切片。
-        let methods = if methods.iter().any(|method| {
-            method
-                .as_str()
-                .bytes()
-                .any(|byte| byte.is_ascii_lowercase())
-        }) {
-            Cow::Owned(
-                methods
-                    .iter()
-                    .map(|method| {
-                        Method::from_bytes(method.as_str().to_ascii_uppercase().as_bytes())
-                            .expect("有效的 HTTP 方法转换为大写后仍然有效")
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        } else {
-            Cow::Borrowed(methods)
-        };
         let action = type_name_of_val(&handler);
-        let route = self.add_route(&methods, uri, handler.into_route_handler())?;
+        let route = Registrar::r#match(self, methods, uri, handler.into_route_handler())?;
         route.definition = definition;
         if !action.contains("{{closure}}") {
             route.action = action;
@@ -527,14 +529,26 @@ impl Router {
     fn matched(&self, method: &Method, host: &str, path: &str) -> Option<&Route> {
         let routes = self.by_method.get(method)?;
         let matches = |&index: &usize| self.routes[index].matches(host, path);
+        let mut fallback = None;
+        let mut select = |index| {
+            if !matches(&index) {
+                return false;
+            }
+            if self.routes[index].isFallback {
+                fallback.get_or_insert(index);
+                return false;
+            }
+            true
+        };
         let index = if let Some(cache) = &self.route_cache {
             cache
                 .candidates(method, path)
                 .map(|position| routes[position])
-                .find(matches)
+                .find(|&index| select(index))
         } else {
-            routes.iter().copied().find(matches)
-        }?;
+            routes.iter().copied().find(|&index| select(index))
+        }
+        .or(fallback)?;
         Some(&self.routes[index])
     }
 
@@ -584,61 +598,7 @@ impl Router {
                 return Ok(self.localize_response(request, response).await);
             }
             let parameters = route.parameters(host, &path);
-            request.parts_mut().extensions.insert(super::RouteMetadata {
-                methods: route.methods.clone(),
-                uri: route.uri.clone(),
-                domain: route.domain.clone(),
-                action: route
-                    .controller_action
-                    .clone()
-                    .unwrap_or_else(|| route.action.into()),
-                middleware: Vec::new(),
-            });
-            request.matched_route = true;
-            request.route_name = (!route.name.is_empty()).then(|| route.name.clone());
-            if let Some(domain) = &route.domain {
-                request
-                    .parts_mut()
-                    .extensions
-                    .insert(super::middleware::MatchedRouteDomain(domain.clone()));
-            }
-            request.session_block = route.session_block;
-            let plan = route.binding_plan(&self.bindings, &parameters);
-            request.set_route_parameters(parameters);
-            request.binding_plan = plan;
-            let resolved;
-            let middleware = if let Some(stack) = &route.resolved_middleware {
-                stack
-            } else {
-                resolved = MiddlewareRegistry::default()
-                    .resolve_stack(
-                        &route.middleware,
-                        &route.excluded_middleware,
-                        &HashMap::new(),
-                    )
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
-                &resolved
-            };
-            if let Some(metadata) = request
-                .parts_mut()
-                .extensions
-                .get_mut::<super::RouteMetadata>()
-            {
-                metadata.middleware = middleware
-                    .iter()
-                    .map(|item| item.middleware_type_name().to_owned())
-                    .collect();
-            }
-            request.route_terminators.extend(
-                middleware
-                    .iter()
-                    .filter(|middleware| middleware.terminable().is_some())
-                    .cloned(),
-            );
-            let dispatcher = RouteDispatcher(route.handler.as_ref());
-            return Ok(Next::new(middleware, &dispatcher).run(request).await);
+            return self.run_route(request, route, parameters).await;
         }
 
         if self.locale_middleware.is_empty() {
@@ -649,6 +609,118 @@ impl Router {
                 .run(request)
                 .await,
         )
+    }
+
+    /// 使用当前请求重新绑定命名路由，并运行目标路由的中间件与处理器。
+    #[allow(non_snake_case, reason = "沿用固定上游 Router 公开方法")]
+    pub async fn respondWithRoute(
+        &self,
+        name: &str,
+        request: &mut Request,
+    ) -> Result<Response, HttpError> {
+        let active: HashSet<_> = self.by_method.values().flatten().copied().collect();
+        let route = [true, false]
+            .into_iter()
+            .find_map(|domain| {
+                self.routes.iter().enumerate().find_map(|(index, route)| {
+                    (route.domain.is_some() == domain
+                        && active.contains(&index)
+                        && route.getName() == Some(name))
+                    .then_some(route)
+                })
+            })
+            .ok_or_else(|| HttpError::Internal {
+                source: std::io::Error::other(format!("命名路由 {name:?} 不存在")).into(),
+            })?;
+        let path = request.uri().path().trim_end_matches('/');
+        let path = percent_decode_str(if path.is_empty() { "/" } else { path })
+            .decode_utf8()
+            .map_err(|_| HttpError::InvalidRequest)?;
+        let host = request
+            .uri()
+            .host()
+            .map(str::to_owned)
+            .or_else(|| {
+                request
+                    .headers()
+                    .get(::http::header::HOST)
+                    .and_then(|header| header.to_str().ok())
+                    .and_then(|host| host.parse::<::http::uri::Authority>().ok())
+                    .map(|authority| authority.host().to_owned())
+            })
+            .unwrap_or_default();
+        let path = path.into_owned();
+        let parameters = route.parameters(&host, &path);
+        self.run_route(request, route, parameters).await
+    }
+
+    async fn run_route(
+        &self,
+        request: &mut Request,
+        route: &Route,
+        parameters: Vec<(String, String)>,
+    ) -> Result<Response, HttpError> {
+        // 命名分发会替换当前路由；不保留原路由参数、模型、域名和终结器。
+        request.route_terminators.clear();
+        request
+            .parts_mut()
+            .extensions
+            .remove::<super::middleware::MatchedRouteDomain>();
+        request.parts_mut().extensions.insert(super::RouteMetadata {
+            methods: route.methods.clone(),
+            uri: route.uri.clone(),
+            domain: route.domain.clone(),
+            action: route
+                .controller_action
+                .clone()
+                .unwrap_or_else(|| route.action.into()),
+            middleware: Vec::new(),
+        });
+        request.matched_route = true;
+        request.route_name = (!route.name.is_empty()).then(|| route.name.clone());
+        if let Some(domain) = &route.domain {
+            request
+                .parts_mut()
+                .extensions
+                .insert(super::middleware::MatchedRouteDomain(domain.clone()));
+        }
+        request.session_block = route.session_block;
+        let plan = route.binding_plan(&self.bindings, &parameters);
+        request.set_route_parameters(parameters);
+        request.binding_plan = plan;
+        let resolved;
+        let middleware = if let Some(stack) = &route.resolved_middleware {
+            stack
+        } else {
+            resolved = MiddlewareRegistry::default()
+                .resolve_stack(
+                    &route.middleware,
+                    &route.excluded_middleware,
+                    &HashMap::new(),
+                )
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+            &resolved
+        };
+        if let Some(metadata) = request
+            .parts_mut()
+            .extensions
+            .get_mut::<super::RouteMetadata>()
+        {
+            metadata.middleware = middleware
+                .iter()
+                .map(|item| item.middleware_type_name().to_owned())
+                .collect();
+        }
+        request.route_terminators.extend(
+            middleware
+                .iter()
+                .filter(|middleware| middleware.terminable().is_some())
+                .cloned(),
+        );
+        let dispatcher = RouteDispatcher(route.handler.as_ref());
+        Ok(Next::new(middleware, &dispatcher).run(request).await)
     }
 
     async fn localize_response(&self, request: &mut Request, response: Response) -> Response {

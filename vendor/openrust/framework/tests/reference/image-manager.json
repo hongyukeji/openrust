@@ -1,0 +1,35 @@
+{
+  "initial_empty": true,
+  "calls_after_extend": 0,
+  "same_cached": true,
+  "calls_after_cached": 1,
+  "cached_after_extend": true,
+  "replacement_calls_before_forget": 0,
+  "empty_after_forget": true,
+  "new_after_forget": true,
+  "replacement_calls_after_forget": 1,
+  "handlers_after_forget": true,
+  "left_container": true,
+  "right_container": true,
+  "default_after_rebind": "probe",
+  "cached_after_rebind": true,
+  "creator_containers": [
+    true,
+    true
+  ],
+  "empty_name_uses_default": true,
+  "zero_name_uses_default": true,
+  "failure_not_cached": true,
+  "retry_calls": 2,
+  "storage_loaded_from_rebound": true,
+  "url_loaded_from_rebound": true,
+  "storage_loaded_source_cached": true,
+  "url_loaded_source_cached": true,
+  "requirements_order": [
+    "requirements",
+    "requirements",
+    "handler",
+    "requirements",
+    "handler"
+  ]
+}

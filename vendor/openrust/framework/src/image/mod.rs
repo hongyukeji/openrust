@@ -71,6 +71,11 @@ pub struct EncodedImage {
 
 #[allow(non_snake_case, reason = "Matches Laravel's image driver contract")]
 pub trait Driver: Send + Sync + 'static {
+    /// 创建后、登记转换处理器及缓存前检查后端依赖；默认无需额外检查。
+    fn ensureRequirementsAreMet(&self) -> Result<()> {
+        Ok(())
+    }
+
     fn process(
         &self,
         contents: Bytes,

@@ -264,7 +264,7 @@ async fn applies_custom_driver_and_keeps_manager_registrations_isolated() {
     }
     let left = ImageManager::new(Limits::default());
     let right = ImageManager::new(Limits::default());
-    left.extend("probe", Probe).unwrap();
+    left.extend("probe", |_| Ok(Arc::new(Probe))).unwrap();
     assert!(matches!(
         left.driver(Some("probe"))
             .unwrap()
@@ -1322,11 +1322,14 @@ async fn manager_retains_handlers_before_custom_driver_registration() {
         )
         .unwrap();
     manager
-        .extend(
-            "custom",
-            Forward(ImageManager::new(Limits::default()).driver(None).unwrap()),
-        )
+        .extend("custom", |_| {
+            Ok(Arc::new(Forward(
+                ImageManager::new(Limits::default()).driver(None)?,
+            )))
+        })
         .unwrap();
+    assert!(!manager.getDrivers().contains_key("custom"));
+    manager.driver(Some("custom")).unwrap();
     assert!(manager.getDrivers().contains_key("custom"));
     let result = manager
         .fromBytes(sample())
@@ -1338,6 +1341,19 @@ async fn manager_retains_handlers_before_custom_driver_registration() {
         .toBytes()
         .await;
     assert!(matches!(result, Err(Error::InvalidTransformation)));
+    manager.forgetDrivers();
+    assert!(matches!(
+        manager
+            .fromBytes(sample())
+            .using("custom")
+            .transform(Transformation::Custom {
+                name: "Probe".into(),
+                options: serde_json::Value::Null,
+            })
+            .toBytes()
+            .await,
+        Err(Error::InvalidTransformation)
+    ));
     manager
         .transformUsing("custom", "Probe", Arc::new(|_, _| Ok(())))
         .unwrap();
@@ -1379,7 +1395,7 @@ fn image_response(
         assert!(
             openrust::support::facades::Image::getDrivers()
                 .unwrap()
-                .contains_key("image")
+                .is_empty()
         );
         assert_eq!(
             openrust::support::facades::Image::driver(None)
@@ -1388,6 +1404,35 @@ fn image_response(
                 .unwrap(),
             (12, 6)
         );
+        let owner = openrust::support::facades::Image::getContainer()
+            .unwrap()
+            .unwrap();
+        openrust::support::facades::Image::extend("facade-probe", |manager| {
+            assert!(manager.getContainer().is_some());
+            manager.driver(Some("image"))
+        })
+        .unwrap();
+        assert!(
+            !openrust::support::facades::Image::getDrivers()
+                .unwrap()
+                .contains_key("facade-probe")
+        );
+        openrust::support::facades::Image::driver(Some("facade-probe")).unwrap();
+        let other = Arc::new(openrust::container::Container::default());
+        openrust::support::facades::Image::setContainer(other.clone()).unwrap();
+        assert!(Arc::ptr_eq(
+            &other,
+            &openrust::support::facades::Image::getContainer()
+                .unwrap()
+                .unwrap()
+        ));
+        openrust::support::facades::Image::forgetDrivers().unwrap();
+        assert!(
+            openrust::support::facades::Image::getDrivers()
+                .unwrap()
+                .is_empty()
+        );
+        openrust::support::facades::Image::setContainer(owner).unwrap();
         let image = openrust::support::facades::Image::fromBytes(sample())
             .unwrap()
             .transform(Transformation::Custom {
@@ -1525,5 +1570,376 @@ async fn image_builders_reject_missing_dimensions_and_normalize_bounds_before_ha
             .await
             .unwrap(),
         sample()
+    );
+}
+
+#[test]
+fn image_manager_creators_are_lazy_cached_and_recreated_after_forgetting() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("reference/image-manager.json")).unwrap();
+    let manager = ImageManager::new(Limits::default());
+    assert_eq!(manager.getDrivers().is_empty(), reference["initial_empty"]);
+    let creates = Arc::new(AtomicUsize::new(0));
+    let observed = creates.clone();
+    manager
+        .extend("custom", move |manager| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            manager.driver(Some("image"))
+        })
+        .unwrap();
+    assert_eq!(
+        creates.load(Ordering::SeqCst),
+        reference["calls_after_extend"].as_u64().unwrap() as usize
+    );
+    let first = manager.driver(Some("custom")).unwrap();
+    assert!(Arc::ptr_eq(
+        &first,
+        &manager.driver(Some("custom")).unwrap()
+    ));
+    assert_eq!(
+        creates.load(Ordering::SeqCst),
+        reference["calls_after_cached"].as_u64().unwrap() as usize
+    );
+    let replacement = Arc::new(AtomicUsize::new(0));
+    let observed = replacement.clone();
+    manager
+        .extend("custom", move |manager| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            manager.driver(Some("image"))
+        })
+        .unwrap();
+    assert!(Arc::ptr_eq(
+        &first,
+        &manager.driver(Some("custom")).unwrap()
+    ));
+    assert_eq!(
+        replacement.load(Ordering::SeqCst),
+        reference["replacement_calls_before_forget"]
+            .as_u64()
+            .unwrap() as usize
+    );
+    manager.forgetDrivers();
+    assert!(manager.getDrivers().is_empty());
+    let second = manager.driver(Some("custom")).unwrap();
+    assert!(!Arc::ptr_eq(&first, &second));
+    assert_eq!(
+        replacement.load(Ordering::SeqCst),
+        reference["replacement_calls_after_forget"]
+            .as_u64()
+            .unwrap() as usize
+    );
+    assert!(Arc::ptr_eq(
+        &manager.driver(Some("")).unwrap(),
+        &manager.driver(Some("0")).unwrap()
+    ));
+    assert!(Arc::ptr_eq(&manager.driver(None).unwrap(), &second));
+}
+
+#[test]
+fn image_manager_creator_errors_and_recursive_resolution_do_not_poison_cache() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let manager = ImageManager::new(Limits::default());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    manager
+        .extend("retry", move |manager| {
+            if observed.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Err(Error::InvalidTransformation);
+            }
+            manager.driver(None)
+        })
+        .unwrap();
+    assert!(matches!(
+        manager.driver(Some("retry")),
+        Err(Error::InvalidTransformation)
+    ));
+    assert!(manager.getDrivers().is_empty());
+    assert!(manager.driver(Some("retry")).is_ok());
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    manager
+        .extend("recursive", |manager| manager.driver(Some("recursive")))
+        .unwrap();
+    assert!(
+        matches!(manager.driver(Some("recursive")), Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::WouldBlock)
+    );
+    manager
+        .extend("recursive", |manager| manager.driver(None))
+        .unwrap();
+    assert!(manager.driver(Some("recursive")).is_ok());
+}
+
+#[test]
+fn image_manager_rebinding_changes_creator_container_and_preserves_resolved_drivers() {
+    use openrust::container::Container;
+    let manager = ImageManager::new(Limits::default());
+    assert!(manager.getContainer().is_none());
+    let left = Arc::new(Container::default());
+    let right = Arc::new(Container::default());
+    manager.setContainer(left.clone());
+    assert!(Arc::ptr_eq(&manager.getContainer().unwrap(), &left));
+    let observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = observed.clone();
+    manager
+        .extend("custom", move |manager| {
+            seen.lock().unwrap().push(manager.getContainer().unwrap());
+            manager.driver(None)
+        })
+        .unwrap();
+    let first = manager.driver(Some("custom")).unwrap();
+    manager.setContainer(right.clone());
+    assert!(Arc::ptr_eq(&manager.getContainer().unwrap(), &right));
+    assert!(Arc::ptr_eq(
+        &first,
+        &manager.driver(Some("custom")).unwrap()
+    ));
+    manager.forgetDrivers();
+    assert!(manager.driver(Some("custom")).is_ok());
+    let observations = observed.lock().unwrap();
+    assert_eq!(observations.len(), 2);
+    assert!(Arc::ptr_eq(&observations[0], &left));
+    assert!(Arc::ptr_eq(&observations[1], &right));
+}
+
+#[tokio::test]
+async fn image_manager_rebinding_resolves_storage_and_http_when_sources_are_loaded() {
+    use openrust::{
+        config::Repository,
+        container::Container,
+        contracts::container::Container as _,
+        filesystem::FilesystemManager,
+        http::{
+            HeaderMap, StatusCode,
+            client::{Factory, Response},
+        },
+    };
+    fn source_container(root: &std::path::Path, bytes: &[u8]) -> Arc<Container> {
+        std::fs::create_dir_all(root).unwrap();
+        std::fs::write(root.join("input.png"), bytes).unwrap();
+        let config = Arc::new(Repository::new(std::collections::BTreeMap::from([(
+            "filesystems".into(),
+            serde_json::json!({
+                "default":"local", "disks":{"local":{"driver":"local", "root":root, "throw":true}}
+            }),
+        )])));
+        let container = Arc::new(Container::default());
+        container
+            .instanceNamed(
+                "filesystem",
+                Arc::new(FilesystemManager::new(config, root.to_owned())),
+            )
+            .unwrap();
+        let http = Arc::new(Factory::new().unwrap());
+        http.stubUrl(
+            "example.test/*",
+            Response::new(StatusCode::OK, HeaderMap::new(), bytes.to_vec()),
+        );
+        http.preventStrayRequests(true);
+        container.instance(http).unwrap();
+        container
+    }
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("reference/image-manager.json")).unwrap();
+    for key in [
+        "storage_loaded_from_rebound",
+        "url_loaded_from_rebound",
+        "storage_loaded_source_cached",
+        "url_loaded_source_cached",
+    ] {
+        assert_eq!(reference[key], true);
+    }
+    let root = Directory::new();
+    let small = ImageManager::new(Limits::default())
+        .fromBytes(sample())
+        .cover(2, 2)
+        .toBytes()
+        .await
+        .unwrap();
+    let left = source_container(&root.0.join("left"), &sample());
+    let right = source_container(&root.0.join("right"), &small);
+    let manager = ImageManager::new(Limits::default());
+    manager.setContainer(left.clone());
+    let storage = manager.fromStorage("input.png", None).unwrap();
+    let http = manager.fromUrl("https://example.test/input.png").unwrap();
+    manager.setContainer(right.clone());
+    assert_eq!(storage.dimensions().await.unwrap(), (2, 2));
+    assert_eq!(http.dimensions().await.unwrap(), (2, 2));
+    manager.setContainer(left.clone());
+    assert_eq!(storage.dimensions().await.unwrap(), (2, 2));
+    assert_eq!(http.dimensions().await.unwrap(), (2, 2));
+    assert_eq!(
+        manager
+            .fromStorage("input.png", None)
+            .unwrap()
+            .dimensions()
+            .await
+            .unwrap(),
+        (12, 6)
+    );
+    assert_eq!(
+        manager
+            .fromUrl("https://example.test/input.png")
+            .unwrap()
+            .dimensions()
+            .await
+            .unwrap(),
+        (12, 6)
+    );
+}
+
+#[tokio::test]
+async fn image_driver_registration_in_provider_boot_uses_default_config_and_application_container()
+{
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        foundation::{Application, configuration::Routing},
+        http::{HttpError, HttpFuture, Request},
+        support::{
+            ProviderResult, ServiceProvider,
+            facades::{Image, Route},
+        },
+        testing::TestApp,
+    };
+    struct ImageSettings(u32);
+    struct ThumbnailImages(u32, Arc<std::sync::atomic::AtomicUsize>);
+    impl ServiceProvider for ThumbnailImages {
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                app.container().instance(Arc::new(ImageSettings(self.0)))?;
+                let count = self.1.clone();
+                let expected = self.0;
+                Image::extend("thumbnail", move |manager| {
+                    let container = manager.getContainer().unwrap();
+                    assert_eq!(container.make::<ImageSettings>().unwrap().0, expected);
+                    count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    manager.driver(Some("image"))
+                })?;
+                Ok(())
+            })
+        }
+    }
+    fn thumbnail(_: &mut Request) -> HttpFuture<'_, Result<openrust::image::Image, HttpError>> {
+        Box::pin(async {
+            let container = Image::getContainer().unwrap().unwrap();
+            let width = container.make::<ImageSettings>().unwrap().0;
+            Ok(Image::fromBytes(sample()).unwrap().cover(width, width))
+        })
+    }
+    fn app(width: u32, calls: Arc<std::sync::atomic::AtomicUsize>) -> TestApp {
+        TestApp::create(|builder| {
+            builder
+                .withConfig(|_, _| {
+                    Ok(std::collections::BTreeMap::from([(
+                        "images".into(),
+                        serde_json::json!({"default":"thumbnail"}),
+                    )]))
+                })
+                .withProviders(vec![Box::new(ThumbnailImages(width, calls))])
+                .withRouting(Routing::default().web(|| Route::get("/thumbnail", thumbnail)))
+        })
+        .unwrap()
+    }
+    let left_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let right_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut left = app(3, left_calls.clone());
+    let mut right = app(4, right_calls.clone());
+    assert_eq!(left_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(right_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    for _ in 0..2 {
+        let (left, right) = tokio::join!(left.get("/thumbnail"), right.get("/thumbnail"));
+        for (response, width) in [(left.unwrap(), 3), (right.unwrap(), 4)] {
+            response
+                .assertOk()
+                .assertHeader("content-type", "image/png");
+            let pixels = ::image::load_from_memory(response.body()).unwrap();
+            assert_eq!((pixels.width(), pixels.height()), (width, width));
+        }
+    }
+    assert_eq!(left_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(right_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[test]
+fn driver_requirements_run_before_handlers_and_only_cache_successful_creations() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    struct Checked {
+        inner: Arc<dyn Driver>,
+        ready: Arc<AtomicBool>,
+        order: Arc<std::sync::Mutex<Vec<&'static str>>>,
+    }
+    #[allow(non_snake_case, reason = "公开驱动契约沿用固定上游名称")]
+    impl Driver for Checked {
+        fn ensureRequirementsAreMet(&self) -> openrust::image::Result<()> {
+            self.order.lock().unwrap().push("requirements");
+            if self.ready.load(Ordering::SeqCst) {
+                Ok(())
+            } else {
+                Err(Error::Missing)
+            }
+        }
+        fn transformUsing(
+            &self,
+            _: &str,
+            _: openrust::image::TransformationHandler,
+        ) -> openrust::image::Result<()> {
+            self.order.lock().unwrap().push("handler");
+            Ok(())
+        }
+        fn process(
+            &self,
+            contents: Bytes,
+            pipeline: &ImagePipeline,
+            limits: Limits,
+        ) -> openrust::image::Result<EncodedImage> {
+            self.inner.process(contents, pipeline, limits)
+        }
+        fn dominantColor(
+            &self,
+            contents: Bytes,
+            pipeline: &ImagePipeline,
+            limits: Limits,
+        ) -> openrust::image::Result<String> {
+            self.inner.dominantColor(contents, pipeline, limits)
+        }
+    }
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("reference/image-manager.json")).unwrap();
+    let manager = ImageManager::new(Limits::default());
+    let ready = Arc::new(AtomicBool::new(false));
+    let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let create_ready = ready.clone();
+    let create_order = order.clone();
+    manager
+        .extend("checked", move |manager| {
+            Ok(Arc::new(Checked {
+                inner: manager.driver(Some("image"))?,
+                ready: create_ready.clone(),
+                order: create_order.clone(),
+            }))
+        })
+        .unwrap();
+    manager
+        .transformUsing("checked", "Probe", Arc::new(|_, _| Ok(())))
+        .unwrap();
+    assert!(order.lock().unwrap().is_empty());
+    assert!(matches!(
+        manager.driver(Some("checked")),
+        Err(Error::Missing)
+    ));
+    assert!(!manager.getDrivers().contains_key("checked"));
+    ready.store(true, Ordering::SeqCst);
+    let first = manager.driver(Some("checked")).unwrap();
+    assert!(Arc::ptr_eq(
+        &first,
+        &manager.driver(Some("checked")).unwrap()
+    ));
+    manager.forgetDrivers();
+    assert!(!Arc::ptr_eq(
+        &first,
+        &manager.driver(Some("checked")).unwrap()
+    ));
+    assert_eq!(
+        serde_json::json!(*order.lock().unwrap()),
+        reference["requirements_order"]
     );
 }

@@ -52,9 +52,13 @@ Use `mimeType`, `extension`, `dimensions`, `width`, and `height` to inspect the 
 
 ## Image drivers {#image-drivers}
 
-The application uses the `image` driver by default. `IMAGE_DRIVER` selects a registered driver. Use `Image::extend` to register an implementation of `Driver`, and `using` to choose a driver for an image. The default limits are 32 MiB per input, 16,384 pixels per side, and 24 million pixels per image.
+The application uses the `image` driver by default. `IMAGE_DRIVER` selects a registered driver. Use `using` to choose a driver for an image. The default limits are 32 MiB per input, 16,384 pixels per side, and 24 million pixels per image.
 
 The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `toAvif()`, `toHeic()`, `toJxl()`, or `toFormat("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, HEIC, and JPEG XL use the requested quality. WebP and JPEG XL use lossless encoding at quality 100. These codecs run in Rust.
+
+Register custom drivers with `Image::extend("custom", creator)`; the callback returns `Result<Arc<dyn Driver>>`. The creator runs on the first `driver` call, receives the manager, and can use `getContainer()` to resolve application services. Resolved drivers stay cached when their creator is replaced. `forgetDrivers()` clears those instances and preserves creators and transformation handlers. `setContainer(container)` changes the container used by future creators and unloaded storage or URL sources; it preserves the configuration repository and resolved drivers. The container must remain owned by the application. A standalone manager returns `None` from `getContainer()`.
+
+Implement `ensureRequirementsAreMet` in the `Driver` trait when a backend needs a dependency check. The default implementation succeeds. The manager calls it after creation and before transformation handlers or caching; an error is returned without caching the failed driver, so a later resolution can retry.
 
 ### Custom transformation handlers {#custom-transformation-handlers}
 

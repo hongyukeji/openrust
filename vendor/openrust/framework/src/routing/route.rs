@@ -23,7 +23,10 @@ pub struct RouteMetadata {
 }
 
 /// A registered route and its metadata.
+#[allow(non_snake_case, reason = "沿用固定上游 Route 公开属性")]
 pub struct Route {
+    /// 普通匹配优先；同组同路径的覆盖仍使用原有注册规则。
+    pub isFallback: bool,
     pub(super) methods: Vec<String>,
     pub(super) uri: String,
     pub(super) name: String,
@@ -62,6 +65,7 @@ impl Route {
             .map(|host| RoutePattern::compile_host(host, &constraints))
             .transpose()?;
         Ok(Self {
+            isFallback: false,
             methods: Vec::new(),
             uri,
             name: String::new(),
@@ -113,6 +117,17 @@ impl Route {
 
     pub fn name(&mut self, name: &str) -> &mut Self {
         self.name.push_str(name);
+        self
+    }
+
+    /// 标记为最后尝试的后备路由。
+    pub fn fallback(&mut self) -> &mut Self {
+        self.setFallback(true)
+    }
+
+    #[allow(non_snake_case, reason = "沿用固定上游 Route 公开方法")]
+    pub fn setFallback(&mut self, isFallback: bool) -> &mut Self {
+        self.isFallback = isFallback;
         self
     }
 

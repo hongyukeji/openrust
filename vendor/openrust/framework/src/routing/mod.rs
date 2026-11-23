@@ -18,6 +18,7 @@ mod route_url_generator;
 mod router;
 mod static_mount;
 mod url_generator;
+mod view_controller;
 
 pub use binding::BindingContext;
 pub use controller_dispatcher::ControllerDispatcher;
@@ -30,6 +31,7 @@ pub use resource::{ResourceAction, ResourceController};
 pub use route::{Route, RouteMetadata};
 pub use route_group::RouteGroup;
 pub use router::{IntoRouteHandler, RouteInfo, Router};
+pub use view_controller::{ViewController, ViewRouteOptions};
 
 pub use route_url_generator::RouteUrlGenerator;
 pub use url_generator::{
