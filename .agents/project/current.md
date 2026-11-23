@@ -1,14 +1,14 @@
-## 错误转换治理（2026-11-23）
-
-按[主题记录](audits/error-conversions-2026-11-23.md)核对全局候选，在HTTP、领域Unavailable、装配／路由、认证、集合、缓存／日志、并发及图片边界提供具体From，调用方与扩展／模板复用问号；保留状态、阶段、路径、恢复及脱敏映射。另修复并发／Arr路径source链和文件缓存IO来源字符串化，三语错误文档与规范同步。
-
-隔离Rust1.94.0：34项核心／配置、169项框架消费者、47项应用、4项本地认证模型、Fortify／Passport12项与三库及Redis／database／file缓存验收通过，三语内容／构建／双路径浏览器／导航通过。另有44项框架、9项应用生命周期、8项扩展错误边界及HTTP／扩展／账户消费者回归，最终静态与回归结果见主题记录。两项进程夹具由父测试启动，真实SMTP投递及完整workspace测试／其他平台／发布未验。用户授权本次本地提交，不推送；其余协作WIP保留。材料target/tmp/error-conversion-20261123/。
-
 ## Blade app 提交后复查（2026-11-23）
 
 复核c3f0b38f0发现并先失败复现三项问题：environment([])被当成读取、带括号对象接收者无法编译、同实例松比较错误。已完成最小修复，三语正文说明空模式及实例身份比较边界；复用现有引号、容器、对象身份与请求作用域，未新增依赖或公开API。
 
 Rust1.94.0隔离125项定向回归（72框架＋53应用，0失败／忽略）、范围fmt、严格Clippy、25组真实HTTP Chromium及三语内容／构建／12组浏览器／6组导航通过；源码对照与磁盘停线安全清理见[复查记录](audits/03-08/blade-app-container-2026-11-23.md#提交后复查2026-11-23)。沿用本任务本地提交授权，不推送；其他协作WIP保留。完整workspace／all-features、其他平台／实机／发布与不同Rust实例的PHP属性反射比较未验或不支持，不外推为全部等价。
+
+## 错误转换治理（2026-11-23）
+
+按[主题记录](audits/error-conversions-2026-11-23.md)核对全局候选，在HTTP、领域Unavailable、装配／路由、认证、集合、缓存／日志、并发及图片边界提供具体From，调用方与扩展／模板复用问号；保留状态、阶段、路径、恢复及脱敏映射。另修复并发／Arr路径source链和文件缓存IO来源字符串化，三语错误文档与规范同步。
+
+隔离Rust1.94.0：34项核心／配置、169项框架消费者、47项应用、4项本地认证模型、Fortify／Passport12项与三库及Redis／database／file缓存验收通过，三语内容／构建／双路径浏览器／导航通过。另有44项框架、9项应用生命周期、8项扩展错误边界及HTTP／扩展／账户消费者回归，最终静态与回归结果见主题记录。两项进程夹具由父测试启动，真实SMTP投递及完整workspace测试／其他平台／发布未验。用户授权本次本地提交，不推送；其余协作WIP保留。材料target/tmp/error-conversion-20261123/。
 
 ## Blade 应用与容器访问（2026-11-23）
 
@@ -46,8 +46,6 @@ Rust1.94.0隔离91项定向测试、fmt、受影响目标严格Clippy、三语�
 
 用户随后授权本轮本地提交，不包含推送。
 
-# 当前交接
-
 ## Blade 请求与配置读取（2026-11-23）
 
 按用户确认实现config／Config::get／Config::has，以及request()->…／Request::…指定只读请求方法；复用真实Request及既有异步渲染桥接，用渲染树sync_scope隔离，不另建管理器、不序列化或全局共享可变Request。补齐Request::getPathInfo，缓存格式41。欢迎页去掉name、version、query、base_path、path五项重复传参；保留必要业务数据与已校验表单字段。三语Blade正文、计划及规范同步。
@@ -79,25 +77,10 @@ Rust1.94.0隔离91项定向测试、fmt、受影响目标严格Clippy、三语�
 
 Rust1.94.0定向215次执行（131框架＋74应用＋10有状态API，0失败／忽略）、fmt、workspace/all-targets严格Clippy、25组真实HTTP Chromium及三语内容／构建／浏览器／导航通过。31个语言相关交付文件与快照一致；日志模块后续协作修改不计本轮通过。详见[验收与迁移](audits/03-07/welcome-language-2026-11-22.md#默认语言名称统一为-locale2026-11-23)。无本范围剩余实现阻塞；完整workspace测试、其他引擎／实机、Windows／Docker／性能未验。用户随后授权本轮本地提交，不含推送或发布；无关协作改动继续保留。
 
-## 自动跟随与持久手动语言（2026-11-23）
 
-已实现明确POST保存加密偏好Cookie、恢复自动删除、自动识别不持久化、URL仅单次覆盖。默认顺序callback→URL→受保护Cookie→配置头→兜底；Request标准头语义不变，业务使用App::currentLocale。保留APP_LOCALE_COOKIE（默认lang）、HEADER与QUERY_PARAMETER及配置缓存，null分别关来源。默认SetLocale在解析路由中于解密／队列之后装配一次；普通API无状态，可信前端有状态包装器可接入；依赖Session／认证回调仍显式后置。Cookie页面private,no-store及Vary:Cookie，普通语言Vary不承担任意用户来源隔离。
+## Blade 原生 Rust 代码块（2026-11-23）
 
-Rust1.94.0定向208项（129框架＋71应用＋8Sanctum，0失败0忽略）、严格workspace/all-targets及Sanctum定向Clippy、整仓fmt通过；最终服务重新编译后23组真实HTTP Chromium和三语内容／构建／浏览器／导航检查通过。新增guard异常进程扫描回归，10项Python检查通过。证据、修复过的失败与源码指纹见[主题验收](audits/03-07/welcome-language-2026-11-22.md#自动跟随与持久手动偏好2026-11-23)及target/tmp/locale-preference-20261123/。其他协作者后续WIP不计本轮通过。
-
-未验：其他引擎／实机、Windows、Docker发布、性能；移动端客户端保存与账号跨设备同步只提供接入说明，不新增客户端或账号字段。未改共享数据库／缓存驱动，未操作开发数据。此次没有暂存、提交、推送或发布授权。
-
-## 请求偏好与应用语言职责边界（2026-11-23）
-
-已核对核心行为正确并保留：Request标准方法始终读取Accept-Language，SetLocale按APP_LOCALE_HEADER支持的配置协商，实际语言用App::currentLocale；自定义头缺失不回退标准头。补充API注释、实际Kernel边界消费者、环境加载与缓存欢迎页验收，修正三语正文和计划中的过时静态配置说明；字面环境null是头名，JSON null才关闭。停用中间件后配置不独立执行选择。
-
-最终Rust1.94.0隔离快照125项测试（75框架＋50应用，0 ignored）、fmt、workspace/all-targets严格Clippy、44组真实HTTP浏览器及三语内容／构建／浏览器／全导航通过。15个相关文件与交付源码一致；其他协作者之后的数据库在途源码不纳入本轮通过结论。证据在target/tmp/locale-boundary-20261123/及[主题记录](audits/03-07/welcome-language-2026-11-22.md#请求偏好与应用语言职责边界2026-11-23)。语言范围无未验阻塞；其他引擎、实机、Windows、Docker发布及性能未验。本次未暂存、提交、推送、发布或操作开发数据，覆盖下方历史授权对本轮的适用性。
-
-## 可配置语言请求头与欢迎页切换复验（2026-11-23）
-
-按[计划](plans/locale-query-and-welcome-switching.md#13-可配置语言请求头2026-11-23)完成app.locale_header：缺键默认Accept-Language、合法自定义头、null仅关头识别、非法配置明确500；callback→query→配置头→既有兜底。复用Request解析器，标准getLanguages／getPreferredLanguage仍只读Accept-Language及原缓存；Vary跟随实际头名，保留已有项及通配符。欢迎页已完成能力保留，无新增控制器／模板抽象；三语正文、规范、计划与记录同步。
-
-Rust1.94.0隔离源码最终123项定向回归0 ignored、44组真实HTTP／Chromium交互、fmt、workspace/all-targets严格Clippy、三语内容／构建／浏览器与双前缀全导航通过；11个生产／测试／正文文件与验收快照一致。详见[验收记录](audits/03-07/welcome-language-2026-11-22.md#可配置语言请求头2026-11-23)。本批资料位于target/tmp/locale-header-20261123，复用已空闲独占locale-query-20261122/cargo-target；全部命令经build_guard，未触磁盘停线，结束可用约76.23GB／71.00GiB。本批验收服务已退出；保留增量缓存、源码与日志。未访问开发数据，未暂存、提交或推送，其他协作者改动保留。真实设备／其他引擎／Windows／Docker发布及性能未验；非三语文档目录及用户私有缓存仍为明确边界。
+按[计划](plans/blade-native-rust-blocks.md)完成构建期原生函数与渲染节点，复用既有包发现及作用域；NativeContext 显式读写、完整有序正文校验、缓存格式40，默认应用入口保持简洁。隔离基线292418a39加本次41文件通过44项测试、29阶段真实消费者、24组无工具链standalone并发HTTP、workspace及消费者严格Clippy、fmt、三语构建／浏览器／导航。任务隔离实际使用SyncQueue；动态类型、同步函数、局部写回及生成诊断边界详见[验收记录](audits/03-08/native-rust-blocks-2026-11-23.md)。初始混合快照的其他WIP格式／路由lint失败单列保留，不计入通过。Windows／release／Docker／性能／持久化异步队列未验；无本计划内剩余实现阻塞。材料在target/tmp/blade-native-20261123；用户随后授权本次本地提交，不含推送或发布；保留并行改动。
 
 
 ## 基础 HTTP 路由方法（2026-11-23）
@@ -111,9 +94,27 @@ Rust1.94.0 隔离快照核心5项、框架消费者120项、应用45项及 Forti
 用户随后授权本地提交：独立路由实现、回归、扩展消费者与三语示例纳入本次提交；依赖其他语言任务的欢迎页声明、TCP 消费者和 lint 修复保留工作区。共享 Router 仅提交本次方法入口与规范化，不包含语言管线；不推送或发布。
 
 
-## Blade 原生 Rust 代码块（2026-11-23）
+## 自动跟随与持久手动语言（2026-11-23）
 
-按[计划](plans/blade-native-rust-blocks.md)完成构建期原生函数与渲染节点，复用既有包发现及作用域；NativeContext 显式读写、完整有序正文校验、缓存格式40，默认应用入口保持简洁。隔离基线292418a39加本次41文件通过44项测试、29阶段真实消费者、24组无工具链standalone并发HTTP、workspace及消费者严格Clippy、fmt、三语构建／浏览器／导航。任务隔离实际使用SyncQueue；动态类型、同步函数、局部写回及生成诊断边界详见[验收记录](audits/03-08/native-rust-blocks-2026-11-23.md)。初始混合快照的其他WIP格式／路由lint失败单列保留，不计入通过。Windows／release／Docker／性能／持久化异步队列未验；无本计划内剩余实现阻塞。材料在target/tmp/blade-native-20261123；用户随后授权本次本地提交，不含推送或发布；保留并行改动。
+已实现明确POST保存加密偏好Cookie、恢复自动删除、自动识别不持久化、URL仅单次覆盖。默认顺序callback→URL→受保护Cookie→配置头→兜底；Request标准头语义不变，业务使用App::currentLocale。保留APP_LOCALE_COOKIE（默认lang）、HEADER与QUERY_PARAMETER及配置缓存，null分别关来源。默认SetLocale在解析路由中于解密／队列之后装配一次；普通API无状态，可信前端有状态包装器可接入；依赖Session／认证回调仍显式后置。Cookie页面private,no-store及Vary:Cookie，普通语言Vary不承担任意用户来源隔离。
+
+Rust1.94.0定向208项（129框架＋71应用＋8Sanctum，0失败0忽略）、严格workspace/all-targets及Sanctum定向Clippy、整仓fmt通过；最终服务重新编译后23组真实HTTP Chromium和三语内容／构建／浏览器／导航检查通过。新增guard异常进程扫描回归，10项Python检查通过。证据、修复过的失败与源码指纹见[主题验收](audits/03-07/welcome-language-2026-11-22.md#自动跟随与持久手动偏好2026-11-23)及target/tmp/locale-preference-20261123/。其他协作者后续WIP不计本轮通过。
+
+未验：其他引擎／实机、Windows、Docker发布、性能；移动端客户端保存与账号跨设备同步只提供接入说明，不新增客户端或账号字段。未改共享数据库／缓存驱动，未操作开发数据。此次没有暂存、提交、推送或发布授权。
+
+
+## 请求偏好与应用语言职责边界（2026-11-23）
+
+已核对核心行为正确并保留：Request标准方法始终读取Accept-Language，SetLocale按APP_LOCALE_HEADER支持的配置协商，实际语言用App::currentLocale；自定义头缺失不回退标准头。补充API注释、实际Kernel边界消费者、环境加载与缓存欢迎页验收，修正三语正文和计划中的过时静态配置说明；字面环境null是头名，JSON null才关闭。停用中间件后配置不独立执行选择。
+
+最终Rust1.94.0隔离快照125项测试（75框架＋50应用，0 ignored）、fmt、workspace/all-targets严格Clippy、44组真实HTTP浏览器及三语内容／构建／浏览器／全导航通过。15个相关文件与交付源码一致；其他协作者之后的数据库在途源码不纳入本轮通过结论。证据在target/tmp/locale-boundary-20261123/及[主题记录](audits/03-07/welcome-language-2026-11-22.md#请求偏好与应用语言职责边界2026-11-23)。语言范围无未验阻塞；其他引擎、实机、Windows、Docker发布及性能未验。本次未暂存、提交、推送、发布或操作开发数据，覆盖下方历史授权对本轮的适用性。
+
+
+## 可配置语言请求头与欢迎页切换复验（2026-11-23）
+
+按[计划](plans/locale-query-and-welcome-switching.md#13-可配置语言请求头2026-11-23)完成app.locale_header：缺键默认Accept-Language、合法自定义头、null仅关头识别、非法配置明确500；callback→query→配置头→既有兜底。复用Request解析器，标准getLanguages／getPreferredLanguage仍只读Accept-Language及原缓存；Vary跟随实际头名，保留已有项及通配符。欢迎页已完成能力保留，无新增控制器／模板抽象；三语正文、规范、计划与记录同步。
+
+Rust1.94.0隔离源码最终123项定向回归0 ignored、44组真实HTTP／Chromium交互、fmt、workspace/all-targets严格Clippy、三语内容／构建／浏览器与双前缀全导航通过；11个生产／测试／正文文件与验收快照一致。详见[验收记录](audits/03-07/welcome-language-2026-11-22.md#可配置语言请求头2026-11-23)。本批资料位于target/tmp/locale-header-20261123，复用已空闲独占locale-query-20261122/cargo-target；全部命令经build_guard，未触磁盘停线，结束可用约76.23GB／71.00GiB。本批验收服务已退出；保留增量缓存、源码与日志。未访问开发数据，未暂存、提交或推送，其他协作者改动保留。真实设备／其他引擎／Windows／Docker发布及性能未验；非三语文档目录及用户私有缓存仍为明确边界。
 
 ## 欢迎页仓库元信息与链接（2026-11-22）
 
@@ -135,6 +136,7 @@ Application::REPOSITORY 来自框架 Cargo repository；欢迎页模板按当前
 本轮范围隔离快照11项关联回归、异版本消费2项、实际./artisan入口4组共8个进程、fmt、workspace/all-targets严格Clippy、三语内容／构建／12组合浏览器通过。异版本样例为应用7.6.5-consumer、框架0.0.0，环境覆盖不改变框架版本。最初包含协作者修改的快照有在途validation格式差异，保留而不代改；不能将本轮质量结果扩展为其他WIP已通过。材料及独占构建目录在target/tmp/framework-version-20261122/；详见[验收记录](audits/01-01/framework-version-2026-11-22.md)。未操作开发数据，未验Windows／Docker／release发布／完整上游PHPUnit。用户仅授权实施验收，未暂存、提交、推送或发布，保留其他协作者改动。
 
 2026-11-23 用户随后授权本轮本地提交，不含推送或发布；版本实现与最终验收快照复核一致，其他在途改动保留。
+
 
 ## SetLocale 实例语言回调（2026-11-22）
 
@@ -242,6 +244,7 @@ Blade 已接入 __／trans／trans_choice 以及 @lang 区块和带参数 @lang�
 
 2026-11-22 用户随后明确授权本轮本地提交，不包含推送或发布。仅提交 URL 语言选择、欢迎页切换及必要的实例回调依赖；其他版本 API、MessageBag、复数选择器、测试框架和新增环境变量改动留在工作区。提交范围保持已验收的静态 lang 默认配置。
 
+
 ## 欢迎页页头与 Blade 语言链接（2026-11-23）
 
 用户明确要求 language_links 全部移入视图。本轮已删除控制器 helper，控制器只传原始查询及LocaleSelection信息；Blade完成候选过滤、母语翻译、参数增删编码及选中样式。名称各自维护在lang/*/languages.json；原生页头语言／主题菜单默认分别跟随浏览器／系统，手动主题复用localStorage.appearance。新增通用Arr::query、Arr::except、in_array模板表达式，复用现有数组联合和编码，缓存版本39；未引入任意PHP执行器、语言管理器或依赖。
@@ -249,6 +252,25 @@ Blade 已接入 __／trans／trans_choice 以及 @lang 区块和带参数 @lang�
 最终包含在途改动的隔离组合快照96项定向回归、fmt、受影响lib／tests严格Clippy及36组真实HTTP浏览器交互通过，0 ignored；三语正文构建／浏览器／双前缀导航通过。22个交付源码／测试／资源／正文文件与最终快照一致，其他Agent的变更保留，未将其全部计为验收完成。详情见[主题记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页页头母语名称与-blade-链接生成2026-11-23)，材料位于target/tmp/locale-query-20261122/。本任务无功能验收阻塞；真实设备／其他引擎／Windows／Docker／性能及正式发布未验。用户随后明确授权本轮本地提交，不包含推送或发布；未操作开发数据或卷。
 
 
+## 欢迎页语言视图数据合并（2026-11-23）
+
+控制器整体传入 locale_selection，模板按字段读取；未启用中间件时保留null与隐藏控件行为。Rust1.94.0隔离欢迎页28项测试、框架库及欢迎页消费者严格Clippy、fmt、三语内容及差异检查通过，三处源码与快照一致；未另跑浏览器／完整workspace／文档构建。详见[验收记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页语言视图数据合并2026-11-23)。其他在途改动保留，本轮未暂存、提交或推送。
+
+
 ## 语言候选配置（2026-11-23）
 
 新增可选app.supported_locales／APP_SUPPORTED_LOCALES：未设置／null自动发现，列表按序启用，空列表停用；显式setLocale优先，非法配置阻止启动。复用既有配置缓存、语言中间件与视图候选，不修改bootstrap/app.rs；APP_LOCALE_HEADER与localeUsing各自优先级不变。三语用法与请求头／回调差异已同步。实际验收、快照及未验范围见[主题记录](audits/03-07/welcome-language-2026-11-22.md#语言候选配置2026-11-23)。用户随后授权本轮本地提交，不包含推送；其他协作者在途改动保留。
+
+
+## 模型字段引用（2026-11-23）
+
+数据库结构自动生成继续完善：已编译新版生成区域通过静态类型入口复用模型getTable / resolveConnectionName；支持多个模型、--all及--check，空集合不静默通过。make:model --fields --database同步保存模型连接；旧自定义模板需{{connection}}占位符。仅刷新生成区域，批量全预检后逐文件原子替换，不新增依赖/ORM/管理器，普通构建离线；首次旧模型自定义配置仍显式传入并重建，模型配置改变也先重建。all只覆盖已编译且启用自动字段同步的约定应用模型。
+
+本轮最新源码组合隔离完成30项定向Rust测试、三库真实生成/刷新/查询/编译正反例、fmt、workspace/all-targets严格Clippy、三语构建/12组页面/6组导航；final.log所有阶段0。覆盖无效默认连接下模型配置、metadata重编译换表、批量失败保护、check内容/mtime及无源码锁目录零创建、自定义模板连接保存。最初MySQL测试残留断言已修正夹具并重跑，原始失败保留。
+
+方案、实现与范围内验收均完成，无本修订剩余实现阻塞。常量仍只提供引用存在性检查，不保证模型归属/值类型/外部数据库列；完整workspace测试/all-features/Windows/release/生产/性能及其他未覆盖WIP行为未验。见[方案](plans/model-field-references.md)与[最新验收](audits/model-fields/README.md#模型配置复用批量与只读检查2026-11-23)，材料及独占缓存target/tmp/model-fields-sync-20261123/。本次未暂存、提交、推送或发布，其他协作改动保留。
+
+
+### 模型字段数据库描述（2026-11-23）
+
+已将Column.comment输出为字段Rust文档属性，未使用字段allow集中在生成impl；不新增依赖、不猜测字段说明。User由隔离MySQL真实迁移生成8项描述；三语同步SQLite无说明及更新需刷新的边界。fmt、最终严格workspace/all-targets Clippy、构建、宏正反、三库命令消费者、真实rustdoc说明和三语文档构建/浏览器均通过。无本修订实现阻塞，完整workspace/all-features/其他平台/发布未验。详见[本修订验收](audits/model-fields/README.md#数据库列描述生成文档注释2026-11-23)，材料及复用缓存仍为target/tmp/model-fields-sync-20261123/的comments-*。未暂存、提交或推送，保留其他WIP。

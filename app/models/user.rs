@@ -15,14 +15,14 @@ pub(crate) struct User(ModelState);
 impl Model for User {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("users")
-            .fillable(&["name", "email", "password"])
+            .fillable(&[User::NAME, User::EMAIL, "password"])
             .hidden(&["password", "remember_token"]);
         &METADATA
     }
 
     fn casts() -> &'static [(&'static str, AttributeCast)] {
         &[
-            ("email_verified_at", AttributeCast::DateTime),
+            (Self::EMAIL_VERIFIED_AT, AttributeCast::DateTime),
             ("password", AttributeCast::Hashed),
         ]
     }
@@ -80,7 +80,7 @@ impl Authenticatable for User {
 #[allow(non_snake_case, reason = "密码重置契约保留公开方法名")]
 impl CanResetPassword for User {
     fn getEmailForPasswordReset(&self) -> &str {
-        text(self.getAttribute("email")).unwrap_or_default()
+        text(self.getAttribute(Self::EMAIL)).unwrap_or_default()
     }
 
     fn sendPasswordResetNotification<'a>(
@@ -94,7 +94,7 @@ impl CanResetPassword for User {
 #[allow(non_snake_case, reason = "邮箱验证契约保留公开方法名")]
 impl MustVerifyEmail for User {
     fn hasVerifiedEmail(&self) -> bool {
-        self.getAttribute("email_verified_at")
+        self.getAttribute(Self::EMAIL_VERIFIED_AT)
             .is_some_and(|value| *value != Value::Null)
     }
 
@@ -132,25 +132,25 @@ impl User {
                 "=",
                 Value::from(self.getAuthIdentifier()),
             )
-            .whereExactText("email", self.getEmailForVerification());
+            .whereExactText(Self::EMAIL, self.getEmailForVerification());
         let query = if verified {
-            query.whereNull("email_verified_at")
+            query.whereNull(Self::EMAIL_VERIFIED_AT)
         } else {
-            query.whereNotNull("email_verified_at")
+            query.whereNotNull(Self::EMAIL_VERIFIED_AT)
         };
         let changed = query
             .update(
                 [
-                    ("email_verified_at".into(), value.clone()),
-                    ("updated_at".into(), now.clone().into()),
+                    (Self::EMAIL_VERIFIED_AT.into(), value.clone()),
+                    (Self::UPDATED_AT.into(), now.clone().into()),
                 ]
                 .into(),
             )
             .await?
             != 0;
         if changed {
-            self.setAttribute("email_verified_at", value);
-            self.setAttribute("updated_at", now);
+            self.setAttribute(Self::EMAIL_VERIFIED_AT, value);
+            self.setAttribute(Self::UPDATED_AT, now);
         }
         Ok(changed)
     }
@@ -162,3 +162,29 @@ fn text(value: Option<&Value>) -> Option<&str> {
         _ => None,
     }
 }
+
+// openrust:model-fields begin
+// 自动生成；请使用 model:fields 刷新，不要手工修改此区域。
+openrust::database::eloquent::model_fields! {
+    @model User;
+    #[allow(dead_code, reason = "生成的字段引用按需使用")]
+    impl User {
+        #[doc = "创建时间"]
+        pub const CREATED_AT = "created_at";
+        #[doc = "邮箱"]
+        pub const EMAIL = "email";
+        #[doc = "邮箱验证时间"]
+        pub const EMAIL_VERIFIED_AT = "email_verified_at";
+        #[doc = "主键"]
+        pub const ID = "id";
+        #[doc = "用户名"]
+        pub const NAME = "name";
+        #[doc = "密码哈希"]
+        pub const PASSWORD = "password";
+        #[doc = "记住登录令牌"]
+        pub const REMEMBER_TOKEN = "remember_token";
+        #[doc = "更新时间"]
+        pub const UPDATED_AT = "updated_at";
+    }
+}
+// openrust:model-fields end

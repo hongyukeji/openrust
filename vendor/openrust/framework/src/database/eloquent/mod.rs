@@ -7,6 +7,7 @@ pub mod concerns;
 mod detached_autoload;
 mod dynamic_relations;
 pub mod factories;
+mod fields;
 mod metadata;
 mod model;
 mod named_relations;
@@ -30,6 +31,7 @@ use crate::database::Value;
 
 mod searchable;
 
+pub use crate::model_fields;
 pub use builder::{Builder, Key};
 pub use collection::{
     BorrowedRelatedModel, Collection, CollectionModel, MorphCollectionModel, RelatedCollectionModel,
@@ -43,6 +45,11 @@ pub use concerns::{
 };
 pub use dynamic_relations::DynamicRelation;
 pub(crate) use dynamic_relations::RelationResolvers;
+#[doc(hidden)]
+pub use fields::FieldModel as __FieldModel;
+pub(crate) use fields::FieldModel;
+#[doc(hidden)]
+pub use inventory as __inventory;
 pub use metadata::ModelMetadata;
 pub use model::{Model, ModelKeyType};
 pub use named_relations::{MissingRelation, NamedRelations};

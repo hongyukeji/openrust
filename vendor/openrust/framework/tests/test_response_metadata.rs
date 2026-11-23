@@ -279,7 +279,7 @@ fn file_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
     Box::pin(async {
         Response::file(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/reference/json-schema.php"),
+                .join("tests/reference/json-schema.json"),
             http::HeaderMap::new(),
         )
         .await
@@ -325,7 +325,7 @@ async fn json_response_encoding_matches_actual_fixed_json_and_streamed_json_resp
         .unwrap()
         .assertOk()
         .assertNotStreamed()
-        .assertStreamedContent(include_bytes!("reference/json-schema.php"));
+        .assertStreamedContent(include_bytes!("reference/json-schema.json"));
 }
 
 #[tokio::test]

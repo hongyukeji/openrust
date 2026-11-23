@@ -772,6 +772,13 @@ Sanctum feature 的 locale_preference 10项通过，stateful.log；合计179次�
 提交前组合复验：保留971d8fe94已提交的locale_selection整体视图变量，快照同步两处共享文件及控制器。precommit-welcome.log的28项测试、precommit-fmt.log及precommit-clippy.log（应用welcome消费者与框架库严格Clippy）均exit=0；17个暂存技术文件及HEAD控制器与本次快照逐字节一致。未重跑浏览器，不扩大原24组界面验收范围。
 
 
+## 欢迎页语言视图数据合并（2026-11-23）
+
+按用户确认，将控制器拆出的五个语言视图变量合并为 `locale_selection`；LocaleSelection 复用 serde::Serialize，控制器通过既有 JSON/ViewValue 转换整体传入，模板使用既有数组字段访问，不新增对象适配器或模板语法。未执行中间件时传入 null，外层空值合并隐藏控件，其他语言选择／持久化语义不变。仅调整控制器、模板字段引用和 LocaleSelection 的派生；保留资源发现等并行改动。固定上游 View::with 允许单个 key 携带结构化值，已联网核对固定提交 1449bf241017087fbd38c118ecaabef3f6797fdc 的 src/Illuminate/View/View.php（https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/View.php）；本地复用现有 View::with 与 ViewValue，不引入依赖。
+
+Rust 1.94.0、隔离源码与项目内 TMPDIR，经 build_guard 复用空闲的 locale-discovery 工作流独占 Cargo 缓存：`cargo +1.94.0 test --locked --test welcome` 28项通过，0失败／忽略；包含自动／固定模式、null／改名配置、关闭中间件、URL临时覆盖、加密Cookie保存／删除、CSRF及真实TCP消费者。`cargo +1.94.0 fmt --all --check` 通过；`cargo +1.94.0 clippy --locked -p openrust-framework --lib -- -D warnings` 和 `cargo +1.94.0 clippy --locked -p openrust --test welcome -- -D warnings` 均通过。第三方现有警告不计为本项目零诊断。三语内容检查和 git diff --check 通过。三处交付源码与验收快照逐字节一致，证据位于 target/tmp/welcome-selection-20261123/。未另跑浏览器、完整workspace测试或文档站构建；页面布局、显示文案与公共用法未改，不扩大此前验收结论。本轮未暂存、提交、推送或访问开发数据。
+
+
 ## 语言候选配置（2026-11-23）
 
 ### 决定与复用
@@ -801,7 +808,10 @@ Sanctum feature 的 locale_preference 10项通过，stateful.log；合计179次�
 
 本批未运行完整workspace测试、其他浏览器引擎／真实设备、Windows、Docker部署或性能压测；未改共享数据库与缓存驱动，不将本次候选配置计为三库／三缓存验收。没有添加18种正式译文或运行中配置热更新。其他协作者在途改动保留，不计为本任务独立完成的交付；本轮未暂存、提交或推送。
 
+
 断言收尾后translation_locales 12项再次通过，见candidates-closure.log。9个本轮技术交付文件与最终验收快照逐字节一致，SHA256及HEAD见closure.json；git diff --check通过。最终空间约33.0 GB／30.7 GiB，仍高于32 GB停线；保留源码、日志、依赖及可复用产物，未清理其他构建。本次配置功能范围无剩余实现或验收阻塞。
+
+
 
 用户随后授权本轮本地提交，不包含推送。提交前按任务差异分离共享文件，仅暂存候选配置、相关测试、三语正文和本主题记录，不包含请求体保存／返回URL及其他协作者改动。仅含本次暂存代码的commit-source隔离快照重新通过框架52项（9＋31＋12）、配置3项和欢迎页29项，共84项，0失败／忽略，见precommit-framework-retry.log及precommit-application-retry.log；fmt和三语内容检查通过，9个技术暂存文件与提交快照逐字节一致，见precommit-closure.json。此次未重新执行欢迎页浏览器或完整workspace严格Clippy，先前组合快照结果及范围保留原记录。
 

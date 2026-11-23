@@ -376,3 +376,33 @@ async fn async_locale_events_propagate_errors_after_update_and_next_request_reco
     root.write("main", "{{ app()->currentLocale() }}");
     assert_eq!(send(&kernel).await, (StatusCode::OK, "en".into()));
 }
+
+#[tokio::test]
+async fn review_empty_environment_patterns_are_not_an_environment_read() {
+    let root = Root::new();
+    root.write("main", "{{ app()->environment() }}|{{ app()->environment([]) === false }}|{{ app()->environment(['missing']) === false }}|{{ app()->environment('testing') }}");
+    let kernel = root.kernel("Review").await;
+    assert_eq!(
+        send(&kernel).await,
+        (StatusCode::OK, "testing|1|1|1".into())
+    );
+}
+
+#[tokio::test]
+async fn review_parenthesized_object_receivers_and_chains_render_normally() {
+    let root = Root::new();
+    root.write("main", "{{ (app())->currentLocale() }}|{{ ((app('greeter')))->child()->label() }}|{{ (app('config'))->get('app.name') }}|{{ (1 + 2) * 3 }}");
+    let kernel = root.kernel("<Review>").await;
+    assert_eq!(
+        send(&kernel).await,
+        (StatusCode::OK, "en|&lt;child&gt;|&lt;Review&gt;|9".into())
+    );
+}
+
+#[tokio::test]
+async fn review_same_service_is_equal_in_both_comparison_forms() {
+    let root = Root::new();
+    root.write("main", "{{ app() == app() }}|{{ app('greeter') == app('greeting') }}|{{ app('greeter') === app('greeting') }}|{{ app('greeter') != app('greeting') }}|{{ app('greeter') == null }}");
+    let kernel = root.kernel("Review").await;
+    assert_eq!(send(&kernel).await, (StatusCode::OK, "1|1|1||".into()));
+}

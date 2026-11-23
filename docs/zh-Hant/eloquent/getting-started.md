@@ -65,6 +65,51 @@ static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
 
 在應用程式請求或指令中使用 `Flight::query()?` 取得模型查詢建構器，使用 `Flight::all().await?` 取得套用作用域後的模型集合，或用 `Flight::find(id).await?` 依主鍵查找。模型不存在時，`findOrFail` 回傳 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定資料庫連線。
 
+### 模型欄位引用（擴充） {#model-field-references}
+
+從既有資料表自動產生模型欄位引用，不需要逐一宣告欄位。先執行應用遷移，再選擇建立或更新模型：
+
+```sh
+./artisan make:model User --fields
+# 既有模型只更新欄位，保留模型業務程式碼
+./artisan model:fields User
+# 自訂資料表、連線與巢狀模型目錄
+./artisan model:fields Admin/User --table=accounts --database=pgsql
+```
+
+新模型仍需依 `make:model` 提示在父 `mod.rs` 宣告模組。產生區域會自動攜帶模型型別入口；重新建置後，`model:fields` 從空模型的 `getTable()` 與 `resolveConnectionName()` 讀取表名與連線，無須反覆傳參。單一模型的 `--table`、`--database` 可覆寫本次讀取，更新不修改模型業務設定。建立時 `--table` 與 `--database` 會同時儲存至新模型中繼資料，後者須搭配 `--fields`；已發佈的自訂模型範本使用 `{{connection}}` 預留位置接收連線設定。
+
+首次更新尚未登記的舊模型時，預設將模型名轉為底線格式並取複數推斷表名，使用應用預設連線；自訂表或連線須於首次更新時明確指定。隨後重新建置，後續同步便可讀取模型設定。修改模型表名、連線或模組宣告後，也必須先重新建置指令程式；指令不解析尚未編譯的 Rust 原始碼。
+
+```sh
+# 明確選擇多個模型
+./artisan model:fields User Admin/User
+# 同步全部已編譯且啟用自動欄位同步的應用模型
+./artisan model:fields --all
+# CI 檢查：結果相同回傳 0，過期回傳 1，不修改模型原始碼
+./artisan model:fields --all --check
+```
+
+`--all` 只包含 `app/models/` 約定目錄中已編譯並攜帶自動產生區域的模型，不掃描全部資料表，也不自動發現任意 trait 實作或套件模型。首次接入、舊產生區域升級或新增模型後，先逐一更新、宣告模組並建置。批量同步使用各模型自己的設定，不接受共用的表或連線覆寫。指令先預檢全部模型，再逐一原子替換；預檢失敗不寫入模型，寫入階段的磁碟錯誤可能留下部分已完成結果，修復後可重複執行。`--check` 不建立原始碼鎖或原始碼暫存檔；缺表、無效連線、損壞標記也回傳非零並說明錯誤，應用啟動自身的日誌或快取仍沿用原行為。
+
+產生後即可使用 IDE 補全：
+
+```rust
+let mut query = User::query()?;
+query.r#where(User::NAME, "=", "張三");
+let users = query.orderBy(User::ID, "asc").get().await?;
+```
+
+資料庫目前的欄位結構是產生集合的來源，`fillable` 與 `casts` 仍各自控制批量賦值與屬性轉換。命令將結果寫入模型檔案的 `openrust:model-fields begin/end` 區域；將產生的原始碼一併納入版本管理，一般建置、請求與部署無須連接資料庫。不要手改產生區域；遷移新增、刪除或重新命名欄位後，重新執行同步命令、修正受影響的引用並建置。未同步時，編譯器不會自動感知外部資料庫變更。不需要此能力的動態模型與字串查詢維持原用法；一般 `make:model` 不存取資料庫，也不產生欄位宣告。
+
+欄位名稱轉為大寫底線常數，保留實際資料庫欄名，例如 `display-name` → `DISPLAY_NAME`、`1st` → `COLUMN_1ST`。轉換後重名、非 ASCII 欄名或無法形成識別字時，命令失敗並保留原檔；缺表、缺連線或產生標記損壞也不會覆蓋模型。特殊欄位可繼續使用字串，或以進階 `model_fields!` 巨集做明確映射。由舊手寫宣告遷移時先移除重複宣告；自動產生不會刪除手寫常數。
+
+常數實際型別是 `&'static str`。不存在或同步後已刪除的常數引用會編譯失敗；**不檢查查詢模型歸屬、查詢值型別或建置時的資料庫結構**。NULL、數值、日期、JSON、自訂 cast 與運算式沿用既有規則，沒有新增值型別保證。
+
+欄名不會自動附帶表名。選擇欄位使用 `select([User::NAME])`；更新使用 `[(User::NAME.into(), value)].into()` 作為屬性映射；關聯鍵直接傳常數。聯表或表別名可用 `format!("u.{}", User::NAME)`，再傳給既有查詢介面。欄名仍由語法器作為識別字處理，值繼續參數繫結；不要把常數拼入 `whereRaw` 等原始 SQL。動態欄位與原始運算式維持原入口。
+
+資料庫欄位註解會產生為 Rust 文件屬性（`#[doc = "…"]`，等同於 `///`），IDE 懸停即可查看欄位描述。MySQL、PostgreSQL 透過既有結構介面提供欄位註解；SQLite 不儲存原生欄位註解。缺少或空白註解時不產生描述。修改欄位註解後也需重新整理，`--check` 會偵測這類變化。描述直接取自資料庫，不根據欄位名稱猜測，也不在產生時翻譯。
+
 ### 重新整理模型 {#refreshing-models}
 
 `fresh()` 重新讀取獨立實例，`freshWithPaths(&["posts.comments"])` 也能預先載入已登記的路徑。`refresh()` 更新目前的實例，並重新載入已載入的登記關聯。兩者都按原主鍵從寫入連線讀取，略過全域作用域並包含軟刪除記錄。未儲存的模型呼叫 `fresh()` 會得到 `None`，呼叫 `refresh()` 則維持原狀。資料庫記錄已移除時，`refresh()` 回傳 `ModelNotFound`。需要重新載入的關聯須在 `namedRelations()` 登記，中介資料表的 Pivot 投影會保留。重新載入關聯失敗時，目前的屬性保留剛讀取的值，原始快照維持先前的值。

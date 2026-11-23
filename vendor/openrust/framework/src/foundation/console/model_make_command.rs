@@ -17,7 +17,15 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         Syntax::new("make:model")
             .about("Create a new Eloquent model")
             .arg(Arg::new("name").required(true))
-            .arg(Arg::new("force").long("force").action(ArgAction::SetTrue)),
+            .arg(Arg::new("force").long("force").action(ArgAction::SetTrue))
+            .arg(
+                Arg::new("fields")
+                    .long("fields")
+                    .action(ArgAction::SetTrue)
+                    .help("从数据库表结构自动生成字段引用（扩展）"),
+            )
+            .arg(Arg::new("table").long("table"))
+            .arg(Arg::new("database").long("database").requires("fields")),
     ))))
 }
 
@@ -36,7 +44,11 @@ impl Command for ModelMakeCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let path = self.get_path(app, model_name(input), input)?;
-            let stub = self.get_stub(app, input)?;
+            let mut stub = self.get_stub(app, input)?.into_owned();
+            if input.matches().get_flag("fields") {
+                let block = super::model_fields_command::generate(app, input).await?;
+                stub = super::model_fields_command::merge(&stub, &block)?;
+            }
             let force = input.matches().get_flag("force");
             let relative = path
                 .strip_prefix(app.base_path())
@@ -74,13 +86,24 @@ impl GeneratorCommand for ModelMakeCommand {
     ) -> Result<Cow<'static, str>, ConsoleError> {
         let parts = validated_parts(model_name(input))?;
         let class = parts.last().expect("validated model name");
-        let table = pluralizer::pluralize(&snake_case(class), 2, false);
+        let table = super::model_fields_command::table_name(input, class);
+        let quoted_table = format!("{table:?}");
+        let stub = Stub::Model
+            .load(app.base_path())
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
+        let connection = input.matches().get_one::<String>("database");
+        if connection.is_some() && !stub.contains("{{connection}}") {
+            return Err(ConsoleError::new(
+                "自定义模型模板缺少 {{connection}} 占位符，无法保存 --database 配置。",
+            ));
+        }
+        let connection = connection
+            .map(|name| format!(".connection({name:?})"))
+            .unwrap_or_default();
         Ok(Cow::Owned(
-            Stub::Model
-                .load(app.base_path())
-                .map_err(|error| ConsoleError::new(error.to_string()))?
-                .replace("{{model}}", class)
-                .replace("{{table}}", &table),
+            stub.replace("{{model}}", class)
+                .replace("{{table}}", &quoted_table[1..quoted_table.len() - 1])
+                .replace("{{connection}}", &connection),
         ))
     }
 }
@@ -92,7 +115,7 @@ fn model_name(input: &Input) -> &str {
         .expect("name required by Clap")
 }
 
-fn validated_parts(name: &str) -> Result<Vec<&str>, ConsoleError> {
+pub(super) fn validated_parts(name: &str) -> Result<Vec<&str>, ConsoleError> {
     let parts: Vec<_> = name.split(['/', '\\']).collect();
     if parts.iter().any(|part| {
         !part.as_bytes().first().is_some_and(u8::is_ascii_uppercase)

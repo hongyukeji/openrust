@@ -3,6 +3,7 @@
 ## 开发要点
 
 - 以 Laravel 为准、参考 Goravel 实现。按[固定 Laravel 基线](plans/laravel-rebuild-baseline.md)核对目录、公开接口和可观察行为。应用入口、装配及运行方式参考[固定 Goravel 版本](conventions.md#上游参考)，用实际测试验证 Rust 实现的等价行为。见[移植原则](conventions.md#laravel-到-rust-的移植原则)。
+- 对齐审计按所属类型与公开入口逐项核对；扫描只提供线索，绕行暴露的缺口须同步处理，未完成逐项裁决和验收不得宣称模块完整对齐。见[对齐审计与缺口闭环](conventions.md#对齐审计与缺口闭环)。
 - 每个功能簇实现前，先检查 `openrust-v0.x` 的对应实现和测试，提取符合当前契约的代码和回归用例。见[旧版实现复用](conventions.md#旧版实现复用)。
 - 先按正式版确定目录、命名空间、公开名称、Artisan 契约和文档入口，再按交付计划的依赖顺序实现。分别记录骨架定稿、实现完成和验收通过。见[骨架与开发顺序](conventions.md#骨架与开发顺序)。
 - 默认应用 Provider 不提前接入可选扩展或示例业务；包服务与迁移归所属包 Provider，经已有包发现启用。见[默认应用与扩展装配](conventions.md#默认应用与扩展装配)。

@@ -65,6 +65,51 @@ static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
 
 在应用请求或命令中使用 `Flight::query()?` 获取模型查询构造器，使用 `Flight::all().await?` 获取应用作用域后的模型集合，或用 `Flight::find(id).await?` 按主键查找。模型不存在时，`findOrFail` 返回 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定数据库连接。
 
+### 模型字段引用（扩展） {#model-field-references}
+
+从已有数据库表自动生成模型字段引用，不需要逐个声明字段。先执行应用迁移，再选择新建或刷新模型：
+
+```sh
+./artisan make:model User --fields
+# 已有模型只刷新字段，保留模型业务代码
+./artisan model:fields User
+# 自定义表、连接和嵌套模型目录
+./artisan model:fields Admin/User --table=accounts --database=pgsql
+```
+
+新模型仍需按 `make:model` 提示在父 `mod.rs` 中声明模块。生成区域会自动携带模型类型入口；重新构建后，`model:fields` 从空模型的 `getTable()` 和 `resolveConnectionName()` 读取表名与连接，无需反复传参。单模型的 `--table`、`--database` 可覆盖本次读取，刷新不修改模型业务配置。创建时 `--table` 与 `--database` 会同时保存到新模型元数据，后者须搭配 `--fields`；已发布的自定义模型模板使用 `{{connection}}` 占位符接收连接配置。
+
+首次刷新尚未登记的旧模型时，默认按模型名转下划线并取复数推断表名，使用应用默认连接；自定义表或连接需在首次刷新时显式指定。随后重新构建，后续同步便可读取模型配置。修改模型表名、连接或模块声明后，也必须先重新构建命令程序；命令不解析尚未编译的 Rust 源码。
+
+```sh
+# 明确选择多个模型
+./artisan model:fields User Admin/User
+# 同步全部已编译且启用自动字段同步的应用模型
+./artisan model:fields --all
+# CI 检查：结果相同返回 0，过期返回 1，不修改模型源码
+./artisan model:fields --all --check
+```
+
+`--all` 只包含 `app/models/` 约定目录中已编译并携带自动生成区域的模型，不扫描全部数据库表，也不自动发现任意 trait 实现或包模型。首次接入、旧生成区域升级或新增模型后，先逐个刷新、声明模块并构建。批量同步使用各模型自己的配置，不接受共用的表或连接覆盖。命令先预检全部模型，再逐个原子替换；预检失败不写入模型，写入阶段的磁盘错误可能留下部分已完成结果，修复后可重复执行。`--check` 不创建源码锁或源码临时文件；缺表、无效连接、损坏标记也返回非零并说明错误，应用启动自身的日志或缓存仍沿用原行为。
+
+生成后即可使用 IDE 补全：
+
+```rust
+let mut query = User::query()?;
+query.r#where(User::NAME, "=", "张三");
+let users = query.orderBy(User::ID, "asc").get().await?;
+```
+
+数据库当前列结构是生成集合的来源，`fillable` 和 `casts` 仍各自控制批量赋值与属性转换。命令将结果写入模型文件的 `openrust:model-fields begin/end` 区域；将生成源码一起纳入版本管理，普通构建、请求和部署无需连接数据库。不要手改生成区域；迁移新增、删除或重命名列后，重新运行同步命令、修复受影响引用并构建。没有同步时，编译器不会自动感知外部数据库变更。无需该能力的动态模型和字符串查询保持原用法；普通 `make:model` 不访问数据库，也不生成字段声明。
+
+列名转换为大写下划线常量，保留实际数据库列名，例如 `display-name` → `DISPLAY_NAME`、`1st` → `COLUMN_1ST`。转换后重名、非 ASCII 列名或无法形成标识时，命令失败并保留原文件；缺表、缺连接或生成标记损坏也不会覆盖模型。特殊列可继续用字符串，或使用高级 `model_fields!` 宏做显式映射。由旧手写声明迁移时先移除重复声明；自动生成不会替你删除手写常量。
+
+常量实际类型是 `&'static str`。不存在或同步后已删除的常量引用会编译失败；**不检查查询模型归属、查询值类型或构建时的数据库结构**。NULL、数值、日期、JSON、自定义 cast 和表达式沿用现有规则，没有新增值类型保证。
+
+列名不自动附带表名。选择字段使用 `select([User::NAME])`；更新使用 `[(User::NAME.into(), value)].into()` 作为属性映射；关系键直接传常量。联表或表别名可用 `format!("u.{}", User::NAME)`，再传给已有查询接口。列名仍由语法器作为标识符处理，值继续参数绑定；不要把常量拼入 `whereRaw` 等原始 SQL。动态字段和原始表达式保持原入口。
+
+数据库列注释会生成为 Rust 文档属性（`#[doc = "…"]`，等价于 `///`），IDE 悬停即可查看字段描述。MySQL、PostgreSQL 通过现有结构接口提供列注释；SQLite 不保存原生列注释。缺失或空白注释时不生成描述。修改列注释后也需刷新，`--check` 会检测这类变化。描述直接取自数据库，不根据字段名猜测，也不在生成时翻译。
+
 ### 刷新模型 {#refreshing-models}
 
 `fresh()` 回读独立实例，`freshWithPaths(&["posts.comments"])` 还能预加载已登记路径。`refresh()` 更新当前实例，并重载已加载的登记关系。两者都按原主键从写连接回读，跳过全局作用域并包含软删除记录。未保存的模型调用 `fresh()` 得到 `None`，调用 `refresh()` 保持原状。数据库记录已移除时，`refresh()` 返回 `ModelNotFound`。需要重载的关系须在 `namedRelations()` 登记，中间表 Pivot 投影保留。关系重载失败时，当前属性保留刚读到的值，原始快照保持此前的值。

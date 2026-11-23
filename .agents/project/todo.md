@@ -17,6 +17,7 @@ Rust1.94.0定向215次执行（131框架＋74应用＋10有状态API，0失败�
 
 [计划](plans/blade-native-rust-blocks.md)范围已实现并按[记录](audits/03-08/native-rust-blocks-2026-11-23.md)验收；无剩余实现阻塞。Windows／release／Docker／性能／持久化异步队列仍为未验范围，不计入完成结论。用户随后授权本次本地提交，不含推送或发布。
 
+
 ## 请求语言选择与欢迎页切换
 
 - [x] **自动跟随／固定语言（2026-11-23）**：POST／CSRF加密Cookie保存，恢复自动删除；URL仅临时覆盖，偏好与实际语言分离；默认管线单次选择、无状态／有状态API、配置缓存、私有缓存与三语说明闭环。208项Rust回归、10项guard、23组最终HTTP浏览器、fmt／严格Clippy与三语文档检查通过，见[验收边界](audits/03-07/welcome-language-2026-11-22.md#自动跟随与持久手动偏好2026-11-23)。实机／其他引擎／Windows／Docker／压测未验；账号和独立客户端持久化属于应用接入范围。
@@ -37,11 +38,11 @@ Rust1.94.0定向215次执行（131框架＋74应用＋10有状态API，0失败�
 
 ## Laravel 对齐后续边界
 
-- [ ] **全仓对齐实施计划（2026-11-22）**：直接接续[开发计划](plans/framework-parity-remediation-2026-11-22.md)和[统一数据](plans/framework-parity-data-2026-11-22.json)。已失效的Agent提示词按用户要求删除；任务及验收全部完成后统一归档本批材料。
+- [ ] **全仓对齐实施计划（2026-11-22，按完整对话重做）**：接续入口为[开发计划](plans/framework-parity-remediation-2026-11-22.md)（含26条需求对照、调研、核对记录及历史审计全文）和[统一数据](plans/framework-parity-data-2026-11-22.json)（193条任务、14张原始审计表及快照）；原188行方法映射保留，覆盖完整API裁决、38模块、19包与R／X／E差异。保留用户扩展；BCP 47本地迁移已实施，接续受影响回归与实际环境升级边界。用户已授权接手全部差异，正在实施；已补基础类型、部分manager/锁/进程/URL/译器接口并分批验收。实际结果与未完成项见开发计划“当前实施与验收”和统一数据，不能以本批部分通过代替全量关闭。已失效的Agent提示词按用户要求删除；任务及验收全部完成后统一归档本批材料。
 
 L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-audit-2026-11-21.md#2026-11-21-修复与重新验收)。以下不混入已完成结论，不重开历史扩展R1–R6。
 
-- [ ] **完整API候选核对**：初审`api-candidates.json`尚未逐方法判定的候选，继续按固定Framework v13.40.0核对已有原名、宏、trait和Rust适配；Validation的PHP规则／全部PCRE选项与日期语法、完整TestResponse、其余Query／ORM接口单独界定范围，不能以关键词扫描认定缺陷或全部支持。
+- [ ] **完整API候选核对**：以[全仓声明裁决队列（audit_tables.api_review_queue）](plans/framework-parity-data-2026-11-22.json)及[原名候选（audit_tables.api_candidates）](plans/framework-parity-data-2026-11-22.json)接续初审，按固定Framework v13.40.0核对所属类型、签名、生命周期、已有原名、宏、trait和Rust适配；Validation的PHP规则／全部PCRE选项与日期语法、完整TestResponse、其余Query／ORM接口逐项裁决，不能以关键词扫描认定缺陷或全部支持。原始计数属于旧快照，当前结论须重新核对。
 - [ ] **Reverb完整用户登录协议**：已有`userRoutes`／`authenticateUser`与真实HTTP签名回归，但服务端完整`pusher:signin`客户端处理尚未实现。这是实现缺口，不是仅缺外部凭据；需协议实现和真实客户端握手／拒绝／重连验收，不能由HTTP签名端点代替。
 - [ ] **Fortify偶发Session失败复现**：本批隔离MySQL的accounts_http曾一次返回Storage失败，同二进制连续12轮、四扩展后续整批、PG／MySQL完整生成应用均通过。尚无可靠根因，保留`fortify-stability.log`及原失败批；重现时保留SQL／连接和Session日志，不把未定位事件写成已修复生产缺陷。
 - [ ] **PCRE2补丁上游跟进**：现有0.2.11本地补丁只开放原生DOLLAR_ENDONLY编译选项，上游提供等价builder方法后移除本地补丁，并复验D／mD与三语支持矩阵。实际分发继续复核MIT／Unlicense选择和notice。
@@ -72,7 +73,16 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 - [x] **06-08 Artisan 交互本地化**。命令列表、帮助、参数错误与生产确认复用应用翻译器。默认使用 `APP_LOCALE`，应用翻译缺失时按 `APP_FALLBACK_LOCALE` 回退。命令名、选项、退出码与机器可读输出结构沿用现有契约。 [基础验收](audits/06-08/README.md) · [生产确认验收](audits/06-08/production-confirmation.md)
 
+
 - [x] **欢迎页页头与Blade语言链接（2026-11-23）**：移除language_links控制器函数，候选／编码链接／母语名称及状态全部由模板处理；语言名称独立JSON，页头主题默认跟随系统。96项定向回归、fmt、严格Clippy、36组真实HTTP浏览器及三语文档构建／浏览器／导航通过，交付文件与快照一致；边界及证据见[主题记录](audits/03-07/welcome-language-2026-11-22.md#欢迎页页头母语名称与-blade-链接生成2026-11-23)。用户已授权本轮本地提交，不包含推送或发布。
 
 
 - [x] **语言候选配置（2026-11-23）**：通过app.supported_locales／APP_SUPPORTED_LOCALES控制候选，缺省／null自动发现，空列表停用，显式代码优先；复用启动快照与配置缓存，三语文档同步。验收与范围见[主题记录](audits/03-07/welcome-language-2026-11-22.md#语言候选配置2026-11-23)。用户已授权本轮本地提交，不包含推送。
+
+
+## 模型字段引用（2026-11-23）
+
+- [x] 数据库结构自动生成、保留业务代码、编译正反与三库查询。新增模型配置复用、多个模型/--all、只读--check及生成器保存连接；首次旧模型需逐个同步并重建，后续复用配置。30项Rust定向测试、三库实际命令消费者、fmt、严格Clippy及三语文档验收通过；见[方案](plans/model-field-references.md)和[最新验收](audits/model-fields/README.md#模型配置复用批量与只读检查2026-11-23)。没有字段归属/值类型/外部结构的编译期保证，all不覆盖未编译模型或全数据库。无本修订剩余实现阻塞；完整workspace测试/all-features/Windows/release/生产/性能和其他未覆盖WIP行为未验。本次无Git写授权。
+
+
+- [x] **模型字段数据库描述（2026-11-23）**：真实列注释生成Rust字段文档、集中allow；三库生成/刷新/编译正反/说明变更与真实rustdoc验收通过，User由隔离MySQL迁移更新，三语正文和构建/浏览器通过。见[验收](audits/model-fields/README.md#数据库列描述生成文档注释2026-11-23)；未提交，未扩展原有类型保障或驱动支持范围。

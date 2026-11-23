@@ -65,6 +65,51 @@ static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
 
 In an application request or command, use `Flight::query()?` for a model-aware builder, `Flight::all().await?` for all scoped models, or `Flight::find(id).await?` for one primary key. `findOrFail` returns `DatabaseError::ModelNotFound` for an absent model. Use `queryOn` to select an explicit database connection.
 
+### Model Field References (Extension) {#model-field-references}
+
+Generate model field references from an existing database table without declaring each field. Run your application migrations first, then create a model or refresh an existing one:
+
+```sh
+./artisan make:model User --fields
+# Refresh fields while preserving existing model business code
+./artisan model:fields User
+# Custom table, connection, and nested model directory
+./artisan model:fields Admin/User --table=accounts --database=pgsql
+```
+
+For a new model, declare its module in the parent `mod.rs` as instructed by `make:model`. The generated region includes a model type entry. After rebuilding, `model:fields` reads the table and connection through an empty model's `getTable()` and `resolveConnectionName()`. Single-model `--table` and `--database` options override this invocation without changing the model's business configuration. During creation, both options are saved in the new model metadata; `--database` requires `--fields`. Published custom model stubs use the `{{connection}}` placeholder to receive the connection setting.
+
+On the first refresh of an unregistered existing model, the command infers a pluralized snake case table and uses the application default connection. Supply custom table and connection settings explicitly for that first refresh, then rebuild to enable configuration reuse. Rebuild the command program after changing model tables, connections, or module declarations. The command does not parse uncompiled Rust source.
+
+```sh
+# Select multiple models explicitly
+./artisan model:fields User Admin/User
+# Synchronize compiled application models with automatic fields enabled
+./artisan model:fields --all
+# CI check: 0 for matching output, 1 for stale output; no model source writes
+./artisan model:fields --all --check
+```
+
+`--all` includes compiled models with generated regions under the conventional `app/models/` modules. It does not scan every database table or discover arbitrary trait implementations or package models. On first adoption, upgrades of old generated regions, or adding models, refresh each model, declare its module, and rebuild. Batch synchronization uses each model's settings and rejects shared table or connection overrides. All models are preflighted before individual atomic replacements. Preflight failure leaves models unchanged; an I/O failure during writing can leave some files updated, so fix the error and rerun. `--check` creates no source locks or source temporary files. Missing tables, invalid connections, and damaged markers also return nonzero with a specific error. Application startup logging and caching retain their usual behavior.
+
+Then use IDE completion directly:
+
+```rust
+let mut query = User::query()?;
+query.r#where(User::NAME, "=", "Zhang San");
+let users = query.orderBy(User::ID, "asc").get().await?;
+```
+
+The current database columns are the source for the generated collection. `fillable` and `casts` continue to control mass assignment and attribute conversion independently. Commands write an `openrust:model-fields begin/end` region in the model file. Keep the generated source in version control: ordinary builds, requests, and deployment do not need a database connection. Do not edit the generated region manually. After migrations add, remove, or rename columns, synchronize again, fix affected references, and rebuild. Without synchronization, the compiler cannot detect external database changes. Dynamic models and string queries remain available. Plain `make:model` neither accesses the database nor generates field declarations.
+
+Column names become uppercase snake case constants while retaining their actual database names: `display-name` becomes `DISPLAY_NAME`, and `1st` becomes `COLUMN_1ST`. Collisions, non-ASCII column names, or names that cannot form an identifier cause generation to fail without changing the original file. Missing tables, invalid connections, and damaged generation markers also leave the model intact. Special columns can use strings or explicit mappings through the advanced `model_fields!` macro. Remove duplicate handwritten declarations when migrating to generation; the command does not delete handwritten constants.
+
+Constants have type `&'static str`. References to missing constants, including those removed by synchronization, fail to compile. **This does not enforce query model ownership, query value types, or database structure at build time.** NULL, numbers, dates, JSON, custom casts, and expressions retain their existing behavior without additional value type guarantees.
+
+Column names are unqualified. Use `select([User::NAME])`, attribute maps such as `[(User::NAME.into(), value)].into()` for updates, and constants directly for relationship keys. For joins or aliases, pass `format!("u.{}", User::NAME)` through the existing query interface. The grammar still handles identifiers and values remain bound parameters. Do not concatenate constants into raw SQL such as `whereRaw`. Dynamic columns and raw expressions keep their existing entry points.
+
+Database column comments are generated as Rust documentation attributes (`#[doc = "…"]`, equivalent to `///`), so IDE hover shows the field description. MySQL and PostgreSQL provide these comments through the existing schema interface; SQLite does not store native column comments. Missing or blank comments produce no description. Refresh after changing column comments; `--check` also detects these changes. Descriptions are read from the database, without guessing from field names or translating them during generation.
+
 ### Refreshing models {#refreshing-models}
 
 `fresh()` reads a separate instance. `freshWithPaths(&["posts.comments"])` also preloads registered paths. `refresh()` updates the current instance and reloads its loaded registered relations. Both use the model’s original key and write connection, bypassing global scopes and including soft-deleted rows. An unsaved model yields `None` from `fresh()` and stays as it is after `refresh()`. For a missing database row, `refresh()` returns `ModelNotFound`. Register relationships in `namedRelations()` to allow `refresh()` to reload them. Intermediate Pivot projections are retained. If reloading a relationship fails, the current attributes contain the values just read and the original snapshot stays at its previous values.
