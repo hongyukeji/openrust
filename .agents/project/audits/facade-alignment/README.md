@@ -330,3 +330,12 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 注册表及包含集合应用级隔离，不照搬PHP进程全局表；并发只认领一次，其他线程可在首个回调完成前返回AlreadyIncluded。回调及旧注册析构不持注册表锁。未注册文件、缺失/删除路径和输入输出类型不符明确报错，不把原始源码文本当作执行结果。Rust源码改动需重新构建。
 - tests.log：5项新模块与11项原File消费者通过，涵盖HTTP/Artisan真实Kernel共享、具类型参数与返回值、失败、panic、重入、8线程、应用隔离及Unix符号链接别名。workers-second.log另独立MySQL8.4.13、Redis8.10.3各1项真实Artisan queue:work通过，每后端2个任务完成但模块执行一次，Worker后门面仍见已包含；测试表和临时容器已清理。首轮Worker缺Application trait导入的编译失败保留，未计通过。
 - 全workspace/all-targets严格Clippy通过；追加Worker夹具后相关目标严格Clippy再次通过（clippy-final.log）。fmt、三语站点构建及6项浏览器通过。未将动态解释器、Windows原生链接矩阵、所有glob/JSON/hash标志或File全部继承契约计为完成。
+
+### File：条件回调、回退与高阶代理（2026-11-24，仍 partial）
+
+- 固定Conditionable/HigherOrderWhenProxy经实际PHP Filesystem执行，file-condition/oracle.log：字符串0跳过、unless回调保留原false、标量0/false不误回退、null返回原服务、条件闭包一次、高阶查询捕获与文件副作用选择均核对。复用当前Collection/Stringable已有原生FnOnce条件风格，不添加动态方法解释器或外部依赖。
+- 正式File及Filesystem提供when/unless、*_else、*_test及*_condition/*_capture。ConditionValue保留原始具类型参数，支持数值、布尔、字符串、Option、集合和JSON；业务对象可实现原生trait。ConditionalResult把Target与Value(T)分别表达，None回调保留原服务，Some(false/0)保留标量；高阶操作返回None仍是Value(None)，不套用回调空值回退。
+- HigherOrderWhenProxy通过具类型call闭包执行实际方法；捕获查询只一次，try_capture传播真实查询错误，未捕获明确MissingCondition。门面代理保留原应用Arc，跨作用域不重新解析；直接服务保留原借用。不以get-root绕行替代公开入口，Rust后缀与联合结果的适配已写三语文档。
+- tests-resumed.log：5项新条件测试+11项File+5项实际模块测试，共21项本机通过；另2项后端缺环境早返回不计。覆盖非Clone业务对象、回退实例身份、空值/标量、真假副作用、查询/操作失败、跨应用原服务以及实际HTTP首次写入/重复跳过/JSON500和Artisan读取。初次内部方法可见性、HTTP夹具闭包路径借用问题已修复，失败日志保留；tests-final.log来自未完成脚本同步的旧源，不作为新增HTTP验收，最终以resumed为准。
+- workers.log：独立MySQL8.4.13和Redis8.10.3各1项真实Artisan queue:work通过，实际模块通过条件回调写入，两个任务完成、模块执行一次；测试表和临时容器已清理。全workspace/all-targets严格Clippy、fmt、三语构建和6项浏览器通过：clippy.log/fmt.log/docs.log/browser.log。
+- 本轮期间32GB磁盘守卫安全持锁清理本项目编译profile及生成站点，build-guard-events.jsonl记录释放62,832,758,784字节、清理后94,699,384,832字节；源码、未提交改动、日志和依赖保留。后续重新编译及文档构建通过，当前增量缓存按规范保留。File其余JSON/glob/hash/MIME/平台与共享Facade测试契约仍未闭合。

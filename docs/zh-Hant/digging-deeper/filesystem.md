@@ -296,3 +296,30 @@ fn register_and_load(path: &Path) -> FileResult<()> {
 `get_require` 每次執行回呼並回傳具型別結果。`require_once` 首次回傳 `RequiredFile::Value(value)`，之後回傳 `AlreadyIncluded`，與模組回傳 `true` 區分。任何 `get_require` 也會記入包含集合。執行前標記，因此遞迴以及失敗或 panic 後的再次呼叫都會跳過；替換註冊不清空包含狀態，但明確呼叫 `get_require` 仍執行替換後的回呼。
 
 路徑正規化後依實際路徑判斷，符號連結別名共用包含狀態。缺少、已刪除或非普通檔案路徑回傳檔案錯誤，即使之前已包含；已存在但未註冊的檔案回傳 `UnregisteredModule`，參數或結果型別不符明確報錯，不偽造模組值。註冊及包含集合屬於應用的 `files` 單例，在同應用 HTTP／Artisan／Worker 呼叫間共用，與其他應用隔離，不採用解譯器的行程全域包含表。並行 `require_once` 只認領一次執行；其他呼叫可能在首個回呼尚未完成時看到 `AlreadyIncluded`。執行回呼和銷毀被替換的註冊時不持註冊表鎖。
+
+### 條件檔案操作 {#conditional-file-calls}
+
+透過 `File::when(value, callback)` 和 `unless` 執行條件呼叫。`ConditionValue` 保留原始參數型別，支援布林、數字、字串（`""` 和 `"0"` 為假）、可選值和集合；回呼接收實際本機檔案服務與原始值。業務物件可自行實作 `ConditionValue`。JSON 物件即使為空也為真，JSON 陣列依集合是否為空判斷。
+
+```rust
+use openrust::{filesystem::FileResult, support::facades::File};
+use std::path::Path;
+
+fn write_if_missing(path: &Path) -> FileResult<()> {
+    File::unless_test(
+        |files| files.exists(path),
+        |files, _| files.put(path, b"created").map(Some),
+    )?;
+    let bytes = File::when_condition(true)?
+        .call(|files| files.get(path))?
+        .into_value();
+    assert!(bytes.is_some());
+    Ok(())
+}
+```
+
+選中的回呼回傳 `FileResult<Option<T>>`。`Some(value)` 回傳 `ConditionalResult::Value(value)`，包括 `false`、`0` 和空字串；`None` 回傳 `Target`，保留原服務實例，沒有其他型別線索時使用 `None::<()>`。未執行分支也回傳 `Target`。以 `into_value`／`into_target` 取出兩種結果，錯誤直接傳播。`when_else`／`unless_else` 增加後備回呼，只執行一個分支。
+
+條件來自檔案服務查詢時使用 `when_test`／`unless_test`，解析器只執行一次，並把原結果交給選中的回呼。`when_condition(value)`／`unless_condition(value)` 回傳具型別高階代理，`.call(|files| ...)` 僅在條件符合時呼叫真實公開操作。先擷取查詢時使用 `when_capture()?.capture(|files| ...)` 或 `unless_capture`；`try_capture` 接受會回傳錯誤的查詢。未擷取條件時回傳 `MissingCondition`。代理方法回傳真實操作值，因此操作回傳 `None` 時仍為 `Value(None)`，不套用回呼式的空值後備。
+
+門面代理持有原應用服務，移動到另一應用作用域不會重新解析為另一份服務。直接呼叫 `Filesystem` 提供相同方法，後備目標為原借用。Rust 以明確後綴與 `ConditionalResult` 表達不同參數數量、動態方法代理和目標／純量聯合回傳，條件、副作用選擇及錯誤傳播仍可直接驗證。

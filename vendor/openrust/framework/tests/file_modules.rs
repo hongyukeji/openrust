@@ -396,7 +396,12 @@ async fn actual_worker(driver: &str, url: Option<String>, redis: Option<u16>) {
             App::base_path("worker-module.rs").unwrap(),
             move |files, input: String| {
                 calls.fetch_add(1, Ordering::SeqCst);
-                files.put(&marker, &input)?;
+                let bytes = files
+                    .when(!input.is_empty(), |files, _| {
+                        files.put(&marker, &input).map(Some)
+                    })?
+                    .into_value();
+                assert_eq!(bytes, Some(input.len()));
                 Ok(input)
             },
         )

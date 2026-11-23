@@ -1,10 +1,12 @@
 //! 不受磁盘适配器根目录限制的本地文件操作。
+mod conditions;
 mod directories;
 mod links;
 mod macros;
 mod modules;
 mod paths;
 mod reading;
+pub use conditions::{ConditionValue, ConditionalResult, HigherOrderWhenProxy};
 pub use directories::{DirectoryDepth, FileInfo};
 
 use crate::contracts::container::BindingResolutionError;
@@ -49,6 +51,7 @@ pub enum FileError {
     InvalidDepth(String),
     UnknownMacro(String),
     UnregisteredModule(PathBuf),
+    MissingCondition,
     MacroType {
         name: String,
         expected: &'static str,
@@ -70,6 +73,9 @@ impl fmt::Display for FileError {
             Self::InvalidDepth(value) => write!(f, "无效的目录深度条件：{value}"),
             Self::Pattern(value) => write!(f, "无效的文件匹配模式：{value}"),
             Self::InvalidTime => f.write_str("文件时间超出可表示的范围"),
+            Self::MissingCondition => {
+                f.write_str("条件代理尚未捕获条件，请先调用capture或condition")
+            }
             Self::UnregisteredModule(path) => {
                 write!(f, "文件没有注册已编译的加载回调 [{}]", path.display())
             }

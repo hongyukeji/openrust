@@ -143,3 +143,68 @@ impl File {
         Self::get_facade_root()?.macro_call(name, arguments)
     }
 }
+
+macro_rules! conditional_facade {
+    ($($name:ident);+ $(;)?)=> {impl File {$(
+        pub fn $name<V:super::ConditionValue,T>(value:V,callback:impl FnOnce(&Filesystem,V)->FileResult<Option<T>>)->FileResult<super::ConditionalResult<std::sync::Arc<Filesystem>,T>> {
+            let root=Self::get_facade_root()?;
+            let result=root.$name(value,callback)?;
+            Ok(result.map_target(|_|root.clone()))
+        }
+    )+}}
+}
+conditional_facade! {when;unless}
+macro_rules! conditional_else_facade {
+    ($($name:ident);+ $(;)?)=> {impl File {$(
+        pub fn $name<V:super::ConditionValue,T>(value:V,callback:impl FnOnce(&Filesystem,V)->FileResult<Option<T>>,fallback:impl FnOnce(&Filesystem,V)->FileResult<Option<T>>)->FileResult<super::ConditionalResult<std::sync::Arc<Filesystem>,T>> {
+            let root=Self::get_facade_root()?;
+            let result=root.$name(value,callback,fallback)?;
+            Ok(result.map_target(|_|root.clone()))
+        }
+    )+}}
+}
+conditional_else_facade! {when_else;unless_else}
+macro_rules! conditional_test_facade {
+    ($($name:ident);+ $(;)?)=> {impl File {$(
+        pub fn $name<V:super::ConditionValue,T>(test:impl FnOnce(&Filesystem)->V,callback:impl FnOnce(&Filesystem,V)->FileResult<Option<T>>)->FileResult<super::ConditionalResult<std::sync::Arc<Filesystem>,T>> {
+            let root=Self::get_facade_root()?;
+            let result=root.$name(test,callback)?;
+            Ok(result.map_target(|_|root.clone()))
+        }
+    )+}}
+}
+conditional_test_facade! {when_test;unless_test}
+impl File {
+    pub fn when_condition(
+        value: impl super::ConditionValue,
+    ) -> FileResult<super::HigherOrderWhenProxy<std::sync::Arc<Filesystem>>> {
+        Ok(super::HigherOrderWhenProxy::new(
+            Self::get_facade_root()?,
+            Some(super::ConditionValue::is_truthy(&value)),
+            false,
+        ))
+    }
+    pub fn unless_condition(
+        value: impl super::ConditionValue,
+    ) -> FileResult<super::HigherOrderWhenProxy<std::sync::Arc<Filesystem>>> {
+        Ok(super::HigherOrderWhenProxy::new(
+            Self::get_facade_root()?,
+            Some(!super::ConditionValue::is_truthy(&value)),
+            false,
+        ))
+    }
+    pub fn when_capture() -> FileResult<super::HigherOrderWhenProxy<std::sync::Arc<Filesystem>>> {
+        Ok(super::HigherOrderWhenProxy::new(
+            Self::get_facade_root()?,
+            None,
+            false,
+        ))
+    }
+    pub fn unless_capture() -> FileResult<super::HigherOrderWhenProxy<std::sync::Arc<Filesystem>>> {
+        Ok(super::HigherOrderWhenProxy::new(
+            Self::get_facade_root()?,
+            None,
+            true,
+        ))
+    }
+}

@@ -296,3 +296,30 @@ fn register_and_load(path: &Path) -> FileResult<()> {
 `get_require` executes the callback on every call and returns its typed value. `require_once` returns `RequiredFile::Value(value)` on the first inclusion and `AlreadyIncluded` later, distinct from a module returning `true`. Any `get_require` also marks the file as included. Inclusion is recorded before execution: recursion and later calls skip a module even after its callback fails or panics. Replacing registration does not reset inclusion; explicit `get_require` still executes the replacement.
 
 Paths are canonicalized, so symlink aliases share inclusion. A missing, deleted or non-file path produces a file error even if previously included. An existing unregistered file returns `UnregisteredModule`; wrong input/output types return a typed callback error, never a fabricated module value. Registrations and inclusion belong to the application’s `files` singleton, shared by its HTTP/Artisan/Worker calls and isolated from other applications. Unlike a global interpreter include table, they do not leak between applications. Concurrent `require_once` claims one execution; another caller may see `AlreadyIncluded` before the first callback completes. Callbacks and retired registrations are not invoked or dropped while holding registry locks.
+
+### Conditional file calls {#conditional-file-calls}
+
+Use `File::when(value, callback)` and `unless` for conditional calls. `ConditionValue` retains the original input type: booleans, numbers, strings (`""` and `"0"` are false), optional values and collections are supported. A callback receives the actual local service and the original value. Define `ConditionValue` for a business object when needed. JSON objects are truthy even when empty; JSON arrays follow collection emptiness.
+
+```rust
+use openrust::{filesystem::FileResult, support::facades::File};
+use std::path::Path;
+
+fn write_if_missing(path: &Path) -> FileResult<()> {
+    File::unless_test(
+        |files| files.exists(path),
+        |files, _| files.put(path, b"created").map(Some),
+    )?;
+    let bytes = File::when_condition(true)?
+        .call(|files| files.get(path))?
+        .into_value();
+    assert!(bytes.is_some());
+    Ok(())
+}
+```
+
+The selected callback returns `FileResult<Option<T>>`. `Some(value)` becomes `ConditionalResult::Value(value)`, including `false`, `0`, or an empty string. `None` returns `Target`, retaining the exact original service; use `None::<()>` when no result type is otherwise inferable. A skipped branch also returns `Target`. `into_value` and `into_target` unpack these alternatives. Errors propagate unchanged. `when_else` / `unless_else` add a fallback; only one branch runs.
+
+Use `when_test` / `unless_test` when the condition is computed from the service: the resolver runs once and its original result is passed to the selected callback. `when_condition(value)` / `unless_condition(value)` produce a typed higher-order proxy: `.call(|files| ...)` executes the actual public operation only when selected. To capture a query first, use `when_capture()?.capture(|files| ...)` or `unless_capture`; `try_capture` accepts a fallible query. A missing captured condition returns `MissingCondition`. A proxy operation returns its actual value, so an operation returning `None` remains `Value(None)`; the callback-style null fallback does not apply to this form.
+
+A facade proxy owns the original application service, so moving it to another application scope does not resolve a different service. Direct `Filesystem` calls provide the same methods with a borrowed target. Rust uses these explicit suffixes and `ConditionalResult` instead of overloaded argument counts, dynamic method interception or a target/scalar union; actual conditions, selected side effects and error propagation remain observable.
