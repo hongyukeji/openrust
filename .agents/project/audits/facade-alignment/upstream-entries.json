@@ -975,9 +975,9 @@
       "local": "support::facades::Exceptions -> contracts::debug::ExceptionHandler; actual HTTP/Application/Artisan/Worker contract",
       "tested_entries": {
         "register": {
-          "local": "register",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "register() -> Result<()>; default no-op, custom override and fake delegation",
+          "status": "verified-native-hook-paths",
+          "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
         },
         "reportable": {
           "local": "reportable::<E>(callback) -> ReportableHandler; reportable_all(callback) handles all errors",
@@ -1060,19 +1060,19 @@
           "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "contextForException": {
-          "local": "context_for_exception",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "context_for_exception -> ExceptionContext { fields, exception }; merges resolved default-guard userId after error fields",
+          "status": "partial",
+          "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
         },
         "buildContextForException": {
-          "local": "build_context_for_exception",
-          "status": "pending",
-          "evidence": "not implemented/verified through this facade; bootstrap configuration or underlying method alone is not facade parity"
+          "local": "build_context_for_exception(&Exception) -> LogContext; typed error context + ordered callbacks",
+          "status": "verified-native-context-paths",
+          "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
         },
         "buildContextUsing": {
-          "local": "build_context_using(Fn(&Exception)->LogContext)",
-          "status": "verified-current-native-paths",
-          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
+          "local": "build_context_using(Fn(&Exception)); build_context_using_with_context(Fn(&Exception,&LogContext))",
+          "status": "verified-native-context-paths",
+          "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
         },
         "render": {
           "local": "render",
@@ -1157,11 +1157,12 @@
         "extensions": "new render_http contract hook has default report+render; concrete Handler overrides with existing request logging context, validation redirects and report throttling; downstream custom handlers remain source compatible"
       },
       "remaining": [
-        "register and map, contextForException/buildContextForException runtime public contracts remain to implement and verify",
+        "map and original inner-exception mapping remain to implement and verify",
         "global catch-all throttleUsing callback/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
-        "withoutExceptionHandling handler mode, all dynamic Handler/config forwarding and full context/map/register contracts still require closure"
+        "withoutExceptionHandling handler mode, remaining dynamic Handler/config forwarding and map contracts still require closure",
+        "contextForException currently reads resolved default-guard identity; upstream lazy Auth::id resolution must still be addressed/validated; typed context methods use explicit registered callbacks because Rust Error does not define context()"
       ],
       "runtime_configuration": {
         "handler": "existing handler stores configuration behind RwLock; methods clone snapshots before invoking callbacks or awaiting. Setters preserve constructor configuration and existing duplicate map; old callbacks are retired outside the write lock",
@@ -1194,6 +1195,12 @@
         "source": "fixed Handler.shouldReport -> shouldntReport -> throttle; throttleUsing appends ordered callbacks, it does not replace all callbacks",
         "result": "real source oracle confirms each query runs admission; native Limit1 test first query true/second false/report denied; report-only distinct key executes callback once",
         "historical_evidence": "exceptions-config/test-fifth pure-query expectation passed its old implementation but is not fixed baseline parity; superseded, original logs retained"
+      },
+      "context_native": {
+        "shape": "ExceptionContext keeps borrowed original Exception separately from JSON fields, preserving typed object instead of a fake JSON error",
+        "callbacks": "typed exception_context + ordered with_context callbacks see accumulated fields; last callback key wins; default current resolved userId merges last; fake delegates original custom handler",
+        "actual_consumers": "real Handler write_report uses same fields; shared transport unwrapped in JSON snapshot so typed callback executes once and does not add a fake cause",
+        "limits": "lazy unresolved authentication remains partial; do not count full Exceptions closed"
       }
     },
     {

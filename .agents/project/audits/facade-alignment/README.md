@@ -273,3 +273,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 当前三语文档已同步纠正，is_reporting 仍只查询当前报告实例，不消耗准入。完整上下文、映射、register和其他门面仍继续开发。
 
 - 本批 workspace/all-targets严格Clippy、格式检查、三语站点构建及6项浏览器检查通过；日志归入 `exception-eligibility/`。
+
+### Exceptions：公开上下文与注册入口（2026-11-24，仍 partial）
+
+- 新增正式 register/build_context_for_exception/context_for_exception 转发，注册钩子的标准行为是空操作，自定义处理器可覆写；Fake均转发原处理器。不是以配置对象或get-root绕行充数。
+- ExceptionContext将JSON字段与原始借用Exception分别保留。既有单参数build_context_using保持兼容，新增双参数build_context_using_with_context接收累积字段，按注册顺序覆盖。正式exception_context::<E>复用现有类型回调机制，可显式接入E::context，不假定Rust Error含动态可选方法。
+- 修复SharedException包装漏掉原类型上下文字段；JSON快照剥离透明所有权包装，不添加假previous，也不让原类型context回调重复执行。真实来源链仍保留。日志处理器实际复用公开上下文构建。
+- 当前默认上下文在异常字段后合并已解析默认Guard的userId，并按PHP假值规则省略0/空标识；实际HTTP确认请求结束后身份不泄漏。上游Auth::id的未解析懒认证仍待收口，因此contextForException仍partial。
+- `exception-context/oracle.log` 固定PHP原类执行验证phase1->phase2、后回调看见累积值、默认userId覆盖异常字段、原异常对象引用及register空操作；`tests-second.log` 新5项通过，连同既有异常消费者、错误转换29与真实日志15，共85项实际本机测试通过（另4项无外部环境早返回不计后端验收）。真实HTTP、结构化文件日志、Fake原处理器、回调重入及透明包装仅调用一次均已验收。首次测试漏导入Facade已修正，失败日志保留。
+
+- 本批全workspace/all-targets严格Clippy、格式、三语站点构建及上下文章节6项浏览器检查通过：`exception-context/clippy.log/fmt.log/docs.log/browser.log`。

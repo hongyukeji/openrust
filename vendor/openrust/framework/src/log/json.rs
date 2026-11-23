@@ -15,8 +15,12 @@ pub(crate) fn snapshot(
     source_context: impl Fn(&(dyn Error + 'static)) -> (Option<&'static str>, LogContext),
     root_context: LogContext,
 ) -> Value {
-    let mut errors = vec![exception.error()];
-    while let Some(source) = errors.last().copied().and_then(|error| error.source()) {
+    let root = exception.root_error();
+    let mut errors = vec![root];
+    while let Some(mut source) = errors.last().copied().and_then(|error| error.source()) {
+        while source.is::<crate::contracts::debug::SharedException>() {
+            source = source.source().expect("共享异常保留原始错误");
+        }
         if errors.len() == MAX_SOURCE_DEPTH
             || errors.iter().any(|error| std::ptr::eq(*error, source))
         {
@@ -29,7 +33,7 @@ pub(crate) fn snapshot(
         let (kind, context) = source_context(*error);
         previous = Some(node(*error, kind, context, previous));
     }
-    node(exception.error(), name, root_context, previous)
+    node(root, name, root_context, previous)
 }
 
 fn node(

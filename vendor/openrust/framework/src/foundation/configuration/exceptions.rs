@@ -15,7 +15,7 @@ type Renderer = dyn Fn(&Exception<'_>, &Request) -> Option<Response> + Send + Sy
 type Responder = dyn Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync;
 
 type Matcher = dyn Fn(&Exception<'_>) -> bool + Send + Sync;
-type Context = dyn Fn(&Exception<'_>) -> LogContext + Send + Sync;
+type Context = dyn Fn(&Exception<'_>, &LogContext) -> LogContext + Send + Sync;
 type TypedContext = dyn Fn(&(dyn Error + 'static)) -> LogContext + Send + Sync;
 
 #[derive(Clone)]
@@ -158,6 +158,16 @@ impl Exceptions {
         &mut self,
         callback: impl Fn(&Exception<'_>) -> LogContext + Send + Sync + 'static,
     ) -> &mut Self {
+        self.context
+            .push(Arc::new(move |exception, _| callback(exception)));
+        self
+    }
+
+    /// 逐个回调接收此前累积字段；后返回的同名字段覆盖之前的值。
+    pub fn context_with(
+        &mut self,
+        callback: impl Fn(&Exception<'_>, &LogContext) -> LogContext + Send + Sync + 'static,
+    ) -> &mut Self {
         self.context.push(Arc::new(callback));
         self
     }
@@ -255,8 +265,10 @@ impl Exceptions {
     }
 
     pub(crate) fn report_context(&self, exception: &Exception<'_>) -> LogContext {
-        let mut context = self.node_context(exception.error()).1;
-        context.extend(self.context.iter().flat_map(|callback| callback(exception)));
+        let mut context = self.node_context(exception.root_error()).1;
+        for callback in &self.context {
+            context.extend(callback(exception, &context));
+        }
         context
     }
 

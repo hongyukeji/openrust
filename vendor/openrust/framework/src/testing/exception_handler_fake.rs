@@ -168,6 +168,18 @@ impl ExceptionHandlerFake {
     }
 }
 impl ExceptionHandler for ExceptionHandlerFake {
+    fn register(&self) -> Result<(), BindingResolutionError> {
+        self.handler().register()
+    }
+    fn build_context_for_exception(&self, exception: &Exception<'_>) -> crate::log::LogContext {
+        self.handler().build_context_for_exception(exception)
+    }
+    fn context_for_exception<'a>(
+        &self,
+        exception: &Exception<'a>,
+    ) -> crate::contracts::debug::ExceptionContext<'a> {
+        self.handler().context_for_exception(exception)
+    }
     fn configure(
         &self,
         update: &mut dyn FnMut(&mut Exceptions),

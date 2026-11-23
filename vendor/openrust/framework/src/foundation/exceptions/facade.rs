@@ -29,6 +29,36 @@ impl Exceptions {
     ) -> Result<T, crate::contracts::debug::SharedException> {
         crate::testing::exception_handler_fake::catch_reported(future).await
     }
+    pub fn register() -> Result<(), BindingResolutionError> {
+        Self::get_facade_root()?.register()
+    }
+    pub fn build_context_for_exception(
+        exception: &Exception<'_>,
+    ) -> Result<crate::log::LogContext, BindingResolutionError> {
+        Ok(Self::get_facade_root()?.build_context_for_exception(exception))
+    }
+    pub fn context_for_exception<'a>(
+        exception: &Exception<'a>,
+    ) -> Result<crate::contracts::debug::ExceptionContext<'a>, BindingResolutionError> {
+        Ok(Self::get_facade_root()?.context_for_exception(exception))
+    }
+    pub fn exception_context<E: Error + 'static>(
+        callback: impl Fn(&E) -> crate::log::LogContext + Send + Sync + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.exception_context(callback);
+        })
+    }
+    pub fn build_context_using_with_context(
+        callback: impl Fn(&Exception<'_>, &crate::log::LogContext) -> crate::log::LogContext
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.context_with(callback);
+        })
+    }
     pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
         let shared = if let Some(shared) = (&error as &(dyn Error + 'static))
             .downcast_ref::<crate::contracts::debug::SharedException>(

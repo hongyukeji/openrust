@@ -222,3 +222,13 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 `throw_on_report()` 会在记录后中止受保护的测试调用。HTTP 调用通过自身的 `Result` 返回原始错误；`TestApp::try_artisan(args)` 返回 `Result<TestCommand, SharedException>`，也包括 `queue:work` 报告的任务错误。兼容的 `artisan(args)` 仍返回 `TestCommand`；显式启用重抛模式时，它以携带原始 `SharedException` 的 panic 重抛。需要可失败调用的 Rust 测试优先使用 `try_artisan`。
 
 其他异步入口可用 `Exceptions::catch_reported(future).await` 包裹。每次捕获使用词法任务局部通道，报告后返回原始错误并取消本次调用，后续代码不会继续执行；嵌套捕获恢复外层作用域，并发请求与取消不会遗留通道。捕获作用域外直接 `report(...).await` 会返回含原始错误的 `Err`，不会挂起任务。`throw_first_reported()` 返回首条报告的错误，空列表则成功。此测试控制不会把生产日志失败改成 panic。
+
+### 异常上下文 {#exception-context}
+
+`Exceptions::register()` 转发实际处理器的注册钩子，标准处理器没有额外注册工作。自定义处理器可以覆写，异常替身会继续转发给原处理器。
+
+`exception_context::<E>(callback)` 为具体 Rust 错误注册字段。错误自身有 `context()` 方法时，显式传入 `|error| error.context()`；`std::error::Error` 未定义这个可选方法。`build_context_using(callback)` 保留单参数便捷用法；`build_context_using_with_context(callback)` 同时接收异常和此前累积的字段，按注册顺序执行，后返回的同名字段覆盖前值。
+
+`build_context_for_exception(&exception)` 返回异常专属字段。`context_for_exception(&exception)` 返回 `ExceptionContext`：`fields` 保存合并字段，`exception` 保留原始异常借用，不把错误对象伪装成 JSON 值。默认上下文在异常字段后合并当前默认 Guard 已解析的用户 ID，因此其 `userId` 优先；假值标识会被省略。这里只读取请求缓存身份，不额外触发认证或数据库查询；尚未解析身份的懒认证行为仍待进一步对齐。
+
+实际日志处理器使用同一个上下文构造器。`SharedException` 传输包装不会在 JSON 日志中多出一层原因，也不会让原错误的上下文回调执行两次；真实源错误仍保留在异常链中。其他应用或请求读取、报告上下文时不会复用此前已认证身份。

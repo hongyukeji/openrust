@@ -42,6 +42,7 @@ impl Error for SharedException {
 }
 
 /// Borrows the original error while preserving HTTP-specific metadata.
+#[derive(Clone, Copy)]
 pub enum Exception<'a> {
     Http(&'a HttpError),
     Error(&'a (dyn Error + Send + Sync + 'static)),
@@ -53,6 +54,14 @@ impl Exception<'_> {
             Self::Http(error) => *error,
             Self::Error(error) => *error,
         }
+    }
+
+    pub(crate) fn root_error(&self) -> &(dyn Error + 'static) {
+        let mut error = self.error();
+        while error.is::<SharedException>() {
+            error = error.source().expect("共享异常保留原始错误");
+        }
+        error
     }
 
     /// Finds the first matching error in the exception and its source chain.
@@ -68,8 +77,27 @@ impl Exception<'_> {
     }
 }
 
+/// 字段与原始异常分别保留；不把错误对象伪装成 JSON 字段。
+pub struct ExceptionContext<'a> {
+    pub fields: crate::log::LogContext,
+    pub exception: Exception<'a>,
+}
+
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Any + Send + Sync {
+    /// 默认处理器没有额外注册行为；自定义处理器可覆写此生命周期入口。
+    fn register(&self) -> Result<(), crate::contracts::container::BindingResolutionError> {
+        Ok(())
+    }
+    fn build_context_for_exception(&self, _exception: &Exception<'_>) -> crate::log::LogContext {
+        Default::default()
+    }
+    fn context_for_exception<'a>(&self, exception: &Exception<'a>) -> ExceptionContext<'a> {
+        ExceptionContext {
+            fields: self.build_context_for_exception(exception),
+            exception: *exception,
+        }
+    }
     /// 同步修改运行期配置；自定义处理器须显式支持，不能静默忽略。
     fn configure(
         &self,

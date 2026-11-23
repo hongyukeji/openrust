@@ -222,3 +222,13 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 `throw_on_report()` 會在記錄後中止受保護的測試呼叫。HTTP 呼叫透過自身的 `Result` 傳回原始錯誤；`TestApp::try_artisan(args)` 傳回 `Result<TestCommand, SharedException>`，也包括 `queue:work` 報告的任務錯誤。相容的 `artisan(args)` 仍傳回 `TestCommand`；明確啟用重拋模式時，它以攜帶原始 `SharedException` 的 panic 重拋。需要可失敗呼叫的 Rust 測試優先使用 `try_artisan`。
 
 其他非同步入口可用 `Exceptions::catch_reported(future).await` 包裹。每次捕獲使用詞法任務區域通道，報告後傳回原始錯誤並取消本次呼叫，後續程式碼不再執行；巢狀捕獲恢復外層作用域，並行請求與取消不會遺留通道。捕獲作用域外直接 `report(...).await` 會傳回含原始錯誤的 `Err`，不會掛起任務。`throw_first_reported()` 傳回首筆報告的錯誤，空列表則成功。此測試控制不會將正式環境日誌失敗改為 panic。
+
+### 例外上下文 {#exception-context}
+
+`Exceptions::register()` 轉發實際處理器的註冊鉤子，標準處理器沒有額外註冊工作。自訂處理器可以覆寫，例外替身會繼續轉發給原處理器。
+
+`exception_context::<E>(callback)` 為具體 Rust 錯誤註冊欄位。錯誤本身有 `context()` 方法時，明確傳入 `|error| error.context()`；`std::error::Error` 未定義此可選方法。`build_context_using(callback)` 保留單參數便捷用法；`build_context_using_with_context(callback)` 同時接收例外和此前累積的欄位，按註冊順序執行，後傳回的同名欄位覆蓋前值。
+
+`build_context_for_exception(&exception)` 傳回例外專屬欄位。`context_for_exception(&exception)` 傳回 `ExceptionContext`：`fields` 保存合併欄位，`exception` 保留原始例外借用，不將錯誤物件偽裝成 JSON 值。預設上下文在例外欄位後合併目前預設 Guard 已解析的使用者 ID，因此其 `userId` 優先；假值識別碼會被省略。此處僅讀取請求快取身分，不額外觸發認證或資料庫查詢；尚未解析身分的惰性認證行為仍待進一步對齊。
+
+實際日誌處理器使用同一個上下文建構器。`SharedException` 傳輸包裝不會在 JSON 日誌中多出一層原因，也不會讓原錯誤的上下文回呼執行兩次；真實來源錯誤仍保留在例外鏈中。其他應用或請求讀取、報告上下文時不會重用此前已認證身分。

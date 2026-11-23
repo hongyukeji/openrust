@@ -236,9 +236,7 @@ impl Handler {
             let configuration_snapshot = self.configuration();
             let configuration = configuration_snapshot.as_ref();
             let level = configuration.map_or(Level::Error, |config| config.report_level(exception));
-            let mut context = configuration
-                .map(|config| config.report_context(exception))
-                .unwrap_or_default();
+            let mut context = self.context_for_exception(exception).fields;
             if let Some(error) = exception.downcast_ref::<HttpError>() {
                 context.insert("status".into(), error.status().as_u16().into());
             }
@@ -311,6 +309,39 @@ impl ExceptionHandler for Handler {
         Box::pin(async move { self.render_http_response_only(request, error).await })
     }
 
+    fn build_context_for_exception(&self, exception: &Exception<'_>) -> crate::log::LogContext {
+        self.configuration()
+            .as_ref()
+            .map(|config| config.report_context(exception))
+            .unwrap_or_default()
+    }
+    fn context_for_exception<'a>(
+        &self,
+        exception: &Exception<'a>,
+    ) -> crate::contracts::debug::ExceptionContext<'a> {
+        let mut fields = self.build_context_for_exception(exception);
+        if let Some(user) = self
+            .owner
+            .upgrade()
+            .and_then(|owner| owner.get::<crate::auth::AuthManager>("auth").ok())
+            .and_then(|auth| auth.resolved_user(None))
+        {
+            let id = serde_json::to_value(user.get_auth_identifier()).expect("认证标识可序列化");
+            if id != serde_json::Value::Null
+                && id != serde_json::Value::Bool(false)
+                && id != serde_json::json!(0)
+                && id != serde_json::json!("")
+                && id != serde_json::json!("0")
+            {
+                fields.insert("userId".into(), id);
+            }
+        }
+        crate::contracts::debug::ExceptionContext {
+            fields,
+            exception: *exception,
+        }
+    }
+
     fn build_log_exception(
         &self,
         exception: &Exception<'_>,
@@ -319,8 +350,8 @@ impl ExceptionHandler for Handler {
     ) -> serde_json::Value {
         let configuration_snapshot = self.configuration();
         let configuration = configuration_snapshot.as_ref();
-        let name =
-            name.or_else(|| configuration.and_then(|config| config.node_name(exception.error())));
+        let name = name
+            .or_else(|| configuration.and_then(|config| config.node_name(exception.root_error())));
         let context = configuration
             .filter(|_| !reported)
             .map(|config| config.report_context(exception))
