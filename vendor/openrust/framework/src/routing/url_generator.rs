@@ -106,6 +106,22 @@ pub enum SignatureQueryFilter<'a> {
     Predicate(&'a (dyn Fn(&str) -> bool + Send + Sync)),
 }
 
+impl<'a> From<&'a [&'a str]> for SignatureQueryFilter<'a> {
+    fn from(keys: &'a [&'a str]) -> Self {
+        Self::Keys(keys)
+    }
+}
+impl<'a, const N: usize> From<&'a [&'a str; N]> for SignatureQueryFilter<'a> {
+    fn from(keys: &'a [&'a str; N]) -> Self {
+        Self::Keys(keys)
+    }
+}
+impl<'a> From<&'a Vec<&'a str>> for SignatureQueryFilter<'a> {
+    fn from(keys: &'a Vec<&'a str>) -> Self {
+        Self::Keys(keys)
+    }
+}
+
 pub type UrlResult<T> = Result<T, UrlError>;
 
 /// A failure to construct a URL, signature, or redirect.
@@ -557,10 +573,24 @@ fn is_expired(expires: &str, now: u64) -> bool {
 impl Contract for UrlGenerator {
     fn full(&self) -> UrlResult<String> {
         let root = self.root(None)?;
-        match self.uri.as_ref().and_then(Uri::path_and_query) {
-            Some(target) => Ok(format!("{}{}", root.as_str().trim_end_matches('/'), target)),
-            None => Ok(root.as_str().trim_end_matches('/').to_owned()),
+        let path = self
+            .uri
+            .as_ref()
+            .map_or("", Uri::path)
+            .trim_end_matches('/');
+        let mut output = format!("{}{path}", root.as_str().trim_end_matches('/'));
+        let query = Request::normalize_query_string(
+            self.uri.as_ref().and_then(Uri::query).unwrap_or_default(),
+        )
+        .map_err(|_| UrlError::InvalidParameter)?;
+        if !query.is_empty() {
+            if path.is_empty() && root.path() == "/" {
+                output.push('/');
+            }
+            output.push('?');
+            output.push_str(&query);
         }
+        Ok(output)
     }
 
     fn previous_path(&self, fallback: Option<&str>) -> UrlResult<String> {

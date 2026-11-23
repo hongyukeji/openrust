@@ -3,7 +3,7 @@ use openrust::{
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    routing::{RouteParameter, Router, SignatureMode},
+    routing::{RouteParameter, Router, SignatureMode, SignatureQueryFilter},
     support::facades::Url,
     validation::RuleSet,
 };
@@ -32,6 +32,7 @@ fn links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 "absolute":Url::signed_route("unsubscribe",&params,None,SignatureMode::Absolute)?,
                 "relative":Url::signed_route("unsubscribe",&params,None,SignatureMode::Relative)?,
                 "expired":Url::temporary_signed_route("unsubscribe",SystemTime::now()-Duration::from_secs(60),&params,SignatureMode::Absolute)?,
+                "custom":Url::temporary_signed_route("custom",SystemTime::now()-Duration::from_secs(60),&params,SignatureMode::Absolute)?,
                 "guarded":Url::signed_route("guarded",&params,None,SignatureMode::Absolute)?,
             }),
         )
@@ -44,6 +45,34 @@ fn inspect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         let ignored = request.has_valid_signature_while_ignoring(&["page", "order"], true)?;
         let ignored_relative =
             request.has_valid_relative_signature_while_ignoring(&["page", "order"])?;
+        let ignore = |name: &str| matches!(name, "page" | "order");
+        assert_eq!(
+            ignored,
+            request.has_valid_signature_while_ignoring(
+                SignatureQueryFilter::Predicate(&ignore),
+                true
+            )?
+        );
+        assert_eq!(
+            ignored_relative,
+            request.has_valid_relative_signature_while_ignoring(
+                SignatureQueryFilter::Predicate(&ignore)
+            )?
+        );
+        let names = vec!["page", "order"];
+        assert_eq!(
+            ignored,
+            request.has_valid_signature_while_ignoring(&names, true)?
+        );
+        let facade = request
+            .with_container(async {
+                openrust::support::facades::Request::has_valid_signature_while_ignoring(
+                    SignatureQueryFilter::Predicate(&ignore),
+                    true,
+                )
+            })
+            .await?;
+        assert_eq!(ignored, facade);
         Response::json(
             if ignored || ignored_relative {
                 StatusCode::OK
@@ -94,9 +123,28 @@ async fn start(
                 ("session".into(), json!({"driver":"array"})),
             ]))
         })
+        .with_exceptions(|exceptions| {
+            exceptions.render::<HttpError>(|error, request| {
+                (matches!(error, HttpError::InvalidSignature) && request.is("custom/*")).then(
+                    || {
+                        Response::json(
+                            StatusCode::FORBIDDEN,
+                            json!({"message":"This link has expired."}),
+                        )
+                        .unwrap()
+                    },
+                )
+            });
+        })
         .with_routing(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/links", links)?;
+            router.get("/", url_details)?;
+            router.get("/chapter/", url_details)?;
+            router
+                .get("/custom/{user}", inspect)?
+                .name("custom")
+                .middleware_name("signed");
             router
                 .get("/unsubscribe/{user}", inspect)?
                 .name("unsubscribe");
@@ -245,6 +293,61 @@ async fn controller_request_validation_and_named_bag_follow_the_http_lifecycle()
         assert_eq!(status, 204, "{wire}");
         assert!(wire.contains("precognition-success: true"));
     }
+    server.abort();
+    let _ = server.await;
+}
+
+fn url_details(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let full = request.full_url()?;
+        let generated = request.with_container(async {
+            Ok::<_, HttpError>(json!({"current":Url::current()?,"full":Url::full()?,"root":Url::to("/", &[], None)?}))
+        }).await?;
+        Response::json(
+            StatusCode::OK,
+            json!({"request_full":full,"generated":generated}),
+        )
+    })
+}
+
+#[tokio::test]
+async fn current_and_full_urls_keep_root_and_normalized_query_semantics() {
+    let (_root, address, server) = start("url-chapter-key", None).await;
+    let origin = format!("http://{address}");
+    for (target, current, full) in [
+        ("/", origin.clone(), origin.clone()),
+        (
+            "/?z=1&a=hello%20world",
+            origin.clone(),
+            format!("{origin}/?a=hello%20world&z=1"),
+        ),
+        (
+            "/chapter/?z=1&a=hello%20world",
+            format!("{origin}/chapter"),
+            format!("{origin}/chapter?a=hello%20world&z=1"),
+        ),
+    ] {
+        let (status, value, _) = send(address, "GET", target, "", "").await;
+        assert_eq!(status, 200, "{value}");
+        assert_eq!(value["generated"]["current"], current);
+        assert_eq!(value["generated"]["full"], full);
+        assert_eq!(value["request_full"], full);
+        assert_eq!(value["generated"]["root"], origin);
+    }
+    server.abort();
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn expired_signed_routes_use_bootstrap_exception_renderer() {
+    let (_root, address, server) = start("custom-signed-key", None).await;
+    let (_, links, _) = send(address, "GET", "/links", "", "").await;
+    let (status, value, _) = send(address, "GET", links["custom"].as_str().unwrap(), "", "").await;
+    assert_eq!(status, 403);
+    assert_eq!(value, json!({"message":"This link has expired."}));
+    let (status, value, _) = send(address, "GET", "/guarded/42", "", "").await;
+    assert_eq!(status, 403);
+    assert_ne!(value, json!({"message":"This link has expired."}));
     server.abort();
     let _ = server.await;
 }

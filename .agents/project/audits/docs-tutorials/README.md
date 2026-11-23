@@ -49,3 +49,18 @@
 第一次严格检查触及32GB停线，守卫返回75并记录停止时权限错误，未算通过；同项目的清理记录随后确认profiles清理与约62.8GB释放，空间恢复后继续。源码、日志、下载、数据卷和新在途修改保持；最终保留当前热缓存和验收快照，不为收尾再清空缓存。临时MySQL由正式夹具创建并回收，无开发库写入。
 
 本轮实际新增行为只涉及请求的六个标准入口及门面统一流程，未重开已闭合Settings，也未改动其他进行中的异常／文件系统／认证等代码。代码以PHP默认Provider宏的职责固化为Rust方法，不提供PHP式运行时替换同名实例方法的承诺；现有宏与容器扩展方式保持。对照不依赖PHP运行时，本轮未重新执行完整PHP／PHPUnit，对已有固定源码与已验核心行为的引用不伪装成新上游运行证据。
+
+## 第二组：URL 查询规范化、验签过滤回调与异常渲染
+
+2026-11-24，基线63e6d328a，沿用同一固定文档／框架提交。重新运行固定框架的UrlGenerator／Request（PHP8.5.12、Symfony7.4），三种地址的current/full/to根地址输出保存在target/tmp/docs-chapters-20261124/reference/url-oracle.json，脚本和固定源码保留。PHP实际确认current根地址不带尾斜杠，full根查询使用/?；测试最初错误要求current根地址带/，已依据实际PHP修正，未改动正确的根地址生成机制。
+
+- 原Url::full直接返回原始path_and_query，与上游request.fullUrl不符。现复用Request::normalize_query_string，移除路径尾斜杠、排序查询键、规范编码。旧回归曾要求原始顺序与小写%2b，已按上游真实结果更新为a=1&z=%2B；签名校验仍使用原始查询串，未对验签原文规范化。
+- 请求实例与Request门面的两种while_ignoring入口接受Into<SignatureQueryFilter>，数组／切片／Vec转换为Keys，回调显式传Predicate。保留现有数组写法，复用已有回调过滤引擎；不忽略expires的现有安全约束保持。
+- 实际TCP验证自定义InvalidSignature渲染器在过期链接返回自定义403，而未选中的路由仍使用默认403。没有改写异常模块或创建第二套渲染管线。
+- 签名回调与Vec实际消费者纳入既有跨应用密钥隔离、轮换、正文不受签名保护等用例；新增current/full根地址、根查询、非根尾斜杠的实际HTTP断言。
+
+三语URL正文已同步规范化说明与回调／异常闭包示例。此组关闭列明子范围，不把继承的URL其他功能回归当成整个章节逐例通过。APP_URL显式优先和previous同源过滤是既定项目行为；PHP默认从请求推导来源、previous允许外部Referer，仍明确保留差异。后续继续核对URI、模型键和默认值优先级；不能据此关闭完整URL类型。
+
+验收：request_signature_tutorial5、urls6、uri_helpers2，共13项通过。严格workspace/all-targets Clippy的首次32GB停线中断不计通过；安全清理恢复后重跑退出0，见url-clippy-resumed.log。fmt与三语站点构建通过。清理只涉及构建profiles，源码／日志／依赖／数据保留；守卫触线后实测可用约94GB。后续最终消费者补验结果写入本记录，不混入Validation尚未验收源码。
+
+URL第二组最终补验：清理后实际重编译，request_docs_generated三语3项、签名5项、urls6项、uri2项，共16项全部通过；见url-accepted.log。url-fmt.log和url-docs-build.log退出0，最终8份源码／三语正文与隔离验收字节一致，SHA见url-source-sha.json。

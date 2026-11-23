@@ -45,7 +45,7 @@ Use `has_valid_signature_while_ignoring(&["page", "order"], true)` or `has_valid
 
 HTTP link generation uses an explicit `APP_URL` first, then the current request scheme and authority, then the listener-derived `app.url`. Artisan uses `app.url` directly. See [configuration](../getting-started/configuration.md) for the listener fallback. `Url::asset` honors `ASSET_URL`. Use `Url::to`, `Url::current` or `Url::query` for ordinary URLs.
 
-`Url::current()` returns the current URL without the query. `Url::full()` includes the original request path and query string. `Url::previous(request, fallback)` resolves a same-origin Referer, the previous session URL or the fallback. `Url::previous_path(request, fallback)` returns only the path, with the application's base path and trailing slash removed. On a web route, `request.session()?.previous_route()` returns the last recorded route name. `previous_uri()` on the same session returns a parsed `openrust::support::Uri` when a previous URL exists.
+`Url::current()` returns the current URL without the query. `Url::full()` removes trailing path slashes and includes a normalized query string (sorted keys and canonical escaping), matching `request.full_url()`. A root URL with a query keeps `/?`; without a query it has no trailing slash. `Url::previous(request, fallback)` resolves a same-origin Referer, the previous session URL or the fallback. `Url::previous_path(request, fallback)` returns only the path, with the application's base path and trailing slash removed. On a web route, `request.session()?.previous_route()` returns the last recorded route name. `previous_uri()` on the same session returns a parsed `openrust::support::Uri` when a previous URL exists.
 
 ## Request-wide URL defaults {#default-values}
 
@@ -96,3 +96,23 @@ Clone the request's `UrlGenerator` before applying `force_scheme`, `force_https`
 ## Resource origins and defaults
 
 Use `UrlGenerator::use_origin(Some(root))` to override the origin for generated URLs and pass `None` to restore the request or configured origin. `use_asset_origin(Some(root))` overrides the asset origin; `None` clears the asset origin, including the configured CDN. These changes belong to that generator instance and its clones. `secure_asset(path)` requests HTTPS while retaining an explicitly configured asset origin. `asset_from(root, path, secure)` uses a custom root with the selected request or forced scheme. `get_default_parameters()` reads the generator’s named defaults. The `Url` facade also exposes `secure_asset`, `asset_from`, and `get_default_parameters`.
+
+## Query filtering and expired links
+
+The request instance and facade also accept `SignatureQueryFilter::Predicate(&callback)`. The callback decides which query keys to ignore; their values are not authenticated. Existing array, slice and Vec arguments remain supported. Register an exception renderer in `bootstrap/app.rs` to customize invalid signed routes; return None for normal fallback.
+
+```rust
+use openrust::{http::{HttpError, Request, Response, StatusCode}, routing::SignatureQueryFilter};
+
+fn valid_link(request: &Request) -> Result<bool, HttpError> {
+    let ignore = |key: &str| key == "page" || key.starts_with("tracking_");
+    request.has_valid_signature_while_ignoring(SignatureQueryFilter::Predicate(&ignore), true)
+}
+
+fn exceptions(exceptions: &mut openrust::foundation::configuration::Exceptions) {
+    exceptions.render::<HttpError>(|error, _| {
+        matches!(error, HttpError::InvalidSignature)
+            .then(|| Response::empty(StatusCode::FORBIDDEN))
+    });
+}
+```

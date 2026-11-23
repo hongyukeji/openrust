@@ -584,7 +584,7 @@ async fn signs_and_redirects_over_real_http() {
     );
     assert_eq!(
         fr["full"],
-        format!("http://{host}/request-links/fr/?z=%2b&a=1")
+        format!("http://{host}/request-links/fr?a=1&z=%2B")
     );
     assert_eq!(fr["current"], format!("http://{host}/request-links/fr"));
     assert_eq!(fr["default"], "/page/localized");

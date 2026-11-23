@@ -18,17 +18,17 @@ impl Request {
     }
 
     /// 忽略指定查询参数后校验相对签名；被忽略的值不受签名保护。
-    pub fn has_valid_relative_signature_while_ignoring(
+    pub fn has_valid_relative_signature_while_ignoring<'a>(
         &self,
-        ignore: &[&str],
+        ignore: impl Into<SignatureQueryFilter<'a>>,
     ) -> Result<bool, HttpError> {
         self.has_valid_signature_while_ignoring(ignore, false)
     }
 
     /// 仅使用当前请求的 URL 查询串验签，不将请求正文当作已签名输入。
-    pub fn has_valid_signature_while_ignoring(
+    pub fn has_valid_signature_while_ignoring<'a>(
         &self,
-        ignore: &[&str],
+        ignore: impl Into<SignatureQueryFilter<'a>>,
         absolute: bool,
     ) -> Result<bool, HttpError> {
         Url::has_valid_signature(
@@ -38,7 +38,7 @@ impl Request {
             } else {
                 SignatureMode::Relative
             },
-            SignatureQueryFilter::Keys(ignore),
+            ignore.into(),
         )
         .map_err(HttpError::from)
     }

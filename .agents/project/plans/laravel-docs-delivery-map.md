@@ -185,3 +185,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 | Validation：请求实例即时验证、具名错误包与预验证 | 两种实例入口及门面统一流程，三语示例／真实HTTP通过；额外参数与完整验证章节未关闭 | [请求教程核对](../audits/docs-tutorials/README.md) |
 | Settings：既定类型化设置与单机／集群协调 | 功能已闭合；发布环境矩阵保留待验，不重开功能任务 | [最终闭合复核](../audits/settings-coordination/README.md) |
 | 其他章节及上述章节的剩余示例 | 依现有细分单元接续；未取得教程消费者证据的，不新增已通过结论 | [统一差异账本](framework-parity-data-2026-11-22.json) |
+
+2026-11-24 URL第二组：Url::full与固定PHP实际输出对齐；Request实例／门面支持验签过滤回调，实际HTTP覆盖过期链接的bootstrap渲染及默认回退。13项专项／回归通过，严格Clippy／fmt／三语构建通过。整章其他教程逐项继续核对；APP_URL来源优先和previous同源限制保留明确差异，见[逐组记录](../audits/docs-tutorials/README.md)。

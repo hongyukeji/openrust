@@ -45,7 +45,7 @@ fn unsubscribe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 
 HTTP 請求內產生連結時，依序使用明確設定的 `APP_URL`、目前請求的通訊協定與主機、從監聽設定推導出的 `app.url`。Artisan 直接使用 `app.url`。監聽位址的回退規則請參閱[設定](../getting-started/configuration.md)。`Url::asset` 支援 `ASSET_URL`。一般 URL 可使用 `Url::to`、`Url::current` 和 `Url::query`。
 
-`Url::current()` 傳回移除查詢字串的目前 URL。`Url::full()` 包含原始請求路徑和查詢字串。`Url::previous(request, fallback)` 依序使用同源 Referer、上一個工作階段 URL 和備用位址。`Url::previous_path(request, fallback)` 只傳回路徑，並移除應用程式的基礎路徑和尾端斜線。在 Web 路由中，`request.session()?.previous_route()` 傳回上次記錄的路由名稱。`previous_uri()` 在有上一個 URL 時傳回解析後的 `openrust::support::Uri`。
+`Url::current()` 傳回移除查詢字串的目前 URL。`Url::full()` 傳回移除尾斜線、查詢字串正規化後的完整 URL。`Url::previous(request, fallback)` 依序使用同源 Referer、上一個工作階段 URL 和備用位址。`Url::previous_path(request, fallback)` 只傳回路徑，並移除應用程式的基礎路徑和尾端斜線。在 Web 路由中，`request.session()?.previous_route()` 傳回上次記錄的路由名稱。`previous_uri()` 在有上一個 URL 時傳回解析後的 `openrust::support::Uri`。
 
 ## 請求層級的 URL 預設值 {#default-values}
 
@@ -96,3 +96,25 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 ## 資源來源與預設參數
 
 透過 `UrlGenerator::use_origin(Some(root))` 覆蓋產生 URL 的來源，傳入 `None` 恢復請求或設定來源。`use_asset_origin(Some(root))` 覆蓋資源來源，`None` 清除資源來源（包括設定的 CDN）。這些修改屬於目前產生器實例及其複本。`secure_asset(path)` 要求 HTTPS，但保留明確的資源來源。`asset_from(root, path, secure)` 使用自訂根位址，通訊協定採用目前請求或強制通訊協定。`get_default_parameters()` 讀取命名預設參數。`Url` Facade 同樣提供 `secure_asset`、`asset_from` 和 `get_default_parameters`。
+
+`Url::full()` 移除路徑尾斜線，並正規化查詢字串（排序鍵和統一編碼），與 `request.full_url()` 一致。根網址有查詢時保留 `/?`，無查詢時不保留尾斜線。
+
+## 查詢過濾與過期連結
+
+請求實例與門面亦接受 `SignatureQueryFilter::Predicate(&callback)`，回呼決定忽略哪些查詢鍵，其值不受簽章保護。原有陣列、切片及 Vec 寫法保留。在 `bootstrap/app.rs` 註冊例外渲染器即可自訂無效簽章回應；回傳 None 使用預設回退。
+
+```rust
+use openrust::{http::{HttpError, Request, Response, StatusCode}, routing::SignatureQueryFilter};
+
+fn valid_link(request: &Request) -> Result<bool, HttpError> {
+    let ignore = |key: &str| key == "page" || key.starts_with("tracking_");
+    request.has_valid_signature_while_ignoring(SignatureQueryFilter::Predicate(&ignore), true)
+}
+
+fn exceptions(exceptions: &mut openrust::foundation::configuration::Exceptions) {
+    exceptions.render::<HttpError>(|error, _| {
+        matches!(error, HttpError::InvalidSignature)
+            .then(|| Response::empty(StatusCode::FORBIDDEN))
+    });
+}
+```

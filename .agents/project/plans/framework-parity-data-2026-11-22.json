@@ -298791,6 +298791,24 @@
         "URL章节其余教程场景及完整类型契约"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_url_normalization_and_signature_callbacks",
+      "status": "列明子范围已验收；完整URL章继续核对",
+      "finding": "Url::full保留原查询串，与固定PHP规范化输出不符；Request的ignore入口未暴露已有回调过滤能力",
+      "implementation": "复用Request查询规范化，Into过滤参数兼容数组/切片/Vec与显式Predicate；保留签名原文",
+      "consumers": [
+        "framework/tests/request_signature_tutorial.rs",
+        "framework/tests/urls.rs",
+        "framework/tests/uri_helpers.rs"
+      ],
+      "actual_results": "实际PHP三种地址oracle；实际TCP等13项通过；严格workspace Clippy/fmt和三语站点通过，首次磁盘停线不计通过",
+      "remaining": [
+        "URI／模型键／默认值优先级逐例核对",
+        "APP_URL显式优先及previous同源限制为项目现有差异"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

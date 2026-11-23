@@ -45,7 +45,7 @@ fn unsubscribe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 
 HTTP 请求内生成链接时，依次使用显式 `APP_URL`、当前请求的协议和主机、从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。监听地址的回退规则见[配置](../getting-started/configuration.md)。`Url::asset` 支持 `ASSET_URL`。普通 URL 可使用 `Url::to`、`Url::current` 和 `Url::query`。
 
-`Url::current()` 返回去掉查询串的当前 URL。`Url::full()` 包含原始请求路径和查询串。`Url::previous(request, fallback)` 依次使用同源 Referer、上一会话 URL 和回退地址。`Url::previous_path(request, fallback)` 只返回路径，并移除应用基路径和末尾的斜杠。在 Web 路由中，`request.session()?.previous_route()` 返回上一次记录的路由名。`previous_uri()` 在存在上一 URL 时返回解析后的 `openrust::support::Uri`。
+`Url::current()` 返回去掉查询串的当前 URL。`Url::full()` 返回去掉尾斜杠、查询串规范化后的完整 URL。`Url::previous(request, fallback)` 依次使用同源 Referer、上一会话 URL 和回退地址。`Url::previous_path(request, fallback)` 只返回路径，并移除应用基路径和末尾的斜杠。在 Web 路由中，`request.session()?.previous_route()` 返回上一次记录的路由名。`previous_uri()` 在存在上一 URL 时返回解析后的 `openrust::support::Uri`。
 
 ## 请求级 URL 默认值 {#default-values}
 
@@ -96,3 +96,25 @@ fn article_url() -> Result<String, openrust::routing::UrlError> {
 ## 资源来源与默认参数
 
 通过 `UrlGenerator::use_origin(Some(root))` 覆盖生成 URL 的来源，传入 `None` 恢复请求或配置来源。`use_asset_origin(Some(root))` 覆盖资源来源，`None` 清除资源来源（包括配置的 CDN）。这些修改属于当前生成器实例及其克隆。`secure_asset(path)` 请求 HTTPS，但保留显式资源来源。`asset_from(root, path, secure)` 使用自定义根地址，协议采用当前请求或强制协议。`get_default_parameters()` 读取命名默认参数。`Url` Facade 同样提供 `secure_asset`、`asset_from` 和 `get_default_parameters`。
+
+`Url::full()` 去除路径尾斜杠，并规范化查询串（排序键和统一编码），与 `request.full_url()` 一致。根地址带查询时保留 `/?`，无查询时不保留尾斜杠。
+
+## 查询过滤与过期链接
+
+请求实例与门面也接受 `SignatureQueryFilter::Predicate(&callback)`，回调决定忽略哪些查询键，其值不受签名保护。原有数组、切片及 Vec 写法保留。在 `bootstrap/app.rs` 注册异常渲染器即可定制无效签名响应；返回 None 使用默认回退。
+
+```rust
+use openrust::{http::{HttpError, Request, Response, StatusCode}, routing::SignatureQueryFilter};
+
+fn valid_link(request: &Request) -> Result<bool, HttpError> {
+    let ignore = |key: &str| key == "page" || key.starts_with("tracking_");
+    request.has_valid_signature_while_ignoring(SignatureQueryFilter::Predicate(&ignore), true)
+}
+
+fn exceptions(exceptions: &mut openrust::foundation::configuration::Exceptions) {
+    exceptions.render::<HttpError>(|error, _| {
+        matches!(error, HttpError::InvalidSignature)
+            .then(|| Response::empty(StatusCode::FORBIDDEN))
+    });
+}
+```

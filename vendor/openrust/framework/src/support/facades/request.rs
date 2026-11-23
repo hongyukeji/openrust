@@ -889,11 +889,13 @@ impl Request {
     pub fn has_valid_relative_signature() -> Result<bool, HttpError> {
         Self::has_valid_signature(false)
     }
-    pub fn has_valid_relative_signature_while_ignoring(ignore: &[&str]) -> Result<bool, HttpError> {
+    pub fn has_valid_relative_signature_while_ignoring<'a>(
+        ignore: impl Into<crate::routing::SignatureQueryFilter<'a>>,
+    ) -> Result<bool, HttpError> {
         Self::has_valid_signature_while_ignoring(ignore, false)
     }
-    pub fn has_valid_signature_while_ignoring(
-        ignore: &[&str],
+    pub fn has_valid_signature_while_ignoring<'a>(
+        ignore: impl Into<crate::routing::SignatureQueryFilter<'a>>,
         absolute: bool,
     ) -> Result<bool, HttpError> {
         Self::instance()?
