@@ -67,12 +67,22 @@ impl Exceptions {
     pub fn build_context_for_exception(
         exception: &Exception<'_>,
     ) -> Result<crate::log::LogContext, BindingResolutionError> {
-        Ok(Self::get_facade_root()?.build_context_for_exception(exception))
+        Self::get_facade_root()?.build_context_for_exception(exception)
     }
-    pub fn context_for_exception<'a>(
-        exception: &Exception<'a>,
-    ) -> Result<crate::contracts::debug::ExceptionContext<'a>, BindingResolutionError> {
-        Ok(Self::get_facade_root()?.context_for_exception(exception))
+    pub async fn context_for_exception<'e>(
+        exception: &Exception<'e>,
+    ) -> Result<crate::contracts::debug::ExceptionContext<'e>, BindingResolutionError> {
+        Self::get_facade_root()?
+            .context_for_exception(exception)
+            .await
+    }
+    pub async fn context_for_exception_with_request<'e>(
+        request: &mut Request,
+        exception: &Exception<'e>,
+    ) -> Result<crate::contracts::debug::ExceptionContext<'e>, BindingResolutionError> {
+        Self::get_facade_root()?
+            .context_for_exception_with_request(request, exception)
+            .await
     }
     pub fn exception_context<E: Error + 'static>(
         callback: impl Fn(&E) -> crate::log::LogContext + Send + Sync + 'static,
@@ -91,16 +101,30 @@ impl Exceptions {
             configuration.context_with(callback);
         })
     }
-    pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
-        let shared = if let Some(shared) = (&error as &(dyn Error + 'static))
-            .downcast_ref::<crate::contracts::debug::SharedException>(
-        ) {
+    fn share(
+        error: impl Error + Send + Sync + 'static,
+    ) -> crate::contracts::debug::SharedException {
+        if let Some(shared) = (&error as &(dyn Error + 'static))
+            .downcast_ref::<crate::contracts::debug::SharedException>()
+        {
             shared.clone()
         } else {
             crate::contracts::debug::SharedException::new(error)
-        };
+        }
+    }
+    pub async fn report(error: impl Error + Send + Sync + 'static) -> LogResult<()> {
+        let shared = Self::share(error);
         Self::get_facade_root()?
             .report(&Exception::Error(&shared))
+            .await
+    }
+    pub async fn report_for_request(
+        request: &mut Request,
+        error: impl Error + Send + Sync + 'static,
+    ) -> LogResult<()> {
+        let shared = Self::share(error);
+        Self::get_facade_root()?
+            .report_with_request(request, &Exception::Error(&shared))
             .await
     }
     pub async fn should_report(exception: &Exception<'_>) -> Result<bool, BindingResolutionError> {

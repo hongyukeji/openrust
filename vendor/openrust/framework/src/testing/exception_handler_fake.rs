@@ -171,14 +171,30 @@ impl ExceptionHandler for ExceptionHandlerFake {
     fn register(&self) -> Result<(), BindingResolutionError> {
         self.handler().register()
     }
-    fn build_context_for_exception(&self, exception: &Exception<'_>) -> crate::log::LogContext {
+    fn build_context_for_exception(
+        &self,
+        exception: &Exception<'_>,
+    ) -> Result<crate::log::LogContext, BindingResolutionError> {
         self.handler().build_context_for_exception(exception)
     }
-    fn context_for_exception<'a>(
-        &self,
-        exception: &Exception<'a>,
-    ) -> crate::contracts::debug::ExceptionContext<'a> {
-        self.handler().context_for_exception(exception)
+    fn context_for_exception<'a, 'e>(
+        &'a self,
+        exception: &'a Exception<'e>,
+    ) -> HttpFuture<'a, Result<crate::contracts::debug::ExceptionContext<'e>, BindingResolutionError>>
+    {
+        Box::pin(async move { self.handler().context_for_exception(exception).await })
+    }
+    fn context_for_exception_with_request<'a, 'e>(
+        &'a self,
+        request: &'a mut Request,
+        exception: &'a Exception<'e>,
+    ) -> HttpFuture<'a, Result<crate::contracts::debug::ExceptionContext<'e>, BindingResolutionError>>
+    {
+        Box::pin(async move {
+            self.handler()
+                .context_for_exception_with_request(request, exception)
+                .await
+        })
     }
     fn configure(
         &self,
@@ -227,6 +243,19 @@ impl ExceptionHandler for ExceptionHandlerFake {
                 return escape_report(error).await;
             }
             Ok(())
+        })
+    }
+    fn report_with_request<'a>(
+        &'a self,
+        request: &'a mut Request,
+        exception: &'a Exception<'_>,
+    ) -> HttpFuture<'a, LogResult<()>> {
+        Box::pin(async move {
+            if self.fakes(exception) {
+                self.report(exception).await
+            } else {
+                self.handler().report_with_request(request, exception).await
+            }
         })
     }
     fn handle_http<'a>(

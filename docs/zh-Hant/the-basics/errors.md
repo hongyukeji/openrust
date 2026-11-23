@@ -229,9 +229,13 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 
 `exception_context::<E>(callback)` 為具體 Rust 錯誤註冊欄位。錯誤本身有 `context()` 方法時，明確傳入 `|error| error.context()`；`std::error::Error` 未定義此可選方法。`build_context_using(callback)` 保留單參數便捷用法；`build_context_using_with_context(callback)` 同時接收例外和此前累積的欄位，按註冊順序執行，後傳回的同名欄位覆蓋前值。
 
-`build_context_for_exception(&exception)` 傳回例外專屬欄位。`context_for_exception(&exception)` 傳回 `ExceptionContext`：`fields` 保存合併欄位，`exception` 保留原始例外借用，不將錯誤物件偽裝成 JSON 值。預設上下文在例外欄位後合併目前預設 Guard 已解析的使用者 ID，因此其 `userId` 優先；假值識別碼會被省略。此處僅讀取請求快取身分，不額外觸發認證或資料庫查詢；尚未解析身分的惰性認證行為仍待進一步對齊。
+`build_context_for_exception(&exception)` 傳回例外專屬欄位。`context_for_exception(&exception).await?` 傳回 `ExceptionContext`：`fields` 保存合併欄位，`exception` 保留原始例外借用，不將錯誤物件偽裝成 JSON 值。預設上下文在例外欄位後合併目前預設 Guard 已解析的使用者 ID，因此其 `userId` 優先；假值識別碼會被省略。HTTP 錯誤邊界會在記錄前惰性解析預設 Guard。認證失敗保留原例外報告；認證內部再次報告不會遞迴解析同一應用的 Guard。巢狀應用與取消後的呼叫各自恢復上下文。
 
 實際日誌處理器使用同一個上下文建構器。`SharedException` 傳輸包裝不會在 JSON 日誌中多出一層原因，也不會讓原錯誤的上下文回呼執行兩次；真實來源錯誤仍保留在例外鏈中。其他應用或請求讀取、報告上下文時不會重用此前已認證身分。
+
+路由已持有 `&mut Request` 時，使用 `context_for_exception_with_request(request, &exception).await?` 或 `report_for_request(request, error).await`；也可透過 `request.with_container(...)` 借出請求後使用環境門面。如此明確處理可變借用，惰性認證不依賴不安全的全域請求參考。無請求參數的上下文入口會嘗試解析可存取的環境請求；HTTP 之外不附帶請求身分。
+
+自訂處理器若未實作 `register`、`build_context_for_exception` 或 `context_for_exception`，會明確傳回不支援此能力的錯誤，經過替身也相同；只有已實作操作且確實沒有欄位時才傳回空上下文。
 
 ### 例外映射 {#exception-mapping}
 

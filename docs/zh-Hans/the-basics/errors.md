@@ -229,9 +229,13 @@ async fn check_reports(app: &mut TestApp) -> Result<(), Box<dyn std::error::Erro
 
 `exception_context::<E>(callback)` 为具体 Rust 错误注册字段。错误自身有 `context()` 方法时，显式传入 `|error| error.context()`；`std::error::Error` 未定义这个可选方法。`build_context_using(callback)` 保留单参数便捷用法；`build_context_using_with_context(callback)` 同时接收异常和此前累积的字段，按注册顺序执行，后返回的同名字段覆盖前值。
 
-`build_context_for_exception(&exception)` 返回异常专属字段。`context_for_exception(&exception)` 返回 `ExceptionContext`：`fields` 保存合并字段，`exception` 保留原始异常借用，不把错误对象伪装成 JSON 值。默认上下文在异常字段后合并当前默认 Guard 已解析的用户 ID，因此其 `userId` 优先；假值标识会被省略。这里只读取请求缓存身份，不额外触发认证或数据库查询；尚未解析身份的懒认证行为仍待进一步对齐。
+`build_context_for_exception(&exception)` 返回异常专属字段。`context_for_exception(&exception).await?` 返回 `ExceptionContext`：`fields` 保存合并字段，`exception` 保留原始异常借用，不把错误对象伪装成 JSON 值。默认上下文在异常字段后合并当前默认 Guard 已解析的用户 ID，因此其 `userId` 优先；假值标识会被省略。HTTP 错误边界会在记录前惰性解析默认 Guard。认证失败保留原异常报告；认证内部再次报告不会递归解析同一应用的 Guard。嵌套应用及取消后的调用各自恢复上下文。
 
 实际日志处理器使用同一个上下文构造器。`SharedException` 传输包装不会在 JSON 日志中多出一层原因，也不会让原错误的上下文回调执行两次；真实源错误仍保留在异常链中。其他应用或请求读取、报告上下文时不会复用此前已认证身份。
+
+路由已经持有 `&mut Request` 时，使用 `context_for_exception_with_request(request, &exception).await?` 或 `report_for_request(request, error).await`；也可通过 `request.with_container(...)` 借出请求后使用环境门面。这样显式处理可变借用，惰性认证不依赖不安全的全局请求引用。无请求参数的上下文入口会尝试解析可访问的环境请求；HTTP 之外不附带请求身份。
+
+自定义处理器若未实现 `register`、`build_context_for_exception` 或 `context_for_exception`，会明确返回不支持此能力的错误，经过替身也一样；只有已实现操作且确实没有字段时才返回空上下文。
 
 ### 异常映射 {#exception-mapping}
 

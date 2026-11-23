@@ -22,7 +22,7 @@ use crate::{
     log::{Level, LogError, LogResult},
 };
 
-tokio::task_local! {static CURRENTLY_REPORTING:Option<(usize,usize)>;}
+tokio::task_local! {static CURRENTLY_REPORTING:Option<(usize,usize)>; static RESOLVING_CONTEXT_USER: Vec<usize>;}
 fn exception_identity(exception: &Exception<'_>) -> usize {
     if let Some(shared) = exception.error().downcast_ref::<SharedException>() {
         return shared.identity().as_ptr() as *const () as usize;
@@ -44,6 +44,68 @@ impl Handler {
             owner,
             reported: Mutex::default(),
         }
+    }
+
+    fn merge_context_user(&self, fields: &mut crate::log::LogContext) {
+        if let Some(user) = self
+            .owner
+            .upgrade()
+            .and_then(|owner| owner.get::<crate::auth::AuthManager>("auth").ok())
+            .and_then(|auth| auth.resolved_user(None))
+        {
+            let id = serde_json::to_value(user.get_auth_identifier()).expect("认证标识可序列化");
+            if id != serde_json::Value::Null
+                && id != serde_json::Value::Bool(false)
+                && id != serde_json::json!(0)
+                && id != serde_json::json!("")
+                && id != serde_json::json!("0")
+            {
+                fields.insert("userId".into(), id);
+            }
+        }
+    }
+    async fn resolve_context_user(&self, request: Option<&mut Request>) {
+        let Some(owner) = self.owner.upgrade() else {
+            return;
+        };
+        let identity = std::sync::Arc::as_ptr(&owner) as usize;
+        let mut resolving = RESOLVING_CONTEXT_USER
+            .try_with(Clone::clone)
+            .unwrap_or_default();
+        if resolving.contains(&identity) {
+            return;
+        }
+        let Ok(auth) = owner.get::<crate::auth::AuthManager>("auth") else {
+            return;
+        };
+        resolving.push(identity);
+        if auth.resolved_user(None).is_some() {
+            return;
+        }
+        RESOLVING_CONTEXT_USER
+            .scope(resolving, async move {
+                let _ = crate::testing::exception_handler_fake::catch_reported(async move {
+                    match request {
+                        Some(request) => {
+                            let _ = auth.user_for_guard(request, None).await;
+                        }
+                        None => {
+                            if let Ok(request) = crate::support::facades::Request::instance() {
+                                let _ = request
+                                    .with_async(move |request| {
+                                        Box::pin(async move {
+                                            let _ = auth.user_for_guard(request, None).await;
+                                            Ok(())
+                                        })
+                                    })
+                                    .await;
+                            }
+                        }
+                    }
+                })
+                .await;
+            })
+            .await;
     }
 
     fn configuration(&self) -> Option<Exceptions> {
@@ -249,6 +311,21 @@ impl Handler {
         )
     }
 
+    async fn report_contextual(
+        &self,
+        original: &Exception<'_>,
+        request: Option<&mut Request>,
+    ) -> LogResult<()> {
+        let mapped = self
+            .configuration()
+            .and_then(|config| config.map_exception(original));
+        let exception = mapped.as_ref().map(Exception::Mapped).unwrap_or(*original);
+        if !self.should_report(&exception).await || self.duplicate(&exception, true) {
+            return Ok(());
+        }
+        self.write_report(&exception, request).await
+    }
+
     async fn write_report(
         &self,
         exception: &Exception<'_>,
@@ -262,7 +339,7 @@ impl Handler {
     async fn write_report_inner(
         &self,
         exception: &Exception<'_>,
-        request: Option<&mut Request>,
+        mut request: Option<&mut Request>,
     ) -> LogResult<()> {
         if self
             .configuration()
@@ -279,7 +356,14 @@ impl Handler {
             let configuration_snapshot = self.configuration();
             let configuration = configuration_snapshot.as_ref();
             let level = configuration.map_or(Level::Error, |config| config.report_level(exception));
-            let mut context = self.context_for_exception(exception).fields;
+            let mut context = match request.as_deref_mut() {
+                Some(request) => {
+                    self.context_for_exception_with_request(request, exception)
+                        .await?
+                        .fields
+                }
+                None => self.context_for_exception(exception).await?.fields,
+            };
             if let Some(error) = exception.downcast_ref::<HttpError>() {
                 context.insert("status".into(), error.status().as_u16().into());
             }
@@ -313,6 +397,9 @@ impl Handler {
 }
 
 impl ExceptionHandler for Handler {
+    fn register(&self) -> Result<(), crate::contracts::container::BindingResolutionError> {
+        Ok(())
+    }
     fn configure(
         &self,
         update: &mut dyn FnMut(&mut Exceptions),
@@ -352,37 +439,56 @@ impl ExceptionHandler for Handler {
         Box::pin(async move { self.render_http_response_only(request, error).await })
     }
 
-    fn build_context_for_exception(&self, exception: &Exception<'_>) -> crate::log::LogContext {
-        self.configuration()
+    fn build_context_for_exception(
+        &self,
+        exception: &Exception<'_>,
+    ) -> Result<crate::log::LogContext, crate::contracts::container::BindingResolutionError> {
+        Ok(self
+            .configuration()
             .as_ref()
             .map(|config| config.report_context(exception))
-            .unwrap_or_default()
+            .unwrap_or_default())
     }
-    fn context_for_exception<'a>(
-        &self,
-        exception: &Exception<'a>,
-    ) -> crate::contracts::debug::ExceptionContext<'a> {
-        let mut fields = self.build_context_for_exception(exception);
-        if let Some(user) = self
-            .owner
-            .upgrade()
-            .and_then(|owner| owner.get::<crate::auth::AuthManager>("auth").ok())
-            .and_then(|auth| auth.resolved_user(None))
-        {
-            let id = serde_json::to_value(user.get_auth_identifier()).expect("认证标识可序列化");
-            if id != serde_json::Value::Null
-                && id != serde_json::Value::Bool(false)
-                && id != serde_json::json!(0)
-                && id != serde_json::json!("")
-                && id != serde_json::json!("0")
-            {
-                fields.insert("userId".into(), id);
-            }
-        }
-        crate::contracts::debug::ExceptionContext {
-            fields,
-            exception: *exception,
-        }
+    fn context_for_exception<'a, 'e>(
+        &'a self,
+        exception: &'a Exception<'e>,
+    ) -> HttpFuture<
+        'a,
+        Result<
+            crate::contracts::debug::ExceptionContext<'e>,
+            crate::contracts::container::BindingResolutionError,
+        >,
+    > {
+        Box::pin(async move {
+            let mut fields = self.build_context_for_exception(exception)?;
+            self.resolve_context_user(None).await;
+            self.merge_context_user(&mut fields);
+            Ok(crate::contracts::debug::ExceptionContext {
+                fields,
+                exception: *exception,
+            })
+        })
+    }
+    fn context_for_exception_with_request<'a, 'e>(
+        &'a self,
+        request: &'a mut Request,
+        exception: &'a Exception<'e>,
+    ) -> HttpFuture<
+        'a,
+        Result<
+            crate::contracts::debug::ExceptionContext<'e>,
+            crate::contracts::container::BindingResolutionError,
+        >,
+    > {
+        Box::pin(async move {
+            let mut fields = self.build_context_for_exception(exception)?;
+            self.resolve_context_user(Some(request)).await;
+            self.merge_context_user(&mut fields);
+            Ok(crate::contracts::debug::ExceptionContext {
+                fields,
+                exception: *exception,
+            })
+        })
     }
 
     fn build_log_exception(
@@ -426,17 +532,14 @@ impl ExceptionHandler for Handler {
     }
 
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
-        Box::pin(async move {
-            let mapped = self
-                .configuration()
-                .and_then(|config| config.map_exception(exception));
-            let exception = mapped.as_ref().map(Exception::Mapped).unwrap_or(*exception);
-            let exception = &exception;
-            if !self.should_report(exception).await || self.duplicate(exception, true) {
-                return Ok(());
-            }
-            self.write_report(exception, None).await
-        })
+        Box::pin(async move { self.report_contextual(exception, None).await })
+    }
+    fn report_with_request<'a>(
+        &'a self,
+        request: &'a mut Request,
+        exception: &'a Exception<'_>,
+    ) -> HttpFuture<'a, LogResult<()>> {
+        Box::pin(async move { self.report_contextual(exception, Some(request)).await })
     }
 
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {

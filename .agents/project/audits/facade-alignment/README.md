@@ -31,7 +31,7 @@
 | DB | `support::facades::Db` | 核对管理器和连接全部委托、事务、事件、查询、危险命令限制 |
 | Date | 只有 `support::Date` 值对象 | 缺门面/工厂；核对时钟、解析、日历、语言、格式化、工厂替换及冻结时间，复用已有 jiff/测试时钟 |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
-| Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 报告/渲染/重试判断已转发，修复 HTTP 与应用/Artisan 绕过替换处理器的缺口；fake/断言、运行期配置及精确报告资格仍待补齐 |
+| Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 已补报告/渲染/映射/上下文、运行期配置及具类型fake与实际Worker；withoutExceptionHandling、全局限流回调及共享基类测试能力仍待闭合 |
 | File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行与宏已实测；require/条件代理、完整标志与平台边界仍待闭合 |
 | Gate | `support::facades::Gate` | 核对策略、用户/资源、前后钩子、授权响应和事件 |
 | Hash | `support::facades::Hash` | 核对管理器/驱动、校验、重哈希、配置校验与未知算法 |
@@ -294,3 +294,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 初始HTTP映射接线漏入渲染已被专项测试发现并修复；JSON回调签名遗漏亦已修复，保留全部失败日志。该批没有把懒认证、withoutExceptionHandling、完整全局限流回调、共享Facade基类或其余门面计为闭合。
 
 - 最终源码再次实跑两后端Worker（`workers-final.log`）通过；workspace/all-targets严格Clippy、fmt、三语构建与6项浏览器检查均通过（`clippy.log/fmt.log/docs.log/browser.log`）。临时容器已清理，保留增量缓存和全部验收证据。
+
+### Exceptions：惰性认证上下文与能力错误（2026-11-24）
+
+- context_for_exception变为async Result；实际HTTP错误边界借出Request执行默认Guard的惰性认证。新增context_for_exception_with_request及report_for_request，让持有可变请求的路由不用绕行root就能报告带真实身份的错误；也可沿用request.with_container借出请求后用环境门面。build_context_for_exception保持同步且不执行认证。
+- 认证结果错误保留原异常继续报告；认证内部显式Fake重抛也由局部捕获转换为认证失败，不能替换原始HTTP错误。使用按应用Container标识的词法栈，避免同应用递归，又不阻止嵌套应用解析自己的身份；取消自动恢复。用户ID合并优先级和PHP假值过滤沿用前批。
+- 自定义处理器缺少register/build_context/context能力时明确返回不支持错误；标准Handler显式实现空register，只有确实支持且无字段时才能返回空上下文。Fake继续转发真实结果，不以默认空值冒充支持。
+- `exception-auth-context/oracle.log`：固定PHP原类验证buildContext不认证、contextForException调用Auth::id一次、认证异常被捕获且保留原对象、自定义无元数据方法实际报错。旧版无当前门面体系，继续复用现有Guard/Request上下文与共享错误，不新增认证或日志系统。
+- `tests-combination.log`：14项上下文（新增9项）及既有映射/门面/报告/渲染/日志/错误转换，共105项实际本机消费者通过；另6项无外部环境早返回未计后端验收。实际HTTP与JSON文件日志验证惰性认证、显式请求及环境借出、认证错误、认证中再次报告、取消恢复、嵌套应用身份、严格自定义能力和认证内Fake重抛。初始Result字段接线遗漏已修复，失败日志保留。
+- 本批不更改数据库/队列协议，复用已通过的独立MySQL8.4与Redis Worker报告路径证据；withoutExceptionHandling、全局限流回调和其余门面仍继续处理，不计全量闭合。
+
+- 本批全workspace/all-targets严格Clippy、格式、三语站点构建和6项浏览器检查通过：`exception-auth-context/clippy.log/fmt.log/docs.log/browser.log`；保留全部验收日志，未新增临时数据库或数据卷。

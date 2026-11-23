@@ -975,7 +975,7 @@
       "local": "support::facades::Exceptions -> contracts::debug::ExceptionHandler; actual HTTP/Application/Artisan/Worker contract",
       "tested_entries": {
         "register": {
-          "local": "register() -> Result<()>; default no-op, custom override and fake delegation",
+          "local": "register -> Result<()>; concrete standard Handler explicitly implements no-op, custom handler missing method returns unsupported, fake forwards result",
           "status": "verified-native-hook-paths",
           "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
         },
@@ -1060,12 +1060,12 @@
           "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "contextForException": {
-          "local": "context_for_exception -> ExceptionContext { fields, exception }; merges resolved default-guard userId after error fields",
-          "status": "partial",
-          "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
+          "local": "async context_for_exception; context_for_exception_with_request explicitly borrows current request; owned report_for_request forwards report_with_request",
+          "status": "verified-native-lazy-auth-paths",
+          "evidence": "exception_context_facade14 + real JSON logs, lazy guard, auth failure, recursive/nested applications, cancellation and fake throw inside auth; fixed PHP original context/auth oracle"
         },
         "buildContextForException": {
-          "local": "build_context_for_exception(&Exception) -> LogContext; typed error context + ordered callbacks",
+          "local": "build_context_for_exception -> Result<LogContext>; no auth resolution; unsupported custom handlers return error",
           "status": "verified-native-context-paths",
           "evidence": "exception_context_facade5 tests; actual structured JSON report and real HTTP authenticated identity isolation; fixed PHP original context oracle; exception-context/tests-second.log and oracle.log"
         },
@@ -1160,8 +1160,7 @@
         "global catch-all throttleUsing callback/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
-        "withoutExceptionHandling handler mode, remaining dynamic Handler/config forwarding contracts still require closure",
-        "contextForException currently reads resolved default-guard identity; upstream lazy Auth::id resolution must still be addressed/validated; typed context methods use explicit registered callbacks because Rust Error does not define context()"
+        "withoutExceptionHandling handler mode, remaining dynamic Handler/config forwarding contracts still require closure"
       ],
       "runtime_configuration": {
         "handler": "existing handler stores configuration behind RwLock; methods clone snapshots before invoking callbacks or awaiting. Setters preserve constructor configuration and existing duplicate map; old callbacks are retired outside the write lock",
@@ -1199,7 +1198,9 @@
         "shape": "ExceptionContext keeps borrowed original Exception separately from JSON fields, preserving typed object instead of a fake JSON error",
         "callbacks": "typed exception_context + ordered with_context callbacks see accumulated fields; last callback key wins; default current resolved userId merges last; fake delegates original custom handler",
         "actual_consumers": "real Handler write_report uses same fields; shared transport unwrapped in JSON snapshot so typed callback executes once and does not add a fake cause",
-        "limits": "lazy unresolved authentication remains partial; do not count full Exceptions closed"
+        "limits": "Async auth needs a mutable request: use context_for_exception_with_request/report_for_request in a borrowed route, or lend request via with_container for ambient facade. Detached calls omit unavailable request identity. Rust Error context methods use explicit typed callback registration.",
+        "lazy_auth": "real Handler resolves default selected guard, catches AuthResult failures and local fake report escape before logging original; per-owner lexical recursion stack avoids same-app recursion but allows nested app auth; cancellation restores stack",
+        "capabilities": "register/build_context/context methods unsupported by a custom handler return explicit BindingResolutionError; empty metadata is not a fabricated supported operation"
       },
       "mapping_native": {
         "registration": "typed closure constructs actual target, same E replaces in place, first match only, result not remapped; invalid types rejected by Rust bounds, no dynamic class-name registry",

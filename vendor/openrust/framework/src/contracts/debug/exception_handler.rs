@@ -89,20 +89,48 @@ pub struct ExceptionContext<'a> {
     pub exception: Exception<'a>,
 }
 
+fn unsupported_handler_method(
+    method: &'static str,
+) -> crate::contracts::container::BindingResolutionError {
+    crate::contracts::container::BindingResolutionError::FactoryFailed {
+        service: "ExceptionHandler",
+        source: Box::new(std::io::Error::other(format!(
+            "此异常处理器不支持 {method}"
+        ))),
+    }
+}
+
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Any + Send + Sync {
-    /// 默认处理器没有额外注册行为；自定义处理器可覆写此生命周期入口。
+    /// 标准处理器明确实现空注册；自定义处理器不可伪造能力成功。
     fn register(&self) -> Result<(), crate::contracts::container::BindingResolutionError> {
-        Ok(())
+        Err(unsupported_handler_method("register"))
     }
-    fn build_context_for_exception(&self, _exception: &Exception<'_>) -> crate::log::LogContext {
-        Default::default()
+    fn build_context_for_exception(
+        &self,
+        _exception: &Exception<'_>,
+    ) -> Result<crate::log::LogContext, crate::contracts::container::BindingResolutionError> {
+        Err(unsupported_handler_method("build_context_for_exception"))
     }
-    fn context_for_exception<'a>(&self, exception: &Exception<'a>) -> ExceptionContext<'a> {
-        ExceptionContext {
-            fields: self.build_context_for_exception(exception),
-            exception: *exception,
-        }
+    fn context_for_exception<'a, 'e>(
+        &'a self,
+        _exception: &'a Exception<'e>,
+    ) -> HttpFuture<
+        'a,
+        Result<ExceptionContext<'e>, crate::contracts::container::BindingResolutionError>,
+    > {
+        Box::pin(async { Err(unsupported_handler_method("context_for_exception")) })
+    }
+    /// 可变请求由调用方显式借出，支持在错误边界安全执行惰性认证。
+    fn context_for_exception_with_request<'a, 'e>(
+        &'a self,
+        _request: &'a mut Request,
+        exception: &'a Exception<'e>,
+    ) -> HttpFuture<
+        'a,
+        Result<ExceptionContext<'e>, crate::contracts::container::BindingResolutionError>,
+    > {
+        self.context_for_exception(exception)
     }
     /// 同步修改运行期配置；自定义处理器须显式支持，不能静默忽略。
     fn configure(
@@ -143,6 +171,14 @@ pub trait ExceptionHandler: Any + Send + Sync {
     /// 检查报告资格，包含采样与限流准入；重复查询也会执行这些策略。
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;
+    /// 明确借出请求，供需要惰性认证上下文的报告调用使用。
+    fn report_with_request<'a>(
+        &'a self,
+        _request: &'a mut Request,
+        exception: &'a Exception<'_>,
+    ) -> HttpFuture<'a, LogResult<()>> {
+        self.report(exception)
+    }
     /// 默认扩展路径同时报告和渲染；具体处理器可保留请求级重定向与日志上下文。
     fn render_http<'a>(
         &'a self,
