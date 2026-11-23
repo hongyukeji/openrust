@@ -1,8 +1,7 @@
 use std::{
-    cell::{RefCell, RefMut},
+    cell::RefCell,
     collections::{HashMap, HashSet},
     io,
-    path::Path,
     rc::Rc,
     sync::Arc,
 };
@@ -51,7 +50,6 @@ struct RenderState {
     stacks: HashMap<String, Stack>,
     once: HashSet<(bool, String)>,
     fragments: Vec<(String, String)>,
-    font_preloads: HashSet<String>,
 }
 
 #[derive(Default)]
@@ -143,14 +141,6 @@ impl<'a> RenderContext<'a> {
         self.factory
             .ok_or_else(|| render_error("Blade service injection requires a view factory."))?
             .view_service(name)
-    }
-
-    pub(super) fn public_path(&self) -> Option<&Path> {
-        self.factory?.public_path.as_deref()
-    }
-
-    pub(super) fn font_preloads(&self) -> RefMut<'_, HashSet<String>> {
-        RefMut::map(self.shared.borrow_mut(), |state| &mut state.font_preloads)
     }
 
     pub(super) fn environment_matches(&self, patterns: &[&str]) -> ViewResult<bool> {

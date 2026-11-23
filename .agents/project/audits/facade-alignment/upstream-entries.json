@@ -2563,14 +2563,14 @@
           "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
         },
         "fonts": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "fonts(Option<&[&str]>)",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags"
         },
         "useFontsManifestFilename": {
-          "local": null,
-          "status": "pending",
-          "evidence": "下一批补齐；不能以现有@fonts或View绕行代替正式门面"
+          "local": "use_fonts_manifest_filename",
+          "status": "verified-native-adapter",
+          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags"
         },
         "isRunningHot": {
           "local": "is_running_hot",
@@ -2585,7 +2585,7 @@
         "flush": {
           "local": "flush",
           "status": "verified-native-adapter",
-          "evidence": "framework/tests/vite_facade.rs; vite_worker.rs; target/tmp/facade-alignment/vite oracle/browser/workers/final-origin logs"
+          "evidence": "framework/tests/vite_fonts.rs; view_finder.rs real HTTP; vite_worker.rs real MySQL/Redis; target/tmp/facade-alignment/vite-fonts; preserves public CSS capability boundary and rejects closing style tags"
         },
         "macro": {
           "local": null,
@@ -2610,7 +2610,6 @@
       },
       "remaining": [
         "prefetch / waterfall / aggressive / custom strategy",
-        "fonts / useFontsManifestFilename 与现有字体解析统一",
         "macro / mixin / hasMacro / flushMacros",
         "Facade继承测试契约，完整逐入口最终裁决",
         "发布环境及React应用HMR实机不计当前浏览器验收"

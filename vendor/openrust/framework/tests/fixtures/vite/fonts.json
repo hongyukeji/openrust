@@ -1,0 +1,1 @@
+{"version": 1, "families": {"mono": {}, "sans": {}}, "preloads": [{"alias": "mono", "file": "mono.woff2", "type": "font/woff2", "crossorigin": "anonymous"}, {"alias": "sans", "file": "sans.woff2", "crossorigin": true}], "style": {"inline": "/* all */", "familyStyles": {"mono": "/* mono */", "sans": "/* sans */"}, "variables": {"mono": "--mono: Mono;", "sans": "--sans: Sans;"}}}

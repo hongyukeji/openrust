@@ -1443,7 +1443,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     );
     assert_eq!(
         development,
-        "<head><link rel=\"preload\" as=\"font\" href=\"http://127.0.0.1:5173/mono.woff2?v=1&amp;x=2\" />\n<style>\n/* hot */\n</style></head>"
+        "<head><link rel=\"preload\" as=\"font\" href=\"http://127.0.0.1:5173/mono.woff2?v=1&x=2\" />\n<style>\n/* hot */\n</style></head>"
     );
     let aliases = send(first, "/font-aliases", 200).await;
     let (mono, both) = aliases.split_once('|').unwrap();

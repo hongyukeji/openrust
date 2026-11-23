@@ -166,7 +166,6 @@ impl RequestRead {
 pub(super) struct ViewRequestData {
     snapshot: Mutex<RequestSnapshot>,
     checks: Option<mpsc::Sender<ViewRequestQuery>>,
-    pub(super) url_uri: Option<crate::http::Uri>,
 }
 
 #[derive(Default)]
@@ -192,7 +191,6 @@ impl ViewRequestData {
         Self {
             snapshot: Mutex::new(RequestSnapshot::capture(request)),
             checks: Some(checks),
-            url_uri: crate::http::request_context::with_url_uri(),
         }
     }
 

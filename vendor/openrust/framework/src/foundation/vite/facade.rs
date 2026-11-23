@@ -31,6 +31,7 @@ queries! {
     fn to_html()->String;
     fn react_refresh()->Option<HtmlString>;
     fn flush()->();
+    fn fonts(aliases:Option<&[&str]>)->HtmlString;
 }
 macro_rules! setters {
     ($(fn $name:ident($($arg:ident:$ty:ty),*);)+)=>{impl ViteFacade {$(
@@ -41,6 +42,7 @@ setters! {
     fn use_integrity_key(key:Option<&str>);
     fn use_manifest_filename(filename:impl Into<String>);
     fn use_build_directory(directory:impl Into<String>);
+    fn use_fonts_manifest_filename(filename:impl Into<String>);
     fn use_hot_file(path:impl Into<PathBuf>);
     fn use_script_tag_attributes(attributes:Attributes);
     fn use_style_tag_attributes(attributes:Attributes);

@@ -1,0 +1,26 @@
+{
+    "all": "<link rel=\"preload\" as=\"font\" href=\"https://app.test/build/mono.woff2\" type=\"font/woff2\" crossorigin=\"anonymous\" nonce=\"font-nonce\" />\n<link rel=\"preload\" as=\"font\" href=\"https://app.test/build/sans.woff2\" crossorigin nonce=\"font-nonce\" />\n<style nonce=\"font-nonce\">\n/* all */\n</style>",
+    "loaded": {
+        "https://app.test/build/mono.woff2": [
+            "rel=\"preload\"",
+            "as=\"font\"",
+            "type=\"font/woff2\"",
+            "crossorigin=\"anonymous\"",
+            "nonce=\"font-nonce\""
+        ],
+        "https://app.test/build/sans.woff2": [
+            "rel=\"preload\"",
+            "as=\"font\"",
+            "crossorigin",
+            "nonce=\"font-nonce\""
+        ]
+    },
+    "twice": "<style nonce=\"font-nonce\">\n/* all */\n</style>",
+    "aliases": "<link rel=\"preload\" as=\"font\" href=\"https://app.test/build/mono.woff2\" type=\"font/woff2\" crossorigin=\"anonymous\" nonce=\"font-nonce\" />\n<link rel=\"preload\" as=\"font\" href=\"https://app.test/build/sans.woff2\" crossorigin nonce=\"font-nonce\" />\n<style nonce=\"font-nonce\">\n/* sans */\n\n/* mono */\n\n:root {\n  --sans: Sans;\n  --mono: Mono;\n}\n</style>",
+    "none": "",
+    "missing": true,
+    "custom": "<link rel=\"preload\" as=\"font\" href=\"https://app.test/build/mono.woff2\" type=\"font/woff2\" crossorigin=\"anonymous\" nonce=\"font-nonce\" data-font />\n<style nonce=\"font-nonce\">\n/* mono */\n\n:root {\n  --mono: Mono;\n}\n</style>",
+    "alternate": "<style nonce=\"font-nonce\">\n/* alternate */\n</style>",
+    "hot": "<link rel=\"preload\" as=\"font\" href=\"https://fonts.test/font?a=1&b=2\" nonce=\"font-nonce\" data-font />\n<style nonce=\"font-nonce\">\n/* dev */\n</style>",
+    "dynamic": "<link rel=\"preload\" as=\"font\" href=\"https://app.test/build/mono.woff2\" type=\"font/woff2\" crossorigin=\"anonymous\" nonce=\"before\" />\n<link rel=\"preload\" as=\"font\" href=\"https://app.test/other/sans.woff2\" crossorigin nonce=\"after\" />\n<style nonce=\"after\">\n/* all */\n</style>"
+}

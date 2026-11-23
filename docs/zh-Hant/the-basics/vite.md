@@ -42,9 +42,24 @@ Vite::use_script_tag_attributes([
 
 Provider 預設值持續保留。HTTP、Artisan 和每個 Worker 工作分別擁有執行設定、nonce 與預載狀態，一個生命週期的覆寫不會成為下一個生命週期的預設值。在 HTTP 中介層呼叫 `Vite::use_csp_nonce(None)?` 產生 40 位 nonce，再以回傳值設定回應 CSP 標頭。路由持有可變請求、需要呼叫視圖或回應門面時，沿用 `request.with_container(async { ... }).await` 借出請求。
 
+## 字體 {#fonts}
+
+`Vite::fonts(None)` 回傳全部字體的 `HtmlString`；用 `Vite::fonts(Some(&["sans", "mono"]))?` 按順序選擇別名，`Some(&[])` 表示不選字體。`@fonts` 和 `Vite::fonts` 都委派同一服務，與一般 Vite 資源共用預載去重記錄。
+
+正式字體清單預設為 `public/build/fonts-manifest.json`，在 Provider 中透過 `use_build_directory` 和 `use_fonts_manifest_filename` 修改。開發模式讀取已設定 hot 標記旁的 `fonts-manifest.dev.json`，也支援公開目錄之外的自訂標記；清單缺少時不輸出標籤。
+
+版本 1 清單包含 `families`、`preloads` 和可選 `style`。篩選呼叫按別名順序輸出 `familyStyles` 與 `variables`；未篩選時優先 `style.inline`，再讀取 `style.file`。未知別名或本次選中預載項目無效會回傳錯誤。預載回呼收到 `source = "fonts"`、空資源塊和空清單，可以覆寫屬性或停用字體連結；連結與內嵌樣式都使用目前 CSP nonce。
+
+`flush()` 也會清空應用程式已解析的字體清單和預載狀態，保留設定及 JavaScript／CSS 清單快取。缺少檔案和 JSON 解析失敗不快取。字體 CSS 檔案讀取保留公開目錄能力邊界，並拒絕含樣式結束標籤的 CSS；清單屬性與內嵌 CSS 應來自受信任的建置輸出。
+
+```rust
+Vite::use_fonts_manifest_filename("fonts-manifest.json")?;
+let fonts = Vite::fonts(Some(&["sans", "mono"]))?;
+```
+
 ## 支援邊界 {#support-status}
 
-已實作入口清單、靜態匯入、標籤屬性、CSP、開發模式、React refresh 及本頁所列 Blade 輔助方法。預取策略、統一 Vite 字型門面和具型別 Vite 巨集仍在補齊，不能據此推定已支援。
+預取策略和具型別 Vite 巨集仍在補齊，不應根據本頁推斷這些入口已經可用。
 
 ## 執行範圍 {#scope}
 

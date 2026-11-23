@@ -664,6 +664,8 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 
 使用 `@rust … @endrust` 撰寫隨應用程式建置編譯的同步 Rust 陳述式。渲染到對應節點時執行已建置函式，不啟動 Cargo 或 rustc。範本是受信任的應用程式原始碼，擁有應用程式 Rust 程式碼的權限。
 
+指令使用正式的 [Vite 字體服務](vite.md#fonts)，包括自訂路徑、CSP 和預載回呼。
+
 ```blade
 @rust
 let name = context.get::<String>("name")?;

@@ -664,6 +664,8 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 
 Use `@rust … @endrust` for synchronous Rust statements compiled into your application. Rendering executes the built function at that node; it never starts Cargo or rustc. Templates are trusted application source with the same permissions as your Rust code.
 
+The directives use the formal [Vite font service](vite.md#fonts), including custom paths, CSP and preload callbacks.
+
 ```blade
 @rust
 let name = context.get::<String>("name")?;

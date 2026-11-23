@@ -42,9 +42,24 @@ Callbacks can reenter configuration without holding its lock. Use the `*_using_f
 
 Provider defaults persist. HTTP, Artisan, and each Worker job receive their own execution configuration, nonce and preload state; overrides in one lifecycle do not become defaults for the next. In HTTP middleware call `Vite::use_csp_nonce(None)?` to generate a 40-character nonce, then set your response CSP header from the returned value. When a route lends its mutable request to view or response facades, use the existing `request.with_container(async { ... }).await` pattern.
 
+## Fonts {#fonts}
+
+`Vite::fonts(None)` returns an `HtmlString` for all families. Select ordered aliases with `Vite::fonts(Some(&["sans", "mono"]))?`; use `Some(&[])` for none. `@fonts` and `Vite::fonts` delegate to this same service and share preload deduplication with ordinary Vite assets.
+
+The production font manifest defaults to `public/build/fonts-manifest.json`; set `use_build_directory` and `use_fonts_manifest_filename` in your provider to change it. In hot mode, `fonts-manifest.dev.json` is read next to the configured hot marker, including a custom marker outside the public root. A missing manifest emits no tags.
+
+The version 1 manifest contains `families`, `preloads` and optional `style`. Filtered calls emit `familyStyles` and `variables` in alias order; unfiltered calls use `style.inline`, then `style.file`. Unknown aliases and invalid selected preloads return errors. Preload callbacks receive `source = "fonts"`, an empty chunk and an empty manifest, and may modify or disable font links. CSP nonces apply to both links and inline styles.
+
+`flush()` also clears the application’s parsed font manifests and preload state; it retains settings and the JavaScript/CSS manifest cache. Missing files and JSON parse failures are not cached. Font CSS file reads retain the public-directory capability boundary, and CSS containing a style-closing tag is rejected. Manifest attributes and inline CSS are trusted build output.
+
+```rust
+Vite::use_fonts_manifest_filename("fonts-manifest.json")?;
+let fonts = Vite::fonts(Some(&["sans", "mono"]))?;
+```
+
 ## Boundaries {#support-status}
 
-Entry manifests, static imports, tag attributes, CSP, hot mode, React refresh and the documented Blade helpers are implemented. Prefetch strategies, the unified Vite font facade and typed Vite macros are still being completed; do not infer those APIs from this page.
+Prefetch strategies and typed Vite macros are still being completed; do not infer those APIs from this page.
 
 ## Scope {#scope}
 

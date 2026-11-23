@@ -52,6 +52,14 @@ impl JobHandler for ViteJob {
                 if id > 1 {
                     assert!(!html.contains("data-job-1"), "下一任务不能继承标签属性");
                 }
+                let font = Vite::fonts(Some(&["mono"]))?;
+                assert!(font.to_html().contains("mono.woff2"));
+                assert!(font.to_html().contains(&format!("nonce=\"{nonce}\"")));
+                assert!(
+                    !Vite::fonts(Some(&["mono"]))?
+                        .to_html()
+                        .contains("mono.woff2")
+                );
                 assert!(!Vite::preloaded_assets()?.is_empty());
                 Ok(html)
             })()
@@ -76,6 +84,11 @@ async fn worker(driver: &str, url: Option<String>, port: Option<u16>) {
     fs::write(
         app.root().join("public/build/manifest.json"),
         include_bytes!("fixtures/vite/manifest.json"),
+    )
+    .unwrap();
+    fs::write(
+        app.root().join("public/build/fonts-manifest.json"),
+        include_bytes!("fixtures/vite/fonts.json"),
     )
     .unwrap();
     app.boot().await.unwrap();

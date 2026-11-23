@@ -1,5 +1,6 @@
 //! 前端资源清单、开发服务器与资源标签生成。
 mod facade;
+mod fonts;
 mod provider;
 mod render;
 pub use facade::ViteFacade;
@@ -45,6 +46,7 @@ pub enum ViteError {
     MissingChunk(String),
     InvalidChunk(String),
     InvalidAttribute(String),
+    InvalidFonts(String),
     Url(crate::routing::UrlError),
     Callback(Box<dyn Error + Send + Sync>),
 }
@@ -62,6 +64,7 @@ impl fmt::Display for ViteError {
             Self::MissingChunk(name) => write!(f, "前端资源清单中没有此入口：{name}"),
             Self::InvalidChunk(name) => write!(f, "前端资源块格式无效：{name}"),
             Self::InvalidAttribute(name) => write!(f, "资源标签属性必须是标量：{name}"),
+            Self::InvalidFonts(message) => write!(f, "字体清单无效：{message}"),
             Self::Callback(e) => write!(f, "前端资源回调失败：{e}"),
             Self::Url(e) => write!(f, "前端资源URL生成失败：{e}"),
         }
@@ -120,6 +123,7 @@ struct Settings {
     hot_file: Option<PathBuf>,
     build_directory: String,
     manifest_filename: String,
+    fonts_manifest_filename: String,
     asset_resolver: Option<Arc<AssetResolver>>,
     script_attributes: Vec<Arc<AttributeResolver>>,
     style_attributes: Vec<Arc<AttributeResolver>>,
@@ -134,6 +138,7 @@ impl Default for Settings {
             hot_file: None,
             build_directory: "build".into(),
             manifest_filename: "manifest.json".into(),
+            fonts_manifest_filename: "fonts-manifest.json".into(),
             asset_resolver: None,
             script_attributes: vec![],
             style_attributes: vec![],
@@ -165,6 +170,7 @@ pub struct Vite {
     owner: Weak<Container>,
     defaults: Arc<Execution>,
     manifests: RwLock<HashMap<PathBuf, Arc<Manifest>>>,
+    font_manifests: RwLock<HashMap<PathBuf, Arc<Value>>>,
 }
 impl Vite {
     pub(super) fn new(owner: Weak<Container>) -> Self {
@@ -172,6 +178,7 @@ impl Vite {
             owner,
             defaults: Arc::default(),
             manifests: RwLock::default(),
+            font_manifests: RwLock::default(),
         }
     }
     fn owner(&self) -> ViteResult<Arc<Container>> {
@@ -253,6 +260,10 @@ impl Vite {
             let name = name.into();
             self.update(|s| s.manifest_filename = name)
         }
+    }
+    pub fn use_fonts_manifest_filename(&self, name: impl Into<String>) -> ViteResult<&Self> {
+        let name = name.into();
+        self.update(|settings| settings.fonts_manifest_filename = name)
     }
     pub fn use_build_directory(&self, path: impl Into<String>) -> ViteResult<&Self> {
         {
@@ -444,6 +455,10 @@ impl Vite {
             .clone())
     }
     pub fn flush(&self) -> ViteResult<()> {
+        self.font_manifests
+            .write()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         self.state()?
             .preloaded
             .lock()

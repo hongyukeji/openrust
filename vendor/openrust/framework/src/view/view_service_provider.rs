@@ -21,7 +21,6 @@ impl ServiceProvider for ViewServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let base = app.base_path().to_path_buf();
-            let public = app.public_path();
             let container = app.container();
             container.scoped::<super::factory::SharedViewData, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&app.container_handle());
@@ -35,9 +34,8 @@ impl ServiceProvider for ViewServiceProvider {
                         .storage_path("framework/views"),
                     config.as_ref(),
                 )
-                .map(|mut factory| {
+                .map(|factory| {
                     factory.compiler().native_views(native_views);
-                    factory.public_path = Some(public.clone());
                     Arc::new(factory.with_owner(owner.clone()))
                 })
                 .map_err(|source| BindingResolutionError::FactoryFailed {

@@ -354,3 +354,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - `workers-final.log`：独立MySQL8.4.13与Redis8.10.3各1项实际Artisan queue:work，每后端消费2任务，逐任务nonce/属性/预加载隔离通过。临时容器与测试表已清理。最后仅将MutexGuard显式词法块化，不改变发送或Worker逻辑；工作区全目标严格Clippy验证该测试。
 - 三语Vite页与前端概览链接已更新，`docs-verified.log`构建和`docs-browser.log`三语桌面/移动6项检查通过。早期被旧父树覆盖的文档构建不作为最终证据。
 - 32GB停线时守卫释放62,557,171,712字节，恢复94,595,948,544字节；重建后保留热缓存、全部源码与日志。prefetch、正式fonts接线、宏与共享Facade测试能力继续开发，不将本批或已有@fonts计为完整Vite闭合。
+
+
+### Vite：统一字体服务与模板消费者（2026-11-24，仍 partial）
+
+- 按固定Foundation/ViteFonts.php与Vite::fonts追踪正式字体入口、清单缓存及flush，不以原来只在模板中的实现充数。官方固定源码逐字核对见`vite-fonts/reference.json`；旧版没有对应实现。复用并迁移原字体解析职责，删除模板中独立清单读取、URL和去重状态，以及废弃的Factory公开路径字段，不建立两套字体服务。
+- 正式fonts(Option<&[&str]>)、use_fonts_manifest_filename与对应门面接线；@fonts及模板Vite::fonts共用服务。默认生产build/fonts-manifest.json，开发清单位于实际hot文件旁，可独立于公开目录；缺失不缓存/不输出。字体缓存按应用隔离，flush清字体缓存与执行期preload而保留JS/CSS缓存和配置。
+- 固定PHP实际执行输出`oracle-final.json`逐字对照：完整/筛选/空别名、CSS变量顺序、重复字体、nonce、自定义属性、清单名、开发路径、回调中修改build目录和nonce的时机。属性遵循既有Vite可信输出，旧模板自行转义&的断言改为固定原始标签契约；不会把该旧行为当成基线。保留原有CSS公开目录能力边界和style结束标签检查，三语明确这两项更严格的原生约束。
+- `tests-delivery.log`：字体6、Vite12、原视图5，共23项返回通过，其中Vite的1项无浏览器环境早返回不计，实际本机22项。既有视图测试包含真实监听器、两应用/不同公开路径、开发与正式字体、重复去重、未知别名及危险CSS失败；新增真实HTTP跨域名、正式门面与Blade共用状态、缓存变更/flush、无缓存错误恢复、回调重入和真实错误。测试夹具初始语法/trait/Value错误已修正，失败日志保留。
+- `workers.log`：独立MySQL8.4.13与Redis8.10.3各1项真实Artisan queue:work，每后端两任务；每任务字体使用自己的nonce，首次输出链接、重复调用去重，后续任务不继承预加载。临时容器与测试表已清理；未修改队列协议或数据库迁移。
+- 三语Vite字体章节、Blade直达链接同步，`docs-fixed.log`实际构建和`browser.log`三语桌面/移动6项通过；初次命令名错误及Vue内联插值构建失败保留，修正文档表达后验收，未屏蔽站点检查。`clippy-final.log`、吸收后续已提交父树的`clippy-parent.log`及`fmt.log`记录全workspace/all-targets严格Clippy及格式门禁。预取策略、宏与共享Facade测试契约仍继续处理。

@@ -34,7 +34,6 @@ pub struct Factory {
     events: Arc<RwLock<ViewEvents>>,
     embedded: HashMap<String, &'static str>,
     owner: std::sync::Weak<crate::container::Container>,
-    pub(super) public_path: Option<PathBuf>,
 }
 
 #[derive(Default)]
@@ -116,7 +115,6 @@ impl Factory {
             events: Arc::default(),
             embedded: HashMap::new(),
             owner: std::sync::Weak::new(),
-            public_path: None,
         }
     }
 
