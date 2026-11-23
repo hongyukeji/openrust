@@ -42,8 +42,8 @@ def main():
     for crate, library in libraries.items():
         compiler.extend(['--extern', f'{crate}={library}'])
 
-    def run(name, command, success=True):
-        result = subprocess.run(command, env=environment, capture_output=True, text=True)
+    def run(name, command, success=True, cwd=None):
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, cwd=cwd)
         (work / f'{name}.log').write_text(result.stdout + result.stderr)
         assert (result.returncode == 0) == success, f'{name}：退出码不符，见对应日志'
         return result
@@ -109,6 +109,30 @@ async fn main() {
 
     try:
         comment('initial-comment', '姓名')
+        # 首次同步：普通模型没有字段宏、生成元信息或边界标记。
+        artisan('plain-create', 'make:model', 'FieldReferenceProbe', '--force')
+        plain = generated.read_text()
+        assert 'model_fields!' not in plain and '#[generated' not in plain
+        assert '@auto-generated' not in plain and 'openrust:model-fields' not in plain
+        business_method = '\nimpl FieldReferenceProbe { pub fn business_label(&self) -> &str { "保留业务方法" } }\n// 保留首次生成前的业务注释\n'
+        plain += business_method
+        generated.write_text(plain)
+        compile_code('plain-model-before-fields', plain, deny_warnings=True)
+        before = (generated.read_bytes(), generated.stat().st_mtime_ns)
+        artisan('plain-check-without-markers', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+        assert before == (generated.read_bytes(), generated.stat().st_mtime_ns)
+        entry = ['cmd', '/d', '/c', str(source / 'artisan.bat')] if os.name == 'nt' else [str(source / 'artisan')]
+        run('plain-first-fields', [*entry, 'model:fields', 'FieldReferenceProbe'], cwd=source)
+        first_sync = generated.read_text()
+        assert first_sync.count('openrust::model_fields!') == 1
+        assert first_sync.count('#[generated(command = "artisan model:fields FieldReferenceProbe")]') == 1
+        assert first_sync.index('use openrust::') < first_sync.index('openrust::model_fields!') < first_sync.index('pub struct FieldReferenceProbe')
+        assert first_sync.endswith(business_method)
+        compile_code('plain-model-after-fields', first_sync, deny_warnings=True)
+        first_state = (generated.read_bytes(), generated.stat().st_mtime_ns)
+        run('plain-repeat-fields', [*entry, 'model:fields', 'FieldReferenceProbe'], cwd=source)
+        run('plain-repeat-check', [*entry, 'model:fields', 'FieldReferenceProbe', '--check'], cwd=source)
+        assert first_state == (generated.read_bytes(), generated.stat().st_mtime_ns)
         artisan('generator', 'make:model', 'FieldReferenceProbe', '--force', '--fields')
         original = generated.read_text()
         declarations = re.findall(r'^        ([A-Z_0-9]+) = (".*");$', original, re.MULTILINE)

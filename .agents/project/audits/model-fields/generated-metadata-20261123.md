@@ -37,6 +37,12 @@ openrust::model_fields! {
 
 ## 资源与交付边界
 
+### 首次生成与更新补验
+
+用户于同日追加要求，重点验证无生成标识的首次插入。新增回归场景先执行普通 `make:model`（不带 `--fields`），确认源文件没有字段宏或任何生成标识，再追加业务方法与注释。通过快照内真实 `./artisan model:fields FieldReferenceProbe` 首次生成，验证宏位于导入后、模型声明前，业务内容原样保留；生成前后均以实际 Rust 编译器严格编译。首次 `--check` 拒绝过期状态且不写文件；生成后重复同步与 `--check` 成功，内容及修改时间不变。
+
+经 `tests/build_guard.py --workflow model-fields-markers-20261123` 运行 `target/tmp/model-fields-markers-20261123/first-generation.py`，SQLite、独立 MySQL 8.4.13、PostgreSQL 18.7 三套完整场景全部通过；同时重验字段新增、删除、重命名与已有宏更新。日志为 `first-generation-{sqlite,mysql,postgres}.log`，逐项命令及编译证据在同名子目录。无需修改生产实现；本轮仅新增回归测试和本记录，未暂存、未提交、未推送。标准夹具已移除本轮数据库容器，独立编译消费者已直接删除，保留源码、日志及复用缓存；补验完成时卷可用空间约52 GiB。
+
 数据库容器由标准夹具收尾，不使用开发数据库或持久卷。仅直接删除已结束场景的独立 rustc 消费者二进制／rmeta，保留其源码、日志、SQLite 夹具及可复用 Cargo 缓存，逻辑回收量见 `consumer-artifacts-cleanup.json`；期间其他工作流触发的全仓停线清理以 `target/tmp/build-guard-events.jsonl` 为准，不计作本任务独立释放量。
 
 未重跑 Windows、完整 workspace 测试或发布矩阵；已通过范围仅限上述源码组合与消费者。实施验收期间未暂存、未提交。用户随后于2026-11-23授权提交代码，本批仅本地提交上述实现、User示例、测试、三语文档和本验收记录，不推送；其他协作者的在途改动保留。
