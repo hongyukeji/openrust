@@ -1,5 +1,7 @@
 # Settings 单机与集群协调验收
 
+状态：已按当前约定的 Settings 底座与协调能力闭合，最终复核见文末；生产与平台发布验收单独保留。
+
 日期：2026-11-24。范围：在[既有 Settings S1](../settings/README.md)之上增加版本协调、缓存加速与应用刷新处理器。不安装后台产品、不分发 `.env`，不修改现有设置表、迁移台账和持久字段格式。单机与集群沿用同一 Settings 接口和配置，不新增集群模式开关。
 
 ## 调研与复用
@@ -91,3 +93,49 @@ SQLite 无 Redis 整包30项通过、专属 Redis 故障项跳过1项；MySQL8.4
 三语已有侧栏入口均指向 packages/settings.md；内容／相对链接／命令入口检查及隔离 VitePress 构建通过。HTTP 实际请求三语设置页均200，并核对导航链接与定义、注册、配置、事务、集群及显式刷新等内容已渲染。结果与源码指纹保留于 target/tmp/settings-tutorial/pages.json，构建日志为 build.log；没有启动持久预览服务，临时 HTTP 服务已在 finally 关闭。本轮为教程内容检查，不复跑整个站点浏览器交互或数据库验收。
 
 确认无人占用后直接删除本轮隔离 dist，表观清理 70,176,768 字节；文件系统可用空间 63,028,355,072 → 63,098,945,536 字节，净变化 70,590,464 字节，原始读数存于 cleanup.json。没有生成新 Cargo 编译产物；源码、日志、共享 npm 依赖、数据库及数据卷保留。
+
+## 最终闭合复核（2026-11-24）
+
+范围为类型化设置底座与本记录的单机／集群协调扩展；不扩大为第三方包所有公开 API 的逐项移植、后台产品或业务服务自动热替换。逐文件阅读全部包源码与公开导出，并沿 Provider、原始仓储、作用域消费者和三语教程核对，未发现未实现占位。既有验收按当时源码保留，不重跑未受影响的数据库方言、迁移、HTTP／Worker 和发布矩阵。
+
+| 类型／入口 | 实现与使用约束 | 实际证据 | 状态 |
+| --- | --- | --- | --- |
+| SettingsGroup / get / fill / reset / save | 稳定类型定义、完整验证、缺失默认、false／0／null区分、原子编辑与CAS冲突 | S1 settings测试；三语教程直接提取的真实消费者 | ✅ |
+| lock / unlock / is_locked / re_encrypt | 先持久化再加锁、显式解锁、旧密钥读取及重加密，不隐式覆盖锁定值 | S1加密／锁用例；本轮三语锁代码真实执行 | ✅ |
+| save_in / refresh | 保存点、外层提交后提示、回滚不发布、显式刷新绕过间隔，保留在途快照 | 既有协调事务用例；本轮教程事务与状态恢复回归 | ✅ |
+| SettingsRepository / SettingsSnapshot / SettingsUpdate / StoredProperty | 默认refresh／versions适配、不透明并发版本、密文原始快照、脱敏Debug | S1原始仓储／加密回归；协调缓存密文和字段检查 | ✅ |
+| DatabaseSettingsRepository / CreateSettingsTable | 写连接读取、版本批查、固定原生表格式、唯一组／属性、既有迁移器 | S1三库与Provider记录；本轮MySQL真实表读写 | ✅ |
+| SettingsServiceProvider / register_settings / migrations | 可选包发现，惰性作用域注册，默认应用不预置业务组，自定义表／连接由消费方迁移 | 既有发现／迁移／包开关验收；本轮直接编译执行教程boot注册 | ✅ |
+| SettingsOptions / 发布配置 | 60秒默认、0关闭后台及读取时自动过期、独立缓存开关、稳定命名空间 | b6e1e0a98验收；本轮协调回归与三语配置复核 | ✅ |
+| load / poll / notify / versions | 初次及过期读合并、通知向持久版本对账、缓存故障回退、不重复／不降级／不跨应用 | 既有六组合记录；本轮SQLite与MySQL＋Redis协调回归 | ✅ |
+| on_change / forget_handler / status | 初次加载基线，幂等处理器按版本去重、失败可重试，恢复后清除已解决错误 | 本轮恢复状态反例／修复回归及教程缓存失效；未解决处理器错误保留 | ✅ |
+| shutdown / downgrade / upgrade | 管理器独占任务退出、弱引用避免自持有，不关闭共享连接，回调取消可释放 | 既有弱引用与退出用例；本轮同步／异步panic、5秒超时及取消清理 | ✅ |
+| SettingsNotification / SettingsChange / SettingsStatus / SettingsError | 元数据不携带设置值，状态只属于当前进程，不代表全节点确认或持久业务事件 | 协调元数据／重复提示／错误脱敏用例；三语状态解释 | ✅ |
+| 三语教程 / 包README | 持续启用feature、类型、模块、boot注册、读写与锁／事务、关闭刷新、集群、凭据和排错 | 三语消费者真实编译与MySQL执行；Rustdoc两项编译；构建与三页HTTP200 | ✅ |
+
+本轮修复：
+
+- 原实现恢复读取／显式刷新成功后，last_error可能继续残留Database。新增回归先在原实现失败（before.log明确为预期反例），再修复已解决状态清理；仅在数据源已成功检查且无待处理处理器时清除，保留真正待处理的错误。移除已失败处理器也重新核对状态，不能误清未恢复的数据源错误。
+- 回调教程原本在注册示例末尾直接forget_handler，照抄会立刻取消监听。三语均拆为仅在消费者移除／停用时使用的独立段落，并补全is_locked及状态None／未解决错误语义。
+- 包README的独立示例原先直接使用原始仓储，绕过默认协调能力。改为SettingsManager包裹同一仓储，默认一分钟且明确shutdown，与三语教程统一title字段；两个Rustdoc示例均编译通过。
+- 新增tests/settings_tutorial.py，从指定隔离快照的三语Markdown直接提取类型、Provider boot、读写、锁、事务和回调代码，生成真实消费者；不维护平行的示例实现。脚本拒绝向活动仓库生成文件，并校验路径不能通过符号链接逃逸快照。生成源码与已运行消费者SHA一致。
+
+证据根目录为target/tmp/settings-close/，隔离基线50a3d3a51加本轮文件，未夹带并行异常改动。SQLite协调15项通过、专属Redis项跳过1项及三语消费者3项通过；MySQL8.4＋专属Redis8协调16项、Provider2项、三语消费者3项全部通过，包含同步回调构建panic、异步panic、固定5秒超时、取消后析构释放、重试后仅处理一次。该数字包含子进程入口，不把重复运行或入口空跑当新增功能。教程锁和同步panic在末轮MySQL执行。MySQL验收为真实隔离容器与Rust消费者，不是托管生产部署。
+
+关键日志为before.log（预期反例）、sqlite-final.log、mysql-redis.log、rustdoc.log、clippy-final.log、docs-final.log、pages.json及tutorial-check.json。sqlite.log为首次叠加修复但拷贝保留旧mtime而未触发库重编译的失败过程，不计通过；改为写入源文件更新时间后已确认重新编译，再以sqlite-final.log和MySQL结果验收。范围rustfmt／git diff --check、严格包all-targets Clippy通过。三语页面真实HTTP200、侧栏入口、状态及处理器退出代码渲染正确；临时HTTP服务已关闭。
+
+可复验教程消费者（source必须是项目target/tmp/内、包含本轮文件的隔离源码快照）：
+
+```sh
+python3 -B tests/settings_tutorial.py --source target/tmp/settings-close/source
+python3 -B tests/build_guard.py --workflow settings-close -- \
+  env CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 \
+  python3 -B tests/settings_coordination.py --driver mysql --redis -- \
+  cargo test --manifest-path target/tmp/settings-close/source/Cargo.toml \
+  -p openrust-settings --test coordination --test managed_provider \
+  --test tutorial_generated -- --include-ignored --test-threads=1
+```
+
+结论：当前约定功能、实际接线和三语教程可正式闭合，无本轮已知的功能阻塞项。既有生产多机滚动部署、Windows实机及其他Cache驱动专项仍属于发布验收；应用后台、授权审计及具体消费者适配是明确的应用层职责，不计作此模块的未实现项。不承诺全局瞬时生效或业务事件恰好一次投递。
+
+本轮资源收尾：确认产物无人占用并取得独占Cargo锁后直接清理编译内容与隔离文档dist，保留锁inode、源码、日志和共享依赖。文件系统可用空间 57,237,966,848 → 62,776,197,120 字节，净释放 5,538,230,272 字节（约 5.54 GB），剩余约 62.78 GB。本批数据库／Redis容器标签核对均无遗留，数据卷删除0；原始读数为cleanup.json／container-check.json。未推送。

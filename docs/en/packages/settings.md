@@ -110,6 +110,16 @@ On a fresh group, `current.title` uses `app.name` (or `My Site` if absent). Savi
 
 `lock`/`unlock` apply to persisted properties after pending edits are saved. Attempts to change a locked property fail, rather than silently succeeding. Every group uses one reserved `__settings_version` row to serialize writes and detect stale editors, including first creation and reset. This is an intentional extension of Spatie's table layout. `Conflict` means refresh and resolve the edit before retrying; do not retry a stale snapshot blindly. Older schemas preserve unknown stored properties.
 
+Lock an explicitly persisted override after saving edits; inspect its lock state with `is_locked`, then unlock only through trusted application code:
+
+```rust,ignore
+settings.fill(serde_json::json!({"title": "Managed title"})).await?;
+settings.save().await?;
+settings.lock("title").await?;
+assert!(settings.is_locked("title").await?);
+settings.unlock("title").await?;
+```
+
 Module settings use the same API. Declare the type inside the module, then call `SettingsServiceProvider::register_settings::<DeliverySettings>(app).await?` from its Provider after the settings Provider registers. The group shares the settings table and remains separate from `site`; no repository changes are required.
 
 ```rust
@@ -239,10 +249,15 @@ let handler = manager.on_change("site", move |_change| {
 
 let state = manager.status("site").await;
 // state: observed_version, applied_version, pending_handlers, last_error
+```
+
+Keep `handler` for as long as the consumer is active. Remove it only when that consumer is being detached or stopped, not immediately after registration:
+
+```rust,ignore
 manager.forget_handler("site", handler).await;
 ```
 
-Callbacks run in independent async tasks, without the current HTTP/job facade scope. Capture the dependencies they need. When a callback needs the manager itself, capture `manager.downgrade()` and call `upgrade()` inside it to avoid a reference cycle. The five-second callback timeout records a redacted error and leaves the version pending; while automatic checks are enabled, callbacks retry even when no newer version appears. Initial loading establishes a baseline and does not fire a change callback. `status()` reports this process's registered handlers, **not acknowledgement from every cluster node**. Do not use it as a deployment-wide barrier or a durable audit trail.
+Callbacks run in independent async tasks, without the current HTTP/job facade scope. Capture the dependencies they need. When a callback needs the manager itself, capture `manager.downgrade()` and call `upgrade()` inside it to avoid a reference cycle. The five-second callback timeout records a redacted error and leaves the version pending; while automatic checks are enabled, callbacks retry even when no newer version appears. Initial loading establishes a baseline and does not fire a change callback. Successful source recovery clears the stale error once no handler is pending; a pending handler error remains until success or deregistration. Before the first actual group load, `status()` returns `None`. A never-persisted empty group also has no version; assess `pending_handlers` together with `last_error`, rather than treating a nonempty `applied_version` as the only readiness check. `status()` reports this process's registered handlers, **not acknowledgement from every cluster node**. Do not use it as a deployment-wide barrier or a durable audit trail.
 
 `poll().await?` explicitly reconciles all active groups; `notify(&SettingsNotification { namespace, group, version }).await?` accepts metadata hints from an optional application transport. It verifies against the database, ignores other namespaces/inactive groups and never trusts an incoming value. Neither method requires Redis Pub/Sub. `shutdown().await` stops this manager's background task without closing shared connections. Explicit load/refresh/poll remain available afterwards.
 

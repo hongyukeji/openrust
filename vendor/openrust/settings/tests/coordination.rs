@@ -803,3 +803,145 @@ async fn concurrent_initial_reads_share_one_database_version_check() {
     manager.shutdown().await;
     f.close().await;
 }
+
+#[tokio::test]
+async fn recovered_reads_and_refresh_clear_source_errors_but_preserve_pending_handler_errors() {
+    let f = Fixture::new().await;
+    let source = Arc::new(Unavailable {
+        source: f.repository.clone(),
+        offline: AtomicBool::new(false),
+        versions: AtomicUsize::new(0),
+        loads: AtomicUsize::new(0),
+    });
+    let manager = SettingsManager::new(source.clone(), options(&f.table), None).unwrap();
+    manager.shutdown().await;
+    manager.load("site").await.unwrap();
+    source.offline.store(true, Ordering::SeqCst);
+    assert!(manager.poll().await.is_err());
+    assert_eq!(
+        manager.status("site").await.unwrap().last_error,
+        Some(Error::Database)
+    );
+    source.offline.store(false, Ordering::SeqCst);
+    manager.load("site").await.unwrap();
+    assert_eq!(manager.status("site").await.unwrap().last_error, None);
+    source.offline.store(true, Ordering::SeqCst);
+    assert!(manager.refresh("site").await.is_err());
+    source.offline.store(false, Ordering::SeqCst);
+    manager.refresh("site").await.unwrap();
+    assert_eq!(manager.status("site").await.unwrap().last_error, None);
+    let handler = manager
+        .on_change("site", |_| Box::pin(async { Err(Error::Refresh) }))
+        .await
+        .unwrap();
+    let writer = f.site().await;
+    writer
+        .fill(json!({"name":"pending consumer"}))
+        .await
+        .unwrap();
+    writer.save().await.unwrap();
+    manager.poll().await.unwrap();
+    manager.refresh("site").await.unwrap();
+    let status = manager.status("site").await.unwrap();
+    assert_eq!(status.last_error, Some(Error::Refresh));
+    assert_eq!(status.pending_handlers, 1);
+    assert!(manager.forget_handler("site", handler).await);
+    assert_eq!(manager.status("site").await.unwrap().last_error, None);
+    let handler = manager
+        .on_change("site", |_| Box::pin(async { Ok(()) }))
+        .await
+        .unwrap();
+    source.offline.store(true, Ordering::SeqCst);
+    assert!(manager.poll().await.is_err());
+    assert!(manager.forget_handler("site", handler).await);
+    assert_eq!(
+        manager.status("site").await.unwrap().last_error,
+        Some(Error::Database)
+    );
+    source.offline.store(false, Ordering::SeqCst);
+    manager.refresh("site").await.unwrap();
+    assert_eq!(manager.status("site").await.unwrap().last_error, None);
+    f.close().await;
+}
+
+#[tokio::test]
+async fn handler_panics_timeouts_and_cancelled_dispatch_remain_retryable_without_orphans() {
+    let f = Fixture::new().await;
+    let manager = SettingsManager::new(f.repository.clone(), options(&f.table), None).unwrap();
+    manager.shutdown().await;
+    let mode = Arc::new(AtomicUsize::new(0));
+    let dropped = Arc::new(AtomicBool::new(false));
+    let completed = Arc::new(AtomicUsize::new(0));
+    struct ObservedDrop(Arc<AtomicBool>);
+    impl Drop for ObservedDrop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+    let m = mode.clone();
+    let d = dropped.clone();
+    let c = completed.clone();
+    manager
+        .on_change("site", move |_| {
+            if m.load(Ordering::SeqCst) == 3 {
+                panic!("模拟设置消费者构建异常");
+            }
+            let mode = m.clone();
+            let dropped = d.clone();
+            let completed = c.clone();
+            Box::pin(async move {
+                let _guard = ObservedDrop(dropped);
+                match mode.load(Ordering::SeqCst) {
+                    0 => panic!("模拟设置消费者任务异常"),
+                    1 => std::future::pending::<()>().await,
+                    _ => {
+                        completed.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    manager.load("site").await.unwrap();
+    let writer = f.site().await;
+    writer
+        .fill(json!({"name":"retry consumers"}))
+        .await
+        .unwrap();
+    writer.save().await.unwrap();
+    manager.poll().await.unwrap();
+    assert_eq!(
+        manager.status("site").await.unwrap().last_error,
+        Some(Error::Refresh)
+    );
+    mode.store(3, Ordering::SeqCst);
+    manager.poll().await.unwrap();
+    assert_eq!(
+        manager.status("site").await.unwrap().last_error,
+        Some(Error::Refresh)
+    );
+    mode.store(1, Ordering::SeqCst);
+    dropped.store(false, Ordering::SeqCst);
+    let started = tokio::time::Instant::now();
+    manager.poll().await.unwrap();
+    assert!(started.elapsed() >= Duration::from_secs(5));
+    assert!(dropped.load(Ordering::SeqCst));
+    assert_eq!(manager.status("site").await.unwrap().pending_handlers, 1);
+    dropped.store(false, Ordering::SeqCst);
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), manager.poll())
+            .await
+            .is_err()
+    );
+    until(async || dropped.load(Ordering::SeqCst)).await;
+    assert_eq!(completed.load(Ordering::SeqCst), 0);
+    mode.store(2, Ordering::SeqCst);
+    manager.poll().await.unwrap();
+    let status = manager.status("site").await.unwrap();
+    assert_eq!(status.pending_handlers, 0);
+    assert_eq!(status.last_error, None);
+    manager.poll().await.unwrap();
+    assert_eq!(completed.load(Ordering::SeqCst), 1);
+    f.close().await;
+}

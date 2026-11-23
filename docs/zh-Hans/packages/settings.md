@@ -110,6 +110,16 @@ settings.save().await?;
 
 `lock`／`unlock` 操作已持久化的属性，调用前须保存待提交编辑。修改锁定属性明确报错，不会静默成功。每组保留一条内部 `__settings_version` 记录，串行化写入并检测旧编辑，覆盖首次创建和恢复默认；这是对 Spatie 表结构的明确扩展。发生 `Conflict` 后须重新读取并处理冲突，不能盲目重试旧快照。旧版设置类型更新时保留新版增加的数据库属性。
 
+先保存明确的覆盖值，再对该持久化属性加锁；可用 `is_locked` 检查状态，由可信应用代码显式解锁：
+
+```rust,ignore
+settings.fill(serde_json::json!({"title": "受管理的标题"})).await?;
+settings.save().await?;
+settings.lock("title").await?;
+assert!(settings.is_locked("title").await?);
+settings.unlock("title").await?;
+```
+
 模块设置使用相同接口。将类型放在模块内，在设置 Provider 注册之后，由模块 Provider 调用 `SettingsServiceProvider::register_settings::<DeliverySettings>(app).await?`。该组共用设置表，与 `site` 相互独立，无需修改仓储。
 
 ```rust
@@ -237,10 +247,15 @@ let handler = manager.on_change("site", move |_change| {
 
 let state = manager.status("site").await;
 // state：observed_version、applied_version、pending_handlers、last_error
+```
+
+消费者运行期间保留 `handler`；仅在停用或移除该消费者时解除处理器，不要注册后立即移除：
+
+```rust,ignore
 manager.forget_handler("site", handler).await;
 ```
 
-处理器在独立异步任务中执行，不继承当前 HTTP／任务的门面作用域，须捕获所需依赖。需要管理器本身时，捕获 `manager.downgrade()` 并在处理器内 `upgrade()`，避免循环引用。处理器五秒超时会记录脱敏错误并保留待处理版本，开启自动检查时，没有新版本也继续重试。首次加载只建立基线，不触发变更处理器。`status()` 只表示本进程已注册处理器的状态，**不代表集群全部节点确认**，不能用作全局发布屏障或持久审计。
+处理器在独立异步任务中执行，不继承当前 HTTP／任务的门面作用域，须捕获所需依赖。需要管理器本身时，捕获 `manager.downgrade()` 并在处理器内 `upgrade()`，避免循环引用。处理器五秒超时会记录脱敏错误并保留待处理版本，开启自动检查时，没有新版本也继续重试。首次加载只建立基线，不触发变更处理器。数据源恢复成功且没有待处理处理器时，旧错误会清除；待处理的处理器错误保留到处理成功或解除。组首次实际加载前，`status()` 返回 `None`；从未持久化的空组也没有版本。判断本进程的处理情况应同时看 `pending_handlers` 和 `last_error`，不能仅以 `applied_version` 是否有值判断就绪。`status()` 只表示本进程已注册处理器的状态，**不代表集群全部节点确认**，不能用作全局发布屏障或持久审计。
 
 `poll().await?` 主动对账所有活动组；`notify(&SettingsNotification { namespace, group, version }).await?` 可接入应用可选的通知传输层，只接受元数据并向数据库核实，忽略其他命名空间及非活动组，不信任通知传入的值。两者都不依赖 Redis Pub/Sub。`shutdown().await` 停止本管理器后台任务，不关闭共享连接；之后仍可显式 load／refresh／poll。
 

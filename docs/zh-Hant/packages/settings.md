@@ -110,6 +110,16 @@ settings.save().await?;
 
 `lock`／`unlock` 操作已持久化的屬性，呼叫前須儲存待提交編輯。修改鎖定屬性明確報錯，不會無聲成功。每組保留一筆內部 `__settings_version` 記錄，序列化寫入並偵測過期編輯，涵蓋首次建立與還原預設值；這是對 Spatie 資料表結構的明確擴充。發生 `Conflict` 後須重新讀取並處理衝突，不可盲目重試舊快照。舊版設定型別更新時保留新版新增的資料庫屬性。
 
+先儲存明確的覆寫值，再對該持久化屬性加鎖；可用 `is_locked` 檢查狀態，由受信任應用程式碼明確解除鎖定：
+
+```rust,ignore
+settings.fill(serde_json::json!({"title": "受管理的標題"})).await?;
+settings.save().await?;
+settings.lock("title").await?;
+assert!(settings.is_locked("title").await?);
+settings.unlock("title").await?;
+```
+
 模組設定使用相同介面。將型別放在模組內，在設定 Provider 註冊之後，由模組 Provider 呼叫 `SettingsServiceProvider::register_settings::<DeliverySettings>(app).await?`。該群組共用設定表，與 `site` 相互獨立，無需修改儲存庫。
 
 ```rust
@@ -237,10 +247,15 @@ let handler = manager.on_change("site", move |_change| {
 
 let state = manager.status("site").await;
 // state：observed_version、applied_version、pending_handlers、last_error
+```
+
+使用端執行期間保留 `handler`；僅在停用或移除該使用端時解除處理器，不要註冊後立即移除：
+
+```rust,ignore
 manager.forget_handler("site", handler).await;
 ```
 
-處理器在獨立非同步工作中執行，不繼承目前 HTTP／工作的門面作用域，須擷取所需相依服務。需要管理器本身時，擷取 `manager.downgrade()` 並在處理器內 `upgrade()`，避免循環參照。處理器五秒逾時會記錄遮罩錯誤並保留待處理版本，開啟自動檢查時，沒有新版本也繼續重試。首次載入只建立基準，不觸發變更處理器。`status()` 只表示本處理程序已註冊處理器的狀態，**不代表叢集全部節點確認**，不能用作全域發布屏障或持久稽核。
+處理器在獨立非同步工作中執行，不繼承目前 HTTP／工作的門面作用域，須擷取所需相依服務。需要管理器本身時，擷取 `manager.downgrade()` 並在處理器內 `upgrade()`，避免循環參照。處理器五秒逾時會記錄遮罩錯誤並保留待處理版本，開啟自動檢查時，沒有新版本也繼續重試。首次載入只建立基準，不觸發變更處理器。資料來源復原成功且沒有待處理的處理器時，舊錯誤會清除；待處理的處理器錯誤保留到處理成功或解除。群組首次實際載入前，`status()` 回傳 `None`；從未持久化的空群組也沒有版本。判斷本處理程序的處理情況應同時看 `pending_handlers` 與 `last_error`，不能只以 `applied_version` 是否有值判斷就緒。`status()` 只表示本處理程序已註冊處理器的狀態，**不代表叢集全部節點確認**，不能用作全域發布屏障或持久稽核。
 
 `poll().await?` 主動核對所有活動群組；`notify(&SettingsNotification { namespace, group, version }).await?` 可接入應用選用的通知傳輸層，只接受中繼資料並向資料庫核實，忽略其他命名空間及非活動群組，不信任通知傳入的值。兩者都不依賴 Redis Pub/Sub。`shutdown().await` 停止本管理器背景工作，不關閉共用連線；之後仍可明確 load／refresh／poll。
 

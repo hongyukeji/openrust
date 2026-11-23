@@ -1,33 +1,41 @@
 # OpenRust Settings
 
-Optional typed database settings, following Spatie the framework Settings conventions.
+Optional typed database settings for OpenRust applications.
 Application code declares groups; the repository persists overrides in `settings`.
 The same Settings API supports single-instance and clustered applications through a database-backed version coordinator and optional acceleration using the existing Cache store. No backend routes or automatic service configuration overrides are installed.
 
 ```rust,no_run
 use openrust::{contracts::config::Repository, config::Repository as Config};
-use openrust_settings::{Settings, SettingsGroup, SettingsResult, DatabaseSettingsRepository};
+use openrust_settings::{
+    DatabaseSettingsRepository, Settings, SettingsGroup, SettingsManager,
+    SettingsOptions, SettingsResult,
+};
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
 #[derive(Clone, Serialize, Deserialize)]
-struct SiteSettings { name: String, registration_enabled: bool }
+struct SiteSettings { title: String, registration_enabled: bool }
 impl SettingsGroup for SiteSettings {
     fn group() -> &'static str { "site" }
     fn defaults(config: &dyn Repository) -> SettingsResult<Self> {
         Ok(Self {
-            name: config.get("app.name").and_then(|v| v.as_str().map(str::to_owned)).unwrap_or("OpenRust".into()),
+            title: config.get("app.name").and_then(|v| v.as_str().map(str::to_owned)).unwrap_or("My Site".into()),
             registration_enabled: false,
         })
     }
 }
 
 async fn example(connection: openrust::database::Connection, config: &Config) -> SettingsResult<()> {
-    let repository = Arc::new(DatabaseSettingsRepository::new(connection));
-    let settings = Settings::<SiteSettings>::load(repository, config, None).await?;
-    settings.fill(serde_json::json!({"name":"My website"})).await?;
+    let repository = Arc::new(SettingsManager::new(
+        Arc::new(DatabaseSettingsRepository::new(connection)),
+        SettingsOptions { namespace: "my-application:production".into(), ..Default::default() },
+        None,
+    )?);
+    let settings = Settings::<SiteSettings>::load(repository.clone(), config, None).await?;
+    settings.fill(serde_json::json!({"title":"My website"})).await?;
     settings.save().await?;
-    assert_eq!(settings.get().await.name, "My website");
+    assert_eq!(settings.get().await.title, "My website");
+    repository.shutdown().await;
     Ok(())
 }
 ```

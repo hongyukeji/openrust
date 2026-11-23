@@ -88,6 +88,19 @@ struct Group {
     dispatch: Arc<Mutex<()>>,
     error: Option<Error>,
 }
+impl Group {
+    fn clear_resolved_error(&mut self) {
+        if self.checked.is_some()
+            && self.snapshot.as_ref().is_some_and(|snapshot| {
+                self.handlers
+                    .values()
+                    .all(|handler| handler.applied.as_ref() == Some(&snapshot.version))
+            })
+        {
+            self.error = None;
+        }
+    }
+}
 impl Default for Group {
     fn default() -> Self {
         Self {
@@ -307,6 +320,7 @@ impl SettingsManager {
                 let mut groups = self.inner.groups.lock().await;
                 if let Some(g) = groups.get_mut(&group) {
                     g.checked = Some(Instant::now());
+                    g.clear_resolved_error();
                 }
                 continue;
             }
@@ -356,6 +370,7 @@ impl SettingsManager {
         }
         entry.snapshot = Some(snapshot);
         entry.checked = Some(Instant::now());
+        entry.clear_resolved_error();
         Ok(())
     }
     async fn reconcile(&self, groups: &[String], reuse_fresh: bool) -> SettingsResult<()> {
@@ -520,12 +535,15 @@ impl SettingsManager {
         Ok(id)
     }
     pub async fn forget_handler(&self, group: &str, id: u64) -> bool {
-        self.inner
-            .groups
-            .lock()
-            .await
-            .get_mut(group)
-            .is_some_and(|g| g.handlers.remove(&id).is_some())
+        let mut groups = self.inner.groups.lock().await;
+        let Some(group) = groups.get_mut(group) else {
+            return false;
+        };
+        let removed = group.handlers.remove(&id).is_some();
+        if removed {
+            group.clear_resolved_error();
+        }
+        removed
     }
     pub async fn status(&self, group: &str) -> Option<SettingsStatus> {
         let groups = self.inner.groups.lock().await;
