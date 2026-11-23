@@ -2,7 +2,7 @@
 //
 // UnicodeData.txt 和 SpecialCasing.txt 的无条件映射，保留与普通大写不同的 135 项。
 // https://www.unicode.org/Public/17.0.0/ucd/
-// Unicode 数据许可见同目录 LICENSE-Unicode.txt。
+// Unicode 数据许可原文见发行根目录 THIRD_PARTY_NOTICES.md。
 //
 // PHP mb_ucfirst 只转换首个码点，其余内容保持原样。
 #[allow(clippy::too_many_lines, reason = "Unicode 官方映射保持可逐项核对")]
