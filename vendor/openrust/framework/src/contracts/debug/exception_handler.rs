@@ -106,7 +106,7 @@ pub trait ExceptionHandler: Any + Send + Sync {
         false
     }
 
-    /// 检查报告资格，不消耗报告限流配额；实际报告阶段再判定采样与限流。
+    /// 检查报告资格，包含采样与限流准入；重复查询也会执行这些策略。
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;
     /// 默认扩展路径同时报告和渲染；具体处理器可保留请求级重定向与日志上下文。

@@ -55,10 +55,7 @@ impl Handler {
             return error.bare_response();
         }
         let exception = Exception::Http(error);
-        if self.should_report(&exception).await
-            && self.allows_throttle(&exception).await
-            && !self.duplicate(&exception, true)
-        {
+        if self.should_report(&exception).await && !self.duplicate(&exception, true) {
             let _ = self.write_report(&exception, Some(request)).await;
         }
         self.render_http_response_only(request, error).await
@@ -347,15 +344,16 @@ impl ExceptionHandler for Handler {
     }
 
     fn should_report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
-        Box::pin(async move { !self.duplicate(exception, false) && self.allowed(exception) })
+        Box::pin(async move {
+            !self.duplicate(exception, false)
+                && self.allowed(exception)
+                && self.allows_throttle(exception).await
+        })
     }
 
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
         Box::pin(async move {
-            if !self.should_report(exception).await
-                || !self.allows_throttle(exception).await
-                || self.duplicate(exception, true)
-            {
+            if !self.should_report(exception).await || self.duplicate(exception, true) {
                 return Ok(());
             }
             self.write_report(exception, None).await

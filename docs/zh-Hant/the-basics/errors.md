@@ -180,7 +180,7 @@ async fn report_failure() -> LogResult<()> {
 }
 ```
 
-`report` 接收擁有所有權的 Rust 錯誤；`should_report`、`should_stop_retries`、`render` 與 `render_for_console` 轉發既有契約，`handler` 回傳目前 Arc。`should_report` 只查詢報告資格，不消耗採樣或節流配額，實際報告時才執行這些策略。啟動設定繼續寫在 `with_exceptions`。執行期現已提供 `reportable`、`renderable`、`dont_report`、`ignore`、`stop_ignoring`、`dont_report_when`、`dont_retry`、`dont_retry_when`、`dont_flash`、`level`、`build_context_using`、`respond_using`、`should_render_json_when`、`dont_report_duplicates` 與帶型別的 `throttle_using`。`is_reporting` 查詢同一例外實例是否正在被報告，不是報告資格查詢，也不消耗報告節流配額。自訂處理器須明確支援執行期設定及此唯讀查詢，否則回傳錯誤。例外替身與斷言見下文。
+`report` 接收擁有所有權的 Rust 錯誤；`should_report`、`should_stop_retries`、`render` 與 `render_for_console` 轉發既有契約，`handler` 傳回原處理器 Arc，例外替身會被解包。`should_report` 檢查重複／忽略規則，並執行採樣或節流准入；重複查詢也可能消耗配額。每次實際報告只執行一次准入，請勿將它當作無副作用的狀態探針。啟動設定繼續寫在 `with_exceptions`。執行期現已提供 `reportable`、`renderable`、`dont_report`、`ignore`、`stop_ignoring`、`dont_report_when`、`dont_retry`、`dont_retry_when`、`dont_flash`、`level`、`build_context_using`、`respond_using`、`should_render_json_when`、`dont_report_duplicates` 與帶型別的 `throttle_using`。`is_reporting` 查詢同一例外實例是否正在被報告，不是報告資格查詢，也不消耗報告節流配額。自訂處理器須明確支援執行期設定及此唯讀查詢，否則回傳錯誤。例外替身與斷言見下文。
 
 ### 可報告回呼控制代碼 {#reportable-handlers}
 

@@ -1045,9 +1045,9 @@
           "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
         },
         "shouldReport": {
-          "local": "should_report(&Exception).await -> Result<bool>",
-          "status": "verified-current-native-paths",
-          "evidence": "framework/tests/exceptions_facade.rs (10 current cases), existing exception_reporting(7) and exception_rendering(5); exceptions-config/test-fifth.log; PHP isReporting oracle"
+          "local": "should_report(&Exception).await -> Result<bool>; duplicate/ignore then sampling/throttle admission, including repeated queries",
+          "status": "verified-native-admission-paths",
+          "evidence": "fixed PHP Handler shouldReport actual oracle-final.log first=false second=false admissions=2; exceptions_facade query/limit/fake/ignore tests; exception-eligibility/tests.log"
         },
         "throttleUsing": {
           "local": "throttle_using::<E>(Fn(&E)->Option<ReportThrottle>)",
@@ -1158,7 +1158,7 @@
       },
       "remaining": [
         "register and map, contextForException/buildContextForException runtime public contracts remain to implement and verify",
-        "global throttleUsing callback replacement/default grouping vs native typed policy; full result/chain defaults",
+        "global catch-all throttleUsing callback/default grouping vs native typed policy; full result/chain defaults",
         "isReporting borrowed zero-sized Rust value identity cannot imply PHP object identity; owned facade report uses Arc-backed identity; review remaining direct borrowed contract consumers during owned-error/fake work",
         "borrowed opaque exception retention requires explicit SharedException ownership; custom callers and full request/task/Worker failure restoration plus inherited base mocks/spy remain to audit",
         "withoutExceptionHandling handler mode, all dynamic Handler/config forwarding and full context/map/register contracts still require closure"
@@ -1167,7 +1167,7 @@
         "handler": "existing handler stores configuration behind RwLock; methods clone snapshots before invoking callbacks or awaiting. Setters preserve constructor configuration and existing duplicate map; old callbacks are retired outside the write lock",
         "custom_handlers": "object-safe configure extension default returns explicit unsupported error; read-only is_reporting capability default None likewise returns explicit unsupported error, never a fabricated answer",
         "isReporting": "tracks active owner-handler + actual exception identity in lexical async task-local report scope; false outside, true for same error during reporter callback, false for other error, restores on panic/completion; does not mean report eligibility",
-        "shouldReport": "now pure duplicate/ignore eligibility; sampling/throttle admission moved to actual report/HTTP report phases. Repeated eligibility calls do not invoke admission; actual reporting invokes once",
+        "shouldReport": "duplicate/ignore + sampling/throttle admission; repeated queries execute admission; each real report checks once; pure-query claim superseded",
         "owned_report": "Facade owned errors retain Arc-backed SharedException identity; existing SharedException clones are not rewrapped, preserving duplicates and actual type/source callbacks",
         "limits": "typed throttling registration reuses existing per-type policy; full global callback replacement remains open"
       },
@@ -1189,6 +1189,11 @@
         "testing": "TestApp.fake_exceptions retains handle across actual HTTP/Artisan calls; unselected errors delegate original report/render; selected HTTP keeps original rendering-only path",
         "limits": "Rust uses fallible lexical catch_reported for arbitrary async boundaries; TestApp HTTP and try_artisan guard automatically. Compatibility artisan emits typed SharedException panic only in explicit throw mode. Outside guard direct report returns LogError containing original source.",
         "propagation": "task-local oneshot escapes recording future; protected caller returns original shared error and drops in-flight invocation, preventing post-report code; lexical nested restoration, cancellation, concurrent application isolation verified; no thread/global signal or string snapshot"
+      },
+      "eligibility_correction": {
+        "source": "fixed Handler.shouldReport -> shouldntReport -> throttle; throttleUsing appends ordered callbacks, it does not replace all callbacks",
+        "result": "real source oracle confirms each query runs admission; native Limit1 test first query true/second false/report denied; report-only distinct key executes callback once",
+        "historical_evidence": "exceptions-config/test-fifth pure-query expectation passed its old implementation but is not fixed baseline parity; superseded, original logs retained"
       }
     },
     {

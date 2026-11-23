@@ -272,7 +272,7 @@ async fn runtime_json_policy_and_log_context_change_the_existing_handler() {
         .assert_json_path("message", &serde_json::json!("Server Error"));
 }
 #[tokio::test]
-async fn reporting_queries_do_not_consume_throttle_budget_and_unsupported_handlers_error() {
+async fn reporting_queries_apply_throttle_once_and_unsupported_handlers_error() {
     let app = fixture().await;
     App::set_facade_application(Some(app.app()), async {
         let admissions = Arc::new(AtomicUsize::new(0));
@@ -289,13 +289,13 @@ async fn reporting_queries_do_not_consume_throttle_budget_and_unsupported_handle
         let error = DomainFailure("sampled");
         let exception = Exception::Error(&error);
         assert!(!Exceptions::is_reporting(&exception).unwrap());
-        assert!(Exceptions::should_report(&exception).await.unwrap());
-        assert!(Exceptions::should_report(&exception).await.unwrap());
-        assert_eq!(admissions.load(Ordering::SeqCst), 0);
+        assert!(!Exceptions::should_report(&exception).await.unwrap());
+        assert!(!Exceptions::should_report(&exception).await.unwrap());
+        assert_eq!(admissions.load(Ordering::SeqCst), 2);
         Exceptions::report(DomainFailure("sampled-at-report"))
             .await
             .unwrap();
-        assert_eq!(admissions.load(Ordering::SeqCst), 1);
+        assert_eq!(admissions.load(Ordering::SeqCst), 3);
         Exceptions::swap(Arc::new(ObservedHandler::default())).unwrap();
         assert!(Exceptions::is_reporting(&exception).is_err());
         assert!(Exceptions::dont_report::<DomainFailure>().is_err());
@@ -374,6 +374,93 @@ async fn shared_error_identity_is_retained_and_reporting_scope_restores_after_pa
         Exceptions::report(shared.clone()).await.unwrap();
         Exceptions::report(shared).await.unwrap();
         assert_eq!(seen.load(Ordering::SeqCst), 3);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn limit_queries_charge_admission_and_report_does_not_charge_twice() {
+    use openrust::{cache::rate_limiting::Limit, foundation::configuration::ReportThrottle};
+    let mut app = TestApp::create(|b| {
+        b.with_config(|_, _| {
+            Ok([
+                ("app".into(), serde_json::json!({"env":"testing"})),
+                (
+                    "cache".into(),
+                    serde_json::json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+                ),
+            ]
+            .into())
+        })
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(app.app()), async {
+        Exceptions::throttle_using::<DomainFailure>(|_| {
+            Some(ReportThrottle::Limit(Limit::per_minute(1)))
+        })
+        .unwrap();
+        let error = DomainFailure("first");
+        let exception = Exception::Error(&error);
+        assert!(Exceptions::should_report(&exception).await.unwrap());
+        assert!(!Exceptions::should_report(&exception).await.unwrap());
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        Exceptions::reportable::<DomainFailure>(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            openrust::foundation::configuration::ReportDecision::Stop
+        })
+        .unwrap();
+        Exceptions::report(DomainFailure("already-throttled"))
+            .await
+            .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        Exceptions::throttle_using::<std::io::Error>(|_| {
+            Some(ReportThrottle::Limit(Limit::per_minute(1).by("io-once")))
+        })
+        .unwrap();
+        let observed = calls.clone();
+        Exceptions::reportable::<std::io::Error>(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            openrust::foundation::configuration::ReportDecision::Stop
+        })
+        .unwrap();
+        Exceptions::report(std::io::Error::other("one-admission"))
+            .await
+            .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        Exceptions::report(std::io::Error::other("second-denied"))
+            .await
+            .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    })
+    .await;
+}
+#[tokio::test]
+async fn fake_respects_throttle_eligibility_and_ignored_errors_do_not_invoke_policies() {
+    let mut app = fixture().await;
+    let fake = app.fake_exceptions(&[]).await.unwrap();
+    App::set_facade_application(Some(app.app()), async {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        Exceptions::throttle_using::<DomainFailure>(move |_| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            Some(
+                openrust::foundation::configuration::ReportThrottle::Lottery(
+                    openrust::support::Lottery::odds(0, 1).unwrap(),
+                ),
+            )
+        })
+        .unwrap();
+        Exceptions::report(DomainFailure("sampled-out"))
+            .await
+            .unwrap();
+        fake.assert_nothing_reported();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        Exceptions::dont_report::<DomainFailure>().unwrap();
+        Exceptions::report(DomainFailure("ignored")).await.unwrap();
+        fake.assert_nothing_reported();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
     })
     .await;
 }

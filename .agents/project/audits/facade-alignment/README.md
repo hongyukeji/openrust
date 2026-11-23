@@ -262,3 +262,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 此批闭合的是受保护原生测试调用传播；没有宣称生产HTTP可跨网络传送Rust对象，亦未将Exceptions剩余map/context/register及整个门面对齐任务计为完成。
 
 - 本批严格workspace/all-targets Clippy复核、fmt、三语站点构建及6项浏览器检查通过（`clippy-second.log/fmt.log/docs.log/browser.log`）。失败Clippy的err().expect()已改正，原日志保留。
+
+### Exceptions：纠正报告资格的限流语义（2026-11-24）
+
+此前“should_report 是不消耗准入的纯查询”是错误裁决，已用固定 Handler 的实际执行纠正：shouldReport 调用 shouldntReport，后者在忽略/重复规则后执行 throttle；throttleUsing 也是追加有序回调，不是覆盖全部回调。旧日志保留，仅代表旧实现，不能继续作为该契约对齐证据。
+
+- 固定PHP Handler真实执行：两次 shouldReport 配置必输Lottery，结果false/false且回调2次；`exception-eligibility/oracle-final.log`。早期oracle缺完整自动加载时被上游rescue吞掉错误，产生true/true/0，已用受保护throttle预检排除此假阳性，保留失败及中间日志。
+- should_report 现在包含采样/限流准入；实际 report/HTTP report 删除第二次准入。被忽略/已重复错误短路不计费。替身沿用原处理器资格，采样拒绝不记录。
+- `exception-eligibility/tests.log`：12项门面、既有报告7/渲染5和12项实际本地替身测试通过（默认外部4项早返回未计后端验收）。新增Limit每分钟1次验证查询会消耗配额；独立键实际报告只计费一次，第二条拒绝；Lottery查询次数、fake采样和ignore短路均通过。
+- 当前三语文档已同步纠正，is_reporting 仍只查询当前报告实例，不消耗准入。完整上下文、映射、register和其他门面仍继续开发。
+
+- 本批 workspace/all-targets严格Clippy、格式检查、三语站点构建及6项浏览器检查通过；日志归入 `exception-eligibility/`。
