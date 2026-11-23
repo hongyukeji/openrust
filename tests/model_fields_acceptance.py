@@ -131,13 +131,14 @@ async fn main() {
                                      ('zh-Hans', '模型表与字段', '表名')]:
             environment['APP_LOCALE'] = locale
             before = (generated.read_bytes(), generated.stat().st_mtime_ns)
-            artisan('locale-' + locale + '-stale', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+            artisan('locale-' + locale + '-stale', 'model:fields', 'FieldReferenceProbe', '--check', success=(f'/// {label}\n        TABLE' in generated.read_text()))
             assert before == (generated.read_bytes(), generated.stat().st_mtime_ns)
             artisan('locale-' + locale, 'model:fields', 'FieldReferenceProbe')
             localized = generated.read_text()
-            assert f'| {title}\n' in localized
+            assert '#[generated(command = "artisan model:fields FieldReferenceProbe")]' in localized
+            assert '/*\n|---' not in localized
             assert f'/// {label}\n        TABLE' in localized
-            assert './artisan model:fields FieldReferenceProbe' in localized
+            assert 'artisan model:fields FieldReferenceProbe' in localized
             assert ('/// 姓名' in localized) == (driver != 'sqlite'), '数据库注释不自动翻译'
             compile_code('locale-' + locale, localized, deny_warnings=True)
             artisan('locale-' + locale + '-check', 'model:fields', 'FieldReferenceProbe', '--check')
@@ -156,7 +157,7 @@ async fn main() {
                 environment['APP_LOCALE'] = locale
                 artisan('resource-' + locale, 'model:fields', 'FieldReferenceProbe')
                 text = generated.read_text()
-                assert f'| {title}\n' in text and f'/// Table-{locale}\n        TABLE' in text
+                assert '#[generated(command =' in text and f'/// Table-{locale}\n        TABLE' in text
                 assert text.count('openrust::model_fields!') == 1
                 artisan('resource-' + locale + '-check', 'model:fields', 'FieldReferenceProbe', '--check')
             # 翻译原文改变也不需要枚举历史译文；注释开闭符不能变成Rust源码。
@@ -164,15 +165,15 @@ async fn main() {
             data['model_fields']['title'] = 'Nouveau /* titre */'
             path.write_text(json.dumps(data))
             environment['APP_LOCALE'] = 'fr'
-            artisan('resource-changed-check', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
+            artisan('resource-changed-check', 'model:fields', 'FieldReferenceProbe', '--check')
             artisan('resource-changed-refresh', 'model:fields', 'FieldReferenceProbe')
             text = generated.read_text()
-            assert '| Nouveau / * titre * /\n' in text and text.count('openrust::model_fields!') == 1
+            assert 'Nouveau' not in text and text.count('openrust::model_fields!') == 1
             compile_code('resource-changed', text, deny_warnings=True)
             # 缺少当前语言的词条时，由统一译器按app.fallback_locale回退。
             path.write_text('{}')
             artisan('resource-fallback', 'model:fields', 'FieldReferenceProbe')
-            assert '| Model Table and Fields\n' in generated.read_text()
+            assert '#[generated(command =' in generated.read_text()
         finally:
             environment['APP_LOCALE'] = 'zh-Hans'
             for path, previous in resources.items():
@@ -278,7 +279,7 @@ async fn main() {
         artisan('nested', 'make:model', 'Admin/FieldReferenceProbe', '--force', '--fields',
                 f'--table={table}', f'--database={environment["DB_CONNECTION"]}')
         nested = source / 'app/models/admin/field_reference_probe.rs'
-        assert './artisan model:fields Admin/FieldReferenceProbe' in nested.read_text()
+        assert 'artisan model:fields Admin/FieldReferenceProbe' in nested.read_text()
         compile_code('nested-model', nested.read_text() + reference.replace('::NAME', '::FULL_NAME'))
         assert 'ModelMetadata::new(FieldReferenceProbe::TABLE)' in nested.read_text()
         assert f'TABLE = "{table}";' in nested.read_text()
@@ -426,7 +427,7 @@ async fn main() {
         finally:
             custom_model.unlink()
         # 旧版内嵌区域迁移到顶部的新分区；边界由 Rust 语法位置确认。
-        section = refreshed.index('/*\n|---')
+        section = refreshed.index('openrust::model_fields!')
         model_start = refreshed.index('pub struct FieldReferenceProbe')
         business = refreshed[:section] + refreshed[model_start:]
         legacy_block = (
@@ -455,8 +456,13 @@ async fn main() {
             ('duplicate-marker', legacy + '// openrust:model-fields begin\n'),
             ('reversed-marker', legacy.replace('// openrust:model-fields begin', '// openrust:model-fields TEMP').replace('// openrust:model-fields end', '// openrust:model-fields begin').replace('// openrust:model-fields TEMP', '// openrust:model-fields end')),
             ('duplicate-section', refreshed + refreshed[section:model_start]),
-            ('damaged-section', refreshed.replace('|--------------------------------------------------------------------------', 'broken boundary', 1)),
-            ('missing-generated-macro', refreshed[:refreshed.index('openrust::model_fields!')] + refreshed[model_start:]),
+            ('new-unknown-argument', refreshed.replace('#[generated(command =', '#[generated(unknown =', 1)),
+            ('new-wrong-owner', refreshed.replace('    FieldReferenceProbe {', '    AnotherProbe {', 1)),
+            ('new-duplicate-declaration', refreshed + '\nopenrust::model_fields! { FieldReferenceProbe { ID = "id"; } }\n'),
+            ('new-duplicate-metadata', refreshed.replace('    #[generated(', '    #[generated(command = "duplicate")]\n    #[generated(', 1)),
+
+            ('damaged-section', refreshed.replace('#[generated(command =', '#[generated(broken =', 1)),
+            ('missing-generated-macro', refreshed.replace('openrust::model_fields!', 'openrust::missing_fields!', 1)),
             ('renamed-generated-macro', refreshed.replace('openrust::model_fields!', 'openrust::other_fields!')),
             ('invalid-rust', refreshed + '\nfn incomplete(\n'),
         ]:
@@ -469,9 +475,29 @@ async fn main() {
         artisan('edited-generated-region', 'model:fields', 'FieldReferenceProbe')
         assert generated.read_text() == refreshed
         artisan('edited-generated-region-check', 'model:fields', 'FieldReferenceProbe', '--check')
+        # 完整删除说明可恢复；连同宏一起删除时，已编译命令仍能恢复源码。
+        without_header = refreshed.replace('    #[generated(command = "artisan model:fields FieldReferenceProbe")]\n', '')
+        generated.write_text(without_header)
+        artisan('deleted-header-refresh', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == refreshed
+        without_block = refreshed[:section] + refreshed[model_start:]
+        generated.write_text(without_block)
+        compile_code('deleted-fields-do-not-compile', without_block + reference.replace('::NAME', '::FULL_NAME'), False)
+        artisan('deleted-block-recover', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == refreshed
+        compile_code('recovered-fields-compile', generated.read_text() + reference.replace('::NAME', '::FULL_NAME'))
+        artisan('recovered-fields-repeat', 'model:fields', 'FieldReferenceProbe', '--check')
+        business_comment = refreshed[:section] + '/* 业务说明，不能被生成器删除或移动。 */\n' + refreshed[section:]
+        generated.write_text(business_comment)
+        artisan('metadata-preserves-neighboring-comment', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == business_comment
+        generated.write_text(refreshed.replace('command = "artisan model:fields FieldReferenceProbe"', 'command = "artisan model:fields FieldReferenceProbe",'))
+        artisan('metadata-trailing-comma', 'model:fields', 'FieldReferenceProbe')
+        assert generated.read_text() == refreshed
         # 上一版顶部紧凑布局可原地升级，不留下第二份分区或表名字符串。
         old_header = '/*\n|--------------------------------------------------------------------------\n| 模型字段\n|--------------------------------------------------------------------------\n|\n| 根据数据库表结构生成字段与说明，通过 model:fields 命令同步。\n| 调整表结构或列说明后，请重新同步并构建；不要直接修改此区域。\n|\n*/\n'
-        old_compact = refreshed.replace(refreshed[section:refreshed.index('openrust::model_fields!')], old_header).replace(
+        old_compact = refreshed[:section] + old_header + refreshed[section:]
+        old_compact = old_compact.replace('    #[generated(command = "artisan model:fields FieldReferenceProbe")]\n', '').replace(
             f'        TABLE = "{table}";\n', '').replace('ModelMetadata::new(FieldReferenceProbe::TABLE)', f'ModelMetadata::new("{table}")')
         generated.write_text(old_compact)
         artisan('compact-upgrade-check', 'model:fields', 'FieldReferenceProbe', '--check', success=False)
@@ -524,7 +550,9 @@ async fn main() {
         # 原始字符串中的旧边界文本不得被误当作生成区而删除。
         raw_markers = ('\npub const MARKER_EXAMPLE: &str = r###"\n'
                        '// openrust:model-fields begin\n保留示例文本\n'
-                       '// openrust:model-fields end\n"###;\n')
+                       '// openrust:model-fields end\n'
+                       '// @auto-generated:model-fields:begin\n保留新标记示例\n'
+                       '// @auto-generated:model-fields:end\n"###;\n')
         generated.write_text(business + raw_markers)
         artisan('raw-markers', 'model:fields', 'FieldReferenceProbe')
         assert raw_markers in generated.read_text()

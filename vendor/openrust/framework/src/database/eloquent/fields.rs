@@ -31,6 +31,8 @@ impl FieldModel {
 ///
 /// 常量是未限定表名的 `&'static str`，直接复用现有查询接口及标识符语法器。
 /// 声明独立于批量赋值白名单和属性转换；不会连接数据库或推断动态属性。
+/// 宏内部可用 `#[generated(command = "artisan model:fields User")]` 记录生成来源。
+/// 该元信息不会作为 Rust 属性输出，也不会执行其中的命令。
 /// 编译器检查常量是否存在，不检查查询模型、值类型或数据库结构。
 ///
 /// ```
@@ -55,6 +57,10 @@ impl FieldModel {
 /// ```
 #[macro_export]
 macro_rules! model_fields {
+    (#[generated(command = $command:literal $(,)?)] $model:ident { $($fields:tt)* }) => {
+        const _: &str = $command;
+        $crate::model_fields! { $model { $($fields)* } }
+    };
     ($model:ident { $($(#[$attribute:meta])* $field:ident = $column:literal;)* }) => {
         $crate::model_fields! {
             @model $model;

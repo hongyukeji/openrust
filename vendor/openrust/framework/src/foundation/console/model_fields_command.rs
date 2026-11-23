@@ -16,36 +16,10 @@ use super::{model_make_command::validated_parts, source_edit};
 
 const BEGIN: &str = "// openrust:model-fields begin";
 const END: &str = "// openrust:model-fields end";
-fn generated_section(locale: &str, model: &str) -> String {
-    let title = crate::console::localization::text_for_locale(
-        "model_fields.title",
-        "Model Table and Fields",
-        Some(locale),
-    );
-    let notice = crate::console::localization::text_for_locale(
-        "model_fields.notice",
-        "Generated from the database schema. Do not edit manually.",
-        Some(locale),
-    );
-    let sync = crate::console::localization::text_for_locale(
-        "model_fields.sync",
-        "Run `./artisan model:fields :model` from the project root to sync.",
-        Some(locale),
-    )
-    .replace(":model", model);
-    // 翻译属于配置数据，不能让注释结束符或换行逃逸生成的说明区域。
-    let lines = |text: &str| {
-        text.replace("/*", "/ *")
-            .replace("*/", "* /")
-            .lines()
-            .map(|line| format!("| {line}\n"))
-            .collect::<String>()
-    };
+fn generated_section(model: &str) -> String {
     format!(
-        "/*\n|--------------------------------------------------------------------------\n{}|--------------------------------------------------------------------------\n|\n{}{}|\n*/",
-        lines(&title),
-        lines(&notice),
-        lines(&sync)
+        "    #[generated(command = {:?})]",
+        format!("artisan model:fields {model}")
     )
 }
 
@@ -273,8 +247,8 @@ async fn generate_for(
         .get::<crate::translation::Translator>("translator")
         .map_err(error)?
         .getLocale();
-    let section = generated_section(&locale, name);
-    let mut block = format!("{section}\nopenrust::model_fields! {{\n    {class} {{\n");
+    let section = generated_section(name);
+    let mut block = format!("openrust::model_fields! {{\n{section}\n    {class} {{\n");
     let table_documentation = table_comment
         .as_deref()
         .filter(|comment| !comment.trim().is_empty())
@@ -403,7 +377,7 @@ pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, Con
         })
         .collect::<Vec<_>>();
     let mut source = source.to_owned();
-    // 旧版标记只用于安全迁移；新格式的边界来自真实 Rust 宏的语法位置。
+    // 旧版标记仅用于迁移；新格式直接使用完整 Rust 宏的语法边界。
     let mut begin = None;
     let mut end = None;
     let mut offset = 0;
@@ -513,8 +487,27 @@ pub(super) fn merge(source: &str, block: &str, name: &str) -> Result<String, Con
             }
         }
         [(start, end, true)] if begin.is_none() => {
-            let Some(section) = configuration_section_start(&source[..*start]) else {
-                return Err(ConsoleError::new("模型字段说明边界已损坏，未修改源码。"));
+            let item = syn::parse_str::<syn::ItemMacro>(&source[*start..*end]).map_err(error)?;
+            let (_, generated) = model_tokens(item.mac.tokens)?;
+            if generated {
+                if !file.items.iter().any(|item| match item {
+                    syn::Item::Struct(item) => item.ident == class,
+                    syn::Item::Enum(item) => item.ident == class,
+                    _ => false,
+                }) {
+                    return Err(ConsoleError::new("找不到目标模型类型，未修改源码。"));
+                }
+                // 原地替换整个宏；边界外的注释、换行和业务项保持原文。
+                source.replace_range(*start..*end, block.trim_end_matches('\n'));
+                return bind_table(&source, class);
+            }
+            let section = match configuration_section_start(&source[..*start]) {
+                Some(section) => section,
+                // 说明被完整删除时，仍可凭唯一且无附加属性的字段宏恢复。
+                None if !source[..*start].trim_end().ends_with("*/") => *start,
+                None => {
+                    return Err(ConsoleError::new("模型字段说明边界已损坏，未修改源码。"));
+                }
             };
             let trailing =
                 source[*end..].len() - source[*end..].trim_start_matches(['\r', '\n']).len();
@@ -749,9 +742,89 @@ fn generated_table(source: &str, class: &str) -> Result<Option<String>, ConsoleE
     Ok(table)
 }
 
+// generated 是宏输入元信息，不生成编译器属性；命令文本只用于展示，不执行。
+fn model_tokens(
+    tokens: proc_macro2::TokenStream,
+) -> Result<(proc_macro2::TokenStream, bool), ConsoleError> {
+    use syn::parse::Parser as _;
+    let parser =
+        |input: syn::parse::ParseStream<'_>| -> syn::Result<(proc_macro2::TokenStream, bool)> {
+            let attributes = input.call(syn::Attribute::parse_outer)?;
+            if !attributes
+                .iter()
+                .any(|attr| attr.path().is_ident("generated"))
+            {
+                let _: proc_macro2::TokenStream = input.parse()?;
+                return Ok((tokens.clone(), false));
+            }
+            if attributes.len() != 1 {
+                return Err(input.error("generated 元信息必须唯一，且不能混入其他属性"));
+            }
+            attributes[0].parse_args_with(|args: syn::parse::ParseStream<'_>| {
+                let key: syn::Ident = args.parse()?;
+                if key != "command" {
+                    return Err(args.error("generated 仅接受 command 参数"));
+                }
+                let _: syn::Token![=] = args.parse()?;
+                let _: syn::LitStr = args.parse()?;
+                if args.peek(syn::Token![,]) {
+                    let _: syn::Token![,] = args.parse()?;
+                }
+                if !args.is_empty() {
+                    return Err(args.error("generated 参数重复或无效"));
+                }
+                Ok(())
+            })?;
+            Ok((input.parse()?, true))
+        };
+    parser.parse2(tokens.clone()).map_err(error)
+}
+
 fn parse_source(source: &str) -> Result<(syn::File, usize), ConsoleError> {
-    let file = syn::parse_file(source)
+    let mut file = syn::parse_file(source)
         .map_err(|error| ConsoleError::new(format!("模型源码语法无效，未修改文件：{error}")))?;
+    let models = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Struct(item) => Some(item.ident.to_string()),
+            syn::Item::Enum(item) => Some(item.ident.to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for item in &mut file.items {
+        if let syn::Item::Macro(item) = item {
+            let mut head = item.mac.tokens.clone().into_iter();
+            let has_metadata = matches!(head.next(), Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == '#')
+                && matches!(head.next(), Some(proc_macro2::TokenTree::Group(group)) if group.delimiter() == proc_macro2::Delimiter::Bracket && matches!(group.stream().into_iter().next(), Some(proc_macro2::TokenTree::Ident(ident)) if ident == "generated"));
+            if has_metadata
+                && item
+                    .mac
+                    .path
+                    .segments
+                    .last()
+                    .is_none_or(|segment| segment.ident != "model_fields")
+            {
+                return Err(ConsoleError::new(
+                    "生成元信息不属于 model_fields 宏，未修改源码。",
+                ));
+            }
+        }
+        if let syn::Item::Macro(item) = item
+            && item
+                .mac
+                .path
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == "model_fields")
+        {
+            let (tokens, generated) = model_tokens(item.mac.tokens.clone())?;
+            if generated && !tokens.clone().into_iter().next().is_some_and(|token| matches!(token, proc_macro2::TokenTree::Ident(ident) if models.contains(&ident.to_string()))) {
+                return Err(ConsoleError::new("生成元信息对应的模型类型不存在，未修改源码。"));
+            }
+            item.mac.tokens = tokens;
+        }
+    }
     // syn 剥离 BOM 和 shebang 后计算 span，补回这部分字节才能精确编辑原文。
     let base = usize::from(source.starts_with('\u{feff}')) * '\u{feff}'.len_utf8()
         + file.shebang.as_ref().map_or(0, String::len);
