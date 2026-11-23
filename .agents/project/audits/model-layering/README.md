@@ -53,3 +53,7 @@ cargo clippy --workspace --all-targets --locked --features sanctum -- -D warning
 MySQL 和 PostgreSQL 分别由 `tests/mysql_acceptance.py`、`tests/postgres_acceptance.py` 提供独占实例；`LAYERING_TEST_DRIVER` 与 `ACTIVITYLOG_TEST_DRIVER` 分别选择 `sqlite`／`mysql`／`pgsql`。MySQL Sanctum 用例显式设置 `OPENRUST_TEST_SANCTUM_MYSQL_URL` 和 `OPENRUST_REQUIRE_SANCTUM_MYSQL=1`，防止缺服务时返回而被误计通过。
 
 另外尝试 `./artisan about`，返回既有的未实现提示；不计作通过项，也不扩展本次分层重构范围。没有更改安装生成的应用配置、路由和 Sanctum 接入，也没有推送。两组隔离数据库夹具均已回收本批容器，开发服务和数据卷保留；临时 SQLite、旧源码快照和文档产物在验收后回收，保留可复用构建缓存与验收日志。
+
+## 后续静态复核
+
+[其余模型与服务的复核](remaining-models-2026-11-24.md)记录剩余职责混合、可选整理与保留项；其中建议尚未实施，不改变本页上一轮验收结论。
