@@ -40,6 +40,12 @@ impl Model for Article {
     }
 }
 impl Searchable for Article {
+    fn make_all_searchable_using(
+        mut query: openrust::database::eloquent::Builder<'static, Self>,
+    ) -> openrust_scout::Result<openrust::database::eloquent::Builder<'static, Self>> {
+        query.r#where("category", "<>", -1_i64);
+        Ok(query)
+    }
     fn search_index_should_be_updated(&self) -> bool {
         self.get_attribute("title") != Some(&Value::Text("skip-index".into()))
     }
@@ -870,4 +876,131 @@ async fn collection_matches_original_engine_unicode_filter_mapping_and_paginatio
             .collect();
         assert_eq!(json!(mapped), case["mapped"], "{case}");
     }
+}
+
+fn bulk_import_routes() -> Result<(), openrust::routing::RoutingError> {
+    Route::post("/import/{chunk}", bulk_import_http)?;
+    Ok(())
+}
+fn bulk_import_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let chunk = request
+        .route("chunk")
+        .filter(|value| *value != "default")
+        .map(|value| value.parse::<u64>().unwrap());
+    Box::pin(async move {
+        match Article::make_all_searchable(chunk).await {
+            Ok(count) => Response::json(openrust::http::StatusCode::OK, json!({"imported":count})),
+            Err(_) => Response::json(
+                openrust::http::StatusCode::UNPROCESSABLE_ENTITY,
+                json!({"failed":true}),
+            ),
+        }
+    })
+}
+async fn bulk_transport(
+    axum::extract::State(kernel): axum::extract::State<Arc<openrust::foundation::http::Kernel>>,
+    request: axum::extract::Request,
+) -> axum::response::Response {
+    kernel.handle_transport(request).await
+}
+#[tokio::test]
+async fn model_bulk_import_runs_over_real_http_with_filter_soft_delete_and_zero_chunk() {
+    use axum::handler::Handler as _;
+    use openrust::contracts::http::Kernel as _;
+    let root = tempfile::tempdir().unwrap();
+    let mut app = Application::configure(root.path().to_path_buf())
+        .with_config(config)
+        .with_providers(vec![Box::new(ScoutServiceProvider), Box::new(Register)])
+        .with_routing(Routing::default().api(bulk_import_routes))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let db = app
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    db.get_schema_builder()
+        .drop_if_exists("scout_articles")
+        .await
+        .unwrap();
+    db.get_schema_builder()
+        .create("scout_articles", |table| {
+            table.id();
+            table.string("title", 255);
+            table.string("status", 32);
+            table.integer("category");
+            table.timestamp("deleted_at", None).nullable();
+        })
+        .await
+        .unwrap();
+    for (id, status, deleted) in [
+        (1, "published", false),
+        (2, "draft", false),
+        (3, "published", true),
+        (4, "published", false),
+        (5, "published", false),
+    ] {
+        db.table("scout_articles")
+            .insert(&[[
+                ("id".into(), Value::Integer(id)),
+                ("title".into(), "Rust".into()),
+                ("status".into(), status.into()),
+                (
+                    "category".into(),
+                    Value::Integer(if id == 5 { -1 } else { 1 }),
+                ),
+                (
+                    "deleted_at".into(),
+                    if deleted {
+                        "2020-01-01 00:00:00".into()
+                    } else {
+                        Value::Null
+                    },
+                ),
+            ]
+            .into()])
+            .await
+            .unwrap();
+    }
+    let mut kernel = openrust::foundation::http::Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            bulk_transport
+                .with_state(Arc::new(kernel))
+                .into_make_service(),
+        )
+        .await
+        .unwrap();
+    });
+    let client = openrust::http::client::Factory::new().unwrap();
+    for chunk in ["default", "1"] {
+        let response = client
+            .pending_request()
+            .post(&format!("http://{address}/api/import/{chunk}"), &json!({}))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), openrust::http::StatusCode::OK);
+        assert_eq!(response.json::<Json>().unwrap(), json!({"imported":3}));
+    }
+    let response = client
+        .pending_request()
+        .post(&format!("http://{address}/api/import/0"), &json!({}))
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        openrust::http::StatusCode::UNPROCESSABLE_ENTITY
+    );
+    server.abort();
+    let _ = server.await;
+    db.get_schema_builder()
+        .drop("scout_articles")
+        .await
+        .unwrap();
 }

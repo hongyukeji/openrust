@@ -5,6 +5,7 @@ pub use collection::SearchableCollection;
 mod commands;
 mod engine_manager;
 pub mod engines;
+mod importer;
 pub mod jobs;
 mod model_observer;
 mod provider;

@@ -71,6 +71,8 @@ Use `disable_search_syncing` and `enable_search_syncing` for application-level c
 
 `scout:import` respects model eligibility and the configured queue; `--fresh` flushes the engine before importing, and `-c` is the short form of `--chunk`. `scout:flush` clears only engine state. Unknown model aliases and zero chunk sizes fail explicitly. Use `./main artisan` after deployment.
 
+Use `Searchable::make_all_searchable(Some(chunk))` for model-driven bulk imports. It shares the command import pipeline: `make_all_searchable_using` constrains the query, `should_be_searchable` filters models, and the configured soft-delete and queue rules apply. Omit the chunk with `None` to use configuration; an explicit zero fails. Keep these model hooks instead of implementing a second pagination loop.
+
 ## Custom Engines {#custom-engines}
 
 Implement `engines::Engine<Article>` and register an instance with `manager.extend::<Article>("custom", engine)`. Select it through `scout.driver` or the model's `scout_driver`. Engines receive typed models and `Builder` settings, return `SearchResults`, and preserve errors through `ScoutFuture`. Search result IDs map back to native models in engine order. Each application owns its engine registrations; custom engines provide their own network clients, credentials, index settings and consistency guarantees.

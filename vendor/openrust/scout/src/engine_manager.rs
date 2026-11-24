@@ -143,9 +143,7 @@ impl EngineManager {
                 Registration {
                     import: Arc::new(move |chunk| {
                         let manager = manager.clone();
-                        Box::pin(
-                            async move { crate::searchable::import::<M>(&manager, chunk).await },
-                        )
+                        Box::pin(async move { crate::importer::import::<M>(&manager, chunk).await })
                     }),
                     flush: Arc::new(move || {
                         let manager = flush.clone();

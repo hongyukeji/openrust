@@ -4530,6 +4530,7 @@ dependencies = [
 name = "openrust-scout"
 version = "0.0.0"
 dependencies = [
+ "axum",
  "clap",
  "futures-util",
  "openrust-framework",

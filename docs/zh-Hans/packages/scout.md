@@ -71,6 +71,8 @@ let page = Article::search("rust")?
 
 `scout:import` 遵循模型搜索资格及队列配置；`--fresh` 先清空引擎再导入，`-c` 为 `--chunk` 的短选项。`scout:flush` 只清空引擎状态。未知模型别名和零分块大小明确失败。部署后使用 `./main artisan`。
 
+通过 `Searchable::make_all_searchable(Some(chunk))` 从模型入口批量导入。它与命令共用导入流程：`make_all_searchable_using` 约束查询，`should_be_searchable` 筛选模型，并遵循已配置的软删除和队列规则。传入 `None` 使用配置中的 chunk，显式传入零则失败。保留这些模型钩子，无需另写一套分页循环。
+
 ## 自定义引擎 {#custom-engines}
 
 实现 `engines::Engine<Article>`，通过 `manager.extend::<Article>("custom", engine)` 注册实例，再使用 `scout.driver` 或模型 `scout_driver` 选择。引擎接收强类型模型与 `Builder` 设置，返回 `SearchResults`，通过 `ScoutFuture` 保留错误。结果 ID 按引擎顺序映射回原生模型。引擎注册按应用隔离；自定义引擎自行提供网络客户端、凭据、索引设置和一致性保证。

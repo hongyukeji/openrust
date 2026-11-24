@@ -64,3 +64,5 @@ cargo test --locked -p openrust-framework --test notification_store
 - 最终隔离源码执行全仓格式与 `cargo clippy --workspace --all-targets --locked -- -D warnings` 通过。三语 Fortify／Cashier 共享指南同步模型与动作、业务与存储职责及事务规则；内容、命令入口、VitePress 构建和 `/`、`/docs/` 三语桌面／移动端检查通过。
 
 本批32项原生驱动／测试执行通过，另有两套完整生成应用的 HTTP／浏览器／Artisan 验收；不将 ignored 对照、空协议驱动入口或浏览器内部断言累加为 Rust 测试数。全部六项已按范围验收，S01／S02 保留为可选组织改善。每批只提交所属实现、测试、三语指南和本记录；不推送。收尾回收生成应用、下载与客户端构建、临时源码副本、文档产物及闲置夹具，保留验收日志和可复用的独占构建缓存；数据库容器由标签夹具回收，不删除数据卷。
+
+用户后续选定的 S01／S02 落实状态见[可选整理验收](optional-2026-11-24.md)；本页保留六项实施时点。
