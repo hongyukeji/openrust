@@ -25,3 +25,9 @@ pub use response::{ContentValues, HeaderExpectation, TestResponse};
 pub use time::Wormhole;
 
 mod without_exception_handling;
+
+pub(crate) mod parallel;
+pub use parallel::{
+    ParallelOptionsResolver, ParallelTestError, ParallelTestFuture, ParallelTesting,
+    ParallelTestingFacade, ParallelTokenResolver,
+};

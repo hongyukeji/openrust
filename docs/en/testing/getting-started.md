@@ -13,6 +13,41 @@ cargo +1.94.0 test --workspace --locked
 
 Artisan runs Cargo from the application root, streams its output and returns its exit status. It uses the `CARGO` executable from the environment when set, otherwise `cargo` from the executable search path.
 
+## Parallel Tests {#parallel-tests}
+
+```sh
+./artisan test --parallel --processes=4 --locked --test feature
+./artisan test --parallel --processes=2 --test feature health -- --exact
+./artisan test --parallel --test feature -- --list
+```
+
+Cargo builds the test artifacts once. The native runner lists matching libtest cases and runs each case in its own child process, with `--processes` limiting concurrent children. Each child receives a distinct string `TEST_TOKEN`. A failed case makes the command return 1; Ctrl+C returns 130. Listing does not run the cases. Filters, `--exact`, `--skip name`, `--ignored`, `--include-ignored`, `--nocapture`, and `--show-output` are supported; unsupported harness options return an error. Ordinary `artisan test` keeps forwarding to Cargo.
+
+Register hooks in a testing Provider's boot method, where the application facade context is active:
+
+```rust
+use openrust::{
+    contracts::foundation::Application as _,
+    support::facades::ParallelTesting,
+    testing::ParallelTestError,
+};
+
+pub fn register_parallel_hooks() -> Result<(), ParallelTestError> {
+    ParallelTesting::set_up_process(|app, token| Box::pin(async move {
+        app.config()?.set("testing.token", token)?;
+        Ok(())
+    }))
+}
+```
+
+Use `set_up_test_case` / `tear_down_test_case` for callbacks receiving the actual mutable `TestApp`; process and database hooks receive the actual application and token. `set_up_test_database_before_migrating` and `set_up_test_database` run around the first migration preparation of a managed MySQL fixture. Repeated refreshes do not repeat them. A callback or migration failure does not turn the existing database into a newly created one on retry.
+
+Generated feature tests use `TestApp::run_parallel_test`. Wrap existing feature-test bodies with it to run the test-case hooks and, in a native parallel child, the process hooks. The wrapper runs teardown after a returned error or panic. `ParallelTesting::run_process` is available for a custom runner; the six `call_*_callbacks` methods can also be invoked explicitly. Do not wrap the native child in a second process lifecycle.
+
+`option` and `token` preserve false versus string values. `resolve_options_using(Some(Arc::new(...)))` and `resolve_token_using` install application-local resolvers; None restores the captured process environment. Resolver errors propagate. Native callbacks receive typed application/fixture arguments and may resolve other services through the application. They run outside registration locks and may reenter registration.
+
+The current native adapter uses an isolated process per test, rather than keeping a PHP-style worker alive across multiple cases. Existing owned MySQL fixtures still create and clean their own databases. Reusable database naming, recreate/drop command options, automatic cache-prefix and compiled-view isolation, asynchronous hook/database cleanup on cancellation, and native Linux/Windows process acceptance remain separate open items; they are not provided by the lifecycle API alone.
+
 ## Test environment {#test-environment}
 
 Artisan sets `APP_ENV=testing` for the Cargo child process. When the application boots with that setting, it selects `.env.testing` if present and otherwise reads `.env`. The bootstrap supplies `array` for `CACHE_STORE` and `SESSION_DRIVER` when neither the process environment nor the selected file defines them. Keep test database settings in the test environment and clear any application configuration cache with `./artisan config:clear` before changing its settings.

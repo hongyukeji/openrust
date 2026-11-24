@@ -2693,13 +2693,58 @@
       "type": "ParallelTesting",
       "source": "src/Illuminate/Support/Facades/ParallelTesting.php",
       "public_entries": [
-        "resolveOptionsUsing", "resolveTokenUsing", "setUpProcess", "setUpTestCase",
-        "setUpTestDatabaseBeforeMigrating", "setUpTestDatabase", "tearDownProcess", "tearDownTestCase",
-        "callSetUpProcessCallbacks", "callSetUpTestCaseCallbacks",
-        "callSetUpTestDatabaseBeforeMigratingCallbacks", "callSetUpTestDatabaseCallbacks",
-        "callTearDownProcessCallbacks", "callTearDownTestCaseCallbacks", "option", "token"
+        "resolveOptionsUsing",
+        "resolveTokenUsing",
+        "setUpProcess",
+        "setUpTestCase",
+        "setUpTestDatabaseBeforeMigrating",
+        "setUpTestDatabase",
+        "tearDownProcess",
+        "tearDownTestCase",
+        "callSetUpProcessCallbacks",
+        "callSetUpTestCaseCallbacks",
+        "callSetUpTestDatabaseBeforeMigratingCallbacks",
+        "callSetUpTestDatabaseCallbacks",
+        "callTearDownProcessCallbacks",
+        "callTearDownTestCaseCallbacks",
+        "option",
+        "token"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::ParallelTesting；testing::ParallelTesting；TestApp::run_parallel_test；Artisan test --parallel",
+      "contracts": {
+        "review": "implemented_tested_base",
+        "entries": [
+          "resolveOptionsUsing",
+          "resolveTokenUsing",
+          "setUpProcess",
+          "setUpTestCase",
+          "setUpTestDatabaseBeforeMigrating",
+          "setUpTestDatabase",
+          "tearDownProcess",
+          "tearDownTestCase",
+          "callSetUpProcessCallbacks",
+          "callSetUpTestCaseCallbacks",
+          "callSetUpTestDatabaseBeforeMigratingCallbacks",
+          "callSetUpTestDatabaseCallbacks",
+          "callTearDownProcessCallbacks",
+          "callTearDownTestCaseCallbacks",
+          "option",
+          "token"
+        ],
+        "parameters": "原生异步回调直接取得真实Application／可变TestApp、数据库名及JSON token；具类型应用参数替代PHP反射注入，其他依赖可通过实际Application解析。解析器Option<Arc<Fn>>，None恢复服务创建时的进程环境快照。",
+        "defaults": "默认选项读取LARAVEL_PARALLEL_TESTING_大写名称，token读取TEST_TOKEN；缺键false，保留字符串0。仅并行标志非空且token为真值时执行钩子。",
+        "lifecycle": "注册及解析器归所属应用；回调/解析器在锁外执行，保序，支持重入。测试返回错误/panic后执行case/process teardown；native每用例独立子进程自动包围进程回调。",
+        "database": "受管MySQL首次实际迁移准备前后接线，重复准备不再触发；首次回调失败后同一数据库仍为已创建，不伪装重建重试。",
+        "runner": "Cargo一次构建，libtest筛选/列举，每用例独立子进程并发受--processes限制；每子进程独立TEST_TOKEN。错误1、Ctrl+C130并终止实际子进程；普通test仍透传Cargo。生成测试模板使用正式run_parallel_test。",
+        "evidence": "target/tmp/facade-alignment/parallel-testing：原PHP5组门控/选项/token及6类回调实跑fixture；MySQL8.4.13的21项原生/配置/串行回归全部通过；6个真实Artisan场景（barrier证明双进程并发、预期失败teardown、筛选、列举、无效参数、取消退出及无活跃子进程）；真实make:test生成后编译并由parallel运行器通过。workspace严格Clippy51.74s、fmt、三语构建14.94s及两挂载12浏览器通过。"
+      },
+      "remaining": [
+        "标准Provider的缓存前缀和编译视图目录隔离与清理尚未接线，不能以注册表或进程隔离代替",
+        "标准可复用_test_token数据库命名、重建/保留/删除策略与相应命令选项仍待实现；原生已拥有的MySQL夹具保持创建/清理策略，不提供无效空选项",
+        "取消期间的异步钩子和数据库回收仍须验收；当前只确认Ctrl+C130及没有继续运行的测试子进程",
+        "Linux/Windows原生进程验收与共享Facade继承测试入口仍单列；本批不是整个门面闭合"
+      ]
     },
     {
       "type": "Password",

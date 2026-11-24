@@ -24,7 +24,7 @@
 | Cache | `support::facades::Cache` | 核对默认仓储、Store、锁、tags、memo、替身及上下文隔离 |
 | Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口、真实 Worker Agent 领取/上报及队列遥测已验；远端失败任务重试已验；异常遥测、凭据缓存和其余队列契约仍待闭合 |
 | Concurrency | `support::facades::Concurrency` | 核对 Manager 选择、run/defer、驱动和生命周期 |
-| Config | `support::facades::Config` | 已补严格/惰性默认、批量读写、字面键优先和仓储覆写转发；宏、ArrayAccess、写入边界与共享替身仍待闭合 |
+| Config | `support::facades::Config` | 已补严格/惰性默认、批量读写、宏、ArrayAccess、字符串写入边界及实际仓储覆写；非JSON值、其余动态边界与共享替身仍待闭合 |
 | Context | `support::facades::Context` | 核对可见/隐藏上下文、增删、dehydrate/hydrate、事件及测试行为 |
 | Cookie | `support::facades::Cookie` | 核对创建/队列、has/get、默认参数、过期与解密后的当前请求 |
 | Crypt | `support::facades::Crypt` | 核对加解密、序列化适配、轮换、可用密钥和错误 |
@@ -42,7 +42,7 @@
 | Mail | `support::facades::Mail` | 核对 Manager/Mailer/PendingMail 的入口、队列、附件、失败与测试替身 |
 | MaintenanceMode | 已补 `support::facades::MaintenanceMode` 与 `foundation::MaintenanceModeManager` | 管理器七入口与四个驱动委托已实测；HTTP 改为逐请求解析实际 Contract。公共 Facade 基类继承测试接口仍待全局核对，不先宣布全门面闭合 |
 | Notification | `support::facades::Notification` | 核对 Manager、路由通知、立即/队列派发、fake 和断言 |
-| ParallelTesting | 未开放对应门面 | 缺测试运行器绑定、选项/token、进程/测试/数据库回调；不能只增加未被执行的回调注册表 |
+| ParallelTesting | 已接正式门面、原生生命周期与 Artisan 多进程运行器 | 16个声明入口及真实MySQL/生成测试/子进程消费者已验；标准缓存/视图隔离、数据库复用策略、取消异步清理与平台矩阵仍待补 |
 | Password | `support::facades::Password` | 核对 Broker、Provider、令牌仓储及所有委托/默认值 |
 | Pipeline | `support::facades::Pipeline` | 核对 Factory/实例构建、send/through/via/then/事务及 Context 隔离 |
 | Process | `support::facades::Process` | 核对 Factory/PendingProcess、管道/池、fake、断言和退出/信号 |
@@ -51,11 +51,11 @@
 | Redirect | `support::facades::Redirect` | 核对全部 Redirector 入口；现有需显式请求的 guest/intended 要与请求级委托分别核对 |
 | Redis | `support::facades::Redis` | 核对管理器、动态命令、连接、事务/管道、PubSub、事件及序列化 |
 | Request | `support::facades::Request` | 225699817 有请求门面专项验收；继续核对基类继承、duplicate 深复制、全局启动入口等剩余适配，不把既有专项视作全量对齐 |
-| Response | 此前仅宏；本批实现工厂转发中 | 构造/视图/流/文件/重定向接线；JSON 编码选项、默认参数表达和 ResponseFactory Contract 仍须核清，不先闭合 |
+| Response | 已接工厂构造与转发，完整契约继续核对 | 构造/视图/流/文件/重定向接线；JSON 编码选项、默认参数表达和 ResponseFactory Contract 仍须核清，不先闭合 |
 | Route | `support::facades::Route` | 核对 Router/Registrar/Binding/当前路由全部方法；注册期和运行期状态分别验证 |
 | Schedule | `support::facades::Schedule` | 核对 Schedule/Event 的委托、默认参数、生命周期、命令与后台完成事件 |
 | Schema | `support::facades::Schema` | 核对 Manager/Builder、所有操作、connection 及蓝图/方言边界 |
-| Session | 此前只有 extend；本批补请求 Store 转发中 | 常用读写、闪存、轮换和请求生命周期；Manager 切换/forgetDrivers、handler、宏仍需补核；now/ageFlashData 已补并实测 |
+| Session | 已接请求 Store 转发，完整契约继续核对 | 常用读写、闪存、轮换和请求生命周期；Manager 切换/forgetDrivers、handler、宏仍需补核；now/ageFlashData 已补并实测 |
 | Storage | `support::facades::Storage` | 核对 FilesystemManager/Adapter 的全部入口、默认/云磁盘、fake、构建及错误策略 |
 | URL | `support::facades::Url` | 核对 Generator 全部入口、当前请求/默认值、签名、密钥轮换与回调 |
 | Validator | `support::facades::Validator` | 核对 Factory/规则扩展、解析器/存在性/回退消息及 make/validate 委托 |
@@ -544,3 +544,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 惰性mixin工厂按顺序执行，replace=false跳过已有名及工厂，失败保留先前注册。回调和退休捕获值在锁外执行／释放，支持重入清空／注册。同步参数和结果仅Any，实际Rc对象身份保留；持久回调继续Send+Sync。普通已有方法优先，不因宏同名覆盖；具类型macro_call显式调用注册宏。
 - `target/tmp/facade-alignment/config-macros/`保留固定PHP8.5.12原类执行输出及fixture。最终组合21项全部通过，含7新测试、实际双应用HTTP、Artisan及SQLite真实queue:work连续两任务语言隔离。最初测试捕获闭包不符配置fn指针及工厂捕获生命周期编译失败已修正，失败日志保留。
 - workspace严格Clippy42.47s、三语构建18.32s及6浏览器跳转通过。无外部供应商或数据库账号要求；完整共享Facade替身、非JSON原始配置值等边界继续核对，Config仍partial，整个门面任务继续。
+
+### ParallelTesting：公开生命周期与真实原生运行器（仍 partial）
+
+- 核对固定ParallelTesting、Provider及TestDatabases/TestCaches/TestViews；旧版只有原生测试/受管数据库夹具，没有这套公开入口。复用当前Process的进程组、Cargo产物、libtest、TestApp和受管MySQL迁移，不增加虚构测试用例元数据。
+- 正式类型与应用级绑定、选项/token解析与还原、六类注册及六类公开调用均已接线；真实回调接收应用／可变夹具。锁外调用支持注册／解析器重入，多应用互不污染。原始固定PHP实跑5组门控和6类回调顺序，JSON fixture由原输出保存。
+- TestApp::run_parallel_test包围真实测试正文；原生单用例子进程自动进入进程生命周期。错误／panic后清理并保留原失败。受管MySQL的refresh_database与run_database_migrations在首次准备前后调用真实钩子；先登记已创建状态，回调失败也不在重试时重复伪造新库。
+- Artisan test --parallel一次构建并发现实际libtest产物，每用例独立子进程，--processes限制并发。保持普通test透传，支持筛选/精确/跳过/列举；不接收尚无实际行为的重建/删除/缓存隔离空选项。模板生成的功能测试已使用正式包装器。
+- `target/tmp/facade-alignment/parallel-testing/tests-delivery.log`：MySQL8.4.13、7项并行生命周期/真实迁移、3项串行测试夹具、7项Config宏及4项配置作用域，共21项实际通过。首次夹具连接变量、测试共享应用访问与比较器autoload错误已修正，失败日志保留，不计通过。
+- 真实CLI6场景通过：不同PID/token且barrier证明并发、预期失败仍teardown并返回1、单用例筛选、仅列举、无效并发数拒绝、Ctrl+C130并确认子进程不再运行。取消记录只有setup/body，未把异步teardown未执行说成通过；仅回收本批取消留下的已闲置临时目录。真实make:test生成文件另外编译并经parallel运行器通过，生成源码及日志保存。
+- workspace严格Clippy51.74s、fmt、三语站点14.94s、/和/docs/共12组浏览器通过。触线清理记录净释放62,714,703,872字节，锁inode、源码/日志/依赖/数据库卷保留；五个独立MySQL验收批次无遗留容器。继续保留仍复用的编译缓存。
+- 八个此前缺失核心类型现均已有正式入口，但不据此认定46个门面完整对齐。标准缓存/视图隔离、可复用数据库策略、取消异步清理、Linux/Windows进程实机和共享Facade测试能力继续处理。

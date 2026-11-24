@@ -6,6 +6,11 @@ async fn {{test}}() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         builder.with_routing(Routing::default().health("/up"))
     })?;
 
-    app.get("/up").await?.assert_ok();
-    Ok(())
+    app.run_parallel_test(|app| {
+        Box::pin(async move {
+            app.get("/up").await?.assert_ok();
+            Ok(())
+        })
+    })
+    .await
 }

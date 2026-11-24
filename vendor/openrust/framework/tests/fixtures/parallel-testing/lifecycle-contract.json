@@ -1,0 +1,72 @@
+{
+    "gates": [
+        {
+            "flag": "",
+            "token": "1",
+            "resolved_token": "1",
+            "option": "1",
+            "missing": false,
+            "calls": 0
+        },
+        {
+            "flag": "0",
+            "token": "1",
+            "resolved_token": "1",
+            "option": "1",
+            "missing": false,
+            "calls": 0
+        },
+        {
+            "flag": "1",
+            "token": null,
+            "resolved_token": false,
+            "option": "1",
+            "missing": false,
+            "calls": 0
+        },
+        {
+            "flag": "1",
+            "token": "0",
+            "resolved_token": "0",
+            "option": "1",
+            "missing": false,
+            "calls": 0
+        },
+        {
+            "flag": "1",
+            "token": "worker-2",
+            "resolved_token": "worker-2",
+            "option": "1",
+            "missing": false,
+            "calls": 1
+        }
+    ],
+    "callbacks": [
+        [
+            "process+",
+            "trace"
+        ],
+        [
+            "case+",
+            "trace"
+        ],
+        [
+            "database-before",
+            "isolated",
+            "trace"
+        ],
+        [
+            "database+",
+            "isolated",
+            "trace"
+        ],
+        [
+            "case-",
+            "trace"
+        ],
+        [
+            "process-",
+            "trace"
+        ]
+    ]
+}

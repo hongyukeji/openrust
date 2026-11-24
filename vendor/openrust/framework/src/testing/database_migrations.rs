@@ -57,6 +57,8 @@ impl TestApp {
         self.wait_for_refresh().await;
         self.refreshed = None;
 
+        let parallel_created = self.parallel_database_before(&connection).await?;
+        let parallel_name = connection.get_database_name().to_owned();
         let active = Arc::new(());
         let arguments = fresh_migration_arguments(
             &connection,
@@ -73,6 +75,8 @@ impl TestApp {
         });
         let outcome = AssertUnwindSafe(async {
             self.finish_database_migration_preparation().await?;
+            self.parallel_database_after(&parallel_name, parallel_created)
+                .await?;
             test(self).await
         })
         .catch_unwind()

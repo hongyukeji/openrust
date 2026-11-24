@@ -52,6 +52,7 @@ pub struct TestApp {
     pub(super) migration_run: Option<MigrationRun>,
     pub(super) truncation: Option<TruncationState>,
     pub(super) query_counts: Arc<TestQueryCounts>,
+    pub(super) parallel_databases: std::collections::BTreeSet<String>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
     // Release the application's services before deleting their local files.
@@ -89,6 +90,7 @@ impl TestApp {
             migration_run: None,
             truncation: None,
             query_counts,
+            parallel_databases: Default::default(),
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
             _directory: directory,

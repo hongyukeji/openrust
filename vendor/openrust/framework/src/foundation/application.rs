@@ -967,6 +967,9 @@ impl Application {
         self.shared
             .container
             .instance(Arc::new(crate::config::ConfigMacroRegistry::default()))?;
+        self.shared
+            .container
+            .singleton::<crate::testing::ParallelTesting, _>(|_| Ok(Arc::default()))?;
         let config = Arc::new(
             Repository::new(Default::default()).with_owner(Arc::downgrade(&self.shared.container)),
         );

@@ -13,6 +13,41 @@ cargo +1.94.0 test --workspace --locked
 
 Artisan 從應用程式根目錄執行 Cargo，即時輸出結果並回傳 Cargo 的結束狀態。優先使用環境中的 `CARGO` 執行檔，未設定時從執行檔搜尋路徑呼叫 `cargo`。
 
+## 平行測試 {#parallel-tests}
+
+```sh
+./artisan test --parallel --processes=4 --locked --test feature
+./artisan test --parallel --processes=2 --test feature health -- --exact
+./artisan test --parallel --test feature -- --list
+```
+
+Cargo 統一建置測試產物，原生執行器列舉符合的 libtest 案例，每個案例在獨立子程序執行，`--processes` 限制同時執行的子程序數。每個子程序取得獨立字串 `TEST_TOKEN`。案例失敗時命令傳回 1，Ctrl+C 傳回 130；列舉不會執行案例。支援篩選名稱、`--exact`、`--skip name`、`--ignored`、`--include-ignored`、`--nocapture` 及 `--show-output`，不支援的執行器選項明確報錯。普通 `artisan test` 繼續轉交 Cargo。
+
+在測試 Provider 的 boot 方法內註冊鉤子，此時已進入所屬應用的門面上下文：
+
+```rust
+use openrust::{
+    contracts::foundation::Application as _,
+    support::facades::ParallelTesting,
+    testing::ParallelTestError,
+};
+
+pub fn register_parallel_hooks() -> Result<(), ParallelTestError> {
+    ParallelTesting::set_up_process(|app, token| Box::pin(async move {
+        app.config()?.set("testing.token", token)?;
+        Ok(())
+    }))
+}
+```
+
+`set_up_test_case`／`tear_down_test_case` 回呼接收真實可變 `TestApp`；程序與資料庫鉤子接收真實應用和 token。`set_up_test_database_before_migrating`、`set_up_test_database` 分別在受管 MySQL 夾具首次遷移準備前後執行；重複重設不重複觸發。回呼或遷移失敗後，重試不會把既有資料庫重新當作新建。
+
+產生的功能測試使用 `TestApp::run_parallel_test`。既有功能測試可用它包裝測試正文，以執行案例鉤子；原生平行子程序還會自動執行程序鉤子。正文傳回錯誤或 panic 後仍執行清理。自訂執行器可用 `ParallelTesting::run_process`，也可明確呼叫六個 `call_*_callbacks` 入口；不要為原生子程序再包一層程序生命週期。
+
+`option`、`token` 保留 false 與字串的區別。`resolve_options_using(Some(Arc::new(...)))`、`resolve_token_using` 設定所屬應用的解析回呼，傳 None 恢復建立服務時的程序環境快照；解析錯誤向上傳播。原生回呼接收具型別應用／夾具參數，其他依賴透過應用解析。回呼在註冊鎖外執行，可重入註冊。
+
+目前適配為每個案例獨立程序，並非跨案例常駐工作程序；現有受管 MySQL 夾具仍各自建立及清理資料庫。可重用資料庫命名、重建／刪除命令選項、自動快取前綴與編譯視圖隔離、取消時的非同步鉤子／資料庫回收及 Linux／Windows 原生程序驗收仍單列待補，不能憑生命週期入口認定這些能力已提供。
+
 ## 測試環境 {#test-environment}
 
 Artisan 給 Cargo 子程序設定 `APP_ENV=testing`。應用程式以該環境啟動時優先讀取 `.env.testing`，缺少時讀取 `.env`。程序環境和所選檔案都未定義 `CACHE_STORE` 或 `SESSION_DRIVER` 時，引導器分別補上 `array`。資料庫測試設定應放在測試環境中。修改環境設定前，可用 `./artisan config:clear` 清除應用程式的設定快取。

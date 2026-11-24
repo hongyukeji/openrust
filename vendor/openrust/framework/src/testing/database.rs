@@ -368,9 +368,13 @@ impl TestApp {
             } else {
                 Vec::new()
             };
+            let parallel_created = self.parallel_database_before(&connection).await?;
+            let parallel_name = connection.get_database_name().to_owned();
             let task = self.spawn_migration_command(connection, muted, arguments);
             self.refreshed = Some(RefreshState::Preparing(options.clone(), task));
             self.finish_refresh().await?;
+            self.parallel_database_after(&parallel_name, parallel_created)
+                .await?;
             self.refreshed = None;
         }
         let result = test_transaction::run(connections, async { test(self).await }).await?;

@@ -23,7 +23,7 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                     .trailing_var_arg(true)
                     .allow_hyphen_values(true)
                     .value_parser(value_parser!(OsString))
-                    .help("Arguments for cargo test"),
+                    .help("Cargo 测试参数；--parallel 启用独立测试进程，--processes 控制并发"),
             ),
     ))))
 }
@@ -43,6 +43,22 @@ impl Command for TestCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let args = input.matches();
+            let arguments: Vec<OsString> = args
+                .get_many::<OsString>("arguments")
+                .into_iter()
+                .flatten()
+                .cloned()
+                .collect();
+            if arguments
+                .iter()
+                .take_while(|value| *value != "--")
+                .any(|value| value == "--parallel")
+            {
+                return tokio::select! {
+                    result=crate::testing::parallel::runner::run(app,&arguments,output)=>result,
+                    result=tokio::signal::ctrl_c()=>{result.map_err(|source|ConsoleError::new(source.to_string()))?;Ok(130)}
+                };
+            }
             let mut command = vec![
                 std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()),
                 "test".into(),
