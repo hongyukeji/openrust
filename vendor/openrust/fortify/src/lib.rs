@@ -50,3 +50,5 @@ pub fn openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>> 
 pub mod migrations;
 
 pub use openrust_passkeys as passkeys;
+
+pub mod starter;
