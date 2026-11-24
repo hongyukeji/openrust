@@ -33,7 +33,7 @@ npm run preview
 
 ## 版本入口
 
-版本和 Rustdoc 入口在 `.vitepress/config.mjs` 的 `publication` 中配置。
+文档分支菜单和 Rustdoc 入口在 `.vitepress/config.mjs` 的 `publication` 中配置；`master`／`v0.x` 是源码分支标签。框架发布版本的唯一入口是根 `Cargo.toml` 的 `[workspace.package].version`。三语发布页通过 VitePress 原生 `framework-version` region 引用该值，保留根清单的 region 注释，无需另写数字或增加版本解析器。业务应用可独立声明 `[package].version`；第三方 vendor 版本不随框架修改。修改版本后运行 `cargo metadata --format-version 1` 刷新锁文件，再执行构建、验收和发布说明检查；已有历史版本记录不批量替换。
 
 ## 文档内容检查
 

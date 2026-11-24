@@ -1,0 +1,599 @@
+{
+  "date": "2026-11-24",
+  "baseline": "082c867beed6fdd83b07e97b94304c44e97d1183",
+  "canonical": "0.0.0",
+  "policy": "Cargo workspace.package.version; 20 official packages plus default application; business application may opt out; third-party and discovery protocol versions unchanged",
+  "rust": "1.94.0",
+  "source_sha256": {
+    "Cargo.toml": "9b5e57a867f61e4dd7e7e38d7568caf2499c35f2a75507286deb57d77efc2bd2",
+    "vendor/openrust/cashier/Cargo.toml": "adefe0e06aababf9f17ba1aba59ff3a9ef169d3e2974ff686d5e41dbdbbb325c",
+    "vendor/openrust/settings/Cargo.toml": "5b5f33e86e92f3b330ec3cc812411925c03d831e39d8c8c140931c252bab1395",
+    "vendor/openrust/fortify/Cargo.toml": "a2c734d12d252ca314b7238cfcc6bce0ccbf66cf8f8a43c7a4a34f7b64908c36",
+    "vendor/openrust/pennant/Cargo.toml": "f94596caebd400d6c1c425442d75f79da74ad78ddca8dcc2a1d032d1ec538420",
+    "vendor/openrust/framework/Cargo.toml": "eac90e5714d39afb172e29d0049eae234d3f5ef2b90e239eedeeed974c2eda37",
+    "vendor/openrust/telescope/Cargo.toml": "e682c4bc180a6301cbbc1b79e33317fe04b88812c87d5fbbefa9b4ba4df93c86",
+    "vendor/openrust/pulse/Cargo.toml": "a9c9c6009315f5085823c73243579855845ddb6c802d1006b906d28b1c73f589",
+    "vendor/openrust/pay/Cargo.toml": "7cfa36f0f6bf6d1371d0f2c4a20811f3677345cf85a27a46fa37486e8995298d",
+    "vendor/openrust/oidc/Cargo.toml": "9f0c308a2e33c87ef570ed727791cc9ada9fa01a01b77f01b7b14c5785c00987",
+    "vendor/openrust/passkeys/Cargo.toml": "9f73f7bcdf3f60df5770a8bbf1f049aa2b7c401ae22328454eae06d5edf0d1be",
+    "vendor/openrust/pail/Cargo.toml": "31575d6cfbda431db09f74a30457e1674e8feba9b427d65bd128fb3248edfacf",
+    "vendor/openrust/scout/Cargo.toml": "8fd4b9d86826ca974ffdce3886c887f4a648d7344e3a321ae6845de6b46db909",
+    "vendor/openrust/passport/Cargo.toml": "1a8df29b01f9dbe6fd10509fada1c056d57f9413714fd9973d54c8879a5de86d",
+    "vendor/openrust/reverb/Cargo.toml": "5a089cf6100a5d86266203ab3e0dfb54911e5213b8824c543a6f925684c93f59",
+    "vendor/openrust/horizon/Cargo.toml": "7a542a73c377f40f37485c61568b9982200f9166b39a1ca53f9f66aafe344565",
+    "vendor/openrust/socialite/Cargo.toml": "1562a3a179b60f4a8bbc75a1dc9537c18643588a5a0ad794ef39f456a2308acc",
+    "vendor/openrust/activitylog/Cargo.toml": "dc2c200d9f4b5eaef7a90eaff592687802bd7bfda88c051dfb148f7e0cbfb059",
+    "vendor/openrust/translation-database/Cargo.toml": "e809ff22f3547a9a757609354bff6df7f8e0e16eba379153695053b0acdce6c2",
+    "vendor/openrust/blade-compiler/Cargo.toml": "68f424d2fd8d38501ff97628c46bce911c4d4b944abf311825f62e10e8dcd399",
+    "vendor/openrust/package-discovery/Cargo.toml": "e2ea8e8e7a1e4ac5ece87376956de0d9a4ab7c4ef53c1a3d7a9094a4703a6bd0",
+    "README.md": "95b1f8c14d5364de5ec2f98b5334c4984aff3fb43c25e698037d4bbc9417c5eb",
+    "CHANGELOG.md": "d471f823b652d68cb75b50faff597cec77f2c816f7f5d95885a949d5954db5f4",
+    ".agents/project/conventions.md": "9db6d53451b69f26dda36e5fd320c2cc7246246493ac9b684bef11a78a99db2b",
+    ".agents/project/guides/documentation.md": "9f6f57a9848a5910afea176fd6aeed333f9c0c6ac4d0b252c1916800aadd669d",
+    "tests/framework_version.rs": "0598a1552f6e2f3f0b7bef34f161fcebc5e5a2b1edcca4512202940beb62afd6",
+    "tests/workspace_versions.py": "f5a445c3a6a4a1ac0f8c73cb8d77be50f2a7763501ec9f78d2eb36f32e5c0584",
+    "vendor/openrust/socialite/tests/github.rs": "765b43f04a392645e4a6c308a18ad4c59a74e27d35538cbfd3140fedee151ef5",
+    "vendor/openrust/settings/tests/provider.rs": "318aed2c8c0b40d1640fba770b1432226b8955e3555800427a6d838103467ba5",
+    "vendor/openrust/framework/tests/fixtures/package/package/src/lib.rs": "ed47b87730f6ae254723809d3f58586c5888df41aee85d5e477882baaac27249",
+    "vendor/openrust/framework/tests/fixtures/package/verify.py": "9559af64acacbf7f0b90a4d1c25e06dc7e5c15fcf7e6f81bf63726d6ab1b309b",
+    "docs/package.json": "3a26c5503f4e8163f68b30cf76d523aded7c9db3d138d3e68ee8dc279239126a",
+    "docs/tests/version_source.test.mjs": "fb8098ee45ed4cbbe7a50d1c51fde9df1b6adad29292263bfa6f8cceb1d1647d",
+    "docs/en/prologue/releases.md": "d7de026a92f09dd1629078756d5e17b4281c19092a3241f7210a62716488d050",
+    "docs/zh-Hans/prologue/releases.md": "ac02f0f6eec4fe3ea58c8cf2854d84a0e5b4faec702a20e7c93751f4a88e4acb",
+    "docs/zh-Hant/prologue/releases.md": "ba583f3b1bbe6c2bbfdcb5a53e624109563f18e766567625a788e59c063e0d0c"
+  },
+  "validated_snapshot_manifest_sha256": {
+    "Cargo.toml": "9b5e57a867f61e4dd7e7e38d7568caf2499c35f2a75507286deb57d77efc2bd2",
+    "vendor/openrust/cashier/Cargo.toml": "adefe0e06aababf9f17ba1aba59ff3a9ef169d3e2974ff686d5e41dbdbbb325c",
+    "vendor/openrust/settings/Cargo.toml": "5b5f33e86e92f3b330ec3cc812411925c03d831e39d8c8c140931c252bab1395",
+    "vendor/openrust/fortify/Cargo.toml": "a2c734d12d252ca314b7238cfcc6bce0ccbf66cf8f8a43c7a4a34f7b64908c36",
+    "vendor/openrust/pennant/Cargo.toml": "f94596caebd400d6c1c425442d75f79da74ad78ddca8dcc2a1d032d1ec538420",
+    "vendor/openrust/framework/Cargo.toml": "2a92e19f8278f64266ef39a1a9c2f6470d98d74caf6fa481612aa4b4e80891d6",
+    "vendor/openrust/telescope/Cargo.toml": "e682c4bc180a6301cbbc1b79e33317fe04b88812c87d5fbbefa9b4ba4df93c86",
+    "vendor/openrust/pulse/Cargo.toml": "a9c9c6009315f5085823c73243579855845ddb6c802d1006b906d28b1c73f589",
+    "vendor/openrust/pay/Cargo.toml": "7cfa36f0f6bf6d1371d0f2c4a20811f3677345cf85a27a46fa37486e8995298d",
+    "vendor/openrust/oidc/Cargo.toml": "9f0c308a2e33c87ef570ed727791cc9ada9fa01a01b77f01b7b14c5785c00987",
+    "vendor/openrust/passkeys/Cargo.toml": "9f73f7bcdf3f60df5770a8bbf1f049aa2b7c401ae22328454eae06d5edf0d1be",
+    "vendor/openrust/pail/Cargo.toml": "31575d6cfbda431db09f74a30457e1674e8feba9b427d65bd128fb3248edfacf",
+    "vendor/openrust/scout/Cargo.toml": "8fd4b9d86826ca974ffdce3886c887f4a648d7344e3a321ae6845de6b46db909",
+    "vendor/openrust/passport/Cargo.toml": "1a8df29b01f9dbe6fd10509fada1c056d57f9413714fd9973d54c8879a5de86d",
+    "vendor/openrust/reverb/Cargo.toml": "5a089cf6100a5d86266203ab3e0dfb54911e5213b8824c543a6f925684c93f59",
+    "vendor/openrust/horizon/Cargo.toml": "7a542a73c377f40f37485c61568b9982200f9166b39a1ca53f9f66aafe344565",
+    "vendor/openrust/socialite/Cargo.toml": "1562a3a179b60f4a8bbc75a1dc9537c18643588a5a0ad794ef39f456a2308acc",
+    "vendor/openrust/activitylog/Cargo.toml": "dc2c200d9f4b5eaef7a90eaff592687802bd7bfda88c051dfb148f7e0cbfb059",
+    "vendor/openrust/translation-database/Cargo.toml": "e809ff22f3547a9a757609354bff6df7f8e0e16eba379153695053b0acdce6c2",
+    "vendor/openrust/blade-compiler/Cargo.toml": "68f424d2fd8d38501ff97628c46bce911c4d4b944abf311825f62e10e8dcd399",
+    "vendor/openrust/package-discovery/Cargo.toml": "e2ea8e8e7a1e4ac5ece87376956de0d9a4ab7c4ef53c1a3d7a9094a4703a6bd0"
+  },
+  "metadata_inherited": {
+    "canonical": "0.0.0",
+    "probe": "999.0.0-workspace-probe",
+    "business": "9.8.7",
+    "checks": [
+      {
+        "name": "default",
+        "command": [
+          "cargo",
+          "metadata",
+          "--offline",
+          "--format-version",
+          "1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "single_change",
+        "command": [
+          "cargo",
+          "metadata",
+          "--offline",
+          "--format-version",
+          "1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "independent_application",
+        "command": [
+          "cargo",
+          "metadata",
+          "--offline",
+          "--format-version",
+          "1"
+        ],
+        "exit": 0
+      }
+    ],
+    "default": {
+      "openrust": "0.0.0",
+      "openrust-activitylog": "0.0.0",
+      "openrust-blade-compiler": "0.0.0",
+      "openrust-cashier": "0.0.0",
+      "openrust-fortify": "0.0.0",
+      "openrust-framework": "0.0.0",
+      "openrust-horizon": "0.0.0",
+      "openrust-oidc": "0.0.0",
+      "openrust-package-discovery": "0.0.0",
+      "openrust-pail": "0.0.0",
+      "openrust-passkeys": "0.0.0",
+      "openrust-passport": "0.0.0",
+      "openrust-pay": "0.0.0",
+      "openrust-pennant": "0.0.0",
+      "openrust-pulse": "0.0.0",
+      "openrust-reverb": "0.0.0",
+      "openrust-scout": "0.0.0",
+      "openrust-settings": "0.0.0",
+      "openrust-socialite": "0.0.0",
+      "openrust-telescope": "0.0.0",
+      "openrust-translation-database": "0.0.0"
+    },
+    "single_change": {
+      "openrust": "999.0.0-workspace-probe",
+      "openrust-activitylog": "999.0.0-workspace-probe",
+      "openrust-blade-compiler": "999.0.0-workspace-probe",
+      "openrust-cashier": "999.0.0-workspace-probe",
+      "openrust-fortify": "999.0.0-workspace-probe",
+      "openrust-framework": "999.0.0-workspace-probe",
+      "openrust-horizon": "999.0.0-workspace-probe",
+      "openrust-oidc": "999.0.0-workspace-probe",
+      "openrust-package-discovery": "999.0.0-workspace-probe",
+      "openrust-pail": "999.0.0-workspace-probe",
+      "openrust-passkeys": "999.0.0-workspace-probe",
+      "openrust-passport": "999.0.0-workspace-probe",
+      "openrust-pay": "999.0.0-workspace-probe",
+      "openrust-pennant": "999.0.0-workspace-probe",
+      "openrust-pulse": "999.0.0-workspace-probe",
+      "openrust-reverb": "999.0.0-workspace-probe",
+      "openrust-scout": "999.0.0-workspace-probe",
+      "openrust-settings": "999.0.0-workspace-probe",
+      "openrust-socialite": "999.0.0-workspace-probe",
+      "openrust-telescope": "999.0.0-workspace-probe",
+      "openrust-translation-database": "999.0.0-workspace-probe"
+    },
+    "independent_application": {
+      "openrust": "9.8.7",
+      "openrust-activitylog": "999.0.0-workspace-probe",
+      "openrust-blade-compiler": "999.0.0-workspace-probe",
+      "openrust-cashier": "999.0.0-workspace-probe",
+      "openrust-fortify": "999.0.0-workspace-probe",
+      "openrust-framework": "999.0.0-workspace-probe",
+      "openrust-horizon": "999.0.0-workspace-probe",
+      "openrust-oidc": "999.0.0-workspace-probe",
+      "openrust-package-discovery": "999.0.0-workspace-probe",
+      "openrust-pail": "999.0.0-workspace-probe",
+      "openrust-passkeys": "999.0.0-workspace-probe",
+      "openrust-passport": "999.0.0-workspace-probe",
+      "openrust-pay": "999.0.0-workspace-probe",
+      "openrust-pennant": "999.0.0-workspace-probe",
+      "openrust-pulse": "999.0.0-workspace-probe",
+      "openrust-reverb": "999.0.0-workspace-probe",
+      "openrust-scout": "999.0.0-workspace-probe",
+      "openrust-settings": "999.0.0-workspace-probe",
+      "openrust-socialite": "999.0.0-workspace-probe",
+      "openrust-telescope": "999.0.0-workspace-probe",
+      "openrust-translation-database": "999.0.0-workspace-probe"
+    }
+  },
+  "metadata_independent": {
+    "canonical": "0.0.0",
+    "probe": "999.0.0-workspace-probe",
+    "business": "9.8.7",
+    "checks": [
+      {
+        "name": "default",
+        "command": [
+          "cargo",
+          "metadata",
+          "--offline",
+          "--format-version",
+          "1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "single_change",
+        "command": [
+          "cargo",
+          "metadata",
+          "--offline",
+          "--format-version",
+          "1"
+        ],
+        "exit": 0
+      },
+      {
+        "name": "independent_application",
+        "command": [
+          "cargo",
+          "metadata",
+          "--offline",
+          "--format-version",
+          "1"
+        ],
+        "exit": 0
+      }
+    ],
+    "default": {
+      "openrust": "9.8.6-business",
+      "openrust-activitylog": "0.0.0",
+      "openrust-blade-compiler": "0.0.0",
+      "openrust-cashier": "0.0.0",
+      "openrust-fortify": "0.0.0",
+      "openrust-framework": "0.0.0",
+      "openrust-horizon": "0.0.0",
+      "openrust-oidc": "0.0.0",
+      "openrust-package-discovery": "0.0.0",
+      "openrust-pail": "0.0.0",
+      "openrust-passkeys": "0.0.0",
+      "openrust-passport": "0.0.0",
+      "openrust-pay": "0.0.0",
+      "openrust-pennant": "0.0.0",
+      "openrust-pulse": "0.0.0",
+      "openrust-reverb": "0.0.0",
+      "openrust-scout": "0.0.0",
+      "openrust-settings": "0.0.0",
+      "openrust-socialite": "0.0.0",
+      "openrust-telescope": "0.0.0",
+      "openrust-translation-database": "0.0.0"
+    },
+    "single_change": {
+      "openrust": "9.8.6-business",
+      "openrust-activitylog": "999.0.0-workspace-probe",
+      "openrust-blade-compiler": "999.0.0-workspace-probe",
+      "openrust-cashier": "999.0.0-workspace-probe",
+      "openrust-fortify": "999.0.0-workspace-probe",
+      "openrust-framework": "999.0.0-workspace-probe",
+      "openrust-horizon": "999.0.0-workspace-probe",
+      "openrust-oidc": "999.0.0-workspace-probe",
+      "openrust-package-discovery": "999.0.0-workspace-probe",
+      "openrust-pail": "999.0.0-workspace-probe",
+      "openrust-passkeys": "999.0.0-workspace-probe",
+      "openrust-passport": "999.0.0-workspace-probe",
+      "openrust-pay": "999.0.0-workspace-probe",
+      "openrust-pennant": "999.0.0-workspace-probe",
+      "openrust-pulse": "999.0.0-workspace-probe",
+      "openrust-reverb": "999.0.0-workspace-probe",
+      "openrust-scout": "999.0.0-workspace-probe",
+      "openrust-settings": "999.0.0-workspace-probe",
+      "openrust-socialite": "999.0.0-workspace-probe",
+      "openrust-telescope": "999.0.0-workspace-probe",
+      "openrust-translation-database": "999.0.0-workspace-probe"
+    },
+    "independent_application": {
+      "openrust": "9.8.7",
+      "openrust-activitylog": "999.0.0-workspace-probe",
+      "openrust-blade-compiler": "999.0.0-workspace-probe",
+      "openrust-cashier": "999.0.0-workspace-probe",
+      "openrust-fortify": "999.0.0-workspace-probe",
+      "openrust-framework": "999.0.0-workspace-probe",
+      "openrust-horizon": "999.0.0-workspace-probe",
+      "openrust-oidc": "999.0.0-workspace-probe",
+      "openrust-package-discovery": "999.0.0-workspace-probe",
+      "openrust-pail": "999.0.0-workspace-probe",
+      "openrust-passkeys": "999.0.0-workspace-probe",
+      "openrust-passport": "999.0.0-workspace-probe",
+      "openrust-pay": "999.0.0-workspace-probe",
+      "openrust-pennant": "999.0.0-workspace-probe",
+      "openrust-pulse": "999.0.0-workspace-probe",
+      "openrust-reverb": "999.0.0-workspace-probe",
+      "openrust-scout": "999.0.0-workspace-probe",
+      "openrust-settings": "999.0.0-workspace-probe",
+      "openrust-socialite": "999.0.0-workspace-probe",
+      "openrust-telescope": "999.0.0-workspace-probe",
+      "openrust-translation-database": "999.0.0-workspace-probe"
+    }
+  },
+  "live_metadata": {
+    "openrust-activitylog": "0.0.0",
+    "openrust-framework": "0.0.0",
+    "openrust-blade-compiler": "0.0.0",
+    "openrust-cashier": "0.0.0",
+    "openrust-fortify": "0.0.0",
+    "openrust-passkeys": "0.0.0",
+    "openrust-horizon": "0.0.0",
+    "openrust-oidc": "0.0.0",
+    "openrust-package-discovery": "0.0.0",
+    "openrust-pail": "0.0.0",
+    "openrust-passport": "0.0.0",
+    "openrust-pay": "0.0.0",
+    "openrust-pennant": "0.0.0",
+    "openrust-pulse": "0.0.0",
+    "openrust-telescope": "0.0.0",
+    "openrust-reverb": "0.0.0",
+    "openrust-scout": "0.0.0",
+    "openrust-settings": "0.0.0",
+    "openrust-socialite": "0.0.0",
+    "openrust-translation-database": "0.0.0",
+    "openrust": "0.0.0"
+  },
+  "rust_tests": {
+    "application": 55,
+    "framework": 7,
+    "socialite": 7,
+    "settings": 1,
+    "detached": 3
+  },
+  "total_rust_tests": 73,
+  "runtime_assertions": {
+    "framework": "999.0.0-workspace-probe",
+    "application": "9.8.7",
+    "explicit_app_version": "7.6.5-application",
+    "tcp_http_cases": 4,
+    "native_config_cache_clear_calls": 4
+  },
+  "runtime_log_sha256": "8fe58480269c01075e4e886e5c4cdf65f6d78be3413f75cc5921e393e442d564",
+  "settings_checks": [
+    {
+      "name": "settings-probe-metadata",
+      "command": [
+        "cargo",
+        "metadata",
+        "--offline",
+        "--format-version",
+        "1"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "settings-probe",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "openrust-settings",
+        "--test",
+        "provider"
+      ],
+      "exit": 0
+    }
+  ],
+  "gates": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "package",
+      "command": [
+        "cargo",
+        "package",
+        "--locked",
+        "--offline",
+        "--allow-dirty",
+        "--no-verify",
+        "-p",
+        "openrust-blade-compiler"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "detached-build",
+      "command": [
+        "cargo",
+        "test",
+        "--offline"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "fixture-lock",
+      "command": [
+        "cargo",
+        "metadata",
+        "--offline",
+        "--format-version",
+        "1"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "fixture-build",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--offline",
+        "-p",
+        "package-probe-app"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "fixture-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0
+    },
+    {
+      "name": "fixture-http-artisan",
+      "command": [
+        "python3",
+        "-B",
+        "/Users/Home/Codes/Rust/openrust/target/tmp/workspace-versions/source/vendor/openrust/framework/tests/fixtures/package/verify.py",
+        "/Users/Home/Codes/Rust/openrust/target/tmp/array-release/cargo-target/debug/package-probe-app"
+      ],
+      "exit": 0
+    }
+  ],
+  "package": {
+    "version": "0.0.0",
+    "archive_sha256": "9f86faeb75387510c05d4e9ec43613406e953f96472a63fd0dde8284e33eb86c",
+    "expanded_lints": {
+      "rust": {
+        "linker_messages": "allow",
+        "non_camel_case_types": "deny",
+        "non_snake_case": "deny",
+        "non_upper_case_globals": "deny"
+      }
+    },
+    "retained_archive": "target/tmp/workspace-versions/artifacts/openrust-blade-compiler-0.0.0.crate"
+  },
+  "fixture_versions": {
+    "application": "5.4.3-consumer",
+    "extension": "4.5.6-extension",
+    "framework": "0.0.0",
+    "workspace_package_table": false
+  },
+  "docs": {
+    "build": "passed",
+    "native_version_snippet_test": "passed for both version strings in all 3 languages",
+    "navigation_browser_cases": 12,
+    "release_browser": [
+      {
+        "language": "en",
+        "mobile": false,
+        "heading": "Release Notes",
+        "image": "en-desktop.png",
+        "version": "0.0.0"
+      },
+      {
+        "language": "en",
+        "mobile": true,
+        "heading": "Release Notes",
+        "image": "en-mobile.png",
+        "version": "0.0.0"
+      },
+      {
+        "language": "zh-Hans",
+        "mobile": false,
+        "heading": "发布说明",
+        "image": "zh-Hans-desktop.png",
+        "version": "0.0.0"
+      },
+      {
+        "language": "zh-Hans",
+        "mobile": true,
+        "heading": "发布说明",
+        "image": "zh-Hans-mobile.png",
+        "version": "0.0.0"
+      },
+      {
+        "language": "zh-Hant",
+        "mobile": false,
+        "heading": "發行說明",
+        "image": "zh-Hant-desktop.png",
+        "version": "0.0.0"
+      },
+      {
+        "language": "zh-Hant",
+        "mobile": true,
+        "heading": "發行說明",
+        "image": "zh-Hant-mobile.png",
+        "version": "0.0.0"
+      }
+    ],
+    "screenshots_sha256": {
+      "zh-Hans-desktop.png": "b11b5056e48b1958c63bc007bb3e633f2cbbc31018c4ee384cfdcbac8f6b8e23",
+      "zh-Hant-mobile.png": "a130308323186775b50778f89457c5098b312298675d3d399379f5a6521d04c8",
+      "zh-Hans-mobile.png": "944fbe5698eceb4266933f23197d45070eebbe92fcae569b4e15e80edf0aef59",
+      "en-mobile.png": "a352b968b3170e4b16614649d699aa74dd7dbb1829d97534694aa01736371e92",
+      "en-desktop.png": "ae80822fc0f3519f1be135336f4dcff5d594e8e4f358c183bd494735947f09be",
+      "zh-Hant-desktop.png": "cf07db521baf425d1e86859c053d630644f875d59c6efaac7b4ad4d21049eb25"
+    },
+    "visual_review": [
+      "en-desktop",
+      "zh-Hans-mobile"
+    ]
+  },
+  "scope": {
+    "frozen_snapshot": "only task changes over baseline; logging WIP excluded",
+    "cargo_lock": "no task version change because canonical version stays 0.0.0; unrelated dependency edits retained",
+    "registry_publish": false,
+    "all_crates_packaged": false,
+    "rustdoc_export_rebuilt": false
+  },
+  "preserved_log_sha256": {
+    "detached-build.log": "235a813bf4265553ad6e504d9fe15dc99f904d8b5e4d52b3250fd7142c1dd1c2",
+    "docs-browser.log": "14d16f37f6fe973b5776112b2e391f1349b78f2f64af681a5814ed19ae53ae5d",
+    "gates-run-before-fixture-fix.log": "aac807b341df7c943b5fb2401b75f445ed0baae46f4ebe459ed8454b739640ed",
+    "releases-browser-anchor-before-fix.log": "411c1efc918e9d8a4953db70ef1a6170a0286c390fc322076e8c9818fb48292e",
+    "settings-run.log": "2bbb29215080a0885c367fcc292bd955394cc43009fdeb94b7b03a5fcc1af8f0",
+    "docs-build.log": "7385747193eabcaad50ba64dd1ca44e8b7d5639c5cc870fa21acd094dc1d7742",
+    "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "npm-ci.log": "4da55d087d001e706875c97b60bb72ad4525cb0179c3705619db53d9502c5a93",
+    "metadata-business.log": "8713c819d27abb7d22d7f56211c1a6306014eac943ec0c08cef174f4b7959d77",
+    "clippy.log": "f6f435da271b8f30f4c0271397b25cb09e0ffd8011389f112acbc94c98ddc2a9",
+    "gates-run.log": "709abd00af0f37e97bf5a3b694a489e4b6514d689c49e3e65925c87e0a23da2e",
+    "fixture-clippy.log": "a0601cdccb9e05f4803252cf33b93d0c8feea423002591549b19aa63198f5e1d",
+    "fixture-build.log": "f4c342f1719edac2e5ca6a4c94f167dbcfad9e9ac6f7dbc86416170176f3b2d0",
+    "releases-browser.log": "5f54bc9fe677b42da1f73bb66ed6e4b081001a0c289c076b46e97e81cc52474d",
+    "settings-probe.log": "c29203eb813d117a4bdbf674acc5283b32b24fcdf8692298b18364351160b82f",
+    "fixture-http-artisan.log": "de0ec2eff1df168679870ee04d1cfe1de0696aa789b41418073f8f010cbc7f76",
+    "version-doc-test.log": "7c423d9ca223430aafb4e86182991377bfa1b85cbcc0eaca8444f7f5abed270f",
+    "final-metadata.log": "8713c819d27abb7d22d7f56211c1a6306014eac943ec0c08cef174f4b7959d77",
+    "runtime.log": "8fe58480269c01075e4e886e5c4cdf65f6d78be3413f75cc5921e393e442d564",
+    "settings-probe-metadata.log": "14ad59e406c02a9bc745330b95df39338655c1c23f821ee611321cd1de0b3705",
+    "runtime-entry-before-fix.log": "9346a2f1142dcc8c0bff91a751e40f31587adf7cbfade758f30d5c2e1bfb9c8a",
+    "fixture-inference-before-fix.log": "85c336913fd871dd198aff464709c13808ba1f4a59800179e07d1a88d2cea095",
+    "fixture-lock.log": "3b2094745dd871b10858c6113c998e3263522df611bc3eecb2517fbae15a3947",
+    "runtime-lock-before-fix.log": "156ce31b5d970c87945d0b4d5eca6a455d30769b2cd1e380e5afbc7369f1c740",
+    "package.log": "97117a44f2dce813d0dbc765733d7fd319875bc99e9ecd34754dd5f4b4caa445",
+    "versions/independent_application.log": "46ce071722f9bd747d8d5e23bed873a9a4247d6a5fdd1c58492327cd4d90310e",
+    "versions/socialite.log": "73b3e0c68a06cf4349dcb9dd24ec04eea33be342c3fecb69a885e791c74d037e",
+    "versions/framework.log": "6069594b04e5548db990d879b0070fa835924d77f837f145eb0601b41b1c3d73",
+    "versions/default.log": "89cf2feda6bb7cc0a47ade84d1147f06d6196890eed463bd545c380b25c3c77b",
+    "versions/application-lock-before-fix.log": "8d94ccc0651695383b4864e1ecb66a000782650852a3b43d025950a062514b53",
+    "versions/application-entry-before-fix.log": "4b5f81cc89c9a3698c13091b05a14796e94d6025d1e2fe76879ef18c024629e8",
+    "versions/single_change.log": "f8750758e733ba847d9bea5202130d1b747c49761ed15a7b885e08c9fe61d1b3",
+    "versions/application.log": "df58ed176d3dda7f5ebe1c871c3884a0ace75802b8ec7615391d3f9ce2d26189"
+  },
+  "evidence_root": "target/tmp/workspace-versions",
+  "independent_consumer_metadata": {
+    "package-probe": "4.5.6-extension",
+    "package-probe-app": "5.4.3-consumer"
+  },
+  "independent_consumer_manifest_sha256": {
+    "vendor/openrust/framework/tests/fixtures/package/Cargo.toml": "1b6389d7b965032a2bddf556f108b0e072c43b1b8dabdc56f483679da8ac2b32",
+    "vendor/openrust/framework/tests/fixtures/package/app/Cargo.toml": "f80e1ce0d1ddba81a6af3839f9ee2fd1f66b61bdaea8cefe0b1a787ff88c3790",
+    "vendor/openrust/framework/tests/fixtures/package/package/Cargo.toml": "6310c9ded1bc86acac669974d0494cf16039679e72823afb974725071bebd32b"
+  },
+  "cleanup": {
+    "removed": [
+      "source",
+      "docs-source",
+      "detached",
+      "gates.py",
+      "business-metadata.py",
+      "releases-browser.mjs"
+    ],
+    "retained": [
+      "logs",
+      "screenshots",
+      "artifacts",
+      "npm-cache",
+      "shared Cargo target"
+    ],
+    "before_free_bytes": 54641532928,
+    "after_free_bytes": 54929997824,
+    "released_bytes": 288464896
+  }
+}

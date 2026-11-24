@@ -5,6 +5,13 @@
 - 以[固定 Laravel 基线](plans/laravel-rebuild-baseline.md)确定目录、公开契约、默认值和可观察行为。
 - Goravel 固定参考 v1.18.0。框架使用 `a554ced468cada50a269780692a0491e5f9e3a11`，应用骨架使用 `31651f646ccedf1701471bf01285111270a9d370`。参考其应用入口、装配和编译型运行方式，并验证 Rust 实现与 Laravel 的等价行为。 [Goravel 框架源码](https://github.com/goravel/framework/tree/a554ced468cada50a269780692a0491e5f9e3a11) · [Goravel 应用骨架](https://github.com/goravel/goravel/tree/31651f646ccedf1701471bf01285111270a9d370)
 
+## 版本来源与发布
+
+- 框架及同步发布的官方包统一继承根 `Cargo.toml` 的 `[workspace.package].version`，成员使用 `version.workspace = true`；第三方 vendor、协议元数据和独立测试应用的版本保留各自语义。
+- 默认应用骨架也继承此版本；业务应用可单独声明 `[package].version`，`app.version`／`APP_VERSION` 与框架 `App::version()` 分开。修改版本后重新构建；配置缓存须重新生成才能刷新默认应用版本。
+- 发版只修改统一入口，用 Cargo 完整 metadata 解析刷新锁文件并审查差异；运行 `tests/workspace_versions.py` 的隔离单点升级与独立应用检查。历史发布记录不批量改写。三语发布页使用 VitePress 原生 TOML region，不另加版本文件、解析器或手工数字。
+- 当前 `publish = false` 保持不变。源码分发保留 workspace 元数据；注册表归档使用 Cargo 的标准清单归一化，不能只复制继承版成员清单并假定其可独立解析。
+
 ## 方案调研与复用
 
 - **先核对，再选型。** 设计新功能、重构或解决技术问题前，先核对项目已有实现、固定 Laravel 基线及旧版可复用代码。涉及新设计、新依赖或现有方案无法满足需求时，联网调研官方资料、Laravel 生态、固定 Goravel 参考及成熟 Rust 项目。调研深度与改动范围和风险匹配；注释修正、局部修复及已有方案内的调整，可沿用仍适用的调研结论，出现新差异或失效证据时再补查。

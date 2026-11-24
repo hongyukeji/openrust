@@ -2,7 +2,17 @@
 
 ## Version and upstream baseline
 
-The current source tree declares development version `0.0.0` in `Cargo.toml`. Build with the committed `Cargo.lock` and keep the source commit with your deployment record. OpenRust version numbers describe OpenRust's own releases.
+The framework and official packages released together inherit `workspace.package.version` from the root `Cargo.toml`. The current source version comes directly from that manifest:
+
+<<< ../../../Cargo.toml#framework-version{toml}
+
+To prepare a release, change this one value, run `cargo metadata --format-version 1` to refresh `Cargo.lock`, review the lockfile changes, then run the checks and update the changelog. Build releases with the committed lockfile and record the source commit. Historical release notes keep their original version numbers.
+
+Rebuild after changing the package version. If the application uses cached configuration, regenerate it to refresh the default `app.version`; an explicit `APP_VERSION` remains the application's setting.
+
+The repository's default application also inherits this version. A business application may instead declare its own `[package].version`; `app.version` defaults to that application's Cargo package version and can be overridden with `APP_VERSION`. `App::version()` and Artisan `--version` report the framework package version. Third-party vendored packages retain their upstream versions. The documentation's `master` / `v0.x` menu identifies source lines, rather than the application's version.
+
+Packages currently declare `publish = false`; this version arrangement does not enable registry publishing. Source installations retain the workspace manifest; Cargo-generated `.crate` archives resolve inherited metadata into their own manifests. Copying a member directory alone does not include its workspace metadata. Container image tags remain configured through `APP_IMAGE_VERSION` as described in [Deployment](../getting-started/deployment.md).
 
 ## Environment compatibility
 

@@ -1,6 +1,6 @@
 [package]
 name = "openrust-passport"
-version = "0.0.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"

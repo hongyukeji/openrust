@@ -2,7 +2,17 @@
 
 ## 版本與上游基準
 
-目前原始碼在 `Cargo.toml` 中宣告開發版 `0.0.0`。建置時使用已提交的 `Cargo.lock`，部署時記錄原始碼提交。OpenRust 版本號描述 OpenRust 自身的版本。
+框架與同步發布的官方套件從根 `Cargo.toml` 的 `workspace.package.version` 繼承版本。目前原始碼版本直接讀取該清單：
+
+<<< ../../../Cargo.toml#framework-version{toml}
+
+準備發布時只修改此值，執行 `cargo metadata --format-version 1` 更新 `Cargo.lock`，檢查鎖定檔差異，再執行驗收並更新變更說明。發布建置使用已提交的鎖定檔，並記錄原始碼提交號。歷史發布說明保留當時的版本。
+
+修改套件版本後需要重新建置；使用設定快取的應用程式還需重新產生快取，以更新預設的 `app.version`。明確設定的 `APP_VERSION` 仍由應用程式自行管理。
+
+儲存庫預設應用程式也繼承此版本。業務應用程式可以單獨宣告自己的 `[package].version`；`app.version` 預設取該應用程式的 Cargo 套件版本，也可由 `APP_VERSION` 覆寫。`App::version()` 和 Artisan `--version` 傳回框架套件版本。第三方 vendor 套件保留上游版本。文件的 `master`／`v0.x` 選單表示原始碼分支，並非應用程式版本。
+
+各套件目前宣告 `publish = false`，統一版本不會自動啟用註冊表發布。原始碼安裝保留 workspace 清單；Cargo 產生的 `.crate` 封存會將繼承中繼資料解析為自身清單中的值。單獨複製成員目錄不會包含其 workspace 中繼資料。容器映像標籤仍透過 `APP_IMAGE_VERSION` 設定，見[部署指南](../getting-started/deployment.md)。
 
 ## 環境相容範圍
 

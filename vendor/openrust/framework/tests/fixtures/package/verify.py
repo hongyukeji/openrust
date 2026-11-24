@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import tomllib
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -118,6 +119,7 @@ def main():
         expected = json.loads(cache.read_text())
         assert [p["name"] for p in expected] == ["package-probe"]
         assert expected[0]["library"] == "probe_extension"
+        assert expected[0]["version"] == tomllib.loads((fixture / "package/Cargo.toml").read_text())["package"]["version"]
         assert expected[0]["aliases"] == [["OpenRustProbe", "ProbeProvider"]]
         cache.write_text("broken cache")
         check_http(binary, root, installed, True)

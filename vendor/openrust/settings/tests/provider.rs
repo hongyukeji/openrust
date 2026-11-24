@@ -32,7 +32,7 @@ impl ServiceProvider for Host {
 
 static PACKAGES: &[DiscoveredPackage] = &[DiscoveredPackage::new(
     "openrust-settings",
-    "0.0.0",
+    env!("CARGO_PKG_VERSION"),
     "openrust_settings",
     &[],
     openrust_settings::openrust_providers,

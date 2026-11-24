@@ -51,7 +51,10 @@ async fn profile(
     headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
     assert_eq!(headers["authorization"], "token secret-access");
-    assert_eq!(headers["user-agent"], "OpenRust-Socialite/0.0.0");
+    assert_eq!(
+        headers["user-agent"],
+        format!("OpenRust-Socialite/{}", env!("CARGO_PKG_VERSION"))
+    );
     assert_eq!(headers["accept"], "application/vnd.github.v3+json");
     remote
         .requests

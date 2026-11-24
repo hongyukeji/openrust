@@ -1,6 +1,6 @@
 [package]
 name = "openrust"
-version = "0.0.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -14,6 +14,11 @@ members = ["vendor/openrust/*"]
 exclude = ["vendor/pcre2", "vendor/sqlx-mysql", "vendor/crypto-glue", "vendor/sqlx-sqlite", "vendor/rav1e", "vendor/imgalifier-avif", "vendor/aws-smithy-http", "vendor/aws-smithy-runtime", "vendor/aws-smithy-types"]
 default-members = ["."]
 resolver = "3"
+
+#region framework-version
+[workspace.package]
+version = "0.0.0"
+#endregion framework-version
 
 [workspace.lints.rust]
 linker_messages = "allow"

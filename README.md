@@ -3,7 +3,7 @@
 <p align="center"><strong>Rust Web 应用框架</strong></p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/OpenRust-v0.0.0-blue" alt="OpenRust 开发版 v0.0.0"></a>
+  <a href="Cargo.toml"><img src="https://img.shields.io/badge/OpenRust-workspace-blue" alt="OpenRust 版本由 Cargo.toml 统一管理"></a>
   <a href="Cargo.toml"><img src="https://img.shields.io/badge/Rust-v1.94%2B-dea584" alt="Rust v1.94 或更新版本"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT 许可证"></a>
 </p>
