@@ -22,7 +22,7 @@ pub(super) async fn response(
     }
     let target = exception
         .redirect_target()
-        .and_then(local_location)
+        .and_then(configured_location)
         .or_else(|| {
             let referer = request.headers().get(REFERER)?.to_str().ok()?;
             previous_location(request, referer)
@@ -56,6 +56,14 @@ pub(super) async fn response(
     session.flash_input(input).ok()?;
     session.flash_errors(&bag, exception.errors()).ok()?;
     Some(Response::empty(StatusCode::FOUND).header(LOCATION, target))
+}
+
+// 显式目标由应用配置；允许URL生成器产生的HTTP(S)地址，不放宽Referer策略。
+fn configured_location(target: &str) -> Option<HeaderValue> {
+    local_location(target).or_else(|| {
+        crate::routing::valid_http_url(target).ok()?;
+        HeaderValue::from_str(target).ok()
+    })
 }
 
 fn local_location(target: &str) -> Option<HeaderValue> {

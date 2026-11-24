@@ -299091,6 +299091,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "FormRequest named redirect target and final chapter reconciliation"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "URL Generation 14 sections and Validation 179 sections final tutorial scope",
+      "status": "verified_tutorial_chapters",
+      "evidence": ".agents/project/audits/docs-tutorials/final-review-2026-11-24.md",
+      "remaining": "No remaining gaps in these two pinned tutorial chapters; retained policies/native adaptations and broader class/release scope documented; other modules unchanged"
     }
   ]
 }

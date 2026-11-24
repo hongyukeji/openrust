@@ -449,3 +449,20 @@ old全局及request()->old复用既有异步请求桥与真实request.old，不�
 regex-modifiers/gates-accepted.log九阶段全0：MySQL8.4.13共55目标236项0忽略，含全部Validation、真实database Session、三语提取、实际Artisan生成类型消费者、URI和Blade／View；workspace/all-targets严格Clippy／fmt、三语构建浏览器及实际main／Artisan通过。验证View新测试文件另做独立rustfmt并纳入本轮回归，补齐cargo fmt未排版的新测试文件。最终源与快照一致，证据target/tmp/docs-chapters-20261124/regex-modifiers/及final-chapters/；本批MySQL／参考容器和HTTP服务回收。
 
 两个章节最终人工复核另发现FormRequest只有redirect_to，缺少教程RedirectToRoute对应的专用目标；不能用业务层手写Url::route绕行当作已实现。进入下一功能簇，最终逐节账本保持待提交，不提前宣布整章关闭。
+
+
+## 第二十七组：FormRequest命名目标与异常重定向消费者（2026-11-24）
+
+最终逐节阅读发现RedirectToRoute教程没有原生配置入口，先前redirect_to路径测试不能替代。按固定FormRequest::getRedirectUrl的明确URL优先、命名目标次之机制，新增默认无操作的FormRequest::redirect_route；失败后经已有UrlGenerator::for_request解析，不在成功路径构造URL，不让业务代码手动拼接替代。相邻缺口：原显式路径未走UrlGenerator::to，异常渲染器还只接受相对路径，会把合法生成的绝对URL丢弃；三语正式消费者实际返回/复现该问题。现接通原生成器，并让应用显式配置目标接受现有valid_http_url验证的HTTP(S)地址；Referer／会话上一页的既定同源过滤不变，不把应用配置目标与外来请求头混为一类。
+
+固定PHP实际五组核对命名目标、URL优先、未知路由及空串／字符串0。真实TCP与MySQL8.4.13 database Session验证具名包／旧输入、路径优先、空目标回退、应用明确绝对URL、未知路由／非法URL的500以及成功204不解析目标；普通JSON失败422。原先显式路径Location由相对值修正为原URL生成器的绝对值，测试同步固定机制，未改错误包、JSON格式或状态码。UrlError经既有HttpError转换保留源链。三语正式trait＋类型化动作示例由validation_entries_docs.py直接提取并通过真实Kernel，实际路由与控制器生成消费者继续通过。注册夹具误用了Facade::get返回引用的写法，已使用既有正式get_with配置闭包，未另造静态可变路由引用；该原生借用方式写入最终适配说明。
+
+form-redirect/gates-v4.log九阶段全0：55目标237项0忽略、workspace/all-targets严格Clippy25.46s、fmt、三语构建／浏览器、实际main构建、Artisan帮助及inspire通过。首次Facade链式夹具、正式示例暴露的绝对目标丢失及私有模块导入问题均已修复复验，失败不计通过。最终相关源码／测试／三语SHA与隔离快照相同。最后再次启动实际二进制，随机非默认端口首页GET／HEAD、/up、API JSON404、Web HTML404、Accept JSON404及SIGINT退出0；实际Artisan list/inspire/help make:request/help make:rule/lang:publish和重复发布保留自定义单键通过，证据final-chapters/runtime-final.log及runtime.json。三语Artisan生成配方实际生成的原始Request／普通与隐式Rule编译后通过HTTP，记录final-chapters/{request,rule}-generator*。
+
+## 两个章节最终闭合（2026-11-24）
+
+[逐节最终复核](final-review-2026-11-24.md)与[机器清单](section-map.json)覆盖固定URL14节、Validation179节。最后78个原pending／partial逐项阅读文档、追踪源类型并关联具体消费者；既有101节保留原证据并纳入组合回归。没有凭扫描、测试数量、内部等效写法或这几个关键词关闭整章。源章节SHA与锚点顺序已复核，章节约定范围无剩余功能缺口／外部阻塞；不扩大为整个框架、完整Blade／Validator类或跨平台发布已完成。
+
+保留的已确认URL策略、原生类型／Trait／异步／错误与可选参数适配、Data准备边界、BTreeMap键序、只读对象资源边界见最终记录与三语正文。第一至二十七组历史失败和当时停点保持，不改写为一次通过。新出现的API响应／配置／路由以及路由原型属于其他协作者，未放进本轮快照、验收或提交；活跃工作区一次全差异格式复核命中其未排版代码后已改用本批显式范围核对，不修改他人代码，也不声称当前全工作区均已验收。
+
+临时MySQL／参考容器和本批HTTP服务已退出；生成器临时应用自动回收。保留正式源码快照、原始日志、参考和可复用热缓存，仅回收最后运行验证的临时发布目录。最终核范围本地提交，禁止推送。

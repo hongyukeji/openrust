@@ -1,7 +1,7 @@
 {
   "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
   "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
-  "note": "逐节对账，未核定项保持开放；旧消费者只覆盖记录列明的入口，不据此自动关闭整节。",
+  "note": "14节URL与179节Validation按固定文档教程范围逐项裁决；保留已确认策略与原生适配，不代表所有类全部API或其他章节已闭合。",
   "chapters": {
     "urls": {
       "sha256": "3f0fbaf1241207927c794b189ff3c0209e71be67443f4d28a84436a702753e63",
@@ -168,107 +168,287 @@
         {
           "anchor": "introduction",
           "title": "Introduction",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "组织与入口索引；下列具体节逐项裁决，不产生独立新API"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation文档对应标题"
+          ],
+          "consumers": [
+            "本表各具体节"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "validation-quickstart",
           "title": "Validation Quickstart",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "组织与入口索引；下列具体节逐项裁决，不产生独立新API"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation文档对应标题"
+          ],
+          "consumers": [
+            "本表各具体节"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "quick-defining-the-routes",
           "title": "Defining the Routes",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Route::get/post与ControllerDispatcher注册；验证发生在动作副作用前；成功201／失败422／403"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Routing/ControllerDispatcher、Foundation/FormRequest"
+          ],
+          "consumers": [
+            "validation_http::route_and_controller_arguments_resolve_form_requests_before_actions；request_generated_tutorial"
+          ],
+          "necessary_adaptation": "Rust显式注册动作和类型化参数；不反射PHP类名或方法签名"
         },
         {
           "anchor": "quick-creating-the-controller",
           "title": "Creating the Controller",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Route::get/post与ControllerDispatcher注册；验证发生在动作副作用前；成功201／失败422／403"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Routing/ControllerDispatcher、Foundation/FormRequest"
+          ],
+          "consumers": [
+            "validation_http::route_and_controller_arguments_resolve_form_requests_before_actions；request_generated_tutorial"
+          ],
+          "necessary_adaptation": "Rust显式注册动作和类型化参数；不反射PHP类名或方法签名"
         },
         {
           "anchor": "quick-writing-the-validation-logic",
           "title": "Writing the Validation Logic",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Request::validate/validate_with_bag，bail与全局stop区分；嵌套／字面点；异常JSON422及扁平错误键"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Providers/FoundationServiceProvider；Validation/Validator、ValidationException"
+          ],
+          "consumers": [
+            "validation_http；request_validation_tutorial；validation_rule_tutorial；validation_lifecycle；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "stopping-on-first-validation-failure",
           "title": "Stopping on First Validation Failure",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Request::validate/validate_with_bag，bail与全局stop区分；嵌套／字面点；异常JSON422及扁平错误键"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Providers/FoundationServiceProvider；Validation/Validator、ValidationException"
+          ],
+          "consumers": [
+            "validation_http；request_validation_tutorial；validation_rule_tutorial；validation_lifecycle；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "a-note-on-nested-attributes",
           "title": "A Note on Nested Attributes",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Request::validate/validate_with_bag，bail与全局stop区分；嵌套／字面点；异常JSON422及扁平错误键"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Providers/FoundationServiceProvider；Validation/Validator、ValidationException"
+          ],
+          "consumers": [
+            "validation_http；request_validation_tutorial；validation_rule_tutorial；validation_lifecycle；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "quick-displaying-the-validation-errors",
           "title": "Displaying the Validation Errors",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "quick-customizing-the-error-messages",
           "title": "Customizing the Error Messages",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "lang:publish发布和覆盖保护，JSON语言资源按键覆盖默认词典"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "LangPublish、FileLoader、Validation语言目录"
+          ],
+          "consumers": [
+            "final-chapters/runtime.json；validation_message_catalog"
+          ],
+          "necessary_adaptation": "JSON资源代替执行PHP语言数组；版权和来源归项目审计"
         },
         {
           "anchor": "quick-xhr-requests-and-validation",
           "title": "XHR Requests and Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Request::validate/validate_with_bag，bail与全局stop区分；嵌套／字面点；异常JSON422及扁平错误键"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Providers/FoundationServiceProvider；Validation/Validator、ValidationException"
+          ],
+          "consumers": [
+            "validation_http；request_validation_tutorial；validation_rule_tutorial；validation_lifecycle；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "the-at-error-directive",
           "title": "The `@error` Directive",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "repopulating-forms",
           "title": "Repopulating Forms",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "a-note-on-optional-fields",
           "title": "A Note on Optional Fields",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "全局TrimStrings／ConvertEmptyStringsToNull与nullable；非nullable的null不绕过普通规则"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "HTTP全局中间件、Validation/Validator"
+          ],
+          "consumers": [
+            "validation_http::form_requests_validate_and_translate_concurrent_real_http_requests；validation_scalars；validation_lifecycle"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "validation-error-response-format",
           "title": "Validation Error Response Format",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Request::validate/validate_with_bag，bail与全局stop区分；嵌套／字面点；异常JSON422及扁平错误键"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Providers/FoundationServiceProvider；Validation/Validator、ValidationException"
+          ],
+          "consumers": [
+            "validation_http；request_validation_tutorial；validation_rule_tutorial；validation_lifecycle；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "form-request-validation",
           "title": "Form Request Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "组织与入口索引；下列具体节逐项裁决，不产生独立新API"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation文档对应标题"
+          ],
+          "consumers": [
+            "本表各具体节"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "creating-form-requests",
@@ -296,9 +476,21 @@
         {
           "anchor": "request-stopping-on-first-validation-rule-failure",
           "title": "Stopping on the First Validation Failure",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest stop_on_first_failure、redirect_to/redirect_route、error_bag、authorize；403不进控制器，DI使用已有容器"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest及resolve"
+          ],
+          "consumers": [
+            "validation_http::route_and_controller_arguments_resolve_form_requests_before_actions；validation_web；request_docs_generated"
+          ],
+          "necessary_adaptation": "PHP属性由FormRequest具名trait方法表达；依赖经现有容器bind_async工厂按请求解析，不反射authorize签名"
         },
         {
           "anchor": "request-failing-on-unknown-fields",
@@ -314,86 +506,230 @@
         {
           "anchor": "customizing-the-redirect-location",
           "title": "Customizing the Redirect Location",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest::redirect_to/redirect_route；显式URL经原UrlGenerator::to优先，命名目标只在失败时解析；错误传播，原具名包保留"
+          ],
+          "evidence": [
+            "README.md#第二十七组formrequest命名目标与异常重定向消费者2026-11-24",
+            "final-review-2026-11-24.md"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest及resolve"
+          ],
+          "consumers": [
+            "validation_web::form_requests_resolve_named_redirects_only_on_failure_and_keep_path_precedence；三语validation_entries_docs_generated；固定PHP五组目标"
+          ],
+          "necessary_adaptation": "PHP属性由FormRequest具名trait方法表达；依赖经现有容器bind_async工厂按请求解析，不反射authorize签名"
         },
         {
           "anchor": "customizing-the-error-bag",
           "title": "Customizing the Error Bag",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest stop_on_first_failure、redirect_to/redirect_route、error_bag、authorize；403不进控制器，DI使用已有容器"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest及resolve"
+          ],
+          "consumers": [
+            "validation_http::route_and_controller_arguments_resolve_form_requests_before_actions；validation_web；request_docs_generated"
+          ],
+          "necessary_adaptation": "PHP属性由FormRequest具名trait方法表达；依赖经现有容器bind_async工厂按请求解析，不反射authorize签名"
         },
         {
           "anchor": "authorizing-form-requests",
           "title": "Authorizing Form Requests",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest stop_on_first_failure、redirect_to/redirect_route、error_bag、authorize；403不进控制器，DI使用已有容器"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest及resolve"
+          ],
+          "consumers": [
+            "validation_http::route_and_controller_arguments_resolve_form_requests_before_actions；validation_web；request_docs_generated"
+          ],
+          "necessary_adaptation": "PHP属性由FormRequest具名trait方法表达；依赖经现有容器bind_async工厂按请求解析，不反射authorize签名"
         },
         {
           "anchor": "customizing-the-error-messages",
           "title": "Customizing the Error Messages",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest messages/attributes、prepare_for_validation、passed_validation和生命周期顺序"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest"
+          ],
+          "consumers": [
+            "validation_http；validation_options_tutorial；request_docs_generated"
+          ],
+          "necessary_adaptation": "准备钩子操作Data；不会自动别名写回Request正文，passed_validation可显式写Request；既有适配已文档化"
         },
         {
           "anchor": "customizing-the-validation-attributes",
           "title": "Customizing the Validation Attributes",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest messages/attributes、prepare_for_validation、passed_validation和生命周期顺序"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest"
+          ],
+          "consumers": [
+            "validation_http；validation_options_tutorial；request_docs_generated"
+          ],
+          "necessary_adaptation": "准备钩子操作Data；不会自动别名写回Request正文，passed_validation可显式写Request；既有适配已文档化"
         },
         {
           "anchor": "preparing-input-for-validation",
           "title": "Preparing Input for Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest messages/attributes、prepare_for_validation、passed_validation和生命周期顺序"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Foundation/Http/FormRequest"
+          ],
+          "consumers": [
+            "validation_http；validation_options_tutorial；request_docs_generated"
+          ],
+          "necessary_adaptation": "准备钩子操作Data；不会自动别名写回Request正文，passed_validation可显式写Request；既有适配已文档化"
         },
         {
           "anchor": "manually-creating-validators",
           "title": "Manually Creating Validators",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Validator Facade make/validate；具体fails/passes/validate/validate_with_bag；RedirectResponse::with_errors接受Validator contract、MessageProvider、MessageBag与数组并with_input"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Factory、Validator；Contracts/Support/MessageProvider；HTTP/RedirectResponse"
+          ],
+          "consumers": [
+            "validation_final_entries；validation_web；validation_entries_docs_generated"
+          ],
+          "necessary_adaptation": "稳定Rust可选参数采用make_with/validate_with；Result传播原异常，不用摘取errors替代Validator消费者"
         },
         {
           "anchor": "automatic-redirection",
           "title": "Automatic Redirection",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Validator Facade make/validate；具体fails/passes/validate/validate_with_bag；RedirectResponse::with_errors接受Validator contract、MessageProvider、MessageBag与数组并with_input"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Factory、Validator；Contracts/Support/MessageProvider；HTTP/RedirectResponse"
+          ],
+          "consumers": [
+            "validation_final_entries；validation_web；validation_entries_docs_generated"
+          ],
+          "necessary_adaptation": "稳定Rust可选参数采用make_with/validate_with；Result传播原异常，不用摘取errors替代Validator消费者"
         },
         {
           "anchor": "named-error-bags",
           "title": "Named Error Bags",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "manual-customizing-the-error-messages",
           "title": "Customizing the Error Messages",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "内联字段规则→规则→字段层级；语言custom/attributes/values、占位符及组级回退"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/MessageCatalog、Validator消息；Translator"
+          ],
+          "consumers": [
+            "validation_message_catalog；validation_conditional_messages；validation_mutation；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "映射使用原生BTreeMap键序；重叠词条不宣称PHP任意插入顺序；与固定PHP同序参考核对"
         },
         {
           "anchor": "specifying-a-custom-message-for-a-given-attribute",
           "title": "Specifying a Custom Message for a Given Attribute",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "内联字段规则→规则→字段层级；语言custom/attributes/values、占位符及组级回退"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/MessageCatalog、Validator消息；Translator"
+          ],
+          "consumers": [
+            "validation_message_catalog；validation_conditional_messages；validation_mutation；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "映射使用原生BTreeMap键序；重叠词条不宣称PHP任意插入顺序；与固定PHP同序参考核对"
         },
         {
           "anchor": "specifying-custom-attribute-values",
           "title": "Specifying Custom Attribute Values",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "内联字段规则→规则→字段层级；语言custom/attributes/values、占位符及组级回退"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/MessageCatalog、Validator消息；Translator"
+          ],
+          "consumers": [
+            "validation_message_catalog；validation_conditional_messages；validation_mutation；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "映射使用原生BTreeMap键序；重叠词条不宣称PHP任意插入顺序；与固定PHP同序参考核对"
         },
         {
           "anchor": "performing-additional-validation",
@@ -421,37 +757,97 @@
         {
           "anchor": "working-with-error-messages",
           "title": "Working With Error Messages",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "retrieving-the-first-error-message-for-a-field",
           "title": "Retrieving the First Error Message for a Field",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "retrieving-all-error-messages-for-a-field",
           "title": "Retrieving All Error Messages for a Field",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "retrieving-all-error-messages-for-all-fields",
           "title": "Retrieving All Error Messages for All Fields",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "determining-if-messages-exist-for-a-field",
           "title": "Determining if Messages Exist for a Field",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ShareErrorsFromSession提供真实错误袋；any/all/first/get/has，具名包与@error；old显式null／默认值，闪存一次消费，安全转义"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "ViewErrorBag、MessageBag；View/ErrorBags；Blade请求桥"
+          ],
+          "consumers": [
+            "validation_view_tutorial全部5项；message_bags；validation_web"
+          ],
+          "necessary_adaptation": "模板表达式保留上游拼写，Rust公开方法snake_case；只读原类型投影，不引入模板反射"
         },
         {
           "anchor": "specifying-custom-messages-in-language-files",
@@ -489,27 +885,59 @@
         {
           "anchor": "specifying-values-in-language-files",
           "title": "Specifying Values in Language Files",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "内联字段规则→规则→字段层级；语言custom/attributes/values、占位符及组级回退"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/MessageCatalog、Validator消息；Translator"
+          ],
+          "consumers": [
+            "validation_message_catalog；validation_conditional_messages；validation_mutation；validation_options_tutorial"
+          ],
+          "necessary_adaptation": "映射使用原生BTreeMap键序；重叠词条不宣称PHP任意插入顺序；与固定PHP同序参考核对"
         },
         {
           "anchor": "available-validation-rules",
           "title": "Available Validation Rules",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "组织与入口索引；下列具体节逐项裁决，不产生独立新API"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation文档对应标题"
+          ],
+          "consumers": [
+            "本表各具体节"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-builders",
           "title": "Rule Builders",
-          "status": "partially_verified_remaining_password",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "已验StringRule/ArrayRule/Numeric/Date及参数化和条件对象；其余基础工厂、Confirmed/CurrentPassword等继续核对"
+            "Rule各命名工厂及String/Array/Numeric/Date、IP/URL/UUID/Timezone、Password/Email/Dimensions/File真实类型；RuleBuilder/ParameterizedRule/CompilableRules，非字符串替代"
           ],
           "evidence": [
-            "README.md"
-          ]
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rule、Factories及Rules各类"
+          ],
+          "consumers": [
+            "validation_fluent_tutorial；validation_factories_tutorial；validation_enum_tutorial；validation_password_tutorial；validation_email_modes"
+          ],
+          "necessary_adaptation": "多字段使用原生列表，回调显式trait；无同名0/1参数重载时按三语列明getter/setter区分"
         },
         {
           "anchor": "rule-accepted",
@@ -580,23 +1008,59 @@
         {
           "anchor": "rule-alpha",
           "title": "alpha",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-alpha-dash",
           "title": "alpha_dash",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-alpha-num",
           "title": "alpha_num",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-array",
@@ -623,16 +1087,40 @@
         {
           "anchor": "rule-ascii",
           "title": "ascii",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-bail",
           "title": "bail",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字段级bail不等于全局stop_on_first_failure；短路顺序保留"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_rule_tutorial；validation_http::custom_rules_respect_presence_nullable_bail_and_custom_messages"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-before",
@@ -670,9 +1158,21 @@
         {
           "anchor": "rule-boolean",
           "title": "boolean",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "宽松boolean六值与strict；integer按FILTER_VALIDATE_INT语义与strict整数类型区分"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rule integer；ScalarRule"
+          ],
+          "consumers": [
+            "alignment_validation；validation_scalars；validation_fluent_tutorial"
+          ],
+          "necessary_adaptation": "JSON保留整数／浮点／bool类型，不将所有数转换为f64"
         },
         {
           "anchor": "rule-confirmed",
@@ -787,9 +1287,21 @@
         {
           "anchor": "rule-different",
           "title": "different:_field_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原严格字段比较与依赖路径、缺失调度；数字和字符串区分"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator、Rule"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-digits",
@@ -816,9 +1328,21 @@
         {
           "anchor": "rule-dimensions",
           "title": "dimensions",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "rule-distinct",
@@ -834,16 +1358,40 @@
         {
           "anchor": "rule-doesnt-start-with",
           "title": "doesnt_start_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-doesnt-end-with",
           "title": "doesnt_end_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-email",
@@ -859,16 +1407,40 @@
         {
           "anchor": "rule-encoding",
           "title": "encoding:*encoding_type*",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "encoding字符串／上传类型、File::types(...).encoding经Factory/Facade::validate；真实字节检查"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/EncodingRule；File"
+          ],
+          "consumers": [
+            "validation_http全部encoding目标；validation_final_entries::direct_facade_validate_custom_options_passes_and_file_encoding_run_over_tcp"
+          ],
+          "necessary_adaptation": "UTF-8字符串及原始文件分层；使用现有编码器，不另造执行管线"
         },
         {
           "anchor": "rule-ends-with",
           "title": "ends_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-enum",
@@ -972,16 +1544,40 @@
         {
           "anchor": "rule-extensions",
           "title": "extensions:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "rule-file",
           "title": "file",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "rule-filled",
@@ -997,16 +1593,40 @@
         {
           "anchor": "rule-gt",
           "title": "gt:_field_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字段／值尺寸比较与同类型检查；numeric声明、数组／文件KB／字符串分类"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator validation_size；Rule size"
+          ],
+          "consumers": [
+            "validation_sizes_tutorial；validation_request_value；validation_fluent_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-gte",
           "title": "gte:_field_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字段／值尺寸比较与同类型检查；numeric声明、数组／文件KB／字符串分类"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator validation_size；Rule size"
+          ],
+          "consumers": [
+            "validation_sizes_tutorial；validation_request_value；validation_fluent_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-hex-color",
@@ -1022,9 +1642,21 @@
         {
           "anchor": "rule-image",
           "title": "image",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "rule-in",
@@ -1062,9 +1694,21 @@
         {
           "anchor": "rule-integer",
           "title": "integer",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "宽松boolean六值与strict；integer按FILTER_VALIDATE_INT语义与strict整数类型区分"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rule integer；ScalarRule"
+          ],
+          "consumers": [
+            "alignment_validation；validation_scalars；validation_fluent_tutorial"
+          ],
+          "necessary_adaptation": "JSON保留整数／浮点／bool类型，不将所有数转换为f64"
         },
         {
           "anchor": "rule-ip",
@@ -1113,23 +1757,59 @@
         {
           "anchor": "rule-lt",
           "title": "lt:_field_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字段／值尺寸比较与同类型检查；numeric声明、数组／文件KB／字符串分类"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator validation_size；Rule size"
+          ],
+          "consumers": [
+            "validation_sizes_tutorial；validation_request_value；validation_fluent_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-lte",
           "title": "lte:_field_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字段／值尺寸比较与同类型检查；numeric声明、数组／文件KB／字符串分类"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator validation_size；Rule size"
+          ],
+          "consumers": [
+            "validation_sizes_tutorial；validation_request_value；validation_fluent_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-lowercase",
           "title": "lowercase",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-list",
@@ -1178,23 +1858,59 @@
         {
           "anchor": "rule-mimetypes",
           "title": "mimetypes:_text/plain_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "rule-mimes",
           "title": "mimes:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "mime-types-and-extensions",
           "title": "MIME Types and Extensions",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "rule-min",
@@ -1300,18 +2016,34 @@
           "title": "not_regex:_pattern_",
           "status": "verified_tutorial_scope",
           "contract": [
-            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+            "字符串/数字regex/not_regex、Rule::regex/not_regex、规则数组含|，完整已声明修饰符与空白解析"
           ],
           "evidence": [
-            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24",
+            "README.md#第二十六组正则修饰符与模式解析的关联缺口2026-11-24"
+          ],
+          "consumers": [
+            "validation_regex_tutorial两项：固定PHP480组及真实TCP；validation_scalars与fluent/factories回归"
           ]
         },
         {
           "anchor": "rule-nullable",
           "title": "nullable",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "全局TrimStrings／ConvertEmptyStringsToNull与nullable；非nullable的null不绕过普通规则"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "HTTP全局中间件、Validation/Validator"
+          ],
+          "consumers": [
+            "validation_http::form_requests_validate_and_translate_concurrent_real_http_requests；validation_scalars；validation_lifecycle"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-numeric",
@@ -1327,9 +2059,21 @@
         {
           "anchor": "rule-present",
           "title": "present",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "存在与非空判定区分；null/空串/空数组/上传路径缺失，字段级隐式调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator；Rule empty"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_scalars；validation_http::presence_and_exclusion_rules_handle_real_uploaded_files_and_discard_child_errors"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-present-if",
@@ -1446,18 +2190,34 @@
           "title": "regex:_pattern_",
           "status": "verified_tutorial_scope",
           "contract": [
-            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+            "字符串/数字regex/not_regex、Rule::regex/not_regex、规则数组含|，完整已声明修饰符与空白解析"
           ],
           "evidence": [
-            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24",
+            "README.md#第二十六组正则修饰符与模式解析的关联缺口2026-11-24"
+          ],
+          "consumers": [
+            "validation_regex_tutorial两项：固定PHP480组及真实TCP；validation_scalars与fluent/factories回归"
           ]
         },
         {
           "anchor": "rule-required",
           "title": "required",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "存在与非空判定区分；null/空串/空数组/上传路径缺失，字段级隐式调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator；Rule empty"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_scalars；validation_http::presence_and_exclusion_rules_handle_real_uploaded_files_and_discard_child_errors"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-required-if",
@@ -1561,9 +2321,21 @@
         {
           "anchor": "rule-same",
           "title": "same:_field_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原严格字段比较与依赖路径、缺失调度；数字和字符串区分"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator、Rule"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-size",
@@ -1579,9 +2351,21 @@
         {
           "anchor": "rule-starts-with",
           "title": "starts_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-string",
@@ -1619,9 +2403,21 @@
         {
           "anchor": "rule-uppercase",
           "title": "uppercase",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Unicode L/M/N及ASCII选项，7bit判断，大小写与正反前后缀；标量类型／空值调度"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/ScalarRule、StandardRules"
+          ],
+          "consumers": [
+            "validation_scalars::scalar_rules_follow_fixed_php_attribute_method_fixtures_and_empty_value_scheduling；validation_fluent_tutorial；validation_factories_tutorial"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "rule-url",
@@ -1659,23 +2455,59 @@
         {
           "anchor": "conditionally-adding-rules",
           "title": "Conditionally Adding Rules",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "组织与入口索引；下列具体节逐项裁决，不产生独立新API"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation文档对应标题"
+          ],
+          "consumers": [
+            "本表各具体节"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "skipping-validation-when-fields-have-certain-values",
           "title": "Skipping Validation When Fields Have Certain Values",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "exclude_if/unless删除输出（含上传）并跳过后续；sometimes存在性与nullable区分"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator、规则编译"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_http；validation_conditional_messages"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "validating-when-present",
           "title": "Validating When Present",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "exclude_if/unless删除输出（含上传）并跳过后续；sometimes存在性与nullable区分"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Validator、规则编译"
+          ],
+          "consumers": [
+            "validation_lifecycle；validation_http；validation_conditional_messages"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "complex-conditional-validation",
@@ -1702,16 +2534,40 @@
         {
           "anchor": "validating-arrays",
           "title": "Validating Arrays",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "array白名单拒绝多键；父数组未指定时原Factory投影策略；通配子字段、required_with配对、unique推断列、真实嵌套上传"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/RuleSet、Validator、Factory、DatabasePresenceVerifier"
+          ],
+          "consumers": [
+            "validation_for_each；validation_extensions::unvalidated_array_key_policy_matches_fixed_php_and_is_snapshotted_at_creation；validation_http；validation_paths"
+          ],
+          "necessary_adaptation": "默认保留既定exclude_unvalidated_array_keys策略，显式工厂开关控制PHP两种投影，不能混称同一默认"
         },
         {
           "anchor": "validating-nested-array-input",
           "title": "Validating Nested Array Input",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "array白名单拒绝多键；父数组未指定时原Factory投影策略；通配子字段、required_with配对、unique推断列、真实嵌套上传"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/RuleSet、Validator、Factory、DatabasePresenceVerifier"
+          ],
+          "consumers": [
+            "validation_for_each；validation_extensions::unvalidated_array_key_policy_matches_fixed_php_and_is_snapshotted_at_creation；validation_http；validation_paths"
+          ],
+          "necessary_adaptation": "默认保留既定exclude_unvalidated_array_keys策略，显式工厂开关控制PHP两种投影，不能混称同一默认"
         },
         {
           "anchor": "accessing-nested-array-data",
@@ -1739,37 +2595,97 @@
         {
           "anchor": "validating-files",
           "title": "Validating Files",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "validating-files-file-types",
           "title": "Validating File Types",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "validating-files-file-sizes",
           "title": "Validating File Sizes",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "validating-files-image-files",
           "title": "Validating Image Files",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "validating-files-image-dimensions",
           "title": "Validating Image Dimensions",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "上传成功状态、内容MIME与客户端扩展分离、SVG显式开启；kb/mb/gb/tb、min/max；File/ImageFile/Dimensions链式宽高比范围及内容读取"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation/Rules/File、ImageFile、Dimensions；HTTP/UploadedFile"
+          ],
+          "consumers": [
+            "validation_http真实multipart与全部尺寸目标；validation_factories_tutorial；validation_request_value；validation_final_entries"
+          ],
+          "necessary_adaptation": "File::image(false/true)显式bool表达PHP可选allowSvg；沿用原内容检测，不相信上传MIME；不声明完整外部MIME数据库逐字节一致"
         },
         {
           "anchor": "validating-passwords",
@@ -1796,16 +2712,40 @@
         {
           "anchor": "custom-validation-rules",
           "title": "Custom Validation Rules",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "组织与入口索引；下列具体节逐项裁决，不产生独立新API"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Validation文档对应标题"
+          ],
+          "consumers": [
+            "本表各具体节"
+          ],
+          "necessary_adaptation": "原验证／异常／消息管线；无额外行为差异"
         },
         {
           "anchor": "using-rule-objects",
           "title": "Using Rule Objects",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ValidationRule真实trait与Rule对象、失败翻译、make:rule正式普通／隐式模板及生成文件实际HTTP"
+          ],
+          "evidence": [
+            "final-review-2026-11-24.md#逐节剩余项裁决",
+            "README.md#第二十五组快速入门的错误袋方法与旧输入模板消费者2026-11-24"
+          ],
+          "owner": [
+            "Contracts/Validation；Validation/RuleFailure；RuleMakeCommand"
+          ],
+          "consumers": [
+            "validation_rule_tutorial；validation_failure_translation；rule_generated_tutorial；validation_aware_tutorial"
+          ],
+          "necessary_adaptation": "原生异步trait返回RuleFailure列表代替PHP闭包动态fail；保留错误翻译／占位符／调度"
         },
         {
           "anchor": "using-closures",
@@ -1832,5 +2772,90 @@
         }
       ]
     }
+  },
+  "final_review": {
+    "date": "2026-11-24",
+    "record": "final-review-2026-11-24.md",
+    "newly_reconciled_sections": [
+      "introduction",
+      "validation-quickstart",
+      "quick-defining-the-routes",
+      "quick-creating-the-controller",
+      "quick-writing-the-validation-logic",
+      "stopping-on-first-validation-failure",
+      "a-note-on-nested-attributes",
+      "quick-displaying-the-validation-errors",
+      "quick-customizing-the-error-messages",
+      "quick-xhr-requests-and-validation",
+      "the-at-error-directive",
+      "repopulating-forms",
+      "a-note-on-optional-fields",
+      "validation-error-response-format",
+      "form-request-validation",
+      "request-stopping-on-first-validation-rule-failure",
+      "customizing-the-redirect-location",
+      "customizing-the-error-bag",
+      "authorizing-form-requests",
+      "customizing-the-error-messages",
+      "customizing-the-validation-attributes",
+      "preparing-input-for-validation",
+      "manually-creating-validators",
+      "automatic-redirection",
+      "named-error-bags",
+      "manual-customizing-the-error-messages",
+      "specifying-a-custom-message-for-a-given-attribute",
+      "specifying-custom-attribute-values",
+      "working-with-error-messages",
+      "retrieving-the-first-error-message-for-a-field",
+      "retrieving-all-error-messages-for-a-field",
+      "retrieving-all-error-messages-for-all-fields",
+      "determining-if-messages-exist-for-a-field",
+      "specifying-values-in-language-files",
+      "available-validation-rules",
+      "rule-builders",
+      "rule-alpha",
+      "rule-alpha-dash",
+      "rule-alpha-num",
+      "rule-ascii",
+      "rule-bail",
+      "rule-boolean",
+      "rule-different",
+      "rule-dimensions",
+      "rule-doesnt-start-with",
+      "rule-doesnt-end-with",
+      "rule-encoding",
+      "rule-ends-with",
+      "rule-extensions",
+      "rule-file",
+      "rule-gt",
+      "rule-gte",
+      "rule-image",
+      "rule-integer",
+      "rule-lt",
+      "rule-lte",
+      "rule-lowercase",
+      "rule-mimetypes",
+      "rule-mimes",
+      "mime-types-and-extensions",
+      "rule-nullable",
+      "rule-present",
+      "rule-required",
+      "rule-same",
+      "rule-starts-with",
+      "rule-uppercase",
+      "conditionally-adding-rules",
+      "skipping-validation-when-fields-have-certain-values",
+      "validating-when-present",
+      "validating-arrays",
+      "validating-nested-array-input",
+      "validating-files",
+      "validating-files-file-types",
+      "validating-files-file-sizes",
+      "validating-files-image-files",
+      "validating-files-image-dimensions",
+      "custom-validation-rules",
+      "using-rule-objects"
+    ],
+    "scope": "两个固定章节列明的教程入口与其关联缺口"
   }
 }

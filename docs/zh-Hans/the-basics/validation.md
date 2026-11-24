@@ -1072,3 +1072,37 @@ pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response,
 ```
 
 `old(key, default)` 与 `request()->old(key, default)` 通过 HTTP 渲染桥读取已有会话闪存。缺失键使用默认值，已保存的 `null` 仍为 null。返回视图或使用 `Response::view` 渲染，确保真实请求可用。转义输出会保护错误文字与旧输入。后续请求按原机制回收闪存，模板缓存仍读取当前请求的错误和旧值。
+
+
+## 表单请求的重定向目标 {#form-request-redirect-targets}
+
+通过 `redirect_to()` 指定 URL，或通过 `redirect_route()` 指定命名路由。显式 URL 优先，并经当前请求的 URL 生成器构造；命名路由仅在验证失败后解析。这里用原生 trait 方法表达 URL／命名路由属性。接受请求前须注册 `dashboard`；未知路由传播 URL 生成错误，不静默回退。目标可解析时 JSON 失败仍返回 422；验证成功不会解析失败目标。
+
+```rust
+use openrust::{
+    foundation::http::{FormRequest, ValidatedFormRequest},
+    http::{HttpError, Response, StatusCode},
+    validation::{RuleSet, ValidationResult},
+};
+
+#[derive(Default)]
+pub struct StorePostRequest;
+
+impl FormRequest for StorePostRequest {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("title", "required|string")])
+    }
+
+    fn redirect_route(&self) -> Option<&str> {
+        Some("dashboard")
+    }
+
+    fn error_bag(&self) -> &str {
+        "post"
+    }
+}
+
+pub async fn store_post(_: ValidatedFormRequest<StorePostRequest>) -> Result<Response, HttpError> {
+    Ok(Response::empty(StatusCode::CREATED))
+}
+```

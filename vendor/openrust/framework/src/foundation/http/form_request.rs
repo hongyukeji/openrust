@@ -85,15 +85,36 @@ pub trait FormRequest: Send + Sync {
             // 在既有 ValidationFuture 边界擦除验证器内部 Future，避免外层表单布局递归过深。
             let validation: ValidationFuture<'_, ValidationResult<ValidatedInput>> =
                 Box::pin(validator.validate_request(request));
-            let validated = validation.await.map_err(|mut error| {
-                if let ValidationError::Invalid(exception) = &mut error {
-                    exception.error_bag(self.error_bag());
-                    if let Some(path) = self.redirect_to() {
-                        exception.redirect_to(path);
+            let validated = match validation.await {
+                Ok(validated) => validated,
+                Err(mut error) => {
+                    if let ValidationError::Invalid(exception) = &mut error {
+                        exception.error_bag(self.error_bag());
+                        if let Some(path) = self
+                            .redirect_to()
+                            .filter(|path| !path.is_empty() && *path != "0")
+                        {
+                            let url = crate::support::facades::Url::for_request(request)?;
+                            let target =
+                                crate::contracts::routing::UrlGenerator::to(&url, path, &[], None)?;
+                            exception.redirect_to(target);
+                        } else if let Some(name) = self
+                            .redirect_route()
+                            .filter(|name| !name.is_empty() && *name != "0")
+                        {
+                            let url = crate::support::facades::Url::for_request(request)?;
+                            let target = crate::contracts::routing::UrlGenerator::route(
+                                &url,
+                                name,
+                                &[],
+                                true,
+                            )?;
+                            exception.redirect_to(target);
+                        }
                     }
+                    return Err(error.into());
                 }
-                error
-            })?;
+            };
             if request.is_precognitive() {
                 (crate::foundation::Precognition::after_validation_hook(request))(&validator)?;
             }
@@ -149,6 +170,11 @@ pub trait FormRequest: Send + Sync {
     }
 
     fn redirect_to(&self) -> Option<&str> {
+        None
+    }
+
+    /// 验证失败时使用的命名路由；显式redirect_to优先，成功验证不解析目标。
+    fn redirect_route(&self) -> Option<&str> {
         None
     }
 

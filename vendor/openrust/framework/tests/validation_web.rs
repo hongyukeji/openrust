@@ -33,6 +33,11 @@ use tokio::{
 
 fn web() -> Result<(), RoutingError> {
     Route::get("/edit", inspect)?;
+    Route::get_with("/dashboard", inspect, |route| {
+        route.name("dashboard");
+        Ok(())
+    })?;
+    Route::post("/named-route/{mode}", named_route)?;
     Route::get("/display", || view("errors-probe"))?;
     Route::post("/submit", submit)?;
     Route::post("/explicit", explicit)?;
@@ -351,7 +356,7 @@ async fn redirect_targets_custom_renderers_json_and_blade_keep_their_own_contrac
     let cookie = session_cookie(&form);
     let headers = cookie.clone() + JSON + &format!("Referer: http://{address}/display\r\n");
     let explicit = send(address, "POST", "/explicit", &headers, "{}").await;
-    redirect(&explicit, "/edit?from=explicit");
+    redirect(&explicit, &format!("http://{address}/edit?from=explicit"));
     let display = send(address, "GET", "/display", &cookie, "").await;
     assert!(
         display.ends_with("<p>The name field is required.</p>"),
@@ -436,6 +441,111 @@ async fn manual_redirect_accepts_validator_contract_provider_bag_and_message_arr
         let clean = body(&send(address, "GET", "/edit", &session, "").await, 200);
         assert!(clean["errors"].is_null());
         assert!(clean["old"].is_null());
+    }
+    server.close().await;
+}
+
+struct NamedRedirect {
+    mode: String,
+}
+impl FormRequest for NamedRedirect {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("name", "required|string")])
+    }
+    fn error_bag(&self) -> &str {
+        "named"
+    }
+    fn redirect_to(&self) -> Option<&str> {
+        match self.mode.as_str() {
+            "path" => Some("/edit?from=path"),
+            "absolute" => Some("https://forms.example.test/edit?from=configured"),
+            "bad-path" => Some("//outside.example/edit"),
+            "empty-path" => Some(""),
+            "zero-path" => Some("0"),
+            _ => None,
+        }
+    }
+    fn redirect_route(&self) -> Option<&str> {
+        Some(match self.mode.as_str() {
+            "missing" => "undefined-dashboard",
+            "empty" => "",
+            "zero" => "0",
+            _ => "dashboard",
+        })
+    }
+}
+fn named_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.route("mode").unwrap().to_owned();
+        NamedRedirect { mode }.validate_resolved(request).await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+#[tokio::test]
+async fn form_requests_resolve_named_redirects_only_on_failure_and_keep_path_precedence() {
+    let root = tempfile::tempdir().unwrap();
+    let (address, server) = start(root.path().to_owned()).await;
+    for mode in [
+        "route",
+        "path",
+        "empty",
+        "zero",
+        "empty-path",
+        "zero-path",
+        "absolute",
+    ] {
+        let first = send(address, "GET", "/edit", "", "").await;
+        let cookie = session_cookie(&first);
+        let headers = cookie + JSON + &format!("Referer: http://{address}/edit?from=referer\r\n");
+        let response = send(
+            address,
+            "POST",
+            &format!("/named-route/{mode}"),
+            &headers,
+            "{}",
+        )
+        .await;
+        let target = match mode {
+            "path" => format!("http://{address}/edit?from=path"),
+            "absolute" => "https://forms.example.test/edit?from=configured".to_owned(),
+            "empty" | "zero" => "/edit?from=referer".to_owned(),
+            _ => format!("http://{address}/dashboard"),
+        };
+        redirect(&response, &target);
+        let cookie = session_cookie(&response);
+        let errors = body(&send(address, "GET", "/dashboard", &cookie, "").await, 200);
+        assert_eq!(
+            errors["errors"]["named"]["name"],
+            json!(["The name field is required."])
+        );
+    }
+    let response = send(
+        address,
+        "POST",
+        "/named-route/route",
+        &(JSON.to_owned() + "Accept: application/json\r\n"),
+        "{}",
+    )
+    .await;
+    assert!(body(&response, 422)["errors"]["name"].is_array());
+    for (mode, payload, status) in [
+        ("missing", "{}", 500),
+        ("missing", r#"{"name":"valid"}"#, 204),
+        ("bad-path", "{}", 500),
+        ("bad-path", r#"{"name":"valid"}"#, 204),
+    ] {
+        let response = send(
+            address,
+            "POST",
+            &format!("/named-route/{mode}"),
+            &(JSON.to_owned() + "Accept: application/json\r\n"),
+            payload,
+        )
+        .await;
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {status}")),
+            "{response}"
+        );
     }
     server.close().await;
 }

@@ -1072,3 +1072,37 @@ The `web` middleware shares a request-local `$errors` object, including when the
 ```
 
 `old(key, default)` and `request()->old(key, default)` read the existing session flash through the HTTP rendering bridge. A missing key uses the default; a stored `null` remains null. Render with a returned view or `Response::view` so the actual request is available. Escaped echoes protect both error text and old values. The next request ages out the flash normally; cached templates receive the current request’s errors and old input.
+
+
+## Form Request redirect targets {#form-request-redirect-targets}
+
+Override `redirect_to()` for a URL, or `redirect_route()` for a named route. An explicit URL takes priority and is generated through the current request’s URL generator; the named route is resolved only after a validation failure. This corresponds to the URL and named-route attributes using native trait methods. Register the `dashboard` route before accepting requests; an unknown name propagates its URL-generation error instead of silently falling back. JSON failures still return 422 when the target resolves; successful validation does not resolve the target.
+
+```rust
+use openrust::{
+    foundation::http::{FormRequest, ValidatedFormRequest},
+    http::{HttpError, Response, StatusCode},
+    validation::{RuleSet, ValidationResult},
+};
+
+#[derive(Default)]
+pub struct StorePostRequest;
+
+impl FormRequest for StorePostRequest {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("title", "required|string")])
+    }
+
+    fn redirect_route(&self) -> Option<&str> {
+        Some("dashboard")
+    }
+
+    fn error_bag(&self) -> &str {
+        "post"
+    }
+}
+
+pub async fn store_post(_: ValidatedFormRequest<StorePostRequest>) -> Result<Response, HttpError> {
+    Ok(Response::empty(StatusCode::CREATED))
+}
+```

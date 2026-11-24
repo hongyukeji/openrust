@@ -55,3 +55,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 Git按用户当次授权执行。此前“提交代码”已完成为 `1f36d7a9f`；用户随后授权将本次归档清理本地提交；不含推送或发布，不把旧批次授权继承为发布授权。所有未完成范围继续保留。
 
 - Rust原生命名迁移N-01至N-06已完成本批验收并按授权逐批本地提交，不推送；N-05=e84eb735d、N-06=4ea3aaa37，前置哈希与最终范围见[专项记录](audits/rust-naming/README.md)。三语、真实HTTP/Artisan/MySQL/Redis/PostgreSQL、生成消费者、20库Rustdoc与命名门禁已验收；远端CI及跨平台/供应商发布矩阵未因此关闭。原模型/交接在途及两份许可删除暂存保留。
+
+
+## URL Generation／Validation教程闭合（2026-11-24）
+
+固定两章URL14节、Validation179节已逐项核定；本轮补齐ForEach、fluent、Aware setter、email模式、Password、直接验证／after服务、条件多字段、消息目录、错误模板／old、正则与FormRequest命名失败目标等关联入口。最新隔离组合55目标237项0忽略、严格Clippy／格式、三语构建浏览器、实际main HTTP／Artisan与真实生成器消费者通过。详细差异、证据和边界见[最终复核](audits/docs-tutorials/final-review-2026-11-24.md)。该结论只覆盖两个固定教程，保留既定URL策略与原生适配，不将完整类API／其他章节／跨平台发布计作完成；Settings按其独立记录保持已闭合。API响应、配置、路由与路由原型的其他在途改动完整保留。本轮按功能簇本地提交，不推送。
