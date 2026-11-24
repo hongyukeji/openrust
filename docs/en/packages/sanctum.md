@@ -40,6 +40,8 @@ In a service provider, call `use_personal_access_token_model::<M>()` on the appl
 
 For UUID or ULID keys, declare the corresponding column in the migration and use `ModelMetadata::unique_id(UniqueId::Uuid)` or `UniqueId::Ulid` on the model. Use `primary_key` for a key column other than `id`. The credential stays in `<key>|<secret>` format. Token and owner identifiers use `AuthIdentifier` to retain their numeric or text representation. For a string owner key, use a compatible `tokenable_id` column and pass the owner’s identifier to issuance and revocation.
 
+SQLite, MySQL and PostgreSQL support integer, UUID and ULID token keys with matching migrations and model metadata. Model casts, owner-scoped queries, revocation and pruning use the same interfaces. PostgreSQL `timestamp` columns accept database datetime text and ISO 8601 text; a column without a time zone keeps the local date/time and does not retain the offset. Pass datetime text rather than an untyped Unix integer to such a column.
+
 Set `SANCTUM_TOKEN_PREFIX` to prepend an application-specific prefix to newly issued secrets.
 
 Implement `PersonalAccessTokenModel` on the model. Its default `find_token` verifies the SHA-256 digest. An override receives the presented credential and the configured Eloquent query, and can call `find_token_by_digest` after adding constraints or decoding the credential. The override is responsible for validating the credential it accepts.

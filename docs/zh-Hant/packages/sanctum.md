@@ -40,6 +40,8 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 使用 UUID 或 ULID 主鍵時，在遷移中宣告對應的欄位，並在模型中用 `ModelMetadata::unique_id(UniqueId::Uuid)` 或 `UniqueId::Ulid` 設定產生策略。若主鍵欄位名稱不是 `id`，用 `primary_key` 宣告。憑證格式仍為 `<主鍵>|<密鑰>`。權杖與歸屬識別碼使用 `AuthIdentifier` 保留整數或字串型別。歸屬主鍵是字串時，遷移須使用相符的 `tokenable_id` 欄位型別，簽發和撤銷時傳入該歸屬識別碼。
 
+SQLite、MySQL 與 PostgreSQL 均支援與遷移、模型中繼資料相符的整數、UUID 和 ULID 權杖主鍵，屬性轉換、歸屬查詢、撤銷與清理使用相同介面。PostgreSQL 的 `timestamp` 欄位接受資料庫日期時間文字與 ISO 8601 文字；無時區欄位保留本地日期時間，不儲存偏移。向這類欄位傳入日期時間文字，不要直接傳入未轉換的 Unix 整數。
+
 可用 `SANCTUM_TOKEN_PREFIX` 為新簽發的權杖密鑰設定應用程式專用前綴。
 
 自訂模型須實作 `PersonalAccessTokenModel`。預設 `find_token` 會驗證 SHA-256 摘要。覆寫方法會收到請求憑證和已設定的 Eloquent 查詢，可在附加條件或解碼憑證後呼叫 `find_token_by_digest`。覆寫方法須驗證其接受的憑證。

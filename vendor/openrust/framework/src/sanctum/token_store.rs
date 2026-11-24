@@ -81,7 +81,7 @@ impl<M: Model> EloquentTokenStore<M> {
             .require_relation_value("tokenable_type", owner)
             .require_mysql_morph_alias(owner)
             .require_relation_value("tokenable_id", Value::from(owner_id.clone()));
-        if self.connection.is_sqlite() {
+        if !matches!(self.connection.get_driver_name(), "mysql" | "mariadb") {
             query
         } else {
             query.require_relation_conditions(|conditions| {

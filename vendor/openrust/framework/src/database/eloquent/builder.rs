@@ -883,7 +883,7 @@ impl<M: Model> Builder<'static, M> {
 
     #[cfg(feature = "sanctum")]
     pub(crate) fn require_mysql_morph_alias(self, alias: &str) -> Self {
-        if self.connection.is_sqlite() {
+        if !matches!(self.connection.get_driver_name(), "mysql" | "mariadb") {
             return self;
         }
         self.require_relation_conditions(|conditions| {

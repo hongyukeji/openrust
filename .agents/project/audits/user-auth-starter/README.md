@@ -100,3 +100,17 @@
 ### 保留的缺口
 
 这不是A01-02闭合。当前邮件是可捕获的本地array传输；真实SMTP捕获、队列失败重试与生产供应商实际收件仍须分别验收。跨进程／节点凭据生效、PAT撤销／并发签发、无本地密码账户的全设备撤销尚未闭合；不能把本单元的密码浏览器会话结果扩大到这些范围。下一单元优先复用现有`Model::refresh_for_update`、`save_in_transaction`及密码代理claim机制核定共同写入边界；不另建认证或令牌引擎。
+
+
+## 令牌前置：PostgreSQL 归属与时间绑定（已验）
+
+沿用固定 Sanctum 4.4.0 的模型关系、属性转换与生命周期，不另建令牌存储。复核发现归属查询错误地向 PostgreSQL 发出 MySQL `BINARY` 表达式；现仅在 mysql／mariadb 连接追加相应精确匹配。自定义模型的 Timestamp 属性转换产出 ISO 文本，PostgreSQL TIMESTAMP 参数绑定现接受数据库日期文本及 RFC3339 文本，按无时区列保留当地日期时间；Null 使用明确时间类型，未转换整数／非法日期明确拒绝。未改 TIMESTAMPTZ。
+
+最终冻结快照为 `target/tmp/user-starter/source`，源码摘要 `pat-source-sha.json`。Rust 1.94.0，全部经 build_guard：
+
+- SQLite `sanctum_authentication::bearer_and_opt_in_spa_over_http_with_sqlite`：1 项通过，内部覆盖标准整数及自定义 UUID／ULID；两个具名连接通过同一个临时文件共享数据库。初轮独立内存库、随后未创建文件导致的夹具失败均保留日志，修正夹具后通过。
+- 独立 MySQL 8.4.13 同测试的 MySQL 目标：1 项通过，实际设置 URL 和必需标志；覆盖整数／UUID／ULID，日志 `pat-mysql-regression.log`。
+- 独立 PostgreSQL 18.7 明确运行两个 `--ignored` 基础设施测试：2 项通过、0 忽略。HTTP 目标内部覆盖三种主键、归属、模型事件／转换、权限、撤销、清理与 SPA；时间绑定目标覆盖数据库文本、Z／+08:00 文本、Null、整数及非法文本。日志 `pat-postgres-delivery.log`。
+- 工作区 all-targets 严格 Clippy、框架 sanctum all-targets 严格 Clippy 与格式检查通过，`pat-final-gates-second.log`。三语 Sanctum 文档构建通过，三语／两种挂载／桌面移动共12组浏览器检查通过，`pat-docs-browser-final.log`；首次浏览器期望大写 TIMESTAMP 与正文小写不符，修正断言后通过。
+
+这批只闭合必要数据库兼容性修复；不代表 PAT 撤销并发或 A01-02 闭合。SQL Server、MariaDB 原生服务及生产供应商没有据此验收。临时数据库容器已按夹具退出清理，数据卷未操作；源码、日志与正常增量缓存保留，继续执行凭据生命周期。

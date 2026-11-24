@@ -387,6 +387,13 @@ async fn verify_with_fingerprints<const KEY: u8>(
     fingerprints: bool,
 ) {
     let root = tempfile::tempdir().unwrap();
+    let mut database = database;
+    // 两个具名连接必须指向同一数据库，不能分别创建独立的内存库。
+    if custom_csrf && database.get("driver").and_then(Value::as_str) == Some("sqlite") {
+        let path = root.path().join("sanctum.sqlite");
+        std::fs::File::create(&path).unwrap();
+        database["database"] = json!(path);
+    }
     if fingerprints {
         std::fs::write(root.path().join("strict-fingerprints"), "").unwrap();
     }
@@ -395,7 +402,7 @@ async fn verify_with_fingerprints<const KEY: u8>(
     }
     let mut app = Application::configure(root.path().to_path_buf())
         .with_config(|root, _| Ok([
-            ("app".into(), json!({"key":"a".repeat(32)})),
+            ("app".into(), json!({"key":"a".repeat(32),"debug":true})),
             ("session".into(), json!({"driver":"array","cookie":"sanctum_test","lottery":[0,100],"same_site":"strict","http_only":false})),
             ("sanctum".into(), json!({"stateful":format!("spa.example:8443{}", Sanctum::current_request_host()),"expiration":5,"token_prefix":"fixture_",
                 "middleware": if root.join("custom-csrf").is_file() {
@@ -711,7 +718,16 @@ async fn verify_with_fingerprints<const KEY: u8>(
         json!(related_owner.get_auth_identifier()),
         json!(fresh_user.get_auth_identifier())
     );
-    assert_eq!(relation.get().await.unwrap().len(), 1);
+    let related = relation.get().await.unwrap_or_else(|error| {
+        let mut causes = Vec::new();
+        let mut current: Option<&dyn std::error::Error> = Some(&error);
+        while let Some(cause) = current {
+            causes.push(cause.to_string());
+            current = cause.source();
+        }
+        panic!("Sanctum归属查询失败：{}", causes.join(" -> "));
+    });
+    assert_eq!(related.len(), 1);
     let case_variant = tokens
         .create_token("USERS_ALIAS", owner(4), "related", &["read"], None)
         .await
@@ -826,15 +842,14 @@ async fn verify_with_fingerprints<const KEY: u8>(
     {
         use ModelEvent::*;
         model_events.take();
-        assert_eq!(
-            get("/api/user")
-                .bearer_auth(read.plain_text_token.as_str())
-                .send()
-                .await
-                .unwrap()
-                .status(),
-            200
-        );
+        let response = get("/api/user")
+            .bearer_auth(read.plain_text_token.as_str())
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+        assert_eq!(status, 200, "令牌认证失败(KEY={KEY}): {body}");
         assert_eq!(
             model_events.take(),
             [Retrieved, Saving, Updating, Updated, Saved]
@@ -1137,8 +1152,8 @@ async fn verify_with_fingerprints<const KEY: u8>(
             let bad_session = cookie(&fresh_login, "sanctum_test");
             if !missing {
                 db.statement(
-                    "UPDATE sanctum_users SET password = 'revoked-hash' WHERE id = 2",
-                    &[],
+                    "UPDATE sanctum_users SET password = 'revoked-hash' WHERE id = ?",
+                    &[SqlValue::from(owner(2))],
                 )
                 .await
                 .unwrap();
@@ -1159,8 +1174,8 @@ async fn verify_with_fingerprints<const KEY: u8>(
             );
             if !missing {
                 db.statement(
-                    "UPDATE sanctum_users SET password = 'old-hash' WHERE id = 2",
-                    &[],
+                    "UPDATE sanctum_users SET password = 'old-hash' WHERE id = ?",
+                    &[SqlValue::from(owner(2))],
                 )
                 .await
                 .unwrap();
@@ -1242,8 +1257,8 @@ async fn verify_with_fingerprints<const KEY: u8>(
             200
         );
         db.statement(
-            "UPDATE sanctum_users SET password = 'new-hash' WHERE id = 2",
-            &[],
+            "UPDATE sanctum_users SET password = 'new-hash' WHERE id = ?",
+            &[SqlValue::from(owner(2))],
         )
         .await
         .unwrap();
@@ -1407,6 +1422,8 @@ async fn bearer_and_opt_in_spa_over_http_with_sqlite() {
         )
         .await;
     }
+    verify::<1>(json!({"driver":"sqlite","database":":memory:"}), true, true).await;
+    verify::<2>(json!({"driver":"sqlite","database":":memory:"}), true, true).await;
 }
 
 #[tokio::test]
@@ -1697,4 +1714,13 @@ async fn fingerprint_tracking_rejects_missing_and_unvisited_spa_sessions_after_p
         true,
     )
     .await;
+}
+
+#[tokio::test]
+#[ignore = "必须通过独占PostgreSQL 18夹具提供连接"]
+async fn bearer_and_spa_over_http_with_postgres() {
+    let url = std::env::var("OPENRUST_TEST_POSTGRES_URL").expect("必须提供独占PostgreSQL连接");
+    verify::<0>(json!({"driver":"pgsql","url":url}), true, false).await;
+    verify::<1>(json!({"driver":"pgsql","url":url}), true, true).await;
+    verify::<2>(json!({"driver":"pgsql","url":url}), true, true).await;
 }

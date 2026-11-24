@@ -40,6 +40,8 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 使用 UUID 或 ULID 主键时，在迁移中声明对应的列，并在模型中用 `ModelMetadata::unique_id(UniqueId::Uuid)` 或 `UniqueId::Ulid` 配置生成策略。若主键列名不是 `id`，用 `primary_key` 声明。凭据格式仍为 `<主键>|<密钥>`。令牌与归属标识使用 `AuthIdentifier` 保留整数或字符串类型。归属主键是字符串时，迁移须使用匹配的 `tokenable_id` 列类型，签发和撤销时传入该归属标识。
 
+SQLite、MySQL 和 PostgreSQL 均支持与迁移、模型元数据匹配的整数、UUID 和 ULID 令牌主键，属性转换、归属查询、撤销及清理使用相同接口。PostgreSQL 的 `timestamp` 列接受数据库日期时间文本和 ISO 8601 文本；无时区列保留本地日期时间，不保存偏移。向这类列传入日期时间文本，不要直接传未转换的 Unix 整数。
+
 可用 `SANCTUM_TOKEN_PREFIX` 为新签发的令牌密钥设置应用专用前缀。
 
 自定义模型须实现 `PersonalAccessTokenModel`。默认 `find_token` 校验 SHA-256 摘要。覆写方法收到请求凭据和已配置的 Eloquent 查询，可在追加条件或解码凭据后调用 `find_token_by_digest`。覆写方法负责验证其接受的凭据。

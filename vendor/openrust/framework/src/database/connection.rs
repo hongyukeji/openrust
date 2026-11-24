@@ -346,6 +346,42 @@ fn bind_postgres<'a, 'b: 'a>(
             query = query.bind(decimal);
             continue;
         }
+        if kind == Some("TIMESTAMP") {
+            let timestamp = match value {
+                Value::Null => None,
+                Value::Text(value) => {
+                    let format = if value.contains('.') {
+                        time::macros::format_description!(
+                            "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond]"
+                        )
+                    } else {
+                        time::macros::format_description!(
+                            "[year]-[month]-[day] [hour]:[minute]:[second]"
+                        )
+                    };
+                    let parsed = time::PrimitiveDateTime::parse(value, format)
+                        .or_else(|_| {
+                            time::OffsetDateTime::parse(
+                                value,
+                                &time::format_description::well_known::Rfc3339,
+                            )
+                            // 无时区列遵循PostgreSQL语义：保留文本的本地日期时间，忽略偏移。
+                            .map(|date| time::PrimitiveDateTime::new(date.date(), date.time()))
+                        })
+                        .map_err(|_| {
+                            DatabaseError::InvalidQuery("PostgreSQL timestamp parameter")
+                        })?;
+                    Some(parsed)
+                }
+                _ => {
+                    return Err(DatabaseError::InvalidQuery(
+                        "PostgreSQL timestamp parameter",
+                    ));
+                }
+            };
+            query = query.bind(timestamp);
+            continue;
+        }
         let integer = match value {
             Value::Integer(value) => Some(*value),
             Value::Text(value) if matches!(kind, Some("INT2" | "INT4" | "INT8")) => Some(
@@ -366,17 +402,6 @@ fn bind_postgres<'a, 'b: 'a>(
                 Some("INT4") => query.bind(integer_binding::<i32>(value)?),
                 _ => query.bind(value),
             };
-        } else if let (Value::Text(value), Some("TIMESTAMP")) = (value, kind) {
-            let format = if value.contains('.') {
-                time::macros::format_description!(
-                    "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond]"
-                )
-            } else {
-                time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]")
-            };
-            let timestamp = time::PrimitiveDateTime::parse(value, format)
-                .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL timestamp parameter"))?;
-            query = query.bind(timestamp);
         } else {
             query = bind!(query, [value], sqlite_unsigned);
         }
