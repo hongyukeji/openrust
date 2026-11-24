@@ -52,9 +52,22 @@ pub fn register_parallel_hooks() -> Result<(), ParallelTestError> {
 
 應用綁定預設啟用這些隔離行為。獨立建構的 `testing::ParallelTesting::new` 只提供生命週期服務；自訂替換需要標準隔離時，建構後呼叫 `with_default_isolation()`。
 
-目前適配為每個案例獨立程序，並非跨案例常駐工作程序；現有受管 MySQL 夾具仍各自建立及清理資料庫。可重用資料庫命名、重建／刪除命令選項、取消時的非同步鉤子／資料庫回收及 Linux／Windows 原生程序驗收仍單列待補，不能憑生命週期入口認定這些能力已提供。
+目前適配為每個案例獨立程序，並非跨案例常駐工作程序；現有受管 MySQL 夾具仍各自建立及清理資料庫。資料庫測試策略的自動接線、取消時的非同步鉤子／資料庫回收及 Linux／Windows 原生程序驗收仍單列待補，不能憑生命週期入口認定這些能力已提供。
 
 用例結束時僅執行已註冊的清理回呼，不再重新設定快取前綴或編譯視圖路徑；清理回呼可以讀取測試正文修改後的設定。
+
+### 可重用的平行測試資料庫
+
+在 `run_parallel_test` 前呼叫 `TestApp::with_parallel_database()` 宣告測試案例使用資料庫。平行子行程將預設連線切換至 `<原資料庫名>_test_<token>`；既有測試資料庫會重用，預設保留。不存在時建立，再依序執行兩種資料庫回呼，重用時不重複執行。SQLite `:memory:` 保持原樣。既有受管 MySQL 夾具自行擁有獨立資料庫，不能疊加這兩種歸屬模式。
+
+```sh
+./artisan test --parallel --recreate-databases --drop-databases --test feature
+./artisan test --parallel --without-databases --test feature
+```
+
+`--recreate-databases` 在行程準備時刪除對應 token 測試資料庫；`--drop-databases` 在行程正常清理時刪除。`--without-databases` 停用切換、建立及上述兩個刪除選項。這些操作保留原資料庫。URL、讀／寫候選及 PostgreSQL 直連端點皆使用對應測試資料庫，憑證及其他連線選項保持原設定。
+
+此標記宣告資料庫相依，不自動選擇遷移或重設策略。在 `run_parallel_test` 正文中透過 `test.artisan(["migrate", "--force"]).await.assert_successful()` 執行所需遷移；SQLite、MySQL、PostgreSQL 皆支援顯式與重複遷移。各資料庫測試策略的自動遷移、交易及重設接線仍待補齊，不能假定受管 MySQL 重設助手已支援可重用資料庫。
 
 ## 測試環境 {#test-environment}
 

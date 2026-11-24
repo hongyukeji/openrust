@@ -65,6 +65,15 @@ pub(crate) async fn run(
                 .ok_or_else(|| error("--processes需要正整数"))?;
             continue;
         }
+        if let Some(option) = match value {
+            "--recreate-databases" => Some("RECREATE_DATABASES"),
+            "--drop-databases" => Some("DROP_DATABASES"),
+            "--without-databases" => Some("WITHOUT_DATABASES"),
+            _ => None,
+        } {
+            environment.push((format!("LARAVEL_PARALLEL_TESTING_{option}"), "1".into()));
+            continue;
+        }
         if value == "--without-cache" {
             environment.push(("LARAVEL_PARALLEL_TESTING_WITHOUT_CACHE".into(), "1".into()));
             continue;

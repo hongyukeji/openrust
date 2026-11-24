@@ -53,6 +53,7 @@ pub struct TestApp {
     pub(super) truncation: Option<TruncationState>,
     pub(super) query_counts: Arc<TestQueryCounts>,
     pub(super) parallel_databases: std::collections::BTreeSet<String>,
+    pub(super) parallel_database: bool,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
     // Release the application's services before deleting their local files.
@@ -91,6 +92,7 @@ impl TestApp {
             truncation: None,
             query_counts,
             parallel_databases: Default::default(),
+            parallel_database: false,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
             _directory: directory,

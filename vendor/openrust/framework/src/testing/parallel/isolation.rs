@@ -15,7 +15,7 @@ struct Original {
 }
 #[derive(Default)]
 pub(super) struct Isolation(Mutex<Original>);
-fn scalar_token(value: Value) -> Result<String, ParallelTestError> {
+pub(super) fn scalar_token(value: Value) -> Result<String, ParallelTestError> {
     match value {
         Value::String(value) => Ok(value),
         Value::Bool(value) => Ok(if value { "1".into() } else { String::new() }),
@@ -82,6 +82,7 @@ impl ParallelTesting {
         ))))
     }
     pub(super) async fn prepare_process(&self, app: &Application) -> Result<(), ParallelTestError> {
+        self.databases.prepare_process(self, app).await?;
         if let Some(path) = self.view_path(app)? {
             File::ensure_directory_exists_with_options(app.base_path().join(path), 0o755, true)?;
         }
@@ -128,6 +129,15 @@ impl ParallelTesting {
                 Value::String(format!("{prefix}test_{}_", scalar_token(self.token()?)?)),
             )?;
         }
+        if test.parallel_database {
+            self.databases.enable();
+            if let Some((database, true)) = self.databases.prepare_case(self, test.app()).await? {
+                self.call_set_up_test_database_before_migrating_callbacks(test.app(), &database)
+                    .await?;
+                self.call_set_up_test_database_callbacks(test.app(), &database)
+                    .await?;
+            }
+        }
         if let Some(path) = self.view_path(app)? {
             app.config()?.set(
                 "view.compiled",
@@ -149,6 +159,7 @@ impl ParallelTesting {
         Ok(())
     }
     pub(super) async fn cleanup_process(&self, app: &Application) -> Result<(), ParallelTestError> {
+        self.databases.cleanup_process(self, app).await?;
         if let Some(path) = self.view_path(app)? {
             let path = app.base_path().join(path);
             let _ = File::delete_directory(path)?;

@@ -39,6 +39,7 @@ pub struct ParallelTesting {
     callbacks: RwLock<Callbacks>,
     isolation: isolation::Isolation,
     default_isolation: bool,
+    databases: databases::Databases,
 }
 fn truthy(value: &Value) -> bool {
     match value {
@@ -177,6 +178,7 @@ impl ParallelTesting {
             callbacks: RwLock::default(),
             isolation: Default::default(),
             default_isolation: false,
+            databases: Default::default(),
         }
     }
     /// 应用装配时启用标准测试隔离；独立构造的生命周期注册表保持无附加副作用。
@@ -302,6 +304,12 @@ fn finish<T>(
     }
 }
 impl TestApp {
+    /// 声明本用例使用标准可复用并行数据库；迁移和事务仍由用例的测试策略执行。
+    pub fn with_parallel_database(mut self) -> Self {
+        self.parallel_database = true;
+        self
+    }
+
     /// 原生测试闭包对应测试用例；错误和panic后仍执行已进入用例的清理回调。
     pub async fn run_parallel_test<T>(
         &mut self,
@@ -311,6 +319,15 @@ impl TestApp {
         self.boot().await?;
         let app = self.app().share();
         let parallel = app.container().make::<ParallelTesting>()?;
+        if self.parallel_database {
+            if !self.mysql.is_empty() {
+                return Err(std::io::Error::other(
+                    "受管MySQL夹具已有独立数据库，不能同时启用标准并行数据库",
+                )
+                .into());
+            }
+            parallel.databases.enable();
+        }
         crate::support::facades::App::set_facade_application(Some(&app), async {
             let operation = async {
                 parallel.call_set_up_test_case_callbacks(self).await?;
@@ -376,3 +393,5 @@ impl TestApp {
 pub(crate) mod runner;
 
 mod isolation;
+
+mod databases;

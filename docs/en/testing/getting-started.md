@@ -52,9 +52,22 @@ When `view.compiled` is enabled, the process creates `original_path/test_<token>
 
 The application binding enables these defaults. A standalone `testing::ParallelTesting::new` remains a bare lifecycle service; use `with_default_isolation()` when creating a custom replacement that should retain the standard isolation behavior.
 
-The current native adapter uses an isolated process per test, rather than keeping a worker alive across multiple cases. Existing owned MySQL fixtures still create and clean their own databases. Reusable database naming, recreate/drop command options, asynchronous hook/database cleanup on cancellation, and native Linux/Windows process acceptance remain separate open items; they are not provided by the lifecycle API alone.
+The current native adapter uses an isolated process per test, rather than keeping a worker alive across multiple cases. Existing owned MySQL fixtures still create and clean their own databases. Automatic database-testing strategy integration, asynchronous hook/database cleanup on cancellation, and native Linux/Windows process acceptance remain separate open items; they are not provided by the lifecycle API alone.
 
 Test-case teardown invokes registered cleanup callbacks without preparing cache prefixes or compiled-view paths again; configuration changes made by the test remain visible to those callbacks.
+
+### Reusable parallel databases
+
+Declare database use with `TestApp::with_parallel_database()` before `run_parallel_test`. In parallel children, the default connection switches to `<original_database>_test_<token>`; an existing database is reused and is kept by default. A missing database is created, then the two database hooks run once. SQLite `:memory:` is left unchanged. Existing owned MySQL fixtures already have their own databases and cannot combine the two ownership modes.
+
+```sh
+./artisan test --parallel --recreate-databases --drop-databases --test feature
+./artisan test --parallel --without-databases --test feature
+```
+
+`--recreate-databases` drops the token database during process setup; `--drop-databases` drops it during normal process teardown. `--without-databases` disables switching, creation and both drop options. The original database is preserved by these operations. Connection URLs, read/write candidates and PostgreSQL direct endpoints all follow the selected token database; credentials and other connection options are retained.
+
+The marker declares database use; it does not automatically select a migration or reset strategy. Run the required migrations through `test.artisan(["migrate", "--force"]).await.assert_successful()` inside `run_parallel_test`. Explicit migration and repeated migration are supported on SQLite, MySQL and PostgreSQL. Automatic migration/transaction/reset wiring for every database-testing strategy remains open; do not assume the owned-MySQL reset helpers accept reusable databases.
 
 ## Test environment {#test-environment}
 

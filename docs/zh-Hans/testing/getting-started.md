@@ -52,9 +52,22 @@ pub fn register_parallel_hooks() -> Result<(), ParallelTestError> {
 
 应用绑定默认启用这些隔离行为。独立构造的 `testing::ParallelTesting::new` 只提供生命周期服务；自定义替换需要标准隔离时，构造后调用 `with_default_isolation()`。
 
-当前适配为每个用例独立进程，并非跨用例常驻工作进程；现有受管 MySQL 夹具仍各自创建和清理数据库。可复用数据库命名、重建／删除命令选项、取消时的异步钩子／数据库回收及 Linux／Windows 原生进程验收仍单列待补，不能凭生命周期入口认定这些能力已提供。
+当前适配为每个用例独立进程，并非跨用例常驻工作进程；现有受管 MySQL 夹具仍各自创建和清理数据库。数据库测试策略的自动接线、取消时的异步钩子／数据库回收及 Linux／Windows 原生进程验收仍单列待补，不能凭生命周期入口认定这些能力已提供。
 
 用例结束时仅执行已注册的清理回调，不再重新设置缓存前缀或编译视图路径；清理回调可以读取测试正文修改后的配置。
+
+### 可复用的并行测试数据库
+
+在 `run_parallel_test` 前调用 `TestApp::with_parallel_database()` 声明用例使用数据库。并行子进程将默认连接切换到 `<原库名>_test_<token>`；已有测试库会复用，默认保留。不存在时创建，再依次执行两种数据库钩子，复用时不重复执行。SQLite `:memory:` 保持原样。已有受管 MySQL 夹具自行拥有独立数据库，不能叠加这两种归属模式。
+
+```sh
+./artisan test --parallel --recreate-databases --drop-databases --test feature
+./artisan test --parallel --without-databases --test feature
+```
+
+`--recreate-databases` 在进程准备时删除对应 token 测试库；`--drop-databases` 在进程正常清理时删除。`--without-databases` 禁用切库、建库和上述两个删除选项。这些操作保留原库。URL、读／写候选及 PostgreSQL 直连端点都会使用对应测试库，凭据和其他连接选项保持原配置。
+
+此标记声明数据库依赖，不自动选择迁移或重置策略。在 `run_parallel_test` 正文中通过 `test.artisan(["migrate", "--force"]).await.assert_successful()` 执行所需迁移；SQLite、MySQL、PostgreSQL 均支持显式迁移与重复迁移。各数据库测试策略的自动迁移、事务及重置接线仍待补齐，不能假定受管 MySQL 重置助手已支持可复用数据库。
 
 ## 测试环境 {#test-environment}
 

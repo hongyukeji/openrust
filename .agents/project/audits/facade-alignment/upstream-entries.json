@@ -2740,7 +2740,7 @@
         "evidence": "target/tmp/facade-alignment/parallel-testing：原PHP5组门控/选项/token及6类回调实跑fixture；MySQL8.4.13的21项原生/配置/串行回归全部通过；6个真实Artisan场景（barrier证明双进程并发、预期失败teardown、筛选、列举、无效参数、取消退出及无活跃子进程）；真实make:test生成后编译并由parallel运行器通过。workspace严格Clippy51.74s、fmt、三语构建14.94s及两挂载12浏览器通过。 后续隔离批次已补实际前缀/编译目录；较早21项记录仅代表当时基础批次。"
       },
       "remaining": [
-        "标准可复用_test_token数据库命名、重建/保留/删除策略与相应命令选项仍待实现；原生已拥有的MySQL夹具保持创建/清理策略，不提供无效空选项",
+        "各数据库测试策略的自动迁移/事务/重置接线仍待补齐；标准显式with_parallel_database声明、复用/重建/删除/禁用命令已验，不能将此标记等同全部测试策略。受管MySQL原归属与重置边界保留。",
         "取消期间的异步钩子和数据库回收仍须验收；当前只确认Ctrl+C130及没有继续运行的测试子进程",
         "Linux/Windows原生进程验收与共享Facade继承测试入口仍单列；本批不是整个门面闭合"
       ],
@@ -2752,6 +2752,17 @@
         "native_constraints": "缓存前缀为字符串/null；编译路径为字符串、null或停用值；路径中的token拒绝分隔符和保留字符，防止自动清理越界。原值按应用保存，避免PHP进程静态原值污染多Rust应用。此作用域差异有实际双应用Redis及独立视图证据。",
         "evidence": "固定官方5文件逐字校验；实际PHP TestCaches/TestViews八组首次/重复配置共16快照。独立MySQL8.4.13+Redis8.10.3交付组合50项通过，含6项隔离、真实HTTP/保留View/已解析或未解析Blade别名与既有渲染/配置/迁移消费者；7个真实Artisan场景确认默认前缀/without-cache。候选父e03be8acc workspace严格Clippy1m17s；三语16.22s与两挂载12浏览器通过。",
         "case_teardown": "只在setUpTestCase准备缓存/编译目录；tearDownTestCase只执行已注册回调，不重写正文修改的配置。run_parallel_test成功、Result错误与panic三条真实路径均验证回调及清理后配置保留。"
+      },
+      "database_isolation": {
+        "review": "implemented_tested_base",
+        "local": "TestApp::with_parallel_database声明用例数据库依赖，run_parallel_test在进程回调前启用。裸ParallelTesting服务不自动接线；默认应用绑定使用现有标准隔离。",
+        "upstream": "固定1449bf TestDatabases：testDatabase、ensureTestDatabaseExists、switchToDatabase、whenNotUsingInMemoryDatabase、recreate/drop/without选项。复用现有ConnectionFactory、URL解析器、DatabaseManager及SchemaBuilder，无新依赖、并行连接容器或迁移实现。",
+        "naming": "记忆原连接配置和原库名，每个token使用original_test_token，不将已切换测试库作为下一次基值。各应用单独记忆；默认保留和复用测试库，:memory:跳过。含点号的具名连接按完整映射更新。",
+        "connections": "先用已有解析器展开URL并保留配置，再同步替换基础/读/写/直连及候选端点库名。SQLite URL查询参数与空端点保留；切换/删除前purge所有角色，建删库使用不可变原连接快照，PG单独直连配置亦用于管理DDL。",
+        "callbacks": "数据库首次创建后在锁外调用before和ready回调，已有库不重放；缓存准备先于数据库回调，视图准备随后。与固定非Transactions声明的顺序一致，不声称自动执行DatabaseTransactions迁移；显式迁移仍由真实Artisan执行。",
+        "options": "真实Artisan --recreate-databases/--drop-databases/--without-databases透传对应原环境选项。without在读取连接前跳过建删库/切换；普通结束、正文Result错误/panic均按drop选项清理token库，原库保留。",
+        "native_boundary": "Rust不能按PHP类trait反射识别数据库测试依赖，使用显式TestApp标记。现有受管MySQL夹具不可混用新归属模式，未放宽重置助手的持有者检查；每种重置策略的自动装配仍为缺口。SQL Server、原生Linux/Windows及取消期间异步清理未计通过。",
+        "evidence": "target/tmp/facade-alignment/parallel-databases：独立MySQL8.4.13+PostgreSQL18.7+Redis8.10.3和SQLite共23项交付组合全部通过；新6项覆盖三库迁移/重复迁移、真实HTTP、读写/PG直连、复用、重建、删除、错误/panic清理、内存/禁用/非法token/SQLite URL参数。三库各6个真实Artisan场景共18个，双进程实际分库且跨进程复用/重建/删除/禁用均验。候选父788809150严格workspace/all-targets Clippy1m10s，三语构建23.03s及根/docs两挂载12浏览器通过。"
       }
     },
     {

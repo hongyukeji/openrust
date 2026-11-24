@@ -1,5 +1,6 @@
 use openrust::{
-    support::facades::{App, Config, Facade, ParallelTesting},
+    contracts::foundation::Application as _,
+    support::facades::{App, Config, Db, Facade, ParallelTesting, Schema},
     testing::TestApp,
 };
 use std::{io::Write, path::PathBuf};
@@ -21,6 +22,19 @@ fn record(event: &str) {
 async fn scenario(fail: bool) {
     let mut app = TestApp::create(|b| b).unwrap();
     app.boot().await.unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_PARALLEL_DB_FIXTURE_URL") {
+        app.app()
+            .config()
+            .unwrap()
+            .set(
+                "database",
+                serde_json::json!({
+                    "default":"fixture", "connections":{"fixture":{"url":url}}
+                }),
+            )
+            .unwrap();
+        app = app.with_parallel_database();
+    }
     App::set_facade_application(Some(app.app()), async {
         ParallelTesting::set_up_process(|_, _| {
             Box::pin(async {
@@ -55,6 +69,22 @@ async fn scenario(fail: bool) {
     app.run_parallel_test(move |case| {
         Box::pin(async move {
             record("body");
+            if std::env::var_os("OPENRUST_PARALLEL_DB_FIXTURE_URL").is_some() {
+                let existed = Schema::has_table("parallel_cli_marker").await?;
+                if !existed {
+                    Db::unprepared("create table parallel_cli_marker (id integer)").await?;
+                    Db::unprepared("insert into parallel_cli_marker values (1)").await?;
+                }
+                let root = std::env::var("OPENRUST_PARALLEL_FIXTURE_LOG")?;
+                let token = ParallelTesting::token()?;
+                let token = token.as_str().unwrap();
+                let row = serde_json::json!({"event":"database", "token":token,
+                    "database": Db::connection(None)?.get_database_name(),
+                    "existed":existed, "count":Db::connection(None)?.table("parallel_cli_marker").count("*").await?});
+                let mut file = std::fs::OpenOptions::new().create(true).append(true)
+                    .open(PathBuf::from(root).join(format!("{token}.jsonl")))?;
+                writeln!(file, "{row}")?;
+            }
             case.get("/missing").await?.assert_not_found();
             if let (Ok(root), Ok(count)) = (
                 std::env::var("OPENRUST_PARALLEL_FIXTURE_LOG"),

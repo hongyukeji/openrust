@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 use super::{DatabaseError, DatabaseResult};
 
 /// Resolves connection URLs before the driver builds its options.
-pub(super) fn parse(config: Value) -> DatabaseResult<Map<String, Value>> {
+pub(crate) fn parse(config: Value) -> DatabaseResult<Map<String, Value>> {
     let mut config = match config {
         Value::Object(config) => config,
         Value::String(url) => Map::from_iter([("url".into(), Value::String(url))]),

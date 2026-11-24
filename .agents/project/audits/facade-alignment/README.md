@@ -571,3 +571,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 复核固定TestCaches/TestViews发现它们只注册setUpTestCase，原生case_callbacks共享展开却在tearDownTestCase再次prepare_case。这会覆盖正文修改的cache.prefix/view.compiled，并污染用户清理回调；本次明确区分setup和teardown，不改进程清理及原有裸服务语义。旧版没有对应公开生命周期可直接复用，沿用前两批固定源码证据和现有回调实现。
 - 新增正式run_parallel_test消费者，在成功、正文Result错误和panic三种路径检查实际清理回调及最终配置，均保留正文配置与原始错误／panic。独立MySQL8.4、Redis组合17项通过；定向严格Clippy通过，日志target/tmp/facade-alignment/parallel-teardown/。
 - 这是局部生命周期修复。数据库标准复用与重建／删除选项、取消异步清理及全门面剩余契约仍未闭合，继续原任务，不推送。
+
+### ParallelTesting：标准可复用数据库与实际命令选项（仍 partial）
+
+- 对照固定TestDatabases的命名、探测创建、切库和三个命令选项；旧版只有受管测试数据库，没有对应公开并行契约。复用现有连接工厂、URL解析、Schema与Artisan，无平行迁移系统。Rust以with_parallel_database显式声明数据库依赖，替代动态类trait反射；并非自动选择全部重置策略。
+- 原库名/config按应用记忆，使用original_test_token；默认复用/保留，recreate在进程准备删除，drop在进程清理删除，without在读取连接前跳过，:memory:保持原状。MySQL受管夹具保留原归属与保护，不允许叠加。
+- 读/写/直连及候选端点同步切换；完整映射更新保留带点连接名；SQLite URL参数和空端点保留。管理DDL使用不可变原配置，PG可用独立直连；不让旧句柄随可变配置重连后误管测试库以外的目标。缓存/数据库/视图准备顺序与固定Provider一致，用户数据库回调在状态锁外调用。
+- tests-delivery.log：MySQL8.4.13、PostgreSQL18.7、Redis8.10.3与SQLite交付组合23项通过，无忽略；含真实Artisan首次和重复迁移、HTTP、读写及PG直连、复用、重建、错误/panic清理及原库保留。新增6项均实际执行；外部驱动变量由独立夹具提供，没有把缺环境早返回算通过。
+- cli-{sqlite,mysql,postgres}-results.json：各6个真实Artisan场景共18个，双进程token实际独立、跨进程复用、recreate、drop、删除后重建及without组合均过。本批tmpfs数据库容器由原验收脚本回收，SQLite验收文件直接删除，日志保留。
+- 父788809150候选workspace/all-targets严格Clippy1m10s、三语构建23.03s、根与/docs两挂载桌面/移动12浏览器通过。证据目录target/tmp/facade-alignment/parallel-databases/。
+- 仍需逐测试策略接通自动迁移/事务/重置、取消期间异步清理、Linux/Windows原生及共享Facade测试契约；SQL Server纳入发布矩阵。ParallelTesting与全门面任务继续，未改为闭合，不推送。

@@ -3,7 +3,7 @@
 mod lost_connection_detector;
 pub use lost_connection_detector::LostConnectionDetector;
 mod bindings;
-mod configuration_url_parser;
+pub(crate) mod configuration_url_parser;
 mod connection;
 mod connection_interface;
 mod connection_pools;
