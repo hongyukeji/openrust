@@ -71,13 +71,23 @@ use super::{
 };
 use tokio::sync::OnceCell;
 
-struct ConsoleApplication(Weak<ApplicationState>);
+struct ConsoleApplication {
+    application: Weak<ApplicationState>,
+    commands: OnceCell<RegisteredCommands>,
+}
+struct RegisteredCommands {
+    artisan: Artisan,
+    has_scheduled_tasks: bool,
+}
 
 pub(super) fn bind_application(application: &Arc<ApplicationState>) {
     installation::bind(application);
     application
         .container
-        .instance(Arc::new(ConsoleApplication(Arc::downgrade(application))))
+        .instance(Arc::new(ConsoleApplication {
+            application: Arc::downgrade(application),
+            commands: OnceCell::new(),
+        }))
         .expect("Artisan application is initially unbound");
 }
 
@@ -88,7 +98,7 @@ pub(crate) async fn call_in_application(
 ) -> Result<i32, ConsoleError> {
     let shared = facades::current_container()
         .and_then(|container| container.make::<ConsoleApplication>().ok())
-        .and_then(|application| application.0.upgrade())
+        .and_then(|application| application.application.upgrade())
         .ok_or_else(|| ConsoleError::new("No active Artisan application."))?;
     let mut kernel = Kernel::for_artisan(Application { shared });
     facades::scope(kernel.application.container_handle(), async {
@@ -167,106 +177,128 @@ impl Kernel {
             async move {
                 self.application.boot_with_environment(selected).await?;
                 self.application.load_deferred_providers().await?;
-                self.command_registration
-                    .get_or_insert_with(|| {
-                        if self.register_planned {
-                            self.artisan.register_planned_commands()?;
-                            self.artisan.register_task_commands()?;
-                            environment_command::register(&mut self.artisan)?;
-                            config_cache_command::register(&mut self.artisan)?;
-                            configuration_command::register(&mut self.artisan)?;
-                            environment_encryption_command::register(&mut self.artisan)?;
-                            event_cache_command::register(&mut self.artisan)?;
-                            event_clear_command::register(&mut self.artisan)?;
-                            event_list_command::register(&mut self.artisan)?;
-                            event_make_command::register(&mut self.artisan)?;
-                            job_make_command::register(&mut self.artisan)?;
-                            channel_list_command::register(&mut self.artisan)?;
-                            install_routes_command::register(&mut self.artisan)?;
-                            init_command::register(&mut self.artisan)?;
-                            console_make_command::register(&mut self.artisan)?;
-                            test_make_command::register(&mut self.artisan)?;
-                            type_make_command::register(&mut self.artisan)?;
-                            test_command::register(&mut self.artisan)?;
-                            stub_publish_command::register(&mut self.artisan)?;
-                            model_make_command::register(&mut self.artisan)?;
-                            model_fields_command::register(&mut self.artisan)?;
-                            observer_make_command::register(&mut self.artisan)?;
-                            policy_make_command::register(&mut self.artisan)?;
-                            provider_make_command::register(&mut self.artisan)?;
-                            resource_make_command::register(&mut self.artisan)?;
-                            request_make_command::register(&mut self.artisan)?;
-                            rule_make_command::register(&mut self.artisan)?;
-                            key_generate_command::register(&mut self.artisan)?;
-                            lang_publish_command::register(&mut self.artisan)?;
-                            mail_make_command::register(&mut self.artisan)?;
-                            notification_make_command::register(&mut self.artisan)?;
-                            maintenance_command::register(&mut self.artisan)?;
-                            serve_command::register(&mut self.artisan)?;
-                            dev_command::register(&mut self.artisan)?;
-                            dev_list_command::register(&mut self.artisan)?;
-                            crate::auth::console::register(&mut self.artisan)?;
-                            #[cfg(feature = "sanctum")]
-                            crate::sanctum::prune_expired::register(&mut self.artisan)?;
-                            vendor_publish_command::register(&mut self.artisan)?;
-                            package_manifest_command::register(&mut self.artisan)?;
-                            crate::cache::console::register(&mut self.artisan)?;
-                            crate::queue::console::register(&mut self.artisan)?;
-                            crate::notifications::console::register(&mut self.artisan)?;
-                            crate::concurrency::register(&mut self.artisan)?;
-                            crate::view::console::register(&mut self.artisan)?;
-                            view_component_make_command::register(&mut self.artisan)?;
-                            crate::routing::console::route_list_command::register(
-                                &mut self.artisan,
-                            )?;
-                            crate::routing::console::route_cache_command::register(
-                                &mut self.artisan,
-                            )?;
-                            storage_link_command::register(&mut self.artisan)?;
-                            storage_unlink_command::register(&mut self.artisan)?;
-                            crate::database::console::factories::register(&mut self.artisan)?;
-                            crate::database::console::migrations::register(&mut self.artisan)?;
-                            crate::database::console::seeds::register(&mut self.artisan)?;
-                        }
-                        let schedule = scheduling::Schedule::collect(|| {
-                            let package_commands = self
-                                .application
-                                .shared
-                                .package_commands
-                                .lock()
-                                .expect("package command list lock poisoned")
-                                .clone();
-                            for register in package_commands {
-                                facades::Artisan::register(&mut self.artisan, register)?;
-                            }
-                            (self.application.shared.commands)(&mut self.artisan)?;
-                            if let Some(register) = self.application.shared.command_routes {
-                                facades::Artisan::register(&mut self.artisan, register)?;
-                            }
-                            for configure in self
-                                .application
-                                .shared
-                                .schedule_configurators
-                                .lock()
-                                .expect("调度配置锁中毒")
-                                .iter()
-                            {
-                                scheduling::ScheduleFacade::configure(|schedule| {
-                                    configure(schedule)
-                                })?;
-                            }
-                            Ok(())
-                        })?;
-                        if self.register_planned {
-                            self.has_scheduled_tasks = schedule.events().next().is_some();
-                            scheduling::register(&mut self.artisan, schedule)?;
-                        }
-                        Ok(())
-                    })
-                    .clone()
+                self.bootstrap_commands()
+                    .await
                     .map_err(|source| BootstrapError::CommandRegistrationFailed { source })
             },
         ))
+    }
+    async fn bootstrap_commands(&mut self) -> Result<(), ConsoleError> {
+        if !self.register_planned || self.command_registration.is_some() {
+            return self.register_commands_once();
+        }
+        let application = self
+            .application
+            .container_handle()
+            .make::<ConsoleApplication>()
+            .map_err(ConsoleError::from_source)?;
+        let registered = application
+            .commands
+            .get_or_try_init(|| async {
+                self.register_commands_once()?;
+                Ok::<_, ConsoleError>(RegisteredCommands {
+                    artisan: self.artisan.clone(),
+                    has_scheduled_tasks: self.has_scheduled_tasks,
+                })
+            })
+            .await?;
+        self.artisan = registered.artisan.clone();
+        self.has_scheduled_tasks = registered.has_scheduled_tasks;
+        self.command_registration = Some(Ok(()));
+        Ok(())
+    }
+    fn register_commands_once(&mut self) -> Result<(), ConsoleError> {
+        self.command_registration
+            .get_or_insert_with(|| {
+                if self.register_planned {
+                    self.artisan.register_planned_commands()?;
+                    self.artisan.register_task_commands()?;
+                    environment_command::register(&mut self.artisan)?;
+                    config_cache_command::register(&mut self.artisan)?;
+                    configuration_command::register(&mut self.artisan)?;
+                    environment_encryption_command::register(&mut self.artisan)?;
+                    event_cache_command::register(&mut self.artisan)?;
+                    event_clear_command::register(&mut self.artisan)?;
+                    event_list_command::register(&mut self.artisan)?;
+                    event_make_command::register(&mut self.artisan)?;
+                    job_make_command::register(&mut self.artisan)?;
+                    channel_list_command::register(&mut self.artisan)?;
+                    install_routes_command::register(&mut self.artisan)?;
+                    init_command::register(&mut self.artisan)?;
+                    console_make_command::register(&mut self.artisan)?;
+                    test_make_command::register(&mut self.artisan)?;
+                    type_make_command::register(&mut self.artisan)?;
+                    test_command::register(&mut self.artisan)?;
+                    stub_publish_command::register(&mut self.artisan)?;
+                    model_make_command::register(&mut self.artisan)?;
+                    model_fields_command::register(&mut self.artisan)?;
+                    observer_make_command::register(&mut self.artisan)?;
+                    policy_make_command::register(&mut self.artisan)?;
+                    provider_make_command::register(&mut self.artisan)?;
+                    resource_make_command::register(&mut self.artisan)?;
+                    request_make_command::register(&mut self.artisan)?;
+                    rule_make_command::register(&mut self.artisan)?;
+                    key_generate_command::register(&mut self.artisan)?;
+                    lang_publish_command::register(&mut self.artisan)?;
+                    mail_make_command::register(&mut self.artisan)?;
+                    notification_make_command::register(&mut self.artisan)?;
+                    maintenance_command::register(&mut self.artisan)?;
+                    serve_command::register(&mut self.artisan)?;
+                    dev_command::register(&mut self.artisan)?;
+                    dev_list_command::register(&mut self.artisan)?;
+                    crate::auth::console::register(&mut self.artisan)?;
+                    #[cfg(feature = "sanctum")]
+                    crate::sanctum::prune_expired::register(&mut self.artisan)?;
+                    vendor_publish_command::register(&mut self.artisan)?;
+                    package_manifest_command::register(&mut self.artisan)?;
+                    crate::cache::console::register(&mut self.artisan)?;
+                    crate::queue::console::register(&mut self.artisan)?;
+                    crate::notifications::console::register(&mut self.artisan)?;
+                    crate::concurrency::register(&mut self.artisan)?;
+                    crate::view::console::register(&mut self.artisan)?;
+                    view_component_make_command::register(&mut self.artisan)?;
+                    crate::routing::console::route_list_command::register(&mut self.artisan)?;
+                    crate::routing::console::route_cache_command::register(&mut self.artisan)?;
+                    storage_link_command::register(&mut self.artisan)?;
+                    storage_unlink_command::register(&mut self.artisan)?;
+                    crate::database::console::factories::register(&mut self.artisan)?;
+                    crate::database::console::migrations::register(&mut self.artisan)?;
+                    crate::database::console::seeds::register(&mut self.artisan)?;
+                }
+                let schedule = scheduling::Schedule::collect(|| {
+                    let package_commands = self
+                        .application
+                        .shared
+                        .package_commands
+                        .lock()
+                        .expect("package command list lock poisoned")
+                        .clone();
+                    for register in package_commands {
+                        facades::Artisan::register(&mut self.artisan, register)?;
+                    }
+                    (self.application.shared.commands)(&mut self.artisan)?;
+                    if let Some(register) = self.application.shared.command_routes {
+                        facades::Artisan::register(&mut self.artisan, register)?;
+                    }
+                    for configure in self
+                        .application
+                        .shared
+                        .schedule_configurators
+                        .lock()
+                        .expect("调度配置锁中毒")
+                        .iter()
+                    {
+                        scheduling::ScheduleFacade::configure(|schedule| configure(schedule))?;
+                    }
+                    Ok(())
+                })?;
+                if self.register_planned {
+                    self.has_scheduled_tasks = schedule.events().next().is_some();
+                    scheduling::register(&mut self.artisan, schedule)?;
+                }
+                Ok(())
+            })
+            .clone()
     }
 }
 

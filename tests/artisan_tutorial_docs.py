@@ -45,5 +45,21 @@ async fn formal_signature_example() {
     prompt_checks=checks.replace('fn formal_signature_example()', 'fn formal_prompted_example()').replace('.commands(register)', '.commands(register_prompted)').replace('"mail:send"','"reports:prompt"').replace('&["42".into(),"--queue=urgent".into(),"--id=7".into()]','&["42".into(),"--queue".into()]').replace('output.stdout.contains("42") && output.stdout.contains("urgent")','output.stdout.contains("user=42, queue=true")').replace('assert!(output.stdout.contains("Send a marketing email"));','assert!(output.stdout.contains("user"));')
     prompt_checks=prompt_checks.replace('    app.boot().await.unwrap();','    app.boot().await.unwrap();\n    if std::env::var_os("FORMAL_PROMPT_TTY").is_some() { assert_eq!(app.handle_command(&["reports:prompt".into()]).await.unwrap(),0); return; }')
     parts.append('mod '+locale.replace('-','_').lower()+'_prompted{\n'+prompted+prompt_checks+'}\n')
+    registry=re.search(r'```rust\n(.*?)```',text.split('{#command-lifecycle}',1)[1],re.S).group(1)
+    registry_checks=r'''
+use openrust::support::facades::Facade as _;
+#[tokio::test]
+async fn formal_registry_example() {
+    let root=std::env::temp_dir().join(format!("artisan-doc-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=openrust::foundation::Application::configure(root.clone()).with_routing(openrust::foundation::configuration::Routing::default().commands(register_counter)).create().unwrap();
+    app.boot().await.unwrap();
+    openrust::support::facades::App::set_facade_application(Some(&app), async {
+        for expected in ["1","2"] { let mut output=Output::default(); assert_eq!(Artisan::call("reports:count",&[],&mut output).await.unwrap(),0); assert_eq!(output.stdout,expected); }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('mod '+locale.replace('-','_').lower()+'_registry{\n'+registry+registry_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

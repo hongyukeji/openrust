@@ -67,3 +67,19 @@ Input可克隆，set_argument／set_option复用原Clap定义重建并验证输�
 最终6框架目标26项、根4目标42项，共68项父测试通过，另终端夹具1项ignore明确排除，PTY专门实跑独立记录；数据组和子进程不叠加为新功能数。fmt、workspace/all-targets严格Clippy28.56s、main(pail)和三语构建全0，12组双前缀／两宽度浏览器通过；实际main HTTP／静态／HTML与JSON404／HEAD、Artisan inspire／list／Pail真实错误捕获与超时清理／Ctrl+C通过。证据prompt-frozen-tests-v2.log、prompt-frozen-{root,fmt,clippy,main,docs}.log、prompt-frozen-tty.log／prompt-tty-results.json、prompt-frozen-formal-tty.log及逐语终端日志、prompt-frozen-browser.log和prompt-frozen-runtime.log；accepted-prompting.json保存源SHA。终端夹具目录清理，热缓存／依赖／日志／独立源码保留，无本批存活进程或容器。
 
 关联实测发现Artisan Facade连续call重建命令对象，不能把本批测试使用容器共享计数器说成命令实例持久化已经实现。registering-commands登记该缺口，下一簇立即复现／修复并补交；本批只闭合单次输入提示流程，prompting-for-missing-input待该关联项复验后最终核定。命令事件相对交互／锁的完整顺序仍随events节继续审计，不将现有observation回归冒充整节完结。其余I/O、生成／注册、信号和Dev／Tinker等未验节继续，不推送。
+
+## 第六簇：按应用复用命令装配及实例（2026-11-25）
+
+第五簇已提交229301926。实际反例registry-before.log显示，同一应用两次Facade调用输出1／1而非1／2。固定Foundation Console Kernel::getArtisan只在尚无实例时构建Artisan；真实Illuminate Console Application＋同一个Symfony命令执行成功／成功／失败／恢复，PHP8.5.12向量为1／2／counter-failure-3／4，见registry-oracle.json。这里没有声称运行了完整PHP Foundation Kernel的HTTP应用；其一次装配分支是源码核对，向量来自实际Console Application。首次格式化输出缺Symfony String依赖的结果不计通过，改用其官方OUTPUT_RAW写相同数字，计数及执行管线未替换。
+
+参考旧v0.x CommandRegistry的应用内共享所有权，直接复用当前Artisan::Clone及Entry::Command／Closure的Arc；本次只有一次装配，不移植旧revision／Mutex增量注册机制。默认ConsoleApplication绑定保存弱应用引用和OnceCell<RegisteredCommands>；默认Kernel只装配一次，其他Kernel克隆同一命令Arc及调度存在标记。原注册主体完整移动为私有函数，Rustfmt仅调整排版／尾逗号与等价闭包；Provider及注册顺序、别名、默认值、命令名与事件字符串不变。手工Kernel::new仍保留自身的显式注册表。每次调用独立持有输入、输出、deferred与抑制状态，不缓存调用输出；执行时不持有初始化锁，所以可以重入嵌套调用。
+
+新增四个实质消费者覆盖同实例连续计数、失败后同实例恢复、首次注册失败不发布半成品并重试、嵌套无死锁、48个真实HTTP并发首次调用只装配一次、两应用互不串状态，以及独立Artisan二进制入口与嵌套Facade复用同一注册结果。Application::handle_command按既定设计消费应用，测试不新增Clone绕过终止职责，而是在一次真正CLI入口内验收嵌套调用。框架最初缺container Trait导入改为既有container_handle；测试误重复消费Application的编译失败已修正并保留。原Prompt计数预期由隔离调用的12／0／11恢复同实例的12／12／23，明确由实例复用修复支持，不能继续依赖临时容器计数器说明自有命令状态。
+
+三语新增command-lifecycle正文及实际闭包计数示例，由正式Markdown直接提取，连续调用均得到1／2；每应用／独立进程边界、并发字段安全、执行时解析请求级依赖、不捕获请求身份等原生约定写清楚。Rust共享命令要求原有Send＋Sync，保留具体实现自身的线程安全责任；没有把请求数据塞进静态注册表。
+
+最终8框架目标35项＋根5目标46项，共81项父测试通过；其中21个正式三语示例、5项调度时钟／时区／亚分钟回归、Runner优先组过滤／启动／关闭及旧控制台回归。一个终端夹具仍ignore不计通过，当前组合另用正式三语示例逐语真实PTY执行通过。workspace fmt、all-targets严格Clippy1m15s、main(pail)及三语构建退出0；实际main的/up／静态／HTML及JSON404／HEAD、独立Artisan inspire／list／Pail真实错误捕获与清理／Ctrl+C通过；12组三语双前缀／两宽度浏览器覆盖新生命周期锚点通过。没有重跑未受影响的六后端锁矩阵或Windows发布矩阵。
+
+磁盘在框架测试完成后触及32GB停线，已由共享构建守卫持锁清理项目profile和编译站点产物，事件记录before=31,994,896,384、after=115,385,188,352、released=83,390,291,968字节，锁inode保留；不是删改源码／日志／依赖／数据库。空间恢复后继续冷编译完成其余门禁，已通过的测试日志与源SHA保留。证据registry-final-{tests,root,fmt,clippy,main,docs,gates,runtime,formal-tty,browser}.log、registry-before.log、registry-after*.log、registry-source*.json／stderr；accepted-registry.json保存当前源SHA。正式示例的三个终端夹具目录再次清理，保留共享热缓存、独立源码和日志，无本批存活服务或容器。
+
+本关联生命周期缺口已闭合，prompting-for-missing-input按已核定教程范围更新为通过；完整事件相对交互／锁顺序继续随events节核查。registering-commands其余目录／类型发现与生成模板入口仍待逐项核定，不据此关闭该节或整章。继续I/O及其他余项，不推送。

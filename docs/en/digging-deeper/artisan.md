@@ -434,3 +434,24 @@ The default question uses the argument description or name. `MissingInputPrompt:
 `after_prompting_for_missing_arguments` runs only after at least one missing argument was collected. It receives mutable `Input` and may call `set_option` or `set_argument`; final validation precedes execution. Compose `.prompting().isolatable()` on the same `CommandRegistration` when both traits are implemented. The adapter retains trait objects before type erasure and uses the existing registration, cache-lock and lifecycle pipeline.
 
 Default text questions require an attached terminal; captured HTTP/programmatic output does not read process stdin. Supply explicit arguments or a custom callback in those environments. No interaction is started for help. Cancellation and callback failures propagate through the existing error handling; callbacks do not hold the isolation lock while awaiting input.
+
+## Command registration lifetime {#command-lifecycle}
+
+Commands are assembled once per application after providers are ready. Subsequent Facade calls, HTTP requests and managed runners reuse the registered command instances and closure captures. Separate application instances and separate CLI processes have separate registries. The following closure returns `1`, then `2` when called twice in the same application.
+
+```rust
+use openrust::{console::{ConsoleError, Input, Output}, support::facades::Artisan};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+fn register_counter() -> Result<(), ConsoleError> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    Artisan::command_with("reports:count", move |_: &Input, output: &mut Output| {
+        output.stdout.push_str(&(calls.fetch_add(1, Ordering::SeqCst) + 1).to_string());
+        Ok(0)
+    })?.purpose("Count calls within this application")
+}
+```
+
+Each invocation keeps its own input, output, verbosity and lifecycle scope. A command failure does not rebuild the registry. Failed registration does not publish a partial registry and may retry. No registry lock is held during command execution, so nested calls remain possible.
+
+Concurrent requests may execute the same command object. Keep shared fields thread safe, and resolve request-specific inputs, users and dependencies inside `handle` or the current `command_with` callback; do not capture request data while registering commands.

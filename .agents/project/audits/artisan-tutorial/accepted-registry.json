@@ -1,0 +1,16 @@
+{
+  "base": "2293019266b0c907a9ee93d10ec283db2dd04134",
+  "sha256": {
+    "vendor/openrust/framework/src/foundation/console/mod.rs": "cf546491b949513613f023e54d382100496d2f9b5e48b0124b4c54c468528978",
+    "vendor/openrust/framework/tests/console_registry_lifecycle.rs": "14a09cf04ad6d52e84a99febd689c4a38d080efc649a9eea29024613c81e9bf9",
+    "vendor/openrust/framework/tests/console_prompting_tutorial.rs": "e80b848501a427ebdcfa0be3bb10743d6c43448aa0e77d00699dcdf2c0c0d2f2",
+    "tests/artisan_tutorial_docs.py": "b9bb117766b1bb9ee7be4406c47d019984979f39f36ee181533b9e50496fecb1",
+    "docs/tests/check_artisan_tutorial.mjs": "9619639bd25f3c896d15ae6586ca76da49920d9d3cb5e47664bd2f8dff74ea90",
+    "docs/en/digging-deeper/artisan.md": "f8fa530bb8c93ab46034c95994770a938ed6dcfd07fe64d4bc7e35f322f80dbd",
+    "docs/zh-Hans/digging-deeper/artisan.md": "a4cdd678feb8a10b92b653904301f0d2306cee435d36b01ac89dc69e0301e844",
+    "docs/zh-Hant/digging-deeper/artisan.md": "3fea1f9c295b7c784eaf033a35355d77ebc3d986736eb1c3087b4f59b4f8d324",
+    ".agents/project/audits/artisan-tutorial/registry-oracle.json": "19dbf5b2e7529b63b7441d5983644fb1dab0c5763006b7fe2480e84d768cef3e"
+  },
+  "evidence": "target/tmp/artisan-tutorial-20261125/registry-*",
+  "scope": "per-application command registration lifetime; remaining command discovery and events still pending"
+}

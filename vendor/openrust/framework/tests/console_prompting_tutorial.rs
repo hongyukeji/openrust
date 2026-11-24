@@ -225,7 +225,7 @@ async fn generic_registration_prompts_missing_fields_and_preserves_isolation_and
         );
         let result: Value = serde_json::from_str(&output.stdout).unwrap();
         assert_eq!(result["queue"], false);
-        assert_eq!(result["prompted"], 0);
+        assert_eq!(result["prompted"], 12);
         for args in [
             vec!["--no-interaction"],
             vec!["--unknown"],
@@ -246,7 +246,7 @@ async fn generic_registration_prompts_missing_fields_and_preserves_isolation_and
             .await
             .unwrap();
         let result: Value = serde_json::from_str(&output.stdout).unwrap();
-        assert_eq!(result["prompted"], 11);
+        assert_eq!(result["prompted"], 23);
         let mut help = Output::default();
         Artisan::call("help", &["prompt".into()], &mut help)
             .await

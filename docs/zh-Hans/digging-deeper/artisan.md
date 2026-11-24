@@ -434,3 +434,24 @@ fn register_prompted() -> Result<(), ConsoleError> {
 `after_prompting_for_missing_arguments` 只在至少收集一个缺失参数后执行，接收可变 `Input`，可调用 `set_option` 或 `set_argument`；命令执行前再做最终验证。类型同时实现两种 Trait 时，可在同一个 `CommandRegistration` 上组合 `.prompting().isolatable()`。适配器在类型擦除前保留 Trait，复用现有注册、缓存锁与生命周期管线。
 
 默认文本问题要求连接终端；HTTP／程序化捕获输出不会读取进程标准输入。这些环境请显式传参或提供自定义回调。帮助信息不触发交互。取消与回调失败沿现有错误处理传播；等待输入时不持有隔离锁。
+
+## 命令注册的生命周期 {#command-lifecycle}
+
+Provider 就绪后，每个应用装配一次命令。后续 Facade 调用、HTTP 请求和受管 Runner 复用已注册的命令实例及闭包捕获。不同应用实例、不同 CLI 进程使用各自的注册表。下面的闭包在同一应用中连续调用两次，依次返回 `1`、`2`。
+
+```rust
+use openrust::{console::{ConsoleError, Input, Output}, support::facades::Artisan};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+fn register_counter() -> Result<(), ConsoleError> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    Artisan::command_with("reports:count", move |_: &Input, output: &mut Output| {
+        output.stdout.push_str(&(calls.fetch_add(1, Ordering::SeqCst) + 1).to_string());
+        Ok(0)
+    })?.purpose("Count calls within this application")
+}
+```
+
+每次调用独立持有输入、输出、详细程度和生命周期作用域。命令执行失败不会重建注册表；注册失败不会公开半成品，后续可以重试。执行命令时不持有注册表锁，因此支持嵌套调用。
+
+并发请求可能执行同一个命令对象。共享字段须保证线程安全；请求输入、用户和请求级依赖在 `handle` 或当前 `command_with` 回调中解析，不在命令注册时捕获请求数据。

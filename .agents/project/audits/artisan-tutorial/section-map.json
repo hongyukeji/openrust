@@ -230,7 +230,7 @@
     },
     {
       "anchor": "prompting-for-missing-input",
-      "status": "verified_input_flow_pending_registration_lifetime",
+      "status": "verified_tutorial_scope",
       "evidence": [
         "console_prompting_tutorial",
         "prompting-oracle.json",
@@ -238,9 +238,12 @@
         "prompt-frozen-tty.log",
         "prompt-frozen-formal-tty.log",
         "prompt-frozen-runtime.log",
-        "prompt-frozen-browser.log"
+        "prompt-frozen-browser.log",
+        "console_registry_lifecycle",
+        "registry-oracle.json",
+        "accepted-registry.json"
       ],
-      "contract": "单次必填收集／回调／after钩子／最终验证／隔离组合已验；连续命令实例生命周期关联项待下一簇"
+      "contract": "显式Trait注册适配；必填参数按序收集、问题／占位／可变输入异步回调、after钩子、最终验证及隔离组合；按应用实例复用已核验，捕获输出不读取进程stdin"
     },
     {
       "anchor": "command-io",
@@ -299,8 +302,12 @@
     {
       "anchor": "registering-commands",
       "status": "pending_public_contract_review",
-      "evidence": [],
-      "remaining": "实际Artisan::call重建命令对象，待修复实例生命周期并继续逐入口核对"
+      "evidence": [
+        "console_registry_lifecycle",
+        "registry-oracle.json",
+        "accepted-registry.json"
+      ],
+      "remaining": "一次装配与命令实例生命周期已修复验收；其余目录／类型发现、with_commands及生成模板入口仍待逐项核对"
     },
     {
       "anchor": "programmatically-executing-commands",

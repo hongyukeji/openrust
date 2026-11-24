@@ -1,0 +1,17 @@
+[
+    {
+        "status": 0,
+        "output": "1\n"
+    },
+    {
+        "status": 0,
+        "output": "2\n"
+    },
+    {
+        "error": "counter-failure-3"
+    },
+    {
+        "status": 0,
+        "output": "4\n"
+    }
+]
