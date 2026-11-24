@@ -1076,4 +1076,8 @@ let normalized = queue.normalize_queue(Some("priority"))?;
 ./artisan queue:work cloud --queue=priority
 ```
 
-只有 `queue:work` 中匹配的单队列领取会启用 Agent；普通调用及多队列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 结果并负责 SQS 结算。结果上报的 HTTP 4xx 保留请求错误，连接故障和 HTTP 5xx 视为 Agent 失联。Unix 系统支持 Unix Agent 传输，其他系统可直接使用 SQS。当前尚不提供托管遥测、远端失败任务下载及跨进程凭据缓存生命周期；真实托管投递另行验收。
+只有 `queue:work` 中匹配的单队列领取会启用 Agent；普通调用及多队列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 结果并负责 SQS 结算。结果上报的 HTTP 4xx 保留请求错误，连接故障和 HTTP 5xx 视为 Agent 失联。Unix 系统支持 Unix Agent 传输，其他系统可直接使用 SQS。当前尚不提供远端失败任务下载及跨进程凭据缓存生命周期；真实托管投递另行验收。
+
+托管队列事件通过 `LARAVEL_CLOUD_LOG_SOCKET` 输出逐行 JSON，默认地址为 `unix:///tmp/cloud-init.sock`，也支持 `tcp://host:port`。事件包括 `queued`、`started`、`processed`、`released`、`failed`；完成事件带有 `duration_ms` 和 UTC 微秒时间。传输故障返回 false，不中断队列操作；取消部分写入会关闭该连接，下一事件重新建连。
+
+`queue:work` 守护进程在再次领取或停止时输出当前任务的完成事件；可重试的超时输出 `released` 并以 124 退出，保留 SQS 预留。`--once` 不派发守护进程停止事件。托管 Worker 内可通过 `Cloud::queue()?.processing_job_details()?` 读取当前队列、尝试次数和开始时间，无活动任务时返回 `None`。同一应用的并发 Worker 分别保留处理状态。

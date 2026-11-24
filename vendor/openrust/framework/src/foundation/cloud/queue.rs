@@ -12,7 +12,9 @@ pub struct Queue {
     inner: RwLock<Arc<SqsQueue>>,
     config: RwLock<Value>,
     default_queue: String,
-    owner: std::sync::Weak<crate::container::Container>,
+    pub(super) owner: std::sync::Weak<crate::container::Container>,
+    pub(super) identity: Arc<()>,
+    pub(super) execution: Arc<super::telemetry::Execution>,
 }
 impl Queue {
     pub(crate) fn new(
@@ -21,6 +23,8 @@ impl Queue {
         owner: std::sync::Weak<crate::container::Container>,
     ) -> Self {
         Self {
+            identity: Arc::new(()),
+            execution: Arc::default(),
             owner,
             default_queue: inner.default_queue().to_owned(),
             inner: RwLock::new(inner),
@@ -205,7 +209,9 @@ impl Queue {
         payload: &Payload,
         queue: Option<&str>,
     ) -> QueueResult<Option<String>> {
-        self.target().push(payload, queue).await
+        let result = self.target().push(payload, queue).await?;
+        self.finish_queueing_job(queue).await?;
+        Ok(result)
     }
     pub async fn later(
         &self,
@@ -213,7 +219,9 @@ impl Queue {
         payload: &Payload,
         queue: Option<&str>,
     ) -> QueueResult<Option<String>> {
-        self.target().later(delay, payload, queue).await
+        let result = self.target().later(delay, payload, queue).await?;
+        self.finish_queueing_job(queue).await?;
+        Ok(result)
     }
     pub async fn push_on(&self, queue: &str, payload: &Payload) -> QueueResult<Option<String>> {
         self.push(payload, Some(queue)).await
@@ -227,26 +235,35 @@ impl Queue {
         self.later(delay, payload, Some(queue)).await
     }
     pub async fn pop(&self, queue: Option<&str>) -> QueueResult<Option<Box<dyn Job>>> {
-        if let Some(job) = self.agent_pop(queue).await? {
-            return Ok(job);
-        }
-        self.target().pop(queue).await
+        self.finish_processing_job(None, None).await?;
+        let job = if let Some(job) = self.agent_pop(queue).await? {
+            job
+        } else {
+            self.target().pop(queue).await?
+        };
+        self.start_processing_job(queue, job).await
     }
     pub async fn pop_now(&self, queue: Option<&str>) -> QueueResult<Option<Box<dyn Job>>> {
-        if let Some(job) = self.agent_pop(queue).await? {
-            return Ok(job);
-        }
-        self.target().pop_now(queue).await
+        self.finish_processing_job(None, None).await?;
+        let job = if let Some(job) = self.agent_pop(queue).await? {
+            job
+        } else {
+            self.target().pop_now(queue).await?
+        };
+        self.start_processing_job(queue, job).await
     }
     pub async fn pop_within(
         &self,
         queue: Option<&str>,
         wait: Duration,
     ) -> QueueResult<Option<Box<dyn Job>>> {
-        if let Some(job) = self.agent_pop(queue).await? {
-            return Ok(job);
-        }
-        self.target().pop_within(queue, wait).await
+        self.finish_processing_job(None, None).await?;
+        let job = if let Some(job) = self.agent_pop(queue).await? {
+            job
+        } else {
+            self.target().pop_within(queue, wait).await?
+        };
+        self.start_processing_job(queue, job).await
     }
     pub async fn clear(&self, queue: &str) -> QueueResult<u64> {
         self.target().clear(queue).await

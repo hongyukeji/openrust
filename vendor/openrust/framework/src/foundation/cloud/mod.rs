@@ -141,3 +141,9 @@ impl CloudManager {
 }
 
 pub use worker::AgentAwareLostConnectionDetector;
+
+mod events;
+pub use events::{Events, SocketFactory};
+
+mod telemetry;
+pub use telemetry::ProcessingJobDetails;

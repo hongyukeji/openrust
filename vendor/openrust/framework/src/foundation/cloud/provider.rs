@@ -16,6 +16,8 @@ impl ServiceProvider for CloudServiceProvider {
                 .singleton::<CloudManager, _>(move |_| {
                     Ok(Arc::new(CloudManager::new(owner.clone())))
                 })?;
+            app.container_handle()
+                .scoped::<super::telemetry::Execution, _>(|_| Ok(Arc::default()))?;
             Ok(())
         })
     }
@@ -26,6 +28,12 @@ impl ServiceProvider for CloudServiceProvider {
                 return Ok(());
             }
             let env = owner.make::<crate::config::Environment>()?;
+            let address = env
+                .get("LARAVEL_CLOUD_LOG_SOCKET")
+                .unwrap_or("unix:///tmp/cloud-init.sock")
+                .to_owned();
+            owner.instance(Arc::new(super::Events::new(address)))?;
+
             if let Some(config) = env.get("LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG") {
                 let mut value: serde_json::Value = serde_json::from_str(config)?;
                 let connection = value
@@ -58,6 +66,14 @@ impl ServiceProvider for CloudServiceProvider {
             }
             if !owner.make::<CloudManager>()?.uses_managed_queues()? {
                 return Ok(());
+            }
+            {
+                use crate::contracts::events::Dispatcher as _;
+                owner.make::<crate::events::Dispatcher>()?.listen(
+                    crate::queue::events::WorkerStopping::NAME,
+                    Arc::new(super::worker::StopListener(Arc::downgrade(&owner))),
+                    crate::events::Delivery::Sync,
+                )?;
             }
             owner.extend::<dyn crate::contracts::database::LostConnectionDetector, _>(
                 crate::container::ServiceKey::typed::<

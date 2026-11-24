@@ -876,10 +876,18 @@
       "additional_contracts": {
         "queue": "已有SQS驱动/度量、管理列表、名称及元数据接线；Agent领取/结果经真实Artisan Worker验证。其余底层入口尚未闭合。",
         "lifecycle": "Weak应用owner，应用宏隔离；Agent匹配queue:work实际连接和单队列；Worker控制覆盖限定执行域。",
-        "macro_adaptation": "原生Any参数/返回，显式列表/惰性工厂替代私有反射；继承Facade测试契约未闭合。"
+        "macro_adaptation": "原生Any参数/返回，显式列表/惰性工厂替代私有反射；继承Facade测试契约未闭合。",
+        "telemetry": {
+          "local": "foundation::cloud::Events; Queue::finish_queueing_job/finish_processing_job/processing_job_details",
+          "contract": "逐行JSON；Unicode/斜线/浮点0.0保留；空输入不建连；2秒连接/写入、5次零写失败断连、取消半行断连；应用服务实例工厂与真实TCP/Unix传输。队列queued/started/processed/released/failed及UTC微秒/duration_ms；停止与可重试超时124接线。",
+          "lifecycle": "Worker runtime的独立Execution在任务子作用域共享处理详情，同应用并发Worker互不覆盖；非Worker使用应用scoped状态。--once不派发daemon停止事件，未伪造完成事件。",
+          "evidence": "framework/tests/cloud_events.rs全部6项；cloud.rs真实daemon状态/超时/双Worker测试；固定Events原类真实PHP stream_socket_pair输出。",
+          "remaining": "原生硬超时进程执行、OOM/强制终止后的外部托管恢复需独立验收；原生Error没有PHP编译期fatal shutdown函数，不声明等价。"
+        },
+        "artisan_stack": "同应用并发两个公开Artisan::call_silently复现默认线程栈溢出；在call/call_silently正式委托边界Box Future后原消费者默认栈通过，无线程栈放大和测试绕行。"
       },
       "remaining": [
-        "托管遥测、停止/超时事件",
+        "关联异常ExceptionReporter遥测，以及Cloud专用硬超时/强制终止验收",
         "Cloud失败任务Provider远端操作及事件",
         "托管不存在错误转换、raw/bulk及queueable options完整契约",
         "跨进程凭据缓存与其他托管启动接线",

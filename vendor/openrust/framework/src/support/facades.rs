@@ -716,12 +716,15 @@ impl Artisan {
         arguments: &[OsString],
         output: &mut Output,
     ) -> Result<i32, ConsoleError> {
-        foundation::console::call_in_application(command, arguments, output).await
+        Box::pin(foundation::console::call_in_application(
+            command, arguments, output,
+        ))
+        .await
     }
 
     /// Runs a registered command and discards its console output.
     pub async fn call_silently(command: &str, arguments: &[OsString]) -> Result<i32, ConsoleError> {
-        Self::call(command, arguments, &mut Output::default()).await
+        Box::pin(Self::call(command, arguments, &mut Output::default())).await
     }
 
     /// Prepares a registered Artisan command for dispatch through the application's queue.

@@ -349,6 +349,281 @@ mod agent {
             assert_eq!(server.calls.lock().unwrap().len(), expected);
         }
     }
+    struct DetailsHandler;
+    impl JobHandler for DetailsHandler {
+        fn handle<'a>(
+            &'a self,
+            _: &'a mut JobContext<'_>,
+            _: &'a Payload,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async {
+                let details = Cloud::queue()
+                    .unwrap()
+                    .processing_job_details()
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(details.queue, "default");
+                assert_eq!(details.attempts, 2);
+                Ok(())
+            })
+        }
+    }
+    #[tokio::test]
+    async fn real_worker_emits_started_and_processed_and_keeps_processing_details_inside_the_job_scope()
+     {
+        use tokio::io::AsyncBufReadExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let read = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut lines = tokio::io::BufReader::new(stream).lines();
+            let mut events = Vec::new();
+            for _ in 0..2 {
+                events.push(
+                    serde_json::from_str::<Value>(&lines.next_line().await.unwrap().unwrap())
+                        .unwrap(),
+                );
+            }
+            events
+        });
+        let payload = Payload::new("details", json!({})).unwrap();
+        let server = server(vec![
+            (
+                200,
+                json!({"messageId":"telemetry","receiptHandle":"receipt","body":serde_json::to_string(&payload).unwrap(),"queueUrl":"https://sqs.test/account/default-env","attributes":{"ApproximateReceiveCount":"2"}}),
+            ),
+            (200, json!({})),
+        ]);
+        let mut cfg = config();
+        cfg["connections"]["cloud"]["agent"] = json!({"enabled":true,"socket":server.path});
+        let mut app = app_with_environment(
+            &format!("LARAVEL_CLOUD=1\nLARAVEL_CLOUD_LOG_SOCKET=tcp://{address}\n"),
+            cfg,
+        )
+        .await;
+        app.app()
+            .container()
+            .make::<QueueManager>()
+            .unwrap()
+            .register("details", Arc::new(DetailsHandler))
+            .unwrap();
+        app.artisan([
+            "queue:work",
+            "cloud",
+            "--max-jobs=1",
+            "--force",
+            "--sleep=0",
+            "--tries=3",
+        ])
+        .await
+        .assert_successful();
+        let events = tokio::time::timeout(std::time::Duration::from_secs(3), read)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(events[0]["type"], "started");
+        assert_eq!(events[1]["type"], "processed");
+        for event in &events {
+            assert_eq!(event["_cloud_event"], "queue");
+            assert_eq!(event["queue"], "default");
+            assert_eq!(event["timestamp"].as_str().unwrap().len(), 26);
+        }
+        assert!(events[1]["duration_ms"].as_i64().unwrap() >= 0);
+    }
+    struct OutcomeHandler(&'static str);
+    impl JobHandler for OutcomeHandler {
+        fn handle<'a>(
+            &'a self,
+            context: &'a mut JobContext<'_>,
+            _: &'a Payload,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async move {
+                match self.0 {
+                    "released" => {
+                        context.release(std::time::Duration::from_secs(7));
+                        Ok(())
+                    }
+                    "failed" => Err(openrust::queue::QueueError::InvalidPayload),
+                    _ => std::future::pending().await,
+                }
+            })
+        }
+    }
+    #[tokio::test]
+    async fn daemon_stop_reports_release_failure_and_retryable_timeout_without_settling_timeout() {
+        use tokio::io::AsyncBufReadExt;
+        for mode in ["released", "failed", "timeout"] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let read = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await.unwrap();
+                let mut lines = tokio::io::BufReader::new(stream).lines();
+                let mut rows = Vec::new();
+                for _ in 0..2 {
+                    rows.push(
+                        serde_json::from_str::<Value>(&lines.next_line().await.unwrap().unwrap())
+                            .unwrap(),
+                    )
+                }
+                rows
+            });
+            let payload = Payload::new("outcome", json!({})).unwrap();
+            let mut responses = vec![(
+                200,
+                json!({"messageId":mode,"receiptHandle":"receipt","body":serde_json::to_string(&payload).unwrap(),"queueUrl":"https://sqs.test/account/default-env","attributes":{"ApproximateReceiveCount":"1"}}),
+            )];
+            if mode != "timeout" {
+                responses.push((200, json!({})))
+            }
+            let server = server(responses);
+            let mut cfg = config();
+            cfg["connections"]["cloud"]["agent"] = json!({"enabled":true,"socket":server.path});
+            let mut app = app_with_environment(
+                &format!("LARAVEL_CLOUD=1\nLARAVEL_CLOUD_LOG_SOCKET=tcp://{address}\n"),
+                cfg,
+            )
+            .await;
+            app.app()
+                .container()
+                .make::<QueueManager>()
+                .unwrap()
+                .register("outcome", Arc::new(OutcomeHandler(mode)))
+                .unwrap();
+            let tries = if mode == "failed" {
+                "--tries=1"
+            } else {
+                "--tries=3"
+            };
+            app.artisan([
+                "queue:work",
+                "cloud",
+                "--max-jobs=1",
+                "--force",
+                "--sleep=0",
+                "--timeout=1",
+                tries,
+            ])
+            .await
+            .assert_exit_code(if mode == "timeout" { 124 } else { 0 });
+            let rows = tokio::time::timeout(std::time::Duration::from_secs(3), read)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(rows[0]["type"], "started");
+            assert_eq!(
+                rows[1]["type"],
+                if mode == "timeout" { "released" } else { mode }
+            );
+            assert_eq!(
+                server.calls.lock().unwrap().len(),
+                if mode == "timeout" { 1 } else { 2 }
+            );
+        }
+    }
+    struct ConcurrentDetails(Arc<tokio::sync::Barrier>);
+    impl JobHandler for ConcurrentDetails {
+        fn handle<'a>(
+            &'a self,
+            _: &'a mut JobContext<'_>,
+            payload: &'a Payload,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async move {
+                self.0.wait().await;
+                let details = Cloud::queue()
+                    .unwrap()
+                    .processing_job_details()
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(
+                    u64::from(details.attempts),
+                    payload.data()["attempt"].as_u64().unwrap()
+                );
+                Ok(())
+            })
+        }
+    }
+    #[tokio::test]
+    async fn two_real_workers_on_one_application_keep_their_processing_state_separate() {
+        use openrust::support::facades::Artisan;
+        let root = std::path::PathBuf::from(
+            std::env::var_os("OPENRUST_CLOUD_SOCKET_DIR")
+                .or_else(|| std::env::var_os("TMPDIR"))
+                .unwrap(),
+        );
+        fs::create_dir_all(&root).unwrap();
+        let dir = tempfile::Builder::new()
+            .prefix("c")
+            .tempdir_in(root)
+            .unwrap();
+        let path = dir.path().join("s");
+        let listener = UnixListener::bind(&path).unwrap();
+        let task = tokio::spawn(async move {
+            let mut attempt = 0;
+            for _ in 0..4 {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                while !bytes.ends_with(b"\r\n\r\n") {
+                    bytes.push(stream.read_u8().await.unwrap())
+                }
+                let header = String::from_utf8(bytes).unwrap();
+                let size = header
+                    .lines()
+                    .find_map(|line| {
+                        line.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(|v| v.trim().parse::<usize>().unwrap())
+                    })
+                    .unwrap_or(0);
+                let mut bytes = vec![0; size];
+                stream.read_exact(&mut bytes).await.unwrap();
+                let response = if header.starts_with("GET ") {
+                    attempt += 1;
+                    let payload = Payload::new("concurrent", json!({"attempt":attempt})).unwrap();
+                    json!({"messageId":format!("job-{attempt}"),"body":serde_json::to_string(&payload).unwrap(),"queueUrl":"https://sqs.test/account/default-env","attributes":{"ApproximateReceiveCount":attempt.to_string()}})
+                } else {
+                    json!({})
+                };
+                let body = response.to_string();
+                stream.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+            }
+        });
+        let mut cfg = config();
+        cfg["connections"]["cloud"]["agent"] = json!({"enabled":true,"socket":path});
+        let app = app("1", cfg).await;
+        app.app()
+            .container()
+            .make::<QueueManager>()
+            .unwrap()
+            .register(
+                "concurrent",
+                Arc::new(ConcurrentDetails(Arc::new(tokio::sync::Barrier::new(2)))),
+            )
+            .unwrap();
+        App::set_facade_application(Some(app.app()), async {
+            let args = ["cloud", "--max-jobs=1", "--force", "--sleep=0", "--tries=3"]
+                .map(std::ffi::OsString::from);
+            let run = async {
+                let (first, second) = tokio::join!(
+                    Artisan::call_silently("queue:work", &args),
+                    Artisan::call_silently("queue:work", &args)
+                );
+                assert_eq!(first.unwrap(), 0);
+                assert_eq!(second.unwrap(), 0);
+            };
+            tokio::time::timeout(std::time::Duration::from_secs(5), run)
+                .await
+                .unwrap();
+            assert!(
+                Cloud::queue()
+                    .unwrap()
+                    .processing_job_details()
+                    .unwrap()
+                    .is_none()
+            );
+        })
+        .await;
+        task.await.unwrap();
+    }
     #[tokio::test]
     async fn empty_malformed_and_retry_statuses_have_the_pinned_polling_behavior() {
         for (responses, expected) in [

@@ -22,7 +22,7 @@
 | Broadcast | `support::facades::Broadcast` | 核对广播管理、频道注册/鉴权、连接、事件与测试替身 |
 | Bus | `support::facades::Bus` | 核对 Dispatcher、批次/链、同步/提交后派发及 fake |
 | Cache | `support::facades::Cache` | 核对默认仓储、Store、锁、tags、memo、替身及上下文隔离 |
-| Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口已接线，真实 Artisan Worker 领取/上报已验；遥测、远端失败任务、凭据缓存和其余队列契约仍待闭合 |
+| Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口、真实 Worker Agent 领取/上报及队列遥测已验；远端失败任务、异常遥测、凭据缓存和其余队列契约仍待闭合 |
 | Concurrency | `support::facades::Concurrency` | 核对 Manager 选择、run/defer、驱动和生命周期 |
 | Config | `support::facades::Config` | 核对全部仓储转发、类型读取、缺键默认、多个配置与 Serde 适配 |
 | Context | `support::facades::Context` | 核对可见/隐藏上下文、增删、dehydrate/hydrate、事件及测试行为 |
@@ -401,3 +401,14 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 
 - 最终本机验收：tests-oracle.log实际11项Cloud+2项HTTP作用域通过；tests-http-regression.log其余HTTP客户端20+选项2项通过；SQLite/MySQL8.4.13/PostgreSQL18.7三库队列实际HTTP读写/保留/删除均通过。PostgreSQL初次变量未绑定的提前返回不计通过，已保存为postgres-http-unbound-not-counted.log，修正REQUIRE与专用变量后postgres-http-bound.log实际8.43秒通过。
 - clippy-fourth.log实际workspace/all-targets严格Clippy通过（21.45秒）；三语文档构建及browser.log桌面/移动6组浏览器检查通过。原API返回String引起的借用/多余转换均修正并编译所有测试目标，没有屏蔽lint。
+
+### Cloud：队列遥测、Worker停止与并发状态（仍 partial）
+
+- 固定Cloud/Events原类经既有PHP8.5.12-cli-alpine共享镜像实际执行（不新增镜像）；真实stream_socket_pair验证空输入/单连接/逐行JSON/Unicode与浮点零/故障false。原始oracle.json、SHA及fixtures/cloud/events-contract.json保存证据，Rust实际读取预期，不跟踪PHP开发脚本。
+- 正式Events服务使用LARAVEL_CLOUD_LOG_SOCKET，默认机器协议unix:///tmp/cloud-init.sock，支持Unix/TCP、2秒连接/写入、部分写入续写、累计5次零写失败断连和下一次重连。emit/emit_many布尔结果与源码一致；Rust实例级SocketFactory替代跨应用静态可变工厂，公开值仅接受JSON数组/对象；Rust字符串本身保证UTF-8。取消Future丢弃写入中连接，避免下次事件拼接半行；强杀/OOM不宣称运行析构或发送PHP fatal shutdown事件。
+- Queue补finish_queueing_job、finish_processing_job和processing_job_details；观察包装保留真实Job所有方法、原始错误及终态优先级。Worker运行域共享当前处理详情给任务子域，状态在同应用并发Worker间隔离；普通调用依现有容器scope。queued/started/processed/released/failed及UTC微秒/duration_ms接线，不把日志当成已结算队列。
+- 实际daemon停止事件收尾；可重试超时输出released、退出124且不向Agent/SQS结算。--once没有daemon停止事件，保持固定Worker机制，未为了测试额外制造停止事件。初轮曾错误预期once输出daemon结束事件，失败保留，改为真实--max-jobs=1 daemon验收。
+- 并发真实消费者暴露Artisan::call_silently默认测试线程栈溢出；修复公开call/call_silently委托边界Future布局，未增加RUST_MIN_STACK、未仅在测试中Box绕行。concurrent-stack-bound.log实际选中agent::完整测试名后默认栈通过；第一次筛选0项日志明确unselected-not-counted，不计通过。
+- tests-final.log真实14项Cloud+6项Events通过，覆盖真实TCP和Unix Agent、实际Artisan daemon、released/failed/超时124、同应用双Worker处理详情、无活动任务/queued/FIFO归一化、部分写/五次零写/故障重连/取消及2秒超时。clippy-second.log workspace/all-targets严格通过（39.52秒）。Cloud仍有远端失败任务、异常遥测、凭据缓存和其余队列公开契约，继续实施。
+
+- 控制台console-regression.log实际命令事件/输入/输出/退出与异常回归1项通过；三语文档构建及桌面/移动6组浏览器通过。前一Cloud批次的三库队列回归未受存储算法影响，复用其证据，未重新计数。原生硬超时进程、OOM/强制终止仍未以普通异步超时覆盖。

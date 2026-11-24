@@ -1,0 +1,15 @@
+{
+  "empty": true,
+  "emptyConnects": 0,
+  "first": true,
+  "second": true,
+  "wire": "{\"value\":\"中国/路径\"}\n{\"value\":0.0}\n{\"value\":true}\n",
+  "connects": 1,
+  "failure": false,
+  "_source": {
+    "baseline": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "file": "src/Illuminate/Foundation/Cloud/Events.php",
+    "sha256": "bba5bdfa5d1708bb56e228182e3d50cd92f3f3e3e04be45fb1c7ebee74c7e6e9",
+    "runtime": "PHP8.5.12 CLI Alpine, original Events with real stream_socket_pair; no external service."
+  }
+}

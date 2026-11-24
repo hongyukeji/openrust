@@ -1076,4 +1076,8 @@ let normalized = queue.normalize_queue(Some("priority"))?;
 ./artisan queue:work cloud --queue=priority
 ```
 
-只有 `queue:work` 中相符的單佇列領取會啟用 Agent；一般呼叫與多佇列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 結果並負責 SQS 結算。結果回報的 HTTP 4xx 保留請求錯誤，連線故障及 HTTP 5xx 視為 Agent 失聯。Unix 系統支援 Unix Agent 傳輸，其他系統可直接使用 SQS。目前尚不提供託管遙測、遠端失敗工作下載及跨程序憑證快取生命週期；真實託管投遞另行驗收。
+只有 `queue:work` 中相符的單佇列領取會啟用 Agent；一般呼叫與多佇列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 結果並負責 SQS 結算。結果回報的 HTTP 4xx 保留請求錯誤，連線故障及 HTTP 5xx 視為 Agent 失聯。Unix 系統支援 Unix Agent 傳輸，其他系統可直接使用 SQS。目前尚不提供遠端失敗工作下載及跨程序憑證快取生命週期；真實託管投遞另行驗收。
+
+託管佇列事件透過 `LARAVEL_CLOUD_LOG_SOCKET` 輸出逐行 JSON，預設位址為 `unix:///tmp/cloud-init.sock`，也支援 `tcp://host:port`。事件包括 `queued`、`started`、`processed`、`released`、`failed`；完成事件包含 `duration_ms` 與 UTC 微秒時間。傳輸故障回傳 false，不中斷佇列操作；取消部分寫入會關閉該連線，下一事件重新連線。
+
+`queue:work` 守護程序在再次領取或停止時輸出目前工作的完成事件；可重試的逾時輸出 `released` 並以 124 結束，保留 SQS 預留。`--once` 不派發守護程序停止事件。託管 Worker 內可透過 `Cloud::queue()?.processing_job_details()?` 讀取目前佇列、嘗試次數與開始時間，無活動工作時回傳 `None`。同一應用的並行 Worker 分別保留處理狀態。
