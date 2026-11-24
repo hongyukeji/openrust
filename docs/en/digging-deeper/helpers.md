@@ -209,6 +209,12 @@ assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
 
 `can_be_created_from_format` combines actual format creation with the field-pattern check. NUL input remains an error. Dates outside the native year range return false even when a wider calendar can represent them.
 
+`Date::sleep(seconds).await` advances the shared test clock when time is frozen, preserving the mock timezone and the original date value. Otherwise it waits asynchronously with microsecond precision; zero and negative durations do not wait. Non-finite or unrepresentable durations return an error.
+
+```rust
+Date::sleep(0.25).await?;
+```
+
 `instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 

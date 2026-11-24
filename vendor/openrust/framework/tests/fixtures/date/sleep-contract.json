@@ -1,0 +1,100 @@
+[
+    {
+        "seconds": 0,
+        "result": {
+            "date": "2024-03-10 01:59:59.123456-05:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": 1,
+        "result": {
+            "date": "2024-03-10 03:00:00.123456-04:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": -1,
+        "result": {
+            "date": "2024-03-10 01:59:58.123456-05:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": 0.1234567,
+        "result": {
+            "date": "2024-03-10 01:59:59.246913-05:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": -0.1234567,
+        "result": {
+            "date": "2024-03-10 01:59:58.999999-05:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": 9.0e-7,
+        "result": {
+            "date": "2024-03-10 08:59:53.000000-04:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": -9.0e-7,
+        "result": {
+            "error": "Carbon\\Exceptions\\UnitException"
+        }
+    },
+    {
+        "seconds": 1.9999999,
+        "result": {
+            "date": "2024-03-10 03:00:01.123456-04:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": -1.9999999,
+        "result": {
+            "date": "2024-03-10 01:59:57.123456-05:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "seconds": 86400,
+        "result": {
+            "date": "2024-03-11 02:59:59.123456-04:00",
+            "zone": "America\/New_York",
+            "original": "2024-03-10 01:59:59.123456-05:00"
+        }
+    },
+    {
+        "live_seconds": -1,
+        "elapsed_ns": 132209,
+        "frozen": false
+    },
+    {
+        "live_seconds": -0.1,
+        "elapsed_ns": 1209,
+        "frozen": false
+    },
+    {
+        "live_seconds": 0,
+        "elapsed_ns": 708,
+        "frozen": false
+    },
+    {
+        "live_seconds": 0.002,
+        "elapsed_ns": 2476375,
+        "frozen": false
+    }
+]

@@ -478,3 +478,9 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - getFormatsToIsoReplacements/getIsoUnits包含真实Closure，已明确不能把json_encode后的空对象当完成实现。日期类替换、宏/序列化与语言等剩余继续处理。
 - 正式提供get_days、singular_unit/plural_unit、is_modifiable_unit、get_time_format_by_precision及can_be_created_from_format。35组原单位结果含ASCII/Unicode不同小写、尾s及精度错误；星期副本可修改而不污染源。14组原创建探测在严格/宽松均实调，NUL错误保留；真正超Jiff的1e12秒U值明确native false，未把原Y格式10000的失败误称语言差异。
 - tests-second.log实际5项通过（2项新增公开消费者及3项格式创建回归，含真实Artisan/SQLite Worker）；workspace/all-targets严格Clippy23.31秒，三语构建13.57秒及6组桌面/移动浏览器通过。95项实际继承入口只扩充核对集合，不代表这些入口全部闭合。
+
+### Date：休眠与同一测试时钟（仍 partial）
+
+- 原Carbon3.10.3 Date::sleep及Symfony NativeClock实际核对。冻结时使用既有TestClock原子推进，不修改先前返回的日期；复用已有InputInterval及Calendar后备扫描器，保留小数舍入、DST和科学计数文本的原行为。旧版已提取区间/扫描器可复用，不另写解释器。
+- 非冻结时复用原生Sleep异步等待，按原秒/微秒截断，负值直接返回；非有限值及原生时长范围明确报错。应用/独立工厂/任务局部作用域仍隔离，未添加全局时钟。Date其他缺口继续保留。
+- tests-third.log实际9项通过（3项新增及6项时钟回归），原比较器10组冻结结果和4组真实时钟结果保留；workspace/all-targets严格Clippy22.03秒，三语构建14.55秒与6组桌面/移动浏览器通过。首次编译错误保留，不算通过；一次性PHP容器已直接删除，未触及32GB，热缓存保留。

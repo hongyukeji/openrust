@@ -1271,6 +1271,14 @@
         ],
         "note": "原95项注解集合之外发现8个实际静态入口；追加到同一public_entries并逐项保留待办。Factory自身use*与默认Date类未反射到的注解另行跟踪，不把反射缺失当作跳过。getFormatsToIsoReplacements与getIsoUnits包含真实Closure，不允许用JSON空对象冒充可调用。"
       },
+      "sleep_contract": {
+        "entry": "sleep",
+        "local": "Date/DateFactory::sleep(seconds: f64).await",
+        "review": "implemented_tested_base",
+        "contract": "复用所属TestClock；冻结值在锁内原子推进且不修改借出原日期，保留原时区、DST及原区间舍入/科学计数后备解析。无冻结值复用Sleep异步等待，秒/微秒分别截断，非正值不等。非有限或不可表示原生时长明确错误。",
+        "evidence": "sleep-contract.json真实Carbon3.10.3/NativeClock输出，date_sleep.rs公开门面/具体Factory、应用/并发作用域及实际计时；date_facade.rs回归。",
+        "remaining": "可替换日期类/工厂将按其余Date契约继续接入，未据此关闭Date。"
+      },
       "unit_probe_contracts": {
         "entries": [
           "getDays",
@@ -1296,7 +1304,7 @@
       "remaining": "严格/非严格模式、可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
       },
       "remaining": [
-        "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂、sleep及set_test_now_and_timezone",
+        "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂及set_test_now_and_timezone",
         "withTimeZone注解在当前固定比较器的默认Carbon路径实际UnknownMethod，需追踪useFactory与具体Factory委托，不以注解冒充默认入口成功",
         "共享Facade mock/spy与异步root/替换生命周期还需逐项核对"
       ]

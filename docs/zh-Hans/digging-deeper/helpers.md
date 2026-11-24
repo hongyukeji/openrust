@@ -209,6 +209,12 @@ assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
 
 `can_be_created_from_format` 同时检查实际格式创建和字段模式，NUL 输入仍会报错。超出原生年份范围的日期即使能由更宽的日历表示，也返回 false。
 
+`Date::sleep(seconds).await` 在冻结时间时推进同一个测试时钟，保留 mock 时区和原日期值；否则按微秒精度异步等待，零与负时长不等待。非有限数值或超出可表示范围的时长返回错误。
+
+```rust
+Date::sleep(0.25).await?;
+```
+
 `instance(&value)` 克隆日期值。目前尚不提供本地化创建、自定义工厂与错误诊断入口。
 
 

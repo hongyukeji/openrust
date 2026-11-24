@@ -59,6 +59,22 @@ impl TestClock {
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = time;
     }
+    pub(crate) fn update_date<E>(
+        &self,
+        update: impl FnOnce(&super::Date) -> Result<super::Date, E>,
+    ) -> Result<bool, E> {
+        let scope = self.scoped();
+        let mut frozen = scope
+            .as_deref()
+            .unwrap_or(&self.fixed)
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let Some(date) = frozen.as_ref() else {
+            return Ok(false);
+        };
+        *frozen = Some(update(date)?);
+        Ok(true)
+    }
     pub(crate) async fn scope_date<F: Future>(
         self: Arc<Self>,
         time: Option<super::Date>,

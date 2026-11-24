@@ -209,6 +209,12 @@ assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
 
 `can_be_created_from_format` 同時檢查實際格式建立與欄位模式，NUL 輸入仍會報錯。超出原生年份範圍的日期即使能由較寬的日曆表示，也回傳 false。
 
+`Date::sleep(seconds).await` 在凍結時間時推進同一個測試時鐘，保留 mock 時區及原日期值；否則按微秒精度非同步等待，零與負時長不等待。非有限數值或超出可表示範圍的時長回傳錯誤。
+
+```rust
+Date::sleep(0.25).await?;
+```
+
 `instance(&value)` 複製日期值。目前尚未提供本地化建立、自訂工廠與錯誤診斷入口。
 
 
