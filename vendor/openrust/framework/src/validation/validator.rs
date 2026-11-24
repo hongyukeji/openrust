@@ -21,11 +21,27 @@ struct RuleFlags {
     sometimes: bool,
     bail: bool,
     numeric: bool,
+    array: bool,
     implicit: bool,
 }
 impl RuleFlags {
+    fn category(self, file: bool) -> &'static str {
+        if self.numeric {
+            "numeric"
+        } else if self.array {
+            "array"
+        } else if file {
+            "file"
+        } else {
+            "string"
+        }
+    }
     fn new(rules: &[Rule], extensions: &super::extensions::Extensions) -> Self {
         Self {
+            array: rules.iter().any(|rule| {
+                matches!(rule.0, Kind::Array | Kind::ArrayKeys(_))
+                    || matches!(&rule.0, Kind::Scalar(rule) if rule.name() == "list")
+            }),
             implicit: contains(rules, |rule| implicit_builtin(rule, extensions)),
             nullable: contains(rules, |rule| matches!(rule, Kind::Nullable)),
             sometimes: contains(rules, |rule| matches!(rule, Kind::Sometimes)),
@@ -644,8 +660,7 @@ impl Validator {
                                 value,
                                 (pattern, &attribute),
                                 attribute_for_query,
-                                nullable,
-                                numeric,
+                                RuleFlags { numeric, ..flags },
                             )
                             .await?
                         };
@@ -966,8 +981,9 @@ impl Validator {
         parameter: &str,
         value: &Value,
         (pattern, attribute): (&str, &str),
-        numeric: bool,
+        flags: RuleFlags,
     ) -> ValidationResult<Vec<RuleFailure>> {
+        let numeric = flags.numeric;
         let other = dependent_path(pattern, attribute, parameter)?;
         let compared = self
             .data
@@ -1014,25 +1030,7 @@ impl Validator {
         if passes {
             return Ok(Vec::new());
         }
-        let rules = self
-            .rules
-            .fields
-            .iter()
-            .find(|(field, _)| field == pattern)
-            .map(|(_, rules)| rules.as_slice())
-            .unwrap_or_default();
-        let category = if numeric {
-            "numeric"
-        } else if contains(rules, |rule| {
-            matches!(rule, Kind::Array)
-                || matches!(rule, Kind::Scalar(rule) if rule.name() == "list")
-        }) {
-            "array"
-        } else if file.is_some() {
-            "file"
-        } else {
-            "string"
-        };
+        let category = flags.category(file.is_some());
         let replacement = if compared_null {
             self.display_attribute(parameter, &other)
         } else {
@@ -1064,9 +1062,9 @@ impl Validator {
         value: Option<&Value>,
         attribute: (&str, &str),
         attribute_for_query: &str,
-        nullable: bool,
-        numeric: bool,
+        flags: RuleFlags,
     ) -> ValidationResult<Vec<RuleFailure>> {
+        let nullable = flags.nullable;
         let (pattern, attribute) = attribute;
         if let Kind::Custom(rule) = rule
             && rule.is_implicit()
@@ -1114,7 +1112,8 @@ impl Validator {
                 return Ok(if passes {
                     Vec::new()
                 } else {
-                    let mut failure = RuleFailure::new(format!("validation.{kind}.file"));
+                    let mut failure =
+                        RuleFailure::new(format!("validation.{kind}.{}", flags.category(true)));
                     failure.replacements.extend(
                         bounds
                             .into_iter()
@@ -1134,7 +1133,7 @@ impl Validator {
                             .is_empty()
                     })))
         {
-            return self.compare_size(name, parameter, value, (pattern, attribute), numeric);
+            return self.compare_size(name, parameter, value, (pattern, attribute), flags);
         }
         let failure = match (rule, value) {
             (Kind::Required, value) if file.is_none() && value.is_none_or(is_empty) => {
@@ -1593,12 +1592,12 @@ impl Validator {
             }
             (Kind::File(rule), Some(_)) => return rule.failures(file),
             (Kind::Size(bound), Some(value)) => {
-                return scalar_size(value, numeric, "size", &[("size", bound)], |n| n == bound);
+                return scalar_size(value, flags, "size", &[("size", bound)], |n| n == bound);
             }
             (Kind::Between(min, max), Some(value)) => {
                 return scalar_size(
                     value,
-                    numeric,
+                    flags,
                     "between",
                     &[("min", min), ("max", max)],
                     |n| n >= min && n <= max,
@@ -1607,7 +1606,7 @@ impl Validator {
             (Kind::Min(bound) | Kind::Max(bound), Some(value)) => {
                 let minimum = matches!(rule, Kind::Min(_));
                 let kind = if minimum { "min" } else { "max" };
-                return scalar_size(value, numeric, kind, &[(kind, bound)], |n| {
+                return scalar_size(value, flags, kind, &[(kind, bound)], |n| {
                     if minimum { n >= bound } else { n <= bound }
                 });
             }
@@ -1922,36 +1921,21 @@ fn validation_size(
     if numeric {
         super::standard_rules::check_exponent(value)?;
     }
-    Ok(match value {
-        Value::Null | Value::Bool(false) => Some(0.into()),
-        Value::Bool(true) => Some(1.into()),
-        Value::Number(number) if !numeric && number.is_f64() => Some(bigdecimal::BigDecimal::from(
-            crate::support::php_float_string(number.as_f64().unwrap())
-                .chars()
-                .count() as u64,
-        )),
-        _ => size(value, numeric).map(|(size, _)| size),
-    })
+    Ok(Some(size(value, numeric)))
 }
 
 fn scalar_size(
     value: &Value,
-    numeric: bool,
+    flags: RuleFlags,
     rule: &str,
     bounds: &[(&str, &bigdecimal::BigDecimal)],
     passes: impl FnOnce(&bigdecimal::BigDecimal) -> bool,
 ) -> ValidationResult<Vec<RuleFailure>> {
-    if numeric {
-        super::standard_rules::check_exponent(value)?;
-    }
-    let observed = size(value, numeric);
-    if observed.as_ref().is_some_and(|(number, _)| passes(number)) {
+    let observed = validation_size(value, None, flags.numeric)?;
+    if observed.as_ref().is_some_and(passes) {
         return Ok(Vec::new());
     }
-    let category = observed.map_or(
-        if numeric { "numeric" } else { "string" },
-        |(_, category)| category,
-    );
+    let category = flags.category(false);
     let mut failure = RuleFailure::new(format!("validation.{rule}.{category}"));
     failure.replacements.extend(
         bounds

@@ -248,6 +248,8 @@ fn configure(exceptions: &mut Exceptions) {
 
 默认 `integer` 遵循 PHP 整数验证，包含部分整数值浮点数和 `true`；`integer:strict` 只接受 JSON 整数，`boolean:strict` 只接受 JSON 布尔值。数值大小规则支持负数和小数阈值，使用十进制比较，避免浮点舍入。科学计数法指数超出 -1000 至 1000 时返回执行错误。
 
+尺寸规则只在声明 `numeric`、`integer` 或 `decimal` 时比较数值；其余字符串按字符数、数组按项数、上传文件按 KB 计算。错误消息类型由声明的规则决定，优先级为数值、array/list、文件、字符串。布尔值和 null 使用标量文本长度；浮点数在比较前沿用 14 位有效数字的标量转换。验证结果保留原输入类型。
+
 浮点数先按 PHP 默认的 14 位有效数字转为文本，例如浮点值 `1e13` 通过、`1e14` 不通过，而整数值 `100000000000000` 通过。`regex` 只接受字符串或数值；布尔值与未声明 `nullable` 的 `null` 不通过。
 
 正则包含 `|` 时，使用 `RuleSet::field` 的规则数组并通过 `Rule::parse` 解析，避免被当成规则分隔符。支持 PCRE2 修饰符 `i m s x u A U J n D`；`D` 使 `$` 仅匹配输入末尾，多行模式下遵循 PCRE2 原生语义。其他尚不支持的修饰符返回 `InvalidRule`，不表示已经支持 PHP 的全部 PCRE 选项。

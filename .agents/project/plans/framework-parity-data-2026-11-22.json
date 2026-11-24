@@ -299042,6 +299042,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "password policies, translated message matching/size keys/implicit labels, and full chapter review; chapter open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第二十组 size calculation and declared message type",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "message catalogs, password policies, full chapter review; chapter open"
     }
   ]
 }

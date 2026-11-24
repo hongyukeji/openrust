@@ -900,21 +900,22 @@ pub(super) fn integer(value: &Value) -> Option<i128> {
     }
 }
 
-pub(super) fn size(value: &Value, numeric: bool) -> Option<(bigdecimal::BigDecimal, &'static str)> {
+pub(super) fn size(value: &Value, numeric: bool) -> bigdecimal::BigDecimal {
     if numeric && let Some(number) = super::standard_rules::number(value) {
-        return Some((number, "numeric"));
+        return number;
     }
-    match value {
-        Value::Array(values) => Some((bigdecimal::BigDecimal::from(values.len() as u64), "array")),
-        Value::Object(values) => Some((bigdecimal::BigDecimal::from(values.len() as u64), "array")),
-        Value::String(value) => Some((
-            bigdecimal::BigDecimal::from(value.chars().count() as u64),
-            "string",
-        )),
-        Value::Number(value) => Some((
-            bigdecimal::BigDecimal::from(value.to_string().len() as u64),
-            "string",
-        )),
-        _ => None,
-    }
+    let length = match value {
+        Value::Array(values) => values.len(),
+        Value::Object(values) => values.len(),
+        Value::String(value) => value.chars().count(),
+        Value::Number(value) if value.is_f64() => {
+            crate::support::php_float_string(value.as_f64().unwrap())
+                .chars()
+                .count()
+        }
+        Value::Number(value) => value.to_string().len(),
+        Value::Bool(true) => 1,
+        Value::Bool(false) | Value::Null => 0,
+    };
+    bigdecimal::BigDecimal::from(length as u64)
 }

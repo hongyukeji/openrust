@@ -365,3 +365,13 @@ DNS共享原active_url的Hickory传输与解析器配置，绕过hosts／localho
 剩余逐节审查已明确登记语言目录custom／attributes通配查找、尺寸消息类型键、通配字段显示名与嵌套标签的关联差异；尚待固定源码实际消费者复验和修复，随密码之后的消息功能簇处理，不能据已有翻译测试关闭这些条目。
 
 本批闭合email教程模式及以上关联入口；不是整个Email类所有未入教程方法的完成声明。密码默认／泄漏策略／附加规则、全章逐节最终对账仍继续，不将关键词列表或测试数量当作整章完成。
+
+## 第二十组：尺寸计算与声明规则的消息类型（2026-11-24）
+
+固定ValidatesAttributes::getSize、FormatsMessages::getAttributeType及min/max/size/between逐项核对。密码内部复用原Factory前发现通用尺寸计算的关联差异：输入数组不等于声明array，失败numeric规则仍决定尺寸消息类别，bool/null须按标量文本长度，浮点须沿用既有PHP14位文本转换。先由实际固定参考378组复现99组差异，修复后全部一致；新增6组文件参考验证numeric、array/list优先于file的消息分类。金标准validation-sizes.json保留原输入类型、验证投影和实际HTTP序列化投影，不把1.0被默认JSON格式化为1误当成验证器改变输入类型。
+
+复用原RuleFlags一次计算numeric与array/list标记，执行器和相邻gt/lt/gte/lte共用分类；array:keys属于array，独立array_keys不暗中变更类型。标量与相邻尺寸比较共用size/validation_size，不新增手写密码尺寸分支；保留原科学计数法指数限制、十进制比较及原错误包。文件仍按KB，消息类型按声明规则而非运行值选择。没有添加依赖或更改公开签名。
+
+真实TCP回放378组JSON及6组multipart，精确核对422消息与成功投影；三语说明同步。sizes/gates.log九阶段全0：MySQL8.4.13十四目标70项0忽略（含原密码、email完整差分及三语6项），workspace/all-targets严格Clippy、fmt、三语构建／浏览器、实际main及artisan help make:rule／inspire通过。证据target/tmp/docs-chapters-20261124/sizes/，SHA与冻结快照一致；实际MySQL与HTTP服务均回收。初次HTTP夹具用保留小数零的参考投影比较默认JSON输出而失败，已补固定PHP实际wire投影并重跑，不改生产序列化格式。
+
+本批只关闭尺寸及消息类型关联差异；语言目录通配／嵌套标签、密码默认与泄漏策略、全章逐节复核继续，整章未关闭。

@@ -1,0 +1,5723 @@
+{
+  "framework": "13.40.0",
+  "cases": [
+    {
+      "rule": "min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.234567890123456
+      },
+      "wire_validated": {
+        "value": 1.234567890123456
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e+20
+      },
+      "wire_validated": {
+        "value": 1e+20
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e-07
+      },
+      "wire_validated": {
+        "value": 1e-07
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "ab"
+      },
+      "wire_validated": {
+        "value": "ab"
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "word"
+      },
+      "wire_validated": {
+        "value": "word"
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      }
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": null
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": null
+      },
+      "wire_validated": {
+        "value": null
+      }
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": false
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": false
+      },
+      "wire_validated": {
+        "value": false
+      }
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": []
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": []
+      },
+      "wire_validated": {
+        "value": []
+      }
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:0",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": true
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": true
+      },
+      "wire_validated": {
+        "value": true
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 0
+      },
+      "wire_validated": {
+        "value": 0
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": "a"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "a"
+      },
+      "wire_validated": {
+        "value": "a"
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1
+        ]
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1
+        }
+      }
+    },
+    {
+      "rule": "size:1",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": true
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": true
+      },
+      "wire_validated": {
+        "value": true
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 0
+      },
+      "wire_validated": {
+        "value": 0
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": "a"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "a"
+      },
+      "wire_validated": {
+        "value": "a"
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "ab"
+      },
+      "wire_validated": {
+        "value": "ab"
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1
+        ]
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1
+        }
+      }
+    },
+    {
+      "rule": "between:1,2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      }
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "ab"
+      },
+      "wire_validated": {
+        "value": "ab"
+      }
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "word"
+      },
+      "wire_validated": {
+        "value": "word"
+      }
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "string|min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a string."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array|min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      }
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array:first|min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first.",
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "array_keys:first|min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must only contain the following keys: first."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "list|min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.234567890123456
+      },
+      "wire_validated": {
+        "value": 1.234567890123456
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e+20
+      },
+      "wire_validated": {
+        "value": 1e+20
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 0
+      },
+      "wire_validated": {
+        "value": 0
+      }
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "integer|max:0",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an integer.",
+          "The value field must not be greater than 0."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|size:1",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be 1."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.234567890123456
+      },
+      "wire_validated": {
+        "value": 1.234567890123456
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be between 1 and 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|between:1,2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": null
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": null
+      },
+      "wire_validated": {
+        "value": null
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": false
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": false
+      },
+      "wire_validated": {
+        "value": false
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": true
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": true
+      },
+      "wire_validated": {
+        "value": true
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 0
+      },
+      "wire_validated": {
+        "value": 0
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.234567890123456
+      },
+      "wire_validated": {
+        "value": 1.234567890123456
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e+20
+      },
+      "wire_validated": {
+        "value": 1e+20
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e-07
+      },
+      "wire_validated": {
+        "value": 1e-07
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": "a"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "a"
+      },
+      "wire_validated": {
+        "value": "a"
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": "ab"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "ab"
+      },
+      "wire_validated": {
+        "value": "ab"
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": "word"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "word"
+      },
+      "wire_validated": {
+        "value": "word"
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": []
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": []
+      },
+      "wire_validated": {
+        "value": []
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1
+        ]
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1
+        }
+      }
+    },
+    {
+      "rule": "min:0",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": null
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": null
+      },
+      "wire_validated": {
+        "value": null
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": false
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": false
+      },
+      "wire_validated": {
+        "value": false
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": true
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": true
+      },
+      "wire_validated": {
+        "value": true
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 0
+      },
+      "wire_validated": {
+        "value": 0
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": "a"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "a"
+      },
+      "wire_validated": {
+        "value": "a"
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": []
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": []
+      },
+      "wire_validated": {
+        "value": []
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": [
+          1
+        ]
+      },
+      "wire_validated": {
+        "value": [
+          1
+        ]
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": {
+          "first": 1
+        }
+      },
+      "wire_validated": {
+        "value": {
+          "first": 1
+        }
+      }
+    },
+    {
+      "rule": "max:1",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1 characters."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 1
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 2
+      },
+      "wire_validated": {
+        "value": 2
+      }
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 1.0
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.234567890123456
+      },
+      "wire_validated": {
+        "value": 1.234567890123456
+      }
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e+20
+      },
+      "wire_validated": {
+        "value": 1e+20
+      }
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": "1"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": "01"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|min:1.23456789012348",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": null
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": false
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": true
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 0
+      },
+      "wire_validated": {
+        "value": 0
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 2
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 1.0
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1.0
+      },
+      "wire_validated": {
+        "value": 1
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 1.234567890123456
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 1e+20
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": 1e-07
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": 1e-07
+      },
+      "wire_validated": {
+        "value": 1e-07
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": ""
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": ""
+      },
+      "wire_validated": {
+        "value": ""
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": "a"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": "ab"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": "1"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "1"
+      },
+      "wire_validated": {
+        "value": "1"
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": "01"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "value": "01"
+      },
+      "wire_validated": {
+        "value": "01"
+      }
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": "word"
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": []
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": [
+          1,
+          2
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": {
+          "first": 1
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    },
+    {
+      "rule": "numeric|max:1.23456789012348",
+      "data": {
+        "value": {
+          "first": 1,
+          "second": 2
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must not be greater than 1.23456789012348."
+        ]
+      },
+      "validated": null,
+      "wire_validated": null
+    }
+  ],
+  "file_cases": [
+    {
+      "rule": "min:2",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be at least 2 kilobytes."
+        ]
+      }
+    },
+    {
+      "rule": "numeric|min:2",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a number.",
+          "The value field must be at least 2."
+        ]
+      }
+    },
+    {
+      "rule": "array|min:2",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      }
+    },
+    {
+      "rule": "array:first|min:2",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be an array.",
+          "The value field must have at least 2 items."
+        ]
+      }
+    },
+    {
+      "rule": "list|min:2",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must be a list.",
+          "The value field must have at least 2 items."
+        ]
+      }
+    },
+    {
+      "rule": "decimal:1|min:2",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field must have 1 decimal places.",
+          "The value field must be at least 2."
+        ]
+      }
+    }
+  ]
+}

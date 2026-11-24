@@ -647,9 +647,13 @@
         {
           "anchor": "rule-between",
           "title": "between:_min_,_max_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "声明数值／数组规则决定消息类型，尺寸值依getSize；固定参考378＋6文件实际HTTP"
+          ],
+          "evidence": [
+            "README.md#第二十组尺寸计算与声明规则的消息类型2026-11-24"
+          ]
         },
         {
           "anchor": "rule-boolean",
@@ -1140,9 +1144,13 @@
         {
           "anchor": "rule-max",
           "title": "max:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "声明数值／数组规则决定消息类型，尺寸值依getSize；固定参考378＋6文件实际HTTP"
+          ],
+          "evidence": [
+            "README.md#第二十组尺寸计算与声明规则的消息类型2026-11-24"
+          ]
         },
         {
           "anchor": "rule-max-digits",
@@ -1179,9 +1187,13 @@
         {
           "anchor": "rule-min",
           "title": "min:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "声明数值／数组规则决定消息类型，尺寸值依getSize；固定参考378＋6文件实际HTTP"
+          ],
+          "evidence": [
+            "README.md#第二十组尺寸计算与声明规则的消息类型2026-11-24"
+          ]
         },
         {
           "anchor": "rule-min-digits",
@@ -1544,9 +1556,13 @@
         {
           "anchor": "rule-size",
           "title": "size:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "声明数值／数组规则决定消息类型，尺寸值依getSize；固定参考378＋6文件实际HTTP"
+          ],
+          "evidence": [
+            "README.md#第二十组尺寸计算与声明规则的消息类型2026-11-24"
+          ]
         },
         {
           "anchor": "rule-starts-with",

@@ -244,6 +244,8 @@ fn configure(exceptions: &mut Exceptions) {
 ```
 ## Standard Rules and Validation Hooks
 
+Size rules calculate numeric values only when `numeric`, `integer`, or `decimal` is declared; otherwise strings use character counts, arrays use item counts, and uploaded files use kilobytes. The error message type follows the declared rules, with numeric before array/list before file before string. Boolean and null values use their scalar text length; floats use the existing 14-significant-digit scalar conversion before size comparisons. Validation preserves the original input type.
+
 The rule parser accepts `numeric`, `date`, `in:a,b`, `regex:/pattern/u`, `required_if:field,value`, `exclude_if:field,value`, `accepted`, `url`, `uuid`, and `array:key1,key2`, alongside the rules described above. `array:key1,key2` rejects unlisted keys; `in` checks each array element when combined with `array`. Excluded fields, including uploaded files, are removed from validated data. Rules run in declaration order.
 
 Default `integer` follows PHP integer validation, including some integral floats and `true`; `integer:strict` requires a JSON integer and `boolean:strict` requires a JSON boolean. Numeric size rules accept negative and decimal bounds and compare decimal values without converting them to binary floats. Scientific-notation exponents outside -1000 to 1000 return an execution error.

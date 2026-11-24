@@ -3,6 +3,9 @@ use bigdecimal::BigDecimal;
 
 fn numeric_text(value: &Value) -> Option<String> {
     let raw = match value {
+        Value::Number(value) if value.is_f64() => {
+            crate::support::php_float_string(value.as_f64().unwrap())
+        }
         Value::Number(value) => value.to_string(),
         Value::String(value) => value
             .trim_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c'])
