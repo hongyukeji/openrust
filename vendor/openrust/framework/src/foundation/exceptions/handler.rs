@@ -142,9 +142,14 @@ impl Handler {
         {
             let exception = Exception::Mapped(&mapped);
             if let Some(error) = exception.downcast_ref::<HttpError>() {
-                return self.render_http_unmapped_response(request, error).await;
+                return super::view_exception::scope_shared(
+                    mapped.clone(),
+                    self.render_http_unmapped_response(request, error),
+                )
+                .await;
             }
-            return self.render_unmapped(request, &exception);
+            let response = self.render_unmapped_core(request, &exception);
+            return self.finish_render(request, &exception, response).await;
         }
         self.render_http_unmapped_response(request, error).await
     }
@@ -179,12 +184,37 @@ impl Handler {
             };
             redirect.unwrap_or_else(|| self.render_default(request, &exception, json))
         };
-        self.respond(response, &exception, request)
+        self.finish_render(request, &exception, response).await
+    }
+
+    async fn finish_render(
+        &self,
+        request: &mut Request,
+        exception: &Exception<'_>,
+        mut response: Response,
+    ) -> Response {
+        if let Some(failure) = response
+            .parts_mut()
+            .extensions
+            .remove::<super::render::ViewFailure>()
+        {
+            let view_error = Exception::Error(&failure.error);
+            let _ = self.report_with_request(request, &view_error).await;
+            if failure.debug {
+                let response = self.render_unmapped_core(request, &view_error);
+                return self.respond(response, &view_error, request);
+            }
+        }
+        self.respond(response, exception, request)
     }
 
     fn render_unmapped(&self, request: &Request, exception: &Exception<'_>) -> Response {
-        let response = self
-            .configuration()
+        let response = self.render_unmapped_core(request, exception);
+        self.respond(response, exception, request)
+    }
+
+    fn render_unmapped_core(&self, request: &Request, exception: &Exception<'_>) -> Response {
+        self.configuration()
             .as_ref()
             .and_then(|config| config.render_using(exception, request))
             .or_else(|| {
@@ -195,8 +225,7 @@ impl Handler {
             .unwrap_or_else(|| {
                 let json = self.renders_json(request, exception);
                 self.render_default(request, exception, json)
-            });
-        self.respond(response, exception, request)
+            })
     }
 
     fn renders_json(&self, request: &Request, exception: &Exception<'_>) -> bool {

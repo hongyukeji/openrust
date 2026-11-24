@@ -636,12 +636,28 @@ impl Factory {
         self.finder.cache_paths()
     }
 
-    pub(crate) fn render_error(&self, name: &str, status: u16, message: &str) -> Option<String> {
-        let data = ViewData::from_iter([
+    pub(crate) fn render_error(
+        &self,
+        name: &str,
+        status: u16,
+        message: &str,
+        exception: Option<ViewValue>,
+    ) -> ViewResult<Option<String>> {
+        if !self.exists(name) {
+            return Ok(None);
+        }
+        let mut data = ViewData::from_iter([
             ("status".to_owned(), status.into()),
             ("message".to_owned(), message.into()),
+            (
+                "errors".to_owned(),
+                crate::support::ViewErrorBag::new().into(),
+            ),
         ]);
-        self.render(name, &data).ok()
+        if let Some(exception) = exception {
+            data.insert("exception".to_owned(), exception);
+        }
+        self.render(name, &data).map(Some)
     }
 }
 

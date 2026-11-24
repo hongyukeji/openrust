@@ -10,3 +10,5 @@ mod validation_redirect;
 
 pub use handler::Handler;
 pub(super) use render::maintenance_page;
+
+pub(crate) mod view_exception;

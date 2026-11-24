@@ -196,7 +196,7 @@ async fn default_renderer_negotiates_and_serves_status_pages_with_headers() {
         json!({"message":"Server Error"})
     );
     let html = send(address, "GET", "/fail", "text/html", 500).await;
-    assert!(html.body.contains("<h1>500 Internal Server Error</h1>"));
+    assert!(html.body.contains("<h1>500</h1>"));
     assert!(!html.body.contains("private-render-source"));
 
     let wrong_method = send(address, "POST", "/fail", "text/html", 405).await;

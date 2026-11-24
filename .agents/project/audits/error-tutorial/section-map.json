@@ -153,8 +153,8 @@
     },
     {
       "anchor": "rendering-exceptions",
-      "status": "verified_tutorial_scope",
-      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "status": "pending_consumer_gap",
+      "contract": "同步render及回退已验；命名视图Response::view异步消费者需要异步回调接线",
       "evidence": [
         "report_helper",
         "error_docs_generated",
@@ -243,34 +243,24 @@
     },
     {
       "anchor": "custom-http-error-pages",
-      "status": "pending_contract_gap",
-      "contract": "缺少实际异常对象模板消费者和默认模板发布入口",
+      "status": "verified_tutorial_scope",
+      "contract": "真实异常ViewObject、八种专用页、精确/通用回退、模板失败报告与发布覆盖保护",
       "evidence": [
-        "report_helper",
-        "error_docs_generated",
-        "exception_reporting",
+        "error_page_tutorial",
         "exception_rendering",
-        "exceptions_facade",
-        "exception_context_facade",
-        "exception_handler_fake",
-        "exception_map_facade",
-        "without_exception_handling"
+        "pages-runtime-final.log",
+        "pages-browser.log"
       ]
     },
     {
       "anchor": "fallback-http-error-pages",
-      "status": "pending_contract_gap",
-      "contract": "当前仅排除404/500/503，固定文档为八种专用状态，待修复",
+      "status": "verified_tutorial_scope",
+      "contract": "真实异常ViewObject、八种专用页、精确/通用回退、模板失败报告与发布覆盖保护",
       "evidence": [
-        "report_helper",
-        "error_docs_generated",
-        "exception_reporting",
+        "error_page_tutorial",
         "exception_rendering",
-        "exceptions_facade",
-        "exception_context_facade",
-        "exception_handler_fake",
-        "exception_map_facade",
-        "without_exception_handling"
+        "pages-runtime-final.log",
+        "pages-browser.log"
       ]
     }
   ]

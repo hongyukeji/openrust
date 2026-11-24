@@ -18,6 +18,25 @@ use super::{Factory, FileViewFinder};
 pub struct ViewServiceProvider;
 
 impl ServiceProvider for ViewServiceProvider {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let assets: Vec<_> = super::error_pages::VIEWS
+                .iter()
+                .map(|(status, bytes)| {
+                    (
+                        format!("resources/views/errors/{status}.blade.html"),
+                        bytes.as_bytes(),
+                    )
+                })
+                .collect();
+            let files: Vec<_> = assets
+                .iter()
+                .map(|(path, bytes)| (path.as_str(), *bytes))
+                .collect();
+            self.publishes(app, &files, "laravel-errors")
+        })
+    }
+
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let base = app.base_path().to_path_buf();
@@ -105,6 +124,7 @@ fn configured_factory(
         None => compiled_default.to_owned(),
     };
     Ok(Factory::new(FileViewFinder::new(paths), compiled)
+        .with_embedded_namespace("errors", super::error_pages::VIEWS)
         .with_embedded_namespace("pagination", crate::pagination::VIEWS)
         .with_embedded_namespace("notifications", crate::notifications::messages::VIEWS))
 }

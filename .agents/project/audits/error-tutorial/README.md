@@ -30,3 +30,18 @@ URL Generation与Validation已按两个固定章节闭合，不重开。按交�
 新增ShouldntReport独立契约；标准Error类型擦除无法自动发现额外trait，因此into_exception()／SharedException::unreported是明确的原生所有权边界，不谎称裸类型实现marker后自动可识别。标记和原始Arc身份一起保留，new/from_arc/from_typed_arc及clone均保持。标准处理器在限流／回调／日志之前忽略；stop_ignoring不能取消类型自身标记。只穿过框架透明传输层，不因业务source包含被忽略错误而忽略外层类型；映射为新根后按新根策略判断。没有更改序列化字段、事件、CLI或错误显示文本。Rust报告方法用ReportDecision替代PHP的void／bool，依赖可由构造器经已有容器取得，不反射参数签名；这不是缺方法的替代写法。
 
 四项专项含真实TCP、Artisan exceptions:own-methods、实例／全局顺序、None回退、具名context、一次调用、所有权构造器、映射、外层source和运行期Facade／应用隔离；三语正式完整代码直接提取编译并以真实TCP分别核对500／409、已处理／忽略及原日志。13目标102项0忽略通过，含原93项及已提交API前缀2项；先前API封装断言失败已随5e1144182的完整已提交配套进入快照，现复验通过，不再作为该范围阻塞。workspace/all-targets严格Clippy54.20s、fmt、三语构建／浏览器、实际main及Artisan inspire全0。证据behavior-{tests-v2,doc-tests,consumers,clippy,gates,browser}.log；首次测试Body／LogContext／异步App::make使用错误已纠正，不计通过。本簇不包含尚未验收的错误页对象、默认页面／发布、渲染失败处理；后两节继续开放。
+
+
+## 第三簇：错误页对象、专用回退与模板发布
+
+固定文档custom-http-error-pages及Handler::renderHttpException/getHttpExceptionView要求真实$exception、独立空ViewErrorBag、精确页与八种专用页，并提供vendor:publish --tag=laravel-errors。此前仅有status/message及三个排除状态，没有默认模板发布，且视图失败被吞掉；现复用原Factory／ViewObject／Provider发布注册表，无第二套模板引擎或发布器。旧v0.x未提供可复用的对应模板实例／发布实现。
+
+新增对象持有HTTP边界已有Arc或映射SharedException，读取原错误，getPrevious穿过透明共享包装，最多32层；不复制消息为错误DTO。模板composer修改原source后可立即读到新消息。HTTP Kernel及Next中间件两个实际边界均接线，映射使用映射后的拥有者；并发32请求／取消后Weak强引用归零及后续消费通过。不透明借用的低层同步render无法伪造所有权，正式文档明确使用HTTP边界或SharedException；四个PHP模板方法及原生别名保留，模板表达式不机械改名。
+
+精确应用页优先，普通状态走4xx/5xx，401/402/403/404/419/429/500/503走内置专用页。新增八份独立编写的中性HTML，内置与发布后复用同一资源，默认不泄露内部消息，不复制上游页面样式。沿用既有外部laravel-errors标签，属于必须保留的CLI契约；发布默认保留已有文件，--force覆盖。视图错误先报告再respond，生产保留原HTTP状态并回退内置响应，调试选择新的ViewError／500；避免递归失败。
+
+6项专项包含三语正式Blade片段直接提取、真实TCP、原始对象／来源／响应头、空错误包、映射对象、八专用及通用回退、JSON绕过、失败报告先于respond、真实Application::handle_command发布及覆盖保护。最初Blade测试指令边界写法及HeaderMap夹具类型错误已纠正；随后实测暴露Next边界缺接线并修复，失败日志不计通过。pages-tests-final.log 6通过0忽略。完整关联回归与门禁结果后补。
+
+最终再核对rendering-exceptions中的命名视图响应：公开Response::view本身是异步，但旧render回调为同步，不能以手拼HTML替代此消费者。该关联入口在本簇之后单独接通并验收；在其完成前不关闭整章。
+
+第三簇最终门禁：18目标138项0忽略通过，workspace/all-targets严格Clippy1m08s、fmt、三语构建全通过；最后仅排版测试函数后6项复验通过，定向Clippy再核对。浏览器check_browser/check_scope/check_api_snapshot --without-export均0。实际main的help vendor:publish、8页发布／保护／force、HTTP /up、自定义404、启用既有业务封装后的JSON404、HEAD空正文、发布后默认404、Artisan inspire及Ctrl+C退出0通过。首次实际JSON夹具沿用了旧Not Found文本，已按当前既有默认封装Resource not found.修正断言；重复使用临时目录导致original取到自定义页的夹具错误已换全新目录复验，均不修改产品默认值或把失败计为通过。证据pages-{consumers,clippy,fmt,docs,main,artisan,browser,runtime-final,tests-formatted,final-test-clippy}.log；无存活测试服务器。

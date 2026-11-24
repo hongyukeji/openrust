@@ -47,7 +47,14 @@ impl Kernel {
         error: crate::http::HttpError,
     ) -> Response {
         match self.application.exception_handler() {
-            Ok(handler) => handler.handle_http(request, Arc::new(error)).await,
+            Ok(handler) => {
+                let error = Arc::new(error);
+                super::exceptions::view_exception::scope(
+                    error.clone(),
+                    handler.handle_http(request, error),
+                )
+                .await
+            }
             Err(source) => crate::http::HttpError::from(source).bare_response(),
         }
     }

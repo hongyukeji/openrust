@@ -1,0 +1,35 @@
+/// 可发布的专用错误视图；外部发布标签保留固定文档的CLI契约。
+pub(super) const VIEWS: &[(&str, &str)] = &[
+    (
+        "401",
+        include_str!("../foundation/exceptions/views/401.blade.html"),
+    ),
+    (
+        "402",
+        include_str!("../foundation/exceptions/views/402.blade.html"),
+    ),
+    (
+        "403",
+        include_str!("../foundation/exceptions/views/403.blade.html"),
+    ),
+    (
+        "404",
+        include_str!("../foundation/exceptions/views/404.blade.html"),
+    ),
+    (
+        "419",
+        include_str!("../foundation/exceptions/views/419.blade.html"),
+    ),
+    (
+        "429",
+        include_str!("../foundation/exceptions/views/429.blade.html"),
+    ),
+    (
+        "500",
+        include_str!("../foundation/exceptions/views/500.blade.html"),
+    ),
+    (
+        "503",
+        include_str!("../foundation/exceptions/views/503.blade.html"),
+    ),
+];

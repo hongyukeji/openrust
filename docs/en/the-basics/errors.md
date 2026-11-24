@@ -93,7 +93,7 @@ Use `render::<E>` to return an HTTP response for an error and request. Returning
 
 ### Customizing the Exception Response
 
-For default HTML responses, add a UTF-8 page such as `resources/views/errors/404.html` or `resources/views/errors/500.html`. Lookup uses the configured view paths. Other error statuses can fall back to `4xx.html` or `5xx.html` before using the built-in page. JSON responses use their own renderer.
+For default HTML responses, add a UTF-8 view under `resources/views/errors`. See [custom error pages](#custom-http-error-pages) for exception data, publishing and fallback selection. JSON responses use their own renderer.
 
 ```rust
 use openrust::{
@@ -166,9 +166,30 @@ async fn maintenance() -> Result<Response, HttpError> {
 }
 ```
 
-## Custom HTTP Error Pages
+## Custom HTTP Error Pages {#custom-http-error-pages}
 
-Add a status-specific view such as `resources/views/errors/404.blade.html`. Blade error views receive `$status` and `$message`. A plain `errors/404.html` also works. You can add `errors/4xx.blade.html` or `errors/5xx.blade.html` for a status family. Statuses 404, 500 and 503 use their dedicated view or the framework fallback. The original status and JSON negotiation apply.
+Create `resources/views/errors/404.blade.html` to customize an HTTP status page. Plain `404.html` remains supported. The Blade view receives `$exception`, the real error instance, and a fresh empty `$errors` bag; `$status` and `$message` are also available.
+
+```blade
+<h2>{{ $exception->getMessage() }}</h2>
+<code>{{ $exception->getStatusCode() }}</code>
+```
+
+The object also exposes `getHeaders()` and `getPrevious()` (up to 32 source levels). Escaped Blade output remains escaped. Native `get_message`, `get_status_code`, `get_headers` and `get_previous` aliases are available. The HTTP boundary retains the original owned error for this render; concurrent requests and cancellation do not share an exception. A low-level rendering call with only a borrowed opaque error cannot supply an owned template object; use the normal HTTP boundary or `SharedException`.
+
+Publish the eight default templates, then edit the files:
+
+```sh
+./artisan vendor:publish --tag=laravel-errors
+```
+
+This existing external tag is retained for command compatibility. Publishing preserves existing files; `--force` explicitly overwrites them. Default templates show the status and its generic title, without an internal exception message.
+
+### Fallback HTTP Error Pages {#fallback-http-error-pages}
+
+Lookup tries the exact application page first. If absent, `4xx.blade.html` or `5xx.blade.html` handles the status family. The dedicated statuses **401, 402, 403, 404, 419, 429, 500 and 503** use their own built-in page instead of a family fallback; customize each exact page to override it. The original status and response headers are preserved. JSON negotiation bypasses HTML templates.
+
+If an error template itself fails, its view error is reported before the final `respond` callback. With `APP_DEBUG=false`, the original status is retained and a built-in response is used. Debug mode renders the view failure as a new 500 error. Do not include sensitive exception details in production templates.
 
 ## Exceptions facade {#exceptions-facade}
 

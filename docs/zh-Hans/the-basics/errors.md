@@ -93,7 +93,7 @@ fn configure(exceptions: &mut Exceptions) {
 
 ### 自定义异常响应
 
-可为默认 HTML 响应添加 UTF-8 页面，例如 `resources/views/errors/404.html` 或 `resources/views/errors/500.html`。框架按已配置的视图路径查找。其他错误状态可先回退到 `4xx.html` 或 `5xx.html`，再使用内置页面。JSON 响应有自己的渲染流程。
+默认 HTML 响应可在 `resources/views/errors` 下添加 UTF-8 视图。异常数据、发布与回退顺序见[自定义错误页](#custom-http-error-pages)。JSON 响应使用独立渲染流程。
 
 ```rust
 use openrust::{
@@ -166,9 +166,30 @@ async fn maintenance() -> Result<Response, HttpError> {
 }
 ```
 
-## 自定义 HTTP 错误页
+## 自定义 HTTP 错误页 {#custom-http-error-pages}
 
-添加按状态码命名的视图，例如 `resources/views/errors/404.blade.html`。Blade 错误页可以读取 `$status` 和 `$message`，也支持普通的 `errors/404.html`。可以用 `errors/4xx.blade.html` 或 `errors/5xx.blade.html` 处理同类错误。404、500 和 503 使用对应的专属视图或框架回退页。响应沿用原有状态码和 JSON 协商规则。
+添加 `resources/views/errors/404.blade.html` 定制对应状态页，也支持普通 `404.html`。Blade 接收真实异常实例 `$exception` 和独立的空 `$errors` 错误包，另保留 `$status`、`$message`。
+
+```blade
+<h2>{{ $exception->getMessage() }}</h2>
+<code>{{ $exception->getStatusCode() }}</code>
+```
+
+对象还公开 `getHeaders()`、`getPrevious()`（最多 32 层来源）。Blade 转义输出仍会转义文本；也支持原生名称 `get_message`、`get_status_code`、`get_headers`、`get_previous`。HTTP 边界保留原错误的所有权供本次渲染使用，并发请求与取消不会共享异常。底层仅借用不透明错误的渲染调用无法提供拥有所有权的模板对象，请使用正常 HTTP 边界或 `SharedException`。
+
+发布八份默认模板后即可修改：
+
+```sh
+./artisan vendor:publish --tag=laravel-errors
+```
+
+此既有外部标签为命令兼容保留。发布默认不覆盖已有文件，显式传入 `--force` 才覆盖。默认模板显示状态及通用标题，不输出内部异常消息。
+
+### 通用 HTTP 错误页 {#fallback-http-error-pages}
+
+先查应用中的精确状态页，不存在时由 `4xx.blade.html` 或 `5xx.blade.html` 接管同类状态。**401、402、403、404、419、429、500、503** 使用自己的内置专用页面，不进入通用回退；须分别创建精确页面覆盖。原状态码与响应头保持，JSON 协商绕过 HTML 模板。
+
+错误模板自身失败时，视图异常先报告，再执行最终 `respond`。`APP_DEBUG=false` 保留原状态并回退内置响应；调试模式将视图异常作为新的 500 错误渲染。生产模板不要包含敏感异常详情。
 
 ## Exceptions 门面 {#exceptions-facade}
 
