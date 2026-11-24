@@ -529,3 +529,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 原Filesystem/Vite Macroable对象及实际getRequire/requireOnce输出保留：首次为对象，重复包含为bool true，对应既有AlreadyIncluded；首次比较器把static闭包绑定警告混进JSON、后续重复包含误按整型1比较均已修正，不计为证据。Response/Cache是异步Future或限定响应值契约，本批未机械改动。
 - 项目守卫期间按锁安全清理，事件记录释放63,671,336,960字节，源码/日志/下载/数据库及卷保留；当时df复查94,544,384,000字节可用。此后复用同一工作流目录重新编译，非删除源码快照或整个target。
 - tests-final/combination.log实际26项通过，明确过滤2项未提供环境的MySQL/Redis Worker，未把门控返回计为实机数据库通过。File宏参数错误同时补齐真实宏名/期望和实际类型，3项新消费者及模块回归复验；独立父树更新到0eeb12e3a后workspace/all-targets严格Clippy2.67秒、26项组合回归、三语构建15.67秒和12组浏览器通过。数据库Worker沿用原记录，不重复声称本次已跑。
+
+### Config：下标入口与字符串写入边界（仍 partial）
+
+- 固定原Repository实现明确`offsetUnset`调用`set(null)`，不是删除。补齐契约、具体仓储及门面的四个具名入口，实际调用自定义仓储覆写；同步仓储不提供锁外可变索引引用。
+- 原Config Facade和Repository实际执行27步并逐步比较完整快照，覆盖缺键／已有null、空字符串、空点分段、字面星号、NUL、前导零、完整字面键优先与列表写入。删除字符串键额外拒绝规则，环境文件自身校验不变。
+- `target/tmp/facade-alignment/config-offsets/tests-consumers.log`实际14项通过，含新增4项、原读取6项与作用域4项；真实HTTP确认unset后仍存在null且下次请求恢复默认语言，真实Artisan确认空点分路径及null存在性。workspace严格Clippy1m13s、三语站点15.94s、6浏览器跳转通过。
+- 原始比较器、JSON快照和失败／最终日志保留；无外部账号要求。宏、替身生命周期、动态非字符串键和非JSON配置值等其余契约继续处理，不将本子集算作Config闭合。

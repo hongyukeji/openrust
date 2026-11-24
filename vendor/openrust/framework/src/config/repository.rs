@@ -42,6 +42,18 @@ impl Repository {
         crate::support::Collection,
         Value
     );
+    pub fn offset_exists(&self, key: &str) -> bool {
+        <Self as config::Repository>::offset_exists(self, key)
+    }
+    pub fn offset_get(&self, key: &str) -> Option<Value> {
+        <Self as config::Repository>::offset_get(self, key)
+    }
+    pub fn offset_set(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+        <Self as config::Repository>::offset_set(self, key, value)
+    }
+    pub fn offset_unset(&self, key: &str) -> Result<(), ConfigError> {
+        <Self as config::Repository>::offset_unset(self, key)
+    }
     pub fn get_or(&self, key: &str, default: Value) -> Value {
         <Self as config::Repository>::get_or(self, key, default)
     }
@@ -97,7 +109,6 @@ impl Repository {
     }
 
     fn insert_list_value(&self, key: &str, value: Value, prepend: bool) -> Result<(), ConfigError> {
-        validate_key(key)?;
         if (key == "app" || key.starts_with("app."))
             && let Some(overrides) = self.locale_overrides()
             && (overrides
@@ -147,7 +158,6 @@ impl config::Repository for Repository {
     }
 
     fn set(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        validate_key(key)?;
         if let Some(overrides) = self.locale_overrides() {
             let mut overrides = overrides.0.lock().expect("语言配置作用域锁中毒");
             if key == "app" {
@@ -214,15 +224,6 @@ fn list_value(
         })?;
     }
     Ok(items)
-}
-
-fn validate_key(key: &str) -> Result<(), ConfigError> {
-    if key.split('.').any(str::is_empty) {
-        return Err(ConfigError::InvalidKey {
-            key: key.to_owned(),
-        });
-    }
-    Ok(())
 }
 
 fn get<'a>(values: &'a BTreeMap<String, Value>, key: &str) -> Option<&'a Value> {

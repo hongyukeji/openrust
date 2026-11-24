@@ -52,6 +52,18 @@ pub trait Repository: Send + Sync {
     fn set(&self, key: &str, value: Value) -> Result<(), ConfigError>;
     fn prepend(&self, key: &str, value: Value) -> Result<(), ConfigError>;
     fn push(&self, key: &str, value: Value) -> Result<(), ConfigError>;
+    fn offset_exists(&self, key: &str) -> bool {
+        self.has(key)
+    }
+    fn offset_get(&self, key: &str) -> Option<Value> {
+        self.get(key)
+    }
+    fn offset_set(&self, key: &str, value: Value) -> Result<(), ConfigError> {
+        self.set(key, value)
+    }
+    fn offset_unset(&self, key: &str) -> Result<(), ConfigError> {
+        self.set(key, Value::Null)
+    }
     fn get_or(&self, key: &str, default: Value) -> Value {
         self.get(key).unwrap_or(default)
     }

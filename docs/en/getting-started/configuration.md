@@ -79,6 +79,8 @@ All six strict readers have these defaults. String defaults accept `&str` throug
 `openrust::config::Repository` exposes the same readers and bulk operations. The configuration contract provides default implementations so replacing the repository preserves the public entry points; facade calls also respect typed-reader overrides.
 
 
+The named ArrayAccess methods `offset_exists`, `offset_get`, `offset_set`, and `offset_unset` forward to the current repository, including custom overrides. `offset_unset("key")?` assigns null: the key remains present, `offset_exists` returns true, and `offset_get` returns `Some(Value::Null)`. It also creates a null entry when the key was absent. String keys may be empty or contain empty dot segments or literal `*`; the asterisk is a key, not a wildcard. These methods follow the same request/task locale isolation as `set`. Rust uses named methods because a synchronized repository cannot expose stable mutable indexing references.
+
 ## Editing Environment Files {#editing-environment-files}
 
 `EnvironmentFile` edits the application's environment file on disk. `Config::set` changes the current configuration repository; the `Environment` boot snapshot remains immutable. File edits do not automatically change either one or restart services.

@@ -79,6 +79,8 @@ Config::set_many([("services.enabled", Value::Bool(true))])?;
 `openrust::config::Repository` 同样提供这些读取与批量操作；配置契约提供默认实现，替换仓储后公开入口仍可用，门面也会遵循自定义仓储对类型化读取的覆写。
 
 
+下标访问使用具名入口 `offset_exists`、`offset_get`、`offset_set` 和 `offset_unset`，实际转发当前仓储及其自定义覆写。`offset_unset("key")?` 是将值设为 null：键仍存在，`offset_exists` 返回 true，`offset_get` 返回 `Some(Value::Null)`；原来不存在的键也会创建为 null。字符串键可以为空，也可以包含空的点分片段或字面 `*`；星号不是通配符。这些入口与 `set` 共用请求／任务的语言配置隔离。同步仓储无法提供稳定的可变下标引用，因此 Rust 使用具名方法。
+
 ## 编辑环境文件 {#editing-environment-files}
 
 `EnvironmentFile` 修改磁盘中的环境文件；`Config::set` 只修改当前配置仓储，`Environment` 则是不可变的启动快照。写文件不会自动更新后两者，也不会重启服务。

@@ -79,6 +79,8 @@ Config::set_many([("services.enabled", Value::Bool(true))])?;
 `openrust::config::Repository` 同樣提供這些讀取與批次操作；設定契約提供預設實作，替換倉儲後公開入口仍可用，門面也會遵循自訂倉儲對型別化讀取的覆寫。
 
 
+下標存取使用具名入口 `offset_exists`、`offset_get`、`offset_set` 和 `offset_unset`，實際轉送目前倉儲及其自訂覆寫。`offset_unset("key")?` 是將值設為 null：鍵仍存在，`offset_exists` 傳回 true，`offset_get` 傳回 `Some(Value::Null)`；原來不存在的鍵也會建立為 null。字串鍵可以為空，也可以包含空的點分片段或字面 `*`；星號不是萬用字元。這些入口與 `set` 共用請求／任務的語言設定隔離。同步倉儲無法提供穩定的可變下標參照，因此 Rust 使用具名方法。
+
 ## 編輯環境檔案 {#editing-environment-files}
 
 `EnvironmentFile` 修改磁碟中的環境檔案；`Config::set` 只修改目前的設定儲存庫，`Environment` 則是不可變的啟動快照。寫入檔案不會自動更新後兩者，也不會重新啟動服務。

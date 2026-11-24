@@ -47,6 +47,19 @@ impl Config {
         Ok(Self::get_facade_root()?.get(key))
     }
 
+    pub fn offset_exists(key: &str) -> Result<bool, ConfigError> {
+        Ok(Self::get_facade_root()?.offset_exists(key))
+    }
+    pub fn offset_get(key: &str) -> Result<Option<Value>, ConfigError> {
+        Ok(Self::get_facade_root()?.offset_get(key))
+    }
+    pub fn offset_set(key: &str, value: Value) -> Result<(), ConfigError> {
+        Self::get_facade_root()?.offset_set(key, value)
+    }
+    pub fn offset_unset(key: &str) -> Result<(), ConfigError> {
+        Self::get_facade_root()?.offset_unset(key)
+    }
+
     /// Returns the default only when the key is absent.
     pub fn get_or(key: &str, default: Value) -> Result<Value, BindingResolutionError> {
         Ok(Self::get_facade_root()?.get_or(key, default))
