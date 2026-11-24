@@ -159,6 +159,7 @@ pub struct SessionGuard<'a> {
     recaller: String,
     remember_minutes: i64,
     rehash: bool,
+    fingerprint_on_login: bool,
     owner: Weak<Container>,
 }
 
@@ -177,6 +178,7 @@ impl<'a> SessionGuard<'a> {
             name,
             remember_minutes: 576_000,
             rehash: true,
+            fingerprint_on_login: false,
             owner: Weak::new(),
         }
     }
@@ -185,10 +187,12 @@ impl<'a> SessionGuard<'a> {
         mut self,
         remember_minutes: i64,
         rehash: bool,
+        fingerprint_on_login: bool,
         owner: Weak<Container>,
     ) -> Self {
         self.remember_minutes = remember_minutes;
         self.rehash = rehash;
+        self.fingerprint_on_login = fingerprint_on_login;
         self.owner = owner;
         self
     }
@@ -281,6 +285,40 @@ impl<'a> SessionGuard<'a> {
         self.request.session_mut().map_err(AuthError::backend)
     }
 
+    fn store_login_fingerprint(&mut self, user: &dyn Authenticatable) -> AuthResult<()> {
+        if self.fingerprint_on_login {
+            let owner = self
+                .owner
+                .upgrade()
+                .ok_or(AuthError::Configuration("认证会话所属应用"))?;
+            let config = owner.get::<dyn Repository>("config")?;
+            let value =
+                SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+            let key = SessionFingerprint::session_key(&self.name);
+            // 登录或经有效remember凭据恢复时立即建立指纹，不能延至首次受保护请求。
+            self.session()?.put(&key, serde_json::json!(value))?;
+        }
+        Ok(())
+    }
+
+    fn login_fingerprint_matches(&mut self, user: &dyn Authenticatable) -> AuthResult<bool> {
+        if !self.fingerprint_on_login {
+            return Ok(true);
+        }
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(AuthError::Configuration("认证会话所属应用"))?;
+        let config = owner.get::<dyn Repository>("config")?;
+        let expected =
+            SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+        let key = SessionFingerprint::session_key(&self.name);
+        Ok(self.session()?.get(&key).cloned().is_some_and(|stored| {
+            serde_json::from_value::<Vec<u8>>(stored)
+                .is_ok_and(|stored| bool::from(stored.ct_eq(&expected)))
+        }))
+    }
+
     async fn update_session(&mut self, id: &AuthIdentifier) -> AuthResult<()> {
         let value = serde_json::to_value(id)?;
         let key = self.session_key.clone();
@@ -304,11 +342,27 @@ impl<'a> SessionGuard<'a> {
         if let Some(id) = id
             && let Some(user) = self.provider.retrieve_by_id(&id).await?
         {
+            if !self.login_fingerprint_matches(user.as_ref())? {
+                // 在Guard读取时拒绝旧凭据，不能依赖每条业务路由都额外声明auth.session。
+                self.clear_device()?;
+                self.session()?.flush();
+                AuthContext::set(self.request, &self.name, None, false);
+                self.emit(
+                    CurrentDeviceLogout {
+                        guard: self.name.clone(),
+                        user: Some(user.into()),
+                    },
+                    &[],
+                )
+                .await?;
+                return Err(crate::http::HttpError::Unauthenticated.into());
+            }
             return self.set_user_async(user).await;
         }
         if let Some(user) = self.recall().await? {
             let user: Arc<dyn Authenticatable> = user.into();
             self.update_session(&user.get_auth_identifier()).await?;
+            self.store_login_fingerprint(user.as_ref())?;
             AuthContext::set_shared(self.request, &self.name, Some(user.clone()), true);
             return self
                 .emit(
@@ -488,6 +542,7 @@ impl<'a> SessionGuard<'a> {
             None
         };
         self.update_session(&id).await?;
+        self.store_login_fingerprint(user.as_ref())?;
         if let Some(cookie) = cookie {
             Cookie::queue(cookie)?;
         }

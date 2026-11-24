@@ -48,6 +48,7 @@ impl Drop for Root {
 }
 struct Server {
     address: SocketAddr,
+    mailer: Arc<openrust::mail::Mailer>,
     task: tokio::task::JoinHandle<()>,
     _root: Root,
 }
@@ -70,7 +71,7 @@ fn database_configuration(base: &std::path::Path) -> Value {
             .to_string_lossy()
             .replace('-', "_")
     );
-    match std::env::var("OPENRUST_USER_KIT_DATABASE")
+    let mut configuration = match std::env::var("OPENRUST_USER_KIT_DATABASE")
         .as_deref()
         .unwrap_or("sqlite")
     {
@@ -81,12 +82,20 @@ fn database_configuration(base: &std::path::Path) -> Value {
             json!({"default":"acceptance","connections":{"acceptance":{"driver":driver,"prefix":prefix,"prefix_indexes":true,"url":std::env::var("OPENRUST_USER_KIT_DATABASE_URL").expect("必须提供独立验收数据库URL")}}})
         }
         driver => panic!("不支持的用户套件验收数据库：{driver}"),
+    };
+    if let Ok(url) = std::env::var("OPENRUST_USER_KIT_REDIS_URL") {
+        configuration["redis"] =
+            json!({"client":"redis","default":{"url":url},"cache":{"url":url}});
     }
+    configuration
 }
 async fn start() -> Server {
     start_profile("full").await
 }
 async fn start_profile(profile: &'static str) -> Server {
+    start_options(profile, true).await
+}
+async fn start_options(profile: &'static str, verification: bool) -> Server {
     use axum::handler::Handler as _;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let root = Root(std::env::temp_dir().join(format!(
@@ -95,6 +104,15 @@ async fn start_profile(profile: &'static str) -> Server {
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     )));
     std::fs::create_dir_all(&root.0).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    std::fs::write(root.0.join("app-url"), format!("http://{address}")).unwrap();
+    std::fs::write(
+        root.0.join("user-config.json"),
+        json!({"profile":profile,"registration":true,"email_verification":verification})
+            .to_string(),
+    )
+    .unwrap();
     let mut app = Application::configure(root.0.clone())
         .with_config(if profile == "api" {
             api_configuration
@@ -194,13 +212,33 @@ async fn start_profile(profile: &'static str) -> Server {
         )
         .await
         .unwrap();
+    schema
+        .create(
+            "sessions",
+            |table| -> openrust::database::DatabaseResult<()> {
+                table.string("id", None).primary();
+                table.foreign_id("user_id").nullable().index();
+                table.string("ip_address", 45).nullable();
+                table.text("user_agent").nullable();
+                table.long_text("payload");
+                table.integer("last_activity").index();
+                Ok(())
+            },
+        )
+        .await
+        .unwrap();
+    let mailer = app
+        .make::<openrust::mail::MailManager>()
+        .await
+        .unwrap()
+        .mailer(None)
+        .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
     let service = transport.with_state(Arc::new(kernel)).into_make_service();
     Server {
         address,
+        mailer,
         task: tokio::spawn(async move {
             axum::serve(listener, service).await.unwrap();
         }),
@@ -214,6 +252,16 @@ struct Client {
 }
 impl Client {
     async fn send(&mut self, method: &str, path: &str, body: &str, json: bool) -> (u16, String) {
+        let (status, _, body) = self.exchange(method, path, body, json).await;
+        (status, body)
+    }
+    async fn exchange(
+        &mut self,
+        method: &str,
+        path: &str,
+        body: &str,
+        json: bool,
+    ) -> (u16, String, String) {
         tokio::time::timeout(std::time::Duration::from_secs(10),async{
             let mut socket=TcpStream::connect(self.address).await.unwrap();
             let cookies=self.cookies.iter().map(|(k,v)|format!("{k}={v}")).collect::<Vec<_>>().join("; ");
@@ -224,7 +272,7 @@ impl Client {
             let status=headers.split_whitespace().nth(1).unwrap().parse().unwrap();
             for line in headers.lines(){if let Some(cookie)=line.strip_prefix("set-cookie: "){let(name,value)=cookie.split(';').next().unwrap().split_once('=').unwrap();self.cookies.insert(name.into(),value.into());}}
             if let Some((_,tail))=body.split_once("name=\"_token\" value=\""){self.csrf=tail.split('"').next().unwrap().into();}
-            (status,body.into())
+            (status,headers.into(),body.into())
         }).await.unwrap()
     }
 }
@@ -273,7 +321,9 @@ async fn installed_blade_forms_and_real_database_registration_login_and_logout()
 }
 
 fn fixture_routes() -> Result<(), openrust::routing::RoutingError> {
-    openrust::support::facades::Route::get("/old-input", old_input)
+    openrust::support::facades::Route::get("/old-input", old_input)?;
+    openrust::support::facades::Route::post("/forget-fingerprint", forget_fingerprint)?;
+    openrust::support::facades::Route::post("/expired-verification", expired_verification)
 }
 fn old_input(
     request: &mut openrust::http::Request,
@@ -364,11 +414,11 @@ fn full_configuration(
     _env: &openrust::config::Environment,
 ) -> Result<BTreeMap<String, Value>, openrust::config::ConfigError> {
     Ok([
-        ("app".into(),json!({"key":"a".repeat(32),"url":"http://localhost","env":"local","name":"用户套件测试","version":"1.2.3","locale":"zh-Hans","supported_locales":[],"debug":true})),
-        ("user".into(),json!({"profile":"full","registration":true})),
+        ("app".into(),json!({"key":"a".repeat(32),"url":std::fs::read_to_string(base.join("app-url")).unwrap(),"env":"local","name":"用户套件测试","version":"1.2.3","locale":"zh-Hans","supported_locales":[],"debug":true})),
+        ("user".into(),serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()),
         ("database".into(),database_configuration(base)),
-        ("session".into(),json!({"driver":"array","cookie":"user_session","lottery":[0,100]})),
-        ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
+        ("session".into(),session_configuration(base)),
+        ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"}},"passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}})),
         ("mail".into(),json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}})),
@@ -379,7 +429,7 @@ fn api_configuration(
     env: &openrust::config::Environment,
 ) -> Result<BTreeMap<String, Value>, openrust::config::ConfigError> {
     let mut config = full_configuration(base, env)?;
-    config.insert("user".into(), json!({"profile":"api","registration":true}));
+    config.get_mut("user").unwrap()["profile"] = json!("api");
     Ok(config)
 }
 
@@ -404,4 +454,415 @@ async fn native_csrf_and_login_rate_limits_remain_enforced() {
             "attempt {attempt}: {body}"
         );
     }
+}
+
+impl Server {
+    fn mail_link(&self, kind: &str) -> String {
+        let messages = self.mailer.sent().expect("验收必须使用可捕获传输");
+        for message in messages.iter().rev() {
+            for tail in message
+                .message
+                .get_html_body()
+                .unwrap_or_default()
+                .split("href=\"")
+                .skip(1)
+            {
+                let url = tail.split('"').next().unwrap().replace("&amp;", "&");
+                if url.contains(kind) {
+                    return url
+                        .strip_prefix(&format!("http://{}", self.address))
+                        .expect("邮件链接必须采用应用实际Origin")
+                        .into();
+                }
+            }
+        }
+        panic!("没有捕获到指定用途的邮件链接：{kind}")
+    }
+}
+#[tokio::test]
+async fn verification_mail_uses_signed_links_and_repeated_verification_is_idempotent() {
+    let server = start().await;
+    let mut client = Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let (status, body) = client.send("GET", "/register", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=client.send("POST","/register",r#"{"name":"验证用户","email":"verify@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    assert_eq!(server.mailer.sent().unwrap().len(), 1);
+    let link = server.mail_link("/email/verify/");
+    let (status, body) = client
+        .send("GET", &format!("{link}&tampered=1"), "", true)
+        .await;
+    assert_eq!(status, 403, "{body}");
+    for _ in 0..2 {
+        let (status, body) = client.send("GET", &link, "", true).await;
+        assert_eq!(status, 204, "{body}");
+        assert!(body.is_empty());
+    }
+    assert_eq!(server.mailer.sent().unwrap().len(), 1);
+    let (status, body) = client.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = client
+        .send(
+            "PUT",
+            "/user/profile-information",
+            r#"{"name":"验证用户","email":"changed-verify@example.test"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    let new_link = server.mail_link("/email/verify/");
+    assert_ne!(new_link, link);
+    let (status, body) = client.send("GET", &link, "", true).await;
+    assert_eq!(status, 403, "旧邮箱链接仍可验证: {body}");
+    let (status, body) = client.send("GET", &new_link, "", true).await;
+    assert_eq!(status, 204, "{body}");
+}
+
+#[tokio::test]
+async fn password_reset_mail_is_single_use_and_invalidates_sessions_and_remember_cookies() {
+    let server = start().await;
+    let make_client = || Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let mut first = make_client();
+    let (status, body) = first.send("GET", "/register", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let credentials = r#"{"name":"找回用户","email":"reset@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#;
+    let (status, body) = first.send("POST", "/register", credentials, true).await;
+    assert_eq!(status, 201, "{body}");
+    let (status, body) = first.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let mut second = make_client();
+    let (status, body) = second.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = second
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"reset@example.test","password":"long-password-123","remember":true}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    let mut remembered = make_client();
+    remembered.cookies = second
+        .cookies
+        .iter()
+        .filter(|(key, _)| key.starts_with("remember_"))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    assert!(!remembered.cookies.is_empty());
+    let mut reset = make_client();
+    let (status, body) = reset.send("GET", "/forgot-password", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = reset
+        .send(
+            "POST",
+            "/forgot-password",
+            r#"{"email":"reset@example.test"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    let link = server.mail_link("/reset-password/");
+    let token = link.split('?').next().unwrap().rsplit('/').next().unwrap();
+    let (status, body) = reset.send("GET", &link, "", false).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("reset@example.test"));
+    let input=json!({"token":token,"email":"reset@example.test","password":"new-password-456","password_confirmation":"new-password-456"}).to_string();
+    let mut concurrent = Client {
+        address: server.address,
+        cookies: reset.cookies.clone(),
+        csrf: reset.csrf.clone(),
+    };
+    let (first_result, second_result) = tokio::join!(
+        reset.send("POST", "/reset-password", &input, true),
+        concurrent.send("POST", "/reset-password", &input, true)
+    );
+    let mut statuses = [first_result.0, second_result.0];
+    statuses.sort();
+    assert_eq!(
+        statuses,
+        [200, 422],
+        "重置令牌未被一次性兑换: {:?} {:?}",
+        first_result,
+        second_result
+    );
+    let (status, body) = reset.send("POST", "/reset-password", &input, true).await;
+    assert_eq!(status, 422, "{body}");
+    for (label, client) in [
+        ("first", &mut first),
+        ("second", &mut second),
+        ("remembered", &mut remembered),
+    ] {
+        let (status, body) = client.send("GET", "/home", "", false).await;
+        assert_eq!(status, 302, "{label} 旧凭据仍可访问账户: {status} {body}");
+    }
+    let (status, body) = reset.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = reset
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"reset@example.test","password":"long-password-123"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 422, "{body}");
+    let (status, body) = reset
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"reset@example.test","password":"new-password-456"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+}
+
+#[tokio::test]
+async fn disabling_verification_preserves_registration_and_profile_updates_without_mail() {
+    let server = start_options("full", false).await;
+    let mut client = Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let (status, body) = client.send("GET", "/register", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=client.send("POST","/register",r#"{"name":"免验证用户","email":"noverify@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    assert!(server.mailer.sent().unwrap().is_empty());
+    let (status, body) = client.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = client
+        .send(
+            "PUT",
+            "/user/profile-information",
+            r#"{"name":"新名称","email":"changed@example.test"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert!(server.mailer.sent().unwrap().is_empty());
+    let (status, body) = client.send("POST", "/logout", "{}", true).await;
+    assert_eq!(status, 204, "{body}");
+    let (status, body) = client.send("GET", "/forgot-password", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = client
+        .send(
+            "POST",
+            "/forgot-password",
+            r#"{"email":"changed@example.test"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(server.mailer.sent().unwrap().len(), 1);
+    server.mail_link("/reset-password/");
+}
+
+#[tokio::test]
+async fn password_update_preserves_this_session_and_rejects_an_unvisited_other_session() {
+    let server = start().await;
+    let make_client = || Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let mut first = make_client();
+    let (status, body) = first.send("GET", "/register", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=first.send("POST","/register",r#"{"name":"密码用户","email":"update@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    let (status, body) = first.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let mut second = make_client();
+    let (status, body) = second.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = second
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"update@example.test","password":"long-password-123","remember":true}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    let mut remembered = make_client();
+    remembered.cookies = second
+        .cookies
+        .iter()
+        .filter(|(key, _)| key.starts_with("remember_"))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    assert!(!remembered.cookies.is_empty());
+    let(status,body)=first.send("PUT","/user/password",r#"{"current_password":"long-password-123","password":"new-password-456","password_confirmation":"new-password-456"}"#,true).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = first.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "修改密码导致本人退出: {body}");
+    for client in [&mut second, &mut remembered] {
+        let (status, body) = client.send("GET", "/home", "", false).await;
+        assert_eq!(status, 302, "旧凭据仍可访问: {body}");
+    }
+}
+
+// 仅供故障与过期验收的私有夹具路由，不发布到应用。
+fn forget_fingerprint(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    use openrust::contracts::session::Session as _;
+    Box::pin(async move {
+        openrust::auth::Auth::user(request)
+            .await?
+            .ok_or(openrust::http::HttpError::Unauthenticated)?;
+        request.session_mut()?.forget(&["password_hash_web"]);
+        Ok(openrust::http::Response::no_content())
+    })
+}
+fn expired_verification(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        openrust::support::facades::Config::set("auth.verification.expire", json!(0))?;
+        let user = openrust::auth::Auth::user(request).await?.unwrap();
+        user.as_email_verification()
+            .unwrap()
+            .send_email_verification_notification()
+            .await?;
+        Ok(openrust::http::Response::no_content())
+    })
+}
+#[tokio::test]
+async fn valid_remember_recovery_establishes_a_fingerprint_and_missing_proofs_require_login() {
+    let server = start().await;
+    let mut client = Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let (status, body) = client.send("GET", "/register", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=client.send("POST","/register",r#"{"name":"指纹用户","email":"fingerprint@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    let (status, body) = client.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = client.send("POST", "/logout", "{}", true).await;
+    assert_eq!(status, 204, "{body}");
+    let (status, body) = client.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=client.send("POST","/login",r#"{"email":"fingerprint@example.test","password":"long-password-123","remember":true}"#,true).await;
+    assert_eq!(status, 200, "{body}");
+    client.cookies.retain(|key, _| key.starts_with("remember_"));
+    client.csrf.clear();
+    assert!(!client.cookies.is_empty());
+    let (status, body) = client.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "有效remember恢复失败: {body}");
+    let (status, body) = client.send("POST", "/forget-fingerprint", "{}", true).await;
+    assert_eq!(status, 204, "{body}");
+    let (status, body) = client.send("GET", "/home", "", false).await;
+    assert_eq!(status, 302, "缺少指纹仍被信任: {body}");
+}
+#[tokio::test]
+async fn expired_captured_verification_mail_cannot_verify_the_account() {
+    let server = start().await;
+    let mut client = Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let (status, body) = client.send("GET", "/register", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=client.send("POST","/register",r#"{"name":"过期用户","email":"expired@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    let (status, body) = client.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = client
+        .send("POST", "/expired-verification", "{}", true)
+        .await;
+    assert_eq!(status, 204, "{body}");
+    let link = server.mail_link("/email/verify/");
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let (status, body) = client.send("GET", &link, "", true).await;
+    assert_eq!(status, 403, "过期链接仍可验证: {body}");
+}
+
+fn session_configuration(base: &std::path::Path) -> Value {
+    let driver =
+        std::env::var("OPENRUST_USER_KIT_SESSION_DRIVER").unwrap_or_else(|_| "array".into());
+    assert!(
+        matches!(driver.as_str(), "array" | "file" | "database" | "redis"),
+        "不支持的会话验收驱动：{driver}"
+    );
+    if driver == "redis" {
+        std::env::var("OPENRUST_USER_KIT_REDIS_URL").expect("Redis会话验收必须明确提供独占实例URL");
+    }
+    eprintln!("用户套件实际会话驱动 {driver}");
+    json!({"driver":driver,"cookie":"user_session","lottery":[0,100],"table":"sessions","files":base.join("sessions"),"prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())})
+}
+
+#[tokio::test]
+async fn api_mail_browser_login_keeps_the_original_signature_and_renders_a_receipt() {
+    let server = start_profile("api").await;
+    let make_client = || Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let mut owner = make_client();
+    let (status, body) = owner.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=owner.send("POST","/register",r#"{"name":"邮件落地用户","email":"browser@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    let (status, body) = owner
+        .send("GET", "/email/verify?verified=1", "", false)
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("重发验证邮件"));
+    assert!(!body.contains("你的邮箱已验证"));
+    let link = server.mail_link("/email/verify/");
+    let mut browser = make_client();
+    let (status, headers, body) = browser.exchange("GET", &link, "", false).await;
+    assert_eq!(status, 302, "{body}");
+    assert!(response_location(&headers).ends_with("/login"));
+    let (status, body) = browser.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let (status, headers, body) = browser
+        .exchange(
+            "POST",
+            "/login",
+            r#"{"email":"browser@example.test","password":"long-password-123"}"#,
+            false,
+        )
+        .await;
+    assert_eq!(status, 302, "{body}");
+    assert_eq!(
+        response_location(&headers),
+        format!("http://{}{}", server.address, link)
+    );
+    let (status, headers, body) = browser.exchange("GET", &link, "", false).await;
+    assert_eq!(status, 302, "{body}");
+    assert!(
+        response_location(&headers).ends_with("/email/verify?verified=1"),
+        "{headers}"
+    );
+    let (status, body) = browser.send("GET", "/email/verify", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("你的邮箱已验证"), "{body}");
+    assert!(
+        !body.contains("verification-notification"),
+        "验证后仍显示重发邮件: {body}"
+    );
+}
+fn response_location(headers: &str) -> &str {
+    headers
+        .lines()
+        .find_map(|line| line.strip_prefix("location: "))
+        .expect("必须有重定向目标")
 }

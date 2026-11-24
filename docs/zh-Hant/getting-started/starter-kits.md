@@ -35,3 +35,11 @@ Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 HTML 保留原生重新導向與快閃訊息。JSON 登入、註冊與雙因素登入完成後，透過 `ApiResponse` 回傳目前使用者，註冊使用201。更新省略空資料；登出與信箱驗證保留204空本文。訊息依應用語言顯示，認證成功回應使用 `Cache-Control: no-store`。
 
 `UserResource` 只讀取 `id`、`name`、`email`、`email_verified_at`，保留字串主鍵，不列舉屬性或讀取憑證。自訂資源可替換原有 Fortify 回應綁定。單獨使用回應配接不會簽發權杖或變更 Guard。
+
+## 郵件連結與密碼工作階段 {#mail-and-sessions}
+
+套件使用 Fortify 原生的 `POST /forgot-password`、`POST /reset-password`、`PUT /user/profile-information` 與 `PUT /user/password`。JSON 用戶端傳送 `Accept: application/json`；Cookie 認證須同時攜帶目前 CSRF Cookie。成功更新回傳200，欄位或重置憑證無效回傳422。驗證連結要求本人已認證、目前信箱雜湊相符、簽章有效且未過期。JSON 驗證成功使用204空本文，重複驗證保持冪等。更換信箱會清除驗證狀態並向新地址傳送連結。
+
+API 預設也提供最小登入、密碼重置與驗證網頁。未登入瀏覽器開啟驗證郵件後，登入仍回到原始簽章 URL。驗證收據讀取資料庫狀態，加入 `?verified=1` 不能讓帳戶變成已驗證。依賴郵件投遞前須設定傳輸。設定 `USER_EMAIL_VERIFICATION=false` 會關閉驗證路由與這類驗證郵件，密碼找回保持可用。
+
+已安裝套件在登入與有效 remember Cookie 恢復時立即儲存既有密碼指紋，Guard 在後續認證讀取中拒絕缺少或過時指紋。修改密碼保留目前瀏覽器工作階段並拒絕其他密碼工作階段；重置也會輪換 remember token。獨立認證的預設行為不變。本節瀏覽器工作階段行為不包含仍在開發的個人權杖與無密碼帳戶撤銷鏈路。

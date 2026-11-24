@@ -1,4 +1,5 @@
 use crate::{Fortify, http::responses::SimpleViewResponse};
+use openrust::contracts::events::Dispatcher as _;
 use openrust::{
     foundation::Application,
     http::{Response, StatusCode},
@@ -9,6 +10,13 @@ use std::sync::Arc;
 /// 装配已发布的应用视图；API预设只注册邮件落地所需的缺失页面入口。
 pub async fn register_views(app: &Application) -> ProviderResult {
     let fortify = app.make::<Fortify>().await?;
+    if fortify.config.get("user.email_verification") == Some(serde_json::json!(false)) {
+        app.make::<openrust::events::Dispatcher>().await?.listen(
+            "NotificationSending",
+            Arc::new(super::verification_policy::DisableVerificationMail),
+            openrust::events::Delivery::Sync,
+        )?;
+    }
     fortify.login_view(if fortify.truthy("fortify.views") {
         "user.auth.login"
     } else {

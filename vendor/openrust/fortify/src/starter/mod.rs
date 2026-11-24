@@ -4,6 +4,7 @@ mod configuration;
 pub(crate) mod install;
 mod responses;
 mod user_resource;
+mod verification_policy;
 mod views;
 
 pub use configuration::configure;

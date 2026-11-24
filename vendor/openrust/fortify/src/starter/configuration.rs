@@ -124,6 +124,7 @@ pub async fn configure(app: &Application) -> ProviderResult {
                 "access_token",
             ]);
         })?;
+    config.set("auth.session_fingerprint_on_login", json!(true))?;
     config.set("fortify.features", Value::Array(features))?;
     config.set("fortify.middleware", Value::Array(middleware))?;
     config.set("fortify.views", json!(full))?;

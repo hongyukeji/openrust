@@ -462,9 +462,19 @@ impl AuthManager {
             .get("hashing.rehash_on_login")
             .and_then(|value| value.as_bool())
             .unwrap_or(true);
+        let fingerprint_on_login = match self.config.get("auth.session_fingerprint_on_login") {
+            None => false,
+            Some(Value::Bool(enabled)) => enabled,
+            Some(_) => {
+                return Err(AuthError::Configuration(
+                    "auth.session_fingerprint_on_login",
+                ));
+            }
+        };
         Ok(SessionGuard::new(name, provider, request).configure(
             minutes,
             rehash,
+            fingerprint_on_login,
             self.container.clone(),
         ))
     }

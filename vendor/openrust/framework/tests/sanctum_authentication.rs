@@ -12,6 +12,7 @@ use openrust::{
         container::Container as _,
         foundation::Application as _,
         http::{Kernel as _, Middleware},
+        session::Session as _,
     },
     database::{
         Connection, DatabaseFuture, DatabaseManager, DatabaseResult, Value as SqlValue,
@@ -306,6 +307,9 @@ fn login<const KEY: u8>(request: &mut Request) -> HttpFuture<'_, Result<Response
             AuthIdentifier::from(2_u64)
         };
         guard.login_using_id(&id, false).await?;
+        if request.headers().contains_key("x-test-missing-fingerprint") {
+            request.session_mut()?.forget(&["password_hash_web"]);
+        }
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -374,7 +378,18 @@ fn xsrf_header(cookie: &str) -> String {
 }
 
 async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: bool) {
+    verify_with_fingerprints::<KEY>(database, stateful, custom_csrf, false).await;
+}
+async fn verify_with_fingerprints<const KEY: u8>(
+    database: Value,
+    stateful: bool,
+    custom_csrf: bool,
+    fingerprints: bool,
+) {
     let root = tempfile::tempdir().unwrap();
+    if fingerprints {
+        std::fs::write(root.path().join("strict-fingerprints"), "").unwrap();
+    }
     if custom_csrf {
         std::fs::write(root.path().join("custom-csrf"), "").unwrap();
     }
@@ -387,6 +402,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                     json!({"validate_csrf_token":"custom-csrf"})
                 } else { json!({}) }})),
             ("auth".into(), json!({
+                "session_fingerprint_on_login":root.join("strict-fingerprints").is_file(),
                 "guards":{"web":{"driver":"session","provider":"users"},"sanctum":{"provider":null},"restricted":{"driver":"sanctum","provider":"users"}},
                 "providers":{"users":{"driver":"eloquent","model":"SanctumUser"}}
             })),
@@ -1102,6 +1118,55 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .await
         .unwrap();
     assert_eq!(login.status(), 204);
+    if fingerprints {
+        // 重用同一真实SPA夹具：验证登录后尚未访问API，以及没有指纹的旧会话。
+        for missing in [true, false] {
+            let fresh = get("/sanctum/csrf-cookie").send().await.unwrap();
+            assert_eq!(fresh.status(), 204);
+            let csrf = cookie(&fresh, "XSRF-TOKEN");
+            let initial = cookie(&fresh, "sanctum_test");
+            let mut request = client
+                .post(format!("{base}/login"))
+                .header(header::COOKIE, format!("sanctum_test={}", value(&initial)))
+                .header("X-XSRF-TOKEN", xsrf_header(&csrf));
+            if missing {
+                request = request.header("X-TEST-MISSING-FINGERPRINT", "1");
+            }
+            let fresh_login = request.send().await.unwrap();
+            assert_eq!(fresh_login.status(), 204);
+            let bad_session = cookie(&fresh_login, "sanctum_test");
+            if !missing {
+                db.statement(
+                    "UPDATE sanctum_users SET password = 'revoked-hash' WHERE id = 2",
+                    &[],
+                )
+                .await
+                .unwrap();
+            }
+            let response = get("/api/user")
+                .header(header::ORIGIN, &base)
+                .header(
+                    header::COOKIE,
+                    format!("sanctum_test={}", value(&bad_session)),
+                )
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                401,
+                "missing={missing}: 无效SPA会话仍被信任"
+            );
+            if !missing {
+                db.statement(
+                    "UPDATE sanctum_users SET password = 'old-hash' WHERE id = 2",
+                    &[],
+                )
+                .await
+                .unwrap();
+            }
+        }
+    }
     let login_cookie = cookie(&login, "sanctum_test");
     let login_xsrf = cookie(&login, "XSRF-TOKEN");
     let session = format!("sanctum_test={}", value(&login_cookie));
@@ -1621,4 +1686,15 @@ async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations()
             .unwrap()
             .contains("SANCTUM_TOKEN_PREFIX")
     );
+}
+
+#[tokio::test]
+async fn fingerprint_tracking_rejects_missing_and_unvisited_spa_sessions_after_password_change() {
+    verify_with_fingerprints::<0>(
+        json!({"driver":"sqlite","database":":memory:"}),
+        true,
+        false,
+        true,
+    )
+    .await;
 }

@@ -50,6 +50,16 @@ impl Middleware for AuthenticateSession {
                     return Err(HttpError::Unauthenticated);
                 }
                 Some(_) => {}
+                None if manager.config().get("auth.session_fingerprint_on_login")
+                    == Some(serde_json::json!(true)) =>
+                {
+                    manager
+                        .session_guard(request, Some(&guard))?
+                        .logout_current_device()
+                        .await?;
+                    request.session_mut()?.flush();
+                    return Err(HttpError::Unauthenticated);
+                }
                 None => session.put(&key, serde_json::json!(fingerprint))?,
             }
 

@@ -10,13 +10,24 @@ use crate::{
 pub struct AuthenticateSession {
     guards: Vec<String>,
     signer: SessionFingerprint,
+    require_login_fingerprint: bool,
 }
 
 impl AuthenticateSession {
     pub fn new(config: &dyn Repository) -> Result<Self, AuthError> {
         let guards = super::guard::session_guards(config)?;
+        let require_login_fingerprint = match config.get("auth.session_fingerprint_on_login") {
+            None => false,
+            Some(serde_json::Value::Bool(value)) => value,
+            Some(_) => {
+                return Err(AuthError::Configuration(
+                    "auth.session_fingerprint_on_login",
+                ));
+            }
+        };
         Ok(Self {
             guards,
+            require_login_fingerprint,
             signer: SessionFingerprint::from_config(config),
         })
     }
@@ -43,6 +54,12 @@ impl Middleware for AuthenticateSession {
             for guard in &session_guards {
                 let key = format!("password_hash_{guard}");
                 let Some(stored) = request.session()?.get(&key).cloned() else {
+                    if self.require_login_fingerprint {
+                        auth.session_guard(request, Some(guard.as_str()))?
+                            .logout_current_device()
+                            .await?;
+                        invalid = true;
+                    }
                     continue;
                 };
                 let user = auth.user_for_guard(request, Some(guard.as_str())).await?;
