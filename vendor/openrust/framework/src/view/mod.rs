@@ -14,6 +14,7 @@ mod component;
 pub use blade_facade::Blade;
 pub(crate) mod console;
 pub mod engines;
+pub(crate) mod error_bags;
 mod factory;
 mod file_view_finder;
 pub mod middleware;

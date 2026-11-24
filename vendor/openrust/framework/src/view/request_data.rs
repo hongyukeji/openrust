@@ -39,6 +39,7 @@ enum RequestCheck {
 pub(super) enum RequestRead {
     Query(Option<String>, ViewValue),
     Input(Option<String>, ViewValue),
+    Old(Option<String>, ViewValue),
     Header(String, ViewValue),
     Path,
     PathInfo,
@@ -141,6 +142,11 @@ impl RequestRead {
                 Self::Input(key, default) => request
                     .input(key.as_deref())
                     .await?
+                    .map(Into::into)
+                    .unwrap_or(default),
+                Self::Old(key, default) => request
+                    .old(key.as_deref())
+                    .cloned()
                     .map(Into::into)
                     .unwrap_or(default),
                 Self::Header(name, default) => request

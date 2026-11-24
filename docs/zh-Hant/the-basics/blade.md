@@ -100,7 +100,7 @@ impl ViewObject for Greeting {
     }
 }
 // 在 Provider 中使用既有 Container trait：
-// app.container().instanceNamed::<dyn ViewObject>("greeting", Arc::new(Greeting))?;
+// app.container().instance_named::<dyn ViewObject>("greeting", Arc::new(Greeting))?;
 ```
 
 ```blade
@@ -111,7 +111,7 @@ impl ViewObject for Greeting {
 
 `environment()` 讀取環境名稱，`environment([])` 回傳 `false`。 物件 `==` 與 `===` 依實際實例身分比較，不反射比較兩個不同 Rust 實例的屬性。
 
-HTTP 渲染複用現有非同步請求橋接，支援非同步工廠及 `ViewObject::callAsync`，後者預設委託 `call`。離線渲染支援有效應用作用域中的同步解析與呼叫；僅非同步服務及語言切換需要 HTTP 渲染。這是容器存取的 Rust 適配，不執行任意 PHP，也不自動公開所有 Rust 方法。
+HTTP 渲染複用現有非同步請求橋接，支援非同步工廠及 `ViewObject::call_async`，後者預設委託 `call`。離線渲染支援有效應用作用域中的同步解析與呼叫；僅非同步服務及語言切換需要 HTTP 渲染。這是容器存取的 Rust 適配，不執行任意 PHP，也不自動公開所有 Rust 方法。
 
 `Config::string(key)` 要求設定存在且為字串；缺鍵、null 或其他型別報錯。
 
@@ -736,3 +736,5 @@ fn render_badge() -> ViewResult<String> {
 用 `set_path` 搭配 `compile(None)`，或直接呼叫 `compile(Some(path))`，發布正常快取產物。`get_compiled_path` 與 `is_expired` 讀取 View 渲染所用的同一份產物。未設定路徑、檔案缺失或模板語法錯誤都會回傳錯誤。指令與條件按應用隔離；`get_custom_directives` 回傳已註冊的型別回呼，`check` 執行已註冊條件。`strip_parentheses` 回傳位元組，因為來源表達式契約可能按位元組截斷未閉合的 UTF-8 輸入。
 
 目前門面提供這裡列出的原生編譯與格式化介面。原始碼預編譯器、透過 Blade 註冊元件／別名／命名空間、其他跳脫格式與產生程式碼輔助介面仍待單獨對齊；既有 View 元件介面繼續可用。編譯指令快照保留原回呼及編碼策略，不等同於動態 PHP 原始碼字串。
+
+驗證錯誤包以原生視圖物件公開既有讀取方法和具名包。`ViewObject::properties` 可明確提供唯讀屬性及其 JSON 投影，預設服務仍不透明且不可序列化；`property` 可覆寫動態讀取。這些介面不自動公開任意 Rust 欄位或方法。物件投影拒絕循環及超過 64 層物件邊界，失敗後還原序列化狀態，同層重複參照仍可用。錯誤包保留原 JSON 結構，並沿用 `Js::from` 的安全轉義。

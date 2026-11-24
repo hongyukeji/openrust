@@ -11,6 +11,12 @@ pub(crate) fn write_expression(output: &mut String, value: &ViewValue) -> ViewRe
         }
         ViewValue::Array(values) if !values.is_empty() => write_container(output, value)?,
         ViewValue::Object(values) if !values.is_empty() => write_container(output, value)?,
+        ViewValue::Instance(_) => {
+            let projection = value
+                .to_json()
+                .map_err(|error| super::ViewError::RenderFailed(Box::new(error)))?;
+            write_expression(output, &projection.into())?;
+        }
         ViewValue::Number(number) => write_number(output, number)?,
         _ => write!(output, "{value}").unwrap(),
     }
@@ -58,6 +64,12 @@ fn write_json(output: &mut String, value: &ViewValue, depth: usize) -> ViewResul
             output.push('"');
             write_escaped(output, value);
             output.push('"');
+        }
+        ViewValue::Instance(_) => {
+            let projection = value
+                .to_json()
+                .map_err(|error| super::ViewError::RenderFailed(Box::new(error)))?;
+            write_json(output, &projection.into(), depth + 1)?;
         }
         ViewValue::Number(number) => write_number(output, number)?,
         _ => write!(output, "{value}").unwrap(),

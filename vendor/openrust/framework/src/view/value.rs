@@ -215,7 +215,7 @@ impl Serialize for ViewValue {
             Self::String(v) => v.serialize(serializer),
             Self::Array(v) => v.serialize(serializer),
             Self::Object(v) => v.serialize(serializer),
-            Self::Instance(_) => Err(serde::ser::Error::custom("视图服务对象不能序列化。")),
+            Self::Instance(object) => object.serialize(serializer),
         }
     }
 }
@@ -293,7 +293,10 @@ pub trait ViewIndex {
 }
 impl ViewIndex for &str {
     fn lookup(self, value: &ViewValue) -> Option<&ViewValue> {
-        value.as_object()?.get(self)
+        match value {
+            ViewValue::Instance(object) => object.properties()?.get(self),
+            _ => value.as_object()?.get(self),
+        }
     }
     fn lookup_mut(self, value: &mut ViewValue) -> Option<&mut ViewValue> {
         value.as_object_mut()?.get_mut(self)

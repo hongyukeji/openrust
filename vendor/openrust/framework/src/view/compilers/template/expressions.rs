@@ -631,14 +631,25 @@ fn evaluate_with<'a>(
                 .iter()
                 .rev()
                 .find_map(|(key, value)| (*key == name).then_some(*value))
-                .or_else(|| data.get(name));
+                .or_else(|| data.get(name))
+                .map(Cow::Borrowed);
             for segment in segments {
-                current = current.and_then(|value| value.get(segment));
+                current = match current {
+                    Some(value) if matches!(value.as_ref(), ViewValue::Instance(_)) => {
+                        let ViewValue::Instance(object) = value.as_ref() else {
+                            unreachable!()
+                        };
+                        object.property(segment)?.map(Cow::Owned)
+                    }
+                    Some(Cow::Borrowed(value)) => value.get(segment).map(Cow::Borrowed),
+                    Some(Cow::Owned(value)) => value.get(segment).cloned().map(Cow::Owned),
+                    None => None,
+                };
             }
             if current.is_none() && !soft {
                 return Err(render_error("Undefined Blade variable or property."));
             }
-            Evaluated::Json(Cow::Borrowed(current.unwrap_or(&ViewValue::Null)))
+            Evaluated::Json(current.unwrap_or(Cow::Borrowed(&ViewValue::Null)))
         }
     })
 }

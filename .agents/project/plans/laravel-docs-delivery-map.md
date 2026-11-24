@@ -233,3 +233,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第二十三组：Factory/Facade::validate、passes、批量after／服务及MessageProvider／with_errors正式接通；三语直接消费者、真实TCP与MySQL会话，25目标112项及严格门禁／Artisan通过。继续核对sometimes多字段与内联消息优先级，再做整章最终对账。
 
 2026-11-24 Validation第二十四组：sometimes多字段／false条件主名称与内联消息层级优先闭合。42组固定参考、真实HTTP、三语直接示例，当前HEAD全first-party重编译40目标159项及严格门禁／Artisan通过。继续处理快速入门的Blade errors方法与old助手实际消费者，再完成逐节总对账。
+
+2026-11-24 Validation第二十五组：错误袋真实方法、具名包、@error与old助手接通原消息／会话管线；正式三语Blade直接提取真实HTTP通过，MySQL51目标230项、严格门禁、文档浏览器及main／Artisan通过。继续两个章节最终逐节总对账。

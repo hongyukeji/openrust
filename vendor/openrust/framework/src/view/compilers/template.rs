@@ -1996,15 +1996,14 @@ fn render_nodes(
                 if let Some(bag) = bag {
                     bag_name = evaluated_name(bag, data, bindings)?;
                 }
-                if let Some(message) = data
-                    .get("errors")
-                    .and_then(|errors| errors.get(bag_name.as_ref()))
-                    .and_then(|errors| errors.get(field.as_ref()))
-                    .map(|message| message.get(0).unwrap_or(message))
-                    .filter(|message| message.as_str().is_some_and(|text| !text.is_empty()))
-                {
+                let errors = bindings
+                    .iter()
+                    .rev()
+                    .find_map(|(name, value)| (*name == "errors").then_some(*value))
+                    .or_else(|| data.get("errors"));
+                if let Some(message) = crate::view::error_bags::first(errors, &bag_name, &field)? {
                     let mut local = bindings.to_vec();
-                    local.push(("message", message));
+                    local.push(("message", &message));
                     render_block!(nodes, data, &local, output, context);
                 } else {
                     render_block!(otherwise, data, bindings, output, context);

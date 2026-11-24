@@ -1046,3 +1046,29 @@ pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response,
 ```
 
 Inline messages search attribute/rule, rule, and attribute in that order, retaining the native `BTreeMap` order within each tier. A wildcard can win before a later exact entry in that tier. Avoid overlapping entries when order should not decide the message. Inline wildcards match one segment, including wildcard rule names; language-file custom messages use their separate cross-path lookup. A false `sometimes` condition still records the parsed wildcard’s primary name, as required for later error labels.
+
+## Displaying errors and repopulating a form {#displaying-errors-and-old-input}
+
+The `web` middleware shares a request-local `$errors` object, including when there are no errors. Use the default bag’s `any`, `all`, `first`, `get` and `has` methods, or select a named bag. `@error` reads the first matching message and supports wildcard fields; `$message` is local to the directive.
+
+```blade
+@if ($errors->any())
+    <ul>
+        @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+@endif
+
+<input name="title" value="{{ old('title', 'Untitled') }}">
+@error('title')
+    <p>{{ $message }}</p>
+@enderror
+
+@error('title', 'login')
+    <p>{{ $message }}</p>
+@enderror
+<p>{{ $errors->login->first('title') }}</p>
+```
+
+`old(key, default)` and `request()->old(key, default)` read the existing session flash through the HTTP rendering bridge. A missing key uses the default; a stored `null` remains null. Render with a returned view or `Response::view` so the actual request is available. Escaped echoes protect both error text and old values. The next request ages out the flash normally; cached templates receive the current request’s errors and old input.

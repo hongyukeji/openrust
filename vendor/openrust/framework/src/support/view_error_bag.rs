@@ -55,24 +55,6 @@ impl fmt::Display for ViewErrorBag {
 
 impl From<ViewErrorBag> for crate::view::ViewValue {
     fn from(errors: ViewErrorBag) -> Self {
-        Self::Object(
-            errors
-                .0
-                .into_iter()
-                .map(|(name, bag)| {
-                    let messages = bag
-                        .messages()
-                        .iter()
-                        .map(|(key, values)| {
-                            (
-                                key.clone(),
-                                Self::Array(values.iter().cloned().map(Self::String).collect()),
-                            )
-                        })
-                        .collect();
-                    (name, Self::Object(messages))
-                })
-                .collect(),
-        )
+        crate::view::error_bags::from_bags(errors)
     }
 }

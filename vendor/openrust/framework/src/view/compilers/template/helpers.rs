@@ -31,6 +31,7 @@ enum Operation {
 #[derive(Serialize, Deserialize)]
 enum RequestOperation {
     Query,
+    Old,
     Input,
     Header,
     Path,
@@ -69,6 +70,7 @@ impl Helper {
             ("Arr::query", Operation::Query, 1, 1),
             ("Arr::except", Operation::Except, 2, 2),
             ("in_array", Operation::InArray, 2, 3),
+            ("old", Operation::Request(RequestOperation::Old), 0, 2),
             ("config", Operation::Config, 1, 2),
             ("Config::get", Operation::Config, 1, 2),
             ("Config::has", Operation::HasConfig, 1, 1),
@@ -95,6 +97,7 @@ impl Helper {
             calls = vec![
                 ("query", Operation::Request(RequestOperation::Query), 0, 2),
                 ("input", Operation::Request(RequestOperation::Input), 0, 2),
+                ("old", Operation::Request(RequestOperation::Old), 0, 2),
                 ("header", Operation::Request(RequestOperation::Header), 1, 2),
                 ("path", Operation::Request(RequestOperation::Path), 0, 0),
                 (
@@ -302,6 +305,7 @@ impl Helper {
                 request_data::read(match operation {
                     RequestOperation::Query => RequestRead::Query(key, default),
                     RequestOperation::Input => RequestRead::Input(key, default),
+                    RequestOperation::Old => RequestRead::Old(key, default),
                     RequestOperation::Header => RequestRead::Header(
                         key.ok_or_else(|| render_error("请求头名称必须是字符串。"))?,
                         default,

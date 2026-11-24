@@ -19,6 +19,16 @@ pub trait ViewObject: std::any::Any + Send + Sync + 'static {
     fn identity(&self) -> usize {
         std::ptr::from_ref(self).cast::<()>().addr()
     }
+    /// 显式公开只读属性与JSON投影；默认服务对象仍不可序列化。
+    fn properties(&self) -> Option<&super::ViewData> {
+        None
+    }
+    fn property(&self, name: &str) -> ViewResult<Option<ViewValue>> {
+        Ok(self
+            .properties()
+            .and_then(|properties| properties.get(name))
+            .cloned())
+    }
     fn call(&self, method: &str, arguments: &[ViewValue]) -> ViewResult<ViewValue>;
 
     /// HTTP 渲染由已有请求桥接执行异步调用；同步实现无需重复适配。
@@ -50,6 +60,24 @@ impl ObjectValue {
         } else {
             Ok(())
         }
+    }
+    pub(super) fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.check().map_err(serde::ser::Error::custom)?;
+        let _guard = ProjectionGuard::enter(Arc::as_ptr(&self.value).cast::<()>().addr())
+            .map_err(serde::ser::Error::custom)?;
+        let properties = self
+            .value
+            .properties()
+            .ok_or_else(|| serde::ser::Error::custom("视图服务对象不能序列化。"))?;
+        serde::Serialize::serialize(properties, serializer)
+    }
+    pub(super) fn properties(&self) -> Option<&super::ViewData> {
+        self.check().ok()?;
+        self.value.properties()
+    }
+    pub(super) fn property(&self, name: &str) -> ViewResult<Option<ViewValue>> {
+        self.check()?;
+        self.value.property(name)
     }
     pub(super) fn call(&self, method: &str, arguments: &[ViewValue]) -> ViewResult<ViewValue> {
         self.check()?;
@@ -347,4 +375,27 @@ pub(super) fn validate_arguments(arguments: &[ViewValue]) -> ViewResult<()> {
         parameters(Some(value))?;
     }
     Ok(())
+}
+
+thread_local! { static SERIALIZING_PROJECTIONS:std::cell::RefCell<Vec<usize>>=const {std::cell::RefCell::new(Vec::new())}; }
+struct ProjectionGuard(usize);
+impl ProjectionGuard {
+    fn enter(identity: usize) -> Result<Self, &'static str> {
+        SERIALIZING_PROJECTIONS.with(|stack| {
+            let mut stack = stack.borrow_mut();
+            if stack.len() >= 64 || stack.contains(&identity) {
+                return Err("视图对象JSON投影包含循环或超过64层对象边界。");
+            }
+            stack.push(identity);
+            Ok(Self(identity))
+        })
+    }
+}
+impl Drop for ProjectionGuard {
+    fn drop(&mut self) {
+        SERIALIZING_PROJECTIONS.with(|stack| {
+            let popped = stack.borrow_mut().pop();
+            debug_assert_eq!(popped, Some(self.0));
+        });
+    }
 }

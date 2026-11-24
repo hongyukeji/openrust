@@ -427,3 +427,14 @@ final-entries/gates.log九阶段全0：25目标112项0忽略（含MySQL presence
 本批验收前重新从当前c904b0459归档整个HEAD，覆盖本批核定WIP、重建三语生成消费者，并触碰全部first-party Rust文件强制按当前源码重编译，未沿用初始ba6d快照当作最新HEAD。conditional-messages/gates.log九阶段全0：40目标159项0忽略（全部validation目标、请求签名、URL、表单未知字段、MessageBag、直接三语、真实MySQL presence／Web session等），workspace/all-targets严格Clippy46.84s、fmt、三语构建浏览器、实际main14.25s及Artisan帮助／inspire成功。源SHA与冻结组合一致，证据target/tmp/docs-chapters-20261124/conditional-messages/，MySQL及HTTP服务已回收。
 
 逐章初步复核还发现Validation快速入门的Blade消费者不能据结构化errors属性读取判为完成：$errors->any()/all()/first()及old()助手需要真实模板／HTTP复验。进入下一簇处理，尚不关闭两个章节。此前消息簇的“保留旧精确字段消息优先”在本簇被固定源码碰撞证据纠正；历史证据不改写。
+
+
+## 第二十五组：快速入门的错误袋方法与旧输入模板消费者（2026-11-24）
+
+逐项核对固定ViewErrorBag／MessageBag、ShareErrorsFromSession、Validation文档的any/all/first/get/has、具名包、@error及old助手。原错误袋只转换为结构化映射，实际HTTP的$errors->any()返回500；不再用属性读取替代方法。新增私有只读ViewObject适配，方法委托原MessageBag，具名包共享原ViewErrorBag，属性／JSON仅按需投影；未修改验证、会话存储和原Serde形状。@error使用同一first语义并支持通配字段，旧结构化输入仍兼容。
+
+old全局及request()->old复用既有异步请求桥与真实request.old，不复制Session逻辑；缺失可取默认，显式null不取默认，HTML照常转义。ViewObject仅新增默认关闭的只读属性投影，未公开服务反射。JSON序列化保持作用域检查并以RAII防止对象递归／超过64层对象投影，失败和重复别名不污染后续序列化；普通结构化数据保持原边界。Js::from沿用安全转义，不将对象字符串当脚本。稳定Rust的显式投影及资源边界写入三语Blade正文。
+
+真实TCP覆盖默认／具名错误、all/first/has/get通配、@error、旧输入／null／HTML转义、下一次请求回收、Js::from及正式三语Blade代码直接提取执行；5项专项通过，序列化形状与原类型直接比较。validation-view/consumers.log为MySQL8.4.13的51目标230项0忽略，含验证全套、真实database Session和Blade／View回归；严格workspace/all-targets Clippy48.36s及fmt通过。文档首轮因重复锚点失败，改为独立displaying-errors-and-old-input后构建、浏览器、实际main及Artisan帮助／inspire均通过，最终正式代码提取5项再次通过。blade_arithmetic旧缓存测试硬编码45而生产已48，改为从实际当前版本降一验证重建，不更改生产缓存版本。源／测试与冻结快照一致；证据target/tmp/docs-chapters-20261124/validation-view/，本批临时MySQL及HTTP服务已回收。
+
+本簇关闭Validation教程的错误展示／表单恢复。其余Blade指令全集、可变消息袋模板操作不属于本轮两章范围，不以本簇宣称Blade整章完成。两个章节逐节总对账与最终实际二进制验收继续。

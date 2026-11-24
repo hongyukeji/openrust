@@ -1046,3 +1046,29 @@ pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response,
 ```
 
 内联消息依次查找字段／规则、规则、字段，每层保留原生 `BTreeMap` 的遍历顺序。同层中较早的通配词条可以优先于后面的精确词条；若不希望顺序决定消息，应避免重叠词条。内联通配符只匹配一层，也支持通配规则名；语言文件 custom 消息仍走单独的跨路径查找。`sometimes` 条件为 false 时也记录已解析通配字段的主名称，供后续错误标签使用。
+
+## 显示错误并恢复表单输入 {#displaying-errors-and-old-input}
+
+`web` 中间件共享当前请求的 `$errors` 对象；没有错误时也存在。可调用默认包的 `any`、`all`、`first`、`get`、`has`，或选择具名包。`@error` 读取首条匹配消息并支持通配字段；`$message` 只在该指令内绑定。
+
+```blade
+@if ($errors->any())
+    <ul>
+        @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+@endif
+
+<input name="title" value="{{ old('title', 'Untitled') }}">
+@error('title')
+    <p>{{ $message }}</p>
+@enderror
+
+@error('title', 'login')
+    <p>{{ $message }}</p>
+@enderror
+<p>{{ $errors->login->first('title') }}</p>
+```
+
+`old(key, default)` 与 `request()->old(key, default)` 通过 HTTP 渲染桥读取已有会话闪存。缺失键使用默认值，已保存的 `null` 仍为 null。返回视图或使用 `Response::view` 渲染，确保真实请求可用。转义输出会保护错误文字与旧输入。后续请求按原机制回收闪存，模板缓存仍读取当前请求的错误和旧值。

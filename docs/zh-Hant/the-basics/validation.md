@@ -1046,3 +1046,29 @@ pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response,
 ```
 
 行內訊息依序查找欄位／規則、規則、欄位，每層保留原生 `BTreeMap` 的遍歷順序。同層中較早的萬用字元詞條可以優先於後面的精確詞條；若不希望順序決定訊息，應避免重疊詞條。行內萬用字元只比對一層，也支援萬用字元規則名稱；語言檔案 custom 訊息仍走獨立的跨路徑查找。`sometimes` 條件為 false 時也記錄已解析萬用字元欄位的主名稱，供後續錯誤標籤使用。
+
+## 顯示錯誤並還原表單輸入 {#displaying-errors-and-old-input}
+
+`web` 中介層共享目前請求的 `$errors` 物件；沒有錯誤時也存在。可呼叫預設包的 `any`、`all`、`first`、`get`、`has`，或選擇具名包。`@error` 讀取第一條比對訊息並支援萬用字元欄位；`$message` 只在此指令內繫結。
+
+```blade
+@if ($errors->any())
+    <ul>
+        @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+        @endforeach
+    </ul>
+@endif
+
+<input name="title" value="{{ old('title', 'Untitled') }}">
+@error('title')
+    <p>{{ $message }}</p>
+@enderror
+
+@error('title', 'login')
+    <p>{{ $message }}</p>
+@enderror
+<p>{{ $errors->login->first('title') }}</p>
+```
+
+`old(key, default)` 與 `request()->old(key, default)` 透過 HTTP 渲染橋讀取既有工作階段快閃資料。缺失鍵使用預設值，已儲存的 `null` 仍為 null。傳回視圖或使用 `Response::view` 渲染，確保真實請求可用。轉義輸出會保護錯誤文字與舊輸入。後續請求按原機制回收快閃資料，範本快取仍讀取目前請求的錯誤和舊值。

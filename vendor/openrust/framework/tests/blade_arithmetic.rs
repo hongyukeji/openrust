@@ -113,8 +113,9 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
     let compiler = engine.get_compiler();
     let artifact = compiler.get_compiled_path(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 45);
-    contents["compiler_version"] = json!(44);
+    let current_version = contents["compiler_version"].as_u64().unwrap();
+    assert!(current_version >= 45, "算术节点的缓存格式至少需要45版");
+    contents["compiler_version"] = json!(current_version - 1);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.is_expired(&path).unwrap());
     assert_eq!(
@@ -123,7 +124,7 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
     );
     assert!(!compiler.is_expired(&path).unwrap());
     let rebuilt: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(rebuilt["compiler_version"], 45);
+    assert_eq!(rebuilt["compiler_version"], current_version);
 }
 fn routes(
     _: &openrust::foundation::Application,

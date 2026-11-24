@@ -100,7 +100,7 @@ impl ViewObject for Greeting {
     }
 }
 // In a provider, using the existing Container trait:
-// app.container().instanceNamed::<dyn ViewObject>("greeting", Arc::new(Greeting))?;
+// app.container().instance_named::<dyn ViewObject>("greeting", Arc::new(Greeting))?;
 ```
 
 ```blade
@@ -111,7 +111,7 @@ Objects support method chains, variables, includes and component properties; out
 
 Calling `environment()` reads the environment name; `environment([])` returns `false`. Object `==` and `===` compare actual instance identity; they do not reflect over properties of separate Rust instances.
 
-HTTP rendering uses the existing asynchronous request bridge for async factories and `ViewObject::callAsync`; its default delegates to `call`. Offline rendering supports synchronous resolution and calls inside an active application scope. Async-only services and language switching require HTTP rendering. This is a Rust adaptation of container access, not an arbitrary PHP executor or automatic exposure of every Rust method.
+HTTP rendering uses the existing asynchronous request bridge for async factories and `ViewObject::call_async`; its default delegates to `call`. Offline rendering supports synchronous resolution and calls inside an active application scope. Async-only services and language switching require HTTP rendering. This is a Rust adaptation of container access, not an arbitrary PHP executor or automatic exposure of every Rust method.
 
 `Config::string(key)` requires an existing string value; missing keys, null and other types are errors.
 
@@ -736,3 +736,5 @@ fn render_badge() -> ViewResult<String> {
 Use `set_path` followed by `compile(None)`, or `compile(Some(path))`, to publish a normal cached artifact. `get_compiled_path` and `is_expired` observe the same artifacts as View rendering. An unset path, missing file or malformed template returns an error. Directives and conditions remain application-scoped. `get_custom_directives` returns the registered typed callbacks; `check` executes a registered condition. `strip_parentheses` returns bytes because the source expression contract can truncate malformed UTF-8 input at a byte boundary.
 
 This facade exposes the documented native compilation and formatting APIs. Source precompilers, component registration/aliases/namespaces through Blade, alternate echo formats and generated-code helpers still require separate parity work; existing View component APIs remain available. A compiled instruction snapshot retains its original callbacks and encoding policy; it is not a dynamic PHP source string.
+
+Validation error bags expose their existing read methods and named bags as native view objects. `ViewObject::properties` optionally exposes read-only properties and their JSON projection; the default remains opaque and nonserializable. `property` may override dynamic reads. These hooks do not expose arbitrary Rust fields or methods. Object projections reject cycles and more than 64 nested object boundaries; errors restore the serialization state, and repeated sibling references are allowed. Error bags retain their raw JSON shape and work with `Js::from` escaping.
