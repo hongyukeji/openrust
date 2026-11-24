@@ -48,6 +48,8 @@ After password confirmation, `POST /user/two-factor-authentication` creates an e
 
 After a challenged login, submit `code` or `recovery_code` to `POST /two-factor-challenge` using the same session. Recovery code redemption replaces that code. Challenge state, replay checks, named throttling and the native authentication guard remain part of the request flow. Applications can replace the `TwoFactorAuthenticationProvider` contract.
 
+`TwoFactorAuthenticatable::replace_recovery_code` remains the overridable model entry point. Its default implementation uses the configured Fortify recovery-code generator and encrypter, saves the encrypted model attribute, then dispatches `RecoveryCodeReplaced` with the original code and model context. Database errors propagate through the existing result; custom implementations retain control of the model method.
+
 ## Registration and account updates
 
 `POST /register` uses `CreatesNewUsers`; the installed `CreateNewUser` validates name and email, checks email uniqueness against the User model, validates the default password and confirmation, hashes it and saves the account. JSON success returns `201`.

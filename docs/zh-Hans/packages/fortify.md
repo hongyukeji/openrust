@@ -48,6 +48,8 @@ Fortify 管理注册、Session 登录和凭据变更。[Sanctum](sanctum.md) 的
 
 登录进入挑战后，使用同一 Session 将 `code` 或 `recovery_code` 提交到 `POST /two-factor-challenge`。兑换恢复码会替换该码。挑战状态、重放检查、命名限流和原生认证守卫均保留在请求流程中。应用可替换 `TwoFactorAuthenticationProvider` 契约。
 
+`TwoFactorAuthenticatable::replace_recovery_code` 仍是可覆写的模型入口。默认实现使用 Fortify 配置的恢复码生成器和加密器，保存加密后的模型属性，再以原恢复码和模型上下文派发 `RecoveryCodeReplaced`。数据库错误通过原有结果向上传递，自定义实现仍由模型方法控制。
+
 ## 注册与账户更新
 
 `POST /register` 调用 `CreatesNewUsers`。安装的 `CreateNewUser` 验证姓名和邮件地址，通过 User 模型检查邮件唯一性，验证默认密码策略和确认字段，哈希密码并保存账户。JSON 成功返回 `201`。

@@ -2,8 +2,8 @@ use crate::{
     Fortify, FortifyError, RecoveryCode, TwoFactorAuthenticatable,
     contracts::TwoFactorAuthenticationProvider,
     events::{
-        RecoveryCodesGenerated, TwoFactorAuthenticationConfirmed, TwoFactorAuthenticationDisabled,
-        TwoFactorAuthenticationEnabled,
+        RecoveryCodeReplaced, RecoveryCodesGenerated, TwoFactorAuthenticationConfirmed,
+        TwoFactorAuthenticationDisabled, TwoFactorAuthenticationEnabled,
     },
     resolver::internal,
     two_factor_authenticatable::text,
@@ -227,4 +227,43 @@ impl GenerateNewRecoveryCodes {
         )
         .await
     }
+}
+
+// 默认模型能力委托此实现；保留加密器、生成器、保存及事件的原执行顺序。
+pub(crate) async fn replace_recovery_code<T: TwoFactorAuthenticatable>(
+    user: &mut T,
+    code: &str,
+    fortify: &Fortify,
+) -> Result<(), HttpError> {
+    let ciphertext = text(user, "two_factor_recovery_codes")
+        .map_err(internal)?
+        .ok_or_else(|| internal(FortifyError::InvalidAttribute("two_factor_recovery_codes")))?;
+    let encrypter = fortify.current_encrypter().map_err(internal)?;
+    let replacement = Zeroizing::new(RecoveryCode::generate(fortify));
+    let cleartext = Zeroizing::new(
+        fortify
+            .current_encrypter()
+            .map_err(internal)?
+            .decrypt(&ciphertext, true)
+            .map_err(internal)?,
+    );
+    let cleartext =
+        std::str::from_utf8(&cleartext).map_err(|_| internal(FortifyError::InvalidUtf8))?;
+    let updated = Zeroizing::new(cleartext.replace(code, &replacement));
+    let encrypted = encrypter
+        .encrypt(updated.as_bytes(), true)
+        .map_err(internal)?;
+    user.force_fill([("two_factor_recovery_codes".into(), encrypted.into())].into())
+        .map_err(internal)?
+        .save()
+        .await
+        .map_err(internal)?;
+    super::emit(
+        RecoveryCodeReplaced {
+            user: user.get_auth_identifier(),
+            code: Zeroizing::new(code.into()),
+        },
+        &[user],
+    )
+    .await
 }

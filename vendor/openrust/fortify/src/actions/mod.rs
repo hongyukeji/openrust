@@ -207,6 +207,7 @@ impl ConfirmPassword {
 }
 
 mod two_factor;
+pub(crate) use two_factor::replace_recovery_code;
 pub use two_factor::{
     ConfirmTwoFactorAuthentication, DisableTwoFactorAuthentication, EnableTwoFactorAuthentication,
     GenerateNewRecoveryCodes,

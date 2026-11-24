@@ -1,7 +1,4 @@
-use crate::{
-    Fortify, FortifyError, FortifyResult, RecoveryCode, actions::emit,
-    events::RecoveryCodeReplaced, resolver::internal,
-};
+use crate::{Fortify, FortifyError, FortifyResult};
 use openrust::{
     contracts::auth::Authenticatable,
     database::{Value, eloquent::Model},
@@ -30,42 +27,9 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
         code: &str,
         fortify: &Fortify,
     ) -> impl Future<Output = Result<(), HttpError>> + Send {
-        async move {
-            let ciphertext = text(self, "two_factor_recovery_codes")
-                .map_err(internal)?
-                .ok_or_else(|| {
-                    internal(FortifyError::InvalidAttribute("two_factor_recovery_codes"))
-                })?;
-            let encrypter = fortify.current_encrypter().map_err(internal)?;
-            let replacement = Zeroizing::new(RecoveryCode::generate(fortify));
-            let cleartext = Zeroizing::new(
-                fortify
-                    .current_encrypter()
-                    .map_err(internal)?
-                    .decrypt(&ciphertext, true)
-                    .map_err(internal)?,
-            );
-            let cleartext =
-                std::str::from_utf8(&cleartext).map_err(|_| internal(FortifyError::InvalidUtf8))?;
-            let updated = Zeroizing::new(cleartext.replace(code, &replacement));
-            let encrypted = encrypter
-                .encrypt(updated.as_bytes(), true)
-                .map_err(internal)?;
-            self.force_fill([("two_factor_recovery_codes".into(), encrypted.into())].into())
-                .map_err(internal)?
-                .save()
-                .await
-                .map_err(internal)?;
-            emit(
-                RecoveryCodeReplaced {
-                    user: self.get_auth_identifier(),
-                    code: Zeroizing::new(code.into()),
-                },
-                &[self],
-            )
-            .await
-        }
+        crate::actions::replace_recovery_code(self, code, fortify)
     }
+
     fn two_factor_qr_code_svg(
         &self,
         fortify: &Fortify,

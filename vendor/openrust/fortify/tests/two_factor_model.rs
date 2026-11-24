@@ -602,3 +602,128 @@ async fn encryption_failures_stop_before_model_mutation_and_preserve_callback_or
     );
     assert_eq!(calls.load(Ordering::Relaxed), 8);
 }
+
+struct RecoveryCommand(openrust::console::CommandDefinition);
+impl openrust::console::Command for RecoveryCommand {
+    fn definition(&self) -> &openrust::console::CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a openrust::console::Input,
+        _: &'a mut openrust::console::Output,
+    ) -> openrust::console::ConsoleFuture<'a, Result<i32, openrust::console::ConsoleError>> {
+        Box::pin(async move {
+            let fortify = Fortify::new(app.config().unwrap());
+            let generated = Arc::new(AtomicUsize::new(0));
+            let count = generated.clone();
+            fortify.generate_recovery_codes_using(Some(Arc::new(move || {
+                count.fetch_add(1, Ordering::SeqCst);
+                "new-code".into()
+            })));
+            let db = app
+                .make::<DatabaseManager>()
+                .await
+                .unwrap()
+                .connection(None)
+                .unwrap();
+            db.get_schema_builder()
+                .drop_if_exists("fortify_factor_users")
+                .await
+                .unwrap();
+            db.get_schema_builder()
+                .create("fortify_factor_users", |table| {
+                    table.string("identity", 32).primary();
+                    table.text("two_factor_recovery_codes");
+                })
+                .await
+                .unwrap();
+            let encrypted = fortify
+                .current_encrypter()
+                .unwrap()
+                .encrypt(br#"["old","prefix-old"]"#, true)
+                .unwrap();
+            db.table("fortify_factor_users")
+                .insert(&[[
+                    ("identity".into(), "artisan".into()),
+                    ("two_factor_recovery_codes".into(), encrypted.into()),
+                ]
+                .into()])
+                .await
+                .unwrap();
+            let mut user = FactorUser::query_on(&db).first().await.unwrap().unwrap();
+            let events = app
+                .make::<openrust::events::Dispatcher>()
+                .await
+                .unwrap()
+                .fake(&[r"OpenRust\Fortify\Events\RecoveryCodeReplaced"]);
+            user.replace_recovery_code("old", &fortify).await.unwrap();
+            assert_eq!(generated.load(Ordering::SeqCst), 1);
+            assert_eq!(
+                user.recovery_codes(&fortify).unwrap(),
+                vec!["new-code", "prefix-new-code"]
+            );
+            assert_eq!(
+                FactorUser::query_on(&db)
+                    .first()
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .recovery_codes(&fortify)
+                    .unwrap(),
+                vec!["new-code", "prefix-new-code"]
+            );
+            events.assert_dispatched_once(r"OpenRust\Fortify\Events\RecoveryCodeReplaced");
+            let event = events.dispatched(r"OpenRust\Fortify\Events\RecoveryCodeReplaced");
+            let event = event[0]
+                .downcast_ref::<openrust_fortify::events::RecoveryCodeReplaced>()
+                .unwrap();
+            assert_eq!(event.user, AuthIdentifier::String("artisan".into()));
+            assert_eq!(event.code.as_str(), "old");
+            db.get_schema_builder()
+                .drop("fortify_factor_users")
+                .await
+                .unwrap();
+            assert!(
+                user.replace_recovery_code("new-code", &fortify)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(generated.load(Ordering::SeqCst), 2);
+            events.assert_dispatched_once(r"OpenRust\Fortify\Events\RecoveryCodeReplaced");
+            Ok(0)
+        })
+    }
+}
+fn recovery_commands() -> Result<(), openrust::console::ConsoleError> {
+    openrust::support::facades::Artisan::add(Box::new(RecoveryCommand(
+        openrust::console::CommandDefinition::new(clap::Command::new("recovery:probe")),
+    )))
+}
+#[tokio::test]
+async fn native_artisan_recovery_replacement_keeps_string_semantics_and_failure_order() {
+    let mut app = openrust::testing::TestApp::create(|builder| {
+        builder
+            .with_config(|_, _| {
+                let driver = std::env::var("RECOVERY_TEST_DRIVER").unwrap_or("sqlite".into());
+                let connection = match driver.as_str() {
+                    "sqlite" => json!({"driver":"sqlite","database":":memory:"}),
+                    "mysql" => json!({"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()}),
+                    "pgsql" => json!({"url":std::env::var("OPENRUST_TEST_POSTGRES_URL").unwrap()}),
+                    _ => panic!("未知恢复码验收驱动"),
+                };
+                Ok([
+                    ("app".into(), json!({"key":"a".repeat(32)})),
+                    (
+                        "database".into(),
+                        json!({"default":"recovery","connections":{"recovery":connection}}),
+                    ),
+                ]
+                .into())
+            })
+            .with_routing(Routing::default().commands(recovery_commands))
+    })
+    .unwrap();
+    app.artisan(["recovery:probe"]).await.assert_successful();
+}
