@@ -10,6 +10,24 @@ async fn default_email_matches_fixed_reference_and_egulias_cases() {
         "../../../../.agents/project/audits/api-f01/fixtures/email_rule.json"
     ))
     .unwrap();
+    let native: Value =
+        serde_json::from_str(include_str!("reference/validation-email-rfc-native.json")).unwrap();
+    use aws_lc_rs::digest;
+    assert_eq!(
+        digest::digest(
+            &digest::SHA256,
+            include_bytes!("../../../../.agents/project/audits/api-f01/fixtures/email_rule.json")
+        )
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>(),
+        native["input_sha256"].as_str().unwrap()
+    );
+    assert_eq!(
+        fixture["cases"].as_array().unwrap().len(),
+        native["passes"].as_array().unwrap().len()
+    );
     let factory = Factory::default();
     let mut mismatches = Vec::new();
     for (index, case) in fixture["cases"].as_array().unwrap().iter().enumerate() {
@@ -21,7 +39,7 @@ async fn default_email_matches_fixed_reference_and_egulias_cases() {
                 Default::default(),
             )
             .unwrap();
-        if validator.validate().await.is_ok() != case["passes"].as_bool().unwrap() {
+        if validator.validate().await.is_ok() != native["passes"][index].as_bool().unwrap() {
             mismatches.push(format!("{index}: {case}"));
         }
     }
@@ -75,7 +93,7 @@ async fn email_rules_preserve_nullable_wildcards_and_error_messages() {
         "email:rfc,dns",
         "email:unknown",
     ] {
-        assert!(RuleSet::parse([("email", mode)]).is_err());
+        assert!(RuleSet::parse([("email", mode)]).is_ok());
     }
 }
 

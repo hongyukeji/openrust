@@ -67,7 +67,7 @@ pub(super) enum Kind {
     ArrayKeys(Vec<String>),
     Boolean,
     Base64,
-    Email,
+    Email(super::rules::Email),
     Confirmed(Option<String>),
     CurrentPassword(Option<String>),
     Password(Password),
@@ -101,7 +101,7 @@ impl Rule {
             Kind::Integer => Some(("integer", Vec::new())),
             Kind::Boolean => Some(("boolean", Vec::new())),
             Kind::Base64 => Some(("base64", Vec::new())),
-            Kind::Email => Some(("email", Vec::new())),
+            Kind::Email(rule) => Some(("email", rule.parameters())),
             Kind::Array => Some(("array", Vec::new())),
             Kind::CurrentPassword(guard) => {
                 Some(("current_password", guard.iter().cloned().collect()))
@@ -113,6 +113,19 @@ impl Rule {
         }
         .map(|(name, parameters)| (name.to_owned(), parameters));
         Self(kind, declaration)
+    }
+
+    pub(super) fn map_email(
+        self,
+        configure: impl FnOnce(super::rules::Email) -> super::rules::Email,
+    ) -> Self {
+        match self.0 {
+            Kind::Email(email) => configure(email).into(),
+            _ => Self::new(Kind::Chained(vec![
+                self,
+                configure(super::rules::Email::new()).into(),
+            ])),
+        }
     }
 
     pub fn compilable(rule: impl crate::contracts::validation::CompilableRules + 'static) -> Self {
@@ -451,7 +464,7 @@ impl Rule {
         Self::new(Kind::Base64)
     }
     pub fn email() -> Self {
-        Self::new(Kind::Email)
+        Self::new(Kind::Email(super::rules::Email::new()))
     }
     pub fn current_password(guard: Option<&str>) -> Self {
         Self::new(Kind::CurrentPassword(guard.map(str::to_owned)))
@@ -807,6 +820,7 @@ impl Rule {
                         Unique::parse(table, rest)?.into()
                     }
                 }
+                Some(("email", parameters)) => super::rules::Email::parse(parameters).into(),
                 _ if matches!(
                     name,
                     "same"

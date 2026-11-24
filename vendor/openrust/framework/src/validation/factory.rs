@@ -22,12 +22,13 @@ struct Registrations {
     include_unvalidated_array_keys: bool,
 }
 
-/// 工厂按创建时的注册快照装配验证器，各实例后续修改互不影响。
-#[derive(Default)]
+/// 扩展按验证器创建时取得注册快照；工厂克隆共享注册表和DNS测试策略。
+#[derive(Clone, Default)]
 pub struct Factory {
     translator: Option<Arc<Translator>>,
     presence: Option<DatabasePresenceVerifier>,
-    registrations: RwLock<Registrations>,
+    registrations: Arc<RwLock<Registrations>>,
+    dns_policy: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Factory {
@@ -36,6 +37,12 @@ impl Factory {
             translator: Some(translator),
             ..Default::default()
         }
+    }
+
+    /// 每个应用共享自己的测试策略，已创建验证器也可观察切换，不使用进程全局状态。
+    pub fn fake_dns_lookups(&self, value: bool) {
+        self.dns_policy
+            .store(value, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn set_presence_verifier(&mut self, verifier: DatabasePresenceVerifier) {
@@ -65,17 +72,17 @@ impl Factory {
     }
 }
 
-impl Contract for Factory {
-    fn make(
+impl Factory {
+    pub(super) fn make_shared(
         &self,
-        data: Data,
+        data: Arc<Data>,
         rules: RuleSet,
         messages: BTreeMap<String, String>,
         attributes: BTreeMap<String, String>,
     ) -> ValidationResult<Validator> {
         // 只在复制注册表时持锁；应用回调可以安全再次使用工厂。
         let registrations = self.registrations.read().expect("验证器注册锁损坏").clone();
-        let mut validator = Validator::new(
+        let mut validator = Validator::from_shared(
             data,
             rules,
             self.translator.clone(),
@@ -83,11 +90,15 @@ impl Contract for Factory {
             messages,
             attributes,
         );
+        validator.factory = Some(self.clone());
+        validator.dns_policy = self.dns_policy.clone();
         validator.ensure_compiled()?;
         if let Some(resolver) = registrations.resolver {
             validator = resolver(validator)?;
         }
+        validator.factory = Some(self.clone());
         validator.presence = self.presence.clone();
+        validator.dns_policy = self.dns_policy.clone();
         validator.exclude_unvalidated_array_keys = !registrations.include_unvalidated_array_keys;
         validator
             .extensions
@@ -119,6 +130,18 @@ impl Contract for Factory {
             .extend(registrations.fallback_messages);
         validator.ensure_compiled()?;
         Ok(validator)
+    }
+}
+
+impl Contract for Factory {
+    fn make(
+        &self,
+        data: Data,
+        rules: RuleSet,
+        messages: BTreeMap<String, String>,
+        attributes: BTreeMap<String, String>,
+    ) -> ValidationResult<Validator> {
+        self.make_shared(Arc::new(data), rules, messages, attributes)
     }
 
     fn extend(&self, rule: &str, extension: ValidationExtension, message: Option<&str>) {

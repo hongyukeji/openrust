@@ -448,9 +448,13 @@
         {
           "anchor": "specifying-custom-messages-in-language-files",
           "title": "Specifying Custom Messages in Language Files",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "matching_differences_pending_consumer",
+          "contract": [
+            "逐型源码发现目录custom／attributes通配与嵌套标签差异，待实际消费者及完整消息簇验收"
+          ],
+          "evidence": [
+            "README.md#第十九组email扩展模式链式入口与dns测试门面2026-11-24"
+          ]
         },
         {
           "anchor": "custom-messages-for-specific-attributes",
@@ -462,9 +466,13 @@
         {
           "anchor": "specifying-attribute-in-language-files",
           "title": "Specifying Attributes in Language Files",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "matching_differences_pending_consumer",
+          "contract": [
+            "逐型源码发现目录custom／attributes通配与嵌套标签差异，待实际消费者及完整消息簇验收"
+          ],
+          "evidence": [
+            "README.md#第十九组email扩展模式链式入口与dns测试门面2026-11-24"
+          ]
         },
         {
           "anchor": "specifying-values-in-language-files",
@@ -483,7 +491,7 @@
         {
           "anchor": "rule-builders",
           "title": "Rule Builders",
-          "status": "partially_verified_remaining_email_password",
+          "status": "partially_verified_remaining_password",
           "contract": [
             "已验StringRule/ArrayRule/Numeric/Date及参数化和条件对象；其余基础工厂、Confirmed/CurrentPassword等继续核对"
           ],
@@ -824,11 +832,13 @@
         {
           "anchor": "rule-email",
           "title": "email",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "RFC/strict/dns/spoof/filter/filter_unicode；真实Email类型和RuleBuilder；模式全量执行／CSV参数；Factory与Facade应用隔离fakeDNS"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第十九组email扩展模式链式入口与dns测试门面2026-11-24"
+          ]
         },
         {
           "anchor": "rule-encoding",

@@ -299035,6 +299035,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "email, password and full chapter review; chapter open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第十九组 email modes/builders and fake DNS facade",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "password policies, translated message matching/size keys/implicit labels, and full chapter review; chapter open"
     }
   ]
 }

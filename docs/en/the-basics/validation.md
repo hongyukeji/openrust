@@ -25,7 +25,7 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
-`email` and `email:rfc` validate the default RFC address syntax, including warning-only addresses. DNS, spoof, strict and filter modes are not implemented; unsupported email parameters return `ValidationError::InvalidRule` when rules are parsed. They are not treated as application-defined rules.
+`email` and `email:rfc` accept warning-only RFC addresses. `strict` rejects RFC parser warnings; `filter` and `filter_unicode` use native-style filtering, with the latter allowing letters and numbers from Unicode in the local part. `spoof` checks the highly restrictive Unicode script profile. `dns` checks mail-domain DNS, including MX rejection records and address-record fallback; it does not verify mailbox existence. Combine modes with commas to require all of them. DNS or spoof alone does not add RFC syntax validation. Unrecognized mode strings fall back to RFC validation.
 
 ## Validating incoming requests {#validating-incoming-requests}
 
@@ -855,3 +855,43 @@ fn store_photos(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 ```
+
+## Email Validation Modes {#email-validation-modes}
+
+`RuleBuilder` preserves the existing `Rule::email()` return type while adding the fluent methods. `Email::new()` provides the typed builder, including `strict`, `when`, `unless`, `when_else` and additional `rules`. Additional checks use the original factory, including its resolver and current extension registrations, to create a nested validator with the original typed data, messages and attributes; custom DataAware/ValidatorAware rules receive that nested validator.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Validator,
+    validation::{Rule, RuleBuilder, RuleSet, ValidationResult, rules::Email},
+};
+fn store_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("email", [Rule::required(), Rule::email()
+            .rfc_compliant(false).validate_mx_record().prevent_spoofing()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_native_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("email", [Email::new().with_native_validation(true).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_custom_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let email = Email::new().rfc_compliant(false)
+            .rules([Rule::not_in(["blocked@example.com"]).into()]);
+        let rules = RuleSet::new().field("email", [email.into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn configure_email_tests() -> ValidationResult<()> {
+    Validator::fake_dns_lookups(true)
+}
+```
+
+In tests, call `Validator::fake_dns_lookups(true)` inside the application scope, or configure the application’s `Factory::fake_dns_lookups(true)`. Pass `false` to restore real lookups. Already-created validators observe their application’s factory switch, while other applications stay independent. The instance method remains an explicit per-validator override. Rust requires the boolean argument. DNS faking preserves the other selected checks and reserved-domain handling; use a host such as `example.com` instead of `.test` for a successful fake.
+
+Factory clones share registrations and the DNS test policy. Create a new factory with `Factory::default` or `Factory::new` when independent registration state is required.

@@ -25,7 +25,7 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
-`email` 和 `email:rfc` 验证默认 RFC 地址语法，允许仅产生警告的地址。尚未实现 DNS、spoof、strict 和 filter 模式；解析规则时，不支持的邮箱参数返回 `ValidationError::InvalidRule`，不会作为应用自定义规则处理。
+`email` 和 `email:rfc` 接受仅有警告的 RFC 地址。`strict` 拒绝 RFC 解析警告；`filter`、`filter_unicode` 使用原生式过滤，后者允许地址本地部分中的 Unicode 字母和数字。`spoof` 检查 Unicode 高度限制脚本组合。`dns` 检查邮件域 DNS，包含 MX 拒收记录与地址记录回退，不检查邮箱是否存在。逗号组合表示全部检查都需通过。单独使用 DNS 或 spoof 不会额外添加 RFC 语法校验。未知模式字符串按 RFC 回退。
 
 ## 验证传入请求 {#validating-incoming-requests}
 
@@ -855,3 +855,43 @@ fn store_photos(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 ```
+
+## 邮箱验证模式 {#email-validation-modes}
+
+`RuleBuilder` 保留原 `Rule::email()` 返回类型并接通链式方法。`Email::new()` 提供类型化构建器，包含 `strict`、`when`、`unless`、`when_else` 与附加 `rules`。附加检查通过原工厂创建嵌套验证器，执行原 resolver 并读取当前扩展注册，使用原类型化数据、消息和属性；自定义 DataAware/ValidatorAware 规则接收这个嵌套验证器。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Validator,
+    validation::{Rule, RuleBuilder, RuleSet, ValidationResult, rules::Email},
+};
+fn store_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("email", [Rule::required(), Rule::email()
+            .rfc_compliant(false).validate_mx_record().prevent_spoofing()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_native_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("email", [Email::new().with_native_validation(true).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_custom_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let email = Email::new().rfc_compliant(false)
+            .rules([Rule::not_in(["blocked@example.com"]).into()]);
+        let rules = RuleSet::new().field("email", [email.into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn configure_email_tests() -> ValidationResult<()> {
+    Validator::fake_dns_lookups(true)
+}
+```
+
+测试中，在应用作用域内调用 `Validator::fake_dns_lookups(true)`，或配置当前应用的 `Factory::fake_dns_lookups(true)`；传入 `false` 恢复真实查询。已创建验证器也会观察其应用工厂的切换，其他应用不受影响；实例方法仍可显式覆盖单个验证器。Rust 需要明确传入布尔值。DNS 模拟保留其他已选检查及保留域处理；成功模拟用 `example.com` 等域名，不用 `.test`。
+
+工厂的克隆共享注册表和 DNS 测试策略。需要独立注册状态时，用 `Factory::default` 或 `Factory::new` 创建新工厂。

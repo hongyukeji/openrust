@@ -1,5 +1,5 @@
 // Port of Egulias EmailValidator 4.0.4's lexer and RFC parser (MIT).
-// Warnings are deliberately accepted, as in RFCValidation, not strict validation.
+// 普通模式接受警告；严格模式复用同一解析过程并拒绝警告。
 use std::sync::LazyLock;
 
 use icu_normalizer::uts46::Uts46MapperBorrowed;
@@ -32,9 +32,16 @@ const NULL: Token<'static> = Token {
 struct Parser<'a> {
     tokens: Vec<Token<'a>>,
     index: usize,
+    warnings: bool,
 }
 
 pub(super) fn passes(value: &str) -> bool {
+    validate(value, false)
+}
+pub(super) fn strict(value: &str) -> bool {
+    validate(value, true)
+}
+fn validate(value: &str, strict: bool) -> bool {
     let mut tokens = Vec::new();
     for found in TOKENS.find_iter(value) {
         let value = found.as_str();
@@ -56,8 +63,15 @@ pub(super) fn passes(value: &str) -> bool {
         };
         tokens.push(Token { kind, value });
     }
-    let mut parser = Parser { tokens, index: 0 };
-    parser.current().kind != 64 && parser.local() && parser.domain()
+    let mut parser = Parser {
+        tokens,
+        index: 0,
+        warnings: value.len() > 254,
+    };
+    parser.current().kind != 64
+        && parser.local()
+        && parser.domain()
+        && (!strict || !parser.warnings)
 }
 
 impl Parser<'_> {
@@ -91,11 +105,12 @@ impl Parser<'_> {
         self.previous() == 92 && self.current().kind != GENERIC
     }
 
-    fn folding(&self) -> bool {
+    fn folding(&mut self) -> bool {
         let kind = self.current().kind;
         if self.escaped() || !matches!(kind, 32 | 9 | 13 | 10 | CRLF) {
             return true;
         }
+        self.warnings = true;
         !(kind == CRLF && !matches!(self.next(), 32 | 9)
             || matches!(kind, 13 | 10 | 0)
             || self.next() == GENERIC && self.previous() != 64)
@@ -121,11 +136,13 @@ impl Parser<'_> {
         self.next() == 64 || self.previous() == 92
     }
 
-    fn check_quote(&self) -> bool {
+    fn check_quote(&mut self) -> bool {
+        self.warnings = true;
         !(self.next() == GENERIC && self.previous() == GENERIC) && self.find(34)
     }
 
     fn comment(&mut self, domain: bool) -> bool {
+        self.warnings = true;
         if self.current().kind != 40 || !self.find(41) {
             return false;
         }
@@ -169,6 +186,11 @@ impl Parser<'_> {
             }
             self.advance();
         }
+        self.warnings |= self.tokens[..self.index]
+            .iter()
+            .map(|token| token.value.len())
+            .sum::<usize>()
+            > 64;
         true
     }
 
@@ -182,6 +204,7 @@ impl Parser<'_> {
         }
         let mut label = String::new();
         let mut comments = false;
+        let mut tld_missing = true;
         loop {
             if matches!(self.current().kind, 92 | 47) {
                 return false;
@@ -202,6 +225,7 @@ impl Parser<'_> {
                 break;
             }
             if self.current().kind == 46 {
+                tld_missing &= self.next() != GENERIC;
                 if label_too_long(&label) {
                     return false;
                 }
@@ -223,6 +247,7 @@ impl Parser<'_> {
                 break;
             }
         }
+        self.warnings |= tld_missing;
         // Recording includes the closing literal bracket and stops there, as upstream.
         !matches!(self.previous(), 46 | 45)
             && self.current().kind != 32
@@ -234,6 +259,7 @@ impl Parser<'_> {
     }
 
     fn literal(&mut self) -> bool {
+        self.warnings = true;
         if !self.find(93) {
             return false;
         }
@@ -259,18 +285,16 @@ fn label_too_long(label: &str) -> bool {
     if label.is_ascii() {
         return label.len() > 63;
     }
-    // IDNA_DEFAULT uses transitional UTS 46. Only LABEL_TOO_LONG is fatal here;
-    // other IDNA diagnostics are intentionally not promoted into RFC failures.
-    let mapped = label
-        .replace('ß', "ss")
-        .replace('ς', "σ")
-        .replace(['\u{200c}', '\u{200d}'], "");
+    // 固定原生Intl 78.1的默认IDNA选项为非过渡处理。
+    // 只提升LABEL_TOO_LONG；前导组合标记的错误不应伪装为长度错误。
     let mapped: String = Uts46MapperBorrowed::new()
-        .map_normalize(mapped.chars())
+        .map_normalize(label.chars())
         .collect();
     mapped.split('.').any(|part| {
         if part.is_ascii() {
             part.len() > 63
+        } else if part.chars().next().is_some_and(intl::unicode::is_mark) {
+            false
         } else {
             // Compute length even when UTS 46 would report another diagnostic.
             #[allow(

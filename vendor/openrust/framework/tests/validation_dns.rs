@@ -96,6 +96,7 @@ async fn active_url_queries_real_a_aaaa_and_handles_dns_failures_and_instance_is
     let resolver = builder.build();
     for (url, passes) in [
         ("https://a.test/path", true),
+        ("https://a.test./path", true),
         ("https://aaaa.test", true),
         ("https://missing.test", false),
         ("http://localhost", false),

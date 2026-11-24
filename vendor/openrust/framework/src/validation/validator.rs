@@ -43,6 +43,7 @@ impl RuleFlags {
 /// Evaluates the configured rules against one input value.
 pub struct Validator {
     data: Arc<Data>,
+    pub(super) factory: Option<super::Factory>,
     pub(super) extensions: super::extensions::Extensions,
     rules: Arc<RuleSet>,
     initial_rules: RuleSet,
@@ -60,7 +61,8 @@ pub struct Validator {
     pub exclude_unvalidated_array_keys: bool,
     after: Vec<Arc<AfterValidation>>,
     stop_on_first_failure: bool,
-    fake_dns_lookups: bool,
+    fake_dns_lookups: Option<bool>,
+    pub(super) dns_policy: Arc<std::sync::atomic::AtomicBool>,
     dns_resolver: Option<hickory_resolver::TokioResolver>,
 }
 
@@ -73,13 +75,32 @@ impl Validator {
         messages: BTreeMap<String, String>,
         attributes: BTreeMap<String, String>,
     ) -> Self {
+        Self::from_shared(
+            Arc::new(data),
+            rules,
+            translator,
+            presence,
+            messages,
+            attributes,
+        )
+    }
+
+    pub(super) fn from_shared(
+        data: Arc<Data>,
+        rules: RuleSet,
+        translator: Option<Arc<Translator>>,
+        presence: Option<DatabasePresenceVerifier>,
+        messages: BTreeMap<String, String>,
+        attributes: BTreeMap<String, String>,
+    ) -> Self {
         let initial_rules = rules.clone();
         let (rules, compilation_error) = match rules.compile_rules(&data) {
             Ok(rules) => (rules, None),
             Err(error) => (RuleSet::new(), Some(error.into())),
         };
         Self {
-            data: Arc::new(data),
+            data,
+            factory: None,
             running: false,
             extensions: Default::default(),
             initial_rules,
@@ -97,7 +118,8 @@ impl Validator {
             exclude_unvalidated_array_keys: true,
             after: Vec::new(),
             stop_on_first_failure: false,
-            fake_dns_lookups: false,
+            fake_dns_lookups: None,
+            dns_policy: Arc::default(),
             dns_resolver: None,
         }
     }
@@ -292,13 +314,15 @@ impl Validator {
 
     /// 仅作用于当前验证器，避免异步请求共享测试开关。
     pub fn fake_dns_lookups(&mut self, value: bool) -> &mut Self {
-        self.fake_dns_lookups = value;
+        self.fake_dns_lookups = Some(value);
+        self.invalidate();
         self
     }
 
     /// 允许应用或隔离测试指定DNS 解析器的服务器、超时及重试配置；查询绕过 hosts 和合成记录。
     pub fn set_dns_resolver(&mut self, resolver: hickory_resolver::TokioResolver) -> &mut Self {
         self.dns_resolver = Some(resolver);
+        self.invalidate();
         self
     }
 
@@ -1060,6 +1084,15 @@ impl Validator {
                 .await;
         }
 
+        if let Kind::Email(email) = rule
+            && !email.custom_rules.is_empty()
+        {
+            let mut base = email.clone();
+            base.custom_rules.clear();
+            let mut rules = vec![base.into()];
+            rules.extend(email.custom_rules.iter().cloned());
+            return self.evaluate_nested(attribute, rules).await;
+        }
         if let Kind::Password(password) = rule {
             return Ok(password.failures(value, nullable));
         }
@@ -1245,7 +1278,7 @@ impl Validator {
                 let passes = if let Some(value) = value.as_str() {
                     super::active_url::passes(
                         value,
-                        self.fake_dns_lookups,
+                        self.dns_is_faked(),
                         self.dns_resolver.as_ref(),
                     )
                     .await
@@ -1527,10 +1560,14 @@ impl Validator {
             {
                 Some("boolean")
             }
-            (Kind::Email, Some(value))
-                if !value.as_str().is_some_and(super::rules::Email::passes) =>
-            {
-                Some("email")
+            (Kind::Email(rule), Some(value)) => {
+                let passes = if let Some(value) = value.as_str() {
+                    rule.passes(value, self.dns_is_faked(), self.dns_resolver.as_ref())
+                        .await
+                } else {
+                    false
+                };
+                (!passes).then_some("email")
             }
             (Kind::Confirmed(other), Some(value)) => {
                 let other = other
@@ -1619,6 +1656,54 @@ impl Validator {
             .into_iter()
             .map(|rule| RuleFailure::new(format!("validation.{rule}")))
             .collect())
+    }
+
+    async fn evaluate_nested(
+        &self,
+        attribute: &str,
+        rules: Vec<Rule>,
+    ) -> ValidationResult<Vec<RuleFailure>> {
+        let factory = self
+            .factory
+            .as_ref()
+            .ok_or_else(|| ValidationError::Execution {
+                source: std::io::Error::other("嵌套验证器缺少原工厂").into(),
+            })?;
+        let mut validator = factory.make_shared(
+            self.data.clone(),
+            RuleSet::new().field(attribute, rules)?,
+            self.messages.clone(),
+            self.attributes.clone(),
+        )?;
+        // 请求级认证和显式DNS覆盖仍属于当前请求，不读取全局状态。
+        if self.user_resolver.is_some() {
+            validator.user_resolver = self.user_resolver.clone();
+        }
+        if self.fake_dns_lookups.is_some() {
+            validator.fake_dns_lookups = self.fake_dns_lookups;
+        }
+        if self.dns_resolver.is_some() {
+            validator.dns_resolver = self.dns_resolver.clone();
+        }
+        match validator.validate().await {
+            Ok(_) => Ok(Vec::new()),
+            Err(ValidationError::Invalid(_)) => Ok(validator
+                .errors
+                .all(None)
+                .into_iter()
+                .map(|message| {
+                    let mut failure = RuleFailure::new(message);
+                    failure.translated = true;
+                    failure
+                })
+                .collect()),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn dns_is_faked(&self) -> bool {
+        self.fake_dns_lookups
+            .unwrap_or_else(|| self.dns_policy.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     fn presence(&self) -> ValidationResult<&DatabasePresenceVerifier> {

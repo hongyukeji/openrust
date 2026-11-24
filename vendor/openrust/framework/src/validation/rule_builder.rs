@@ -3,6 +3,26 @@ use super::{Rule, rule::Kind};
 /// 保留既有 Rule::min/Rule::max 构造器，同时允许原生方法链。
 pub trait RuleBuilder: Sized {
     fn and(self, rule: Rule) -> Rule;
+    fn rfc_compliant(self, strict: bool) -> Rule {
+        self.and(super::rules::Email::new().rfc_compliant(strict).into())
+    }
+    fn validate_mx_record(self) -> Rule {
+        self.and(super::rules::Email::new().validate_mx_record().into())
+    }
+    fn prevent_spoofing(self) -> Rule {
+        self.and(super::rules::Email::new().prevent_spoofing().into())
+    }
+    fn with_native_validation(self, allow_unicode: bool) -> Rule {
+        self.and(
+            super::rules::Email::new()
+                .with_native_validation(allow_unicode)
+                .into(),
+        )
+    }
+    fn rules(self, rules: impl IntoIterator<Item = Rule>) -> Rule {
+        self.and(Rule::new(Kind::Chained(rules.into_iter().collect())))
+    }
+
     fn custom_field(self, field: &str) -> Rule {
         self.and(super::rules::Confirmed::new().custom_field(field).into())
     }
@@ -110,6 +130,26 @@ pub trait RuleBuilder: Sized {
     }
 }
 impl RuleBuilder for Rule {
+    fn rfc_compliant(self, strict: bool) -> Rule {
+        self.map_email(|rule| rule.rfc_compliant(strict))
+    }
+    fn validate_mx_record(self) -> Rule {
+        self.map_email(|rule| rule.validate_mx_record())
+    }
+    fn prevent_spoofing(self) -> Rule {
+        self.map_email(|rule| rule.prevent_spoofing())
+    }
+    fn with_native_validation(self, allow_unicode: bool) -> Rule {
+        self.map_email(|rule| rule.with_native_validation(allow_unicode))
+    }
+    fn rules(self, rules: impl IntoIterator<Item = Rule>) -> Rule {
+        if matches!(self.0, Kind::Email(_)) {
+            self.map_email(|rule| rule.rules(rules))
+        } else {
+            rules.into_iter().fold(self, |rule, next| rule.and(next))
+        }
+    }
+
     fn custom_field(self, field: &str) -> Rule {
         if matches!(self.0, Kind::Confirmed(_)) {
             Rule::new(Kind::Confirmed(Some(field.to_owned())))

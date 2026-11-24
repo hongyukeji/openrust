@@ -34,6 +34,16 @@ impl Validator {
 }
 
 impl Validator {
+    /// 对当前应用启用或关闭DNS测试策略，不影响其他应用。
+    pub fn fake_dns_lookups(value: bool) -> ValidationResult<()> {
+        Self::get_facade_root()
+            .map_err(|source| ValidationError::Execution {
+                source: Box::new(source),
+            })?
+            .fake_dns_lookups(value);
+        Ok(())
+    }
+
     pub fn extend(
         rule: &str,
         extension: impl Fn(

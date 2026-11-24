@@ -42,33 +42,71 @@ pub(super) async fn passes(value: &str, fake: bool, resolver: Option<&TokioResol
         owned = builder.build();
         &owned
     };
-    let Ok(name) = Name::from_ascii(format!("{host}.")) else {
-        return false;
-    };
-    // 直接使用成熟解析器的传输层，绕过 localhost 合成结果、hosts 与地址查询缓存。
-    let pool = NameServerPool::from_config(
-        resolver.config().name_servers().to_vec().into(),
-        resolver.options().clone(),
-        TokioConnectionProvider::default(),
+    let lookup = DnsLookup::new(resolver);
+    let (a, aaaa) = tokio::join!(
+        lookup.records(&host, RecordType::A),
+        lookup.records(&host, RecordType::AAAA)
     );
-    let client = RetryDnsHandle::new(pool, resolver.options().attempts);
-    let mut options = DnsRequestOptions::default();
-    options.recursion_desired = resolver.options().recursion_desired;
-    options.use_edns = resolver.options().edns0;
-    let query = |kind| {
-        let mut stream = client.lookup(Query::query(name.clone(), kind), options);
-        async move {
-            stream.next().await.is_some_and(|response| {
-                response.is_ok_and(|response| {
-                    response.answers().iter().any(|record| {
-                        matches!(record.record_type(), RecordType::A | RecordType::AAAA)
-                    })
-                })
-            })
+    [a, aaaa].into_iter().any(|records| {
+        records.is_ok_and(|records| {
+            records
+                .iter()
+                .any(|record| matches!(record.record_type(), RecordType::A | RecordType::AAAA))
+        })
+    })
+}
+
+/// 共享成熟解析器的原始传输层，绕过hosts、localhost合成和地址查询缓存。
+pub(super) struct DnsLookup {
+    client: RetryDnsHandle<NameServerPool<TokioConnectionProvider>>,
+    options: DnsRequestOptions,
+}
+impl DnsLookup {
+    pub(super) fn new(resolver: &TokioResolver) -> Self {
+        let pool = NameServerPool::from_config(
+            resolver.config().name_servers().to_vec().into(),
+            resolver.options().clone(),
+            TokioConnectionProvider::default(),
+        );
+        let mut options = DnsRequestOptions::default();
+        options.recursion_desired = resolver.options().recursion_desired;
+        options.use_edns = resolver.options().edns0;
+        Self {
+            client: RetryDnsHandle::new(pool, resolver.options().attempts),
+            options,
         }
-    };
-    let (a, aaaa) = tokio::join!(query(RecordType::A), query(RecordType::AAAA));
-    a || aaaa
+    }
+    pub(super) async fn records(
+        &self,
+        host: &str,
+        kind: RecordType,
+    ) -> Result<Vec<hickory_resolver::proto::rr::Record>, ()> {
+        let host = host.strip_suffix('.').unwrap_or(host);
+        let name = Name::from_ascii(format!("{host}.")).map_err(|_| ())?;
+        let mut stream = self.client.lookup(Query::query(name, kind), self.options);
+        match stream.next().await {
+            Some(Ok(response)) => match response.response_code() {
+                hickory_resolver::proto::op::ResponseCode::NoError => {
+                    Ok(response.answers().to_vec())
+                }
+                hickory_resolver::proto::op::ResponseCode::NXDomain => Ok(Vec::new()),
+                _ => Err(()),
+            },
+            Some(Err(error))
+                if matches!(
+                    error.kind(),
+                    hickory_resolver::proto::ProtoErrorKind::NoRecordsFound {
+                        response_code: hickory_resolver::proto::op::ResponseCode::NoError
+                            | hickory_resolver::proto::op::ResponseCode::NXDomain,
+                        ..
+                    }
+                ) =>
+            {
+                Ok(Vec::new())
+            }
+            _ => Err(()),
+        }
+    }
 }
 
 /// 按 PHP parse_url 的主机切分保留原文，避免 WHATWG 的 IDN、数字地址及 scheme 规范化。

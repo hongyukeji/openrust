@@ -25,7 +25,7 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
-`email` 和 `email:rfc` 驗證預設 RFC 地址語法，允許僅產生警告的地址。尚未實作 DNS、spoof、strict 和 filter 模式；解析規則時，不支援的信箱參數傳回 `ValidationError::InvalidRule`，不會作為應用程式自訂規則處理。
+`email` 與 `email:rfc` 接受僅有警告的 RFC 地址。`strict` 拒絕 RFC 解析警告；`filter`、`filter_unicode` 使用原生式過濾，後者允許地址本地部分中的 Unicode 字母與數字。`spoof` 檢查 Unicode 高度限制腳本組合。`dns` 檢查郵件域 DNS，包含 MX 拒收記錄與地址記錄回退，不檢查信箱是否存在。逗號組合表示所有檢查都須通過。單獨使用 DNS 或 spoof 不會額外加入 RFC 語法校驗。未知模式字串按 RFC 回退。
 
 ## 驗證傳入請求 {#validating-incoming-requests}
 
@@ -855,3 +855,43 @@ fn store_photos(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 ```
+
+## 信箱驗證模式 {#email-validation-modes}
+
+`RuleBuilder` 保留原 `Rule::email()` 回傳型別並接通鏈式方法。`Email::new()` 提供型別化建構器，包含 `strict`、`when`、`unless`、`when_else` 與附加 `rules`。附加檢查透過原工廠建立巢狀驗證器，執行原 resolver 並讀取目前擴充註冊，使用原型別化資料、訊息及屬性；自訂 DataAware/ValidatorAware 規則接收這個巢狀驗證器。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Validator,
+    validation::{Rule, RuleBuilder, RuleSet, ValidationResult, rules::Email},
+};
+fn store_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("email", [Rule::required(), Rule::email()
+            .rfc_compliant(false).validate_mx_record().prevent_spoofing()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_native_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new().field("email", [Email::new().with_native_validation(true).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_custom_email(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let email = Email::new().rfc_compliant(false)
+            .rules([Rule::not_in(["blocked@example.com"]).into()]);
+        let rules = RuleSet::new().field("email", [email.into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn configure_email_tests() -> ValidationResult<()> {
+    Validator::fake_dns_lookups(true)
+}
+```
+
+測試時，在應用作用域內呼叫 `Validator::fake_dns_lookups(true)`，或設定目前應用的 `Factory::fake_dns_lookups(true)`；傳入 `false` 恢復真實查詢。已建立的驗證器也會觀察其應用工廠的切換，其他應用不受影響；實例方法仍可明確覆寫單一驗證器。Rust 需要明確傳入布林值。DNS 模擬保留其他已選檢查與保留域處理；成功模擬用 `example.com` 等網域，不用 `.test`。
+
+工廠的複製共用註冊表與 DNS 測試策略。需要獨立註冊狀態時，用 `Factory::default` 或 `Factory::new` 建立新工廠。

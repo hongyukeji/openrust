@@ -341,3 +341,27 @@ Rust不能重载方法参数数量，也不能为普通方法省略参数；回�
 三语store_photos直接提取并在HTTP Kernel执行，展示本地化文案中的位置、序数和输入值，不只检查编译。message-positions/gates.log九阶段全0：MySQL8.4.13八目标51项0忽略（文档6、aware6、failure_translation1、fluent3、for_each4、http23、positions2、mutation6）；workspace/all-targets严格Clippy24.81s、fmt、三语构建15.67s／浏览器、实际main15.30s与两条Artisan退出0。源／测试／教程与隔离组合SHA一致，证据target/tmp/docs-chapters-20261124/message-positions/。临时MySQL已回收，HTTP服务已退出；没有改写历史证据。
 
 本批关闭数组消息教程缺口及以上关联问题；email、密码策略与逐节全章对账继续，整章未关闭。
+
+## 第十九组：email扩展模式、链式入口与DNS测试门面（2026-11-24）
+
+固定 Rules/Email、ValidatesAttributes::validateEmail、Factory::fakeDnsLookups、Facade、Egulias4.0.4 的RFC／NoRFCWarnings／DNS／Spoof／MultipleValidationWithAnd 及 FilterEmailValidation 逐入口核对。复用原RFC解析过程记录警告，严格模式不另用简化正则猜测；原生过滤复用现有PCRE2。Unicode防伪使用既有intl0.6.5的脚本扩展／增广脚本和UTS39高度限制组合，不以“包含非ASCII”或简单混脚本一概拒绝。开启同一依赖的confusables与idna特性，无新增依赖版本。
+
+Rule::email原返回Rule保持，RuleBuilder提供rfc_compliant(bool)、validate_mx_record、prevent_spoofing、with_native_validation(bool)、rules；真实Email类型另有strict／when／unless／when_else与附加规则。typed builder模式按固定顺序，字符串规则保留原参数元信息并复用CSV解析，未知模式依固定源码退回RFC。组合模式全部执行，不能在RFC失败后提前跳过DNS等模式；CR/LF仍在进入模式前拒绝。DNS或spoof单独使用不暗中加RFC，正文明确建议组合。
+
+Email附加规则通过原Factory的唯一make_shared装配链创建嵌套验证器，执行原resolver和当前扩展注册，与上游内部工厂机制对应；共享原Arc<Data>保留上传／类型数据，消息、属性、扩展、认证及DNS上下文沿用当前装配。普通邮箱不产生嵌套验证器。DataAware/ValidatorAware消费者实际拿到子验证器，原值／其他字段可见；手工错误经子验证器all消息归到父邮箱字段，外层bail不错误截断内部规则。没有新建平行校验器或unsafe全局状态。
+
+DNS共享原active_url的Hickory传输与解析器配置，绕过hosts／localhost合成；MX/A查询通过后才查询AAAA，AAAA单独失败不抹掉A/MX成功，空MX拒收、保留域、父域至完整域名的顺序与地址记录回退依固定源码。每种地址／MX查询复用同一池，A和MX内部并发，不作未测量吞吐声明。新共享实现也修复active_url根点结尾处理，实际UDP已验。Factory／Facade fake_dns_lookups补齐；应用共享AtomicBool让已有验证器可观察切换，实例显式覆盖，应用间隔离，避免将PHP进程静态状态直接带入多应用异步进程。切换实例策略／解析器会失效旧验证结果。Rust布尔参数需显式提供。
+
+本批实际构建PHP8.5.12＋原生Intl78.1参考环境：IDNA_DEFAULT实际为48（非过渡），与早期无Intl/polyfill证据不同。原api-f01历史文件完全保留，新validation-email-rfc-native.json记录原输入SHA、9381个原输入的实际通过值；其中24项Unicode边界改变。默认仍RFC、仍接受仅警告地址。RFC标签仅提升LABEL_TOO_LONG，不能把前导组合标记等其他诊断误报为长度。DNS默认未启用ContextJ/Bidi，复用成熟映射／校验／Punycode处理对应选项，不用更严格URL域名策略误拒；真实全量差分确认。
+
+实际80,316项模式／数据组合（8924值×9模式）0差异，附加63项CSV引号、重复及空白模式固定结果；正式1944项样本由真实TCP重放，类型／链式样本分别调用公开入口。HTTP策略选择在测试中以JSON串传入，避免HTTP合法OWS裁剪损坏“模式前后空白”的输入；未改请求头协议。真实UDP验证MX/A/AAAA、null MX、SERVFAIL、AAAA失败、超时、父域回退、失败恢复；核对RFC失败后仍查询DNS、头部换行提前拒绝。两应用12组并发配对、共24请求及Facade开关／已有验证器／实例覆盖均正常。
+
+原生过滤表达式来源PHP8.5.12 ext/filter/logical_filters.c，保留PHP许可及Michael Rushton原版权在framework/licenses/email-native-filter.txt，并完整附入THIRD_PARTY_NOTICES.md供运行分发；必要来源不作品牌清理。参考：[固定源码](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation)、[Egulias4.0.4](https://github.com/egulias/EmailValidator/tree/4.0.4/src/Validation)、[原生过滤源码](https://github.com/php/php-src/blob/php-8.5.12/ext/filter/logical_filters.c)、[复用的Unicode库](https://github.com/KarpelesLab/intlrs)。这些为必要来源和许可，不改公开协议或项目身份。
+
+最终email-modes/gates-factory.log九阶段全0：MySQL8.4.13十二目标65项0忽略（含三语直接提取6项、80,316差分及真实TCP）；workspace/all-targets严格Clippy41.02s、fmt、三语构建16.12s／浏览器、实际main与artisan help make:rule／inspire成功。此前两处显式解引用Clippy错误、测试HTTP响应类型及OWS夹具失败均保留日志，已修复重验，不计失败为通过。触及32GB时守卫持锁释放68,243,480,576字节，保留源码／日志／依赖与锁，恢复后继续。证据target/tmp/docs-chapters-20261124/email-modes/，源／测试／三语与验收快照SHA一致，临时MySQL及HTTP/UDP服务已回收。
+
+提交前复核发现旧嵌套辅助器只复制父验证器状态，绕过自定义resolver且错误继承父级手工值标签。已把Trait make和嵌套入口集中到原Factory装配链；工厂克隆共享注册状态，验证器仍保存创建时扩展快照。真实回归核对resolver在父／子分别执行、父级手工值标签不污染子规则、构造父验证器后注册的扩展在新子验证器执行；现有validation_extensions七项同时复验。最后只澄清Factory克隆说明注释，另做格式检查，不把注释变动当作新增功能验收。
+
+剩余逐节审查已明确登记语言目录custom／attributes通配查找、尺寸消息类型键、通配字段显示名与嵌套标签的关联差异；尚待固定源码实际消费者复验和修复，随密码之后的消息功能簇处理，不能据已有翻译测试关闭这些条目。
+
+本批闭合email教程模式及以上关联入口；不是整个Email类所有未入教程方法的完成声明。密码默认／泄漏策略／附加规则、全章逐节最终对账仍继续，不将关键词列表或测试数量当作整章完成。
