@@ -315,7 +315,7 @@ impl Application {
             .handle_arguments(application, arguments, output, shutdown)
             .await;
         if quiet || silent {
-            output.stdout.truncate(stdout_start);
+            output.suppress_stdout_since(stdout_start, silent);
         }
         if silent {
             output.stderr.truncate(stderr_start);
@@ -409,6 +409,10 @@ impl Application {
             output.decorated = false;
         }
 
+        let parsed_quiet = matches.get_flag("quiet");
+        let parsed_silent = matches.get_flag("silent");
+        let stdout_start = output.stdout.len();
+        let stderr_start = output.stderr.len();
         let result = if let Some((name, matches)) = matches.remove_subcommand() {
             let entry = &self.commands[&name];
             self.dispatch(
@@ -428,13 +432,22 @@ impl Application {
         } else {
             Ok(list_command::run(self, &syntax, None, output))
         };
-        match result {
+        let status = match result {
             Ok(status) => status,
             Err(error) => {
                 application.render_console_exception(output, error).await;
                 1
             }
+        };
+        if parsed_quiet || parsed_silent {
+            output.suppress_stdout_since(stdout_start, parsed_silent);
         }
+        if parsed_silent {
+            output
+                .stderr
+                .truncate(stderr_start.min(output.stderr.len()));
+        }
+        status
     }
 
     fn prompt_for_missing_argument(
@@ -562,7 +575,7 @@ impl Application {
             )
             .await;
         if matches.get_flag("quiet") || matches.get_flag("silent") {
-            output.stdout.truncate(stdout);
+            output.suppress_stdout_since(stdout, matches.get_flag("silent"));
         }
         if matches.get_flag("silent") {
             output.stderr.truncate(stderr);
@@ -615,7 +628,13 @@ impl Application {
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
         let (invoked_name, matches) = invocation;
-        let (verbosity, suppressed) = (output.verbosity, output.suppressed);
+        let (verbosity, suppressed, silent) = (output.verbosity, output.suppressed, output.silent);
+        output.silent |= matches
+            .try_get_one::<bool>("silent")
+            .ok()
+            .flatten()
+            .copied()
+            .unwrap_or(false);
         output.verbosity = verbosity.max(
             matches
                 .try_get_one::<u8>("verbose")
@@ -633,10 +652,15 @@ impl Application {
                     .copied()
                     .unwrap_or(false)
             });
+        let stdout_start = output.stdout.len();
+        let stderr_start = output.stderr.len();
         let scope = ScopedOutput {
             output,
+            stdout_start,
+            stderr_start,
             verbosity,
             suppressed,
+            silent,
         };
         let output = &mut *scope.output;
         let origin = crate::log::context::Origin::enabled(application.container()).then(|| {
@@ -788,13 +812,26 @@ async fn run_command_with_events(
 // Restores command-local metadata even when a long-running command is cancelled.
 struct ScopedOutput<'a> {
     output: &'a mut Output,
+    stdout_start: usize,
+    stderr_start: usize,
     verbosity: u8,
     suppressed: bool,
+    silent: bool,
 }
 impl Drop for ScopedOutput<'_> {
     fn drop(&mut self) {
+        if self.output.suppressed {
+            self.output
+                .suppress_stdout_since(self.stdout_start, self.output.silent);
+        }
+        if self.output.silent {
+            self.output
+                .stderr
+                .truncate(self.stderr_start.min(self.output.stderr.len()));
+        }
         self.output.verbosity = self.verbosity;
         self.output.suppressed = self.suppressed;
+        self.output.silent = self.silent;
     }
 }
 

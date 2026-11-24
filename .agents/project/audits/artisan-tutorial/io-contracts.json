@@ -154,106 +154,77 @@
         "method": "info",
         "source_line": 306,
         "signature": "public function info($string, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::info",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::info_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
         "method": "line",
         "source_line": 319,
         "signature": "public function line($string, $style = null, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::line",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::line_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通",
-          "可选style参数及公开格式器配置尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
         "method": "comment",
         "source_line": 333,
         "signature": "public function comment($string, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::comment",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::comment_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
         "method": "question",
         "source_line": 345,
         "signature": "public function question($string, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::question",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::question_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
         "method": "error",
         "source_line": 357,
         "signature": "public function error($string, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::error",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::error_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
         "method": "warn",
         "source_line": 369,
         "signature": "public function warn($string, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::warn",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::warn_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
         "method": "alert",
         "source_line": 387,
         "signature": "public function alert($string, $verbosity = null)",
-        "status": "verified_default_message_parameters",
-        "native": "console::CommandIo::alert",
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::alert_with",
         "evidence": [
-          "io-output-oracle.json",
-          "io-color-oracle.json",
-          "console_io_tutorial"
-        ],
-        "remaining": [
-          "逐消息verbosity参数尚待接通"
+          "console_io_tutorial",
+          "artisan_docs_generated"
         ]
       },
       {
@@ -272,25 +243,34 @@
         "method": "setInput",
         "source_line": 417,
         "signature": "public function setInput(InputInterface $input)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::set_input",
+        "evidence": [
+          "console_io_tutorial",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "setOutput",
         "source_line": 428,
         "signature": "public function setOutput(OutputStyle $output)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::set_output",
+        "evidence": [
+          "console_io_tutorial",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "getOutput",
         "source_line": 468,
         "signature": "public function getOutput()",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_typed_parameters",
+        "native": "console::CommandIo::get_output",
+        "evidence": [
+          "console_io_tutorial",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "outputComponents",
@@ -311,9 +291,12 @@
         "method": "__construct",
         "source_line": 44,
         "signature": "public function __construct(InputInterface $input, OutputInterface $output)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::new",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "askQuestion",
@@ -327,81 +310,111 @@
         "method": "write",
         "source_line": 68,
         "signature": "public function write(string|iterable $messages, bool $newline = false, int $options = 0): void",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::write",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "writeln",
         "source_line": 80,
         "signature": "public function writeln(string|iterable $messages, int $type = self::OUTPUT_NORMAL): void",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::writeln",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "newLine",
         "source_line": 94,
         "signature": "public function newLine(int $count = 1): void",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::new_line",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "newLinesWritten",
         "source_line": 105,
         "signature": "public function newLinesWritten()",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::new_lines_written",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "newLineWritten",
         "source_line": 119,
         "signature": "public function newLineWritten()",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::new_line_written",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "isQuiet",
         "source_line": 154,
         "signature": "public function isQuiet(): bool",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::is_quiet",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "isVerbose",
         "source_line": 164,
         "signature": "public function isVerbose(): bool",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::is_verbose",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "isVeryVerbose",
         "source_line": 174,
         "signature": "public function isVeryVerbose(): bool",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::is_very_verbose",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "isDebug",
         "source_line": 184,
         "signature": "public function isDebug(): bool",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::is_debug",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       },
       {
         "method": "getOutput",
         "source_line": 194,
         "signature": "public function getOutput()",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_borrowed_output",
+        "native": "console::OutputStyle::get_output",
+        "evidence": [
+          "output-style-oracle.json",
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+        ]
       }
     ]
   },
@@ -432,6 +445,277 @@
       "evidence": [
         "console_io_tutorial::color_depths_hex_colors_and_hyperlinks_match_the_fixed_formatter_in_independent_processes"
       ]
+    },
+    {
+      "native": "OutputOptions / OutputMessages / OutputVerbosity",
+      "reason": "用枚举和独立字段表达消息类型、格式及详细程度，保留字符串／逐条列表的换行区别；默认方法保留，显式参数使用_with；不照搬任意整数位掩码。Silent作为消息选项沿固定输出掩码规则落回Normal，不作为绕过静默的消息级别。 任意字符串迭代器通过write_iter／writeln_iter一次收集条目以兼顾换行统计及单次遍历；不额外复制消息正文。",
+      "evidence": [
+        "output-style-oracle.json",
+        "artisan_docs_generated"
+      ]
+    },
+    {
+      "native": "OutputStyle borrowed concrete output",
+      "reason": "包装本次Input和Output的借用，get_output返回原始Output；显式替换输入和输出经真实入口验证。上游OutputStyle嵌套包装的计数委托和其他继承接口仍单列待核对，不能据本批十一条入口关闭完整类型。",
+      "evidence": [
+        "console_io_tutorial::command_io_can_replace_its_input_and_its_real_output_style"
+      ]
     }
+  ],
+  "inherited_output_style_inventory": {
+    "OutputStyle": [
+      {
+        "method": "__construct",
+        "source_line": 26,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "newLine",
+        "source_line": 31,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "createProgressBar",
+        "source_line": 36,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "write",
+        "source_line": 41,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "writeln",
+        "source_line": 46,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "setVerbosity",
+        "source_line": 51,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "getVerbosity",
+        "source_line": 56,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "setDecorated",
+        "source_line": 61,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "isDecorated",
+        "source_line": 66,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "setFormatter",
+        "source_line": 71,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "getFormatter",
+        "source_line": 76,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "isSilent",
+        "source_line": 81,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "isQuiet",
+        "source_line": 87,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "isVerbose",
+        "source_line": 92,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "isVeryVerbose",
+        "source_line": 97,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "isDebug",
+        "source_line": 102,
+        "status": "overridden_contract_above"
+      }
+    ],
+    "SymfonyStyle": [
+      {
+        "method": "__construct",
+        "source_line": 51,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "block",
+        "source_line": 66,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "title",
+        "source_line": 75,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "section",
+        "source_line": 85,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "listing",
+        "source_line": 95,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "text",
+        "source_line": 104,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "comment",
+        "source_line": 117,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "success",
+        "source_line": 122,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "error",
+        "source_line": 127,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "warning",
+        "source_line": 132,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "note",
+        "source_line": 137,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "info",
+        "source_line": 145,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "caution",
+        "source_line": 150,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "table",
+        "source_line": 155,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "horizontalTable",
+        "source_line": 169,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "definitionList",
+        "source_line": 189,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "ask",
+        "source_line": 214,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "askHidden",
+        "source_line": 222,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "confirm",
+        "source_line": 232,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "choice",
+        "source_line": 237,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "progressStart",
+        "source_line": 250,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "progressAdvance",
+        "source_line": 256,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "progressFinish",
+        "source_line": 261,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "createProgressBar",
+        "source_line": 268,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "progressIterate",
+        "source_line": 292,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "askQuestion",
+        "source_line": 299,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "writeln",
+        "source_line": 322,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "write",
+        "source_line": 334,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "newLine",
+        "source_line": 346,
+        "status": "overridden_contract_above"
+      },
+      {
+        "method": "getErrorStyle",
+        "source_line": 355,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "createTable",
+        "source_line": 360,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "tree",
+        "source_line": 378,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "createTree",
+        "source_line": 386,
+        "status": "pending_entry_and_behavior_review"
+      }
+    ]
+  },
+  "remaining_output_style_behaviors": [
+    "ask_question及具体Question／Choice／Confirmation公开类型与交互消费者",
+    "嵌套OutputStyle包装的计数委托",
+    "继承的格式器／详细程度设置、组件样式、问答、表格、进度及其他清单入口"
   ]
 }

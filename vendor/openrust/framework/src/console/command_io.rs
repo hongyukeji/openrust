@@ -1,12 +1,12 @@
 use serde_json::{Map, Value};
 
-use super::{CommandInput, ConsoleError, Input, Output};
+use super::{CommandInput, ConsoleError, Input, Output, OutputStyle, OutputVerbosity};
 use crate::support::Str;
 
 /// 命令执行期间的输入／输出上下文，借用原输入及输出，不保存跨调用状态。
 pub struct CommandIo<'a> {
     input: &'a Input,
-    output: &'a mut Output,
+    output: OutputStyle<'a>,
 }
 impl Input {
     pub fn io<'a>(&'a self, output: &'a mut Output) -> CommandIo<'a> {
@@ -15,7 +15,10 @@ impl Input {
 }
 impl<'a> CommandIo<'a> {
     pub fn new(input: &'a Input, output: &'a mut Output) -> Self {
-        Self { input, output }
+        Self {
+            input,
+            output: OutputStyle::new(input, output),
+        }
     }
     pub fn has_argument(&self, name: &str) -> bool {
         self.input.has_argument(name)
@@ -44,74 +47,105 @@ impl<'a> CommandIo<'a> {
 
     /// 沿用原组件入口；后续实时写入前会先发出待写组件，保持顺序。
     pub fn components(&mut self) -> &mut Output {
-        self.output
+        self.output.get_output()
     }
     pub fn output_components(&mut self) -> &mut Output {
         self.components()
     }
 
-    pub fn line(&mut self, message: &str) -> Result<(), ConsoleError> {
-        self.styled(message, None)
+    pub fn get_output(&mut self) -> &mut OutputStyle<'a> {
+        &mut self.output
     }
-    pub fn info(&mut self, message: &str) -> Result<(), ConsoleError> {
-        self.styled(message, Some("info"))
+    pub fn set_output(&mut self, output: OutputStyle<'a>) {
+        self.output = output;
     }
-    pub fn question(&mut self, message: &str) -> Result<(), ConsoleError> {
-        self.styled(message, Some("question"))
-    }
-    pub fn warn(&mut self, message: &str) -> Result<(), ConsoleError> {
-        self.output.formatter.register_warning();
-        self.styled(message, Some("warning"))
-    }
-    pub fn error(&mut self, message: &str) -> Result<(), ConsoleError> {
-        self.styled(message, Some("error"))
-    }
-    pub fn comment(&mut self, message: &str) -> Result<(), ConsoleError> {
-        self.styled(message, Some("comment"))
+    pub fn set_input(&mut self, input: &'a Input) {
+        self.input = input;
     }
 
-    pub fn alert(&mut self, message: &str) -> Result<(), ConsoleError> {
-        let border = "*".repeat(Str::of(message).strip_tags(&[]).length() + 12);
-        self.comment(&border)?;
-        self.comment(&format!("*     {message}     *"))?;
-        self.comment(&border)?;
-        self.comment("")
+    pub fn line(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.line_with(message, None, None)
     }
-    pub fn new_line(&mut self, count: usize) -> Result<&mut Self, ConsoleError> {
-        self.emit(&"\n".repeat(count))?;
-        Ok(self)
-    }
-    fn styled(&mut self, message: &str, style: Option<&str>) -> Result<(), ConsoleError> {
-        if self.output.suppressed {
-            return Ok(());
-        }
-        let wrapped = style.map_or_else(
+    pub fn line_with(
+        &mut self,
+        message: &str,
+        style: Option<&str>,
+        verbosity: Option<OutputVerbosity>,
+    ) -> Result<(), ConsoleError> {
+        let wrapped = style.filter(|style| !style.is_empty()).map_or_else(
             || message.to_owned(),
             |style| format!("<{style}>{message}</{style}>"),
         );
-        let mut rendered = self
-            .output
-            .formatter
-            .format(&wrapped, self.output.is_decorated())
-            .map_err(ConsoleError::from_source)?;
-        rendered.push('\n');
-        self.emit(&rendered)
-    }
-    fn emit(&mut self, message: &str) -> Result<(), ConsoleError> {
-        if self.output.suppressed {
-            return Ok(());
-        }
-        if self.output.streams_to_terminal() && !self.output.stdout.is_empty() {
-            // 实时模式只保留待发内容，避免长任务累积整段终端历史。
-            self.output.capture_generation = self.output.capture_generation.wrapping_add(1);
-            let pending = std::mem::take(&mut self.output.stdout);
-            if let Err(source) = self.output.write_raw(&pending) {
-                self.output.stdout = pending;
-                return Err(ConsoleError::from_source(source));
-            }
-        }
         self.output
-            .write_raw(message)
-            .map_err(ConsoleError::from_source)
+            .writeln(wrapped.as_str(), verbosity.unwrap_or_default())
+    }
+    pub fn info(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.info_with(message, OutputVerbosity::Normal)
+    }
+    pub fn info_with(
+        &mut self,
+        message: &str,
+        verbosity: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        self.line_with(message, Some("info"), Some(verbosity))
+    }
+    pub fn comment(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.comment_with(message, OutputVerbosity::Normal)
+    }
+    pub fn comment_with(
+        &mut self,
+        message: &str,
+        verbosity: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        self.line_with(message, Some("comment"), Some(verbosity))
+    }
+    pub fn question(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.question_with(message, OutputVerbosity::Normal)
+    }
+    pub fn question_with(
+        &mut self,
+        message: &str,
+        verbosity: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        self.line_with(message, Some("question"), Some(verbosity))
+    }
+    pub fn warn(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.warn_with(message, OutputVerbosity::Normal)
+    }
+    pub fn warn_with(
+        &mut self,
+        message: &str,
+        verbosity: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        self.output.get_output().formatter.register_warning();
+        self.line_with(message, Some("warning"), Some(verbosity))
+    }
+    pub fn error(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.error_with(message, OutputVerbosity::Normal)
+    }
+    pub fn error_with(
+        &mut self,
+        message: &str,
+        verbosity: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        self.line_with(message, Some("error"), Some(verbosity))
+    }
+    pub fn alert(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.alert_with(message, OutputVerbosity::Normal)
+    }
+    pub fn alert_with(
+        &mut self,
+        message: &str,
+        verbosity: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        let border = "*".repeat(Str::of(message).strip_tags(&[]).length() + 12);
+        self.comment_with(&border, verbosity)?;
+        self.comment_with(&format!("*     {message}     *"), verbosity)?;
+        self.comment_with(&border, verbosity)?;
+        self.comment_with("", verbosity)
+    }
+    pub fn new_line(&mut self, count: usize) -> Result<&mut Self, ConsoleError> {
+        self.output.new_line(count)?;
+        Ok(self)
     }
 }

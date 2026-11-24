@@ -1,6 +1,7 @@
 use openrust::{
     console::{
         AsyncCommandCallback, CommandDefinition, ConsoleError, ConsoleFormatError, Input, Output,
+        OutputFormat, OutputOptions, OutputVerbosity,
     },
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing},
@@ -11,6 +12,135 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 fn commands() -> Result<(), ConsoleError> {
     let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    Artisan::command_with("io:style {level}", |input: &Input, output: &mut Output| {
+        let cases: Value = serde_json::from_str(include_str!(
+            "../../../../.agents/project/audits/artisan-tutorial/output-style-oracle.json"
+        ))
+        .unwrap();
+        let level = input
+            .argument("level")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
+        let mut io = input.io(output);
+        let style = io.get_output();
+        assert_eq!(style.new_lines_written(), 1);
+        assert!(!style.new_line_written());
+        for case in cases
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|case| case["level"] == level)
+        {
+            let before = style.get_output().stdout.len();
+            let numeric = case["options"].as_u64().unwrap();
+            let options = match numeric {
+                2 => OutputFormat::Raw.into(),
+                4 => OutputFormat::Plain.into(),
+                8 => OutputVerbosity::Silent.into(),
+                16 => OutputVerbosity::Quiet.into(),
+                18 => OutputOptions {
+                    format: OutputFormat::Raw,
+                    verbosity: Some(OutputVerbosity::Quiet),
+                },
+                20 => OutputOptions {
+                    format: OutputFormat::Plain,
+                    verbosity: Some(OutputVerbosity::Quiet),
+                },
+                64 => OutputVerbosity::Verbose.into(),
+                128 => OutputVerbosity::VeryVerbose.into(),
+                256 => OutputVerbosity::Debug.into(),
+                _ => OutputOptions::default(),
+            };
+            if case["method"] == "newLine" {
+                style.new_line(case["message"].as_u64().unwrap() as usize)?;
+            } else {
+                let strings: Vec<_> = case["message"]
+                    .as_array()
+                    .map(|values| values.iter().map(|value| value.as_str().unwrap()).collect())
+                    .unwrap_or_default();
+                let messages = case["message"]
+                    .as_str()
+                    .map(openrust::console::OutputMessages::Text)
+                    .unwrap_or(openrust::console::OutputMessages::Lines(&strings));
+                if case["message"].is_array() {
+                    if case["method"] == "write" {
+                        style.write_iter(
+                            strings.iter().map(|value| value.to_string()),
+                            case["newline"].as_bool().unwrap(),
+                            options,
+                        )?;
+                    } else {
+                        style
+                            .writeln_iter(strings.iter().map(|value| value.to_string()), options)?;
+                    }
+                } else if case["method"] == "write" {
+                    style.write(messages, case["newline"].as_bool().unwrap(), options)?;
+                } else {
+                    style.writeln(messages, options)?;
+                }
+            }
+            assert_eq!(
+                &style.get_output().stdout[before..],
+                case["output"].as_str().unwrap(),
+                "{case}"
+            );
+            assert_eq!(
+                style.new_lines_written() as u64,
+                case["new_lines"].as_u64().unwrap(),
+                "{case}"
+            );
+            assert_eq!(
+                style.new_line_written(),
+                case["new_line"].as_bool().unwrap(),
+                "{case}"
+            );
+            assert_eq!(
+                json!([
+                    style.is_quiet(),
+                    style.is_verbose(),
+                    style.is_very_verbose(),
+                    style.is_debug()
+                ]),
+                case["flags"],
+                "{case}"
+            );
+        }
+        Ok(0)
+    })?;
+    Artisan::command_with("io:threshold", |input: &Input, output: &mut Output| {
+        output.info("HIDDEN_COMPONENT");
+        let mut io = input.io(output);
+        io.info("NORMAL_MESSAGE")?;
+        io.line_with("QUIET_LINE", Some("info"), Some(OutputVerbosity::Quiet))?;
+        io.info_with("QUIET_INFO", OutputVerbosity::Quiet)?;
+        io.comment_with("QUIET_COMMENT", OutputVerbosity::Quiet)?;
+        io.question_with("QUIET_QUESTION", OutputVerbosity::Quiet)?;
+        io.warn_with("QUIET_WARN", OutputVerbosity::Quiet)?;
+        io.error_with("QUIET_ERROR", OutputVerbosity::Quiet)?;
+        io.alert_with("QUIET_ALERT", OutputVerbosity::Quiet)?;
+        io.line_with("VERBOSE_LINE", None, Some(OutputVerbosity::Verbose))?;
+        io.line_with(
+            "VERY_VERBOSE_LINE",
+            None,
+            Some(OutputVerbosity::VeryVerbose),
+        )?;
+        io.line_with("DEBUG_LINE", None, Some(OutputVerbosity::Debug))?;
+        Ok(0)
+    })?;
+    Artisan::command_with(
+        "io:threshold-parent",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                input.io(output).line("PARENT_BEFORE")?;
+                Artisan::call("io:threshold", &["--quiet".into()], output).await?;
+                input.io(output).line("PARENT_AFTER")?;
+                Ok(0)
+            })
+        }),
+    )?;
     Artisan::command_with(
         "io:captured",
         AsyncCommandCallback::new(move |_, input, output| {
@@ -115,6 +245,15 @@ fn app(path: &Path) -> Application {
         .unwrap()
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
+    Route::get("/io-quiet", || async {
+        let mut output = Output::default();
+        Artisan::call("io:threshold", &["--quiet".into()], &mut output)
+            .await
+            .map_err(|source| openrust::http::HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        Ok::<_, openrust::http::HttpError>(output.stdout)
+    })?;
     Route::get("/io-error", || async {
         let mut output = Output::default();
         Artisan::call(
@@ -266,6 +405,16 @@ async fn actual_http_captures_output_without_writing_the_process_terminal() {
             .await
             .unwrap(),
         "Ready\n"
+    );
+    let response = reqwest::get(format!("http://{address}/io-quiet"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let text = response.text().await.unwrap();
+    assert!(
+        text.contains("QUIET_INFO")
+            && !text.contains("NORMAL_MESSAGE")
+            && !text.contains("HIDDEN_COMPONENT")
     );
     server.abort();
     let _ = server.await;
@@ -516,4 +665,186 @@ async fn quiet_and_silent_skip_formatting_without_changing_shared_style_state() 
         }
     })
     .await;
+}
+
+#[tokio::test]
+async fn output_style_tracks_real_source_newlines_formats_and_verbosity() {
+    let root = tempfile::tempdir().unwrap();
+    let mut application = app(root.path());
+    application.boot().await.unwrap();
+    App::set_facade_application(Some(&application), async {
+        for (level, flag) in [
+            (8, "--silent"),
+            (16, "--quiet"),
+            (32, "--no-ansi"),
+            (64, "-v"),
+            (128, "-vv"),
+            (256, "-vvv"),
+        ] {
+            let mut output = Output::default();
+            Artisan::call(
+                "io:style",
+                &[level.to_string().into(), flag.into()],
+                &mut output,
+            )
+            .await
+            .unwrap();
+        }
+    })
+    .await;
+}
+#[test]
+fn command_io_can_replace_its_input_and_its_real_output_style() {
+    use openrust::console::OutputStyle;
+    let definition = CommandDefinition::from_signature("read {name}").unwrap();
+    let input = definition.parse(&["first".into()]).unwrap();
+    let second = definition.parse(&["second".into()]).unwrap();
+    let mut first_output = Output::default();
+    let mut second_output = Output::default();
+    {
+        let mut io = input.io(&mut first_output);
+        io.line("first").unwrap();
+        io.set_input(&second);
+        assert_eq!(io.argument("name"), Some(json!("second")));
+        io.set_output(OutputStyle::new(&second, &mut second_output));
+        assert_eq!(io.get_output().new_lines_written(), 1);
+        io.line("second").unwrap();
+        assert_eq!(io.get_output().new_lines_written(), 1);
+        io.get_output().get_output().write_raw("raw").unwrap();
+    }
+    assert_eq!(first_output.stdout, "first\n");
+    assert_eq!(second_output.stdout, "second\nraw");
+    for (name, expected) in [
+        ("v", OutputVerbosity::Verbose),
+        ("vv", OutputVerbosity::VeryVerbose),
+        ("vvv", OutputVerbosity::Debug),
+        ("quiet", OutputVerbosity::Quiet),
+        ("normal", OutputVerbosity::Normal),
+        ("unknown", OutputVerbosity::Normal),
+    ] {
+        assert_eq!(OutputVerbosity::from_name(name), expected);
+    }
+}
+#[tokio::test]
+async fn explicit_quiet_messages_survive_capture_and_real_cli_but_silent_never_writes_them() {
+    let root = tempfile::tempdir().unwrap();
+    let mut application = app(root.path());
+    application.boot().await.unwrap();
+    App::set_facade_application(Some(&application), async {
+        for flag in ["--quiet", "--silent", "--no-ansi", "-v", "-vv", "-vvv"] {
+            let mut output = Output::default();
+            output.stdout.push_str("PREFIX\n");
+            Artisan::call("io:threshold-parent", &[flag.into()], &mut output)
+                .await
+                .unwrap();
+            if flag == "--silent" {
+                assert_eq!(output.stdout, "PREFIX\n");
+            } else {
+                for label in [
+                    "QUIET_LINE",
+                    "QUIET_INFO",
+                    "QUIET_COMMENT",
+                    "QUIET_QUESTION",
+                    "QUIET_WARN",
+                    "QUIET_ERROR",
+                    "QUIET_ALERT",
+                ] {
+                    assert_eq!(
+                        output.stdout.matches(label).count(),
+                        1,
+                        "{flag}: {}",
+                        output.stdout
+                    );
+                }
+                assert!(!output.stdout.contains("NORMAL_MESSAGE"));
+                assert!(!output.stdout.contains("HIDDEN_COMPONENT"));
+                assert_eq!(output.stdout.contains("PARENT_BEFORE"), flag != "--quiet");
+                assert_eq!(output.stdout.contains("PARENT_AFTER"), flag != "--quiet");
+            }
+        }
+        let mut output = Output::default();
+        for expected in 1..=3 {
+            Artisan::call("io:threshold", &["--quiet".into()], &mut output)
+                .await
+                .unwrap();
+            assert_eq!(output.stdout.matches("QUIET_INFO").count(), expected);
+        }
+        Artisan::call(
+            "io:output",
+            &["line".into(), "RESTORED".into()],
+            &mut output,
+        )
+        .await
+        .unwrap();
+        assert!(output.stdout.ends_with("RESTORED\n"));
+        for (flag, verbose, very, debug) in [
+            ("--no-ansi", false, false, false),
+            ("-v", true, false, false),
+            ("-vv", true, true, false),
+            ("-vvv", true, true, true),
+        ] {
+            let mut output = Output::default();
+            Artisan::call("io:threshold", &[flag.into()], &mut output)
+                .await
+                .unwrap();
+            assert_eq!(
+                output.stdout.lines().any(|line| line == "VERBOSE_LINE"),
+                verbose
+            );
+            assert_eq!(
+                output
+                    .stdout
+                    .lines()
+                    .any(|line| line == "VERY_VERBOSE_LINE"),
+                very
+            );
+            assert_eq!(
+                output.stdout.lines().any(|line| line == "DEBUG_LINE"),
+                debug
+            );
+        }
+    })
+    .await;
+    for flag in ["--quiet", "--silent", "-vvv", "-qv"] {
+        let result = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "stream_fixture", "--ignored", "--nocapture"])
+            .env("COMMAND_IO_ROOT", root.path())
+            .env("COMMAND_IO_COMMAND", format!("io:threshold-parent {flag}"))
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let text = String::from_utf8(result.stdout).unwrap();
+        assert_eq!(
+            text.contains("QUIET_INFO"),
+            flag != "--silent",
+            "{flag}: {text}"
+        );
+        assert!(
+            !text.contains("NORMAL_MESSAGE") && !text.contains("HIDDEN_COMPONENT"),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn output_style_accepts_owned_single_pass_string_iterators_without_a_parallel_writer() {
+    let input = CommandDefinition::from_signature("iterator")
+        .unwrap()
+        .parse(&[])
+        .unwrap();
+    let mut output = Output::default();
+    let mut source = vec!["借".to_owned(), String::new()].into_iter();
+    let mut io = input.io(&mut output);
+    io.get_output()
+        .writeln_iter(
+            std::iter::from_fn(move || source.next()),
+            OutputOptions::default(),
+        )
+        .unwrap();
+    assert_eq!(io.get_output().new_lines_written(), 3);
+    assert_eq!(io.get_output().get_output().stdout, "借\n\n");
 }

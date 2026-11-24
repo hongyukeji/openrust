@@ -103,3 +103,19 @@ line／info／comment／question／warn／error／alert／new_line(count)沿原w
 最终8框架目标39项＋根6目标65项，共104父测试通过（含三语24个正式直接示例、初始化16项与Runner）；两终端夹具ignore明确排除，流式夹具在实际父消费者内运行，三语提示示例另逐语PTY复验。workspace fmt、all-targets严格Clippy25.13s、main(pail)及三语构建全0，实际main HTTP／静态／HTML及JSON404／HEAD、独立Artisan inspire／list／Pail错误捕获与清理／Ctrl+C通过，12组双前缀／两宽度浏览器覆盖新writing-command-output。候选已吸收提交版c0a2a7b9c，未夹带当前其他数据库／认证在途内容；sha见accepted-io.json。证据io-frozen-tests.log及额外io-final-http.log、io-frozen-{root,fmt,clippy,main,docs,gates,runtime,formal-tty,browser}.log，原始PHP结果与stderr、io-tests*.log保留。合法输出向量和非法hex差异的验证分开记录，不把PHP异常前缺依赖的结果计通过。
 
 三语明确消息默认详细程度、实时／捕获边界、类型化读取及原生闭包适配；逐消息verbosity／可选style、OutputStyle、交互问答、表格／进度条及其余公开契约继续依io-contracts核对。writing-output更新为默认参数已验，整节／整章均不提前关闭。保留增量缓存、独立源码与日志，正式示例PTY夹具清理；本批无存活服务或容器，不推送。
+
+## 第八簇：OutputStyle与消息详细程度（2026-11-25）
+
+第七簇已提交b81615bdd。按固定OutputStyle、InteractsWithIO及Symfony Console7.4的实际输出对象接入console::OutputStyle；CommandIo持有它，get_output返回真实样式对象，其get_output借用原始Output。set_input替换输入读取，set_output接受借用替代流的新样式对象；原输入／输出受Rust借用约束存活，未用同名Output方法冒充类型。write／writeln支持字符串及逐条切片，write_iter／writeln_iter支持拥有的字符串及非Clone的单次迭代器；格式、详细程度用OutputOptions／OutputFormat／OutputVerbosity表达，不照搬任意整数位掩码。默认消息方法保持原调用，新_with入口提供阈值，line_with另接可选样式。
+
+真实PHP8.5.12运行固定OutputStyle＋BufferedOutput的六级84向量，覆盖write／writeln／newLine、列表／空列表、正常／raw／plain、详细程度与格式组合、两种换行查询和四状态查询；在实际Artisan注册命令中逐条比较文本与计数。Silent的值为固定Symfony7.4的8，不沿用其他版本的负数；作为消息选项8不属于消息详细程度掩码，落回Normal，不能绕过silent。初轮把Raw／Plain数值误认成1／2暴露实际PHP反例，已核对准确2／4并重建来源向量；初轮Stringable返回借用及测试构造器参数错误均已修复，失败日志保留，不计通过。
+
+修复quiet捕获路径：旧流程在退出时截掉全部stdout，导致明确Quiet消息也丢失。新流程仅保留已通过阈值写入的区间，普通旧组件仍被隐藏；静默独立标记，silent不允许任何阈值绕过。调度作用域退出时清理本次隐藏缓冲并恢复外层元数据；外层原缓冲及之前Quiet区间保留。连续调用、嵌套Quiet调用、恢复Normal、-v／-vv／-vvv、合并-qv、实际二进制handle_command与真实HTTP/捕获均经消费者验证。旧组件到实时消息顺序及门闩在完成前送达的回归仍通过；没有为Explicit Quiet新建输出通道或保留整段终端历史。
+
+换行初值一／false，write即使被隐藏也更新计数，而writeln按固定数值阈值判断是否更新；列表计数与真实输出分开验。直接编辑原缓冲不更新样式统计。原始字符串迭代器的差异单列：固定PHP实现先为计数耗尽Generator，随后实际抛Cannot traverse an already closed generator；原始结果output-style-generator-source.json保留。本实现只遍历一次并保存条目后统计、写出，不额外复制正文；非Clone单次迭代器实际通过。它是已说明的原生迭代适配，不把PHP Generator异常当作输出成功。
+
+最终55框架＋68根父消费者共123项通过，含三语27个直接正式示例与初始化16项；两个终端夹具ignore不计通过，实际流式子夹具由父消费者运行，三语提示示例另逐语PTY通过。workspace格式／all-targets严格Clippy1m09s、main(pail)和三语构建退出0；实际主程序HTTP/up／静态／HTML与JSON404／HEAD、Artisan inspire/list/Pail帮助及真实错误捕获／超时清理／Ctrl+C通过；12组三语双前缀／两宽度浏览器覆盖output-style-verbosity。全部证据style-recovered-{framework,root,fmt,clippy,main,docs,gates,runtime,formal-tty,browser}.log。候选吸收纯提交95e41c997及其9路径，不含其他认证在途代码，SHA见accepted-output-style.json。
+
+root首次门禁触及32GB停线，守卫安全停止并持锁清理编译及站点产物，释放82,589,020,160字节，恢复114,548,113,408字节可用；该root=75不计通过，恢复后重新编译并完成上述全部门禁。源码／日志／依赖／数据库保留，最终共享热缓存继续复用，三语PTY夹具清理，无本批服务或容器残留。不推送。
+
+十一条OutputStyle声明入口按本批具体借用类型及行为记验收；askQuestion、嵌套OutputStyle计数委托及继承的设置／格式器／样式／问题／表格／进度等仍逐项登记io-contracts.json。已补父类声明盘点，声明本身不算验收；完整类型、writing-output整节与Artisan整章仍未关闭，继续后续功能簇。

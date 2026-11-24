@@ -1,0 +1,1382 @@
+[
+    {
+        "level": 8,
+        "method": "write",
+        "message": "<info>A<\/info>",
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": "B\n",
+        "newline": true,
+        "options": 64,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "write",
+        "message": [
+            "C",
+            "\n"
+        ],
+        "newline": true,
+        "options": 16,
+        "output": "",
+        "new_lines": 4,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": [
+            "D",
+            "E"
+        ],
+        "newline": true,
+        "options": 2,
+        "output": "",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": "<other>F<\/other><info>G<\/info>",
+        "newline": true,
+        "options": 4,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "newLine",
+        "message": 2,
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 3,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "write",
+        "message": "<bad>H<\/bad>",
+        "newline": false,
+        "options": 2,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": "I",
+        "newline": true,
+        "options": 128,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": "J",
+        "newline": true,
+        "options": 256,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": "K",
+        "newline": true,
+        "options": 8,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "write",
+        "message": "<info>L<\/info>",
+        "newline": true,
+        "options": 18,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": "<other>M<\/other>",
+        "newline": true,
+        "options": 20,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "write",
+        "message": [],
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 8,
+        "method": "writeln",
+        "message": [],
+        "newline": true,
+        "options": 0,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "write",
+        "message": "<info>A<\/info>",
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": "B\n",
+        "newline": true,
+        "options": 64,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "write",
+        "message": [
+            "C",
+            "\n"
+        ],
+        "newline": true,
+        "options": 16,
+        "output": "C\n\n\n",
+        "new_lines": 4,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": [
+            "D",
+            "E"
+        ],
+        "newline": true,
+        "options": 2,
+        "output": "",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": "<other>F<\/other><info>G<\/info>",
+        "newline": true,
+        "options": 4,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "newLine",
+        "message": 2,
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 3,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "write",
+        "message": "<bad>H<\/bad>",
+        "newline": false,
+        "options": 2,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": "I",
+        "newline": true,
+        "options": 128,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": "J",
+        "newline": true,
+        "options": 256,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": "K",
+        "newline": true,
+        "options": 8,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "write",
+        "message": "<info>L<\/info>",
+        "newline": true,
+        "options": 18,
+        "output": "<info>L<\/info>\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": "<other>M<\/other>",
+        "newline": true,
+        "options": 20,
+        "output": "M\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "write",
+        "message": [],
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 16,
+        "method": "writeln",
+        "message": [],
+        "newline": true,
+        "options": 0,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            true,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "write",
+        "message": "<info>A<\/info>",
+        "newline": false,
+        "options": 0,
+        "output": "A",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": "B\n",
+        "newline": true,
+        "options": 64,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "write",
+        "message": [
+            "C",
+            "\n"
+        ],
+        "newline": true,
+        "options": 16,
+        "output": "C\n\n\n",
+        "new_lines": 4,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": [
+            "D",
+            "E"
+        ],
+        "newline": true,
+        "options": 2,
+        "output": "D\nE\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": "<other>F<\/other><info>G<\/info>",
+        "newline": true,
+        "options": 4,
+        "output": "FG\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "newLine",
+        "message": 2,
+        "newline": false,
+        "options": 0,
+        "output": "\n\n",
+        "new_lines": 3,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "write",
+        "message": "<bad>H<\/bad>",
+        "newline": false,
+        "options": 2,
+        "output": "<bad>H<\/bad>",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": "I",
+        "newline": true,
+        "options": 128,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": "J",
+        "newline": true,
+        "options": 256,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": "K",
+        "newline": true,
+        "options": 8,
+        "output": "K\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "write",
+        "message": "<info>L<\/info>",
+        "newline": true,
+        "options": 18,
+        "output": "<info>L<\/info>\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": "<other>M<\/other>",
+        "newline": true,
+        "options": 20,
+        "output": "M\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "write",
+        "message": [],
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 32,
+        "method": "writeln",
+        "message": [],
+        "newline": true,
+        "options": 0,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "write",
+        "message": "<info>A<\/info>",
+        "newline": false,
+        "options": 0,
+        "output": "A",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": "B\n",
+        "newline": true,
+        "options": 64,
+        "output": "B\n\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "write",
+        "message": [
+            "C",
+            "\n"
+        ],
+        "newline": true,
+        "options": 16,
+        "output": "C\n\n\n",
+        "new_lines": 4,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": [
+            "D",
+            "E"
+        ],
+        "newline": true,
+        "options": 2,
+        "output": "D\nE\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": "<other>F<\/other><info>G<\/info>",
+        "newline": true,
+        "options": 4,
+        "output": "FG\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "newLine",
+        "message": 2,
+        "newline": false,
+        "options": 0,
+        "output": "\n\n",
+        "new_lines": 3,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "write",
+        "message": "<bad>H<\/bad>",
+        "newline": false,
+        "options": 2,
+        "output": "<bad>H<\/bad>",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": "I",
+        "newline": true,
+        "options": 128,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": "J",
+        "newline": true,
+        "options": 256,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": "K",
+        "newline": true,
+        "options": 8,
+        "output": "K\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "write",
+        "message": "<info>L<\/info>",
+        "newline": true,
+        "options": 18,
+        "output": "<info>L<\/info>\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": "<other>M<\/other>",
+        "newline": true,
+        "options": 20,
+        "output": "M\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "write",
+        "message": [],
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 64,
+        "method": "writeln",
+        "message": [],
+        "newline": true,
+        "options": 0,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            false,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "write",
+        "message": "<info>A<\/info>",
+        "newline": false,
+        "options": 0,
+        "output": "A",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": "B\n",
+        "newline": true,
+        "options": 64,
+        "output": "B\n\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "write",
+        "message": [
+            "C",
+            "\n"
+        ],
+        "newline": true,
+        "options": 16,
+        "output": "C\n\n\n",
+        "new_lines": 4,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": [
+            "D",
+            "E"
+        ],
+        "newline": true,
+        "options": 2,
+        "output": "D\nE\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": "<other>F<\/other><info>G<\/info>",
+        "newline": true,
+        "options": 4,
+        "output": "FG\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "newLine",
+        "message": 2,
+        "newline": false,
+        "options": 0,
+        "output": "\n\n",
+        "new_lines": 3,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "write",
+        "message": "<bad>H<\/bad>",
+        "newline": false,
+        "options": 2,
+        "output": "<bad>H<\/bad>",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": "I",
+        "newline": true,
+        "options": 128,
+        "output": "I\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": "J",
+        "newline": true,
+        "options": 256,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": "K",
+        "newline": true,
+        "options": 8,
+        "output": "K\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "write",
+        "message": "<info>L<\/info>",
+        "newline": true,
+        "options": 18,
+        "output": "<info>L<\/info>\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": "<other>M<\/other>",
+        "newline": true,
+        "options": 20,
+        "output": "M\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "write",
+        "message": [],
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 128,
+        "method": "writeln",
+        "message": [],
+        "newline": true,
+        "options": 0,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            false
+        ]
+    },
+    {
+        "level": 256,
+        "method": "write",
+        "message": "<info>A<\/info>",
+        "newline": false,
+        "options": 0,
+        "output": "A",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": "B\n",
+        "newline": true,
+        "options": 64,
+        "output": "B\n\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "write",
+        "message": [
+            "C",
+            "\n"
+        ],
+        "newline": true,
+        "options": 16,
+        "output": "C\n\n\n",
+        "new_lines": 4,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": [
+            "D",
+            "E"
+        ],
+        "newline": true,
+        "options": 2,
+        "output": "D\nE\n",
+        "new_lines": 2,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": "<other>F<\/other><info>G<\/info>",
+        "newline": true,
+        "options": 4,
+        "output": "FG\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "newLine",
+        "message": 2,
+        "newline": false,
+        "options": 0,
+        "output": "\n\n",
+        "new_lines": 3,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "write",
+        "message": "<bad>H<\/bad>",
+        "newline": false,
+        "options": 2,
+        "output": "<bad>H<\/bad>",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": "I",
+        "newline": true,
+        "options": 128,
+        "output": "I\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": "J",
+        "newline": true,
+        "options": 256,
+        "output": "J\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": "K",
+        "newline": true,
+        "options": 8,
+        "output": "K\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "write",
+        "message": "<info>L<\/info>",
+        "newline": true,
+        "options": 18,
+        "output": "<info>L<\/info>\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": "<other>M<\/other>",
+        "newline": true,
+        "options": 20,
+        "output": "M\n",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "write",
+        "message": [],
+        "newline": false,
+        "options": 0,
+        "output": "",
+        "new_lines": 0,
+        "new_line": false,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    },
+    {
+        "level": 256,
+        "method": "writeln",
+        "message": [],
+        "newline": true,
+        "options": 0,
+        "output": "",
+        "new_lines": 1,
+        "new_line": true,
+        "flags": [
+            false,
+            true,
+            true,
+            true
+        ]
+    }
+]

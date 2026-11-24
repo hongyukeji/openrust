@@ -13,6 +13,7 @@ mod input;
 mod isolation;
 mod list_command;
 pub(crate) mod localization;
+mod output_style;
 mod planned;
 mod prompting;
 pub mod scheduling;
@@ -43,6 +44,7 @@ pub use formatting::ConsoleFormatError;
 pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
+pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity};
 pub use prompting::{CommandRegistration, MissingInputPrompt};
 
 /// A future for a console command or lifecycle hook.
@@ -88,6 +90,8 @@ pub struct Output {
     decorated: bool,
     verbosity: u8,
     suppressed: bool,
+    silent: bool,
+    quiet_ranges: Vec<std::ops::Range<usize>>,
     terminal: bool,
     capture_generation: u64,
     formatter: formatting::Formatter,
@@ -116,6 +120,99 @@ impl Output {
 
     pub fn is_very_verbose(&self) -> bool {
         !self.suppressed && self.verbosity >= 2
+    }
+
+    pub fn verbosity(&self) -> OutputVerbosity {
+        if self.silent {
+            OutputVerbosity::Silent
+        } else if self.suppressed {
+            OutputVerbosity::Quiet
+        } else {
+            match self.verbosity {
+                0 => OutputVerbosity::Normal,
+                1 => OutputVerbosity::Verbose,
+                2 => OutputVerbosity::VeryVerbose,
+                _ => OutputVerbosity::Debug,
+            }
+        }
+    }
+    pub fn is_quiet(&self) -> bool {
+        self.verbosity() == OutputVerbosity::Quiet
+    }
+    pub fn is_silent(&self) -> bool {
+        self.silent
+    }
+    pub fn is_debug(&self) -> bool {
+        self.verbosity() == OutputVerbosity::Debug
+    }
+
+    /// 保留明确标记为 quiet 的消息；普通缓冲仍受调用的静默选项控制。
+    pub(super) fn suppress_stdout_since(&mut self, start: usize, silent: bool) {
+        let start = start.min(self.stdout.len());
+        let mut accepted = String::new();
+        let mut ranges = Vec::new();
+        for range in &self.quiet_ranges {
+            if range.end <= start {
+                ranges.push(range.clone());
+                continue;
+            }
+            if range.start < start {
+                ranges.push(range.start..start);
+            }
+            if !silent {
+                let from = range.start.max(start);
+                if let Some(text) = self.stdout.get(from..range.end) {
+                    let offset = start + accepted.len();
+                    accepted.push_str(text);
+                    ranges.push(offset..start + accepted.len());
+                }
+            }
+        }
+        self.stdout.truncate(start);
+        self.stdout.push_str(&accepted);
+        self.quiet_ranges = ranges;
+    }
+
+    pub(super) fn emit_rendered(
+        &mut self,
+        message: &str,
+        level: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        if self.verbosity() < level || self.silent {
+            return Ok(());
+        }
+        if self.terminal {
+            if !self.stdout.is_empty() && !self.suppressed {
+                self.capture_generation = self.capture_generation.wrapping_add(1);
+                let pending = std::mem::take(&mut self.stdout);
+                if let Err(source) = self.write_raw(&pending) {
+                    self.stdout = pending;
+                    return Err(ConsoleError::from_source(source));
+                }
+                self.quiet_ranges.clear();
+            }
+            use std::io::Write as _;
+            let mut stdout = io::stdout().lock();
+            stdout
+                .write_all(message.as_bytes())
+                .and_then(|()| stdout.flush())
+                .map_err(ConsoleError::from_source)
+        } else {
+            let start = self.stdout.len();
+            self.stdout.push_str(message);
+            if self.suppressed && !message.is_empty() {
+                if let Some(last) = self
+                    .quiet_ranges
+                    .last_mut()
+                    .filter(|last| last.end == start)
+                {
+                    last.end = self.stdout.len();
+                } else {
+                    self.quiet_ranges.push(start..self.stdout.len());
+                }
+            }
+            Ok(())
+        }
     }
 
     /// Writes already-rendered text without interpreting formatter tags.

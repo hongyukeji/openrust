@@ -64,5 +64,26 @@ async fn formal_registry_example() {
     output_code=re.search(r'```rust\n(.*?)```',text.split('{#writing-command-output}',1)[1],re.S).group(1)
     output_checks='use openrust::console::Output;\n'+registry_checks.replace('fn formal_registry_example()', 'fn formal_output_example()').replace('.commands(register_counter)', '.commands(register_output)').replace('"reports:count"','"reports:output"').replace('assert_eq!(output.stdout,expected);','assert!(output.stdout.contains("Report ready") && output.stdout.contains("Summary") && output.stdout.contains(&format!("Calls: {}",expected))); assert!(!output.stdout.contains("<options="));')
     parts.append('mod '+locale.replace('-','_').lower()+'_output{\n'+output_code+output_checks+'}\n')
+    styled_code=re.search(r'```rust\n(.*?)```',text.split('{#output-style-verbosity}',1)[1],re.S).group(1)
+    styled_checks=r"""
+use openrust::support::facades::Facade as _;
+#[tokio::test]
+async fn formal_style_example() {
+    let root=std::env::temp_dir().join(format!("artisan-style-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=openrust::foundation::Application::configure(root.clone()).with_routing(openrust::foundation::configuration::Routing::default().commands(register_styled)).create().unwrap();
+    app.boot().await.unwrap();
+    openrust::support::facades::App::set_facade_application(Some(&app),async {
+        for flag in ["--no-ansi","-v","--quiet","--silent"] {
+            let mut output=Output::default();
+            assert_eq!(Artisan::call("reports:styled",&[flag.into()],&mut output).await.unwrap(),0);
+            if flag=="--silent" { assert!(output.stdout.is_empty()); }
+            else { assert!(output.stdout.contains("Essential")); assert_eq!(output.stdout.contains("Details"),flag=="-v"); assert_eq!(output.stdout.contains("Summary"),flag!="--quiet"); assert_eq!(output.stdout.contains("<raw>text"),flag!="--quiet"); }
+        }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+"""
+    parts.append('mod '+locale.replace('-','_').lower()+'_styled{\n'+styled_code+styled_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

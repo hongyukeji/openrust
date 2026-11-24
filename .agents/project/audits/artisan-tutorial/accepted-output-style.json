@@ -1,0 +1,28 @@
+{
+  "base": "95e41c997dfde78fb37fe915a6c736507320bf9a",
+  "sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "eec8d5dd0a8e7cbad08eb15daaf75ab0b0055b4b483047eaeeae3eca0b0f7735",
+    "vendor/openrust/framework/src/console/application.rs": "1c1ea499ad02f101c7c6fe50e186aff813dd5f5b2e3b1eb160df9cdf987179af",
+    "vendor/openrust/framework/src/console/output_style.rs": "6c9a69c9daf51fc37cc4baf3afd25caaa24d92f550f4d27e8622b5730e3f03f1",
+    "vendor/openrust/framework/src/console/command_io.rs": "864c9d94e1de5af6b486ce12ad23261e22e460e1aa345e0a0378279c406a3d47",
+    "vendor/openrust/framework/tests/console_io_tutorial.rs": "aeb1fcfd0a7f5bccf4965ac45d474ddb9ad7dffd1536fe806cff32b215a96915",
+    "tests/artisan_tutorial_docs.py": "b4bc3599c2d2c0982ff51b642c6f3012387580fc6aac78f02e2a61929cf71ef1",
+    "docs/tests/check_artisan_tutorial.mjs": "5acf27b3f2fb1a265d5e749e1cc1ed036366d49cdf795ffd26b776d6a9c93867",
+    ".agents/project/audits/artisan-tutorial/output-style-oracle.json": "57499b51e3a67aac5a78dcdf2a753e31674e9eb3a30d8c2edddd16a0b06499d0",
+    "docs/en/digging-deeper/artisan.md": "678b4b54c62ba3964c27be1023a1334539db1f9c3da87abdc384060679fc83ec",
+    "docs/zh-Hans/digging-deeper/artisan.md": "39721148107195f51e2a4bbfb70d3ff3961d67a3ded89b01144a26100083e54f",
+    "docs/zh-Hant/digging-deeper/artisan.md": "423953f26d06ceae5f3c293022af4f926b8cbab23daa6dc9928e5fa325e29f97",
+    "THIRD_PARTY_NOTICES.md": "26de54580b39849c20319104cacdc84bf33cb7a1f8910b38e1a3ed38ed822840"
+  },
+  "evidence": "target/tmp/artisan-tutorial-20261125/style-recovered-*",
+  "framework_tests": 55,
+  "root_tests": 68,
+  "ignored_fixtures": 2,
+  "upstream_vectors": 84,
+  "scope": "OutputStyle basic writes/counters, message verbosity and replacement input/output; questions, components and inherited interfaces remain explicitly open",
+  "single_pass_source": {
+    "exception": "Exception",
+    "message": "Cannot traverse an already closed generator",
+    "output": ""
+  }
+}

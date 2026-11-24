@@ -496,4 +496,33 @@ fn register_output() -> Result<(), ConsoleError> {
 
 `AsyncCommandCallback::new` 為擷取狀態的非同步閉包明確 boxed-future 回傳型別，仍將同一個回呼交給既有 `command_with`，不增加第二個執行器或額外回呼層。具名非同步函式繼續可用。`has_argument`／`has_option` 檢查輸入定義，已宣告但未賦值的輸入仍存在；`input()` 提供型別化輸入，`input_value` 支援缺失時的回退值。
 
-這裡說明訊息的預設詳細程度。逐訊息詳細程度及其他 `OutputStyle`、互動問題、表格與進度條入口分別核對，不能由上述輸出方法推斷已經提供。
+需要控制單則訊息的詳細程度或直接寫入樣式輸出時，使用下方介面。互動問答、表格和進度條不屬於這些訊息方法。
+
+## 輸出樣式與詳細程度 {#output-style-verbosity}
+
+`get_output()` 回傳真正的 `console::OutputStyle`，它的 `get_output()` 借用底層 `Output`。`write`、`writeln` 和 `new_line` 共用原格式器和輸出串流。訊息可傳字串或字串切片；`writeln` 為每則訊息追加換行。`OutputFormat::Raw` 保留標籤，`Plain` 先格式化再移除剩餘標記。需要組合格式與詳細程度時，傳入 `OutputOptions`。 `write_iter`／`writeln_iter` 接受字串迭代器，包括擁有的字串和單次遍歷迭代器，保留逐則寫入與計數規則。
+
+預設訊息門檻為 `Normal`。使用 `_with` 方法指定門檻，原單參數方法維持預設行為；`line_with` 還接受可選樣式。`Verbose`、`VeryVerbose`、`Debug` 分別需要 `-v`、`-vv`、`-vvv`；`Quiet` 在 `--quiet` 下仍顯示，`--silent` 隱藏全部訊息。`OutputVerbosity::from_name` 映射 `v`、`vv`、`vvv`、`quiet`、`normal`，未知名稱按 `Normal` 處理。
+
+`new_lines_written` 初始為一，`new_line_written` 初始為 false，記錄經此樣式物件寫入的換行；直接編輯緩衝或原始寫入不會更新它們。隱藏的 `write` 與 `writeln` 計數規則不同，應讀取計數，不能只從擷取文字推斷。`is_quiet`、`is_verbose`、`is_very_verbose`、`is_debug` 查詢目前輸出狀態。`set_input` 替換命令讀取的輸入，`set_output` 接受借用替代串流的真正 `OutputStyle`；Rust 借用保證替代輸入和輸出仍然存活。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, OutputVerbosity},
+    support::facades::Artisan,
+};
+
+pub fn register_styled() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:styled", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        io.info_with("Details", OutputVerbosity::Verbose)?;
+        io.warn_with("Essential", OutputVerbosity::Quiet)?;
+        io.line_with("Summary", Some("info"), None)?;
+        let style = io.get_output();
+        style.write(&["<raw>", "text"], false, OutputFormat::Raw)?;
+        style.new_line(1)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```

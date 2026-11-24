@@ -286,16 +286,18 @@
     },
     {
       "anchor": "writing-output",
-      "status": "verified_default_parameters_remaining_io_contracts",
+      "status": "verified_messages_and_style_core_remaining_interactive_table_progress",
       "evidence": [
         "console_io_tutorial",
-        "io-output-oracle.json",
-        "io-color-oracle.json",
         "artisan_docs_generated",
-        "accepted-io.json"
+        "output-style-oracle.json",
+        "accepted-output-style.json"
       ],
       "native": "console::CommandIo",
-      "remaining": "逐消息verbosity／line的style参数及公开OutputStyle等详见io-contracts.json；整节仍在推进"
+      "remaining": [
+        "OutputStyle问题与继承接口、嵌套包装按io-contracts继续核对",
+        "交互问答、表格、进度条与组件Factory未完成，不关闭整节"
+      ]
     },
     {
       "anchor": "tables",

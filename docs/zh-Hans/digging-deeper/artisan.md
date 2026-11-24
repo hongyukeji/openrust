@@ -496,4 +496,33 @@ fn register_output() -> Result<(), ConsoleError> {
 
 `AsyncCommandCallback::new` 为捕获状态的异步闭包明确 boxed-future 返回类型，仍将同一个回调交给既有 `command_with`，不增加第二个执行器或额外回调层。具名异步函数继续可用。`has_argument`／`has_option` 检查输入定义，已声明但未赋值的输入仍存在；`input()` 提供类型化输入，`input_value` 支持缺失时的回退值。
 
-这里说明消息的默认详细程度。逐消息详细程度及其他 `OutputStyle`、交互问题、表格和进度条入口分别核对，不能由上述输出方法推断已经提供。
+需要控制单条消息的详细程度或直接写入样式输出时，使用下面的接口。交互问答、表格和进度条不属于这些消息方法。
+
+## 输出样式与详细程度 {#output-style-verbosity}
+
+`get_output()` 返回真实的 `console::OutputStyle`，它的 `get_output()` 借用底层 `Output`。`write`、`writeln` 和 `new_line` 共用原格式器和输出流。消息可传字符串或字符串切片；`writeln` 给每条消息追加换行。`OutputFormat::Raw` 保留标签，`Plain` 先格式化再移除剩余标记。需要组合格式与详细程度时，传入 `OutputOptions`。 `write_iter`／`writeln_iter` 接收字符串迭代器，包括拥有的字符串和单次遍历迭代器，保留逐条写入及计数规则。
+
+默认消息阈值为 `Normal`。使用 `_with` 方法指定阈值，原单参数方法保持默认行为；`line_with` 还接受可选样式。`Verbose`、`VeryVerbose`、`Debug` 分别需要 `-v`、`-vv`、`-vvv`；`Quiet` 在 `--quiet` 下仍显示，`--silent` 隐藏全部消息。`OutputVerbosity::from_name` 映射 `v`、`vv`、`vvv`、`quiet`、`normal`，未知名称按 `Normal` 处理。
+
+`new_lines_written` 初始为一，`new_line_written` 初始为 false，记录经该样式对象写入的换行；直接编辑缓冲或原始写入不会更新它们。隐藏的 `write` 与 `writeln` 计数规则不同，应读取计数，不能只从捕获文本推断。`is_quiet`、`is_verbose`、`is_very_verbose`、`is_debug` 查询当前输出状态。`set_input` 替换命令读取的输入，`set_output` 接收借用替代流的真实 `OutputStyle`；Rust 借用保证替代输入和输出仍然存活。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, OutputVerbosity},
+    support::facades::Artisan,
+};
+
+pub fn register_styled() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:styled", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        io.info_with("Details", OutputVerbosity::Verbose)?;
+        io.warn_with("Essential", OutputVerbosity::Quiet)?;
+        io.line_with("Summary", Some("info"), None)?;
+        let style = io.get_output();
+        style.write(&["<raw>", "text"], false, OutputFormat::Raw)?;
+        style.new_line(1)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```

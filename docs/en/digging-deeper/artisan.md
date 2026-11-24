@@ -496,4 +496,33 @@ The normal CLI entry streams these helpers immediately and sends any pending com
 
 `AsyncCommandCallback::new` supplies the boxed-future return type for capturing asynchronous closures. It passes the same callback to the existing `command_with` dispatcher without a second executor or extra callback layer. Named asynchronous functions remain supported. Input definitions can be checked with `has_argument`/`has_option`, including declared inputs whose current value is missing; `input()` exposes the typed bag and `input_value` reads a value with a fallback.
 
-This entry documents default message verbosity. Per-message verbosity and additional `OutputStyle`, interactive question, table and progress interfaces are tracked separately; their presence is not implied by these output methods.
+For per-message verbosity or direct styled writes, use the interfaces below. Questions, tables, and progress bars are separate from these message methods.
+
+## Output style and verbosity {#output-style-verbosity}
+
+`get_output()` returns the actual `console::OutputStyle`; its `get_output()` borrows the underlying `Output`. `write`, `writeln`, and `new_line` use the same formatter and stream. Pass a string or a slice of strings; `writeln` adds a newline to each item. `OutputFormat::Raw` preserves tags, while `Plain` formats then removes remaining markup. Use `OutputOptions` to combine a format with a verbosity threshold. `write_iter` and `writeln_iter` accept string iterators, including owned strings and single-pass iterators; they preserve the same per-item and counter rules.
+
+The default message threshold is `Normal`. Use the `_with` methods to set a threshold without changing the one-argument methods. `line_with` also accepts an optional style. `Verbose`, `VeryVerbose`, and `Debug` require `-v`, `-vv`, and `-vvv`; `Quiet` remains visible with `--quiet`, and `--silent` suppresses every message. `OutputVerbosity::from_name` maps `v`, `vv`, `vvv`, `quiet`, and `normal`; unknown names use `Normal`.
+
+`new_lines_written` starts at one and `new_line_written` starts false. They track writes through this style object; direct buffer edits or raw writes do not update them. Hidden `write` and `writeln` have different counter rules, so check the counter rather than inferring it from captured text. `is_quiet`, `is_verbose`, `is_very_verbose`, and `is_debug` query the current output. `set_input` replaces command input reads; `set_output` accepts a real `OutputStyle` borrowing the replacement stream. Rust borrows keep the replacement input and output alive.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, OutputVerbosity},
+    support::facades::Artisan,
+};
+
+pub fn register_styled() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:styled", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        io.info_with("Details", OutputVerbosity::Verbose)?;
+        io.warn_with("Essential", OutputVerbosity::Quiet)?;
+        io.line_with("Summary", Some("info"), None)?;
+        let style = io.get_output();
+        style.write(&["<raw>", "text"], false, OutputFormat::Raw)?;
+        style.new_line(1)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```

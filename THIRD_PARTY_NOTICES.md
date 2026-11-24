@@ -5366,7 +5366,7 @@ THE SOFTWARE.
 
 ## Framework source adaptations
 
-The JSON Schema implementation and selected support, validation, manager and process contracts in
+The JSON Schema implementation and selected console, support, validation, manager and process contracts in
 `vendor/openrust/framework/` are adapted from Laravel Framework v13.40.0
 (commit `1449bf241017087fbd38c118ecaabef3f6797fdc`).
 
@@ -5557,4 +5557,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
-Console formatter tag handling and ANSI color fallback behavior reference Symfony Console v7.4.0. The implementation uses the existing native output writer; no PHP runtime is bundled.
+Console formatter tag handling, ANSI color fallback, output formats and verbosity filtering reference Symfony Console v7.4.0. The implementation uses the existing native output writer; no PHP runtime is bundled.
