@@ -29,7 +29,7 @@
 | Cookie | `support::facades::Cookie` | 核对创建/队列、has/get、默认参数、过期与解密后的当前请求 |
 | Crypt | `support::facades::Crypt` | 核对加解密、序列化适配、轮换、可用密钥和错误 |
 | DB | `support::facades::Db` | 核对管理器和连接全部委托、事务、事件、查询、危险命令限制 |
-| Date | `support::facades::Date` 与 `support::DateFactory` | 日期时钟/当地日及冻结9入口已接；解析、日历、语言、宏、工厂替换等其余契约继续补齐，仍partial |
+| Date | `support::facades::Date` 与 `support::DateFactory` | 时钟、解析、格式/时间戳创建及探测已有公开入口与验收；错误诊断、本地化、日历配置、宏、工厂替换及共享Facade能力仍未闭合 |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
 | Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 已补报告/渲染/映射/上下文、运行期配置、具类型fake、withoutExceptionHandling与全局限流；共享基类测试能力及逐入口最终裁决仍待闭合 |
 | File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行、宏、编译模块加载和条件代理已实测；JSON/glob/hash/MIME完整标志、平台及继承测试仍待闭合 |
@@ -462,3 +462,12 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - has_format/has_format_with_modifiers实际覆盖宽度/转义/修饰符/Unicode字节/换行/上游分支锚点行为。has_relative_keywords在原两个UTC参考日期运行既有Calendar，保留空/null/0和无效false，支持宽日历表达式而不先强转Jiff日期。
 - 原Date门面与具体Factory实际45组格式、27组相对关键词向量通过；模式成立不保证日历有效，三语文档明确区分。其他Date入口、工厂替换和错误诊断继续处理，Date保持partial。
 - tests-second.log两个实际消费者测试对45+27组结果逐条核对通过；clippy-first.log workspace/all-targets严格24.61秒；三语文档构建及6组桌面/移动浏览器通过。原类PHP一次性容器直接删除，现有PCRE2和共享镜像保留。
+
+### Date：格式创建、严格模式及请求／Worker接线（仍 partial）
+
+- 固定原Date/Creator实际276向量，覆盖创建/raw、严格/宽松、默认及显式时区、冻结时间原时区、微秒/重置/转义时间字母、溢出日期、错误及NUL。复用现有格式扫描器和日期值，不另建格式解释器。
+- 应用DateFactory拥有默认true的严格模式；仅格式失败宽松返回None，时区/NUL/限制错误不吞掉。Request格式日期接同一工厂管线并保留InputDate原宽范围；模式对同应用HTTP/Worker一致，对不同应用/独立工厂隔离。
+- 追踪并修正旧请求格式用例把UTC mock按应用Tokyo重算的差异：原Trait+Creator实际默认沿用UTC对象。旧验收历史保留，当前4个格式断言按新原类输出修正，不把旧证据套用新语义。
+- HTTP比较器使用固定InteractsWithData原date方法及原TrimStrings/ConvertEmptyStringsToNull转换方法，非完整PHP网络服务；30组结果与Rust真实HTTP/Request实例及门面核对。直接创建的NUL错误与HTTP末尾NUL先trim的行为分别验收。门面使用既有with_container安全借出，首次独占期间重借导致500的测试不计通过，未放松保护或绕行Root。
+- 实际Artisan queue:work使用独立SQLite表、2个原生任务，读取工厂宽松模式和mock原时区，处理后队列为空；源码/SQLite临时目录由夹具回收，共享数据库和卷未动。getLastErrors完整诊断、自定义创建/工厂及其他日期能力仍继续处理。
+- tests-fifth.log实际52项通过，另tests-worker.log新增真实Artisan/SQLite Worker成功（共53项不同消费者，不重复累加276/30组）。最终去除未用导入后workspace/all-targets严格Clippy28.69秒，三语文档构建及6组桌面/移动浏览器通过。首次未放入默认输入转换的PHP探针对末尾NUL结果不作为HTTP证据，原转换方法接入后重跑；严格模式关闭也不吞掉无效时区。

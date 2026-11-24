@@ -1,0 +1,222 @@
+[
+    {
+        "input": "now",
+        "format": null,
+        "timezone": null,
+        "strict": true,
+        "result": "2025-01-01 08:41:22.123456 +09:00 Asia\/Tokyo"
+    },
+    {
+        "input": "tomorrow",
+        "format": null,
+        "timezone": null,
+        "strict": true,
+        "result": "2025-01-02 00:00:00.000000 +09:00 Asia\/Tokyo"
+    },
+    {
+        "input": "08:30",
+        "format": "H:i",
+        "timezone": null,
+        "strict": true,
+        "result": "2024-12-31 08:30:00.000000 +00:00 UTC"
+    },
+    {
+        "input": "20",
+        "format": "d",
+        "timezone": null,
+        "strict": true,
+        "result": "2024-12-20 23:41:22.123456 +00:00 UTC"
+    },
+    {
+        "input": "20",
+        "format": "!d",
+        "timezone": null,
+        "strict": true,
+        "result": "1970-01-20 00:00:00.000000 +00:00 UTC"
+    },
+    {
+        "input": "20 Europe\/Paris",
+        "format": "d e",
+        "timezone": null,
+        "strict": true,
+        "result": "2024-12-20 23:41:22.123456 +01:00 Europe\/Paris"
+    },
+    {
+        "input": "20",
+        "format": "d",
+        "timezone": "Asia\/Tokyo",
+        "strict": true,
+        "result": "2025-01-20 08:41:22.123456 +09:00 Asia\/Tokyo"
+    },
+    {
+        "input": "2024-02-30",
+        "format": "Y-m-d",
+        "timezone": null,
+        "strict": true,
+        "result": "2024-03-01 23:41:22.123456 +00:00 UTC"
+    },
+    {
+        "input": "not a date",
+        "format": "Y-m-d",
+        "timezone": null,
+        "strict": true,
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "input": "not a date",
+        "format": null,
+        "timezone": null,
+        "strict": true,
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "input": " ",
+        "format": null,
+        "timezone": null,
+        "strict": true,
+        "result": null
+    },
+    {
+        "input": " ",
+        "format": "Y",
+        "timezone": null,
+        "strict": true,
+        "result": null
+    },
+    {
+        "input": "2024-01-02\u0000",
+        "format": "Y-m-d",
+        "timezone": null,
+        "strict": true,
+        "result": "2024-01-02 23:41:22.123456 +00:00 UTC"
+    },
+    {
+        "input": 0,
+        "format": "U",
+        "timezone": null,
+        "strict": true,
+        "result": "1970-01-01 00:00:00.123456 +00:00 +00:00"
+    },
+    {
+        "input": "2024-01-02",
+        "format": "Y-m-d",
+        "timezone": "Not\/AZone",
+        "strict": true,
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidTimeZoneException"
+        }
+    },
+    {
+        "input": "now",
+        "format": null,
+        "timezone": null,
+        "strict": false,
+        "result": "2025-01-01 08:41:22.123456 +09:00 Asia\/Tokyo"
+    },
+    {
+        "input": "tomorrow",
+        "format": null,
+        "timezone": null,
+        "strict": false,
+        "result": "2025-01-02 00:00:00.000000 +09:00 Asia\/Tokyo"
+    },
+    {
+        "input": "08:30",
+        "format": "H:i",
+        "timezone": null,
+        "strict": false,
+        "result": "2024-12-31 08:30:00.000000 +00:00 UTC"
+    },
+    {
+        "input": "20",
+        "format": "d",
+        "timezone": null,
+        "strict": false,
+        "result": "2024-12-20 23:41:22.123456 +00:00 UTC"
+    },
+    {
+        "input": "20",
+        "format": "!d",
+        "timezone": null,
+        "strict": false,
+        "result": "1970-01-20 00:00:00.000000 +00:00 UTC"
+    },
+    {
+        "input": "20 Europe\/Paris",
+        "format": "d e",
+        "timezone": null,
+        "strict": false,
+        "result": "2024-12-20 23:41:22.123456 +01:00 Europe\/Paris"
+    },
+    {
+        "input": "20",
+        "format": "d",
+        "timezone": "Asia\/Tokyo",
+        "strict": false,
+        "result": "2025-01-20 08:41:22.123456 +09:00 Asia\/Tokyo"
+    },
+    {
+        "input": "2024-02-30",
+        "format": "Y-m-d",
+        "timezone": null,
+        "strict": false,
+        "result": "2024-03-01 23:41:22.123456 +00:00 UTC"
+    },
+    {
+        "input": "not a date",
+        "format": "Y-m-d",
+        "timezone": null,
+        "strict": false,
+        "result": null
+    },
+    {
+        "input": "not a date",
+        "format": null,
+        "timezone": null,
+        "strict": false,
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "input": " ",
+        "format": null,
+        "timezone": null,
+        "strict": false,
+        "result": null
+    },
+    {
+        "input": " ",
+        "format": "Y",
+        "timezone": null,
+        "strict": false,
+        "result": null
+    },
+    {
+        "input": "2024-01-02\u0000",
+        "format": "Y-m-d",
+        "timezone": null,
+        "strict": false,
+        "result": "2024-01-02 23:41:22.123456 +00:00 UTC"
+    },
+    {
+        "input": 0,
+        "format": "U",
+        "timezone": null,
+        "strict": false,
+        "result": "1970-01-01 00:00:00.123456 +00:00 +00:00"
+    },
+    {
+        "input": "2024-01-02",
+        "format": "Y-m-d",
+        "timezone": "Not\/AZone",
+        "strict": false,
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidTimeZoneException"
+        }
+    }
+]

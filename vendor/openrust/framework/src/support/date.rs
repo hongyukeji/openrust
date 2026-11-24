@@ -77,6 +77,9 @@ impl Date {
         resolve(value, &timezone, None).map(|value| Self(value, None))
     }
 
+    pub(crate) fn source_input(&self) -> Option<&super::InputDate> {
+        self.1.as_deref()
+    }
     pub(crate) fn from_input(value: super::InputDate) -> Result<Self, DateError> {
         Ok(Self(
             value.native_zoned()?,

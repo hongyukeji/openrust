@@ -1,5 +1,6 @@
 //! 日期工厂与应用时钟；日期值沿用现有带时区的 Date。
 use super::{Date, DateError, DateTimezone, TestClock};
+mod format_creation;
 mod format_matching;
 mod input;
 use crate::{
@@ -20,6 +21,7 @@ use std::sync::{Arc, OnceLock, Weak};
 pub struct DateFactory {
     clock: Arc<TestClock>,
     owner: Option<Weak<Container>>,
+    creation: Arc<format_creation::CreationSettings>,
 }
 impl DateFactory {
     fn zone(&self, timezone: Option<DateTimezone>) -> Result<DateTimezone, DateError> {
@@ -176,6 +178,7 @@ fn standalone() -> Arc<DateFactory> {
             Arc::new(DateFactory {
                 clock: standalone_clock(),
                 owner: None,
+                creation: Arc::default(),
             })
         })
         .clone()
@@ -281,6 +284,7 @@ impl ServiceProvider for DateServiceProvider {
                 Ok(Arc::new(DateFactory {
                     clock: container.make::<TestClock>()?,
                     owner: Some(weak.clone()),
+                    creation: Arc::default(),
                 }))
             })?;
             owner.alias(ServiceKey::typed::<DateFactory>(), "date")?;

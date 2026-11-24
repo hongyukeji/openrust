@@ -186,7 +186,19 @@ assert!(Date::has_relative_keywords("tomorrow")?);
 assert!(!Date::has_relative_keywords(None)?);
 ```
 
-`instance(&value)` clones a date value. This is the clock and civil-day subset; localized parsing, format-driven creation, custom factories and the remaining date facade contracts are still being completed.
+`create_from_format` and `raw_create_from_format` return `Result<Option<Date>, DateError>`. Strict mode defaults to true: a format mismatch returns an error. With `use_strict_mode(false)`, a mismatch returns `None`. Timezone errors, NUL input, size limits and native range errors remain errors. `use_strict_mode(None)` restores the true default. This setting belongs to the application factory and is shared by its HTTP requests and Workers; separate applications and standalone factories keep separate settings.
+
+```rust
+Date::use_strict_mode(false)?;
+assert!(Date::create_from_format("Y-m-d", "wrong", None)?.is_none());
+Date::use_strict_mode(None)?;
+let date = Date::raw_create_from_format("!Y-m-d", "2024-01-02", None)?.unwrap();
+assert_eq!(date.format("H:i:s")?, "00:00:00");
+```
+
+With a frozen clock and no explicit timezone, format creation follows the mock's original timezone unless the format specifies one. Unformatted parsing still uses the application timezone. `!` and `|` reset unspecified fields. Formatted `Request::date` and its facade use the same rules, including lenient `None` results. Default input normalization runs first, so trailing NULs removed by trimming do not reach the date parser; direct format creation rejects NUL input.
+
+`instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 
 ## Pipeline {#pipeline}

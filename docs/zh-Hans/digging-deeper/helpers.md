@@ -186,7 +186,19 @@ assert!(Date::has_relative_keywords("tomorrow")?);
 assert!(!Date::has_relative_keywords(None)?);
 ```
 
-`instance(&value)` 克隆日期值。当前交付为时钟与当地日期子集；格式创建、本地化、自定义工厂和其余日期门面契约仍在补齐。
+`create_from_format` 和 `raw_create_from_format` 返回 `Result<Option<Date>, DateError>`。严格模式默认开启，格式不匹配时返回错误；设置 `use_strict_mode(false)` 后返回 `None`。时区错误、NUL 输入、大小限制及原生范围错误仍会报错。`use_strict_mode(None)` 恢复默认开启。这是应用工厂的共享设置，HTTP 请求和 Worker 使用同一份设置；不同应用与独立工厂互相隔离。
+
+```rust
+Date::use_strict_mode(false)?;
+assert!(Date::create_from_format("Y-m-d", "wrong", None)?.is_none());
+Date::use_strict_mode(None)?;
+let date = Date::raw_create_from_format("!Y-m-d", "2024-01-02", None)?.unwrap();
+assert_eq!(date.format("H:i:s")?, "00:00:00");
+```
+
+冻结时间且未显式指定时区时，按格式创建沿用 mock 的原时区，格式自带时区时使用格式中的值；无格式解析仍使用应用时区。`!` 和 `|` 重置未指定字段。带格式的 `Request::date` 及其门面使用同一规则，包括宽松模式的 `None`。默认输入规范化先执行，因此被 trim 删除的末尾 NUL 不会进入日期解析器；直接格式创建仍拒绝 NUL 输入。
+
+`instance(&value)` 克隆日期值。目前尚不提供本地化创建、自定义工厂与错误诊断入口。
 
 
 ## 流水线 {#pipeline}

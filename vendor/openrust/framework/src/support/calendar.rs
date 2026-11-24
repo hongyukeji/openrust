@@ -183,6 +183,119 @@ pub(crate) fn parse_date_with_jiff(
     )
 }
 
+pub(crate) fn parse_factory_format(
+    text: &str,
+    pattern: &str,
+    timezone: TimeZone,
+    explicit: bool,
+    mock: Option<super::Date>,
+) -> Result<InputDate> {
+    parse_factory_format_with_zone(
+        text,
+        pattern,
+        ResolvedTimezone::from_jiff(timezone, Timestamp::now()),
+        explicit,
+        mock,
+    )
+}
+
+pub(crate) fn validate_timezone_name(timezone: &str) -> std::result::Result<(), super::DateError> {
+    ResolvedTimezone::parse(timezone)
+        .map(|_| ())
+        .map_err(|error| match error {
+            CalendarError::LimitExceeded => super::DateError::InputTooLarge,
+            _ => super::DateError::InvalidTimezone,
+        })
+}
+
+pub(crate) fn parse_factory_format_named(
+    text: &str,
+    pattern: &str,
+    timezone: &str,
+    explicit: bool,
+    mock: Option<super::Date>,
+) -> Result<InputDate> {
+    parse_factory_format_with_zone(
+        text,
+        pattern,
+        ResolvedTimezone::parse(timezone)?,
+        explicit,
+        mock,
+    )
+}
+
+fn parse_factory_format_with_zone(
+    text: &str,
+    pattern: &str,
+    mut zone: ResolvedTimezone,
+    explicit: bool,
+    mock: Option<super::Date>,
+) -> Result<InputDate> {
+    if text.len().saturating_add(pattern.len()) > MAX_CALENDAR_BYTES {
+        return Err(limit_error());
+    }
+    let wall = Timestamp::now();
+    let mut tokens = Vec::new();
+    let mut escaped = false;
+    for (position, token) in pattern.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if token == '\\' {
+            escaped = true;
+            continue;
+        }
+        tokens.push((position, token));
+    }
+    let last_reset = tokens
+        .iter()
+        .rev()
+        .find(|(_, token)| *token == '!')
+        .map(|(position, _)| *position);
+    let has_zone = tokens.iter().any(|(position, token)| {
+        last_reset.is_none_or(|last| *position > last) && "eOPT".contains(*token)
+    });
+    let has_reset = tokens.iter().any(|(_, token)| "!|".contains(*token));
+    let mut civil = if let Some(mock) = mock {
+        let instant = CalendarInstant::from_timestamp(mock.as_date_time().timestamp())?;
+        let mock_zone = mock.source_input().map_or_else(
+            || {
+                ResolvedTimezone::from_jiff(
+                    mock.as_date_time().time_zone().clone(),
+                    mock.as_date_time().timestamp(),
+                )
+            },
+            |input| input.zone.clone(),
+        );
+        if !explicit && !has_zone {
+            zone = mock_zone.clone();
+        }
+        let mut base = if explicit {
+            zone.civil(instant)?
+        } else {
+            mock_zone.civil(instant)?
+        };
+        // 原创建器先在 mock 前缀上处理时间字段，包含转义的时间字母。
+        if !has_reset && pattern.chars().any(|token| "HhGgisvuB".contains(token)) {
+            base.hour = 0;
+            base.minute = 0;
+            base.second = 0;
+            base.microsecond = 0;
+        }
+        base
+    } else {
+        let mut base = zone.civil(CalendarInstant::from_timestamp(wall)?)?;
+        base.microsecond = 0;
+        base
+    };
+    if has_reset {
+        civil = zone.civil(CalendarInstant::from_timestamp(wall)?)?;
+        civil.microsecond = 0;
+    }
+    format::parse(text, pattern, civil, &zone)
+}
+
 pub(crate) fn date_from_timestamp(value: Value, milliseconds: bool) -> Result<InputDate> {
     let text = match value {
         Value::String(text) => text,

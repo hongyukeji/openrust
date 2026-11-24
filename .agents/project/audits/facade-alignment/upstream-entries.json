@@ -1103,7 +1103,17 @@
         "review": "implemented_tested_base",
         "contract": "复用固定原Factory模式表、替换顺序与既有PCRE2；保留字段宽度、转义、修饰符、分支锚点/末尾换行和字节Unicode行为，模式成立不代表日历有效。相对关键词复用Calendar在2000-01-01与2001-12-25 UTC探测，不依赖测试时钟；空/null/0及非法表达式false。",
         "evidence": "date_format_matching.rs读取45组原Date门面格式向量及27组原相对探测向量；门面和具体Factory均实际调用，含比Jiff宽的Calendar表达式。",
-        "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
+        "format_creation_contracts": {
+        "entries": ["createFromFormat", "rawCreateFromFormat", "useStrictMode", "isStrictModeEnabled"],
+        "local": "Date/DateFactory::create_from_format/raw_create_from_format/use_strict_mode/is_strict_mode_enabled",
+        "review": "implemented_tested_base",
+        "contract": "默认严格true，格式不匹配Err；false返回None。时区/NUL/资源限制与原生范围错误独立。bool或None恢复true，配置属于应用工厂，同应用HTTP/Worker共享、不同应用和独立Factory隔离。",
+        "mock": "按固定原Creator继承mock原时区、未指定字段、微秒和重置标记；带时区格式与转义时间字母等分支实测。原生日期值保留时区元数据。",
+        "consumers": "Request::date格式分支与公开Request门面接同一工厂规则，保留InputDate宽范围；HTTP默认TrimStrings/空转null先于读取。公开门面遵循既有with_container独占借出契约，未通过Root绕行。真实Artisan queue:work在独立SQLite消费2任务且队列清空，读取相同模式/时钟。",
+        "evidence": "原Date门面276组创建向量；固定InteractsWithData及真实TrimStrings/ConvertEmptyStringsToNull方法30组输出，Rust实际HTTP逐条对照；date_format_creation.rs 3项含实际Worker。",
+        "remaining": "getLastErrors完整诊断和自定义创建/工厂回调仍未完成，不将此基本创建路径算全Date闭合。"
+      },
+      "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
       },
       "remaining": "可替换日期类/工厂/创建回调及严格模式仍须接入，不据此关闭Date。"
       },

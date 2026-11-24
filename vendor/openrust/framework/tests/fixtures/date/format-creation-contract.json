@@ -1,0 +1,2930 @@
+[
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "N",
+        "input": "1",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 08:09:10.123456-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "N",
+        "input": "1",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "N",
+        "input": "1",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "N",
+        "input": "1",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 08:09:10.123456-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "N",
+        "input": "1",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "N",
+        "input": "1",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": null
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "N",
+        "input": "1",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 08:09:10.123456-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "N",
+        "input": "1",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "N",
+        "input": "1",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": true,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "N",
+        "input": "1",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 08:09:10.123456-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 08:09:10.123456-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": null,
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "N",
+        "input": "1",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 12:09:10.123456+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "UTC",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-02-30",
+        "result": {
+            "date": "2024-03-01 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "wrong",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "!Y-m-d",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d|",
+        "input": "2024-01-02",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "H:i",
+        "input": "12:34",
+        "result": {
+            "date": "2024-03-10 12:34:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "s",
+        "input": "05",
+        "result": {
+            "date": "2024-03-10 00:00:05.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "u",
+        "input": "1234",
+        "result": {
+            "date": "2024-03-10 00:00:00.123400+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d \\H",
+        "input": "2024-01-02 H",
+        "result": {
+            "date": "2024-01-02 00:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d e",
+        "input": "2024-01-02 Asia\/Shanghai",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d P",
+        "input": "2024-01-02 +05:30",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d\\TH:i:sP",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "c",
+        "input": "2024-01-02T03:04:05+05:30",
+        "result": {
+            "date": "2024-01-02 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d+",
+        "input": "2024-01-02tail",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-1-2",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d?",
+        "input": "2024-01-02!",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y#m#d",
+        "input": "2024\/01\/02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02extra",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "N",
+        "input": "1",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y",
+        "input": "2024",
+        "result": {
+            "date": "2024-03-10 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d!H:i",
+        "input": "2024-01-02!12:34",
+        "result": null
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "\\!Y-m-d",
+        "input": "!2024-01-02",
+        "result": {
+            "date": "2024-01-02 20:09:10.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "rawCreateFromFormat",
+        "strict": false,
+        "timezone": "Asia\/Shanghai",
+        "format": "Y-m-d",
+        "input": "2024-01-02\u0000",
+        "result": {
+            "error": "ValueError"
+        }
+    }
+]

@@ -14,13 +14,35 @@ fn endpoint(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async move {
         let format = request.query(Some("format"))?;
         let timezone = request.query(Some("timezone"))?;
-        let date = request
+        let instance = request
             .date(
                 "when",
                 format.as_ref().and_then(serde_json::Value::as_str),
                 timezone.as_ref().and_then(serde_json::Value::as_str),
             )
-            .await?;
+            .await;
+        // 将独占请求按正式借出契约交给容器，再从公开 Request 门面读取同一数据。
+        let facade = request
+            .with_container(openrust::support::facades::Request::date(
+                "when",
+                format.as_ref().and_then(serde_json::Value::as_str),
+                timezone.as_ref().and_then(serde_json::Value::as_str),
+            ))
+            .await;
+        let date = match (instance, facade) {
+            (Ok(date), Ok(facade)) => {
+                assert_eq!(
+                    date.as_ref()
+                        .map(|value| value.format("Y-m-d H:i:s.u P e").unwrap()),
+                    facade
+                        .as_ref()
+                        .map(|value| value.format("Y-m-d H:i:s.u P e").unwrap())
+                );
+                date
+            }
+            (Err(error), Err(_)) => return Err(error),
+            _ => panic!("请求实例与门面日期结果不一致"),
+        };
         let formatted = date
             .map(|date| date.format("Y-m-d H:i:s.u P e"))
             .transpose()
@@ -66,7 +88,7 @@ async fn request_date_matches_carbon_with_a_frozen_application_clock() -> TestRe
     let mut app = fixture()?;
     app.travel_to(date("2024-12-31T23:41:22.123456Z"));
 
-    // Fixed InteractsWithData and Carbon 3.8.4 on PHP 8.5, Asia/Tokyo.
+    // 格式分支按固定原类与Carbon3.10.3实跑；冻结值是UTC对象，应用为Asia/Tokyo。
     for (input, format, expected) in [
         ("now", None, "2025-01-01 08:41:22.123456 +09:00 Asia/Tokyo"),
         (
@@ -98,18 +120,10 @@ async fn request_date_matches_carbon_with_a_frozen_application_clock() -> TestRe
         (
             "08:30",
             Some("H:i"),
-            "2025-01-01 08:30:00.000000 +09:00 Asia/Tokyo",
+            "2024-12-31 08:30:00.000000 +00:00 UTC",
         ),
-        (
-            "20",
-            Some("d"),
-            "2025-01-20 08:41:22.123456 +09:00 Asia/Tokyo",
-        ),
-        (
-            "20",
-            Some("!d"),
-            "1970-01-20 00:00:00.000000 +09:00 Asia/Tokyo",
-        ),
+        ("20", Some("d"), "2024-12-20 23:41:22.123456 +00:00 UTC"),
+        ("20", Some("!d"), "1970-01-20 00:00:00.000000 +00:00 UTC"),
         (
             "tomorrow America/New_York",
             None,
@@ -138,7 +152,7 @@ async fn request_date_matches_carbon_with_a_frozen_application_clock() -> TestRe
         (
             "20 Europe/Paris",
             Some("d e"),
-            "2025-01-20 08:41:22.123456 +01:00 Europe/Paris",
+            "2024-12-20 23:41:22.123456 +01:00 Europe/Paris",
         ),
         ("@0", None, "1970-01-01 00:00:00.000000 +00:00 +00:00"),
     ] {
@@ -192,5 +206,45 @@ async fn relative_request_dates_restore_the_previous_clock_and_follow_explicit_t
         .await?
         .assert_ok()
         .assert_exact_json(&serde_json::json!("2025-01-01 00:00:00.000000 +00:00 UTC"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn actual_request_date_instance_and_facade_consume_factory_strictness_and_mock_timezone()
+-> TestResult {
+    use openrust::support::facades::{App, Date as DateFacade, Facade};
+    let cases: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "fixtures/date/request-format-creation-contract.json"
+    ))?;
+    assert_eq!(cases.len(), 30);
+    let mut app = fixture()?;
+    app.travel_to(date("2024-12-31T23:41:22.123456Z"));
+    app.boot().await?;
+    for case in cases {
+        App::set_facade_application(Some(app.app()), async {
+            DateFacade::use_strict_mode(case["strict"].as_bool().unwrap())
+        })
+        .await?;
+        let input = case["input"]
+            .as_str()
+            .map_or_else(|| case["input"].to_string(), str::to_owned);
+        let response = app
+            .get(&uri(
+                &input,
+                case["format"].as_str(),
+                case["timezone"].as_str(),
+            ))
+            .await?;
+        if case["result"].get("error").is_some() {
+            assert_eq!(
+                response.status(),
+                StatusCode::BAD_REQUEST,
+                "{case}: {}",
+                String::from_utf8_lossy(response.body())
+            );
+        } else {
+            response.assert_ok().assert_exact_json(&case["result"]);
+        }
+    }
     Ok(())
 }

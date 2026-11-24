@@ -503,6 +503,7 @@ impl Request {
         else {
             return Ok(None);
         };
+        let explicit_timezone = timezone.is_some();
         let configured;
         let timezone = match timezone {
             Some(timezone) => timezone,
@@ -516,6 +517,21 @@ impl Request {
                 }
             }
         };
+        if let Some(format) = format {
+            return crate::support::facades::Date::input_from_format(
+                format,
+                &input_scalars::string(value),
+                timezone,
+                explicit_timezone,
+            )
+            .map_err(|error| match error {
+                crate::support::DateError::InputTooLarge => HttpError::PayloadTooLarge,
+                crate::support::DateError::Configuration => HttpError::Internal {
+                    source: Box::new(error),
+                },
+                _ => HttpError::InvalidRequest,
+            });
+        }
         let reference = frozen_utc_now().map_or_else(
             || calendar::DateReference::Wall(jiff::Timestamp::now()),
             calendar::DateReference::Frozen,
