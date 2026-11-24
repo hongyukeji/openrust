@@ -1,0 +1,23 @@
+<?php
+// 使用固定版本的公开类型生成协议向量，依赖源码及许可保留在项目临时参考目录。
+spl_autoload_register(function ($class) {
+    $prefixes = ['Monolog\\' => __DIR__.'/monolog/src/Monolog/', 'Psr\\Log\\' => __DIR__.'/psr-log/src/'];
+    foreach ($prefixes as $prefix => $root) {
+        if (str_starts_with($class, $prefix)) {
+            $path = $root.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
+            if (is_file($path)) { require $path; }
+        }
+    }
+});
+$input = json_decode(file_get_contents($argv[1] ?? __DIR__.'/inputs.json'), true, flags: JSON_THROW_ON_ERROR);
+$cases = $input['cases'] ?? $input;
+foreach ($cases as &$case) {
+    $c = $case['config'];
+    $r = new Monolog\LogRecord(new DateTimeImmutable('@1795482123'), 'tutorial', Monolog\Level::fromName($case['level']), $case['message'], $case['context'], $case['extra']);
+    if ($c['replace_placeholders'] ?? false) { $r = (new Monolog\Processor\PsrLogMessageProcessor())($r); }
+    $slack = new Monolog\Handler\Slack\SlackRecord($c['channel'] ?? null, $c['username'] ?? 'Shop', $c['attachment'] ?? true, $c['emoji'] ?? ':boom:', $c['short'] ?? false, $c['context'] ?? true, $c['exclude_fields'] ?? []);
+    if (($c['formatter'] ?? '') === 'plain') { $slack->setFormatter(new Monolog\Formatter\LineFormatter("PLAIN:%message%\n")); }
+    $case['expected'] = $slack->getSlackData($r);
+}
+unset($case);
+echo json_encode(['reference'=>'Monolog 3.10.0', 'cases'=>$cases], JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR), "\n";

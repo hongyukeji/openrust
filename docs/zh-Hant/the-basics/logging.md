@@ -331,4 +331,25 @@ let default_native = Log::get_logger()?;
 
 ## 程序錯誤日誌 {#process-error-log}
 
-使用 `driver: "errorlog"` 將記錄寫入程序錯誤串流。支援 `type: 0`（預設）與 `type: 4`；原生可執行程式沒有 PHP SAPI，兩者均寫標準錯誤。等級篩選、預留位置、處理器與格式化沿用一般通道規則。此驅動依建構子契約始終繼續下一個堆疊成員，`bubble` 設定不改變此行為；不支援的類型進入既有應急回退。
+使用 `driver: "errorlog"` 將記錄寫入程序錯誤串流。支援 `type: 0`（預設）與 `type: 4`；原生可執行程式沒有 PHP SAPI，兩者均寫標準錯誤。目標額外附加一個換行，即使格式化文字已有結尾換行。等級篩選、預留位置、處理器與格式化沿用一般通道規則。此驅動依建構子契約始終繼續下一個堆疊成員，`bubble` 設定不改變此行為；不支援的類型進入既有應急回退。
+
+## 遠端日誌通道 {#remote-log-channels}
+
+`slack` 驅動將 JSON 傳送到設定的 incoming Webhook。設定 `LOG_SLACK_WEBHOOK_URL`，應用設定以 `LOG_LEVEL` 或 `critical` 作為最低等級。透過 `url`、`username`、`channel`、`emoji`、`attachment`（預設 `true`）、`short`（預設 `false`）、`context`（預設 `true`）和 `exclude_fields` 設定訊息。附件保留結構化欄位；`attachment: false` 傳送格式化文字。預留位置替換與處理器先於傳送執行。
+
+`exclude_fields` 沿用外部處理器的點分路徑規則：空值保留，路徑中末段重複出現時停在第一個同名片段。需要不同去識別策略時使用處理器；不要在日誌上下文中放入不應傳送到設定目標的金鑰。
+
+原生同步日誌會等待傳輸結果。通道內部執行緒持有既有 HTTP 用戶端及執行期，在非同步請求中記錄日誌亦不會巢狀建立執行期。`timeout` 為每次嘗試的秒數（預設 `10`）；連線、逾時與本文傳輸失敗最多嘗試五次，不跟隨重新導向。與外部處理器相同，單憑 HTTP 狀態碼不判定傳輸錯誤，收到回應不表示遠端服務已接受訊息。傳輸失敗走既有應急回退，通道恢復後可繼續傳送。
+
+`papertrail` 通道讀取 `PAPERTRAIL_URL` 和 `PAPERTRAIL_PORT`，傳送遠端 Syslog 資料報。保留現有 `driver: "papertrail"` 原生別名，通用處理器形式為：
+
+```rust
+let settings = serde_json::json!({
+    "driver": "monolog",
+    "handler": "syslog_udp",
+    "handler_with": {"host": "127.0.0.1", "port": "10000", "ident": "orders"},
+    "replace_placeholders": true,
+});
+```
+
+處理器接受整數或數字字串連接埠，以及 `facility`、`ident`、`rfc`：`0` 為 RFC 3164，`1`（預設）為 RFC 5424，`2` 帶毫秒精度。主機名稱取自系統，程式識別預設使用應用名稱。自訂格式化輸出多行時逐行傳送資料報；含標頭的名義長度上限為 65,023 位元組，同時受平台 Socket 限制。Unix 下連接埠 `0` 選擇本機資料報 Socket，相對路徑從應用根目錄解析。UDP 不提供送達確認；通道繼續沿用一般堆疊篩選、格式化及應急處理。

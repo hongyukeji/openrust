@@ -87,6 +87,16 @@ pub(super) fn formatter(arguments: &Value) -> LogResult<Arc<Formatter>> {
     Ok(Arc::new(move |record| Ok(options.format(record))))
 }
 
+/// 复用现有的标准深度与异常归一化，网络附件不另建一套错误序列化。
+pub(super) fn normalized_fields(record: &LogRecord<'_>) -> (LogContext, LogContext) {
+    let options = Options::default();
+    let mut context = options.fields(&record.context, 2);
+    if let Some(exception) = &record.exception {
+        context.insert("exception".into(), options.exception(exception, 2));
+    }
+    (context, options.fields(&record.extra, 2))
+}
+
 impl Options {
     fn format(&self, record: &LogRecord<'_>) -> String {
         let level = match record.level {

@@ -1,0 +1,281 @@
+{
+  "reference": "Monolog 3.10.0",
+  "cases": [
+    {
+      "name": "attachment",
+      "config": {
+        "username": "Shop Log",
+        "channel": "#ops",
+        "replace_placeholders": true,
+        "exclude_fields": [
+          "context.password"
+        ]
+      },
+      "context": {
+        "id": 42,
+        "password": "redact-me",
+        "nested": {
+          "name": "Ada"
+        }
+      },
+      "extra": {
+        "trace": "trace-id"
+      },
+      "message": "Order {id}",
+      "level": "Critical",
+      "expected": {
+        "username": "Shop Log",
+        "channel": "#ops",
+        "attachments": [
+          {
+            "fallback": "Order 42",
+            "text": "Order 42",
+            "color": "danger",
+            "fields": [
+              {
+                "title": "Level",
+                "value": "CRITICAL",
+                "short": false
+              },
+              {
+                "title": "Trace",
+                "value": "trace-id",
+                "short": false
+              },
+              {
+                "title": "Id",
+                "value": 42,
+                "short": false
+              },
+              {
+                "title": "Nested",
+                "value": "```{\n    \"name\": \"Ada\"\n}```",
+                "short": false
+              }
+            ],
+            "mrkdwn_in": [
+              "fields"
+            ],
+            "ts": 1795482123,
+            "footer": "Shop Log",
+            "footer_icon": "boom",
+            "title": "Message"
+          }
+        ],
+        "icon_emoji": ":boom:"
+      }
+    },
+    {
+      "name": "plain",
+      "config": {
+        "attachment": false,
+        "formatter": "plain",
+        "replace_placeholders": true
+      },
+      "context": {
+        "id": 42
+      },
+      "extra": {},
+      "message": "plain {id}",
+      "level": "Critical",
+      "expected": {
+        "username": "Shop",
+        "text": "PLAIN:plain 42\n",
+        "icon_emoji": ":boom:"
+      }
+    },
+    {
+      "name": "short",
+      "config": {
+        "short": true,
+        "emoji": "https://example.test/icon.png"
+      },
+      "context": {
+        "id": 42,
+        "array": [
+          "a",
+          "b"
+        ]
+      },
+      "extra": {
+        "trace": "trace-id"
+      },
+      "message": "short",
+      "level": "Warning",
+      "expected": {
+        "username": "Shop",
+        "attachments": [
+          {
+            "fallback": "short",
+            "text": "short",
+            "color": "warning",
+            "fields": [
+              {
+                "title": "Extra",
+                "value": "```{\n    \"trace\": \"trace-id\"\n}```",
+                "short": false
+              },
+              {
+                "title": "Context",
+                "value": "```{\n    \"id\": 42,\n    \"array\": [\n        \"a\",\n        \"b\"\n    ]\n}```",
+                "short": false
+              }
+            ],
+            "mrkdwn_in": [
+              "fields"
+            ],
+            "ts": 1795482123,
+            "footer": "Shop",
+            "footer_icon": "https://example.test/icon.png",
+            "title": "WARNING"
+          }
+        ],
+        "icon_url": "https://example.test/icon.png"
+      }
+    },
+    {
+      "name": "without-context",
+      "config": {
+        "context": false
+      },
+      "context": {
+        "id": 42
+      },
+      "extra": {
+        "trace": "trace-id"
+      },
+      "message": "no fields",
+      "level": "Debug",
+      "expected": {
+        "username": "Shop",
+        "attachments": [
+          {
+            "fallback": "no fields",
+            "text": "no fields",
+            "color": "#e3e4e6",
+            "fields": [
+              {
+                "title": "Level",
+                "value": "DEBUG",
+                "short": false
+              }
+            ],
+            "mrkdwn_in": [
+              "fields"
+            ],
+            "ts": 1795482123,
+            "footer": "Shop",
+            "footer_icon": "boom",
+            "title": "Message"
+          }
+        ],
+        "icon_emoji": ":boom:"
+      }
+    },
+    {
+      "name": "exclusions-null-repeat",
+      "config": {
+        "exclude_fields": [
+          "context.empty",
+          "context.same.same",
+          "extra.trace"
+        ]
+      },
+      "context": {
+        "empty": null,
+        "same": {
+          "same": "hidden",
+          "visible": 1
+        }
+      },
+      "extra": {
+        "trace": "trace-id"
+      },
+      "message": "exclude",
+      "level": "Notice",
+      "expected": {
+        "username": "Shop",
+        "attachments": [
+          {
+            "fallback": "exclude",
+            "text": "exclude",
+            "color": "good",
+            "fields": [
+              {
+                "title": "Level",
+                "value": "NOTICE",
+                "short": false
+              },
+              {
+                "title": "Empty",
+                "value": null,
+                "short": false
+              }
+            ],
+            "mrkdwn_in": [
+              "fields"
+            ],
+            "ts": 1795482123,
+            "footer": "Shop",
+            "footer_icon": "boom",
+            "title": "Message"
+          }
+        ],
+        "icon_emoji": ":boom:"
+      }
+    },
+    {
+      "name": "large-numeric-array",
+      "config": {},
+      "context": {
+        "array": [
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        ],
+        "nested": {
+          "one": [
+            1,
+            2
+          ]
+        }
+      },
+      "extra": {},
+      "message": "large",
+      "level": "Critical",
+      "expected": {
+        "username": "Shop",
+        "attachments": [
+          {
+            "fallback": "large",
+            "text": "large",
+            "color": "danger",
+            "fields": [
+              {
+                "title": "Level",
+                "value": "CRITICAL",
+                "short": false
+              },
+              {
+                "title": "Array",
+                "value": "```[\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx```",
+                "short": false
+              },
+              {
+                "title": "Nested",
+                "value": "```{\n    \"one\": [\n        1,\n        2\n    ]\n}```",
+                "short": false
+              }
+            ],
+            "mrkdwn_in": [
+              "fields"
+            ],
+            "ts": 1795482123,
+            "footer": "Shop",
+            "footer_icon": "boom",
+            "title": "Message"
+          }
+        ],
+        "icon_emoji": ":boom:"
+      }
+    }
+  ]
+}

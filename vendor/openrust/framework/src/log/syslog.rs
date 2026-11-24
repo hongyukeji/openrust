@@ -2,7 +2,6 @@ use std::{path::PathBuf, sync::Arc};
 
 use serde::Deserialize;
 
-#[cfg(any(unix, windows))]
 use super::Level;
 use super::{LogError, LogResult, RecordHandler};
 
@@ -88,8 +87,7 @@ pub(super) fn writer(
     }))
 }
 
-#[cfg(any(unix, windows))]
-fn priority(level: Level) -> u8 {
+pub(super) fn priority(level: Level) -> u8 {
     match level {
         Level::Emergency => 0,
         Level::Alert => 1,

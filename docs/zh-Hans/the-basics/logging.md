@@ -331,4 +331,25 @@ let default_native = Log::get_logger()?;
 
 ## 进程错误日志 {#process-error-log}
 
-使用 `driver: "errorlog"` 将记录写入进程错误流。支持 `type: 0`（默认）和 `type: 4`；原生可执行程序没有 PHP SAPI，两者均写标准错误。级别过滤、占位符、处理器和格式化沿用普通渠道规则。该驱动按构造器契约始终继续下一个堆栈成员，`bubble` 配置不改变此行为；不支持的类型进入既有应急回退。
+使用 `driver: "errorlog"` 将记录写入进程错误流。支持 `type: 0`（默认）和 `type: 4`；原生可执行程序没有 PHP SAPI，两者均写标准错误。目标额外追加一个换行，即使格式化文本已有末尾换行。级别过滤、占位符、处理器和格式化沿用普通渠道规则。该驱动按构造器契约始终继续下一个堆栈成员，`bubble` 配置不改变此行为；不支持的类型进入既有应急回退。
+
+## 远程日志渠道 {#remote-log-channels}
+
+`slack` 驱动将 JSON 发送到配置的 incoming Webhook。设置 `LOG_SLACK_WEBHOOK_URL`，应用配置以 `LOG_LEVEL` 或 `critical` 作为最低级别。通过 `url`、`username`、`channel`、`emoji`、`attachment`（默认 `true`）、`short`（默认 `false`）、`context`（默认 `true`）和 `exclude_fields` 配置报文。附件保留结构化字段；`attachment: false` 发送格式化文本。占位符替换和处理器先于发送执行。
+
+`exclude_fields` 沿用外部处理器的点分路径规则：空值保留，路径中末段重复出现时停在第一个同名片段。需要不同脱敏策略时使用处理器；不要在日志上下文中放入不应发送到配置目标的密钥。
+
+原生同步日志会等待传输结果。渠道内部线程持有既有 HTTP 客户端和运行时，在异步请求中记录日志也不会嵌套运行时。`timeout` 为每次尝试的秒数（默认 `10`）；连接、超时和正文传输失败最多尝试五次，不跟随重定向。与外部处理器相同，单凭 HTTP 状态码不判定传输错误，收到响应不表示远程服务已接受消息。传输失败走既有应急回退，渠道恢复后可继续发送。
+
+`papertrail` 渠道读取 `PAPERTRAIL_URL` 和 `PAPERTRAIL_PORT`，发送远程 Syslog 数据报。保留现有 `driver: "papertrail"` 原生别名，通用处理器形式为：
+
+```rust
+let settings = serde_json::json!({
+    "driver": "monolog",
+    "handler": "syslog_udp",
+    "handler_with": {"host": "127.0.0.1", "port": "10000", "ident": "orders"},
+    "replace_placeholders": true,
+});
+```
+
+处理器接受整数或数字字符串端口，以及 `facility`、`ident`、`rfc`：`0` 为 RFC 3164，`1`（默认）为 RFC 5424，`2` 带毫秒精度。主机名取自系统，程序标识默认使用应用名称。自定义格式化输出多行时逐行发送数据报；含报文头的名义长度上限为 65,023 字节，同时受平台 Socket 限制。Unix 下端口 `0` 选择本地数据报 Socket，相对路径从应用根目录解析。UDP 不提供送达确认；渠道继续沿用普通堆栈过滤、格式化与应急处理。

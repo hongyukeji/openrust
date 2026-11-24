@@ -28,11 +28,23 @@
     },
     {
       "anchor": "configuring-the-papertrail-channel",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "原生渠道配置、级别／堆栈及实际网络消费者，边界见README第二簇",
+      "evidence": [
+        "network_log_tutorial",
+        "logging",
+        "network-runtime.log"
+      ]
     },
     {
       "anchor": "configuring-the-slack-channel",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "原生渠道配置、级别／堆栈及实际网络消费者，边界见README第二簇",
+      "evidence": [
+        "network_log_tutorial",
+        "logging",
+        "network-runtime.log"
+      ]
     },
     {
       "anchor": "logging-deprecation-warnings",
@@ -40,11 +52,23 @@
     },
     {
       "anchor": "building-log-stacks",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "原生渠道配置、级别／堆栈及实际网络消费者，边界见README第二簇",
+      "evidence": [
+        "network_log_tutorial",
+        "logging",
+        "network-runtime.log"
+      ]
     },
     {
       "anchor": "log-levels",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "原生渠道配置、级别／堆栈及实际网络消费者，边界见README第二簇",
+      "evidence": [
+        "network_log_tutorial",
+        "logging",
+        "network-runtime.log"
+      ]
     },
     {
       "anchor": "writing-log-messages",

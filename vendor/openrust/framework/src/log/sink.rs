@@ -33,6 +33,9 @@ pub(super) enum Handler {
         level: Level,
         bubble: bool,
     },
+    Errorlog {
+        level: Level,
+    },
     Stderr {
         level: Level,
         bubble: bool,
@@ -179,6 +182,7 @@ impl Handler {
             Self::File { level: minimum, .. }
             | Self::Rotating { level: minimum, .. }
             | Self::Custom { level: minimum, .. }
+            | Self::Errorlog { level: minimum }
             | Self::Stderr { level: minimum, .. }
             | Self::Stdout { level: minimum, .. }
             | Self::Registered { level: minimum, .. }
@@ -244,6 +248,13 @@ impl Handler {
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
                 options.write(&options.path, &mut file, output.as_bytes())?;
                 Ok(!bubble)
+            }
+            Self::Errorlog { level: minimum } if level >= *minimum => {
+                let output = output()?;
+                let mut stderr = std::io::stderr().lock();
+                stderr.write_all(output.as_bytes())?;
+                stderr.write_all(b"\n")?;
+                Ok(false)
             }
             Self::Rotating {
                 file,

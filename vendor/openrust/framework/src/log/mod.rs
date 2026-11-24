@@ -27,7 +27,10 @@ mod facade;
 pub(crate) mod json;
 mod rotating;
 mod sink;
+mod slack;
 mod syslog;
+mod syslog_udp;
+mod webhook;
 pub use facade::Log;
 pub use sink::RecordHandler;
 
@@ -56,7 +59,7 @@ pub enum Level {
 
 impl Level {
     fn parse(value: &str) -> LogResult<Self> {
-        match value {
+        match value.to_ascii_lowercase().as_str() {
             "debug" => Ok(Self::Debug),
             "info" => Ok(Self::Info),
             "notice" => Ok(Self::Notice),

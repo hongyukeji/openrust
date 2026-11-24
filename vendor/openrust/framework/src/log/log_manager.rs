@@ -739,15 +739,39 @@ impl Resolution<'_, '_> {
                 level,
                 options.bubble,
             )?,
+            Driver::Slack => Handler::Registered {
+                write: super::slack::writer(
+                    config,
+                    self.manager
+                        .config
+                        .get("app.name")
+                        .as_ref()
+                        .and_then(Value::as_str)
+                        .unwrap_or("Application"),
+                )?,
+                level,
+                bubble: options.bubble,
+            },
+            Driver::Papertrail => Handler::Registered {
+                write: super::syslog_udp::writer(
+                    config,
+                    self.settings.root,
+                    self.manager
+                        .config
+                        .get("app.name")
+                        .as_ref()
+                        .and_then(Value::as_str)
+                        .unwrap_or("main"),
+                )?,
+                level,
+                bubble: options.bubble,
+            },
             Driver::Errorlog { r#type } => {
                 // 原生进程没有SAPI错误日志；两种运行期输出模式均写标准错误。
                 if !matches!(r#type.unwrap_or(0), 0 | 4) {
                     return Err(LogError::InvalidConfiguration);
                 }
-                Handler::Stderr {
-                    level,
-                    bubble: true,
-                }
+                Handler::Errorlog { level }
             }
             Driver::Stderr => Handler::Stderr {
                 level,
@@ -823,6 +847,22 @@ impl Resolution<'_, '_> {
             let write = factory(&arguments).map_err(|_| LogError::FactoryFailed)?;
             return Ok(Handler::Registered {
                 write,
+                level,
+                bubble,
+            });
+        }
+        if name == "syslog_udp" {
+            return Ok(Handler::Registered {
+                write: super::syslog_udp::writer(
+                    &arguments,
+                    self.settings.root,
+                    self.manager
+                        .config
+                        .get("app.name")
+                        .as_ref()
+                        .and_then(Value::as_str)
+                        .unwrap_or("main"),
+                )?,
                 level,
                 bubble,
             });
@@ -971,6 +1011,8 @@ enum Driver {
         max_files: Option<usize>,
     },
     Stderr,
+    Slack,
+    Papertrail,
     Errorlog {
         r#type: Option<u8>,
     },

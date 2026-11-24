@@ -331,4 +331,25 @@ Native writes use the configured severity filters, processors, formatters and ou
 
 ## Process Error Log {#process-error-log}
 
-Use `driver: "errorlog"` to send records to the process error stream. The supported `type` values are `0` (default) and `4`; both write to standard error in a native executable without a PHP SAPI. Level filtering, placeholders, processors and formatters follow the normal channel rules. This driver always bubbles to the next stack member, matching its constructor contract; a `bubble` option does not change that behavior. Unsupported types enter the existing emergency recovery path.
+Use `driver: "errorlog"` to send records to the process error stream. The supported `type` values are `0` (default) and `4`; both write to standard error in a native executable without a PHP SAPI. The destination appends one newline even if the formatter already ends with one. Level filtering, placeholders, processors and formatters follow the normal channel rules. This driver always bubbles to the next stack member, matching its constructor contract; a `bubble` option does not change that behavior. Unsupported types enter the existing emergency recovery path.
+
+## Remote Log Channels {#remote-log-channels}
+
+The `slack` driver sends JSON to the configured incoming Webhook. Set `LOG_SLACK_WEBHOOK_URL`; the application configuration uses `LOG_LEVEL` or `critical` as its threshold. `url`, `username`, `channel`, `emoji`, `attachment` (default `true`), `short` (default `false`), `context` (default `true`) and `exclude_fields` configure its payload. Attachments retain structured fields; `attachment: false` sends the formatted text. Placeholder replacement and processors run before delivery.
+
+`exclude_fields` uses the external handler's dot-path behavior: a null value is retained, and a path with a repeated final segment stops at its first matching segment. Use a processor to apply a different redaction policy. Never put secrets in log context unless you intend to send them to the configured destination.
+
+The native synchronous logger waits for the transport. A private channel thread owns the existing HTTP client and runtime, so logging also works inside an async request without nesting a runtime. `timeout` sets seconds per attempt (default `10`); transport connection, timeout and body failures are retried up to five attempts. The handler does not follow redirects. HTTP status codes alone are not transport errors, matching the external handler; receiving a response does not prove that a remote service accepted the message. Transport failures use the existing emergency recovery; the same channel can send later records after recovery.
+
+The `papertrail` channel reads `PAPERTRAIL_URL` and `PAPERTRAIL_PORT` and sends remote Syslog datagrams. The existing `driver: "papertrail"` is retained as a native alias. For the generic handler form, use:
+
+```rust
+let settings = serde_json::json!({
+    "driver": "monolog",
+    "handler": "syslog_udp",
+    "handler_with": {"host": "127.0.0.1", "port": "10000", "ident": "orders"},
+    "replace_placeholders": true,
+});
+```
+
+The handler accepts integer or numeric-string ports, `facility`, `ident` and `rfc`: `0` selects RFC 3164, `1` (default) RFC 5424, and `2` includes millisecond precision. The hostname comes from the OS; the default program identifier is the application name. Custom formatters can emit several lines, each sent in a separate datagram. The nominal datagram limit is 65,023 bytes including the header, subject to platform socket limits. On Unix, port `0` selects a local datagram socket; relative socket paths resolve from the application root. UDP provides no delivery acknowledgement. These drivers preserve normal stack filtering, formatting and emergency behavior.

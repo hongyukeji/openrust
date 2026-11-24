@@ -32,6 +32,22 @@ fn commands() -> Result<(), openrust::console::ConsoleError> {
             &LogContext::from_iter([("id".into(), 42.into())]),
         )
         .unwrap();
+        use openrust::support::facades::Facade as _;
+        Log::get_facade_root()
+            .unwrap()
+            .register_formatter("flat", |_| {
+                Ok(std::sync::Arc::new(|record| {
+                    Ok(record.message().into_owned())
+                }))
+            });
+        let mode = std::env::var("TEST_ERRORLOG_MODE")
+            .unwrap()
+            .parse::<u8>()
+            .unwrap();
+        let flat =
+            Log::build(&json!({"driver":"errorlog","type":mode,"formatter":"flat"})).unwrap();
+        flat.info("one", &LogContext::new()).unwrap();
+        flat.info("two\n", &LogContext::new()).unwrap();
     })?
     .purpose("验收进程错误日志")
 }
@@ -72,6 +88,7 @@ async fn configured_errorlog_is_a_real_artisan_stderr_channel_in_both_output_mod
             "{text}"
         );
         assert!(!text.contains("below-threshold"));
+        assert!(text.contains("one\ntwo\n\n"), "{text}");
         assert!(!text.contains("EMERGENCY"));
         assert!(!root.path().join("fallback.log").exists());
         assert!(
