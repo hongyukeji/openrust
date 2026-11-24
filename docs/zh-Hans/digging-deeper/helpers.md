@@ -167,6 +167,16 @@ assert_eq!(epoch.format("U.u")?, "0.000000");
 
 `format` 使用 PHP 日期格式标记。`timezone_name` 与 `format("e T")` 在当地日期运算后仍保留解析得到的名称、偏移和缩写。`as_date_time` 仍为 Jiff 视图，解析出的缩写在其中使用固定偏移。显式传入原生时区时，解析和格式化保留其自身转换规则。返回日期值沿用 Jiff 的 −9999…9999 年范围，请求 `InputDate` 保留现有解析器的更宽范围。
 
+`create_from_timestamp` 与 `create_from_timestamp_ms` 分别从秒、毫秒创建日期。传入 `None` 时使用 UTC，不读取应用默认时区；传入 `Some(zone)` 时转换结果时刻的时区。`create_from_timestamp_utc` 和 `create_from_timestamp_ms_utc` 显式选择 UTC。四个入口均接收 `DateInput` 的数字、文本形式。
+
+```rust
+let seconds = Date::create_from_timestamp_utc("1601735792.198956")?;
+let milliseconds = Date::create_from_timestamp_ms_utc("1601735792198.956")?;
+assert_eq!(seconds.format("U.u")?, milliseconds.format("U.u")?);
+```
+
+时间戳字符串按固定数字片段兼容规则解释，不用于校验日期表达式。负毫秒保留比较版本的历史拆分行为：`-1` 得到 `1970-01-01 00:00:00.001000+00:00`。非有限数字及超出原生日期范围的值会返回错误。
+
 `instance(&value)` 克隆日期值。当前交付为时钟与当地日期子集；格式创建、本地化、自定义工厂和其余日期门面契约仍在补齐。
 
 

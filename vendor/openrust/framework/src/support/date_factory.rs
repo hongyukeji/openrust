@@ -82,15 +82,8 @@ impl DateFactory {
                     Date::from_utc(value.as_date_time().timestamp(), zone)
                 }));
             }
-            DateInput::Text(value) => Value::String(value),
-            DateInput::Integer(value) => value.into(),
-            DateInput::Unsigned(value) => value.into(),
-            DateInput::Number(value) => serde_json::Number::from_f64(value)
-                .ok_or(DateError::OutOfRange)?
-                .into(),
             DateInput::Json(Value::Null) => return self.now(timezone),
-            DateInput::Json(value) if value.is_string() || value.is_number() => value,
-            DateInput::Json(_) => return Err(DateError::InvalidExpression),
+            input => input.scalar()?,
         };
         let frozen = self.clock.now();
         let reference = frozen.unwrap_or_else(jiff::Timestamp::now);
@@ -106,6 +99,51 @@ impl DateFactory {
             CalendarError::LimitExceeded => DateError::InputTooLarge,
         })?;
         Date::from_input(parsed)
+    }
+    fn timestamp(
+        &self,
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+        milliseconds: bool,
+    ) -> Result<Date, DateError> {
+        use super::calendar::{CalendarError, date_from_timestamp};
+        let parsed = date_from_timestamp(input.into().scalar()?, milliseconds).map_err(
+            |error| match error {
+                CalendarError::InvalidExpression => DateError::InvalidExpression,
+                CalendarError::OutOfRange => DateError::OutOfRange,
+                CalendarError::LimitExceeded => DateError::InputTooLarge,
+            },
+        )?;
+        let value = Date::from_input(parsed)?;
+        Ok(timezone.map_or(value.clone(), |zone| {
+            Date::from_utc(value.as_date_time().timestamp(), zone)
+        }))
+    }
+    pub fn create_from_timestamp(
+        &self,
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        self.timestamp(input, timezone, false)
+    }
+    pub fn create_from_timestamp_utc(
+        &self,
+        input: impl Into<DateInput>,
+    ) -> Result<Date, DateError> {
+        self.timestamp(input, None, false)
+    }
+    pub fn create_from_timestamp_ms(
+        &self,
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        self.timestamp(input, timezone, true)
+    }
+    pub fn create_from_timestamp_ms_utc(
+        &self,
+        input: impl Into<DateInput>,
+    ) -> Result<Date, DateError> {
+        self.timestamp(input, None, true)
     }
     pub fn raw_parse(
         &self,
@@ -199,6 +237,24 @@ impl DateFacade {
         timezone: Option<DateTimezone>,
     ) -> Result<Date, DateError> {
         Self::factory()?.parse(input, timezone)
+    }
+    pub fn create_from_timestamp(
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        Self::factory()?.create_from_timestamp(input, timezone)
+    }
+    pub fn create_from_timestamp_utc(input: impl Into<DateInput>) -> Result<Date, DateError> {
+        Self::factory()?.create_from_timestamp_utc(input)
+    }
+    pub fn create_from_timestamp_ms(
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        Self::factory()?.create_from_timestamp_ms(input, timezone)
+    }
+    pub fn create_from_timestamp_ms_utc(input: impl Into<DateInput>) -> Result<Date, DateError> {
+        Self::factory()?.create_from_timestamp_ms_utc(input)
     }
     pub fn raw_parse(
         input: impl Into<DateInput>,

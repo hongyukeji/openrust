@@ -167,6 +167,16 @@ assert_eq!(epoch.format("U.u")?, "0.000000");
 
 `format` uses PHP date-format tokens. `timezone_name` and `format("e T")` preserve parsed names, offsets and abbreviations through civil arithmetic. `as_date_time` remains the Jiff view, where a parsed abbreviation uses a fixed offset. Explicit native timezones keep their own transition rules for parsing and formatting. The returned date value retains Jiff's −9999…9999 year range; request `InputDate` keeps the existing wider parser range.
 
+`create_from_timestamp` and `create_from_timestamp_ms` create dates from seconds or milliseconds. Pass `None` for UTC, independently of the application timezone; pass `Some(zone)` to convert the resulting instant. `create_from_timestamp_utc` and `create_from_timestamp_ms_utc` select UTC explicitly. All four accept the numeric and text forms of `DateInput`.
+
+```rust
+let seconds = Date::create_from_timestamp_utc("1601735792.198956")?;
+let milliseconds = Date::create_from_timestamp_ms_utc("1601735792198.956")?;
+assert_eq!(seconds.format("U.u")?, milliseconds.format("U.u")?);
+```
+
+Timestamp strings follow the fixed numeric-chunk compatibility rules, rather than validating date expressions. Negative milliseconds retain the comparison version's historical split behavior: `-1` becomes `1970-01-01 00:00:00.001000+00:00`. Non-finite numbers and dates outside the native range return errors.
+
 `instance(&value)` clones a date value. This is the clock and civil-day subset; localized parsing, format-driven creation, custom factories and the remaining date facade contracts are still being completed.
 
 

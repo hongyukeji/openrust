@@ -66,3 +66,19 @@ impl From<u32> for DateInput {
         Self::Unsigned(value.into())
     }
 }
+
+impl DateInput {
+    pub(super) fn scalar(self) -> Result<Value, crate::support::DateError> {
+        use crate::support::DateError;
+        match self {
+            Self::Text(value) => Ok(value.into()),
+            Self::Integer(value) => Ok(value.into()),
+            Self::Unsigned(value) => Ok(value.into()),
+            Self::Number(value) => serde_json::Number::from_f64(value)
+                .map(Value::Number)
+                .ok_or(DateError::OutOfRange),
+            Self::Json(value) if value.is_string() || value.is_number() => Ok(value),
+            _ => Err(DateError::InvalidExpression),
+        }
+    }
+}

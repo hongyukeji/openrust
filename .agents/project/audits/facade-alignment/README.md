@@ -448,3 +448,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - Date日期值保留表达式来源的时区元数据，format使用原PHP标记，timezone_name及缩写随日期运算保留；格式器按新时间戳输出。对显式Jiff时区增加内部适配，避免按名称重新查2025b覆盖调用者实际规则；复用同一格式器而非平行实现。
 - 严格模式、自定义解析/工厂回调及其余Date公开入口仍待处理，解析不能因23组样本就标为全量闭合。
 - tests-final.log实际55项通过（含23组原类向量、额外原生时区/非法输入以及HTTP/Artisan/模型与请求日期回归；内嵌单项重启不重复计数）。clippy-first.log workspace/all-targets严格51.15秒；三语文档构建与6组桌面/移动浏览器通过。PHP一次性容器直接删除，失败工具尝试日志保留，不计为通过。
+
+### Date：秒与毫秒时间戳创建（仍 partial）
+
+- 复用旧版提取的numeric chunks及PHP舍入，扩展3位毫秒精度；固定Carbon3.10.3 Timestamp.php已联网复核对应提交原文，未将负毫秒算法自行替换成直接除1000。此版本-1ms得到epoch+0.001s，明确写入文档和原类向量。
+- 正式4个create_from_timestamp/_utc/_ms/_ms_utc入口均由门面和具体Factory调用，默认UTC不读取应用默认时区，显式时区转换保留。输入形式共用DateInput，非有限数值不经JSON变成null。
+- 原类实际120向量包含整数/浮点/数字片段/舍入/负值/UTC与显式时区；超出原生Date年份范围的上游日期明确验证OutOfRange而非跳过。自定义工厂/创建回调、严格模式及其余入口继续在Date剩余项处理。
+- tests-final.log实际36项通过，120组原类向量均判定（含3组原生范围外明确错误，无跳过），另有解析/请求日期回归。clippy-first.log workspace/all-targets严格22.40秒；三语构建14.14秒与桌面/移动6浏览器通过。verified-upstream.json确认比较器Timestamp.php逐字节等于固定官方提交；一次性PHP容器已直接移除。

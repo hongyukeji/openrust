@@ -183,6 +183,29 @@ pub(crate) fn parse_date_with_jiff(
     )
 }
 
+pub(crate) fn date_from_timestamp(value: Value, milliseconds: bool) -> Result<InputDate> {
+    let text = match value {
+        Value::String(text) => text,
+        Value::Number(number) => match number.as_i64() {
+            Some(value) => value.to_string(),
+            None => timestamp::number_format_timestamp_precision(
+                number.as_f64().ok_or_else(range_error)?,
+                if milliseconds { 3 } else { 6 },
+            )?,
+        },
+        _ => return Err(CalendarError::InvalidExpression),
+    };
+    if text.len() > MAX_CALENDAR_BYTES {
+        return Err(limit_error());
+    }
+    let instant = if milliseconds {
+        timestamp::carbon_timestamp_milliseconds(&text)?
+    } else {
+        timestamp::carbon_timestamp(&text)?
+    };
+    Ok(InputDate::new(instant, ResolvedTimezone::parse("+00:00")?))
+}
+
 pub(crate) fn native_timezone_name(timezone: &TimeZone, timestamp: Timestamp) -> String {
     ResolvedTimezone::from_jiff(timezone.clone(), timestamp)
         .name()

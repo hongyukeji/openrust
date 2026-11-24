@@ -30,3 +30,10 @@ The same generator also writes `identifiers.rs` with each identifier's canonical
 flag and two-letter country code from the verified PHP timezonedb header.
 Validation's timezone rule uses this metadata, including aliases and country
 filtering, without consulting the host database or changing Calendar's version.
+
+- Date factory timestamp creation is additionally compared with Carbon 3.10.3,
+  commit `8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f`,
+  `src/Carbon/Traits/Timestamp.php`. The fixed numeric chunk parser and PHP
+  number-format rounding are reused for seconds and milliseconds; negative
+  millisecond parts retain that version's behavior. The source remains MIT
+  licensed under `LICENSE.carbon`.

@@ -1,0 +1,1082 @@
+[
+    {
+        "method": "createFromTimestamp",
+        "input": 0,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 0,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 1,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:01.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 1,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:01.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -1,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -1,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -1001,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:43:19.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -1001,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:43:19.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 1.25,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:01.250000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 1.25,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:01.250000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -1.25,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:58.750000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -1.25,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:58.750000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000001+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 5.0e-7,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000001+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.999999+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -5.0e-7,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.999999+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000500+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": 0.0005,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000500+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.999500+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": -0.0005,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.999500+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "0",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "0",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "-1",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "-1",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "-1001",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:43:19.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "-1001",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:43:19.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "1601735792.198956",
+        "timezone": null,
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "1601735792.198956",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2020-10-03 22:36:32.198956+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "0.198956 1601735792",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2020-10-03 22:36:32.198956+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "-0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "1919-03-31 09:23:27.801044+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "-0.198956 1601735792",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1919-03-31 17:23:27.801044+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "1601735792198.956",
+        "timezone": null,
+        "result": {
+            "date": "52726-12-27 16:56:38.956000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "1601735792198.956",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "52726-12-28 00:56:38.956000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "1e3",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:04.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "1e3",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:04.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "junk",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": "junk",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": " -1",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:01.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestamp",
+        "input": " -1",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:01.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": 0,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": 1,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:01.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": -1,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": -1001,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:43:19.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": 1.25,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:01.250000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": -1.25,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:58.750000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": 5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000001+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": -5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.999999+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": 0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000500+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": -0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.999500+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "0",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "-1",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "-1001",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:43:19.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "1601735792.198956",
+        "timezone": null,
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "-0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "1919-03-31 09:23:27.801044+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "1601735792198.956",
+        "timezone": null,
+        "result": {
+            "date": "52726-12-27 16:56:38.956000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "1e3",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:04.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": "junk",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampUTC",
+        "input": " -1",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:01.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 0,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 0,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 1,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 1,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.001000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -1,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -1,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.001000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -1001,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -1001,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.001000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 1.25,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001250+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 1.25,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.001250+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -1.25,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000750+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -1.25,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000750+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 5.0e-7,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -5.0e-7,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000001+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": 0.0005,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000001+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.999999+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": -0.0005,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.999999+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "0",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "0",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "-1",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "-1",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.001000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "-1001",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "-1001",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 07:59:59.001000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "1601735792.198956",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-19 12:55:35.792199+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "1601735792.198956",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-19 20:55:35.792199+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-19 12:55:35.792199+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "0.198956 1601735792",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-19 20:55:35.792199+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "-0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-13 11:04:25.791801+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "-0.198956 1601735792",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1969-12-13 19:04:25.791801+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "1601735792198.956",
+        "timezone": null,
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "1601735792198.956",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2020-10-03 22:36:32.198956+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "1e3",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.004000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "1e3",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.004000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "junk",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": "junk",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.000000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": " -1",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMs",
+        "input": " -1",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 08:00:00.001000+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": 0,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": 1,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": -1,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": -1001,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": 1.25,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001250+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": -1.25,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000750+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": 5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": -5.0e-7,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": 0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000001+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": -0.0005,
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.999999+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "0",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "-1",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "-1001",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-31 23:59:59.001000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "1601735792.198956",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-19 12:55:35.792199+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-19 12:55:35.792199+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "-0.198956 1601735792",
+        "timezone": null,
+        "result": {
+            "date": "1969-12-13 11:04:25.791801+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "1601735792198.956",
+        "timezone": null,
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "1e3",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.004000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": "junk",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "method": "createFromTimestampMsUTC",
+        "input": " -1",
+        "timezone": null,
+        "result": {
+            "date": "1970-01-01 00:00:00.001000+00:00",
+            "zone": "+00:00"
+        }
+    }
+]
