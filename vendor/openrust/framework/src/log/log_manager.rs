@@ -739,6 +739,16 @@ impl Resolution<'_, '_> {
                 level,
                 options.bubble,
             )?,
+            Driver::Errorlog { r#type } => {
+                // 原生进程没有SAPI错误日志；两种运行期输出模式均写标准错误。
+                if !matches!(r#type.unwrap_or(0), 0 | 4) {
+                    return Err(LogError::InvalidConfiguration);
+                }
+                Handler::Stderr {
+                    level,
+                    bubble: true,
+                }
+            }
             Driver::Stderr => Handler::Stderr {
                 level,
                 bubble: options.bubble,
@@ -961,6 +971,9 @@ enum Driver {
         max_files: Option<usize>,
     },
     Stderr,
+    Errorlog {
+        r#type: Option<u8>,
+    },
     Syslog {
         facility: Option<syslog::Facility>,
         socket: Option<PathBuf>,

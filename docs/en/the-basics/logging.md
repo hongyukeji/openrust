@@ -328,3 +328,7 @@ let default_native = Log::get_logger()?;
 ```
 
 Native writes use the configured severity filters, processors, formatters and output handlers. They receive only the supplied context and bypass application channel context, Context metadata, MessageLogged observers and Pail capture. Native write or processor failures return an error directly. Use the channel or Log facade's level methods for application logging with context, events and emergency recovery. The native handle implements the existing Rust log contract; configure shared channel processors and formatters through the usual registration and tap interfaces.
+
+## Process Error Log {#process-error-log}
+
+Use `driver: "errorlog"` to send records to the process error stream. The supported `type` values are `0` (default) and `4`; both write to standard error in a native executable without a PHP SAPI. Level filtering, placeholders, processors and formatters follow the normal channel rules. This driver always bubbles to the next stack member, matching its constructor contract; a `bubble` option does not change that behavior. Unsupported types enter the existing emergency recovery path.

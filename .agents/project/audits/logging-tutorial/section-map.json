@@ -1,0 +1,122 @@
+{
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "sections": [
+    {
+      "anchor": "introduction",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "configuration",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "available-channel-drivers",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "configuring-the-channel-name",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "channel-prerequisites",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "configuring-the-single-daily-and-monthly-channels",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "configuring-the-papertrail-channel",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "configuring-the-slack-channel",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "logging-deprecation-warnings",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "building-log-stacks",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "log-levels",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "writing-log-messages",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "contextual-information",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "writing-to-specific-channels",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "on-demand-channels",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "monolog-channel-customization",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "customizing-monolog-for-channels",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "creating-monolog-handler-channels",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "monolog-formatters",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "monolog-processors",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "creating-custom-channels-via-factories",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "tailing-log-messages-using-pail",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-installation",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-usage",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-filtering-logs",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-filtering-logs-filter-option",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-filtering-logs-message-option",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-filtering-logs-level-option",
+      "status": "pending_contract_review"
+    },
+    {
+      "anchor": "pail-filtering-logs-user-option",
+      "status": "pending_contract_review"
+    }
+  ]
+}
