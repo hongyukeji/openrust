@@ -132,3 +132,18 @@ pub(crate) fn execution(queue: &Queue) -> Option<Arc<super::telemetry::Execution
         .ok()
         .flatten()
 }
+
+pub(crate) fn managed_queue(owner: &Arc<Container>) -> Option<Arc<Queue>> {
+    RUNTIME
+        .try_with(|r| {
+            r.as_ref()
+                .filter(|r| {
+                    r.owner
+                        .upgrade()
+                        .is_some_and(|current| Arc::ptr_eq(&current, owner))
+                })
+                .and_then(|r| r.queue.upgrade())
+        })
+        .ok()
+        .flatten()
+}

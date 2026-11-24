@@ -22,7 +22,7 @@
 | Broadcast | `support::facades::Broadcast` | 核对广播管理、频道注册/鉴权、连接、事件与测试替身 |
 | Bus | `support::facades::Bus` | 核对 Dispatcher、批次/链、同步/提交后派发及 fake |
 | Cache | `support::facades::Cache` | 核对默认仓储、Store、锁、tags、memo、替身及上下文隔离 |
-| Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口、真实 Worker Agent 领取/上报及队列遥测已验；远端失败任务、异常遥测、凭据缓存和其余队列契约仍待闭合 |
+| Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口、真实 Worker Agent 领取/上报及队列遥测已验；远端失败任务重试已验；异常遥测、凭据缓存和其余队列契约仍待闭合 |
 | Concurrency | `support::facades::Concurrency` | 核对 Manager 选择、run/defer、驱动和生命周期 |
 | Config | `support::facades::Config` | 核对全部仓储转发、类型读取、缺键默认、多个配置与 Serde 适配 |
 | Context | `support::facades::Context` | 核对可见/隐藏上下文、增删、dehydrate/hydrate、事件及测试行为 |
@@ -412,3 +412,17 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - tests-final.log真实14项Cloud+6项Events通过，覆盖真实TCP和Unix Agent、实际Artisan daemon、released/failed/超时124、同应用双Worker处理详情、无活动任务/queued/FIFO归一化、部分写/五次零写/故障重连/取消及2秒超时。clippy-second.log workspace/all-targets严格通过（39.52秒）。Cloud仍有远端失败任务、异常遥测、凭据缓存和其余队列公开契约，继续实施。
 
 - 控制台console-regression.log实际命令事件/输入/输出/退出与异常回归1项通过；三语文档构建及桌面/移动6组浏览器通过。前一Cloud批次的三库队列回归未受存储算法影响，复用其证据，未重新计数。原生硬超时进程、OOM/强制终止仍未以普通异步超时覆盖。
+
+### Cloud：失败任务 Provider、惰性下载与真实重试（仍 partial）
+
+- 复用当前失败存储/事务重试流、Encrypter密钥环、HTTP Factory、SQS和Worker，固定Cloud/FailedJobProvider及DatabaseUuidFailedJobProvider/NullFailedJobProvider/FlushFailedCommand源码核对。旧版无Cloud对应实现，不另建失败表或下载队列。
+- 托管终态失败发送failed_job、UUIDv7、处理详情/负载/作业名/错误预览，普通连接继续父存储。日志仍在预留确认前处理，先标记失败使观察状态正确，不把回调提前到确认前。新1001字符验收揭示原FailedJob::new只存泛化显示而丢失内层业务错误；已复用既有队列事件错误链格式保存原始原因，原错误对象与回调接口保留。
+- HTTPS下载使用原生公开find及正式find_for_retry惰性流，响应版本1分页或旧单条；明示联合返回适配，不把动态接口单条find静默截断分页。非HTTPS交父存储。只缓存已经yield的记录，组合键保留页self与原ID，数值ID确认保持JSON数值；确认先移除缓存再发事件，失败/重复的返回与固定源码相同。空页及PHP真值为假的记录停止，不跨页；非法非空记录返回原生类型错误。
+- 复用所属应用的4种AES算法及previous_keys；请求仅发送版本/算法名，不发送密钥。连接/整体各10秒，403停止，其余10次、0.5秒起指数退避；全局middleware旁路后恢复，Fake/记录仍保留。确认缓存采用既有容器scoped服务，跨命令/请求隔离，普通直接调用使用实例缓存；不引入全局静态可变状态。
+- 新可选Countable能力实际接DatabaseUuid与Null；Cloud计数/ids/all/flush/prune/普通查找、事务内forget均委托父存储。顺着消费者补齐queue:flush --queue、prohibit、告警/成功输出与小数/负数小时。按固定源码区分count的空/0过滤、ids/flush显式空队列、字面0关闭时间过滤而0.0以当前时间截止；禁止先于存储解析/数值处理，作用域为应用，返回0警告。自定义存储未实现过滤/绝对截止时间时明确拒绝，不默默删全库。
+- 复杂Schema/事务公开消费者触发Rust编译布局深度溢出；在Facade::set_facade_application正式边界Box传入Future，未提高recursion_limit或线程栈、未仅在测试绕行。当前作用域嵌套/取消/回调/spy回归全部通过。
+- 原PHP类在既有PHP8.5.12共享镜像执行oracle.json：真实LazyCollection迭代、懒读取/组合键/已加载确认/重复确认/假值中止、Countable条件；仅解密页与时钟为明示探针，Events为真实socket_pair。固定源码SHA及必要预期在fixtures/cloud/failed-jobs-contract.json，不把探针算作HTTP/密码验收。
+- tests-cause.log实际43项通过：14 Cloud、6 Events、12失败Provider、8 Facade生命周期、2 spy、1控制台。新增真实Artisan queue:retry -> 本机真实AWS SDK/SQS HTTP -> 真实queue:work消费；HTTPS下载为Factory fake，4种AES为真实密码实现，供应商HTTPS/账号交付未验。mysql-retention.log（MySQL8.4.13）、postgres-retention.log（PostgreSQL180007）与SQLite实际计数/回滚提交/prune/全部CLI年龄/队列/禁止边界通过，无缺变量跳过。worker-sqlite-cause.log真实独立Artisan Worker全回归61.95秒通过；此前失败/编译中断日志不计通过。
+- clippy-cause.log实际workspace/all-targets严格通过23.09秒。仍需ExceptionReporter关联ID与源位置、托管不存在映射、raw/bulk/queueable options、跨进程凭据缓存及其余启动接线；Cloud与全门面保持未闭合。已有队列事件/JSON下载仅传原生任务，未声称执行其他语言序列化任务或通过真实云部署。
+
+- 补充tests-key-ring.log全部13项失败Provider通过：上一密钥显式配置才可解密旧下载，未配置则拒绝；与前述其余31项组成当前44项本机路径。clippy-final.log再次严格通过17.70秒；三语构建及托管失败章节桌面/移动浏览器6组通过。PHP容器均已按批次退出，既有PHP共享镜像保留；Cargo热缓存依现行规范继续复用，未推送。

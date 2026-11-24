@@ -30,7 +30,8 @@ impl FailedJob {
             connection: job.get_connection_name().into(),
             queue: job.get_queue().into(),
             payload: job.payload().clone(),
-            exception: error.to_string(),
+            // 与队列事件共用错误链格式，失败存储不能丢失实际业务错误。
+            exception: super::events::attempt_exception_message(error),
             failed_at: timestamp(jiff::Timestamp::now()),
         }
     }
@@ -38,4 +39,13 @@ impl FailedJob {
 
 fn timestamp(time: jiff::Timestamp) -> String {
     time.strftime("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+/// 按连接和队列筛选失败任务数的可选能力。
+pub trait CountableFailedJobProvider: Send + Sync {
+    fn count<'a>(
+        &'a self,
+        connection: Option<&'a str>,
+        queue: Option<&'a str>,
+    ) -> super::QueueFuture<'a, super::QueueResult<u64>>;
 }

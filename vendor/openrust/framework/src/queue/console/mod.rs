@@ -26,3 +26,5 @@ pub(crate) fn register(
     retry_batch_command::register(artisan)?;
     failed_commands::register(artisan)
 }
+
+pub use failed_commands::FlushFailedCommand;

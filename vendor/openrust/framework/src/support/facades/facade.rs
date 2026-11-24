@@ -188,6 +188,8 @@ pub trait Facade {
         application: Option<&crate::foundation::Application>,
         operation: F,
     ) -> impl Future<Output = F::Output> {
+        // 对外作用域Future保持有界，避免复杂消费者的内联布局耗尽编译深度或线程栈。
+        let operation = Box::pin(operation);
         async move {
             match application {
                 Some(application) => scope(application.container_handle(), operation).await,

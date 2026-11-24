@@ -1076,8 +1076,41 @@ let normalized = queue.normalize_queue(Some("priority"))?;
 ./artisan queue:work cloud --queue=priority
 ```
 
-Agent polling is enabled only for a matching single queue inside `queue:work`; ordinary callers and multi-queue workers use SQS. The agent receives `processed` or `released` results and owns SQS settlement. Result HTTP 4xx errors remain request errors; connection failures and HTTP 5xx are lost-agent errors. Unix agent transport is supported on Unix systems; other systems can use SQS directly. This initial integration does not yet provide remote failed-job download or shared credential-cache lifecycle; real hosted delivery requires separate acceptance.
+Agent polling is enabled only for a matching single queue inside `queue:work`; ordinary callers and multi-queue workers use SQS. The agent receives `processed` or `released` results and owns SQS settlement. Result HTTP 4xx errors remain request errors; connection failures and HTTP 5xx are lost-agent errors. Unix agent transport is supported on Unix systems; other systems can use SQS directly. Shared credential caching and correlated exception reporting are not yet available; real hosted delivery requires separate acceptance.
 
 Managed queue events are newline-delimited JSON sent to `LARAVEL_CLOUD_LOG_SOCKET` (default `unix:///tmp/cloud-init.sock`). `tcp://host:port` is also supported. Events include `queued`, `started`, `processed`, `released` and `failed`; completion includes `duration_ms` and UTC microsecond timestamps. Transport errors return false and do not interrupt queue operations. A cancelled partial write closes that socket so the next event starts a clean connection.
 
 `queue:work` daemon polling and stopping finish the current event; a retryable timeout emits `released` and exits 124 without acknowledging the SQS reservation. `--once` does not dispatch daemon stopping events. `Cloud::queue()?.processing_job_details()?` returns the current queue, attempts and start time inside a managed Worker, or `None` when no job is active. Concurrent workers keep separate processing state even when they share an application.
+
+### Managed failed jobs {#managed-failed-jobs}
+
+A terminal failure on the `cloud` connection emits a `failed_job` event with its UUID v7, payload, attempts and processing time. Other connections retain their configured failed-job storage. Hosted records are not duplicated into the ordinary failed-job table. The native error preview preserves up to 1001 Unicode characters; correlated exception IDs are not yet provided.
+
+Retry a hosted download URL using the normal command:
+
+```sh
+./artisan queue:retry 'https://cloud.example.test/signed-failed-jobs'
+./artisan queue:work cloud --queue=default
+```
+
+The download uses the application key ring and configured cipher. The `Cloud-Payload-Version` and `Cloud-Encryption-Cipher` headers contain the protocol version and cipher name, never the key. Version 1 pages use `data` and `links.self` / `links.next`; legacy single-record payloads remain supported. Pages are fetched lazily, only yielded records can be confirmed, and loaded confirmations are isolated to the current application execution. HTTP 403 stops immediately; other request errors use up to ten attempts with exponential delays starting at 500 ms.
+
+The public native `foundation::cloud::FailedJobProvider::find` and the storage interface's `find_for_retry` return the formal retry stream, including composite page/record keys. The interface's single-record `find` rejects hosted URLs instead of truncating a page. Payloads contain native queued jobs; this does not execute serialized jobs from another language. Local protocol acceptance does not certify a hosted vendor deployment.
+
+Ordinary failed records support filtered clearing and optional counts/pruning:
+
+```sh
+./artisan queue:flush --queue=emails --hours=24
+./artisan queue:flush --queue=emails --hours=0.5
+```
+
+Retention hours can be fractional or negative. Literal `--hours=0` disables the age filter; `--hours=0.0` applies a cutoff at the current time. An explicitly empty queue still filters the empty queue name. Third-party storage implements `flush_queue` / `flush_before` to support filtered or absolute-cutoff clearing; unsupported combinations fail explicitly rather than deleting all records.
+
+```rust
+use openrust::queue::console::FlushFailedCommand;
+
+// Set during your application's service-provider boot.
+FlushFailedCommand::prohibit(true)?;
+```
+
+The prohibition is application-local, returns success with a warning, and is checked before resolving storage or applying retention values.

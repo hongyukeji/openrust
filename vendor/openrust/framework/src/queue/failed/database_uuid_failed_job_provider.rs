@@ -69,6 +69,10 @@ async fn log_record(
 }
 
 impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
+    fn countable(&self) -> Option<&dyn super::CountableFailedJobProvider> {
+        Some(self)
+    }
+
     fn prunable(&self) -> Option<&dyn PrunableFailedJobProvider> {
         Some(self)
     }
@@ -195,17 +199,39 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
     }
 
     fn flush(&self, older_than: Option<Duration>) -> QueueFuture<'_, QueueResult<()>> {
+        self.flush_queue(older_than, None)
+    }
+    fn flush_queue<'a>(
+        &'a self,
+        older_than: Option<Duration>,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let before = older_than
+                .filter(|age| !age.is_zero())
+                .map(|age| {
+                    let age = jiff::SignedDuration::try_from(age)
+                        .map_err(|_| QueueError::InvalidConfiguration)?;
+                    jiff::Timestamp::now()
+                        .checked_sub(age)
+                        .map_err(|_| QueueError::InvalidConfiguration)
+                })
+                .transpose()?;
+            self.flush_before(before, queue).await
+        })
+    }
+    fn flush_before<'a>(
+        &'a self,
+        before: Option<jiff::Timestamp>,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             let mut query = self.connection.table(&self.table);
-            if let Some(age) = older_than {
-                let cutoff = jiff::Timestamp::now()
-                    .checked_sub(
-                        jiff::SignedDuration::try_from(age)
-                            .map_err(|_| QueueError::InvalidConfiguration)?,
-                    )
-                    .ok()
-                    .ok_or(QueueError::InvalidConfiguration)?;
-                query = query.r#where("failed_at", "<=", super::timestamp(cutoff));
+            if let Some(before) = before {
+                query = query.r#where("failed_at", "<=", super::timestamp(before))
+            }
+            if let Some(queue) = queue {
+                query = query.r#where("queue", "=", queue)
             }
             query.delete().await.map_err(backend)?;
             Ok(())
@@ -268,4 +294,24 @@ fn decode(row: Row) -> QueueResult<FailedJob> {
         exception: text("exception")?,
         failed_at: text("failed_at")?,
     })
+}
+
+impl super::CountableFailedJobProvider for DatabaseUuidFailedJobProvider {
+    fn count<'a>(
+        &'a self,
+        connection: Option<&'a str>,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<u64>> {
+        Box::pin(async move {
+            let mut query = self.connection.table(&self.table).use_write_pdo();
+            if let Some(connection) = connection.filter(|value| !value.is_empty() && *value != "0")
+            {
+                query = query.r#where("connection", "=", connection)
+            }
+            if let Some(queue) = queue.filter(|value| !value.is_empty() && *value != "0") {
+                query = query.r#where("queue", "=", queue)
+            }
+            query.count("*").await.map_err(backend)
+        })
+    }
 }

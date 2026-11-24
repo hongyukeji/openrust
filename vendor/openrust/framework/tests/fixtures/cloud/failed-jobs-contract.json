@@ -1,0 +1,74 @@
+{
+  "lazy_hits": 0,
+  "non_https": null,
+  "null_count": 0,
+  "null_prune": 0,
+  "first_key": "https://cloud.test/first:one",
+  "first_hits": 1,
+  "unloaded_forget": false,
+  "forget": true,
+  "repeat_forget": false,
+  "remaining_keys": [
+    "https://cloud.test/first:two",
+    "https://cloud.test/next:3"
+  ],
+  "total_hits": 2,
+  "event": {
+    "_cloud_event": "failed_job",
+    "id": "one",
+    "queue": "priority",
+    "retried_at": "2026-11-24 10:00:00.000000"
+  },
+  "falsy": [
+    {
+      "count": 0,
+      "hits": 1
+    },
+    {
+      "count": 0,
+      "hits": 1
+    },
+    {
+      "count": 0,
+      "hits": 1
+    },
+    {
+      "count": 0,
+      "hits": 1
+    },
+    {
+      "count": 0,
+      "hits": 1
+    },
+    {
+      "count": 0,
+      "hits": 1
+    },
+    {
+      "count": 0,
+      "hits": 1
+    }
+  ],
+  "count_filters": [
+    [],
+    [],
+    [
+      [
+        "connection",
+        "database"
+      ],
+      [
+        "queue",
+        "priority"
+      ]
+    ]
+  ],
+  "_source": {
+    "baseline": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "files": {
+      "Foundation/Cloud/FailedJobProvider.php": "8ce24711254ac086e937341ecc24c4a9a037a872f2ed70ea3dff410fe0689dec",
+      "Queue/Failed/DatabaseUuidFailedJobProvider.php": "2f3f1826fe122043f6151f73c6e3fdec752d8c48b08976542cd6c5e718345f1c"
+    },
+    "probe": "Original iterator/forget/count; decrypted page probe and fixed clock replace network/crypto/time only; real Events socket pair. PHP8.5.12 CLI Alpine."
+  }
+}

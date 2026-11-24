@@ -148,6 +148,15 @@ impl Output {
         self.stdout.push_str("\n\n");
     }
 
+    /// 输出警告组件，保持信息与错误组件的布局。
+    pub fn warning(&mut self, message: &str) {
+        self.stdout.push_str("\n  ");
+        self.write_style(" WARN ", "\x1b[30;43m", "\x1b[39;49m");
+        self.stdout.push(' ');
+        self.stdout.push_str(message);
+        self.stdout.push_str("\n\n");
+    }
+
     /// Writes a console error component, matching the information component layout.
     pub fn error(&mut self, message: &str) {
         self.stdout.push_str("\n  ");

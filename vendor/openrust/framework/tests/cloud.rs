@@ -443,7 +443,9 @@ mod agent {
                         context.release(std::time::Duration::from_secs(7));
                         Ok(())
                     }
-                    "failed" => Err(openrust::queue::QueueError::InvalidPayload),
+                    "failed" => Err(openrust::queue::QueueError::Execution {
+                        source: Arc::new(std::io::Error::other("界".repeat(1002))),
+                    }),
                     _ => std::future::pending().await,
                 }
             })
@@ -459,7 +461,7 @@ mod agent {
                 let (stream, _) = listener.accept().await.unwrap();
                 let mut lines = tokio::io::BufReader::new(stream).lines();
                 let mut rows = Vec::new();
-                for _ in 0..2 {
+                for _ in 0..if mode == "failed" { 3 } else { 2 } {
                     rows.push(
                         serde_json::from_str::<Value>(&lines.next_line().await.unwrap().unwrap())
                             .unwrap(),
@@ -511,9 +513,29 @@ mod agent {
                 .unwrap();
             assert_eq!(rows[0]["type"], "started");
             assert_eq!(
-                rows[1]["type"],
+                rows.last().unwrap()["type"],
                 if mode == "timeout" { "released" } else { mode }
             );
+            if mode == "failed" {
+                let failed = &rows[1];
+                assert_eq!(failed["_cloud_event"], "failed_job");
+                assert_eq!(
+                    uuid::Uuid::parse_str(failed["id"].as_str().unwrap())
+                        .unwrap()
+                        .get_version_num(),
+                    7
+                );
+                assert_eq!(failed["attempts"], 1);
+                assert_eq!(failed["job_name"], "outcome");
+                let preview = failed["exception_preview"].as_str().unwrap();
+                let original = failed["exception"].as_str().unwrap();
+                assert_eq!(preview.chars().count(), 1001);
+                assert_eq!(preview, original.chars().take(1001).collect::<String>());
+                assert_eq!(
+                    serde_json::from_str::<Value>(failed["payload"].as_str().unwrap()).unwrap()["name"],
+                    "outcome"
+                );
+            }
             assert_eq!(
                 server.calls.lock().unwrap().len(),
                 if mode == "timeout" { 1 } else { 2 }

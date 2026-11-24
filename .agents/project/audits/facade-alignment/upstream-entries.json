@@ -884,15 +884,29 @@
           "evidence": "framework/tests/cloud_events.rs全部6项；cloud.rs真实daemon状态/超时/双Worker测试；固定Events原类真实PHP stream_socket_pair输出。",
           "remaining": "原生硬超时进程执行、OOM/强制终止后的外部托管恢复需独立验收；原生Error没有PHP编译期fatal shutdown函数，不声明等价。"
         },
-        "artisan_stack": "同应用并发两个公开Artisan::call_silently复现默认线程栈溢出；在call/call_silently正式委托边界Box Future后原消费者默认栈通过，无线程栈放大和测试绕行。"
+        "artisan_stack": "同应用并发两个公开Artisan::call_silently复现默认线程栈溢出；在call/call_silently正式委托边界Box Future后原消费者默认栈通过，无线程栈放大和测试绕行。",
+        "failed_jobs": {
+          "local": "foundation::cloud::FailedJobProvider; queue::failed::{FailedJobProviderInterface,CountableFailedJobProvider}; queue::console::FlushFailedCommand",
+          "contract": "普通连接完整委托父存储，保留事务重试能力；cloud失败在实际Worker域读取处理详情，发UUIDv7/1001 Unicode字符预览/原始错误链/负载并收尾。HTTPS find返回惰性重试流：解密/版本1分页/旧单条/组合键/只确认已迭代记录/移除后发确认；403无重试，其余最多10次0.5秒起指数退避。",
+          "return_adaptation": "PHP find的object/LazyCollection联合返回映射到正式FailedJobRetryStream；公开具体类型find支持单记录或分页流，动态存储接口使用既有find_for_retry；接口单条find遇到托管URL拒绝而不截断。载荷保持原生任务协议，不执行PHP序列化对象。",
+          "state": "loaded确认缓存按应用执行域隔离，普通直接调用保留实例缓存；set_queue供显式装配，真实Worker优先取自身运行域。Encrypter从所属应用惰性解析，下载之前仍可使用不加密的队列；不把缺密钥的远端下载算作成功。",
+          "errors": "记录格式错误为typed InvalidPayload，拒绝错误版本/密文；底层错误链保留。原生Error没有PHP自动文件/行/异常类元数据，仍待结构化ExceptionReporter扩展，不伪造来源。",
+          "consumers": "真实Artisan queue:retry消费加密协议并向本机真实AWS SDK/SQS协议端点发布，实际queue:work再次领取/执行/确认；HTTPS下载使用Factory fake，未实测供应商TLS。",
+          "evidence": "cloud-failures/oracle.json固定原类迭代/确认/计数，clock及解密页为明示探针，真实Events socket。tests-cause.log 12项失败Provider+14项Cloud+6项Events及11项Facade/控制台共43项；3库过滤计数/事务重试/清理，实际SQLite子进程Worker全回归。"
+        },
+        "failed_flush": {
+          "contract": "flush_queue/flush_before保留可选队列及绝对截止时间；count过滤空/0按固定when真值，ids及flush的显式空队列仍有效。queue:flush --queue/小数/负数小时/0与0.0区分/应用级prohibit；禁用先于存储及数值处理并返回0警告。",
+          "evidence": "SQLite/MySQL8.4.13/PostgreSQL18.7实际计数、回滚/提交、prune、CLI过滤、未来记录/小数/负数及禁止流程。自定义存储未提供过滤能力时明确Unsupported，不误删。"
+        }
       },
       "remaining": [
-        "关联异常ExceptionReporter遥测，以及Cloud专用硬超时/强制终止验收",
-        "Cloud失败任务Provider远端操作及事件",
+        "关联异常ExceptionReporter遥测及异常来源位置元数据",
+        "Cloud专用硬超时/强制终止发布验收",
         "托管不存在错误转换、raw/bulk及queueable options完整契约",
         "跨进程凭据缓存与其他托管启动接线",
+        "复核并放宽宏参数/返回不必要的Send/Sync约束（共享回调约束保留）",
         "共享Facade mock/spy及默认别名",
-        "真实托管AWS/Agent及Windows发布验收"
+        "真实托管AWS/Agent、供应商HTTPS及Windows发布验收"
       ]
     },
     {

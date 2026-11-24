@@ -54,6 +54,7 @@ pub struct QueueManager {
     pop_callbacks: RwLock<HashMap<String, JobPopCallback>>,
     interruption_polling: AtomicBool,
     clear_prohibited: AtomicBool,
+    failed_flush_prohibited: AtomicBool,
 }
 
 type Connector = dyn Fn(&Container, &str, &Value) -> QueueResult<Arc<dyn Contract>> + Send + Sync;
@@ -178,6 +179,7 @@ impl QueueManager {
             pop_callbacks: RwLock::default(),
             interruption_polling: AtomicBool::new(true),
             clear_prohibited: AtomicBool::new(false),
+            failed_flush_prohibited: AtomicBool::new(false),
         }
     }
 
@@ -443,6 +445,13 @@ impl QueueManager {
         self.clear_prohibited.store(prohibited, Ordering::Relaxed);
     }
 
+    pub(super) fn set_failed_flush_prohibited(&self, prohibited: bool) {
+        self.failed_flush_prohibited
+            .store(prohibited, Ordering::Relaxed)
+    }
+    pub(super) fn failed_flush_prohibited(&self) -> bool {
+        self.failed_flush_prohibited.load(Ordering::Relaxed)
+    }
     pub fn clear_prohibited(&self) -> bool {
         self.clear_prohibited.load(Ordering::Relaxed)
     }

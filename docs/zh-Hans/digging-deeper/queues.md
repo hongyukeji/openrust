@@ -1076,8 +1076,41 @@ let normalized = queue.normalize_queue(Some("priority"))?;
 ./artisan queue:work cloud --queue=priority
 ```
 
-只有 `queue:work` 中匹配的单队列领取会启用 Agent；普通调用及多队列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 结果并负责 SQS 结算。结果上报的 HTTP 4xx 保留请求错误，连接故障和 HTTP 5xx 视为 Agent 失联。Unix 系统支持 Unix Agent 传输，其他系统可直接使用 SQS。当前尚不提供远端失败任务下载及跨进程凭据缓存生命周期；真实托管投递另行验收。
+只有 `queue:work` 中匹配的单队列领取会启用 Agent；普通调用及多队列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 结果并负责 SQS 结算。结果上报的 HTTP 4xx 保留请求错误，连接故障和 HTTP 5xx 视为 Agent 失联。Unix 系统支持 Unix Agent 传输，其他系统可直接使用 SQS。跨进程凭据缓存和异常关联报告尚未提供；真实托管投递另行验收。
 
 托管队列事件通过 `LARAVEL_CLOUD_LOG_SOCKET` 输出逐行 JSON，默认地址为 `unix:///tmp/cloud-init.sock`，也支持 `tcp://host:port`。事件包括 `queued`、`started`、`processed`、`released`、`failed`；完成事件带有 `duration_ms` 和 UTC 微秒时间。传输故障返回 false，不中断队列操作；取消部分写入会关闭该连接，下一事件重新建连。
 
 `queue:work` 守护进程在再次领取或停止时输出当前任务的完成事件；可重试的超时输出 `released` 并以 124 退出，保留 SQS 预留。`--once` 不派发守护进程停止事件。托管 Worker 内可通过 `Cloud::queue()?.processing_job_details()?` 读取当前队列、尝试次数和开始时间，无活动任务时返回 `None`。同一应用的并发 Worker 分别保留处理状态。
+
+### 托管失败任务 {#managed-failed-jobs}
+
+`cloud` 连接的终态失败会发送 `failed_job` 事件，包含 UUID v7、载荷、尝试次数和处理时间；其他连接继续使用原有失败任务存储。托管记录不重复写入普通失败任务表。原生错误预览保留最多 1001 个 Unicode 字符，暂不提供异常关联 ID。
+
+通过正常命令重试托管下载链接：
+
+```sh
+./artisan queue:retry 'https://cloud.example.test/signed-failed-jobs'
+./artisan queue:work cloud --queue=default
+```
+
+下载使用应用密钥环及所选加密算法。`Cloud-Payload-Version`、`Cloud-Encryption-Cipher` 请求头只包含协议版本和算法名，不发送密钥。版本 1 的分页载荷使用 `data` 和 `links.self`／`links.next`，兼容旧版单条载荷；按需读取下一页，只确认已迭代的记录，确认缓存按应用执行域隔离。HTTP 403 立即停止，其他请求错误最多尝试十次，以 500 毫秒起指数退避。
+
+原生公开类型 `foundation::cloud::FailedJobProvider::find` 和存储接口的 `find_for_retry` 返回正式重试流，带有页面／记录组合键。接口的单条 `find` 遇到托管 URL 会明确拒绝，不把分页截断为一条。载荷承载原生排队任务，不执行其他语言序列化的任务；本地协议验收不代表已通过真实托管平台部署认证。
+
+普通失败记录支持按队列清理及可选计数、裁剪：
+
+```sh
+./artisan queue:flush --queue=emails --hours=24
+./artisan queue:flush --queue=emails --hours=0.5
+```
+
+保留小时数支持小数和负数；字面量 `--hours=0` 关闭时间过滤，`--hours=0.0` 则以当前时间为界。显式空队列名仍筛选空队列。第三方存储通过 `flush_queue`／`flush_before` 提供队列或绝对时间清理能力；不支持的组合明确报错，避免误删全部记录。
+
+```rust
+use openrust::queue::console::FlushFailedCommand;
+
+// 在应用服务提供者的 boot 中设置。
+FlushFailedCommand::prohibit(true)?;
+```
+
+禁止标记按应用隔离；命令显示警告并成功退出，在解析存储和处理保留小时数前生效。

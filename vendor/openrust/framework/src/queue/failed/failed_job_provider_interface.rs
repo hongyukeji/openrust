@@ -15,6 +15,11 @@ pub type FailedJobRetryStream<'a> =
 
 /// Stores and retrieves failed queue jobs.
 pub trait FailedJobProviderInterface: Send + Sync {
+    /// 存储未提供计数能力时由包装器按固定契约返回零。
+    fn countable(&self) -> Option<&dyn super::CountableFailedJobProvider> {
+        None
+    }
+
     fn prunable(&self) -> Option<&dyn PrunableFailedJobProvider> {
         None
     }
@@ -64,4 +69,38 @@ pub trait FailedJobProviderInterface: Send + Sync {
         Box::pin(async { Ok(None) })
     }
     fn flush(&self, older_than: Option<Duration>) -> QueueFuture<'_, QueueResult<()>>;
+    /// 指定绝对截止时间，允许保留小时数为小数或负数；不支持时拒绝误删。
+    fn flush_before<'a>(
+        &'a self,
+        before: Option<jiff::Timestamp>,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        if before.is_none() {
+            self.flush_queue(None, queue)
+        } else {
+            Box::pin(async {
+                Err(crate::queue::backend(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "当前失败任务存储不支持指定截止时间的清理",
+                )))
+            })
+        }
+    }
+    /// 队列过滤区分未指定与显式空名称，默认实现只保留原有无过滤入口。
+    fn flush_queue<'a>(
+        &'a self,
+        older_than: Option<Duration>,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        if queue.is_none() {
+            self.flush(older_than)
+        } else {
+            Box::pin(async {
+                Err(crate::queue::backend(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "当前失败任务存储不支持按队列清理",
+                )))
+            })
+        }
+    }
 }

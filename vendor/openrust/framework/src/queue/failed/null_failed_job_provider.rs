@@ -6,6 +6,10 @@ use crate::queue::{QueueFuture, QueueResult};
 pub(crate) struct NullFailedJobProvider;
 
 impl FailedJobProviderInterface for NullFailedJobProvider {
+    fn countable(&self) -> Option<&dyn super::CountableFailedJobProvider> {
+        Some(self)
+    }
+
     fn log<'a>(&'a self, _: &'a FailedJob) -> QueueFuture<'a, QueueResult<Option<String>>> {
         Box::pin(async { Ok(None) })
     }
@@ -18,7 +22,31 @@ impl FailedJobProviderInterface for NullFailedJobProvider {
     fn forget<'a>(&'a self, _: &'a str) -> QueueFuture<'a, QueueResult<bool>> {
         Box::pin(async { Ok(false) })
     }
+    fn flush_before<'a>(
+        &'a self,
+        _: Option<jiff::Timestamp>,
+        _: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn flush_queue<'a>(
+        &'a self,
+        _: Option<Duration>,
+        _: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
     fn flush(&self, _: Option<Duration>) -> QueueFuture<'_, QueueResult<()>> {
         Box::pin(async { Ok(()) })
+    }
+}
+
+impl super::CountableFailedJobProvider for NullFailedJobProvider {
+    fn count<'a>(
+        &'a self,
+        _connection: Option<&'a str>,
+        _queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<u64>> {
+        Box::pin(async { Ok(0) })
     }
 }

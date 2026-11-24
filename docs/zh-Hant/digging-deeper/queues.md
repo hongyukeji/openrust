@@ -1076,8 +1076,41 @@ let normalized = queue.normalize_queue(Some("priority"))?;
 ./artisan queue:work cloud --queue=priority
 ```
 
-只有 `queue:work` 中相符的單佇列領取會啟用 Agent；一般呼叫與多佇列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 結果並負責 SQS 結算。結果回報的 HTTP 4xx 保留請求錯誤，連線故障及 HTTP 5xx 視為 Agent 失聯。Unix 系統支援 Unix Agent 傳輸，其他系統可直接使用 SQS。目前尚不提供遠端失敗工作下載及跨程序憑證快取生命週期；真實託管投遞另行驗收。
+只有 `queue:work` 中相符的單佇列領取會啟用 Agent；一般呼叫與多佇列 Worker 使用 SQS。Agent 接收 `processed` 或 `released` 結果並負責 SQS 結算。結果回報的 HTTP 4xx 保留請求錯誤，連線故障及 HTTP 5xx 視為 Agent 失聯。Unix 系統支援 Unix Agent 傳輸，其他系統可直接使用 SQS。跨程序憑證快取與異常關聯報告尚未提供；真實託管投遞另行驗收。
 
 託管佇列事件透過 `LARAVEL_CLOUD_LOG_SOCKET` 輸出逐行 JSON，預設位址為 `unix:///tmp/cloud-init.sock`，也支援 `tcp://host:port`。事件包括 `queued`、`started`、`processed`、`released`、`failed`；完成事件包含 `duration_ms` 與 UTC 微秒時間。傳輸故障回傳 false，不中斷佇列操作；取消部分寫入會關閉該連線，下一事件重新連線。
 
 `queue:work` 守護程序在再次領取或停止時輸出目前工作的完成事件；可重試的逾時輸出 `released` 並以 124 結束，保留 SQS 預留。`--once` 不派發守護程序停止事件。託管 Worker 內可透過 `Cloud::queue()?.processing_job_details()?` 讀取目前佇列、嘗試次數與開始時間，無活動工作時回傳 `None`。同一應用的並行 Worker 分別保留處理狀態。
+
+### 託管失敗工作 {#managed-failed-jobs}
+
+`cloud` 連線的終態失敗會傳送 `failed_job` 事件，包含 UUID v7、負載、嘗試次數與處理時間；其他連線繼續使用原有失敗工作儲存。託管記錄不重複寫入一般失敗工作資料表。原生錯誤預覽保留最多 1001 個 Unicode 字元，暫不提供異常關聯 ID。
+
+透過正常命令重試託管下載連結：
+
+```sh
+./artisan queue:retry 'https://cloud.example.test/signed-failed-jobs'
+./artisan queue:work cloud --queue=default
+```
+
+下載使用應用金鑰環與所選加密演算法。`Cloud-Payload-Version`、`Cloud-Encryption-Cipher` 請求標頭僅包含協定版本與演算法名稱，不傳送金鑰。版本 1 分頁負載使用 `data` 與 `links.self`／`links.next`，相容舊版單筆負載；按需讀取下一頁，僅確認已迭代的記錄，確認快取依應用執行範圍隔離。HTTP 403 立即停止，其他請求錯誤最多嘗試十次，以 500 毫秒起指數退避。
+
+原生公開型別 `foundation::cloud::FailedJobProvider::find` 與儲存介面的 `find_for_retry` 回傳正式重試串流，包含頁面／記錄組合鍵。介面的單筆 `find` 遇到託管 URL 會明確拒絕，不將分頁截斷為一筆。負載承載原生排隊工作，不執行其他語言序列化的工作；本機協定驗收不代表已通過真實託管平台部署認證。
+
+一般失敗記錄支援按佇列清理及可選計數、裁剪：
+
+```sh
+./artisan queue:flush --queue=emails --hours=24
+./artisan queue:flush --queue=emails --hours=0.5
+```
+
+保留小時數支援小數與負數；字面值 `--hours=0` 關閉時間篩選，`--hours=0.0` 則以目前時間為界。顯式空佇列名稱仍篩選空佇列。第三方儲存透過 `flush_queue`／`flush_before` 提供佇列或絕對時間清理能力；不支援的組合明確回報錯誤，避免誤刪全部記錄。
+
+```rust
+use openrust::queue::console::FlushFailedCommand;
+
+// 在應用服務提供者的 boot 中設定。
+FlushFailedCommand::prohibit(true)?;
+```
+
+禁止標記依應用隔離；命令顯示警告並成功結束，在解析儲存與處理保留小時數前生效。

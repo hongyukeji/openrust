@@ -147,3 +147,6 @@ pub use events::{Events, SocketFactory};
 
 mod telemetry;
 pub use telemetry::ProcessingJobDetails;
+
+mod failed_job_provider;
+pub use failed_job_provider::FailedJobProvider;

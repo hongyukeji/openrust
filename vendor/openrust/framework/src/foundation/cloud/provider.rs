@@ -18,6 +18,8 @@ impl ServiceProvider for CloudServiceProvider {
                 })?;
             app.container_handle()
                 .scoped::<super::telemetry::Execution, _>(|_| Ok(Arc::default()))?;
+            app.container_handle()
+                .scoped::<super::failed_job_provider::Loaded, _>(|_| Ok(Arc::default()))?;
             Ok(())
         })
     }
@@ -73,6 +75,19 @@ impl ServiceProvider for CloudServiceProvider {
                     crate::queue::events::WorkerStopping::NAME,
                     Arc::new(super::worker::StopListener(Arc::downgrade(&owner))),
                     crate::events::Delivery::Sync,
+                )?;
+            }
+            {
+                let weak = Arc::downgrade(&owner);
+                owner.extend::<dyn crate::queue::failed::FailedJobProviderInterface, _>(
+                    "queue.failer",
+                    move |parent, owner| {
+                        Ok(Arc::new(super::FailedJobProvider::from_parent(
+                            parent,
+                            weak.clone(),
+                            owner.make::<super::Events>()?,
+                        )))
+                    },
                 )?;
             }
             owner.extend::<dyn crate::contracts::database::LostConnectionDetector, _>(

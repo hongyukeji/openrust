@@ -1049,6 +1049,8 @@ impl Worker {
         error: &QueueError,
         batch: Option<&BatchCompletion>,
     ) -> QueueResult<WorkResult> {
+        // 日志在确认预留前持久化，同时让失败观察者先看到原任务终态。
+        job.mark_as_failed();
         let failed = FailedJob::new(job, error);
         self.failed.log(&failed).await?;
         if let Some(batch) = batch {

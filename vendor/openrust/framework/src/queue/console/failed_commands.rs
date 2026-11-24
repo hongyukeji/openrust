@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Write as _, time::Duration};
+use std::{collections::HashSet, fmt::Write as _};
 
 use futures_util::{StreamExt as _, stream};
 
@@ -38,6 +38,15 @@ impl Command for FailedCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let container = app.container_handle();
+            if matches!(self.1, Action::Flush)
+                && container
+                    .make::<QueueManager>()
+                    .map_err(error)?
+                    .failed_flush_prohibited()
+            {
+                output.warning("当前环境禁止运行此命令。");
+                return Ok(0);
+            }
             let provider = container
                 .get::<dyn FailedJobProviderInterface>("queue.failer")
                 .map_err(error)?;
@@ -85,10 +94,30 @@ impl Command for FailedCommand {
                     }
                 }
                 Action::Flush => {
-                    let age = args
-                        .get_one::<u32>("hours")
-                        .map(|&hours| Duration::from_secs(u64::from(hours) * 3600));
-                    provider.flush(age).await.map_err(error)?;
+                    let hours = args
+                        .get_one::<String>("hours")
+                        .map(String::as_str)
+                        .filter(|raw| !raw.is_empty() && *raw != "0");
+                    let before = hours
+                        .map(|hours| {
+                            let delta = retention_hours(hours)?;
+                            jiff::Timestamp::now().checked_sub(delta).map_err(error)
+                        })
+                        .transpose()?;
+                    let queue = args.get_one::<String>("queue").map(String::as_str);
+                    provider.flush_before(before, queue).await.map_err(error)?;
+                    output.info(
+                        &match (hours, queue.filter(|q| !q.is_empty() && *q != "0")) {
+                            (Some(hours), Some(queue)) => {
+                                format!("已删除队列 [{queue}] 中 {hours} 小时前失败的全部任务。")
+                            }
+                            (Some(hours), None) => format!("已删除 {hours} 小时前失败的全部任务。"),
+                            (None, Some(queue)) => {
+                                format!("已删除队列 [{queue}] 中的全部失败任务。")
+                            }
+                            (None, None) => "已删除全部失败任务。".into(),
+                        },
+                    );
                 }
                 Action::Prune => {
                     let hours = *args.get_one::<u32>("hours").expect("Clap default hours");
@@ -226,14 +255,7 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                 .arg(Arg::new("id").required(true)),
             Action::Forget,
         ),
-        (
-            Syntax::new("queue:flush").about("Delete failed jobs").arg(
-                Arg::new("hours")
-                    .long("hours")
-                    .value_parser(value_parser!(u32)),
-            ),
-            Action::Flush,
-        ),
+        (flush_syntax(), Action::Flush),
         (
             Syntax::new("queue:prune-failed")
                 .about("Prune stale entries from the failed jobs table")
@@ -247,10 +269,66 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             Action::Prune,
         ),
     ] {
-        artisan.add_command(Box::new(FailedCommand(
-            CommandDefinition::new(syntax),
-            action,
-        )))?;
+        let command = FailedCommand(CommandDefinition::new(syntax), action);
+        if matches!(command.1, Action::Flush) {
+            artisan.add_command(Box::new(FlushFailedCommand(command)))?
+        } else {
+            artisan.add_command(Box::new(command))?
+        }
     }
     Ok(())
+}
+
+fn flush_syntax() -> Syntax {
+    Syntax::new("queue:flush")
+        .about("Delete failed jobs")
+        .arg(
+            Arg::new("hours")
+                .long("hours")
+                .allow_hyphen_values(true)
+                .value_parser(value_parser!(String)),
+        )
+        .arg(Arg::new("queue").long("queue"))
+}
+/// 失败任务清理命令；禁止标记属于当前应用，不污染其他应用。
+pub struct FlushFailedCommand(FailedCommand);
+impl FlushFailedCommand {
+    pub fn new() -> Self {
+        Self(FailedCommand(
+            CommandDefinition::new(flush_syntax()),
+            Action::Flush,
+        ))
+    }
+    pub fn prohibit(prohibited: bool) -> crate::queue::QueueResult<()> {
+        use crate::support::facades::{Facade, Queue};
+        Queue::get_facade_root()?.set_failed_flush_prohibited(prohibited);
+        Ok(())
+    }
+}
+impl Default for FlushFailedCommand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl Command for FlushFailedCommand {
+    fn definition(&self) -> &CommandDefinition {
+        self.0.definition()
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        self.0.handle(app, input, output)
+    }
+}
+
+fn retention_hours(raw: &str) -> Result<jiff::SignedDuration, ConsoleError> {
+    raw.trim_matches(|c: char| c.is_ascii_whitespace())
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite())
+        .and_then(|value| jiff::SignedDuration::try_from_secs_f64(value * 3600.0).ok())
+        .ok_or_else(|| ConsoleError::new("保留小时数必须是有限且在支持范围内的数值"))
 }
