@@ -1022,7 +1022,8 @@ fn artisan_generates_and_registers_providers_with_concurrent_retries() {
         .join("app/providers/reports/report_service_provider.rs");
     let rejected = run(&args);
     assert_eq!(rejected.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&rejected.stderr).contains("manually"));
+    let error = String::from_utf8_lossy(&rejected.stderr);
+    assert!(error.contains("手动注册"), "{error}");
     assert!(!source.exists());
 
     fs::write(&registry, include_str!("../bootstrap/providers.rs")).unwrap();
