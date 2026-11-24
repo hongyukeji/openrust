@@ -461,15 +461,17 @@ impl Request {
         matches_pattern(&self.decoded_path(), pattern)
     }
 
-    /// Matches paths below the API prefix. An empty prefix has no path-based match.
+    /// 匹配 API 前缀本身及其子路径；空前缀不按路径匹配。
     pub fn is_api_path(&self) -> bool {
         self.api_prefix
             .as_deref()
             .filter(|prefix| !prefix.is_empty())
             .is_some_and(|prefix| {
-                self.decoded_path()
-                    .strip_prefix(prefix)
-                    .is_some_and(|suffix| suffix.starts_with('/'))
+                let path = self.decoded_path();
+                path == prefix
+                    || path
+                        .strip_prefix(prefix)
+                        .is_some_and(|suffix| suffix.starts_with('/'))
             })
     }
 

@@ -47,3 +47,11 @@
 - 从三语正文提取全部三组 Rust 示例及 JSON，核对内容一致与 JSON 可解析。使用已有 Rust 1.94.0 编译依赖直接编译独立消费者，无新增 Cargo 构建目录或依赖；编译库来源快照的 api_response.rs、异常渲染和 Resource 响应源码与当前文件逐字相同。实际本地 HTTP 验证五个请求的状态和完整 JSON：分页200、创建201、字段错误422、自定义字段200、zh-Hans 参数翻译200。三项现有字段／空值／状态消费者另行通过，不提交其他协作者的测试改动。
 - npm --prefix docs run build 通过（含入口规则、三语内容和链接检查）；浏览器脚本在 / 与 /docs/ 下三语桌面／移动共12组通过。原始日志和提取消费者保留于 target/tmp/api-response-docs/。默认 rustc 版本不匹配、首次读取时依赖库正重编译及临时消费者 PathBuf 参数错误均修正后重跑，不计失败尝试为通过。VitePress 仍有既有包体积提示，不影响构建。
 - 本次验收对应当前工作区组合，不代表其他在途响应实现已提交或完整框架闭合。验收后删除本批独占可执行文件，源码与日志保留；不清理并行任务的构建缓存、文档依赖及数据库。
+
+
+## API 前缀根路径与异常选择（2026-11-24）
+
+- Request::is_api_path 同时匹配 API 前缀本身及带斜杠边界的子路径，保留空前缀不匹配。bootstrap/app.rs 移除未提交的 ApiResponse::enabled_for 重复条件，恢复仅由 is_api_path／expects_json 决定响应类型；该文件恢复到已有 HEAD 内容，因此本提交不产生该文件差异。业务封装开关继续由异常及 Resource 内部决定。
+- 新增 api_prefix_boundary 集成测试，两项通过，共31个真实本地HTTP请求。默认及多级前缀分别覆盖封装开／关、根路径与子路径401、缺失路径404、带查询根路径、相似前缀与非前置路径不误匹配、前缀外Accept JSON，以及空前缀不把全站归为API。关闭封装仍为JSON且没有success/code；开启则保留业务字段。
+- 使用当前工作区框架源码、已有只读依赖和Rust1.94.0在本批独立输出目录编译，再编译并执行实际集成测试；没有写入协作者的Cargo目标目录或提交其在途响应实现。范围rustfmt及diff检查通过。最初捕获编译参数丢失check-cfg引号，修正后重跑，未算通过。
+- 证据及重跑脚本保存 target/tmp/api-prefix-boundary/（build.log、compile-test.log、tests.log、build.py、run.py）；临时env及运行服务由测试回收。本批独占编译目录及测试可执行文件验收后直接删除，源码、日志、共享依赖和数据库保留，清理测量见cleanup.json。未推送。
