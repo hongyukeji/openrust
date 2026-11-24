@@ -252,6 +252,23 @@ let noon = Date::create_from_time_string("12", None)?;
 let precise = Date::create_from_time_string("12:34:56.123456", None)?;
 ```
 
+Date macros use the application's factory and clock. Register a typed callback, invoke it through `macro_call`, and remove it with `None`. Arguments and results may be owned Rust values, including values that are not `Send`; the stored callback itself must be `Send + Sync`.
+
+```rust
+use openrust::support::DateMacro;
+Date::r#macro("stamp", DateMacro::new(|factory, prefix: String| {
+    Ok(format!("{prefix}{}", factory.now(None)?.format("Y-m-d")?))
+}))?;
+let text: String = Date::macro_call("stamp", "date:".to_owned())?;
+assert!(Date::has_macro("stamp")?);
+Date::r#macro("stamp", None)?;
+Date::reset_macros()?;
+```
+
+`get_macro` returns a retained callback handle. `mixin` registers an iterator of `(name, DateMacro)` entries, replacing existing names; `mixin_using` accepts a fallible registration provider. Rust mixins explicitly register compiled callbacks rather than reflecting over methods or evaluating trait names.
+
+`generic_macro(DateGenericMacro::new(callback), priority)` handles unknown dynamic names. Higher priorities run first; equal priorities keep registration order. Return `DateMacroError::UnknownMethod(name)` to try the next callback; other errors stop dispatch. Named macros take precedence. `reset_macros` clears both registries. The default date factory converts a generic macro's result into a date, so generic callbacks must produce a date or `jiff::Zoned`; scalar/empty results return `InvalidGeneratedDate`. An unknown name in lenient mode also fails that conversion. Named macros can return arbitrary types. Built-in methods keep their explicit public entry points.
+
 `instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 

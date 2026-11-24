@@ -1,0 +1,34 @@
+{
+  "named": "date:2024-01-02",
+  "has": true,
+  "raw": true,
+  "missing": null,
+  "generic": "2024-01-03",
+  "generic_log": [
+    "high-first",
+    "high-second"
+  ],
+  "generic_scalar": {
+    "error": "TypeError"
+  },
+  "scalar_log": [
+    "high-first",
+    "high-second"
+  ],
+  "named_again": "named:2024-01-02",
+  "named_log": [],
+  "mixin": "replaced:x",
+  "protected_mixin": 42,
+  "removed": true,
+  "removed_raw": null,
+  "unknown_1": {
+    "error": "Carbon\\Exceptions\\UnknownMethodException"
+  },
+  "unknown_0": {
+    "error": "TypeError"
+  },
+  "reset_named": false,
+  "reset_generic": {
+    "error": "Carbon\\Exceptions\\UnknownMethodException"
+  }
+}

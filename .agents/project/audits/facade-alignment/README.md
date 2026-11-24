@@ -506,3 +506,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 从所属工厂today零点修改，沿用既有Calendar扫描器并增加修改结束路径，保留原对象时区，不误用普通构造解析将文本UTC/+05:30当成结果时区。20MiB限额和原生固定偏移实测；没有新增日期解释器或平行时钟。
 - 公开门面与具体Factory均逐条核对，真实HTTP构造器增加时间文本结果；其余创建/解析回归。Date可变性、替换、诊断和宏等剩余不因本入口通过就关闭。
 - tests-first.log实际9项通过，tests-http.log对新增HTTP时间文本路径复验5项；90组原结果逐条核对。workspace/all-targets严格Clippy22.55秒，三语构建13.86秒和6组浏览器通过；PHP一次性容器已直接删除，未触及32GB停线，热缓存保留。
+
+### Date：命名／通用宏与混入（仍 partial）
+
+- 追踪固定DateFactory实际__call、Carbon Macro/Mixin/Factory，而非只看门面注解。原类比较器发现通用宏返回标量会在默认工厂instance分支TypeError，宽松未知名称也如此；原Carbon自身宽松null不能误算Date门面行为。
+- 正式提供命名宏、移除/get/has、混入提供器、通用优先级和同级FIFO、重置、动态宏调用；命名宏返回任意原生类型，通用宏默认转换日期。原回调句柄可保留；回调执行及销毁旧注册在锁外，支持重入，错误不会吞掉。
+- Rust动态调用沿用已有Cloud/File门面的具类型类型擦除模式；运行期不新增关联函数，不执行PHP trait源码。参数/结果不施加多余Send约束；所属应用注册表和同一时钟用于HTTP/Worker，独立应用/Factory隔离。默认可变类、类/Callable/Factory替换与实例trait混入仍待处理。
+- tests-third.log实际10项通过（4项新增含并发HTTP/应用隔离、Rc身份/重入、真实Artisan/独立SQLite Worker，6项时钟回归）；workspace/all-targets严格Clippy44.63秒，三语构建和6组浏览器通过。第一次原类比较器暴露通用宏默认返回转换错误，已修正比较器与本地行为；初次模块复制顺序失败不计通过，日志保留。PHP一次性容器已直接删除，SQLite夹具由TestApp回收，热缓存保留。

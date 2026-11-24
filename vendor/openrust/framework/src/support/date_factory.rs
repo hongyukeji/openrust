@@ -5,6 +5,8 @@ pub use constructors::{DateComponents, StrictDateComponents};
 mod format_creation;
 mod format_matching;
 mod input;
+mod macros;
+pub use macros::{DateGenericMacro, DateMacro, DateMacroError};
 mod object_creation;
 pub use object_creation::DateId;
 mod sleep;
@@ -28,6 +30,7 @@ pub struct DateFactory {
     clock: Arc<TestClock>,
     owner: Option<Weak<Container>>,
     creation: Arc<format_creation::CreationSettings>,
+    macros: macros::DateMacros,
 }
 impl DateFactory {
     fn zone(&self, timezone: Option<DateTimezone>) -> Result<DateTimezone, DateError> {
@@ -185,6 +188,7 @@ fn standalone() -> Arc<DateFactory> {
                 clock: standalone_clock(),
                 owner: None,
                 creation: Arc::default(),
+                macros: Default::default(),
             })
         })
         .clone()
@@ -291,6 +295,7 @@ impl ServiceProvider for DateServiceProvider {
                     clock: container.make::<TestClock>()?,
                     owner: Some(weak.clone()),
                     creation: Arc::default(),
+                    macros: Default::default(),
                 }))
             })?;
             owner.alias(ServiceKey::typed::<DateFactory>(), "date")?;

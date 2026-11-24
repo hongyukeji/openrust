@@ -1272,7 +1272,8 @@
             ],
             "file": "src/Carbon/Traits/Date.php",
             "line": 2474,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_macros.rs固定原类输出、正式宏分派及HTTP/Artisan Worker；类/工厂替换仍待接。"
           },
           {
             "name": "resetMacros",
@@ -1281,7 +1282,8 @@
             "parameters": [],
             "file": "src/Carbon/Traits/Macro.php",
             "line": 54,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_macros.rs固定原类输出、正式宏分派及HTTP/Artisan Worker；类/工厂替换仍待接。"
           },
           {
             "name": "genericMacro",
@@ -1307,7 +1309,8 @@
             ],
             "file": "src/Carbon/Traits/Macro.php",
             "line": 67,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_macros.rs固定原类输出、正式宏分派及HTTP/Artisan Worker；类/工厂替换仍待接。"
           },
           {
             "name": "getMacro",
@@ -1325,7 +1328,8 @@
             ],
             "file": "src/Carbon/Traits/Macro.php",
             "line": 87,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_macros.rs固定原类输出、正式宏分派及HTTP/Artisan Worker；类/工厂替换仍待接。"
           },
           {
             "name": "__set_state",
@@ -1424,6 +1428,23 @@
         "native_range": "PHP超Jiff范围的U时间戳可创建时，原生探测false，因为其返回日期值确实不能创建；实际1e12秒向量验证，不笼统以静态语言省略。",
         "evidence": "35组原类单位输出、7天独立副本、14组原创建探测，在公开门面及具体Factory实际调用；严格true/false均验。",
         "remaining": "自定义Date类/工厂和创建钩子仍未接入，Date保持partial。"
+      },
+      "macro_contract": {
+        "entries": [
+          "macro",
+          "mixin",
+          "hasMacro",
+          "getMacro",
+          "genericMacro",
+          "resetMacros",
+          "__callStatic"
+        ],
+        "local": "Date/DateFactory::{r#macro,mixin,mixin_using,has_macro,get_macro,generic_macro,reset_macros,macro_call}; DateMacro/DateGenericMacro/DateMacroError",
+        "review": "implemented_tested_base",
+        "contract": "命名宏优先；可替换/移除、原回调句柄保留；通用宏优先级倒序、同级FIFO，仅UnknownMethod继续、其他错误停止；重置清空两表。默认DateFactory对未知动态名称的通用返回再instance转换，标量/null即使宽松模式也错误，未误套Carbon类自身的宽松null。",
+        "adaptation": "Rust运行期不能增加具名关联函数，以已有门面一致的macro_call调用动态名称；mixin使用编译后回调迭代器/提供器，不执行PHP反射/eval trait源码。保存Fn为Send+Sync，拥有所有权参数/结果不强加Send。注册表归所属工厂并释放锁后执行/销毁旧回调，保留请求/Worker共享与应用隔离。",
+        "evidence": "原DateFactory/Support Carbon/Macro/Mixin实际输出；date_macros.rs公开门面/工厂、优先级/类型错误/Rc身份/重入/异常停止、真实HTTP并发两应用、真实Artisan/独立SQLite队列消费。",
+        "remaining": "自定义日期类/Carbon Factory/Callable替换路径将继续接入其各自宏上下文；__callStatic的完整内置方法动态分派及PHP实例trait混入的可变日期行为仍待处理，不据此关闭Date。"
       },
       "time_string_creation_contract": {
         "entry": "createFromTimeString",

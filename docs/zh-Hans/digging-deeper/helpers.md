@@ -252,6 +252,23 @@ let noon = Date::create_from_time_string("12", None)?;
 let precise = Date::create_from_time_string("12:34:56.123456", None)?;
 ```
 
+日期宏使用所属应用的工厂和时钟。注册具类型回调后，通过 `macro_call` 调用，传入 `None` 移除。参数与返回值可以是拥有所有权的 Rust 值，包括非 `Send` 类型；保存的回调自身须为 `Send + Sync`。
+
+```rust
+use openrust::support::DateMacro;
+Date::r#macro("stamp", DateMacro::new(|factory, prefix: String| {
+    Ok(format!("{prefix}{}", factory.now(None)?.format("Y-m-d")?))
+}))?;
+let text: String = Date::macro_call("stamp", "date:".to_owned())?;
+assert!(Date::has_macro("stamp")?);
+Date::r#macro("stamp", None)?;
+Date::reset_macros()?;
+```
+
+`get_macro` 返回可保留的回调句柄。`mixin` 注册 `(名称, DateMacro)` 迭代器并覆盖已有名称；`mixin_using` 接收可失败的注册提供器。Rust 混入显式注册已编译回调，不反射方法或执行运行期 trait 名称。
+
+`generic_macro(DateGenericMacro::new(callback), priority)` 处理未知动态名称，优先级高的先执行，同优先级保留注册顺序。返回 `DateMacroError::UnknownMethod(name)` 继续下一个回调，其他错误立即停止；命名宏优先。`reset_macros` 清空两种注册表。默认日期工厂会把通用宏结果转换成日期，因此须返回日期或 `jiff::Zoned`；标量或空值返回 `InvalidGeneratedDate`，宽松模式下未知名称也会在此转换失败。命名宏可返回任意类型。内置方法继续使用正式具名入口。
+
 `instance(&value)` 克隆日期值。目前尚不提供本地化创建、自定义工厂与错误诊断入口。
 
 
