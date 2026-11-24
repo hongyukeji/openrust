@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use crate::{contracts::debug::Exception, http::HttpError};
 
-use super::{Formatter, Level, LogContext, LogError, LogRecord, LogResult};
+use super::{Formatter, LogContext, LogError, LogRecord, LogResult};
 
 const MAX_SOURCE_DEPTH: usize = 32;
 
@@ -111,16 +111,7 @@ pub(super) fn pretty(value: &Value) -> String {
 
 impl Options {
     fn format(&self, record: &LogRecord<'_>) -> String {
-        let level = match record.level {
-            Level::Debug => 100,
-            Level::Info => 200,
-            Level::Notice => 250,
-            Level::Warning => 300,
-            Level::Error => 400,
-            Level::Critical => 500,
-            Level::Alert => 550,
-            Level::Emergency => 600,
-        };
+        let level = record.level.code();
         let mut value = json!({
             "message": record.message(),
             "level": level,

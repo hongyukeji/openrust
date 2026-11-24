@@ -46,7 +46,7 @@ mod logger;
 
 pub use log_manager::{LogManager, StackChannel};
 pub use log_service_provider::LogServiceProvider;
-pub use logger::{Formatter, LogRecord, Logger, NativeLogger, Processor};
+pub use logger::{Formatter, HandlerRef, LogRecord, Logger, NativeLogger, Processor};
 
 /// Severity levels in the application logging contract.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -76,6 +76,18 @@ impl Level {
         }
     }
 
+    const fn code(self) -> u16 {
+        match self {
+            Self::Debug => 100,
+            Self::Info => 200,
+            Self::Notice => 250,
+            Self::Warning => 300,
+            Self::Error => 400,
+            Self::Critical => 500,
+            Self::Alert => 550,
+            Self::Emergency => 600,
+        }
+    }
     const fn label(self) -> &'static str {
         match self {
             Self::Debug => "DEBUG",

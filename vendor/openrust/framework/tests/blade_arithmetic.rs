@@ -160,7 +160,7 @@ fn config(
     root: &std::path::Path,
     env: &openrust::config::Environment,
 ) -> Result<std::collections::BTreeMap<String, Value>, openrust::config::ConfigError> {
-    Ok(std::collections::BTreeMap::from([
+    let mut values = std::collections::BTreeMap::from([
         (
             "app".into(),
             json!({"env":env.get("APP_ENV").unwrap_or("production"),"debug":false,"host":"127.0.0.1","port":0}),
@@ -169,7 +169,13 @@ fn config(
             "logging".into(),
             json!({"default":"single","deprecations":{"channel":env.get("LOG_DEPRECATIONS_CHANNEL").unwrap_or("null"),"trace":env.get("LOG_DEPRECATIONS_TRACE")==Some("true")},"channels":{"single":{"driver":"single","formatter":"json","path":root.join("storage/logs/http.log")},"broken":{"driver":"invalid"}}}),
         ),
-    ]))
+    ]);
+    if root.join("named-deprecations.json").is_file() {
+        values.get_mut("logging").unwrap()["channels"]["deprecations"] =
+            serde_json::from_slice(&std::fs::read(root.join("named-deprecations.json")).unwrap())
+                .unwrap();
+    }
+    Ok(values)
 }
 #[tokio::test]
 async fn actual_http_preserves_outputs_errors_json_html_and_recovery() {
@@ -370,4 +376,54 @@ fn native_nonfinite_boundaries_match_php_and_json_errors_do_not_poison_rendering
             .unwrap(),
         "3"
     );
+}
+#[tokio::test]
+async fn named_deprecations_channel_overrides_selection_without_affecting_rendering_or_default_logs()
+ {
+    let index = CORPUS["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|case| case["template"].as_str().unwrap().contains("5.5%2"))
+        .unwrap();
+    let root = Root::new();
+    fs::write(
+        root.0.join(".env"),
+        "APP_ENV=production\nLOG_DEPRECATIONS_CHANNEL=null\n",
+    )
+    .unwrap();
+    fs::write(
+        root.0.join("named-deprecations.json"),
+        json!({"driver":"single","path":"deprecations.log","formatter":"json"}).to_string(),
+    )
+    .unwrap();
+    let mut kernel = openrust::foundation::http::Kernel::new(
+        openrust::foundation::Application::configure(root.0.clone())
+            .with_config(config)
+            .with_routing(openrust::foundation::configuration::Routing::new(routes))
+            .create()
+            .unwrap(),
+    );
+    let listener = kernel.listen().await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let kernel = Arc::new(kernel);
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            axum::Router::new().fallback(move |request: axum::extract::Request| {
+                kernel.clone().handle_transport(request)
+            }),
+        )
+        .await
+        .unwrap()
+    });
+    let response = reqwest::get(format!("http://{address}/case/{index}"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.unwrap(), "1");
+    let records = fs::read_to_string(root.0.join("deprecations.log")).unwrap();
+    assert!(records.contains("Implicit conversion from float 5.5 to int loses precision"));
+    assert!(!root.0.join("storage/logs/http.log").exists());
+    server.abort();
 }

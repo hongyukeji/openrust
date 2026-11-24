@@ -6,7 +6,13 @@ Slack 渠道的默认显示名称为应用名称加 ` Log`，例如 `ExampleStor
 
 通过 `LOG_CHANNEL` 选择默认渠道，`LOG_STACK` 设置默认栈的成员顺序，`LOG_LEVEL` 设置最低级别。默认 `stack` 包含 `single`，向 `storage/logs/app.log` 追加记录。相对路径以应用根目录为基准。渠道可用 `name` 自定义记录标签，默认标签取应用环境。
 
-当前驱动包括文件 `single`、标准错误 `stderr`、丢弃记录的 `null` 和组合渠道的 `stack`。记录达到最低级别时才打开文件。`single` 支持 `locking`、`bubble` 和整数 `permission`，如 Rust 的 `0o600`。权限设置在 Unix 生效。记录使用 UTC 时间。
+支持 `single`、`daily`、`monthly`、`stderr`、`syslog`、`errorlog`、`slack`、`papertrail`、`null`、`stack`、`monolog` 以及注册的 `custom` 工厂。记录达到最低级别时才打开文件。`single` 支持 `locking`、`bubble` 和整数 `permission`，如 Rust 的 `0o600`。权限设置在 Unix 生效。记录使用 UTC 时间。
+
+## 记录弃用警告 {#logging-deprecation-warnings}
+
+`LOG_DEPRECATIONS_CHANNEL` 选择受支持的运行期兼容警告渠道，默认 `null` 丢弃记录。`LOG_DEPRECATIONS_TRACE=true` 附带位置和回溯，通过 `logging.deprecations` 配置。已定义的 `logging.channels.deprecations` 具名渠道始终优先于所选渠道。`APP_ENV=testing` 时默认跳过警告，`LOG_DEPRECATIONS_WHILE_TESTING=true` 可启用。日志失败不会使弃用警告变成失败响应。
+
+这里处理模板求值中有损数值转换等运行期兼容警告。Rust 编译器诊断仍属于构建输出，不会全局拦截所有依赖库的警告。应用自身的运行期警告可显式写入配置的 deprecations 渠道。
 
 ## 构建日志栈
 
@@ -67,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 定制日志记录 {#customizing-channel-records}
 
-在服务 Provider 中用 `LogManager::register_formatter`、`register_processor` 和 `register_tap` 注册名称。通过 `formatter` 选择格式化器，用 `formatter_with` 传入选项。将 `formatter` 设为 `"default"` 使用内置格式。文件、轮转文件及标准错误处理器按格式化器返回的字节写入，记录分隔符也由格式化器提供。自定义日志工厂管理自己的输出。
+在服务 Provider 中用 `LogManager::register_formatter`、`register_processor` 和 `register_tap` 注册名称。通过 `formatter` 选择格式化器，用 `formatter_with` 传入选项。将 `formatter` 设为 `"default"` 保留处理器自己的格式器；省略时采用渠道默认格式器。文件、轮转文件及标准错误处理器按格式化器返回的字节写入，记录分隔符也由格式化器提供。自定义日志工厂管理自己的输出。
 
 `processors` 的成员可以是名称，也可以是带 `processor` 和 `with` 的对象。处理器按配置顺序在格式化前执行，可通过 `LogRecord` 修改消息、记录上下文和公开作用域元数据。日志栈按成员顺序合并处理器，各成员沿用自己的格式化器。
 
@@ -158,7 +164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let received = receiver.recv(&mut bytes)?;
     let packet = std::str::from_utf8(&bytes[..received])?;
     assert!(packet.starts_with("<165>"));
-    assert!(packet.ends_with("Import complete"));
+    assert!(packet.ends_with("Import complete [] []"));
     Ok(())
 }
 ```
@@ -376,3 +382,57 @@ let settings = serde_json::json!({
 `browser_console` 向 HTML 或 JavaScript 响应追加脚本，保留级别、`[[文本]]{color: blue}` 样式标记、渠道标签、上下文和附加字段。JSON、HEAD、无正文状态、已编码内容、分段文件和二进制下载保持原样。CLI 不输出浏览器脚本。记录按请求和应用隔离。对应公开类型为 `openrust::log::BrowserConsoleHandler`。
 
 流式正文在 trailers 或 EOF 前追加控制台输出。原始正文流在请求作用域关闭后消费，应提前用 `Log::channel(None)?` 取得自有日志句柄并移入流内，不延长请求级 Facade 生命周期。动态浏览器渠道应在返回响应前创建，或预先声明在 `logging.channels`，以便安装正文包装。
+
+## 从容器解析 Tap {#container-resolved-taps}
+
+在服务提供者的 `register` 中调用以下函数，并将渠道的 `tap` 配置为 `["customize:orders,prod"]`。首次创建渠道时，注册闭包才从所属应用容器解析具体定制类及其构造依赖，不在启动时提前构造。编译注册替代运行时类名加载，依赖仍由容器提供。`forget_channel` 后重新创建渠道及其 tap。
+
+```rust
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam},
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    log::{Formatter, LogError, LogManager, LogResult, Logger, formatters::LineFormatter},
+    support::ProviderResult,
+};
+use std::sync::Arc;
+
+struct FormatterLabel(String);
+struct CustomizeFormatter { label: Arc<FormatterLabel> }
+impl CustomizeFormatter {
+    fn invoke(&self, logger: &mut Logger, arguments: &[&str]) -> LogResult<()> {
+        let pattern = format!("{}:{}:%message%\n", self.label.0, arguments.join(","));
+        let formatter = LineFormatter::new(Some(&pattern), None);
+        let formatter: Arc<Formatter> = Arc::new(move |record| formatter.format(record));
+        for mut handler in logger.get_handlers() {
+            handler.set_formatter(formatter.clone());
+        }
+        Ok(())
+    }
+}
+fn register_formatter_tap(app: &Application) -> ProviderResult {
+    let container = app.container();
+    container.bind::<FormatterLabel, _>(|container| {
+        let config = container.get::<dyn openrust::contracts::config::Repository>("config")?;
+        let label = config.get("app.name").and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "App".into());
+        Ok(Arc::new(FormatterLabel(label)))
+    })?;
+    container.register_class(ClassDescriptor::concrete::<CustomizeFormatter, _>(
+        vec![ConstructorParam::class::<FormatterLabel>("label")],
+        |arguments| Ok(Arc::new(CustomizeFormatter { label: arguments.service(0)? })),
+    )?)?;
+    let owner = Arc::downgrade(&Container::get_instance());
+    container.make::<LogManager>()?.register_tap("customize", move |logger, arguments| {
+        owner.upgrade().ok_or(LogError::InvalidConfiguration)?
+            .make::<CustomizeFormatter>()?.invoke(logger, arguments)
+    });
+    Ok(())
+}
+```
+
+`openrust::log::formatters::LineFormatter` 与 `formatter: "line"` 支持 `%datetime%`、`%channel%`、`%level_name%`、`%level%`、`%message%`、`%context%`、`%extra%` 及单个 `%context.key%`／`%extra.key%`。`formatter_with` 接受 `format`、`dateFormat`、`allowInlineLineBreaks` 和 `ignoreEmptyContextAndExtra`，后两项默认 `false`。公开 setter 和 `format_batch` 使用同一实现，返回的分隔符原样写入。原生错误保留现有结构化快照，不虚构 PHP Throwable 栈或运行时类反射。
+
+在 tap 中，`get_handlers()` 通过 `&mut Logger` 借用实际处理链，每个句柄可调用 `set_formatter`。配置采用写时复制，其他已共享日志器保留原有设置，普通写入路径不增加格式配置锁。应急回退不提供可配置的渠道处理链。
+
+Log 门面还提供 `driver`、`get_default_driver`、`set_default_driver`、`forget_channel` 和 `extend`。`driver(None)` 选择当前默认渠道，`forget_channel(None)` 清除该渠道缓存，已经返回的日志器仍保留原有输出目标。这些操作需在有效应用作用域内执行。

@@ -64,7 +64,7 @@ impl PsrLogMessageProcessor {
         };
         record.message = super::logger::interpolate(&record.message, &record.context).into();
         for key in used {
-            record.context.to_mut().remove(&key);
+            record.context.to_mut().shift_remove(&key);
         }
         Ok(())
     }

@@ -37,6 +37,15 @@ fn page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             &format!("request-{id} </script><script>globalThis.injected=true</script>"),
             &LogContext::from_iter([("id".into(), id.clone().into())]),
         )?;
+        if kind == "default" {
+            Log::build(
+                &json!({"driver":"monolog","handler":"browser_console","formatter":"default"}),
+            )?
+            .warning("handler-own-style", &LogContext::new())?;
+        }
+        if kind == "htmlformat" {
+            Log::build(&json!({"driver":"monolog","handler":"browser_console","formatter":"html","formatter_with":{"dateFormat":"Y-m-d"}}))?.info("html formatter record",&LogContext::new())?;
+        }
         if kind == "typed" {
             Log::build(
                 &json!({"driver":"monolog","handler":"typed_browser","formatter":"browser"}),
@@ -155,6 +164,27 @@ async fn actual_http_console_is_request_isolated_and_skips_json_head_and_cli() {
             .await
             .unwrap()
     });
+    let other_root = tempfile::tempdir().unwrap();
+    let mut other_kernel = Kernel::new(
+        Application::configure(other_root.path().into())
+            .with_config(config)
+            .with_providers(vec![Box::new(Register)])
+            .with_routing(Routing::default().web(routes))
+            .create()
+            .unwrap(),
+    );
+    other_kernel.bootstrap().await.unwrap();
+    let other_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let other_address = other_listener.local_addr().unwrap();
+    let other_kernel = Arc::new(other_kernel);
+    let other_server = tokio::spawn(async move {
+        axum::serve(
+            other_listener,
+            transport.with_state(other_kernel).into_make_service(),
+        )
+        .await
+        .unwrap()
+    });
     let client = reqwest::Client::new();
     let mut tasks = Vec::new();
     for id in 0..16 {
@@ -190,6 +220,53 @@ async fn actual_http_console_is_request_isolated_and_skips_json_head_and_cli() {
         .await
         .unwrap();
     assert!(typed.contains("typed public handler"));
+    if let Ok(path) = std::env::var("BROWSER_LOG_TYPED_FIXTURE") {
+        std::fs::write(path, &typed).unwrap();
+    }
+    let own = client
+        .get(format!("http://{address}/default/own"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(own.contains("[[production]]{macro: autolabel}"));
+    let html_formatted = client
+        .get(format!("http://{address}/htmlformat/literal"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        html_formatted.contains("html formatter record")
+            && html_formatted.contains("monolog-output")
+    );
+
+    let foreign = client
+        .get(format!("http://{other_address}/stream/foreign"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        foreign.contains("request-foreign")
+            && foreign.contains("stream-foreign")
+            && !foreign.contains("request-15")
+    );
+    let restored = client
+        .get(format!("http://{address}/html/restored"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(restored.contains("request-restored") && !restored.contains("request-foreign"));
     for kind in ["json", "head"] {
         let response = client
             .get(format!("http://{address}/{kind}/clean"))
@@ -209,7 +286,9 @@ async fn actual_http_console_is_request_isolated_and_skips_json_head_and_cli() {
         std::fs::write(path, html).unwrap();
     }
     server.abort();
+    other_server.abort();
     assert!(!root.path().join("storage/logs/app.log").exists());
+    assert!(!other_root.path().join("storage/logs/app.log").exists());
 }
 fn commands() -> Result<(), openrust::console::ConsoleError> {
     openrust::support::facades::Artisan::command("logs:browser", |_| {

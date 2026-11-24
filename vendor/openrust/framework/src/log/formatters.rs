@@ -1,4 +1,6 @@
+mod line;
 use super::{Formatter, Level, LogError, LogRecord, LogResult};
+pub use line::LineFormatter;
 use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
@@ -91,6 +93,9 @@ struct Options {
     date_format: Option<String>,
 }
 pub(super) fn builtin(name: &str, arguments: &Value) -> LogResult<Option<Arc<Formatter>>> {
+    if name == "line" {
+        return line::formatter(arguments).map(Some);
+    }
     if name != "html" {
         return Ok(None);
     }

@@ -71,27 +71,42 @@ pub struct Logger {
     pub(super) listeners: Arc<super::events::Listeners>,
 }
 
+/// 处理链的独占装配借用，不复制输出目标或延长借用生命周期。
+pub struct HandlerRef<'a> {
+    target: &'a mut Arc<Handler>,
+}
+impl HandlerRef<'_> {
+    pub fn set_formatter(&mut self, formatter: Arc<Formatter>) -> &mut Self {
+        let handler = match self.target.as_ref() {
+            Handler::Formatted { handler, .. } => handler.clone(),
+            _ => self.target.clone(),
+        };
+        *self.target = Arc::new(Handler::Formatted { handler, formatter });
+        self
+    }
+}
+
 impl NativeLogger {
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// 在装配阶段借用实际处理链，保持写入路径无格式器配置锁。
+    pub fn get_handlers(&mut self) -> Vec<HandlerRef<'_>> {
+        self.handlers
+            .as_mut()
+            .map(|handlers| {
+                Arc::make_mut(handlers)
+                    .iter_mut()
+                    .map(|target| HandlerRef { target })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
     /// 为通道的字节输出目标设置格式器。
     pub fn set_formatter(&mut self, formatter: Arc<Formatter>) {
-        if let Some(handlers) = &mut self.handlers {
-            *handlers = handlers
-                .iter()
-                .map(|handler| {
-                    let handler = match handler.as_ref() {
-                        Handler::Formatted { handler, .. } => handler,
-                        _ => handler,
-                    };
-                    Arc::new(Handler::Formatted {
-                        handler: handler.clone(),
-                        formatter: formatter.clone(),
-                    })
-                })
-                .collect();
+        for mut handler in self.get_handlers() {
+            handler.set_formatter(formatter.clone());
         }
     }
 
@@ -208,6 +223,9 @@ impl Logger {
         }
     }
 
+    pub fn get_handlers(&mut self) -> Vec<HandlerRef<'_>> {
+        Arc::make_mut(&mut self.native).get_handlers()
+    }
     pub fn set_formatter(&mut self, formatter: Arc<Formatter>) {
         Arc::make_mut(&mut self.native).set_formatter(formatter);
     }
@@ -496,12 +514,6 @@ impl<'a> LogRecord<'a> {
         let mut line = format!("[{}] ", self.at.strftime("%Y-%m-%d %H:%M:%S"));
         self.append_payload(&mut line, message);
         line.push('\n');
-        line
-    }
-
-    pub(super) fn format_syslog(&self) -> String {
-        let mut line = String::new();
-        self.append_payload(&mut line, &self.message());
         line
     }
 

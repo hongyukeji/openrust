@@ -501,3 +501,8 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### V16 生态空页与支持边界
 
 [三语生态导航](docs-scope/README.md)已逐页消除26个主题／语言首页空白，明确部分原生支持与未提供范围；636导航页面／156状态页和12通用浏览器组合、静态／实际构建空页负例通过。此为正文边界验收，不新增包实现；正式API文档与最终发布快照仍待，V16／V17整体不提升。
+
+
+### 固定Logging教程逐节深度复核（2026-11-24）
+
+[29节日志教程账本](logging-tutorial/README.md)分簇修复errorlog／网络渠道、具体格式器／处理器、浏览器输出、Pail报告认证重入及渠道装配入口，三语实际提取消费者、HTTP／Artisan和范围门禁通过。通用Formattable能力仍在收尾，NewRelic原生供应商范围另待用户决定；整章未关闭，不提升V16／V17或全框架API／发布矩阵。Settings及URL／Validation／Error Handling先前闭合范围保持，本轮不推送。

@@ -50,7 +50,7 @@
 | [Session](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md) | [the-basics/session.md](../../../docs/en/the-basics/session.md) | [04-04](../plan.md#unit-04-04) |
 | [Validation](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md) | [the-basics/validation.md](../../../docs/en/the-basics/validation.md) | [04-05](../plan.md#unit-04-05)、[04-06](../plan.md#unit-04-06) |
 | [Error Handling](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/errors.md) | [the-basics/errors.md](../../../docs/en/the-basics/errors.md) | [00-02](../plan.md#unit-00-02)、[01-06](../plan.md#unit-01-06)、[01-07](../plan.md#unit-01-07)、[03-07](../plan.md#unit-03-07)、[04-08](../plan.md#unit-04-08) |
-| [Logging](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/logging.md) | [the-basics/logging.md](../../../docs/en/the-basics/logging.md) | [01-03](../plan.md#unit-01-03)、[01-04](../plan.md#unit-01-04)、[01-05](../plan.md#unit-01-05) |
+| [Logging](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/logging.md) | [the-basics/logging.md](../../../docs/en/the-basics/logging.md) | [01-03](../plan.md#unit-01-03)、[01-04](../plan.md#unit-01-04)、[01-05](../plan.md#unit-01-05)；[29节复核](../audits/logging-tutorial/README.md)，Formattable／供应商余项继续 |
 
 ## Digging Deeper
 

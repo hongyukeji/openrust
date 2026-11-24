@@ -6,7 +6,13 @@ The Slack channel’s default username is the configured application name follow
 
 Configure the default channel with `LOG_CHANNEL`, the ordered members of the default stack with `LOG_STACK`, and the minimum severity with `LOG_LEVEL`. The default `stack` contains `single`, which appends to `storage/logs/app.log`. Relative paths are resolved from the application root. A channel's optional `name` changes the label on each record. The application environment is the default label.
 
-The implemented drivers are `single` for files, `stderr` for standard error, `null` to discard records, and `stack` to combine channels. A file is opened when a record meets the severity threshold. The `single` driver accepts `locking`, `bubble`, and an integer `permission` such as Rust's `0o600`. Permission applies on Unix. Records use UTC timestamps.
+Supported drivers are `single`, `daily`, `monthly`, `stderr`, `syslog`, `errorlog`, `slack`, `papertrail`, `null`, `stack`, `monolog` and registered `custom` factories. A file is opened when a record meets the severity threshold. The `single` driver accepts `locking`, `bubble`, and an integer `permission` such as Rust's `0o600`. Permission applies on Unix. Records use UTC timestamps.
+
+## Logging Deprecation Warnings {#logging-deprecation-warnings}
+
+`LOG_DEPRECATIONS_CHANNEL` selects the channel for supported runtime compatibility warnings; the default `null` discards them. `LOG_DEPRECATIONS_TRACE=true` adds their location and backtrace. Configure these through `logging.deprecations`. A named `logging.channels.deprecations` channel always takes precedence over the selected channel. In `APP_ENV=testing`, warnings are skipped unless `LOG_DEPRECATIONS_WHILE_TESTING=true`. Logging failure does not turn a deprecation into a failed response.
+
+These are runtime compatibility warnings, such as lossy numeric conversion during template evaluation. Rust compiler diagnostics remain build output; this is not a global interceptor for warnings from every dependency. Use the configured deprecations channel explicitly for application runtime warnings.
 
 ## Building Log Stacks
 
@@ -67,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Customizing Channel Records {#customizing-channel-records}
 
-Register names with `LogManager::register_formatter`, `register_processor`, and `register_tap` in your service provider. Select a formatter with `formatter` and pass its settings in `formatter_with`. Use `formatter: "default"` for the built-in format. Formatters write the exact bytes returned, including any record separator, for file, rotating file, and standard error handlers. Custom logger factories control their own output.
+Register names with `LogManager::register_formatter`, `register_processor`, and `register_tap` in your service provider. Select a formatter with `formatter` and pass its settings in `formatter_with`. Use `formatter: "default"` to retain the handler’s own formatter; omitting it selects the channel’s default formatter. Formatters write the exact bytes returned, including any record separator, for file, rotating file, and standard error handlers. Custom logger factories control their own output.
 
 Declare `processors` as names or objects with `processor` and `with`. Processors run in configuration order before formatting. They can edit the message, record context, and public scope metadata through `LogRecord`. A stack collects its members’ processors in member order. Each member retains its own formatter.
 
@@ -158,7 +164,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let received = receiver.recv(&mut bytes)?;
     let packet = std::str::from_utf8(&bytes[..received])?;
     assert!(packet.starts_with("<165>"));
-    assert!(packet.ends_with("Import complete"));
+    assert!(packet.ends_with("Import complete [] []"));
     Ok(())
 }
 ```
@@ -376,3 +382,57 @@ Configure a development channel:
 `browser_console` appends a script to HTML or JavaScript responses. Severity, CSS markers `[[text]]{color: blue}`, channel labels, context and extra fields are retained. JSON, HEAD, bodyless statuses, encoded content, partial files and binary downloads are left intact. CLI commands do not print browser scripts. Records belong to one request and application. The handler is also available as `openrust::log::BrowserConsoleHandler`.
 
 Stream bodies append console output before trailers or EOF. Raw body streams are polled after the request scope closes; capture an owned logger with `Log::channel(None)?` before creating the stream, and move that handle into it. This does not keep request-scoped Facades alive. A dynamically built browser channel must be created before returning the response, or declared in `logging.channels`, so the body wrapper can be installed.
+
+## Container-Resolved Taps {#container-resolved-taps}
+
+Call the following function from your service provider’s `register` method. Set the channel’s `tap` to `["customize:orders,prod"]`. The registered closure resolves the concrete customizer and its constructor dependency when that channel is first created, rather than eagerly constructing them during boot. Compiled registration replaces runtime class-name loading; dependencies still use the application container. `forget_channel` causes the channel and its tap to be resolved again.
+
+```rust
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam},
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    log::{Formatter, LogError, LogManager, LogResult, Logger, formatters::LineFormatter},
+    support::ProviderResult,
+};
+use std::sync::Arc;
+
+struct FormatterLabel(String);
+struct CustomizeFormatter { label: Arc<FormatterLabel> }
+impl CustomizeFormatter {
+    fn invoke(&self, logger: &mut Logger, arguments: &[&str]) -> LogResult<()> {
+        let pattern = format!("{}:{}:%message%\n", self.label.0, arguments.join(","));
+        let formatter = LineFormatter::new(Some(&pattern), None);
+        let formatter: Arc<Formatter> = Arc::new(move |record| formatter.format(record));
+        for mut handler in logger.get_handlers() {
+            handler.set_formatter(formatter.clone());
+        }
+        Ok(())
+    }
+}
+fn register_formatter_tap(app: &Application) -> ProviderResult {
+    let container = app.container();
+    container.bind::<FormatterLabel, _>(|container| {
+        let config = container.get::<dyn openrust::contracts::config::Repository>("config")?;
+        let label = config.get("app.name").and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "App".into());
+        Ok(Arc::new(FormatterLabel(label)))
+    })?;
+    container.register_class(ClassDescriptor::concrete::<CustomizeFormatter, _>(
+        vec![ConstructorParam::class::<FormatterLabel>("label")],
+        |arguments| Ok(Arc::new(CustomizeFormatter { label: arguments.service(0)? })),
+    )?)?;
+    let owner = Arc::downgrade(&Container::get_instance());
+    container.make::<LogManager>()?.register_tap("customize", move |logger, arguments| {
+        owner.upgrade().ok_or(LogError::InvalidConfiguration)?
+            .make::<CustomizeFormatter>()?.invoke(logger, arguments)
+    });
+    Ok(())
+}
+```
+
+`openrust::log::formatters::LineFormatter` and `formatter: "line"` accept the `%datetime%`, `%channel%`, `%level_name%`, `%level%`, `%message%`, `%context%`, `%extra%` and individual `%context.key%` / `%extra.key%` tokens. `formatter_with` accepts `format`, `dateFormat`, `allowInlineLineBreaks` and `ignoreEmptyContextAndExtra`; the last two default to `false`. The public setters and `format_batch` use the same implementation. Returned separators are exact. Native errors retain the existing structured snapshots; there is no fabricated PHP Throwable stack or runtime class reflection.
+
+Inside a tap, `get_handlers()` borrows the actual chain through `&mut Logger`; each handle accepts `set_formatter`. Configuration uses copy on write, keeping other shared loggers unchanged and adding no formatter-configuration lock to normal writes. An emergency fallback has no configurable channel chain.
+
+The Log facade also exposes `driver`, `get_default_driver`, `set_default_driver`, `forget_channel` and `extend`. `driver(None)` selects the current default, `forget_channel(None)` invalidates that channel, and an already-returned logger keeps its existing output target. These operations require an active application scope.

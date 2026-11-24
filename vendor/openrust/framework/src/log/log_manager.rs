@@ -714,6 +714,18 @@ impl Resolution<'_, '_> {
                 *ignore_exceptions,
             );
         }
+        let own_line_format = match &driver {
+            Driver::Single(_)
+            | Driver::Daily { .. }
+            | Driver::Monthly { .. }
+            | Driver::Slack
+            | Driver::Errorlog { .. }
+            | Driver::Stderr => Some(None),
+            Driver::Syslog { .. } | Driver::Papertrail => {
+                Some(Some("%channel%.%level_name%: %message% %context% %extra%"))
+            }
+            _ => None,
+        };
         let handler = match driver {
             Driver::Single(file) => {
                 let options_file = file.options(self.settings.root)?;
@@ -794,18 +806,10 @@ impl Resolution<'_, '_> {
                     .unwrap_or_else(|| "openrust".to_owned());
                 let socket = socket.map(|path| self.settings.root.join(path));
                 let facility = facility.unwrap_or(syslog::Facility::Number(8)).priority()?;
-                let handler = Handler::Registered {
+                Handler::Registered {
                     write: syslog::writer(socket, ident, facility)?,
                     level,
                     bubble: options.bubble,
-                };
-                if options.formatter.as_deref() == Some("default") {
-                    Handler::Formatted {
-                        handler: Arc::new(handler),
-                        formatter: Arc::new(|record| Ok(record.format_syslog())),
-                    }
-                } else {
-                    handler
                 }
             }
             Driver::Null => Handler::Null(level),
@@ -815,6 +819,15 @@ impl Resolution<'_, '_> {
                 handler_with,
             } => self.handler(name, options, &handler, with, handler_with)?,
             Driver::Stack { .. } => unreachable!("stack handled before leaf drivers"),
+        };
+        let handler = if options.formatter.as_deref() == Some("default") {
+            if let Some(format) = own_line_format {
+                with_line_formatter(handler, format)
+            } else {
+                handler
+            }
+        } else {
+            handler
         };
         let handler = match options.action_level.as_deref() {
             Some(level) => handler.buffered(Level::parse(level)?, options.stop_buffering),
@@ -865,7 +878,7 @@ impl Resolution<'_, '_> {
                 if options
                     .formatter
                     .as_deref()
-                    .is_none_or(|name| name == "default")
+                    .is_some_and(|name| name == "default")
                 {
                     Handler::Formatted {
                         handler: Arc::new(handler),
@@ -884,7 +897,7 @@ impl Resolution<'_, '_> {
             );
         }
         if name == "syslog_udp" {
-            return Ok(Handler::Registered {
+            let handler = Handler::Registered {
                 write: super::syslog_udp::writer(
                     &arguments,
                     self.settings.root,
@@ -897,6 +910,14 @@ impl Resolution<'_, '_> {
                 )?,
                 level,
                 bubble,
+            };
+            return Ok(if options.formatter.as_deref() == Some("default") {
+                with_line_formatter(
+                    handler,
+                    Some("%channel%.%level_name%: %message% %context% %extra%"),
+                )
+            } else {
+                handler
             });
         }
         if name != "stream" {
@@ -912,7 +933,11 @@ impl Resolution<'_, '_> {
                 Handler::file(file.path, file.permission, file.locking, level, bubble)
             }
         };
-        Ok(handler)
+        Ok(if options.formatter.as_deref() == Some("default") {
+            with_line_formatter(handler, None)
+        } else {
+            handler
+        })
     }
 
     fn rotating(
@@ -1141,4 +1166,12 @@ fn default_channels(path: Option<&str>) -> Value {
         "syslog": { "driver": "syslog", "replace_placeholders": true },
         "null": { "driver": "null" }
     })
+}
+
+fn with_line_formatter(handler: Handler, format: Option<&str>) -> Handler {
+    let formatter = super::formatters::LineFormatter::new(format, None);
+    Handler::Formatted {
+        handler: Arc::new(handler),
+        formatter: Arc::new(move |record| formatter.format(record)),
+    }
 }

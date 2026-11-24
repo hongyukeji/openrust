@@ -4,27 +4,59 @@
   "sections": [
     {
       "anchor": "introduction",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "应用日志与渠道边界；只承诺固定教程入口，不宣称全部第三方处理器可替换",
+      "evidence": [
+        "logging",
+        "logging_docs_generated"
+      ]
     },
     {
       "anchor": "configuration",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "配置载入、默认驱动、延迟渠道缓存及应急回退",
+      "evidence": [
+        "logging",
+        "log_lifecycle_tutorial",
+        "lifecycle-runtime.log"
+      ]
     },
     {
       "anchor": "available-channel-drivers",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "single/daily/monthly/stack/slack/papertrail/syslog/errorlog/null/monolog及编译custom；跨平台边界保留",
+      "evidence": [
+        "logging",
+        "network_log_tutorial",
+        "logging_tutorial"
+      ]
     },
     {
       "anchor": "configuring-the-channel-name",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "环境默认名、自定义name、临时堆栈与原生句柄标签",
+      "evidence": [
+        "logging",
+        "native_logger"
+      ]
     },
     {
       "anchor": "channel-prerequisites",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "目录延迟创建、权限、锁与网络参数／错误恢复",
+      "evidence": [
+        "logging",
+        "network_log_tutorial"
+      ]
     },
     {
       "anchor": "configuring-the-single-daily-and-monthly-channels",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "UTC周期、max_files及文件命名隔离；保留已约定UTC策略",
+      "evidence": [
+        "logging::daily_and_monthly_channels_prune_their_own_periods",
+        "logging::simultaneous_threads_share_a_channel_and_append_complete_records"
+      ]
     },
     {
       "anchor": "configuring-the-papertrail-channel",
@@ -48,7 +80,12 @@
     },
     {
       "anchor": "logging-deprecation-warnings",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "运行期数值兼容警告、named deprecations优先、null、testing／trace与不中断响应",
+      "evidence": [
+        "blade_arithmetic",
+        "blade_arithmetic::named_deprecations_channel_overrides_selection_without_affecting_rendering_or_default_logs"
+      ]
     },
     {
       "anchor": "building-log-stacks",
@@ -72,47 +109,79 @@
     },
     {
       "anchor": "writing-log-messages",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Facade／Manager／Logger／Native四入口各8个真实级别方法与通用log",
+      "evidence": [
+        "log_lifecycle_tutorial::eight_named_levels_are_callable_on_facade_manager_logger_and_native_handle",
+        "logging"
+      ]
     },
     {
       "anchor": "contextual-information",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "本次记录、with/share/without/flush作用域数据及并发隔离；同步／异步请求边界明示",
+      "evidence": [
+        "log_context",
+        "log_listeners",
+        "logging"
+      ]
     },
     {
       "anchor": "writing-to-specific-channels",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "具名选择、driver别名、默认切换、forget及原句柄保留",
+      "evidence": [
+        "log_lifecycle_tutorial",
+        "logging"
+      ]
     },
     {
       "anchor": "on-demand-channels",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "build、混合Named/Logger堆栈、标签及缓存隔离",
+      "evidence": [
+        "logging::registered_factories_are_lazy_and_mix_with_on_demand_channels",
+        "logging_docs_generated"
+      ]
     },
     {
       "anchor": "monolog-channel-customization",
-      "status": "pending_contract_review"
+      "status": "partial_formattable_and_vendor_pending",
+      "contract": "内置Line/HTML、get_handlers装配及各内置default已验；通用Formattable能力接口继续实现，NewRelic供应商范围待用户决定",
+      "evidence": [
+        "log_components_tutorial",
+        "logging_docs_generated",
+        "browser_log_tutorial",
+        "README.md#第五簇渠道装配接口与格式器语义"
+      ]
     },
     {
       "anchor": "customizing-monolog-for-channels",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "ClassDescriptor构造依赖延迟注入、get_handlers逐个set_formatter、tap参数和重新解析",
+      "evidence": [
+        "logging_docs_generated::*formal_container_tap_example",
+        "log_components_tutorial::native_handler_borrows_customize_actual_targets_without_changing_shared_logger_configuration"
+      ]
     },
     {
       "anchor": "creating-monolog-handler-channels",
-      "status": "core_consumers_verified_agent_example_pending",
-      "contract": "BrowserConsoleHandler与SyslogUdpHandler真实消费者已验；NewRelic官方Agent前置待单独核对",
+      "status": "verified_tutorial_scope",
+      "contract": "真实SyslogUdpHandler参数与BrowserConsoleHandler响应；通用注册器可扩展但不冒充未实现的供应商",
       "evidence": [
-        "browser_log_tutorial",
         "network_log_tutorial",
-        "components-browser.log"
+        "browser_log_tutorial"
       ]
     },
     {
       "anchor": "monolog-formatters",
-      "status": "verified_tutorial_scope",
-      "contract": "具体公开HTML格式器及内存／PSR处理器，原生RSS与JSON对象边界见第三簇",
+      "status": "partial_formattable_and_vendor_pending",
+      "contract": "内置Line/HTML、get_handlers装配及各内置default已验；通用Formattable能力接口继续实现，NewRelic供应商范围待用户决定",
       "evidence": [
         "log_components_tutorial",
         "logging_docs_generated",
-        "components-consumers-final2.log",
-        "components-docs-consumers-final.log"
+        "browser_log_tutorial",
+        "README.md#第五簇渠道装配接口与格式器语义"
       ]
     },
     {
@@ -128,7 +197,13 @@
     },
     {
       "anchor": "creating-custom-channels-via-factories",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "编译via工厂、extend、首次解析与并发缓存／过期候选拒绝",
+      "evidence": [
+        "logging::registered_factories_are_lazy_and_mix_with_on_demand_channels",
+        "logging::forgetting_a_channel_during_factory_execution_prevents_stale_publication",
+        "log_lifecycle_tutorial"
+      ]
     },
     {
       "anchor": "tailing-log-messages-using-pail",

@@ -282,7 +282,7 @@ fn syslog_formats_real_datagrams_and_recovers_when_the_receiver_returns() {
     let packet = receive_syslog(&socket);
     assert!(packet.starts_with("<165>"));
     assert!(packet.ends_with(&format!(
-        " audit-collector[{}]: orders.NOTICE: fallback recovered",
+        " audit-collector[{}]: orders.NOTICE: fallback recovered [] []",
         std::process::id()
     )));
     let normal = manager.channel(Some("normal")).unwrap();

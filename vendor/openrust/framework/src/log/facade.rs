@@ -16,6 +16,32 @@ impl Facade for Log {
 }
 
 impl Log {
+    pub fn driver(name: Option<&str>) -> LogResult<Arc<Logger>> {
+        Self::get_facade_root()?.driver(name)
+    }
+    pub fn get_default_driver() -> LogResult<Option<String>> {
+        Ok(Self::get_facade_root()?.get_default_driver())
+    }
+    pub fn set_default_driver(name: &str) -> Result<(), crate::config::ConfigError> {
+        Self::get_facade_root()?.set_default_driver(name)
+    }
+    pub fn forget_channel(name: Option<&str>) -> LogResult<()> {
+        Self::get_facade_root()?.forget_channel(name);
+        Ok(())
+    }
+    pub fn extend(
+        driver: impl Into<String>,
+        factory: impl Fn(
+            &LogManager,
+            &serde_json::Value,
+        ) -> LogResult<Arc<dyn crate::contracts::log::Logger>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> LogResult<()> {
+        Self::get_facade_root()?.extend(driver, factory);
+        Ok(())
+    }
     pub fn with_context(context: LogContext) -> LogResult<Arc<Logger>> {
         Self::get_facade_root()?.with_context(context)
     }

@@ -42,3 +42,29 @@ MemoryUsageProcessor读取现有memory_stats的原生RSS；不是PHP分配器指
 首轮auth_timing实际失败：新异常报告上下文先调用Auth解析身份，此时认证回调中的显式请求日志进入Pail；原Pail任务标记只覆盖它自己发起的认证，不能覆盖异常报告先发起的解析，导致再次调用回调并传播InvalidIdentity使请求中断。没有删除原反例或吞掉认证错误：RequestGuard／SessionGuard复用AuthContext按请求、Guard名记录正在解析的私有AtomicBool，用RAII在成功、错误及Future取消时释放；嵌套读取只返回已知身份，不启动新解析。最外层错误仍返回，未完成身份不缓存，后续请求／重试正常。无新增公开标识、事件或存储格式。原Pailauth_timing未降低断言，第二轮包含错误回调／错误页／取消后重试及后续HTTP全通过，日志pail-consumers{,-v2}.log保留红绿证据。
 
 额外auth_configured_extensions两项及SQLite实际Session HTTP回归一项通过；同二进制其余6项按精确筛选未执行，不当作MySQL／PG／完整Auth模块通过。格式、workspace/all-targets严格Clippy38.88s、三语构建0；实际main（pail功能）HTTP、HTML／JSON404、Artisaninspire/list/help、独立pail --level=error -vv --timeout=2捕获真实500报告、超时会话清理及Ctrl+C全0，来源与数据均隔离在target/tmp，数据库配置只指向本批SQLite文件，无开发数据库操作。证据pail-{gates,auth-extensions,session,fmt,clippy,main,docs,runtime,runtime-output}.log。同步三语认证重入说明；Windows和真实供应商发布矩阵不因此关闭。下一簇待验Facade转发仍留在工作区，明确不夹带本次提交。
+
+
+## 第五簇：渠道装配接口与格式器语义
+
+第四簇提交8f33376e02c991e4292e94a2b018f7ced0f463f8。按29节逐项继续核对，发现不能用普通格式闭包代替固定tap示例中的具体LineFormatter，也不能用整体set_formatter替代示例逐Handler装配。现提供log::formatters::LineFormatter、Logger／NativeLogger::get_handlers与HandlerRef::set_formatter；复用原处理链与Date／JSON／PHP标量机制，不增加第二套输出目标。HandlerRef只在独占装配期间借用，按既有写时复制策略保持其他共享Logger配置不变，热写路径无新增格式配置锁；配置失败时NativeLogger无可装配渠道处理链，应急策略原样保留。直接Native消费者覆盖共享格式不变、真实同文件输出和应急输出；不将此有限装配API说成全部Monolog可变运行期API。
+
+三语新增的实际CustomizeFormatter通过ClassDescriptor声明构造依赖，Provider register只登记类型与tap闭包，首次创建渠道时才从所属容器make；在正式教程消费者中boot后改配置Before→After，第二次记录仍用缓存After，forget后重建才用Late，证明不是启动时构造或每条日志重新注入。无反射模拟器、无平行DI；直接提取三语代码编译运行。新增Log Facade的driver／get_default_driver／set_default_driver／extend／forget_channel原管理器转发，实测两应用隔离、同一缓存、旧句柄保留、清理后新目标及原生工厂。Facade／Manager／Logger／Native四类各8个具名级别方法真实调用并验证32条输出，而非只检查宏声明。
+
+LineFormatter支持固定示例构造与format／format_batch、各标准token及按字段token、换行／空上下文开关；八级固定PHP结果逐字节对比。实际对照暴露Map::remove会交换末项，现对Line及PSR使用shift_remove，保留剩余字段顺序，并把PSR断言改成有序JSON字节比较。新增CLI子进程按固定memory示例通过真实monolog/stream stderr，覆盖simple Memory处理器加带参数PSR处理器及字段移除。保留原生RSS、结构化错误快照与UTC策略，不虚构PHP对象及Throwable调用；其他第三方Formatter完整类API不计本教程交付。
+
+补核第三簇默认格式器组合发现，省略formatter与显式default曾被错误合并：固定prepareHandler省略时使用框架格式，default才保留处理器自带格式。现对文件／轮转／stderr／errorlog／Slack的自带Line、syslog／UDP自带无时间前缀Line、Browser自带样式分别接线；未配置formatter的原有默认字节不变。显式default按上游补齐ISO日期或空context／extra的[]，这是可观察的缺陷修复，三语说明及Unix syslog断言已同步。Browser的实际None/default/custom路径、HTML格式器及危险script文本经HTTP验证，真实Chromium验证控制台级别、分组、字段与CSS参数，未把脚本字串存在视为执行成功。原生类型与HandlerRef不宣称任意第三方类自动可用。
+
+具名deprecations实际HTTP证明logging.channels.deprecations优先于LOG_DEPRECATIONS_CHANNEL=null，输出不中断并不写默认文件；现有trace／testing／无效渠道回归继续通过。三语补齐配置及运行期兼容警告边界，编译器诊断不冒充运行期事件。最终受影响日志十目标55项0忽略整批通过；后补Native直接getter反例后组件七项全通过，生产源码未变，不将两轮重复计数为额外功能。正式三语36段Rust及6份JSON，共42个直接提取消费者通过。最终workspace格式及严格Clippy通过（完整37.15s，新增getter反例后的增量0.52s），真实main HTTP／Artisan／独立Pail捕获／Ctrl+C通过，三语最终构建与浏览器三组通过；未导出整workspace Rustdoc或新增跨平台矩阵。证据lifecycle-{consumers-final,handles-final,docs-consumers-final,fmt-final,clippy-final,main,docs-final2,runtime,browser,doc-browser-final}.log。Clippy曾指出无必要let及函数指针数组复杂度，按代码结构修正，没有豁免。所有本批服务／子进程已退出，继续复用项目内独占缓存，保留原始日志。
+
+### 唯一待决的教程生态例子
+
+固定formatter段还列出NewRelicHandler及default。该类不是“只缺账号”：它依赖PHP newrelic扩展，当前原生专用适配未实现，不用register_handler通用回调冒充已支持。官方[原生C SDK仓库](https://github.com/newrelic/c-sdk)已归档，并[声明不再支持](https://docs.newrelic.com/docs/apm/agents/c-sdk/get-started/introduction-c-sdk/)；改接Log API或OTel会改变原APM集成边界，不能擅自引入新方案并说与原示例等价。已通过专用提问等待用户选择“单列待选型供应商集成”或“本轮选型原生适配”；未答复不视为批准。本项及相关父节保持core_verified_vendor_decision_pending，其他已验教程入口按section-map逐项登记。已有真实供应商账户与Windows／发布矩阵按原边界单列，不阻止后续独立章节。
+
+完整Log／Monolog类API与固定教程范围分别处理：本批不声称交付动态setApplication、write的所有PHP对象参数、通用事件Dispatcher替换、Conditionable、全部Normalizer／LineFormatter运行期setter或PHP扩展生态。未交付接口不包装为语言限制；其余类API仍需所属完整契约专项，不能凭本教程状态关闭。当前只核定固定29节的约定消费者，2项父／子格式器节因上述供应商范围未决保持开放。
+
+
+### 紧接的核心余项
+
+通用可扩展处理器仍需正式的Formattable能力入口：现有register_handler只返回接收record／formatted的Fn，内置default分支虽已验证，仍不能把“回调自己忽略文本再格式化”当作可声明自带格式器的类型契约。下一簇复用同一处理器注册／输出管线，增加能力声明并验收省略／default／显式formatter和构造失败；不另建并行日志系统。该核心余项不依赖NewRelic范围答复。当前阶段只提交以上已验范围，整章继续开放。
+
+补充最终证据：组件七项覆盖直接Native getter、写时复制及无装配链的应急输出；浏览器三项又补真实第二应用及恢复请求、固定HTML formatter/dateFormat字面组合，全部通过。最后严格workspace Clippy含该组合0.61s。证据lifecycle-handles-final.log、lifecycle-browser-{literal,final}.log、lifecycle-clippy-browser-final.log。三语增加弃用配置说明后构建final2与浏览器final全0；没有重复计为新增生产功能。
