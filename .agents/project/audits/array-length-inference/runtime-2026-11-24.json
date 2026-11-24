@@ -1,0 +1,500 @@
+{
+  "date": "2026-11-24",
+  "tested_commit": "d73693e0ce67c3cbf2fbc637307d06f6619c5917",
+  "list_refactor_commit": "ce75e29be167fe194b47219652a943123a8e9dd5",
+  "test_executions": {
+    "framework": {
+      "passed": 223,
+      "failed": 0,
+      "ignored": 0
+    },
+    "application": {
+      "passed": 39,
+      "failed": 0,
+      "ignored": 0
+    },
+    "http_consumers": {
+      "passed": 35,
+      "failed": 0,
+      "ignored": 0
+    },
+    "sqlite_seeders": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "faker_consumers": {
+      "passed": 42,
+      "failed": 0,
+      "ignored": 0
+    },
+    "sqlite_batches": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "activitylog": {
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0
+    },
+    "telescope": {
+      "passed": 6,
+      "failed": 0,
+      "ignored": 0
+    },
+    "cashier": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0
+    },
+    "pay": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    "mysql_bindings": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    },
+    "mysql_seeder": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "mysql_batches": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "postgres_bindings": {
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    }
+  },
+  "executed_total": 375,
+  "list_initializers_preserved": 33,
+  "binary": {
+    "cli": [
+      {
+        "args": [
+          "list",
+          "--format=json"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "stub:publish",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "queue:work",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:list",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "not-a-real-command"
+        ],
+        "exit": 1
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "./artisan",
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      }
+    ],
+    "http": [
+      {
+        "path": "/",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 22917
+      },
+      {
+        "path": "/",
+        "method": "HEAD",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 0
+      },
+      {
+        "path": "/up",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 1896
+      },
+      {
+        "path": "/not-found",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 404,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 136
+      },
+      {
+        "path": "/not-found",
+        "method": "GET",
+        "accept": "application/json",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      },
+      {
+        "path": "/api/not-found",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      }
+    ],
+    "registered_commands": [
+      "about",
+      "build",
+      "clear-compiled",
+      "completion",
+      "db",
+      "dev",
+      "docs",
+      "down",
+      "env",
+      "help",
+      "init",
+      "inspire",
+      "list",
+      "migrate",
+      "optimize",
+      "pail",
+      "reload",
+      "serve",
+      "test",
+      "tinker",
+      "up",
+      "auth:clear-resets",
+      "cache:clear",
+      "cache:forget",
+      "cache:prune-stale-tags",
+      "channel:list",
+      "config:cache",
+      "config:clear",
+      "config:publish",
+      "config:show",
+      "db:monitor",
+      "db:seed",
+      "db:show",
+      "db:table",
+      "db:wipe",
+      "dev:list",
+      "env:decrypt",
+      "env:encrypt",
+      "event:cache",
+      "event:clear",
+      "event:list",
+      "install:api",
+      "install:broadcasting",
+      "install:grpc",
+      "jwt:secret",
+      "key:generate",
+      "lang:publish",
+      "make:agent",
+      "make:cache-table",
+      "make:cast",
+      "make:channel",
+      "make:class",
+      "make:command",
+      "make:component",
+      "make:config",
+      "make:controller",
+      "make:enum",
+      "make:event",
+      "make:exception",
+      "make:factory",
+      "make:filter",
+      "make:interface",
+      "make:job",
+      "make:job-middleware",
+      "make:listener",
+      "make:mail",
+      "make:middleware",
+      "make:migration",
+      "make:model",
+      "make:notification",
+      "make:notifications-table",
+      "make:observer",
+      "make:package",
+      "make:policy",
+      "make:provider",
+      "make:queue-batches-table",
+      "make:queue-failed-table",
+      "make:queue-table",
+      "make:request",
+      "make:resource",
+      "make:rule",
+      "make:scope",
+      "make:seeder",
+      "make:session-table",
+      "make:test",
+      "make:tool",
+      "make:trait",
+      "make:view",
+      "migrate:fresh",
+      "migrate:install",
+      "migrate:refresh",
+      "migrate:reset",
+      "migrate:rollback",
+      "migrate:status",
+      "model:fields",
+      "model:prune",
+      "model:show",
+      "optimize:clear",
+      "package:discover",
+      "package:install",
+      "package:uninstall",
+      "queue:clear",
+      "queue:failed",
+      "queue:flush",
+      "queue:forget",
+      "queue:listen",
+      "queue:monitor",
+      "queue:pause",
+      "queue:prune-batches",
+      "queue:prune-failed",
+      "queue:restart",
+      "queue:resume",
+      "queue:retry",
+      "queue:retry-batch",
+      "queue:work",
+      "route:cache",
+      "route:clear",
+      "route:list",
+      "schedule:clear-cache",
+      "schedule:interrupt",
+      "schedule:list",
+      "schedule:pause",
+      "schedule:resume",
+      "schedule:run",
+      "schedule:test",
+      "schedule:work",
+      "schema:dump",
+      "session:garbage-collect",
+      "storage:link",
+      "storage:unlink",
+      "stub:publish",
+      "vendor:publish",
+      "view:cache",
+      "view:clear"
+    ],
+    "shutdown_exit": 0
+  },
+  "sms_profiles": [
+    {
+      "profile": "log",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "primary",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "backup",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "aliyun",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "alerts_global",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "smsbao",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "yunpian",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "orders_cn",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "vonage",
+      "exit": 1,
+      "parsed_profile": true
+    },
+    {
+      "profile": "unknown-profile",
+      "exit": 1,
+      "parsed_profile": false
+    }
+  ],
+  "checks": {
+    "workspace_fmt": 0,
+    "affected_six_crates_all_targets_clippy_D_warnings": 0
+  },
+  "source_sha256": {
+    "Cargo.lock": "f66f2f210d76407cbce4b91a8f656e43b410d3f5eb4c47c3438fa68caa9ffcef",
+    "Cargo.toml": "c395c9944ff17c0785e9570c513f765d35ac9810c927cceefc463031e5e941d6",
+    "bootstrap/app.rs": "42de54bd7567355e69c2c7c05a9b327c5eff7428d6e8e6a3248736edddc0dd91",
+    "main.rs": "7459daeb217e839a6593c92b61fbbeb6b50210426d7d71254dc73915a2c49374",
+    "routes/console.rs": "4ded1c23ce32c80148a415ff96f8998c7b7bf21ad0d5e03946a5977f3ccf0cbb",
+    "routes/web.rs": "d57edeb5397431bb4ebc17cc8c924af73ef4946d4b478fab44710c9008d54c2e",
+    "tests/application_skeleton.rs": "9fb04eb330ab8a2f052353bc3a09b33bedc81e25c4e4486714c8690349aba92e",
+    "tests/console.rs": "c0c1473a170565a0a895d80e647f2586962314dd26e38e071922c84f22781d93",
+    "tests/job_batches.rs": "1ccfaf50f73f3871d370b00cfcde55e4cb1b4c7ea1057c57e0a6afa95390725d",
+    "tests/resource_generator.rs": "3c04e1b059c8034e3c0da3ac54c4913543302d19a4564d839f64054b90513512",
+    "tests/seeding.rs": "b94297b56d51f3580ea9bad5d0ff70656127f04b038e19d9cf0fc4bbc9db4c36",
+    "tests/startup.rs": "4d5eb41179fc945dc51fac926bb1bacb15f7f6d4a0ad9603797bb8a3e220bf3f",
+    "tests/support/sms/worker_app.rs": "a2ff17f9dd7ea3eab7fc2fe52a725ffb9fd6f5e7877b871cbe2fd25c403878e9",
+    "vendor/openrust/activitylog/src/provider.rs": "4d1291e9db4fd5a9bbbf687f9fea2daccde105a72fa6a571d1a28c98f800aabd",
+    "vendor/openrust/cashier/src/lib.rs": "19185082ae348880a191ed3d11c3fef2437f680b76920a949f7432fefd496934",
+    "vendor/openrust/cashier/tests/support/mod.rs": "696cb79dbdc7fe5404d1bb0700246b22bb9d944f7f4f936fe1c191b8fe6ce23e",
+    "vendor/openrust/framework/src/bus/callback.rs": "4d0e166cb79f6d8a74dfae00ec50827fd0901d6b7fd13435ad65aa84cd593d9f",
+    "vendor/openrust/framework/src/console/generator_command.rs": "37cfec004b684029b4786e5e50ecf9bec03a608a026c91fac53e39278c6483f0",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker.rs": "cdbf00291b6b167c5d4be01beb6a290fbf5023ee45c1924347b6340b83ceb764",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_address.rs": "c3a1d634390fb7a39356829ddcfe4ce4e637e3226cfaf0e6f4544f77540e68d4",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_identity.rs": "5fae69e3a2c1ff76cf18b3a41260edca20e5041753c8b0273d10b9b1358a4c2f",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_user_agent.rs": "43c1271b03a32c277f3b242183ad37d32310df38812464cc765bf6c7bfbb3da8",
+    "vendor/openrust/framework/src/database/query/builder/bindings.rs": "73b58f1494f172995c1955023321811fda6b57350ceba988fe78617f39ef0f8f",
+    "vendor/openrust/framework/src/foundation/application.rs": "698059e64dd53d2250687f770fa07884fe89cc7a48dbdf9fc47d601577432c25",
+    "vendor/openrust/framework/src/foundation/configuration/middleware.rs": "42098746c7cf787c017b76a128ae47a8706e30970a14233dc0f3ae7a8aa1404d",
+    "vendor/openrust/framework/src/foundation/console/stub_publish_command.rs": "8d3e7570af3396ff4ea913b5918288705b5fb5543c8255141a45e2b00b91e4ab",
+    "vendor/openrust/framework/src/foundation/inspiring.rs": "a2f87b6ccf101e954354aa83d9f456d5f58eecb014c36ecfc40a1452b342a713",
+    "vendor/openrust/framework/src/routing/resource.rs": "66cac8a7ca24f281f77ff5fec40af0bb3e75866edab2880e22d24128d113db13",
+    "vendor/openrust/framework/src/routing/router.rs": "f200de8ceaef3143c07ede5815e7d5379d18d51b34ab8eea509fc8952c0a2842",
+    "vendor/openrust/framework/src/support/input_scalars.rs": "96a6517362d10def8d91b2ac03fe03da71f67dd387b91007231ecc5d90c9f7d2",
+    "vendor/openrust/framework/tests/eloquent_strictness.rs": "6d8b094792bb38e1087704cef807f21f9a39742b284b1ec562b9bf819b208b94",
+    "vendor/openrust/framework/tests/encryption.rs": "ab62ea0f6d8951b5855e789a488923192438df6d18949b6fde4959679e0179a0",
+    "vendor/openrust/framework/tests/lazy_collections.rs": "8ea6bb437f226e8b087dae7ff5eb67cd0e4f8fcf22d700191121a3a29e8cd013",
+    "vendor/openrust/framework/tests/vite_facade.rs": "ca019e4c10662c671d376436645506030a235386fabe21b657cee04ccd0aa0d6",
+    "vendor/openrust/pay/src/lib.rs": "c88c019a548db3e9e90d57467dc1684429b945266e51aad3cc60cd558a8f7956",
+    "vendor/openrust/pay/tests/callback_http.rs": "010e80f09346da0603a467e59a2a2548fb234d609f65f1b652587f6ba03ff1e3",
+    "vendor/openrust/pay/tests/notifications.rs": "90f5e0accb11519b8e6f58714d0d7c585098cdddb095adc85771abe4f40447ad",
+    "vendor/openrust/telescope/src/provider.rs": "a87b629c8cb10ff983be0920a342a1ed93640ff573f1902e1c96f12b10ef8e48"
+  },
+  "evidence_directory": "target/tmp/array-runtime/"
+}

@@ -25,3 +25,47 @@
 - 33处初始化内容／顺序校验通过。没有执行数据库迁移、发送短信或重跑全仓HTTP／SQL测试；本批不改SQL或业务行为。
 
 证据位于`target/tmp/provider-array-inference/`，包括独立源码、编译与Clippy日志、四个测试编译日志、CLI解析结果、列表内容校验及提交清单。一次缓存选择歧义和一次其他工作流磁盘清理导致的依赖工件消失均不计通过；重新按指纹读取已恢复依赖后完成验收。本批没有手动中止其他进程或执行额外缓存清理；期间项目32GB守卫清理的空间与工件变化以公共守卫记录为准。所有临时源文件与日志均在项目内；保留独立证据，不修改其他在途源码或索引分块。
+
+## 实际消费者完整复验（2026-11-24）
+
+针对列表改造提交 `ce75e29be167fe194b47219652a943123a8e9dd5`，以 `d73693e0ce67c3cbf2fbc637307d06f6619c5917` 创建完整独立源码快照，使用 Rust 1.94.0、构建守卫和独占 Cargo target。此次均实际运行测试和二进制，不用前次 metadata 编译结果代替执行。未混入其他协作者的在途改动。
+
+### 注册内容与顺序
+
+重新提取改造提交前后的33处初始化列表，内容与顺序逐项相同。列表改造后其他提交新增的 Provider／模板属于独立提交，不把这些正常新增误判为本批差异。HTTP 方法及 `any`／`match`／HEAD 重叠路由、资源与单例动作、Provider 的 register／boot 时机及幂等性、中间件进入／退出／终止次序均经实际消费者验证。查询绑定测试同时核对九个类别的顺序、扁平参数顺序、SQL参考结果及实际执行。
+
+### 实际测试
+
+| 日志 | 通过的测试执行数 | 验收范围 |
+| --- | ---: | --- |
+| framework.log | 223 | 路由方法、路由快捷入口、中间件生命周期与排除、查询绑定、加密、Vite、严格属性、LazyCollection、Faker身份／医疗／浏览器数据 |
+| application.log | 39 | 根应用启动、真实二进制Artisan、模板发布和生成器、Provider顺序、静态挂载、API/CORS及骨架 |
+| http_consumers.log | 35 | 真实HTTP输入与标量转换、资源／单例路由、组与命名路由及缓存 |
+| sqlite_seeders.log | 1 | 独立Artisan进程在SQLite执行Seeder |
+| faker_consumers.log | 42 | 根应用Faker公开消费者 |
+| sqlite_batches.log | 1 | SQLite真实批次派发、Worker、各阶段回调及失败路径 |
+| activitylog.log | 17 | 包Provider、HTTP／Artisan迁移与应用隔离 |
+| telescope.log | 6 | 包Provider、初始化命令及HTTP观察消费者 |
+| cashier.log | 3 | SQLite迁移、Artisan、HTTP回调与持久化；供应商使用隔离模拟服务 |
+| pay.log | 2 | SQLite迁移、真实HTTP回调、通知事务与幂等；支付协议使用本地夹具 |
+| mysql_bindings.log | 2 | MySQL 8.4.13上的绑定顺序和实际SQL执行 |
+| mysql_seeder.log | 1 | MySQL真实Artisan Seeder |
+| mysql_batches.log | 1 | MySQL 8.4.13＋独占Redis 8，真实Worker及批次回调、失败／重试路径 |
+| postgres_bindings.log | 2 | PostgreSQL 18.7上的绑定顺序和实际SQL执行 |
+
+合计375项测试执行通过，0失败、0忽略；相同用例在不同驱动上的重复执行分别计数，不代表375个独立功能。按名称筛选的其他测试未执行，不计入通过数量。MySQL／PostgreSQL使用项目正式隔离夹具，Redis使用本批专属容器，均未使用开发库或开发缓存。
+
+### 实际应用二进制与Artisan
+
+- `main artisan list --format=json`：134个命令，无重名；核对 `inspire`、`route:list`、`stub:publish`、`migrate`、`db:seed`、`queue:work`、`schedule:run`、`lang:publish` 均存在。帮助正常，未知命令仍退出1。
+- 实跑12次 `inspire`，输出均属于原41条名言集合；另外直接执行独立快照的 `./artisan inspire --no-ansi`，退出0。连同清单、帮助和错误分支共19项CLI检查。
+- 启动真实 `main`，依次请求首页GET／HEAD、`/up`、普通Web的HTML404、Accept JSON的404、API路径的JSON404，共6项HTTP检查通过。SIGINT正常退出0。此独立首页验收采用array Session／Cache并显式关闭其他Runner，避免连接开发服务；队列另由上述真实Worker测试覆盖，不计此首页验收为Runner全矩阵通过。
+- 编译并运行真实短信Worker夹具：帮助中9个profile的内容和顺序一致；9个已知值均通过枚举解析、进入缺少必填参数分支，未知profile仍在枚举解析阶段被拒绝。本项未派发短信，不计作外部短信供应商验收。
+
+### 检查、证据与收尾
+
+- 完整快照 `cargo +1.94.0 fmt --all --check` 通过。
+- 根应用、框架及activitylog／telescope／cashier／pay六个受影响crate的 `cargo +1.94.0 clippy --locked ... --all-targets -- -D warnings` 通过；未声称全workspace所有扩展均重跑Clippy。
+- 完整命令、原始输出、列表初始化校验、CLI／HTTP结构化结果保留于 `target/tmp/array-runtime/`。本目录 [结构化验收摘要](runtime-2026-11-24.json) 保存测试基线、计数及38份关键源码／清单的SHA256。核心命令由 `run_more.py`、`database_acceptance.py`、`mysql_redis.py`、`binary_acceptance.py`、`sms_acceptance.py` 记录；均在项目内执行。
+- 未发现本批列表改造引起的回归，无需修改生产源码或开发者三语用法文档。此次更新仅为验收记录，不扩大为全框架、全部数据库驱动或Windows发布验收。
+- 本批HTTP进程和临时MySQL／PostgreSQL／Redis容器已全部退出并回收，无外部短信或真实支付调用。源码快照、日志和可复用独占增量缓存留在项目内；未清理其他协作者产物。收尾磁盘实测约55.5 GB可用，高于32 GB停线。仅本地提交，不推送。
