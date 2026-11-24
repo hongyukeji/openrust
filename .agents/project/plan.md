@@ -277,8 +277,11 @@ Fortify、Socialite 的包源码固定版本与对应 JS／Passkey 依赖须在�
 
 ### 相关 API 扩展
 
+2026-11-24新增用户认证入门套件需求：详细建议、来源与待定事项统一见[用户认证入门套件计划](plans/user-auth-starter-kit.md)。目前仅登记，等待继续讨论及明确实施指令，不因底层认证已有实现而计为套件完成。
+
 | 单元 | 前置依赖 | 第一代交付与文档 | 验收与边界 |
 | --- | --- | --- | --- |
+| <a id="unit-api-a01"></a>API-A01 用户认证入门套件（待讨论） | API-F01、既有Sanctum／认证／邮件、ApiResponse及init | 建议复用现有组件提供登录、注册、找回密码、邮箱验证、当前用户API及可选Token／页面；[详细方案](plans/user-auth-starter-kit.md) | 仅需求登记，尚未授权实现；按确认后的批次验证真实安装、HTTP、存储和邮件闭环，现有功能与新套件状态分开记录。 |
 | <a id="unit-api-f01"></a>API-F01 Fortify 无界面认证 | 04-04、04-05、04-07、05-08、06-07 | 固定 [Fortify 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/fortify.md)：按功能开关接注册、登录／登出、密码重置／确认、邮件验证、2FA／恢复码、认证流水线、动作和响应定制 | 复用已过的认证基础；真实 HTTP／MySQL、限流、JSON／Web、Session 轮换、挑战重放、邮件协议和关闭视图；源码包版本先固定 |
 | <a id="unit-api-f02"></a>API-F02 Fortify Passkeys | API-F01、固定 Passkey 依赖 | 同一固定文档的 passkeys 全生命周期；挑战、注册／列表／删除、认证与密码确认接口、JS 客户端对接 | 浏览器 WebAuthn／受控认证器、真实 HTTP／MySQL；challenge 单次消费、origin／RP ID、用户绑定、过期与并发；未验收前不得宣称已支持 |
 | <a id="unit-api-s01"></a>API-S01 Socialite | HTTP Client、Session、认证基础 | 固定 [Socialite 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/socialite.md) 的驱动、redirect／user、scope、可选参数、stateless、token／refresh 和用户映射；逐个核对官方 Facebook／X／LinkedIn／Google／GitHub／GitLab／Bitbucket／Slack 驱动，区分 OAuth／OIDC | 先固定包版本，逐驱动受控 HTTP 协议验收；state／错误回调／撤销／provider 定制／隔离；真实供应商授权需对应测试应用、凭据和回调域名，模拟不冒充实机 |
