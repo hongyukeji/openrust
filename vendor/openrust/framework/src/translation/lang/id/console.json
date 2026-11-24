@@ -64,5 +64,8 @@
     "command_name": "Perintah untuk ditampilkan",
     "namespace": "Tampilkan perintah di namespace tertentu"
   },
-  "arguments": "Argumen:"
+  "arguments": "Argumen:",
+  "question": {
+    "multiline": "tekan :keys untuk melanjutkan"
+  }
 }

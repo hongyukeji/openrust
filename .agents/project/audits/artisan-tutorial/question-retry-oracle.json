@@ -1,0 +1,12 @@
+{
+    "value": {
+        "name": "Ada"
+    },
+    "calls": [
+        "bad",
+        "ada"
+    ],
+    "output": "\n Name:\n > \n\n [ERROR] Invalid name                                                           \n\n Name:\n > \n",
+    "new_lines": 2,
+    "new_line": true
+}

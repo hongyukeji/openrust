@@ -1,5 +1,10 @@
 use super::{ConsoleError, Input, Output};
 use crate::support::Str;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+mod wrapping;
 
 /// 输出阈值；消息只有在当前输出的级别不低于它时才会写出。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -95,15 +100,22 @@ impl OutputMessages<'_> {
 /// 命令的样式输出对象；包装本次调用的原输出及输入，不复制输出或建立全局状态。
 pub struct OutputStyle<'a> {
     // 问答也使用构造时的输入；与 CommandIo::set_input 的读取对象独立。
-    _input: &'a Input,
+    input: &'a Input,
+    history: Vec<u8>,
+    history_formatter: super::formatting::Formatter,
+    question_finally: Option<Arc<AtomicBool>>,
     output: &'a mut Output,
     new_lines_written: usize,
     new_line_written: bool,
 }
 impl<'a> OutputStyle<'a> {
     pub fn new(input: &'a Input, output: &'a mut Output) -> Self {
+        let history_formatter = output.formatter.clone();
         Self {
-            _input: input,
+            input,
+            history: Vec::new(),
+            history_formatter,
+            question_finally: None,
             output,
             new_lines_written: 1,
             new_line_written: false,
@@ -114,6 +126,11 @@ impl<'a> OutputStyle<'a> {
     }
     pub fn new_lines_written(&self) -> usize {
         self.new_lines_written
+            + usize::from(
+                self.question_finally
+                    .as_ref()
+                    .is_some_and(|flag| flag.load(Ordering::Relaxed)),
+            )
     }
     pub fn new_line_written(&self) -> bool {
         self.new_line_written
@@ -137,6 +154,7 @@ impl<'a> OutputStyle<'a> {
         newline: bool,
         options: impl Into<OutputOptions>,
     ) -> Result<(), ConsoleError> {
+        self.settle_question();
         let messages = messages.into();
         self.new_lines_written = messages.trailing_new_lines() + usize::from(newline);
         self.new_line_written = self.new_lines_written > 0;
@@ -147,6 +165,7 @@ impl<'a> OutputStyle<'a> {
         messages: impl Into<OutputMessages<'m>>,
         options: impl Into<OutputOptions>,
     ) -> Result<(), ConsoleError> {
+        self.settle_question();
         let messages = messages.into();
         let options = options.into();
         let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
@@ -167,6 +186,7 @@ impl<'a> OutputStyle<'a> {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        self.settle_question();
         let messages: Vec<S> = messages.into_iter().collect();
         self.new_lines_written =
             trailing_iter_lines(messages.iter().map(AsRef::as_ref)) + usize::from(newline);
@@ -182,6 +202,7 @@ impl<'a> OutputStyle<'a> {
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
+        self.settle_question();
         let messages: Vec<S> = messages.into_iter().collect();
         let options = options.into();
         let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
@@ -190,6 +211,93 @@ impl<'a> OutputStyle<'a> {
             self.new_line_written = true;
         }
         self.write_iter_messages(messages.iter().map(AsRef::as_ref), true, options)
+    }
+    pub(super) fn question_input(&self) -> &Input {
+        self.input
+    }
+    fn settle_question(&mut self) {
+        if self
+            .question_finally
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
+            self.new_lines_written += 1;
+            self.question_finally = None;
+        }
+    }
+    fn record_history(&mut self, text: &str) {
+        if text.len() >= 2 {
+            self.history.clear();
+            self.history
+                .extend_from_slice(&text.as_bytes()[text.len() - 2..]);
+        } else if let Some(byte) = text.as_bytes().first() {
+            if self.history.len() == 2 {
+                self.history.remove(0);
+            }
+            self.history.push(*byte);
+        }
+    }
+    pub(super) fn prepare_question(&mut self) -> Result<(), ConsoleError> {
+        let count = if self.history.is_empty() {
+            1
+        } else {
+            2 - self.history.iter().filter(|byte| **byte == b'\n').count()
+        };
+        self.history.clear();
+        self.new_line(count)
+    }
+    pub(super) fn question_validation_error(&mut self, message: &str) -> Result<(), ConsoleError> {
+        self.new_line(1)?;
+        self.prepare_question()?;
+        let width = std::env::var("COLUMNS")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or_else(|| usize::from(::console::Term::stdout().size().1))
+            .min(120);
+        let width = width.saturating_sub(usize::from(cfg!(windows))).max(9);
+        let escaped = message.replace('<', "\\<");
+        let mut lines = wrapping::wrap(&escaped, width - 9)?;
+        let first = usize::from(self.output.is_decorated());
+        if first == 1 {
+            lines.insert(0, String::new());
+            lines.push(String::new());
+        }
+        for (index, line) in lines.iter().enumerate() {
+            let label = if index == first {
+                "[ERROR] "
+            } else {
+                "        "
+            };
+            let body = format!(" {label}{line}");
+            let visible = super::formatting::Formatter::default()
+                .format(&body, false)
+                .map_err(ConsoleError::from_source)?;
+            let padding = " ".repeat(width.saturating_sub(::console::measure_text_width(&visible)));
+            self.writeln(
+                format!("<fg=white;bg=red>{body}{padding}</>").as_str(),
+                OutputOptions::default(),
+            )?;
+        }
+        self.new_line(1)
+    }
+    pub async fn ask_question(
+        &mut self,
+        question: &super::Question,
+    ) -> Result<serde_json::Value, ConsoleError> {
+        self.settle_question();
+        let done = Arc::new(AtomicBool::new(false));
+        self.question_finally = Some(done.clone());
+        let finally = QuestionFinally(done);
+        let shutdown = self.input.shutdown().cloned();
+        let result = tokio::select! {
+            biased;
+            ()=async { match shutdown { Some(shutdown)=>shutdown.cancelled().await, None=>std::future::pending().await } }=>Err(ConsoleError::from_source(super::ConsoleQuestionError::Interrupted)),
+            result=super::question::ask(self,question)=>result,
+        };
+        drop(finally);
+        self.settle_question();
+        result
     }
     fn write_iter_messages<'m>(
         &mut self,
@@ -210,10 +318,16 @@ impl<'a> OutputStyle<'a> {
         Ok(())
     }
     pub fn new_line(&mut self, count: usize) -> Result<(), ConsoleError> {
+        self.settle_question();
         self.new_lines_written += count;
         self.new_line_written = self.new_lines_written > 0;
+        let message = "\n".repeat(count);
         self.output
-            .emit_rendered(&"\n".repeat(count), OutputVerbosity::Normal)
+            .emit_rendered(&message, OutputVerbosity::Normal)?;
+        if self.output.verbosity() >= OutputVerbosity::Normal {
+            self.record_history(&message);
+        }
+        Ok(())
     }
     fn write_messages(
         &mut self,
@@ -249,7 +363,22 @@ impl<'a> OutputStyle<'a> {
         if newline {
             rendered.push('\n');
         }
-        self.output.emit_rendered(&rendered, level)
+        self.output.emit_rendered(&rendered, level)?;
+        let mut history = match format {
+            OutputFormat::Raw => message.to_owned(),
+            _ => self
+                .history_formatter
+                .format(message, false)
+                .map_err(ConsoleError::from_source)?,
+        };
+        if format == OutputFormat::Plain {
+            history = Str::of(history).strip_tags(&[]).to_string().to_owned();
+        }
+        if newline {
+            history.push('\n');
+        }
+        self.record_history(&history);
+        Ok(())
     }
 }
 
@@ -268,4 +397,11 @@ fn trailing_iter_lines<'m>(messages: impl DoubleEndedIterator<Item = &'m str>) -
         }
     }
     count
+}
+
+struct QuestionFinally(Arc<AtomicBool>);
+impl Drop for QuestionFinally {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
 }

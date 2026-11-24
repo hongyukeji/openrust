@@ -423,6 +423,7 @@ impl Application {
                         .and_then(|p| arguments[p].to_str())
                         .unwrap_or(&name),
                     &matches,
+                    None,
                 ),
                 &syntax,
                 output,
@@ -435,8 +436,9 @@ impl Application {
         let status = match result {
             Ok(status) => status,
             Err(error) => {
+                let status = error.command_exit_code();
                 application.render_console_exception(output, error).await;
-                1
+                status
             }
         };
         if parsed_quiet || parsed_silent {
@@ -504,7 +506,7 @@ impl Application {
         self.dispatch(
             entry,
             application,
-            (command, input.matches()),
+            (command, input.matches(), Some(input)),
             &syntax,
             output,
             None,
@@ -568,7 +570,7 @@ impl Application {
             .dispatch(
                 &self.commands[name],
                 application,
-                (command, &matches),
+                (command, &matches, None),
                 &syntax,
                 output,
                 None,
@@ -610,7 +612,7 @@ impl Application {
         Box::pin(self.dispatch(
             entry,
             application,
-            (name, &matches),
+            (name, &matches, None),
             syntax,
             &mut Output::default(),
             None,
@@ -622,12 +624,12 @@ impl Application {
         &self,
         entry: &Entry,
         application: &FoundationApplication,
-        invocation: (&str, &clap::ArgMatches),
+        invocation: (&str, &clap::ArgMatches, Option<&Input>),
         syntax: &Syntax,
         output: &mut Output,
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
-        let (invoked_name, matches) = invocation;
+        let (invoked_name, matches, supplied_input) = invocation;
         let (verbosity, suppressed, silent) = (output.verbosity, output.suppressed, output.silent);
         output.silent |= matches
             .try_get_one::<bool>("silent")
@@ -712,8 +714,18 @@ impl Application {
                     ),
                     invoked_name: Some(invoked_name.to_owned()),
                     matches: matches.clone(),
-                    shutdown,
+                    shutdown: shutdown
+                        .or_else(|| supplied_input.and_then(|input| input.shutdown.clone())),
+                    interaction: supplied_input
+                        .map(|input| input.interaction.shared())
+                        .unwrap_or_default(),
+                    stream: supplied_input.and_then(|input| input.stream.clone()),
                 };
+                if output.suppressed
+                    || input.option("no-interaction") == Some(serde_json::Value::Bool(true))
+                {
+                    input.interaction.set(false);
+                }
                 if let Some(prompting) = command.prompting() {
                     super::prompting::prompt(prompting, application, &mut input, output).await?;
                 }

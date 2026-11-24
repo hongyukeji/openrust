@@ -64,5 +64,8 @@
     "command_name": "Lệnh hiển thị",
     "namespace": "Hiển thị các lệnh trong một không gian tên cụ thể"
   },
-  "arguments": "Lập luận:"
+  "arguments": "Lập luận:",
+  "question": {
+    "multiline": "nhấn :keys để tiếp tục"
+  }
 }

@@ -16,6 +16,7 @@ pub(crate) mod localization;
 mod output_style;
 mod planned;
 mod prompting;
+pub mod question;
 pub mod scheduling;
 mod signature;
 pub(crate) mod task_command;
@@ -46,6 +47,10 @@ pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
 pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity};
 pub use prompting::{CommandRegistration, MissingInputPrompt};
+pub use question::{
+    CompletionCallback, ConfirmationQuestion, ConsoleInputStream, ConsoleQuestionError,
+    ConsoleReader, Question, QuestionCallback,
+};
 
 /// A future for a console command or lifecycle hook.
 pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -58,6 +63,8 @@ pub struct Input {
     invoked_name: Option<String>,
     matches: ArgMatches,
     shutdown: Option<tokio_util::sync::CancellationToken>,
+    interaction: question::Interaction,
+    stream: Option<ConsoleInputStream>,
 }
 
 impl Input {
@@ -73,6 +80,8 @@ impl Input {
             invoked_name: self.invoked_name.clone(),
             matches: self.matches.clone(),
             shutdown: Some(shutdown),
+            interaction: self.interaction.clone(),
+            stream: self.stream.clone(),
         }
     }
 
@@ -315,6 +324,19 @@ impl ConsoleError {
     /// 保留下游错误类型与来源链，同时沿用控制台渲染流程。
     pub fn from_source(error: impl Error + Send + Sync + 'static) -> Self {
         Self(ConsoleFailure::Source(Arc::new(error)))
+    }
+
+    pub(crate) fn command_exit_code(&self) -> i32 {
+        let mut error: Option<&(dyn std::error::Error + 'static)> = Some(self);
+        while let Some(source) = error {
+            if source.downcast_ref::<ConsoleQuestionError>()
+                == Some(&ConsoleQuestionError::Interrupted)
+            {
+                return 130;
+            }
+            error = source.source();
+        }
+        1
     }
 
     pub(crate) fn dump_output(&self) -> Option<&str> {

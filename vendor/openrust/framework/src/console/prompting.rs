@@ -135,8 +135,7 @@ pub(super) async fn prompt(
             )
         })
         .collect();
-    if input.option("no-interaction") != Some(serde_json::Value::Bool(true)) && !missing.is_empty()
-    {
+    if input.is_interactive() && !missing.is_empty() {
         for (key, description) in missing {
             let question = command
                 .prompt_for_missing_arguments_using()

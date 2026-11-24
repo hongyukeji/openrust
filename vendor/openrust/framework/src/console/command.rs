@@ -69,6 +69,8 @@ impl CommandDefinition {
             .map_err(ConsoleError::from_source)?;
         Ok(Input {
             shutdown: None,
+            interaction: Default::default(),
+            stream: None,
             syntax: self.syntax.clone(),
             parsing_syntax: self.syntax.clone(),
             invoked_name: None,

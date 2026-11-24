@@ -64,5 +64,8 @@
     "command_name": "Il comando da visualizzare",
     "namespace": "Mostra i comandi in uno spazio dei nomi specifico"
   },
-  "arguments": "Argomenti:"
+  "arguments": "Argomenti:",
+  "question": {
+    "multiline": "premi :keys per continuare"
+  }
 }

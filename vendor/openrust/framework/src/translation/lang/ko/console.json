@@ -64,5 +64,8 @@
     "command_name": "표시하는 명령",
     "namespace": "특정 네임스페이스의 명령 표시"
   },
-  "arguments": "인수:"
+  "arguments": "인수:",
+  "question": {
+    "multiline": "계속하려면 :keys 키를 누르세요"
+  }
 }

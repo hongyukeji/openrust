@@ -90,41 +90,61 @@
         "method": "confirm",
         "source_line": 153,
         "signature": "public function confirm($question, $default = false)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_question_contract",
+        "native": "console::CommandIo::confirm",
+        "evidence": [
+          "console_questions_tutorial",
+          "formal_questions_example",
+          "question-accepted-tty.log"
+        ]
       },
       {
         "method": "ask",
         "source_line": 165,
         "signature": "public function ask($question, $default = null)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_question_contract",
+        "native": "console::CommandIo::ask",
+        "evidence": [
+          "console_questions_tutorial",
+          "formal_questions_example",
+          "question-accepted-tty.log"
+        ]
       },
       {
         "method": "anticipate",
         "source_line": 178,
         "signature": "public function anticipate($question, $choices, $default = null)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_question_contract",
+        "native": "console::CommandIo::anticipate",
+        "evidence": [
+          "console_questions_tutorial",
+          "formal_questions_example",
+          "question-accepted-tty.log"
+        ]
       },
       {
         "method": "askWithCompletion",
         "source_line": 191,
         "signature": "public function askWithCompletion($question, $choices, $default = null)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_question_contract",
+        "native": "console::CommandIo::ask_with_completion",
+        "evidence": [
+          "console_questions_tutorial",
+          "formal_questions_example",
+          "question-accepted-tty.log"
+        ]
       },
       {
         "method": "secret",
         "source_line": 209,
         "signature": "public function secret($question, $fallback = true)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_question_contract",
+        "native": "console::CommandIo::secret",
+        "evidence": [
+          "console_questions_tutorial",
+          "formal_questions_example",
+          "question-accepted-tty.log"
+        ]
       },
       {
         "method": "choice",
@@ -302,9 +322,13 @@
         "method": "askQuestion",
         "source_line": 55,
         "signature": "public function askQuestion(Question $question): mixed",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_question_contract",
+        "native": "console::OutputStyle::ask_question",
+        "evidence": [
+          "console_questions_tutorial",
+          "formal_questions_example",
+          "question-accepted-tty.log"
+        ]
       },
       {
         "method": "write",
@@ -460,7 +484,8 @@
       "evidence": [
         "console_io_tutorial::command_io_can_replace_its_input_and_its_real_output_style"
       ]
-    }
+    },
+    "Question uses owned async callbacks and JSON scalar/structured validator results, optional parameter variants, injected AsyncBufRead, UTF-8 full lines and Duration timeouts; real terminal lease restores modes. Choice, tables, progress and other inherited APIs remain separately open."
   ],
   "inherited_output_style_inventory": {
     "OutputStyle": [

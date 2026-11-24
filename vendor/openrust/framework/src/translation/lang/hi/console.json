@@ -64,5 +64,8 @@
     "command_name": "प्रदर्शित करने का आदेश",
     "namespace": "किसी विशिष्ट नामस्थान में आदेश दिखाएँ"
   },
-  "arguments": "तर्क:"
+  "arguments": "तर्क:",
+  "question": {
+    "multiline": "जारी रखने के लिए :keys दबाएँ"
+  }
 }

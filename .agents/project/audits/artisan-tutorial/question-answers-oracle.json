@@ -1,0 +1,263 @@
+[
+    {
+        "method": "ask",
+        "default": null,
+        "answer": " Ada ",
+        "noninteractive": false,
+        "value": "Ada",
+        "error": null,
+        "output": "\n Name:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "ask",
+        "default": "Guest",
+        "answer": "",
+        "noninteractive": false,
+        "value": "Guest",
+        "error": null,
+        "output": "\n Name [Guest]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "ask",
+        "default": null,
+        "answer": "0",
+        "noninteractive": false,
+        "value": "0",
+        "error": null,
+        "output": "\n Name:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "ask",
+        "default": "Guest",
+        "answer": null,
+        "noninteractive": true,
+        "value": "Guest",
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false,
+        "interactive": false
+    },
+    {
+        "method": "ask",
+        "default": null,
+        "answer": null,
+        "noninteractive": true,
+        "value": null,
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false,
+        "interactive": false
+    },
+    {
+        "method": "confirm",
+        "default": false,
+        "answer": "yes",
+        "noninteractive": false,
+        "value": true,
+        "error": null,
+        "output": "\n Continue (yes\/no) [no]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "confirm",
+        "default": false,
+        "answer": "Yup",
+        "noninteractive": false,
+        "value": true,
+        "error": null,
+        "output": "\n Continue (yes\/no) [no]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "confirm",
+        "default": true,
+        "answer": "no",
+        "noninteractive": false,
+        "value": false,
+        "error": null,
+        "output": "\n Continue (yes\/no) [yes]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "confirm",
+        "default": true,
+        "answer": "other",
+        "noninteractive": false,
+        "value": false,
+        "error": null,
+        "output": "\n Continue (yes\/no) [yes]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "confirm",
+        "default": true,
+        "answer": "",
+        "noninteractive": false,
+        "value": true,
+        "error": null,
+        "output": "\n Continue (yes\/no) [yes]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "confirm",
+        "default": false,
+        "answer": "",
+        "noninteractive": false,
+        "value": false,
+        "error": null,
+        "output": "\n Continue (yes\/no) [no]:\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "confirm",
+        "default": true,
+        "answer": null,
+        "noninteractive": true,
+        "value": true,
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false,
+        "interactive": false
+    },
+    {
+        "method": "choice",
+        "default": 0,
+        "answer": "2",
+        "noninteractive": false,
+        "value": "blue",
+        "error": null,
+        "output": "\n Color [red]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "choice",
+        "default": 0,
+        "answer": "green",
+        "noninteractive": false,
+        "value": "green",
+        "error": null,
+        "output": "\n Color [red]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "choice",
+        "default": 1,
+        "answer": "",
+        "noninteractive": false,
+        "value": "green",
+        "error": null,
+        "output": "\n Color [green]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "choice",
+        "default": 2,
+        "answer": null,
+        "noninteractive": true,
+        "value": "blue",
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false,
+        "interactive": false
+    },
+    {
+        "method": "multi",
+        "default": "0,2",
+        "answer": "0, 2",
+        "noninteractive": false,
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "\n Colors [red, blue]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "multi",
+        "default": "0,2",
+        "answer": null,
+        "noninteractive": true,
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false,
+        "interactive": false
+    },
+    {
+        "method": "multi",
+        "default": null,
+        "answer": "blue,green",
+        "noninteractive": false,
+        "value": [
+            "blue",
+            "green"
+        ],
+        "error": null,
+        "output": "\n Colors:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "secret",
+        "default": null,
+        "answer": "private",
+        "noninteractive": false,
+        "value": "private",
+        "error": null,
+        "output": "\n Password:\n > \n\n",
+        "new_lines": 3,
+        "new_line": true,
+        "interactive": true
+    },
+    {
+        "method": "secret",
+        "default": null,
+        "answer": null,
+        "noninteractive": true,
+        "value": null,
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false,
+        "interactive": false
+    }
+]

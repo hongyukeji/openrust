@@ -98,6 +98,8 @@ impl Input {
             invoked_name: self.invoked_name.clone(),
             matches,
             shutdown: self.shutdown.clone(),
+            interaction: self.interaction.clone(),
+            stream: self.stream.clone(),
         };
         let equivalent = match &edit {
             Edit::Argument(values) => {

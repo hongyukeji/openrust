@@ -64,5 +64,8 @@
         "command_name": "The command to display",
         "namespace": "Show commands in a specific namespace"
     },
-    "arguments": "Arguments:"
+    "arguments": "Arguments:",
+    "question": {
+        "multiline": "press :keys to continue"
+    }
 }

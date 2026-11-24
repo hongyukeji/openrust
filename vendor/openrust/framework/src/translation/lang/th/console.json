@@ -64,5 +64,8 @@
     "command_name": "คำสั่งที่จะแสดง",
     "namespace": "แสดงคำสั่งในเนมสเปซเฉพาะ"
   },
-  "arguments": "ข้อโต้แย้ง:"
+  "arguments": "ข้อโต้แย้ง:",
+  "question": {
+    "multiline": "กด :keys เพื่อดำเนินการต่อ"
+  }
 }

@@ -119,3 +119,21 @@ line／info／comment／question／warn／error／alert／new_line(count)沿原w
 root首次门禁触及32GB停线，守卫安全停止并持锁清理编译及站点产物，释放82,589,020,160字节，恢复114,548,113,408字节可用；该root=75不计通过，恢复后重新编译并完成上述全部门禁。源码／日志／依赖／数据库保留，最终共享热缓存继续复用，三语PTY夹具清理，无本批服务或容器残留。不推送。
 
 十一条OutputStyle声明入口按本批具体借用类型及行为记验收；askQuestion、嵌套OutputStyle计数委托及继承的设置／格式器／样式／问题／表格／进度等仍逐项登记io-contracts.json。已补父类声明盘点，声明本身不算验收；完整类型、writing-output整节与Artisan整章仍未关闭，继续后续功能簇。
+
+## 第九簇：原生问答与输入状态（2026-11-25）
+
+基线fde7830e8之后吸收纯提交d775b85a8（含c7ee3d96e），没有复制认证套件在途。Question的23条公开声明与ConfirmationQuestion构造逐项登记question-contracts.json；Input可注入真正AsyncBufRead流、读取同一流位置并控制交互，CommandIo接通ask／confirm／secret／anticipate／ask_with_completion，OutputStyle接通ask_question、可选校验器与结构化返回。复用既有应用／Facade／命令派发，不建平行命令容器。提供给Kernel的Input共享该次流、交互与取消状态；普通Clone共享流位置但快照交互开关。异步规范化／校验／补全回调跨await仍在原应用作用域。默认值、EOF回退、尝试次数、取消后的计数和释放均有实际消费者。
+
+固定Symfony7.4实际PHP输出21条中，14条文本／确认／隐藏问题由Rust公开入口逐条比较回答、文本及换行状态；其余7条选择题明确留待下一簇，不计本批通过。另运行固定PHP的BAD／ADA异步等价校验流程，比较默认错误块字节、返回JSON与计数。源输入／默认值／重试数据保留在question-answers-oracle.json、question-retry-oracle.json；原始PHP工具和stderr只在target/tmp/artisan-tutorial-20261125/reference。Question使用既有PCRE2验证编译器支持确认正则lookahead，未另用不支持该语法的简化正则。
+
+真实Symfony Application（非绕过configureIO的Helper）确认quiet／silent／-qv关闭交互。修复原缺参提示在这些参数下仍读终端的问题；无交互且缺必填参数返回1。旧第五簇记录保留历史原貌，本簇6个真实缺参PTY／非TTY场景复验，其父测试程序0表示预期CLI退出码已断言，不冒充quiet下命令成功；Ctrl+C旧文本提示由实际SIGINT终止，子进程-2对应shell130。普通问题在原生按键管线返回具体Interrupted并由handle_command映射130。
+
+原生终端复用crossterm0.29.0的原始模式与按键解码，不调用stty／外部隐藏输入程序。官方poll就绪后read不阻塞契约见https://docs.rs/crossterm/0.29.0/crossterm/event/fn.poll.html 。采用独占租约、零等待poll与空闲10ms异步等待，最多增加约10ms输入检测等待，不宣称性能优化；不留下跨问答后台唤醒器。先尝试SDK EventStream的真实连续问答暴露挂起，已移除event-stream特性并重新完整验收，旧失败日志保留。原始模式在提示显示前取得，处理快速LF输入；重试复用租约。Unix管道复用标准输入原缓冲，只在租约期设O_NONBLOCK并恢复，未吞下一行；注入流保留余下输入。Windows管道采用PeekNamedPipe检查再读，不声称Windows实机已验收。
+
+15个实际二进制PTY场景覆盖Unicode／LF／Tab、确认、隐藏输入不回显、三种补全选择、连续问题、校验重试／耗尽、超时默认／错误、多行、Ctrl+C130；逐项检查完整termios和可变文件标志恢复。最初F_GETFL比较把Darwin的FWASWRITTEN历史位误判为泄漏，独立/bin/echo也2→65538；核对Apple fcntl.h后仅排除该内核写入历史位0x10000，其他标志照常逐位比较，未放宽终端模式要求。依据https://github.com/apple/darwin-xnu/blob/main/bsd/sys/fcntl.h ，原诊断及失败日志保留。三语正式Markdown分别直接编译并在PTY完成连续文本／确认／隐藏／补全四问题，终端恢复且秘密未出现在输出。
+
+必要原生适配明确保留：问答值为JSON标量／校验器结构值，回调使用拥有的Send＋Sync异步接口；Rust无可选参数，常用默认和_with／with_validator明确分开。Duration支持小数秒与注入流超时、超出计时器范围返回具体错误，不照搬PHP任意整数或平台stty限制；PCRE错误在构造时报告。UTF-8缓冲读取完整长行，实际21000字节Unicode分块及后续回答通过，不照搬固定PHP fgets4096的截断。惰性单次迭代器只消费一次并缓存，字符串映射键／值按声明顺序及重复项保留。多行提示接入原翻译器18语；技术验证不等于18语母语审校。crossterm与5条新增传递依赖许可逐一核对，Windows归档checksum验证，必要许可随THIRD_PARTY_NOTICES分发，不把版权移入内部记录。
+
+最终11框架目标64＋根6目标71，共135项父消费者通过；包括三语30个直接正式教程消费者、16项初始化、Runner与日志／隔离回归。三个被标ignore的二进制／终端辅助入口不计通过，其实际父调用与上列PTY另记。workspace fmt、all-targets严格Clippy52.48s、main(pail)与三语构建15.61s退出0。实际主程序HTTP/up／静态／HTML与JSON404／HEAD、Artisan inspire/list/Pail帮助及真实错误捕获／超时清理／Ctrl+C通过；12组三语双前缀／两宽度浏览器检查包含interactive-questions。门禁前一轮Clippy类型复杂性已提取私有回调类型解决，未加allow；文档初轮错误借用／注册返回值及缺tempfile夹具均修复，错误npm脚本名改为项目正式build后通过；失败日志未计通过。
+
+证据question-accepted-framework.log、question-final-{root,clippy,main,runtime,browser,formal-tty,required-tty}.log、question-final-docs2.log及question-accepted-tty.log，源码SHA见accepted-questions.json。JSON资源最后仅恢复原文件缩进，逐份解析值与已验快照严格相等；生成的测试只保留在隔离源码，正式提交提取器，不提交生成副本。保留项目内源码／热缓存／日志，回收本批单份临时交付二进制和夹具目录，无测试服务器或容器存活。ChoiceQuestion七声明、表格、进度、组件、生成／注册、信号／事件等仍继续逐项核对；Windows终端归发布实机矩阵，Artisan整章未闭合。本地提交、不推送。

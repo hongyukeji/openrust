@@ -64,5 +64,8 @@
     "command_name": "Görüntülenecek komut",
     "namespace": "Komutları belirli bir ad alanında göster"
   },
-  "arguments": "Argümanlar:"
+  "arguments": "Argümanlar:",
+  "question": {
+    "multiline": "devam etmek için :keys tuşuna basın"
+  }
 }

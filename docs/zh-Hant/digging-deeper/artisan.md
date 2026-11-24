@@ -391,7 +391,7 @@ fn register_edited() -> Result<(), ConsoleError> {
 
 ## 缺失必填參數的自動提示 {#prompting-for-missing-input}
 
-實作 `PromptsForMissingInput`，註冊前用 `.prompting()` 保留該 Trait。必填參數按宣告順序收集，隨後執行最終驗證與隔離。已傳參數不重複詢問；`--no-interaction` 跳過詢問，但仍拒絕缺失的必填參數。
+實作 `PromptsForMissingInput`，註冊前用 `.prompting()` 保留該 Trait。必填參數按宣告順序收集，隨後執行最終驗證與隔離。已傳參數不重複詢問；`--no-interaction`、`--quiet` 和 `--silent` 跳過詢問，但仍拒絕缺失的必填參數。
 
 ```rust
 use openrust::{
@@ -526,3 +526,34 @@ pub fn register_styled() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+## 互動問答 {#interactive-questions}
+
+透過非同步命令 I/O 讀取文字、確認、隱藏文字和補全。`confirm` 預設 false；`OutputStyle::confirm` 預設 true。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CompletionCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_questions() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:questions", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let name = io.ask_with("Name", Some("Guest")).await?;
+            let proceed = io.confirm("Continue").await?;
+            let token = io.secret("Token").await?;
+            let color = io.anticipate("Color", CompletionCallback::values(vec!["blue".into(), "green".into()]), Some("blue")).await?;
+            io.line(&serde_json::json!({"name": name, "proceed": proceed, "token_present": token.is_some(), "color": color}).to_string())?;
+            Ok(0)
+        })
+    }))?.purpose("Collect report options")
+}
+```
+
+`--no-interaction`、`--quiet` 和 `--silent` 關閉問答及缺失必填參數提示；缺少必填參數仍失敗。HTTP 擷取呼叫不會讀取程序標準輸入。輸入來源耗盡時回傳預設值，沒有預設值則回傳具體錯誤，並關閉該輸入後續互動。
+
+需要自訂驗證時，建立 `Question`，透過 `set_normalizer`、`set_validator` 設定 `QuestionCallback`，再呼叫 `get_output().ask_question(&question).await`。驗證器可回傳結構化 JSON；`ask_with_validator` 和 `ask_hidden_with` 保留該回傳值。非互動預設值只執行驗證器，不執行正規化器。`set_max_attempts`、`set_trimmable`、`set_multiline` 和 `set_timeout` 控制重試和讀取。
+
+`Input::set_stream` 接收包裝非同步緩衝讀取器的 `ConsoleInputStream`。輸入複製共用串流位置，但獨立保存互動開關；向 Kernel 明確傳入 Input 時共用本次呼叫狀態。補全回呼在目前應用程式作用域執行，支援 await。`CompletionCallback::iter` 延遲快取單次迭代器，`pairs` 按順序提供字串鍵及值。Ctrl+C 回傳 130；取消、逾時和驗證失敗均還原終端模式。Windows 終端實測仍歸發布矩陣。

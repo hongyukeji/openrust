@@ -391,7 +391,7 @@ fn register_edited() -> Result<(), ConsoleError> {
 
 ## 缺失必填参数的自动提示 {#prompting-for-missing-input}
 
-实现 `PromptsForMissingInput`，注册前用 `.prompting()` 保留该 Trait。必填参数按声明顺序收集，随后执行最终验证与隔离。已传参数不重复询问；`--no-interaction` 跳过询问，但仍拒绝缺失的必填参数。
+实现 `PromptsForMissingInput`，注册前用 `.prompting()` 保留该 Trait。必填参数按声明顺序收集，随后执行最终验证与隔离。已传参数不重复询问；`--no-interaction`、`--quiet` 和 `--silent` 跳过询问，但仍拒绝缺失的必填参数。
 
 ```rust
 use openrust::{
@@ -526,3 +526,34 @@ pub fn register_styled() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+## 交互问答 {#interactive-questions}
+
+通过异步命令 I/O 读取文本、确认、隐藏文本和补全。`confirm` 默认 false；`OutputStyle::confirm` 默认 true。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CompletionCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_questions() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:questions", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let name = io.ask_with("Name", Some("Guest")).await?;
+            let proceed = io.confirm("Continue").await?;
+            let token = io.secret("Token").await?;
+            let color = io.anticipate("Color", CompletionCallback::values(vec!["blue".into(), "green".into()]), Some("blue")).await?;
+            io.line(&serde_json::json!({"name": name, "proceed": proceed, "token_present": token.is_some(), "color": color}).to_string())?;
+            Ok(0)
+        })
+    }))?.purpose("Collect report options")
+}
+```
+
+`--no-interaction`、`--quiet` 和 `--silent` 关闭问答及缺失必填参数提示；缺少必填参数仍失败。HTTP 捕获调用不会读取进程标准输入。输入源耗尽时返回默认值，没有默认值则返回具体错误，并关闭该输入后续交互。
+
+需要自定义校验时，创建 `Question`，通过 `set_normalizer`、`set_validator` 设置 `QuestionCallback`，再调用 `get_output().ask_question(&question).await`。校验器可返回结构化 JSON；`ask_with_validator` 和 `ask_hidden_with` 保留该返回值。非交互默认值只执行校验器，不执行规范化器。`set_max_attempts`、`set_trimmable`、`set_multiline` 和 `set_timeout` 控制重试和读取。
+
+`Input::set_stream` 接收包装异步缓冲读取器的 `ConsoleInputStream`。输入克隆共享流位置，但独立保存交互开关；向 Kernel 显式传入 Input 时共享本次调用状态。补全回调在当前应用作用域运行，支持 await。`CompletionCallback::iter` 惰性缓存单次迭代器，`pairs` 按顺序提供字符串键及值。Ctrl+C 返回 130；取消、超时和校验失败均恢复终端模式。Windows 终端实测仍归发布矩阵。

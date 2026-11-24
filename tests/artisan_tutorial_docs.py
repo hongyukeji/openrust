@@ -85,5 +85,29 @@ async fn formal_style_example() {
 }
 """
     parts.append('mod '+locale.replace('-','_').lower()+'_styled{\n'+styled_code+styled_checks+'}\n')
+    question_code=re.search(r'```rust\n(.*?)```',text.split('{#interactive-questions}',1)[1],re.S).group(1)
+    question_checks=r"""
+use openrust::{console::Output, support::facades::{App, Facade as _}};
+#[tokio::test]
+async fn formal_questions_example() {
+    let root=std::env::temp_dir().join(format!("artisan-questions-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=openrust::foundation::Application::configure(root.clone()).with_routing(openrust::foundation::configuration::Routing::default().commands(register_questions)).create().unwrap();
+    app.boot().await.unwrap();
+    if std::env::var_os("FORMAL_QUESTIONS_TTY").is_some() { assert_eq!(app.handle_command(&["reports:questions".into()]).await.unwrap(),0); return; }
+    App::set_facade_application(Some(&app),async {
+        let mut output=Output::default();
+        assert_eq!(Artisan::call("reports:questions", &[], &mut output).await.unwrap(),0);
+        assert!(output.stdout.contains("Guest") && output.stdout.contains("blue") && output.stdout.contains("false"));
+        for flag in ["--no-interaction", "--quiet", "--silent"] {
+            let mut output=Output::default();
+            assert_eq!(Artisan::call("reports:questions", &[flag.into()], &mut output).await.unwrap(),0);
+            assert!(!output.stdout.contains(" > "));
+        }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+"""
+    parts.append('mod '+locale.replace('-','_').lower()+'_questions{\n'+question_code+question_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

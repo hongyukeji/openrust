@@ -64,5 +64,8 @@
     "command_name": "De opdracht om weer te geven",
     "namespace": "Toon opdrachten in een specifieke naamruimte"
   },
-  "arguments": "Argumenten:"
+  "arguments": "Argumenten:",
+  "question": {
+    "multiline": "druk op :keys om door te gaan"
+  }
 }

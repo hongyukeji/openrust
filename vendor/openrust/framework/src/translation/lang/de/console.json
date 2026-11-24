@@ -64,5 +64,8 @@
     "command_name": "Der anzuzeigende Befehl",
     "namespace": "Befehle in einem bestimmten Namespace anzeigen"
   },
-  "arguments": "Argumente:"
+  "arguments": "Argumente:",
+  "question": {
+    "multiline": "zum Fortfahren :keys drücken"
+  }
 }

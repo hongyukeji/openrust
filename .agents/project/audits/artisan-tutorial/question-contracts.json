@@ -1,0 +1,315 @@
+{
+  "reference": "Symfony Console v7.4.0 used by fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "classes": {
+    "Question": [
+      {
+        "method": "__construct",
+        "source_line": 47,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::new",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getQuestion",
+        "source_line": 56,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_question",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getDefault",
+        "source_line": 64,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_default",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "isMultiline",
+        "source_line": 72,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::is_multiline",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setMultiline",
+        "source_line": 82,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_multiline",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getTimeout",
+        "source_line": 92,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_timeout",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setTimeout",
+        "source_line": 103,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_timeout",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "isHidden",
+        "source_line": 113,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::is_hidden",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setHidden",
+        "source_line": 125,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_hidden",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "isHiddenFallback",
+        "source_line": 139,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::is_hidden_fallback",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setHiddenFallback",
+        "source_line": 149,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_hidden_fallback",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getAutocompleterValues",
+        "source_line": 159,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_autocompleter_values",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setAutocompleterValues",
+        "source_line": 173,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_autocompleter_values; set_autocompleter_iter / set_autocompleter_pairs",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getAutocompleterCallback",
+        "source_line": 197,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_autocompleter_callback",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setAutocompleterCallback",
+        "source_line": 211,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_autocompleter_callback",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setValidator",
+        "source_line": 229,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_validator",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getValidator",
+        "source_line": 241,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_validator",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setMaxAttempts",
+        "source_line": 255,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_max_attempts",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getMaxAttempts",
+        "source_line": 271,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_max_attempts",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setNormalizer",
+        "source_line": 283,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_normalizer",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "getNormalizer",
+        "source_line": 295,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::get_normalizer",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "isTrimmable",
+        "source_line": 305,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::is_trimmable",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      },
+      {
+        "method": "setTrimmable",
+        "source_line": 313,
+        "status": "verified_native_question_contract",
+        "native": "console::Question::set_trimmable",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      }
+    ],
+    "ConfirmationQuestion": [
+      {
+        "method": "__construct",
+        "source_line": 26,
+        "status": "verified_native_question_contract",
+        "native": "console::ConfirmationQuestion::new",
+        "evidence": [
+          "console_questions_tutorial",
+          "question-accepted-framework.log",
+          "question-accepted-tty.log"
+        ]
+      }
+    ],
+    "ChoiceQuestion": [
+      {
+        "method": "__construct",
+        "source_line": 32,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "getChoices",
+        "source_line": 50,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "setMultiselect",
+        "source_line": 62,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "isMultiselect",
+        "source_line": 73,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "getPrompt",
+        "source_line": 81,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "setPrompt",
+        "source_line": 91,
+        "status": "pending_entry_and_behavior_review"
+      },
+      {
+        "method": "setErrorMessage",
+        "source_line": 105,
+        "status": "pending_entry_and_behavior_review"
+      }
+    ]
+  },
+  "notes": [
+    "声明只用于盘点，不算实现；实际输入、默认、校验、隐藏、补全及取消须由正式入口验收。",
+    "复用既有CommandIo／OutputStyle／输入元数据与容器作用域，不新增平行命令派发器。"
+  ],
+  "scope": "Question 23 declarations and ConfirmationQuestion constructor; ChoiceQuestion 7 declarations remain pending. Inherited optional SDK APIs do not become verified by this inventory."
+}

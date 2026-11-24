@@ -391,7 +391,7 @@ These are CLI revalidation adapters, not arbitrary PHP object mutation. A value 
 
 ## Prompting for missing arguments {#prompting-for-missing-input}
 
-Implement `PromptsForMissingInput` and retain it with `.prompting()` before registering the command. Required arguments are collected in declaration order before final validation and isolation. Supplied arguments are not prompted again; `--no-interaction` skips prompting and still rejects missing required arguments.
+Implement `PromptsForMissingInput` and retain it with `.prompting()` before registering the command. Required arguments are collected in declaration order before final validation and isolation. Supplied arguments are not prompted again; `--no-interaction`, `--quiet`, and `--silent` skip prompting and still rejects missing required arguments.
 
 ```rust
 use openrust::{
@@ -526,3 +526,34 @@ pub fn register_styled() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+## Interactive questions {#interactive-questions}
+
+Use asynchronous command I/O to ask for text, confirmation, hidden text, and completion. `confirm` defaults to false; `OutputStyle::confirm` defaults to true.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CompletionCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_questions() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:questions", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let name = io.ask_with("Name", Some("Guest")).await?;
+            let proceed = io.confirm("Continue").await?;
+            let token = io.secret("Token").await?;
+            let color = io.anticipate("Color", CompletionCallback::values(vec!["blue".into(), "green".into()]), Some("blue")).await?;
+            io.line(&serde_json::json!({"name": name, "proceed": proceed, "token_present": token.is_some(), "color": color}).to_string())?;
+            Ok(0)
+        })
+    }))?.purpose("Collect report options")
+}
+```
+
+`--no-interaction`, `--quiet`, and `--silent` disable questions, including automatic missing-argument prompts; missing required arguments still fail. Captured HTTP calls do not read process stdin. A missing input source returns the default, or a typed error when no default is available, then disables further interaction for that input.
+
+For custom validation, create `Question`, set `QuestionCallback` with `set_normalizer` or `set_validator`, then call `get_output().ask_question(&question).await`. Validators may return structured JSON; `ask_with_validator` and `ask_hidden_with` retain that result. Noninteractive defaults run the validator without the normalizer. `set_max_attempts`, `set_trimmable`, `set_multiline`, and `set_timeout` configure retries and reading.
+
+`Input::set_stream` accepts a `ConsoleInputStream` wrapping an asynchronous buffered reader. Input clones share the stream position but snapshot the interaction setting; supplying Input to the Kernel shares that invocation state. Completion callbacks run in the command application scope, including across await. `CompletionCallback::iter` lazily caches a single-pass iterator, and `pairs` provides string keys followed by values. Ctrl+C returns 130; cancellation, timeout, and validation failure restore terminal mode. Windows terminal acceptance remains part of the release matrix.

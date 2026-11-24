@@ -228,6 +228,9 @@ async fn generic_registration_prompts_missing_fields_and_preserves_isolation_and
         assert_eq!(result["prompted"], 12);
         for args in [
             vec!["--no-interaction"],
+            vec!["--quiet"],
+            vec!["--silent"],
+            vec!["-qv"],
             vec!["--unknown"],
             vec!["42", "--no-interaction"],
         ] {

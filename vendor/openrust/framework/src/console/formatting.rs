@@ -64,12 +64,33 @@ impl Style {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(super) struct Formatter {
     stack: Vec<Style>,
     warning: bool,
 }
 impl Formatter {
+    pub(super) fn escape(text: &str) -> String {
+        let mut escaped = String::new();
+        let mut previous = None;
+        for character in text.chars() {
+            if matches!(character, '<' | '>') && previous != Some('\\') {
+                escaped.push('\\');
+            }
+            escaped.push(character);
+            previous = Some(character);
+        }
+        Self::escape_trailing_backslash(&escaped)
+    }
+    pub(super) fn escape_trailing_backslash(text: &str) -> String {
+        if !text.ends_with('\\') {
+            return text.to_owned();
+        }
+        let mut prefix = text.trim_end_matches('\\').replace('\0', "");
+        let count = text.len() - prefix.len();
+        prefix.extend(std::iter::repeat_n('\0', count));
+        prefix
+    }
     pub(super) fn register_warning(&mut self) {
         self.warning = true;
     }

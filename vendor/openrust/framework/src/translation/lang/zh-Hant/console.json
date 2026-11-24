@@ -64,5 +64,8 @@
         "command_name": "要查看的命令",
         "namespace": "只顯示指定命令群組"
     },
-    "arguments": "參數："
+    "arguments": "參數：",
+    "question": {
+        "multiline": "按 :keys 繼續"
+    }
 }

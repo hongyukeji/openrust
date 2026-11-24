@@ -241,7 +241,8 @@
         "prompt-frozen-browser.log",
         "console_registry_lifecycle",
         "registry-oracle.json",
-        "accepted-registry.json"
+        "accepted-registry.json",
+        "第九簇修正quiet／silent按真实Application关闭交互，历史第五簇终端记录保留原貌"
       ],
       "contract": "显式Trait注册适配；必填参数按序收集、问题／占位／可变输入异步回调、after钩子、最终验证及隔离组合；按应用实例复用已核验，捕获输出不读取进程stdin"
     },
@@ -266,8 +267,12 @@
     },
     {
       "anchor": "prompting-for-input",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "partial_questions_verified_choices_pending",
+      "evidence": [
+        "console_questions_tutorial",
+        "question-contracts.json",
+        "README.md#第九簇原生问答与输入状态2026-11-25"
+      ]
     },
     {
       "anchor": "asking-for-confirmation",

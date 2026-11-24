@@ -64,5 +64,8 @@
     "command_name": "الأمر للعرض",
     "namespace": "إظهار الأوامر في مساحة اسم محددة"
   },
-  "arguments": "الحجج:"
+  "arguments": "الحجج:",
+  "question": {
+    "multiline": "اضغط :keys للمتابعة"
+  }
 }

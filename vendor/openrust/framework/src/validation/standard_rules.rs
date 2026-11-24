@@ -43,7 +43,7 @@ pub(super) fn check_exponent(value: &Value) -> ValidationResult<()> {
     Ok(())
 }
 
-pub(super) fn regex(pattern: &str) -> ValidationResult<pcre2::bytes::Regex> {
+pub(crate) fn regex(pattern: &str) -> ValidationResult<pcre2::bytes::Regex> {
     let pattern = pattern.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
     let delimiter = pattern.chars().next().ok_or(ValidationError::InvalidRule)?;
     if delimiter.is_ascii_alphanumeric() || delimiter == '\\' || delimiter.is_whitespace() {

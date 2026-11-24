@@ -64,5 +64,8 @@
     "command_name": "表示するコマンドは",
     "namespace": "特定の名前空間のコマンドを表示する"
   },
-  "arguments": "引数:"
+  "arguments": "引数:",
+  "question": {
+    "multiline": "続行するには :keys を押してください"
+  }
 }
