@@ -376,6 +376,85 @@ fn store_condition(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 
 `Rule::when`、`Rule::unless` 在萬用字元展開前編譯選擇完整規則清單；`RequiredIf`、`RequiredUnless`、`ExcludeIf`、`ExcludeUnless`、`ProhibitedIf`、`ProhibitedUnless` 等布林／回呼物件按展開後的屬性編譯。`RuleCondition::lazy` 接收零參數回呼，`callback` 接收既有型別化 `Data`。條件在 `set_data`、`set_rules` 後重新執行，不在每次驗證時重複執行。
 
+## 接收資料與驗證器的規則 {#accessing-additional-data}
+
+實作 `DataAwareRule::set_data` 接收目前型別化 `Data`，包括上傳中繼資料；實作 `ValidatorAwareRule::set_validator` 接收同一個驗證器的控制代碼。分別透過 `Rule::data_aware`、`Rule::validator_aware` 接入，兩種 trait 都實作時使用 `Rule::aware`。穩定 Rust 無法動態發現 `dyn ValidationRule` 上的可選 trait，因此由適配器明確選擇 setter；`Rule::custom` 保持一般無狀態入口。
+
+```rust
+use openrust::{
+    contracts::validation::{DataAwareRule, ValidationRule, ValidatorAwareRule},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{
+        Data, Rule, RuleContext, RuleFailure, RuleSet, ValidationError,
+        ValidationFuture, ValidationResult, ValidatorHandle,
+    },
+};
+use serde_json::{Value, json};
+
+#[derive(Default)]
+struct MatchesConfirmation { expected: Option<Value> }
+impl DataAwareRule for MatchesConfirmation {
+    fn set_data(&mut self, data: &Data) -> ValidationResult<()> {
+        // 只保留当前规则需要的字段，不复制整份输入。
+        self.expected = data.as_value().get("confirmation").cloned();
+        Ok(())
+    }
+}
+impl ValidationRule for MatchesConfirmation {
+    fn validate<'a>(
+        &'a self, _: &'a RuleContext<'_>, _: &'a str, value: Option<&'a Value>,
+    ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>> {
+        Box::pin(async move {
+            Ok(if value == self.expected.as_ref() {
+                Vec::new()
+            } else {
+                vec![RuleFailure::new("validation.confirmed")]
+            })
+        })
+    }
+}
+
+#[derive(Default)]
+struct NeedsReview { validator: Option<ValidatorHandle> }
+impl ValidatorAwareRule for NeedsReview {
+    fn set_validator(&mut self, validator: ValidatorHandle) -> ValidationResult<()> {
+        self.validator = Some(validator);
+        Ok(())
+    }
+}
+impl ValidationRule for NeedsReview {
+    fn validate<'a>(
+        &'a self, _: &'a RuleContext<'_>, _: &'a str, _: Option<&'a Value>,
+    ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>> {
+        Box::pin(async move {
+            let validator = self.validator.as_ref().ok_or(ValidationError::NotValidated)?;
+            validator.with(|validator| {
+                if validator.get_value("review")? == Some(&json!(true)) {
+                    validator.errors_mut().add("review", "需要人工复核。");
+                }
+                Ok(())
+            })?;
+            Ok(Vec::new())
+        })
+    }
+}
+
+fn store_aware(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("value", [Rule::required(), Rule::data_aware(MatchesConfirmation::default())])?
+            .field("status", [Rule::required(), Rule::validator_aware(NeedsReview::default())])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+```
+
+同時實作兩個 trait 時，先執行 `set_data`，再執行 `set_validator`，最後執行 `validate`。一般缺失／空字串／nullable 跳過也跳過 setter，隱式規則沿用既有排程。setter 使用 `&mut self` 和 `ValidationResult<()>`，失敗進入原異常管線。只有同一狀態感知規則物件的 setter 與驗證期間循序借用，一般規則不加該鎖。
+
+`ValidatorHandle::with` 安全讀寫原驗證器的值、訊息和錯誤包，`with_async` 支援非同步借用；巢狀衝突借用傳回錯誤，不無限等待。控制代碼僅在目前規則任務有效，完成或取消後失效，不繼承到新建子任務；同一驗證器執行期間禁止遞迴驗證。`RuleContext` 和已提供的 `Data` 是不可變快照，修改後應透過控制代碼讀取即時狀態。後續規則讀取更新後的值，取消時將原驗證器還給呼叫端。
+
+`RuleContext::file()` 提供傳給規則的原始值所對應的上傳檔案，即使 setter 已取代該欄位仍可讀取。`context.data` 是 setter 執行後的快照，透過控制代碼讀取驗證器即時狀態；規範跳脫路徑保留在內部，規則參數接收可顯示的屬性名稱。
+
 ## 訊息包 {#message-bags}
 
 使用 `MessageBag` 收集有序欄位錯誤，`ViewErrorBag` 管理具名包。`add` 去重，`merge(&other)` 保留重複。`first(key, format)` 在沒有訊息時傳回空字串。`get(key, format)` 傳回 `MessageLookup::Exact` 或保留欄位名的萬用字元映射；僅在確實需要扁平訊息時呼叫 `into_messages()`。
@@ -436,7 +515,7 @@ assert_eq!(errors.count(), 0);
 
 用 `get_data`、`get_value` 和 `get_rules` 讀取輸入及展開後的規則。`get_rules` 按宣告順序傳回 `(欄位路徑, 規則)`，路徑使用原生跳脫。`set_value` 更新一個具體路徑，拒絕萬用字元。`set_data` 替換輸入，並恢復最近一次 `set_rules` 或工廠建立時的規則。`add_rules` 合併暫時規則；`append_rules` 同時將合併後的宣告作為下次重設的基準。
 
-`set_custom_messages` 合併訊息。`set_attribute_names`、`set_value_names` 替換對應映射；`add_custom_attributes`、`add_custom_values` 按欄位合併。`get_translator`、`set_translator` 讀取或替換錯誤訊息使用的譯器。修改後會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
+`set_custom_messages` 合併訊息。`set_attribute_names`、`set_value_names` 替換對應映射；`add_custom_attributes`、`add_custom_values` 按欄位合併。`get_translator`、`set_translator` 讀取或替換錯誤訊息使用的譯器。在驗證執行之外修改後，會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
 
 `get_exception`、`set_exception` 使用型別化函式 `fn(MessageBag, Option<&Translator>) -> ValidationException`，可自訂實際拒絕回應的狀態、錯誤包及重新導向。固定回傳型別替代執行期例外類別名稱及繼承，每個驗證器獨立保存工廠。
 

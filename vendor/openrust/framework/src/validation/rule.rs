@@ -82,6 +82,7 @@ pub(super) enum Kind {
     Exists(Exists),
     Unique(Unique),
     Custom(Arc<dyn ValidationRule>),
+    Aware(Arc<dyn super::aware_rule::AwareValidationRule>),
     ConditionalRules(super::ConditionalRules),
     Chained(Vec<Rule>),
     ForEach(super::NestedRules),
@@ -302,6 +303,30 @@ impl Rule {
     }
     pub fn unique(table: &str, column: Option<&str>) -> Unique {
         Unique::new(table, column)
+    }
+    pub fn data_aware<R: ValidationRule + crate::contracts::validation::DataAwareRule + 'static>(
+        rule: R,
+    ) -> Self {
+        Self::new(Kind::Aware(Arc::new(super::aware_rule::Aware::data(rule))))
+    }
+    pub fn validator_aware<
+        R: ValidationRule + crate::contracts::validation::ValidatorAwareRule + 'static,
+    >(
+        rule: R,
+    ) -> Self {
+        Self::new(Kind::Aware(Arc::new(super::aware_rule::Aware::validator(
+            rule,
+        ))))
+    }
+    pub fn aware<
+        R: ValidationRule
+            + crate::contracts::validation::DataAwareRule
+            + crate::contracts::validation::ValidatorAwareRule
+            + 'static,
+    >(
+        rule: R,
+    ) -> Self {
+        Self::new(Kind::Aware(Arc::new(super::aware_rule::Aware::both(rule))))
     }
     pub fn custom(rule: impl ValidationRule + 'static) -> Self {
         Self::new(Kind::Custom(Arc::new(rule)))

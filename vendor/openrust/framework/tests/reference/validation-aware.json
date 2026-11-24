@@ -1,0 +1,996 @@
+[
+    {
+        "mode": "trace",
+        "implicit": false,
+        "input": {},
+        "rules": [],
+        "events_at_make": [],
+        "events": [],
+        "passes": true,
+        "errors": [],
+        "validated": []
+    },
+    {
+        "mode": "trace",
+        "implicit": false,
+        "input": {
+            "value": null
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": null
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": null
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                {
+                    "value": null
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": null
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": false,
+        "input": {
+            "value": ""
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": ""
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": false,
+        "input": {
+            "value": null
+        },
+        "rules": [
+            "nullable"
+        ],
+        "events_at_make": [],
+        "events": [],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": null
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": false,
+        "input": {
+            "value": "A"
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": "A"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": "A"
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "A",
+                {
+                    "value": "A"
+                },
+                {
+                    "value": "A"
+                }
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "A"
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": true,
+        "input": {},
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                []
+            ],
+            [
+                "validator",
+                [],
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                [],
+                []
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": []
+    },
+    {
+        "mode": "trace",
+        "implicit": true,
+        "input": {
+            "value": null
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": null
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": null
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                {
+                    "value": null
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": null
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": true,
+        "input": {
+            "value": ""
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": ""
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": ""
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "",
+                {
+                    "value": ""
+                },
+                {
+                    "value": ""
+                }
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": ""
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": true,
+        "input": {
+            "value": null
+        },
+        "rules": [
+            "nullable"
+        ],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": null
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": null
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                {
+                    "value": null
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": null
+        }
+    },
+    {
+        "mode": "trace",
+        "implicit": true,
+        "input": {
+            "value": "A"
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": "A"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": "A"
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "A",
+                {
+                    "value": "A"
+                },
+                {
+                    "value": "A"
+                }
+            ]
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "A"
+        }
+    },
+    {
+        "mode": "failure",
+        "implicit": false,
+        "input": {},
+        "rules": [],
+        "events_at_make": [],
+        "events": [],
+        "passes": true,
+        "errors": [],
+        "validated": []
+    },
+    {
+        "mode": "failure",
+        "implicit": false,
+        "input": {
+            "value": null
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": null
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": null
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                {
+                    "value": null
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "failure",
+        "implicit": false,
+        "input": {
+            "value": ""
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": ""
+        }
+    },
+    {
+        "mode": "failure",
+        "implicit": false,
+        "input": {
+            "value": null
+        },
+        "rules": [
+            "nullable"
+        ],
+        "events_at_make": [],
+        "events": [],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": null
+        }
+    },
+    {
+        "mode": "failure",
+        "implicit": false,
+        "input": {
+            "value": "A"
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": "A"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": "A"
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "A",
+                {
+                    "value": "A"
+                },
+                {
+                    "value": "A"
+                }
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "failure",
+        "implicit": true,
+        "input": {},
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                []
+            ],
+            [
+                "validator",
+                [],
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                [],
+                []
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "failure",
+        "implicit": true,
+        "input": {
+            "value": null
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": null
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": null
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                {
+                    "value": null
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "failure",
+        "implicit": true,
+        "input": {
+            "value": ""
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": ""
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": ""
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "",
+                {
+                    "value": ""
+                },
+                {
+                    "value": ""
+                }
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "failure",
+        "implicit": true,
+        "input": {
+            "value": null
+        },
+        "rules": [
+            "nullable"
+        ],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": null
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": null
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                {
+                    "value": null
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "failure",
+        "implicit": true,
+        "input": {
+            "value": "A"
+        },
+        "rules": [],
+        "events_at_make": [],
+        "events": [
+            [
+                "data",
+                {
+                    "value": "A"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": "A"
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "A",
+                {
+                    "value": "A"
+                },
+                {
+                    "value": "A"
+                }
+            ]
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "Custom value"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "mutation",
+        "input": {
+            "previous": null,
+            "value": "A"
+        },
+        "passes": false,
+        "events": [
+            [
+                "data",
+                {
+                    "previous": null,
+                    "value": "A"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "previous": null,
+                    "value": "A"
+                },
+                {
+                    "previous": [
+                        "The previous field is required."
+                    ]
+                }
+            ],
+            [
+                "validate",
+                "value",
+                "A",
+                {
+                    "previous": null,
+                    "value": "A"
+                },
+                {
+                    "previous": null,
+                    "value": 42
+                }
+            ]
+        ],
+        "errors": {
+            "previous": [
+                "The previous field is required."
+            ],
+            "manual": [
+                "Manual error"
+            ],
+            "value": [
+                "Changed value"
+            ]
+        },
+        "data": {
+            "previous": null,
+            "value": 42
+        }
+    },
+    {
+        "mode": "foreach",
+        "input": {
+            "rows": [
+                {
+                    "name": "A"
+                },
+                {
+                    "name": "B"
+                }
+            ]
+        },
+        "passes": false,
+        "events": [
+            [
+                "data",
+                {
+                    "rows": [
+                        {
+                            "name": "A"
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                }
+            ],
+            [
+                "validator",
+                {
+                    "rows": [
+                        {
+                            "name": "A"
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                },
+                []
+            ],
+            [
+                "validate",
+                "rows.0.name",
+                "A",
+                {
+                    "rows": [
+                        {
+                            "name": "A"
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                },
+                {
+                    "rows": [
+                        {
+                            "name": "A"
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                }
+            ],
+            [
+                "data",
+                {
+                    "rows": [
+                        {
+                            "name": 42
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                }
+            ],
+            [
+                "validator",
+                {
+                    "rows": [
+                        {
+                            "name": 42
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                },
+                {
+                    "rows.0.name": [
+                        "The rows.0.name field must be a string."
+                    ]
+                }
+            ],
+            [
+                "validate",
+                "rows.1.name",
+                "B",
+                {
+                    "rows": [
+                        {
+                            "name": 42
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                },
+                {
+                    "rows": [
+                        {
+                            "name": 42
+                        },
+                        {
+                            "name": "B"
+                        }
+                    ]
+                }
+            ]
+        ],
+        "errors": {
+            "rows.0.name": [
+                "The rows.0.name field must be a string."
+            ],
+            "rows.1.name": [
+                "The rows.1.name field must be a string."
+            ]
+        },
+        "data": {
+            "rows": [
+                {
+                    "name": 42
+                },
+                {
+                    "name": 42
+                }
+            ]
+        }
+    },
+    {
+        "mode": "manual_bail",
+        "bail": true,
+        "passes": false,
+        "calls": 0,
+        "errors": {
+            "value": [
+                "Manual field"
+            ]
+        }
+    },
+    {
+        "mode": "manual_bail",
+        "bail": false,
+        "passes": false,
+        "calls": 1,
+        "errors": {
+            "value": [
+                "Manual field"
+            ]
+        }
+    },
+    {
+        "mode": "replace_nullable",
+        "implicit": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "events": [
+            [
+                "data",
+                {
+                    "value": "A"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": "A"
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "A",
+                {
+                    "value": "A"
+                },
+                {
+                    "value": null
+                }
+            ]
+        ],
+        "errors": [],
+        "data": {
+            "value": null
+        },
+        "validated": {
+            "value": null
+        }
+    },
+    {
+        "mode": "replace_numeric",
+        "implicit": false,
+        "input": {
+            "value": "10"
+        },
+        "passes": true,
+        "events": [
+            [
+                "data",
+                {
+                    "value": "10"
+                }
+            ],
+            [
+                "validator",
+                {
+                    "value": "10"
+                },
+                []
+            ],
+            [
+                "validate",
+                "value",
+                "10",
+                {
+                    "value": "10"
+                },
+                {
+                    "value": "10"
+                }
+            ]
+        ],
+        "errors": [],
+        "data": {
+            "value": "10"
+        },
+        "validated": {
+            "value": "10"
+        }
+    },
+    {
+        "mode": "replace_sometimes",
+        "implicit": true,
+        "input": {},
+        "passes": true,
+        "events": [
+            [
+                "data",
+                []
+            ],
+            [
+                "validator",
+                [],
+                []
+            ],
+            [
+                "validate",
+                "value",
+                null,
+                [],
+                []
+            ]
+        ],
+        "errors": [],
+        "data": {},
+        "validated": []
+    },
+    {
+        "mode": "live_flags",
+        "configuration": "bail",
+        "passes": false,
+        "calls": 0,
+        "errors": {
+            "value": [
+                "Manual field"
+            ]
+        }
+    },
+    {
+        "mode": "live_flags",
+        "configuration": "remove_implicit",
+        "passes": false,
+        "calls": 1,
+        "errors": {
+            "value": [
+                "The value field is required."
+            ]
+        }
+    }
+]

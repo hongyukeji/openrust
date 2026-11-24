@@ -12,3 +12,8 @@ pub use validator::Validator;
 
 mod parameterized_rule;
 pub use parameterized_rule::ParameterizedRule;
+
+mod data_aware_rule;
+mod validator_aware_rule;
+pub use data_aware_rule::DataAwareRule;
+pub use validator_aware_rule::ValidatorAwareRule;

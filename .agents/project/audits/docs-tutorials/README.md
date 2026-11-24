@@ -283,3 +283,23 @@ Rule::when/unless 与 ConditionalRules 在通配展开前求值；RequiredIf/Req
 最后移除静态无参数分支中的冗余参数判断，fluent/final.log 的专项3项、workspace严格Clippy（21.20秒）、fmt再次全部通过；与前述正式教程内容及可观察行为一致。
 
 本批关闭已列构建器及其参数分发／条件求值差异。DataAware/ValidatorAware、email扩展模式、密码默认与泄漏策略仍开放；全文复核还发现数组错误的 :index/:position/:ordinal-position 及多层占位符缺口，已登记接续，不把本批或原关键词清单当作全章闭合。其余 Rule 工厂与规则类型仍按逐节清单对账。
+
+## 第十五组：DataAware／ValidatorAware setter 与同一验证器借用（2026-11-24）
+
+固定 Contracts/Validation/DataAwareRule、ValidatorAwareRule、InvokableValidationRule 与 Validator::validateUsingCustomRule 核对：本批对应教程的新 ValidationRule 包装器，真实顺序为 setData→setValidator→validate，不能误用旧 Rule 包装器的调用顺序。旧版没有可直接复用的同型可变 setter；复用当前 Request/context.rs 的任务作用域借用和取消恢复机制，不全局缓存验证器、不另建并行验证器。
+
+新增独立 contracts traits、Rule::data_aware／validator_aware／aware 与 ValidatorHandle。稳定Rust无法动态检查可选trait，显式适配器选择 setter；普通 Rule::custom 不加状态锁。setter 使用可变借用与 ValidationResult<()>，适配器只对同一有状态规则实例串行执行 setter／正文。Data 直接借用原类型化数据，用户可只提取需要的字段；Validator 内部数据／规则使用Arc只读快照，实际写入保持原行为，未作未测量的性能收益声明。
+
+ValidatorHandle::with 与 with_async 读写调用方同一个 Validator，不能以只读副本冒充 setValidator。任务token、弱句柄和互斥借用防止跨任务／结束后访问；冲突借用和递归验证明确返回错误。RAII在取消时恢复原实例并释放规则锁，不回滚已经执行的业务写入。规则正文拿到原先捕获的值，后续规则读取更新后的值。RuleContext 为setter后的不可变快照；file() 保留原始值对应的上传对象，setter替换文件后仍可读取原字节，实时数据元信息则已清除。规范转义路径留在内部，规则参数仍为可显示属性名。
+
+实际联动修复：运行期间修改消息不清掉此前错误；手工错误包参与 bail／presence 跳过，清除错误后恢复presence执行，避免旧失败标记粘滞。修改规则后 nullable、numeric、sometimes、bail及隐式停止逻辑读取当前规则集合；原局部迭代集合保持固定上游的写时复制语义。setter引入编译失败保留原错误类别和已有错误，修正后恢复；执行结束／取消后恢复运行状态。
+
+固定PHP8.5.12实际29组记录保存 validation-aware.json：setter顺序与原始数据、缺失／空值／nullable／implicit调度、原值与更新后的数据、错误消息及手工错误、通配字段后续数据、bail与规则替换时序。空PHP数组到类型化对象仅在对应数据／错误容器规范化，未将普通数组统一改写。真实TCP覆盖成功、422、setter失败500后下一请求200；两个应用共享同一规则对象的32请求并发隔离；子任务与作用域外句柄拒绝；异步借用／冲突／重入、取消恢复；DataAware单独／ValidatorAware单独／组合入口；真实multipart及嵌套字面点文件替换。最初根表单点号按既有PHP输入规则转为下划线，夹具改为保留字面点的括号字段，不改输入解析行为。
+
+最终按ba6d7b32018d32badfc67a1af8f088fedea9db06已提交HEAD加本簇重组隔离源码，不依赖其他在途改动。MySQL8.4.13八目标47项0忽略通过（safe2、aware6、failure_translation1、fluent3、for_each4、http23、mutation6、rule_tutorial2），正式三语示例直接提取3项HTTP Kernel消费者通过。日志 aware/gates-head.log 前三阶段0；Clippy曾触及32GB，守卫安全停止并持锁释放62,857,183,232字节，未把中断计通过。恢复后 aware/head-resumed.log 七阶段全0：workspace/all-targets严格Clippy（1m55s）、fmt、三语构建／浏览器、实际main构建（1m37s）、artisan help make:rule及inspire。更早一次守卫因并行构建尚存未清理，待其退出后正式守卫完成清理并恢复，源码／日志未动。临时MySQL已回收，无常驻本批服务。
+
+验收期间00bf786d6提交了并行测试缓存隔离，差异已只读核对（Testing与Blade缓存目录装配），未夹带其在途修改，也未冒称重验其专属功能。当前本簇入口全部按上述隔离组合核SHA；其余已提交内容保持原样。
+
+最后将三语既有缓存失效说明限定为验证执行之外的修改，避免与运行期保留当前错误包矛盾；仅文字调整，三语重建15.50秒与对应HTML内容断言通过（aware/docs-final-wording.log）。
+
+本簇关闭状态感知setter及以上关联差异。完整章节继续：其余基础Rule工厂、Confirmed.custom_field／CurrentPassword.guard、数据库where闭包入口与数组条件、email模式、密码策略和数组消息索引占位符。rule-builders总节改为部分已验，避免只因新增若干类型就关闭全节；URL与Validation整章仍不在本批宣布完成。

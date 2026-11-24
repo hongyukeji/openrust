@@ -15,12 +15,38 @@ pub type ValidationExceptionFactory = fn(MessageBag, Option<&Translator>) -> Val
 
 type AfterValidation = dyn Fn(&mut Validator) -> ValidationResult<()> + Send + Sync;
 
+#[derive(Clone, Copy)]
+struct RuleFlags {
+    nullable: bool,
+    sometimes: bool,
+    bail: bool,
+    numeric: bool,
+    implicit: bool,
+}
+impl RuleFlags {
+    fn new(rules: &[Rule], extensions: &super::extensions::Extensions) -> Self {
+        Self {
+            implicit: contains(rules, |rule| implicit_builtin(rule, extensions)),
+            nullable: contains(rules, |rule| matches!(rule, Kind::Nullable)),
+            sometimes: contains(rules, |rule| matches!(rule, Kind::Sometimes)),
+            bail: contains(rules, |rule| matches!(rule, Kind::Bail)),
+            numeric: contains(rules, |rule| {
+                matches!(
+                    rule,
+                    Kind::Integer | Kind::StrictInteger | Kind::Numeric | Kind::StrictNumeric
+                ) || matches!(rule,Kind::Scalar(rule)if rule.name()=="decimal")
+            }),
+        }
+    }
+}
+
 /// Evaluates the configured rules against one input value.
 pub struct Validator {
-    data: Data,
+    data: Arc<Data>,
     pub(super) extensions: super::extensions::Extensions,
-    rules: RuleSet,
+    rules: Arc<RuleSet>,
     initial_rules: RuleSet,
+    running: bool,
     compilation_error: Option<super::rule_compiler::CompilationError>,
     exception: ValidationExceptionFactory,
     translator: Option<Arc<Translator>>,
@@ -53,12 +79,13 @@ impl Validator {
             Err(error) => (RuleSet::new(), Some(error.into())),
         };
         Self {
-            data,
+            data: Arc::new(data),
+            running: false,
             extensions: Default::default(),
             initial_rules,
             compilation_error,
             exception: ValidationException::localized,
-            rules,
+            rules: Arc::new(rules),
             translator,
             presence,
             user_resolver: None,
@@ -84,7 +111,7 @@ impl Validator {
     fn compile_rules(&mut self, rules: RuleSet) {
         match rules.compile_rules(&self.data) {
             Ok(rules) => {
-                self.rules = rules;
+                self.rules = Arc::new(rules);
                 self.compilation_error = None;
             }
             Err(error) => {
@@ -95,7 +122,33 @@ impl Validator {
 
     pub(super) fn invalidate(&mut self) {
         self.result = None;
-        self.errors = MessageBag::default();
+        if !self.running {
+            self.errors = MessageBag::default();
+        }
+    }
+
+    fn active_flags(&self, attribute: &str) -> ValidationResult<RuleFlags> {
+        Ok(self
+            .get_rules()?
+            .into_iter()
+            .find(|(field, _)| field == attribute)
+            .map_or_else(
+                || RuleFlags::new(&[], &self.extensions),
+                |(_, rules)| RuleFlags::new(&rules, &self.extensions),
+            ))
+    }
+
+    pub(super) fn aware_data(&self) -> Arc<Data> {
+        self.data.clone()
+    }
+
+    pub(super) fn aware_snapshot(&self) -> super::aware_rule::Snapshot {
+        super::aware_rule::Snapshot {
+            data: self.data.clone(),
+            translator: self.translator.clone(),
+            messages: self.messages.clone(),
+            attributes: self.attributes.clone(),
+        }
     }
 
     pub fn get_data(&self) -> &Data {
@@ -104,7 +157,7 @@ impl Validator {
 
     /// 替换数据后恢复初始规则，移除运行期 addRules/sometimes 追加项。
     pub fn set_data(&mut self, data: Data) -> &mut Self {
-        self.data = data;
+        self.data = Arc::new(data);
         self.compile_rules(self.initial_rules.clone());
         self.invalidate();
         self
@@ -128,12 +181,12 @@ impl Validator {
     /// 原子更新单值；替换上传字段时同步移除旧文件引用。
     pub fn set_value(&mut self, attribute: &str, value: Value) -> ValidationResult<()> {
         self.get_value(attribute)?;
-        let mut data = self.data.clone();
+        let mut data = self.data.as_ref().clone();
         data.forget_files(attribute)?;
         let mut input = data.as_value().clone();
         path::set(&mut input, &path::parse(attribute)?, value)?;
         data.replace(input)?;
-        self.data = data;
+        self.data = Arc::new(data);
         self.invalidate();
         Ok(())
     }
@@ -172,7 +225,7 @@ impl Validator {
     pub fn add_rules(&mut self, rules: RuleSet) -> ValidationResult<()> {
         self.ensure_compiled()?;
         let merged = self.rules.merged(rules)?.compile_rules(&self.data)?;
-        self.rules = merged;
+        self.rules = Arc::new(merged);
         self.invalidate();
         Ok(())
     }
@@ -348,7 +401,24 @@ impl Validator {
         self.validated()
     }
 
-    async fn run(
+    async fn run(&mut self, request: Option<&mut crate::http::Request>) -> ValidationResult<()> {
+        if self.running {
+            return Err(ValidationError::Execution {
+                source: std::io::Error::other("不能在规则执行期间递归验证同一验证器").into(),
+            });
+        }
+        struct Running<'a>(&'a mut Validator);
+        impl Drop for Running<'_> {
+            fn drop(&mut self) {
+                self.0.running = false;
+            }
+        }
+        self.running = true;
+        let running = Running(self);
+        running.0.run_inner(request).await
+    }
+
+    async fn run_inner(
         &mut self,
         mut request: Option<&mut crate::http::Request>,
     ) -> ValidationResult<()> {
@@ -358,17 +428,16 @@ impl Validator {
         let mut excluded: Vec<String> = Vec::new();
         let mut errors = MessageBag::default();
         let mut budget = path::Budget::default();
-        'fields: for (index, (declaration, rules)) in self.rules.fields.iter().enumerate() {
-            let pattern = self.rules.origin(declaration);
-            let nullable = contains(rules, |rule| matches!(rule, Kind::Nullable));
-            let sometimes = contains(rules, |rule| matches!(rule, Kind::Sometimes));
-            let bail = contains(rules, |rule| matches!(rule, Kind::Bail));
-            let numeric = contains(rules, |rule| {
-                matches!(
-                    rule,
-                    Kind::Integer | Kind::StrictInteger | Kind::Numeric | Kind::StrictNumeric
-                ) || matches!(rule, Kind::Scalar(rule) if rule.name() == "decimal")
-            });
+        let all_rules = self.rules.clone();
+        let original_data = self.data.clone();
+        let has_aware = all_rules
+            .fields
+            .iter()
+            .any(|(_, rules)| rules.iter().any(|rule| matches!(rule.0, Kind::Aware(_))));
+        'fields: for (index, (declaration, rules)) in all_rules.fields.iter().enumerate() {
+            let pattern = all_rules.origin(declaration);
+            let flags = RuleFlags::new(rules, &self.extensions);
+            let sometimes = flags.sometimes;
             let presence_rules = contains(rules, |rule| {
                 matches!(rule, Kind::Exists(_) | Kind::Unique(_))
             });
@@ -380,7 +449,9 @@ impl Validator {
                     || segments
                         .iter()
                         .any(|part| matches!(part, path::Segment::Any)));
-            for (attribute, value) in path::expand(self.data.as_value(), &segments, &mut budget)? {
+            for (attribute, value) in
+                path::expand(original_data.as_value(), &segments, &mut budget)?
+            {
                 if excluded
                     .iter()
                     .any(|field| attribute == *field || attribute.starts_with(&format!("{field}.")))
@@ -390,7 +461,7 @@ impl Validator {
                 if self.stop_on_first_failure && !errors.is_empty() {
                     break 'fields;
                 }
-                if !self.rules.accepts(index, &unescape(&attribute)) {
+                if !all_rules.accepts(index, &unescape(&attribute)) {
                     continue;
                 }
                 if !sometimes || value.is_some() {
@@ -403,9 +474,34 @@ impl Validator {
                     } else {
                         &attribute
                     };
-                    let mut failed =
-                        presence_rules && !errors.get(&unescape(&attribute), None).is_empty();
                     for Rule(rule, metadata) in rules {
+                        let rules_before = has_aware.then(|| self.rules.clone());
+                        let flags = if has_aware && !Arc::ptr_eq(&all_rules, &self.rules) {
+                            match self.active_flags(&attribute) {
+                                Ok(flags) => flags,
+                                Err(error) => {
+                                    self.errors = errors;
+                                    return Err(error);
+                                }
+                            }
+                        } else {
+                            flags
+                        };
+                        let nullable = flags.nullable;
+                        let numeric = flags.numeric;
+                        let current_data = has_aware.then(|| self.data.clone());
+                        let value = if let Some(current_data) = &current_data {
+                            current_data
+                                .attributes(&attribute)?
+                                .into_iter()
+                                .next()
+                                .and_then(|(_, value)| value)
+                        } else {
+                            value
+                        };
+                        if flags.sometimes && value.is_none() {
+                            continue;
+                        }
                         let extension_parameters = if let Kind::Extension(name, parameters) = rule {
                             self.extension_parameters(name, parameters, pattern, &attribute)?
                         } else {
@@ -424,7 +520,9 @@ impl Validator {
                                 break;
                             }
                         }
-                        if failed && matches!(rule, Kind::Exists(_) | Kind::Unique(_)) {
+                        if matches!(rule, Kind::Exists(_) | Kind::Unique(_))
+                            && errors.has(unescape(&attribute).as_str())
+                        {
                             continue;
                         }
                         // 上游每条规则执行前重置数值分类，只将当前数值比较临时视为 numeric。
@@ -481,6 +579,32 @@ impl Validator {
                                 value,
                                 nullable,
                             )?
+                        } else if let Kind::Aware(rule) = rule {
+                            let execute = rule.is_implicit()
+                                || value.is_some_and(|value| {
+                                    !(nullable
+                                        && value.is_null()
+                                        && self.data.file(&attribute).is_none()
+                                        || value.as_str().is_some_and(|value| {
+                                            value
+                                                .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
+                                                .is_empty()
+                                        }))
+                                });
+                            if execute {
+                                self.errors = std::mem::take(&mut errors);
+                                let result = rule.validate(self, &attribute, value).await;
+                                errors = std::mem::take(&mut self.errors);
+                                match result {
+                                    Ok(failures) => failures,
+                                    Err(error) => {
+                                        self.errors = errors;
+                                        return Err(error);
+                                    }
+                                }
+                            } else {
+                                Vec::new()
+                            }
                         } else if let Kind::CurrentPassword(guard) = rule {
                             super::current_password::failures(
                                 value,
@@ -501,21 +625,29 @@ impl Validator {
                             )
                             .await?
                         };
-                        failed |= !failures.is_empty();
-                        let stop = !failures.is_empty()
-                            && (bail
-                                || matches!(rule, Kind::Conditional { name, .. } if implicit_condition(name))
-                                || matches!(rule, Kind::Extension(name, _) if self.extensions.implicit.contains(name))
-                                || matches!(
-                                    rule,
-                                    Kind::Required
-                                        | Kind::RequiredIf(..)
-                                        | Kind::Missing
-                                        | Kind::Filled
-                                        | Kind::Declined
-                                        | Kind::Accepted
-                                        | Kind::Present
-                                ));
+                        if has_aware && let Err(error) = self.ensure_compiled() {
+                            self.errors = errors;
+                            return Err(error);
+                        }
+                        let after_flags = if rules_before
+                            .as_ref()
+                            .is_some_and(|before| !Arc::ptr_eq(before, &self.rules))
+                        {
+                            match self.active_flags(&attribute) {
+                                Ok(flags) => flags,
+                                Err(error) => {
+                                    self.errors = errors;
+                                    return Err(error);
+                                }
+                            }
+                        } else {
+                            flags
+                        };
+                        let stop = after_flags.bail && errors.has(unescape(&attribute).as_str())
+                            || !failures.is_empty()
+                                && (after_flags.bail
+                                    || after_flags.implicit
+                                        && implicit_builtin(rule, &self.extensions));
                         for mut failure in failures {
                             if metadata.as_ref().is_some_and(|(name, _)| {
                                 self.extensions.replacers.contains_key(name)
@@ -549,8 +681,9 @@ impl Validator {
                 }
             }
         }
+        drop(original_data);
         for field in &excluded {
-            self.data.forget(field)?;
+            Arc::make_mut(&mut self.data).forget(field)?;
         }
         let retained = |field: &str| {
             !excluded
@@ -916,6 +1049,7 @@ impl Validator {
         {
             let context = RuleContext {
                 data: &self.data,
+                original_data: None,
                 translator: self.translator.as_deref(),
                 attribute,
                 messages: &self.messages,
@@ -1469,6 +1603,7 @@ impl Validator {
             (Kind::Custom(rule), Some(value)) => {
                 let context = RuleContext {
                     data: &self.data,
+                    original_data: None,
                     translator: self.translator.as_deref(),
                     attribute,
                     messages: &self.messages,
@@ -1703,7 +1838,7 @@ fn scalar_size(
     Ok(vec![failure])
 }
 
-fn custom_rule_attribute(attribute: &str) -> Cow<'_, str> {
+pub(super) fn custom_rule_attribute(attribute: &str) -> Cow<'_, str> {
     if attribute.contains('\\') {
         Cow::Owned(unescape(attribute))
     } else {
@@ -2061,4 +2196,18 @@ fn uuid_version(value: &str, parameters: &str) -> bool {
     }
     let version = crate::support::input_scalars::integer_string(&parameters[0]);
     u8::try_from(version).is_ok_and(|version| crate::support::Str::is_uuid(value, Some(version)))
+}
+
+fn implicit_builtin(rule: &Kind, extensions: &super::extensions::Extensions) -> bool {
+    matches!(
+        rule,
+        Kind::Required
+            | Kind::RequiredIf(..)
+            | Kind::Missing
+            | Kind::Filled
+            | Kind::Declined
+            | Kind::Accepted
+            | Kind::Present
+    ) || matches!(rule,Kind::Conditional{name,..}if implicit_condition(name))
+        || matches!(rule,Kind::Extension(name,_)if extensions.implicit.contains(name))
 }

@@ -376,6 +376,85 @@ fn store_condition(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 
 `Rule::when` and `Rule::unless` choose complete rule lists during compilation, before wildcard expansion. Boolean/callback objects such as `RequiredIf`, `RequiredUnless`, `ExcludeIf`, `ExcludeUnless`, `ProhibitedIf` and `ProhibitedUnless` compile per expanded attribute. `RuleCondition::lazy` accepts a zero-argument callback; `callback` receives the existing typed `Data`. Conditions run again after `set_data` or `set_rules`, not on every validation pass.
 
+## Rules that Receive Data and the Validator {#accessing-additional-data}
+
+Implement `DataAwareRule::set_data` to receive the current typed `Data`, including upload metadata. Implement `ValidatorAwareRule::set_validator` to receive a handle to the same validator. Use `Rule::data_aware`, `Rule::validator_aware`, or `Rule::aware` when both traits are implemented. Stable Rust cannot dynamically discover optional traits on a `dyn ValidationRule`, so these adapters explicitly select the setters; `Rule::custom` remains the ordinary stateless entry.
+
+```rust
+use openrust::{
+    contracts::validation::{DataAwareRule, ValidationRule, ValidatorAwareRule},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{
+        Data, Rule, RuleContext, RuleFailure, RuleSet, ValidationError,
+        ValidationFuture, ValidationResult, ValidatorHandle,
+    },
+};
+use serde_json::{Value, json};
+
+#[derive(Default)]
+struct MatchesConfirmation { expected: Option<Value> }
+impl DataAwareRule for MatchesConfirmation {
+    fn set_data(&mut self, data: &Data) -> ValidationResult<()> {
+        // 只保留当前规则需要的字段，不复制整份输入。
+        self.expected = data.as_value().get("confirmation").cloned();
+        Ok(())
+    }
+}
+impl ValidationRule for MatchesConfirmation {
+    fn validate<'a>(
+        &'a self, _: &'a RuleContext<'_>, _: &'a str, value: Option<&'a Value>,
+    ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>> {
+        Box::pin(async move {
+            Ok(if value == self.expected.as_ref() {
+                Vec::new()
+            } else {
+                vec![RuleFailure::new("validation.confirmed")]
+            })
+        })
+    }
+}
+
+#[derive(Default)]
+struct NeedsReview { validator: Option<ValidatorHandle> }
+impl ValidatorAwareRule for NeedsReview {
+    fn set_validator(&mut self, validator: ValidatorHandle) -> ValidationResult<()> {
+        self.validator = Some(validator);
+        Ok(())
+    }
+}
+impl ValidationRule for NeedsReview {
+    fn validate<'a>(
+        &'a self, _: &'a RuleContext<'_>, _: &'a str, _: Option<&'a Value>,
+    ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>> {
+        Box::pin(async move {
+            let validator = self.validator.as_ref().ok_or(ValidationError::NotValidated)?;
+            validator.with(|validator| {
+                if validator.get_value("review")? == Some(&json!(true)) {
+                    validator.errors_mut().add("review", "需要人工复核。");
+                }
+                Ok(())
+            })?;
+            Ok(Vec::new())
+        })
+    }
+}
+
+fn store_aware(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("value", [Rule::required(), Rule::data_aware(MatchesConfirmation::default())])?
+            .field("status", [Rule::required(), Rule::validator_aware(NeedsReview::default())])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+```
+
+For a rule implementing both traits, `set_data` runs before `set_validator`, followed by `validate`. Normal missing/blank/nullable skipping also skips setters; implicit rules follow their existing scheduling. Setters take `&mut self` and return `ValidationResult<()>` so failures propagate through the existing exception pipeline. Stateful rule instances are serialized only while their setters and validation execute; ordinary rules do not take that lock.
+
+`ValidatorHandle::with` safely reads or mutates the original validator, including values, messages and its error bag. `with_async` also supports an asynchronous borrow. Nested conflicting borrows return an error instead of waiting forever. The handle works only in its current rule task; it becomes invalid after completion or cancellation and is not inherited by spawned tasks. Recursive validation of the same running validator is rejected. `RuleContext` and supplied `Data` are immutable snapshots; use the handle for live state after a mutation. Subsequent rules read the updated value, and cancellation restores the original validator to the caller.
+
+`RuleContext::file()` exposes the uploaded file associated with the original value passed to the rule, even if a setter replaces that field. `context.data` reflects the snapshot taken after the setters; the handle provides the current validator state. Canonical escaped paths stay internal while the rule receives the display attribute name.
+
 ## Message Bags {#message-bags}
 
 Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `into_messages()` only when flattening is intended.
@@ -436,7 +515,7 @@ Use `accepted_if`, `declined_if`, `missing_if`, `missing_unless`, `missing_with`
 
 Use `get_data`, `get_value`, and `get_rules` to inspect input and expanded rules. `get_rules` returns ordered `(attribute, rules)` pairs using native escaped paths. `set_value` updates one concrete path; wildcards are rejected. `set_data` replaces the input and restores the rules supplied to `set_rules` or the factory. `add_rules` merges temporary rules; `append_rules` also makes the merged declarations the next reset baseline.
 
-`set_custom_messages` merges messages. `set_attribute_names` and `set_value_names` replace their maps, while `add_custom_attributes` and `add_custom_values` merge at the field level. `get_translator` and `set_translator` expose the translator used for errors. Mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
+`set_custom_messages` merges messages. `set_attribute_names` and `set_value_names` replace their maps, while `add_custom_attributes` and `add_custom_values` merge at the field level. `get_translator` and `set_translator` expose the translator used for errors. Outside an active validation pass, mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
 
 `get_exception` and `set_exception` use a typed function `fn(MessageBag, Option<&Translator>) -> ValidationException`. It can customize the actual rejection status, error bag, and redirect. The return type replaces runtime exception class names and inheritance; each validator keeps its own factory.
 

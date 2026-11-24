@@ -483,9 +483,9 @@
         {
           "anchor": "rule-builders",
           "title": "Rule Builders",
-          "status": "verified_tutorial_scope",
+          "status": "partially_verified_remaining_factories",
           "contract": [
-            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+            "已验StringRule/ArrayRule/Numeric/Date及参数化和条件对象；其余基础工厂、Confirmed/CurrentPassword等继续核对"
           ],
           "evidence": [
             "README.md"

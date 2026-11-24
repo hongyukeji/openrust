@@ -61,10 +61,18 @@ pub type Value = serde_json::Value;
 /// The data available to a custom validation rule.
 pub struct RuleContext<'a> {
     pub data: &'a Data,
+    pub(crate) original_data: Option<&'a Data>,
     pub(crate) translator: Option<&'a crate::translation::Translator>,
     pub(crate) attribute: &'a str,
     pub(crate) messages: &'a std::collections::BTreeMap<String, String>,
     pub(crate) attributes: &'a std::collections::BTreeMap<String, String>,
+}
+
+impl RuleContext<'_> {
+    /// 与传入规则的原始值对应的文件句柄，即使setter替换了当前字段也保留。
+    pub fn file(&self) -> Option<&crate::http::UploadedFile> {
+        self.original_data.unwrap_or(self.data).file(self.attribute)
+    }
 }
 
 /// A custom rule failure with a translation key or literal message.
@@ -157,3 +165,7 @@ pub use rule_builder::RuleBuilder;
 
 mod conditional_rules;
 pub use conditional_rules::{ConditionalRules, RuleCondition};
+
+mod aware_rule;
+mod validator_handle;
+pub use validator_handle::ValidatorHandle;
