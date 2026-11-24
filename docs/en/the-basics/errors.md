@@ -318,3 +318,64 @@ pub async fn recover_order() -> Result<Response, HttpError> {
     Response::json(StatusCode::OK, serde_json::json!({"recovered": true}))
 }
 ```
+
+
+## Methods on exception types {#exception-type-behavior}
+
+Implement `ExceptionBehavior` and register the concrete type once with `use_exception::<E>()` in `with_exceptions`. Rust’s standard `Error` does not expose optional methods; explicit type metadata replaces that reflection. The handler calls the methods on the original instance. Its `report` runs before global report callbacks: `Stop` means handled, while `Continue` uses ordinary callbacks and logging. A `render` result takes precedence over global renderers; `None` permits their normal fallback. Type context is computed once for a report and merged before global context and the default-guard user ID. Repeated registration is harmless and application-local. The runtime Exceptions facade provides the same registration.
+
+Implement `ShouldntReport` for an ignored type and call `into_exception()` before passing it through an erased `Error` boundary. This keeps the marker and actual shared instance together; no separate ignore callback is needed. Passing the raw type without this conversion cannot preserve its marker through Rust’s standard trait object. `SharedException::unreported(error)` is the explicit constructor alternative. Ignoring affects reporting, not HTTP rendering; mapping to another root type applies that new type’s policy.
+
+```rust
+use std::{error::Error, fmt};
+use openrust::{
+    contracts::debug::{ExceptionBehavior, ShouldntReport},
+    foundation::configuration::{Exceptions, ReportDecision},
+    http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+    log::LogContext,
+};
+
+#[derive(Debug)]
+pub struct OrderError { pub handled: bool }
+impl fmt::Display for OrderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str("订单无效。") }
+}
+impl Error for OrderError {}
+impl ExceptionBehavior for OrderError {
+    fn report(&self) -> ReportDecision {
+        if self.handled {
+            eprintln!("已由订单监控处理。");
+            ReportDecision::Stop
+        } else { ReportDecision::Continue }
+    }
+    fn render(&self, request: &Request) -> Option<Response> {
+        request.is("api/orders/render").then(||
+            Response::new(StatusCode::CONFLICT, Body::from("订单校验失败。")))
+    }
+    fn context(&self) -> LogContext {
+        [("order_id".into(), 7.into())].into_iter().collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct QuietError;
+impl fmt::Display for QuietError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str("无需报告的订单异常。") }
+}
+impl Error for QuietError {}
+impl ShouldntReport for QuietError {}
+
+pub fn configure(exceptions: &mut Exceptions) {
+    exceptions.use_exception::<OrderError>();
+}
+
+pub fn reject_order(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let kind = request.route("kind").unwrap_or_default();
+        let source: Box<dyn Error + Send + Sync> = if kind == "quiet" {
+            Box::new(QuietError.into_exception())
+        } else { Box::new(OrderError { handled: kind == "handled" }) };
+        Err(HttpError::Internal { source })
+    })
+}
+```

@@ -196,6 +196,14 @@ impl Exceptions {
             configuration.render(callback);
         })
     }
+    /// 为当前应用注册异常类型自身的报告、渲染和上下文方法。
+    pub fn use_exception<E: crate::contracts::debug::ExceptionBehavior>()
+    -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.use_exception::<E>();
+        })
+    }
+
     pub fn dont_report<E: Error + 'static>() -> Result<(), BindingResolutionError> {
         Self::configure(|configuration| {
             configuration.dont_report::<E>();

@@ -183,7 +183,7 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 | --- | --- | --- |
 | URL Generation：固定教程14节 | 已逐项闭合；保留APP_URL优先与previous同源策略，不等于完整类API／全框架发布 | [最终教程核对](../audits/docs-tutorials/final-review-2026-11-24.md) |
 | Validation：固定教程179节 | 已逐项闭合，含ForEach／fluent／Aware／email及关联入口；保留列明原生适配 | [最终教程核对](../audits/docs-tutorials/final-review-2026-11-24.md) |
-| Error Handling：固定教程18节 | 按依赖接续；report助手已接通，类型自身行为／标记及错误页／发布仍开放 | [逐节对账](../audits/error-tutorial/README.md) |
+| Error Handling：固定教程18节 | 按依赖接续；report助手与类型自身行为／标记已验收；错误页／发布仍开放 | [逐节对账](../audits/error-tutorial/README.md) |
 | Settings：既定类型化设置与单机／集群协调 | 功能已闭合；发布环境矩阵保留待验，不重开功能任务 | [最终闭合复核](../audits/settings-coordination/README.md) |
 | 其他章节及上述章节的剩余示例 | 依现有细分单元接续；未取得教程消费者证据的，不新增已通过结论 | [统一差异账本](framework-parity-data-2026-11-22.json) |
 

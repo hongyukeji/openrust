@@ -13,7 +13,7 @@ use crate::{
 
 /// An error with explicit, shared instance identity for duplicate reporting.
 #[derive(Clone, Debug)]
-pub struct SharedException(Arc<dyn Error + Send + Sync>, Option<&'static str>);
+pub struct SharedException(Arc<dyn Error + Send + Sync>, Option<&'static str>, bool);
 
 /// 借用的错误无法凭空取得共享所有权，不能用字符串快照代替原对象。
 #[derive(Clone, Copy, Debug)]
@@ -33,7 +33,7 @@ impl SharedException {
         if let Some(shared) = (&error as &(dyn Error + 'static)).downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(Arc::new(error), Some(std::any::type_name::<E>()))
+            Self(Arc::new(error), Some(std::any::type_name::<E>()), false)
         }
     }
 
@@ -41,7 +41,7 @@ impl SharedException {
         if let Some(shared) = error.as_ref().downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(error, None)
+            Self(error, None, false)
         }
     }
 
@@ -50,8 +50,15 @@ impl SharedException {
         if let Some(shared) = (error.as_ref() as &(dyn Error + 'static)).downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(error, Some(std::any::type_name::<E>()))
+            Self(error, Some(std::any::type_name::<E>()), false)
         }
+    }
+
+    /// 在原始实例上保留ShouldntReport，不转成消息或重新包装其身份。
+    pub fn unreported<E: super::ShouldntReport>(error: E) -> Self {
+        let mut shared = Self::new(error);
+        shared.2 = true;
+        shared
     }
 
     pub fn from_exception(exception: &Exception<'_>) -> Result<Self, ExceptionOwnershipError> {
@@ -112,6 +119,24 @@ impl<'a> Exception<'a> {
             Self::Mapped(error) => *error,
             Self::Error(error) | Self::Typed(error, _) => *error,
         }
+    }
+
+    /// 只穿过框架透明传输包装；不会因业务source含被忽略错误而忽略外层类型。
+    pub(crate) fn suppresses_reporting(&self) -> bool {
+        let mut error = self.error();
+        for _ in 0..32 {
+            if let Some(shared) = error.downcast_ref::<SharedException>() {
+                if shared.2 {
+                    return true;
+                }
+                error = shared.0.as_ref();
+            } else if let Some(HttpError::Internal { source }) = error.downcast_ref::<HttpError>() {
+                error = source.as_ref();
+            } else {
+                return false;
+            }
+        }
+        false
     }
 
     pub(crate) fn root_error(&self) -> &(dyn Error + 'static) {

@@ -318,3 +318,64 @@ pub async fn recover_order() -> Result<Response, HttpError> {
     Response::json(StatusCode::OK, serde_json::json!({"recovered": true}))
 }
 ```
+
+
+## 异常类型自身的方法 {#exception-type-behavior}
+
+实现 `ExceptionBehavior`，并在 `with_exceptions` 中用 `use_exception::<E>()` 注册具体类型一次。标准 `Error` 不公开可选方法，因而使用显式类型元数据替代反射。处理器在原实例上调用方法。自身 `report` 先于全局报告回调：`Stop` 表示已处理，`Continue` 使用普通回调和日志。自身 `render` 优先于全局渲染器，`None` 允许正常回退。类型上下文每次报告计算一次，先于全局上下文和默认 guard 用户 ID 合并。重复注册无副作用且按应用隔离；运行期 Exceptions 门面也提供同一注册入口。
+
+对忽略类型实现 `ShouldntReport`，并在经过类型擦除的 `Error` 边界之前调用 `into_exception()`。这样标记与原始共享实例一起保留，无需额外配置忽略回调。未经转换直接传递原类型，标准 trait 对象无法恢复这一标记。也可显式调用 `SharedException::unreported(error)`。忽略只影响报告，不阻止 HTTP 渲染；映射成另一根类型后采用新类型的策略。
+
+```rust
+use std::{error::Error, fmt};
+use openrust::{
+    contracts::debug::{ExceptionBehavior, ShouldntReport},
+    foundation::configuration::{Exceptions, ReportDecision},
+    http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+    log::LogContext,
+};
+
+#[derive(Debug)]
+pub struct OrderError { pub handled: bool }
+impl fmt::Display for OrderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str("订单无效。") }
+}
+impl Error for OrderError {}
+impl ExceptionBehavior for OrderError {
+    fn report(&self) -> ReportDecision {
+        if self.handled {
+            eprintln!("已由订单监控处理。");
+            ReportDecision::Stop
+        } else { ReportDecision::Continue }
+    }
+    fn render(&self, request: &Request) -> Option<Response> {
+        request.is("api/orders/render").then(||
+            Response::new(StatusCode::CONFLICT, Body::from("订单校验失败。")))
+    }
+    fn context(&self) -> LogContext {
+        [("order_id".into(), 7.into())].into_iter().collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct QuietError;
+impl fmt::Display for QuietError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str("无需报告的订单异常。") }
+}
+impl Error for QuietError {}
+impl ShouldntReport for QuietError {}
+
+pub fn configure(exceptions: &mut Exceptions) {
+    exceptions.use_exception::<OrderError>();
+}
+
+pub fn reject_order(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let kind = request.route("kind").unwrap_or_default();
+        let source: Box<dyn Error + Send + Sync> = if kind == "quiet" {
+            Box::new(QuietError.into_exception())
+        } else { Box::new(OrderError { handled: kind == "handled" }) };
+        Err(HttpError::Internal { source })
+    })
+}
+```

@@ -85,18 +85,12 @@
     },
     {
       "anchor": "exception-log-context",
-      "status": "pending_contract_gap",
-      "contract": "异常自身context的显式类型注册与默认报告联动继续核对",
+      "status": "verified_tutorial_scope",
+      "contract": "ExceptionBehavior原实例report/render/context、use_exception类型注册与ShouldntReport所有权转换；非反射的明确原生适配",
       "evidence": [
-        "report_helper",
-        "error_docs_generated",
-        "exception_reporting",
-        "exception_rendering",
-        "exceptions_facade",
-        "exception_context_facade",
-        "exception_handler_fake",
-        "exception_map_facade",
-        "without_exception_handling"
+        "exception_behavior_tutorial",
+        "exception_behavior_docs_generated",
+        "README.md#第二簇异常类型自身行为与忽略标记"
       ]
     },
     {
@@ -149,18 +143,12 @@
     },
     {
       "anchor": "ignoring-exceptions-by-type",
-      "status": "pending_contract_gap",
-      "contract": "ShouldntReport标记未提供原生契约，不能以dont_report回调代替",
+      "status": "verified_tutorial_scope",
+      "contract": "ExceptionBehavior原实例report/render/context、use_exception类型注册与ShouldntReport所有权转换；非反射的明确原生适配",
       "evidence": [
-        "report_helper",
-        "error_docs_generated",
-        "exception_reporting",
-        "exception_rendering",
-        "exceptions_facade",
-        "exception_context_facade",
-        "exception_handler_fake",
-        "exception_map_facade",
-        "without_exception_handling"
+        "exception_behavior_tutorial",
+        "exception_behavior_docs_generated",
+        "README.md#第二簇异常类型自身行为与忽略标记"
       ]
     },
     {
@@ -213,18 +201,12 @@
     },
     {
       "anchor": "renderable-exceptions",
-      "status": "pending_contract_gap",
-      "contract": "异常类型自身report/render尚无专用接线，不能以bootstrap回调替代",
+      "status": "verified_tutorial_scope",
+      "contract": "ExceptionBehavior原实例report/render/context、use_exception类型注册与ShouldntReport所有权转换；非反射的明确原生适配",
       "evidence": [
-        "report_helper",
-        "error_docs_generated",
-        "exception_reporting",
-        "exception_rendering",
-        "exceptions_facade",
-        "exception_context_facade",
-        "exception_handler_fake",
-        "exception_map_facade",
-        "without_exception_handling"
+        "exception_behavior_tutorial",
+        "exception_behavior_docs_generated",
+        "README.md#第二簇异常类型自身行为与忽略标记"
       ]
     },
     {

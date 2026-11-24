@@ -20,3 +20,15 @@ let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let add
 (source/'vendor/openrust/framework/tests/error_docs_generated.rs').write_text('\n'.join(parts))
 
 subprocess.run(["rustfmt", "+1.94.0", "--edition", "2024", str(source/"vendor/openrust/framework/tests/error_docs_generated.rs")], check=True)
+
+# 类型自身的方法直接使用同一正式Markdown代码，另生成独立真实HTTP消费者。
+parts=[]
+for language in ['en','zh-Hans','zh-Hant']:
+ text=(source/'docs'/language/'the-basics/errors.md').read_text().split('{#exception-type-behavior}',1)[1]
+ code=re.search(r'```rust\n(.*?)```',text,re.S).group(1)
+ test=r"""
+fn routes()->Result<(),openrust::routing::RoutingError>{openrust::support::facades::Route::get("/orders/{kind}",reject_order)}
+#[tokio::test]async fn formal_type_behavior_and_ignored_marker_execute_in_http(){use axum::handler::Handler as _;use openrust::{contracts::http::Kernel as _,foundation::{Application,configuration::Routing,http::Kernel}};use std::sync::Arc;use tokio::io::{AsyncReadExt as _,AsyncWriteExt as _};let root=tempfile::tempdir().unwrap();let mut kernel=Kernel::new(Application::configure(root.path().into()).with_exceptions(configure).with_routing(Routing::default().api(routes)).create().unwrap());kernel.bootstrap().await.unwrap();async fn transport(axum::extract::State(kernel):axum::extract::State<Arc<Kernel>>,request:axum::extract::Request)->axum::response::Response{kernel.handle_transport(request).await}let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();let server=tokio::spawn(async move{axum::serve(listener,transport.with_state(Arc::new(kernel)).into_make_service()).await.unwrap();});for(kind,status)in[("default",500),("render",409),("handled",500),("quiet",500)]{let mut socket=tokio::net::TcpStream::connect(address).await.unwrap();socket.write_all(format!("GET /api/orders/{kind} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();let mut response=String::new();socket.read_to_string(&mut response).await.unwrap();assert!(response.starts_with(&format!("HTTP/1.1 {status}")),"{response}");if kind=="render"{assert!(response.contains("订单校验失败。"));}}let log=std::fs::read_to_string(root.path().join("storage/logs/app.log")).unwrap();assert_eq!(log.lines().count(),2,"{log}");assert_eq!(log.matches("\"order_id\":7").count(),2,"{log}");server.abort();let _=server.await;}
+"""
+ parts.append('mod '+language.replace('-','_').lower()+'{'+code+test+'}')
+target=source/'vendor/openrust/framework/tests/exception_behavior_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)

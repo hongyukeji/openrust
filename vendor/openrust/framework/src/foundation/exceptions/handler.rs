@@ -264,6 +264,9 @@ impl Handler {
     }
 
     fn allowed(&self, exception: &Exception<'_>) -> bool {
+        if exception.suppresses_reporting() {
+            return false;
+        }
         let default = exception.downcast_ref::<HttpResponseException>().is_none()
             && exception
                 .downcast_ref::<HttpError>()

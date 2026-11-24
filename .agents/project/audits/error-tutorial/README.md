@@ -21,3 +21,12 @@ URL Generation与Validation已按两个固定章节闭合，不重开。按交�
 
 
 提交后复核：第一簇ea9e11d72的父提交已推进到5e1144182，旧候选整文件暂存误删了该父提交刚增加的support::data_forget_parts私有导出。工作区字节未被改写，该行仍存在；现以当前完整HEAD归档＋仅恢复此导出构造独立快照，cargo check --lib已通过（32.09s），立即单独恢复提交，不把这种跨批回退当作合理差异。后续共享文件候选须以最新HEAD为底只应用本批差异，并逐块核对非本批段与父提交相同，不能只核定本批路径。原始对账和失败证据保持。
+
+
+## 第二簇：异常类型自身行为与忽略标记
+
+固定Handler的实例report／render和context不能仅以bootstrap回调代替。新增公开contracts::debug::ExceptionBehavior及Configuration/Facade的use_exception::<E>，注册一次具体类型元数据，报告和渲染都借用原异常，不生成相同字段的替身。自身report先于全局回调，Stop表示已处理，Continue使用原回调和默认日志；render返回None则接续全局渲染器／默认响应。context先于全局字段和默认guard身份，每次实际报告只计算一次，不在诊断序列化时重复执行；保留原类型名登记。重复注册无重复副作用，两应用隔离。
+
+新增ShouldntReport独立契约；标准Error类型擦除无法自动发现额外trait，因此into_exception()／SharedException::unreported是明确的原生所有权边界，不谎称裸类型实现marker后自动可识别。标记和原始Arc身份一起保留，new/from_arc/from_typed_arc及clone均保持。标准处理器在限流／回调／日志之前忽略；stop_ignoring不能取消类型自身标记。只穿过框架透明传输层，不因业务source包含被忽略错误而忽略外层类型；映射为新根后按新根策略判断。没有更改序列化字段、事件、CLI或错误显示文本。Rust报告方法用ReportDecision替代PHP的void／bool，依赖可由构造器经已有容器取得，不反射参数签名；这不是缺方法的替代写法。
+
+四项专项含真实TCP、Artisan exceptions:own-methods、实例／全局顺序、None回退、具名context、一次调用、所有权构造器、映射、外层source和运行期Facade／应用隔离；三语正式完整代码直接提取编译并以真实TCP分别核对500／409、已处理／忽略及原日志。13目标102项0忽略通过，含原93项及已提交API前缀2项；先前API封装断言失败已随5e1144182的完整已提交配套进入快照，现复验通过，不再作为该范围阻塞。workspace/all-targets严格Clippy54.20s、fmt、三语构建／浏览器、实际main及Artisan inspire全0。证据behavior-{tests-v2,doc-tests,consumers,clippy,gates,browser}.log；首次测试Body／LogContext／异步App::make使用错误已纠正，不计通过。本簇不包含尚未验收的错误页对象、默认页面／发布、渲染失败处理；后两节继续开放。

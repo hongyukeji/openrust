@@ -70,6 +70,10 @@ pub struct Exceptions {
     mappings: Vec<Mapping>,
     inner_exceptions: Vec<Mapping>,
     reporters: Vec<Arc<Reporter>>,
+    exception_types: Vec<TypeId>,
+    exception_reporters: Vec<Arc<Reporter>>,
+    exception_renderers: Vec<Arc<Renderer>>,
+    behavior_context: Vec<Arc<Context>>,
     throttles: Vec<Arc<Throttle>>,
     ignored: Vec<Rule>,
     unignored: Vec<Rule>,
@@ -86,6 +90,33 @@ pub struct Exceptions {
 }
 
 impl Exceptions {
+    /// 注册异常类型自身的方法；显式元数据替代可选方法反射，不改变实际错误实例。
+    pub fn use_exception<E: crate::contracts::debug::ExceptionBehavior>(&mut self) -> &mut Self {
+        if self.exception_types.contains(&TypeId::of::<E>()) {
+            return self;
+        }
+        self.exception_types.push(TypeId::of::<E>());
+        self.exception_reporters.push(Arc::new(|exception| {
+            exception
+                .downcast_ref::<E>()
+                .map_or(ReportDecision::Continue, E::report)
+        }));
+        self.exception_renderers
+            .push(Arc::new(|exception, request| {
+                exception
+                    .downcast_ref::<E>()
+                    .and_then(|error| error.render(request))
+            }));
+        // 类型名复用原诊断注册；实例context仅在报告上下文构造时调用一次。
+        self.exception_context::<E>(|_| LogContext::new());
+        self.behavior_context.push(Arc::new(|exception, _| {
+            exception
+                .downcast_ref::<E>()
+                .map_or_else(LogContext::new, E::context)
+        }));
+        self
+    }
+
     /// 同类型重新注册覆盖原回调并保留其顺序；只应用首个匹配映射。
     pub fn map<E, M>(&mut self, callback: impl Fn(&E) -> M + Send + Sync + 'static) -> &mut Self
     where
@@ -357,6 +388,9 @@ impl Exceptions {
 
     pub(crate) fn report_context(&self, exception: &Exception<'_>) -> LogContext {
         let mut context = self.node_context(exception.root_error()).1;
+        for callback in &self.behavior_context {
+            context.extend(callback(exception, &context));
+        }
         for callback in &self.context {
             context.extend(callback(exception, &context));
         }
@@ -436,8 +470,9 @@ impl Exceptions {
     }
 
     pub(crate) fn should_continue_reporting(&self, exception: &Exception<'_>) -> bool {
-        self.reporters
+        self.exception_reporters
             .iter()
+            .chain(&self.reporters)
             .all(|report| report(exception) == ReportDecision::Continue)
     }
 
@@ -446,8 +481,9 @@ impl Exceptions {
         exception: &Exception<'_>,
         request: &Request,
     ) -> Option<Response> {
-        self.renderers
+        self.exception_renderers
             .iter()
+            .chain(&self.renderers)
             .find_map(|render| render(exception, request))
     }
 
