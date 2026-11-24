@@ -951,3 +951,70 @@ fn store_password(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
 使用 `letters`、`mixed_case`、`numbers`、`symbols`、`max`、`when`、`unless` 和 `when_else` 組合策略。`rules` 取代前一批附加規則。基本與附加規則使用原驗證工廠，包含自訂訊息和 aware 規則；複雜度檢查仍讀取原密碼。迭代策略取得基本與附加規則，複雜度和外洩檢查屬於策略本身。`applied_rules()` 傳回型別化狀態，`to_password_rules_string()` 產生 HTML `passwordrules` 屬性。
 
 附加 `.uncompromised(0)` 拒絕任何已知外洩，傳入較高閾值則允許出現不超過該次數。預設驗證器只向外洩範圍 API 傳送 SHA-1 大寫雜湊的前五位並啟用填充，基本規則失敗時不查詢。依固定機制，連線例外會報告；服務無法連線或回應不成功時允許密碼通過，因此此檢查是本地策略的補充。預設逾時 30 秒。可替換 `UncompromisedVerifier` 契約接入其他來源；獨立工廠可呼叫 `set_uncompromised_verifier`。Trait 明確接收值與有號閾值，取代動態資料陣列。預設策略與繫結按應用隔離，不使用行程全域可變狀態。
+
+## 直接驗證與手動錯誤重新導向 {#direct-validator-entries}
+
+`Validator::validate` 建立並執行目前應用設定的驗證器；自訂訊息與欄位名稱使用 `validate_with`。`Factory::validate` 明確接收四個參數。具體驗證器的 `passes().await` 重新執行驗證，傳回與 `fails()` 相反的結果。
+
+```rust
+use openrust::{
+    contracts::validation::Validator as _,
+    foundation::http::FormRequest,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::{Redirect, Validator},
+    validation::{AfterValidation, AfterValidationRule, Data, RuleSet, ValidationResult},
+};
+
+fn validate_article(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = Validator::validate(
+            Data::from_request(request).await?,
+            RuleSet::parse([("title", "required|string|min:3")])?,
+        ).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+
+fn save_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut validator = Validator::make(
+            Data::from_request(request).await?,
+            RuleSet::parse([("title", "required|string|min:3")])?,
+        )?;
+        if !validator.passes().await? {
+            return Ok(Redirect::to("/edit", Default::default())?
+                .with_errors(request, &validator, "article")?
+                .with_input(request, None).await?.into());
+        }
+        Response::json(StatusCode::CREATED, validator.validated()?)
+    })
+}
+
+struct CheckTitle;
+impl AfterValidationRule for CheckTitle {
+    fn after(&self, validator: &mut openrust::validation::Validator) -> ValidationResult<()> {
+        if validator.get_value("title")?.and_then(|value| value.as_str()) == Some("blocked") {
+            validator.errors_mut().add("title", "Title is blocked.");
+        }
+        Ok(())
+    }
+}
+
+struct StoreArticle;
+impl FormRequest for StoreArticle {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("title", "required|string")])
+    }
+    fn after(&self) -> Vec<AfterValidation> {
+        vec![CheckTitle.into_callback()]
+    }
+}
+fn validate_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = StoreArticle.validate_resolved(request).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
+
+`with_errors` 接收驗證器、`MessageProvider`、訊息包或訊息陣列，例如 `[("title", "標題無效。")]`。既有訊息包保持借用直到工作階段儲存，適配器不會先複製一次。請求與錯誤包名稱需明確提供。`after_many` 附加盒裝回呼清單；`after_rule` 和 `after_rules` 註冊實作 `AfterValidationRule` 的服務。在 Form Request 中，`into_callback()` 將服務轉換為原回呼型別並保留其清單順序。這些入口適配動態可呼叫物件，不改變執行順序或驗證管線。

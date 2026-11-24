@@ -42,6 +42,20 @@ impl Factory {
         }
     }
 
+    /// 创建并执行验证器，复用make的解析、扩展与错误管线。
+    pub async fn validate(
+        &self,
+        data: Data,
+        rules: RuleSet,
+        messages: BTreeMap<String, String>,
+        attributes: BTreeMap<String, String>,
+    ) -> ValidationResult<super::ValidatedInput> {
+        use crate::contracts::validation::Validator as _;
+        self.make(data, rules, messages, attributes)?
+            .validate()
+            .await
+    }
+
     /// 默认策略按应用保存；调用回调时不持有注册锁。
     pub fn set_password_defaults(
         &self,

@@ -401,3 +401,17 @@ Password::defaults读取当前应用策略，set_defaults注册Fn()->Password回
 password/gates-final.log九阶段全0：MySQL8.4.13十八目标81项0忽略，workspace/all-targets严格Clippy／fmt、三语构建浏览器、实际main与Artisan帮助／inspire成功。最后新增公开迭代器与四种默认入口断言后，final-public.log四阶段全0：10项实际消费者、最终Clippy／fmt通过。早期缺泄漏回退文案、usize尺寸转换、测试ConsoleError转换及测试宏的Clippy问题均修复复验，失败日志保留。证据target/tmp/docs-chapters-20261124/password/；最终SHA一致，无本批存活容器或HTTP服务，临时源码／日志与热缓存保留。
 
 本批关闭Password教程策略簇。完整章节人工复核另外发现Factory/Facade::validate和Validator::passes教程专用入口缺失，以及after回调列表、RedirectResponse::with_errors的Validator／数组消费者适配仍需核对修复；不以原make→validate绕行或errors()摘取关闭这些例子。全章逐节对账继续，本记录不是整个Validator／Factory类未入教程API的完整性声明。
+
+## 第二十三组：教程专用执行入口、后置服务与重定向消息消费者（2026-11-24）
+
+全文核查文件／encoding例子发现源文档直接调用Factory及Validator Facade的validate；此前只有make后手动validate，不是同一公开入口。新增Factory::validate与Facade::validate/validate_with，均委托原make执行，不建立第二套验证器。实例passes委托已有fails并取反，执行重新验证；实际手动空字符串unique示例不访问数据库。具体messages为已有错误包别名。
+
+固定Validator::after和FormRequest::after的数组／服务对象消费者另行核查：after保持原闭包类型与推断，after_many接通已有Box回调列表，新增AfterValidationRule显式服务契约、after_rule／after_rules；into_callback接入原FormRequest回调列表，服务与闭包可按原顺序混合。稳定Rust不能自行实现对象调用运算符，因此通过具名trait表达__invoke；不修改原AfterValidation别名，不要求开发者手写平行调度器。
+
+固定Contracts/Support/MessageProvider与RedirectResponse::withErrors接受Validator／MessageProvider／MessageBag／数组。新增真正的MessageProvider契约，Validator contract通过其原errors自动提供get_message_bag，外部原四方法实现无需追加样板；具体MessageBag也实现该契约。with_errors使用MessageSource的借用或拥有适配，既有消息包／验证器不增加一次克隆，实际ptr::eq验证借用；只有数组在边界构造原MessageBag。原生数组/BTreeMap支持单条字符串及多条字符串，复用已有去重、具名包与会话存储，不改数据格式、Session接口或原重定向行为。
+
+实际TCP覆盖Facade直接成功／422、自定义消息／属性、passes空串及multipart encoding。真实Web按七种输入分别验证302、具名错误包、旧输入读取及下一次请求回收，包含dyn Validator和自定义MessageProvider；MySQL8.4.13专项通过OPENRUST_TEST_SESSION_MYSQL_URL显式接通实际database session，不把数组驱动当数据库验收。后置服务／列表／FormRequest均按实际入口验收，三语正式Provider之外新增直接验证／重定向／after服务示例由tests/validation_entries_docs.py直接提取，并执行实际HTTP Kernel，无平行示例实现。
+
+final-entries/gates.log九阶段全0：25目标112项0忽略（含MySQL presence与Web session，其他目标依其原夹具），workspace/all-targets严格Clippy52.38s、fmt、三语构建浏览器、实际main及Artisan帮助／inspire成功。首轮新增Web夹具漏导入Validator trait已修复，不以未编译消费者计通过。源／测试／三语与冻结快照SHA一致，证据target/tmp/docs-chapters-20261124/final-entries/，本批MySQL和HTTP服务退出。没有宣称未改动数据库驱动的发布矩阵已通过。
+
+全章审查继续发现sometimes多字段参数仍只接受单字段，以及内联消息碰撞／通配规则名优先级需要固定源码反例核对，登记下一簇，不以循环调用或精确查找绕行宣称完成。公开类型未入教程的其他完整API审计仍属原对账范围，本批不宣称整个Validator类已齐。两个章节的最终逐节结论待下一簇及最终组合复核。

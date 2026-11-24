@@ -350,6 +350,34 @@ impl Validator {
         self
     }
 
+    /// 按声明顺序追加同一批后置回调。
+    pub fn after_many(
+        &mut self,
+        callbacks: impl IntoIterator<Item = super::AfterValidation>,
+    ) -> &mut Self {
+        self.after.extend(callbacks.into_iter().map(Arc::from));
+        self
+    }
+    pub fn after_rule(&mut self, rule: impl super::AfterValidationRule + 'static) -> &mut Self {
+        self.after_many([rule.into_callback()])
+    }
+    pub fn after_rules<R: super::AfterValidationRule + 'static>(
+        &mut self,
+        rules: impl IntoIterator<Item = R>,
+    ) -> &mut Self {
+        self.after_many(
+            rules
+                .into_iter()
+                .map(super::AfterValidationRule::into_callback),
+        )
+    }
+    pub async fn passes(&mut self) -> ValidationResult<bool> {
+        self.fails().await.map(|fails| !fails)
+    }
+    pub fn messages(&self) -> &MessageBag {
+        &self.errors
+    }
+
     pub fn stop_on_first_failure(&mut self, stop: bool) -> &mut Self {
         self.stop_on_first_failure = stop;
         self

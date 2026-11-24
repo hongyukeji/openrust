@@ -285,9 +285,13 @@
         {
           "anchor": "performing-additional-validation-on-form-requests",
           "title": "Performing Additional Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原after队列、回调列表和AfterValidationRule服务；FormRequest真实后置消费者"
+          ],
+          "evidence": [
+            "README.md#第二十三组教程专用执行入口后置服务与重定向消息消费者2026-11-24"
+          ]
         },
         {
           "anchor": "request-stopping-on-first-validation-rule-failure",
@@ -394,9 +398,13 @@
         {
           "anchor": "performing-additional-validation",
           "title": "Performing Additional Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原after队列、回调列表和AfterValidationRule服务；FormRequest真实后置消费者"
+          ],
+          "evidence": [
+            "README.md#第二十三组教程专用执行入口后置服务与重定向消息消费者2026-11-24"
+          ]
         },
         {
           "anchor": "working-with-validated-input",

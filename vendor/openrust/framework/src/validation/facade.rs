@@ -14,6 +14,21 @@ impl Facade for Validator {
 }
 
 impl Validator {
+    pub async fn validate(data: Data, rules: RuleSet) -> ValidationResult<super::ValidatedInput> {
+        Self::validate_with(data, rules, Default::default(), Default::default()).await
+    }
+    pub async fn validate_with(
+        data: Data,
+        rules: RuleSet,
+        messages: std::collections::BTreeMap<String, String>,
+        attributes: std::collections::BTreeMap<String, String>,
+    ) -> ValidationResult<super::ValidatedInput> {
+        let factory = Self::get_facade_root().map_err(|source| ValidationError::Execution {
+            source: Box::new(source),
+        })?;
+        factory.validate(data, rules, messages, attributes).await
+    }
+
     pub fn make(data: Data, rules: RuleSet) -> ValidationResult<super::Validator> {
         Self::make_with(data, rules, Default::default(), Default::default())
     }

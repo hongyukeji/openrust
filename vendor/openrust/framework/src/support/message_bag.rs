@@ -279,3 +279,9 @@ impl fmt::Display for MessageBag {
         f.write_str(&self.to_json().map_err(|_| fmt::Error)?)
     }
 }
+
+impl crate::contracts::support::MessageProvider for MessageBag {
+    fn get_message_bag(&self) -> &Self {
+        self
+    }
+}

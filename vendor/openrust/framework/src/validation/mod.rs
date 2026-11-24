@@ -174,3 +174,6 @@ pub use validator_handle::ValidatorHandle;
 
 mod not_pwned_verifier;
 pub use not_pwned_verifier::NotPwnedVerifier;
+
+mod after_validation_rule;
+pub use after_validation_rule::AfterValidationRule;

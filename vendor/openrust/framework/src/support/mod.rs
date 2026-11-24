@@ -26,6 +26,7 @@ mod lazy_collection;
 mod lottery;
 pub(crate) mod markdown;
 mod message_bag;
+mod message_source;
 mod number;
 pub(crate) mod publishing;
 mod service_provider;
@@ -67,6 +68,7 @@ pub use lazy_collection::{
 pub use lottery::{InvalidLottery, Lottery, LotteryChance};
 pub use markdown::{MarkdownHtml, MarkdownOptions};
 pub use message_bag::{MessageBag, MessageKeys, MessageLookup};
+pub use message_source::{IntoMessageLines, MessageSource};
 pub use number::{Number, NumberError, NumberValue};
 pub use service_provider::{ProviderFactory, ProviderResult, ServiceProvider};
 pub use sleep::{Sleep, SleepFake};

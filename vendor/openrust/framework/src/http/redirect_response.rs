@@ -10,7 +10,7 @@ use crate::{
     contracts::session::Session as _,
     cookie::Cookie,
     routing::{UrlError, UrlResult, valid_http_url},
-    support::{Arr, MessageBag, Uri, data_forget},
+    support::{Arr, Uri, data_forget},
 };
 
 use super::{Body, HeaderMap, HttpError, Request, Response, StatusCode};
@@ -198,15 +198,16 @@ impl RedirectResponse {
     }
 
     /// Flashes an error bag without replacing other named bags.
-    pub fn with_errors(
+    pub fn with_errors<'a>(
         self,
         request: &mut Request,
-        errors: &MessageBag,
+        errors: impl Into<crate::support::MessageSource<'a>>,
         bag: &str,
     ) -> UrlResult<Self> {
+        let errors = errors.into();
         request
             .session_mut()
-            .and_then(|session| session.flash_errors(bag, errors))
+            .and_then(|session| session.flash_errors(bag, errors.as_ref()))
             .map_err(UrlError::Session)?;
         Ok(self)
     }

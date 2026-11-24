@@ -10,7 +10,7 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{
         container::Container as _, foundation::Application as _, http::Kernel as _,
-        session::Session,
+        session::Session, validation::Validator as _,
     },
     database::{Connection, DatabaseManager},
     foundation::{
@@ -38,6 +38,7 @@ fn web() -> Result<(), RoutingError> {
     Route::post("/explicit", explicit)?;
     Route::post("/manual", manual)?;
     Route::post("/custom", explicit)?;
+    Route::post("/sources/{source}", sources)?;
     Ok(())
 }
 
@@ -98,6 +99,47 @@ fn manual(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .validate_with_bag("manual")
             .await?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+struct ProvidedErrors(openrust::support::MessageBag);
+impl openrust::contracts::support::MessageProvider for ProvidedErrors {
+    fn get_message_bag(&self) -> &openrust::support::MessageBag {
+        &self.0
+    }
+}
+fn sources(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let source = request.route("source").unwrap().to_owned();
+        let mut validator = Validator::make(
+            Data::from_request(request).await?,
+            RuleSet::parse([("name", "required")])?,
+        )?;
+        if validator.passes().await? {
+            return Ok(Response::empty(StatusCode::NO_CONTENT));
+        }
+        let redirect = openrust::support::facades::Redirect::to("/edit", Default::default())?;
+        let redirect = match source.as_str() {
+            "validator" => redirect.with_errors(request, &validator, "manual")?,
+            "contract" => {
+                let validator: &dyn openrust::contracts::validation::Validator = &validator;
+                redirect.with_errors(request, validator, "manual")?
+            }
+            "bag" => redirect.with_errors(request, validator.errors(), "manual")?,
+            "provider" => redirect.with_errors(
+                request,
+                &ProvidedErrors(validator.errors().clone()),
+                "manual",
+            )?,
+            "array" => redirect.with_errors(request, [("name", ["manual custom"])], "manual")?,
+            "scalar" => redirect.with_errors(request, [("name", "manual custom")], "manual")?,
+            _ => redirect.with_errors(
+                request,
+                std::collections::BTreeMap::from([("name", vec!["manual custom"])]),
+                "manual",
+            )?,
+        };
+        Ok(redirect.with_input(request, None).await?.into())
     })
 }
 
@@ -350,4 +392,50 @@ async fn redirect_targets_custom_renderers_json_and_blade_keep_their_own_contrac
     assert!(body(&clean, 200)["errors"].is_null());
     server.close().await;
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn manual_redirect_accepts_validator_contract_provider_bag_and_message_arrays() {
+    let root = tempfile::tempdir().unwrap();
+    let (address, server) = start(root.path().to_owned()).await;
+    for source in [
+        "validator",
+        "contract",
+        "provider",
+        "bag",
+        "array",
+        "scalar",
+        "map",
+    ] {
+        let form = send(address, "GET", "/edit", "", "").await;
+        let session = session_cookie(&form);
+        let payload = r#"{"profile":{"bio":"draft"}}"#;
+        let response = send(
+            address,
+            "POST",
+            &format!("/sources/{source}"),
+            &(session + JSON),
+            payload,
+        )
+        .await;
+        assert!(response.starts_with("HTTP/1.1 302 "), "{response}");
+        assert!(response.contains("/edit\r\n"), "{response}");
+        let session = session_cookie(&response);
+        let response = body(&send(address, "GET", "/edit", &session, "").await, 200);
+        let expected = if ["array", "scalar", "map"].contains(&source) {
+            "manual custom"
+        } else {
+            "The name field is required."
+        };
+        assert_eq!(
+            response["errors"],
+            json!({"manual":{"name":[expected]}}),
+            "{source}"
+        );
+        assert_eq!(response["nested"], "draft");
+        let clean = body(&send(address, "GET", "/edit", &session, "").await, 200);
+        assert!(clean["errors"].is_null());
+        assert!(clean["old"].is_null());
+    }
+    server.close().await;
 }

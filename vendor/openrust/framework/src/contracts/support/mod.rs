@@ -37,3 +37,6 @@ pub trait DeferrableProvider {
 
 mod validated_data;
 pub use validated_data::{ArrayAccess, Arrayable, ValidatedData};
+
+mod message_provider;
+pub use message_provider::MessageProvider;

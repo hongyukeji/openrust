@@ -951,3 +951,70 @@ fn store_password(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
 Use `letters`, `mixed_case`, `numbers`, `symbols`, `max`, `when`, `unless` and `when_else` to compose a policy. `rules` replaces the previous additional rule list. Base and additional checks use the original validator factory, including custom messages and aware rules; complexity checks still inspect the original password. The policy is iterable as its base/additional rules; complexity and breach checks belong to the policy itself. `applied_rules()` returns typed settings, and `to_password_rules_string()` builds an HTML `passwordrules` attribute.
 
 Add `.uncompromised(0)` to reject any known occurrence, or pass a higher threshold to allow that many occurrences. The default verifier sends only the first five uppercase SHA-1 characters to the breach range API with padding enabled. Basic failures do not query it. As in the fixed mechanism, connection exceptions are reported and an unavailable service or unsuccessful response permits the password; this check supplements the local policy. The default timeout is 30 seconds. Override the `UncompromisedVerifier` contract for another source; standalone factories can use `set_uncompromised_verifier`. Trait arguments are an explicit value and signed threshold, not a dynamic data array. Application-local defaults and bindings isolate concurrent applications; they do not use process-global mutable state.
+
+## Direct validation and manual error redirects {#direct-validator-entries}
+
+`Validator::validate` creates and runs the configured application validator. Use `validate_with` for custom messages and labels; `Factory::validate` accepts all four explicit arguments. The concrete validator’s `passes().await` reruns validation and returns the opposite of `fails()`.
+
+```rust
+use openrust::{
+    contracts::validation::Validator as _,
+    foundation::http::FormRequest,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::{Redirect, Validator},
+    validation::{AfterValidation, AfterValidationRule, Data, RuleSet, ValidationResult},
+};
+
+fn validate_article(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = Validator::validate(
+            Data::from_request(request).await?,
+            RuleSet::parse([("title", "required|string|min:3")])?,
+        ).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+
+fn save_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut validator = Validator::make(
+            Data::from_request(request).await?,
+            RuleSet::parse([("title", "required|string|min:3")])?,
+        )?;
+        if !validator.passes().await? {
+            return Ok(Redirect::to("/edit", Default::default())?
+                .with_errors(request, &validator, "article")?
+                .with_input(request, None).await?.into());
+        }
+        Response::json(StatusCode::CREATED, validator.validated()?)
+    })
+}
+
+struct CheckTitle;
+impl AfterValidationRule for CheckTitle {
+    fn after(&self, validator: &mut openrust::validation::Validator) -> ValidationResult<()> {
+        if validator.get_value("title")?.and_then(|value| value.as_str()) == Some("blocked") {
+            validator.errors_mut().add("title", "Title is blocked.");
+        }
+        Ok(())
+    }
+}
+
+struct StoreArticle;
+impl FormRequest for StoreArticle {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([("title", "required|string")])
+    }
+    fn after(&self) -> Vec<AfterValidation> {
+        vec![CheckTitle.into_callback()]
+    }
+}
+fn validate_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = StoreArticle.validate_resolved(request).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
+
+`with_errors` accepts a validator, a `MessageProvider`, a message bag, or message arrays such as `[("title", "Invalid title.")]`. Existing bags are borrowed until session storage; the adapter does not clone them first. Specify the error bag and request explicitly. `after_many` adds a list of boxed callbacks; `after_rule` and `after_rules` register services implementing `AfterValidationRule`. In a Form Request, `into_callback()` converts that service into the existing callback type while preserving its place in the list. These methods adapt dynamic callable forms without changing callback order or the validation pipeline.
