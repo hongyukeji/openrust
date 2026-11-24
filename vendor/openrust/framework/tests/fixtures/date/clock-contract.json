@@ -1,0 +1,22 @@
+{
+  "test_now": "2024-03-10T08:00:00.000000-04:00",
+  "today": "2024-03-10T00:00:00-05:00",
+  "tomorrow": "2024-03-11T00:00:00-04:00",
+  "yesterday": "2024-03-09T00:00:00-05:00",
+  "dst_hours": 23,
+  "nested": false,
+  "after": false,
+  "error_after": false,
+  "default_with_timezone": "unknown_method",
+  "_reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "carbon": "3.10.3",
+    "carbon_commit": "8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f",
+    "runtime": "PHP 8.5.12, original Date facade/DateFactory/Carbon; no replacement clock or factory",
+    "source_sha256": {
+      "src/Illuminate/Support/DateFactory.php": "327ac0758852791f32766807e1d36e50546926b6654031f061a6f496d1b9d17b",
+      "src/Illuminate/Support/Facades/Date.php": "0fb55c088552255e2302f29a73e9761521d5353e064abe154626f0c8f0aaf93c",
+      "src/Illuminate/Support/Carbon.php": "a44878edff37bd10149b73b4572b70d70f3565b9fe999908dfdf052cc10e7278"
+    }
+  }
+}

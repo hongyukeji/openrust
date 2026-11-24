@@ -12,15 +12,15 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    support::Date,
-    support::facades::{Db, Route},
+    support::facades::{Db, Facade, Route},
+    support::{Date as DateValue, facades::Date},
     testing::TestApp,
 };
 
 type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-fn instant(text: &str) -> Date {
-    Date::from_utc(text.parse::<Timestamp>().unwrap(), jiff::tz::TimeZone::UTC)
+fn instant(text: &str) -> DateValue {
+    DateValue::from_utc(text.parse::<Timestamp>().unwrap(), jiff::tz::TimeZone::UTC)
 }
 
 fn date_text() -> Result<String, openrust::support::DateError> {
@@ -103,7 +103,11 @@ async fn fixture_time_is_visible_to_http_artisan_and_model_timestamps() -> TestR
     let mut first = app()?;
     let mut second = app()?;
     let before = instant("2024-03-09T17:00:00.123456Z");
-    first.travel_to(before.clone());
+    first.boot().await?;
+    openrust::support::facades::App::set_facade_application(Some(first.app()), async {
+        Date::set_test_now(Some(before.clone()))
+    })
+    .await?;
     second.travel_to(instant("2024-11-19T01:00:00Z"));
     let (left, right) = tokio::join!(first.get("/clock"), second.get("/clock"));
     left?.assert_ok().assert_exact_json(&serde_json::json!([

@@ -1014,7 +1014,80 @@
         "translateTimeString", "translateWith", "useMonthsOverflow", "useStrictMode", "useYearsOverflow",
         "withTestNow", "withTimeZone", "yesterday"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::Date; support::DateFactory",
+      "entry_contracts": [
+        {
+          "upstream": "now",
+          "local": "support::facades::Date::now; support::DateFactory::now",
+          "review": "implemented_tested",
+          "contract": "显式Option<DateTimezone>优先，None读取所属应用配置，无应用默认UTC；当地零点按民用日与DST计算。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "today",
+          "local": "support::facades::Date::today; support::DateFactory::today",
+          "review": "implemented_tested",
+          "contract": "显式Option<DateTimezone>优先，None读取所属应用配置，无应用默认UTC；当地零点按民用日与DST计算。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "tomorrow",
+          "local": "support::facades::Date::tomorrow; support::DateFactory::tomorrow",
+          "review": "implemented_tested",
+          "contract": "显式Option<DateTimezone>优先，None读取所属应用配置，无应用默认UTC；当地零点按民用日与DST计算。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "yesterday",
+          "local": "support::facades::Date::yesterday; support::DateFactory::yesterday",
+          "review": "implemented_tested",
+          "contract": "显式Option<DateTimezone>优先，None读取所属应用配置，无应用默认UTC；当地零点按民用日与DST计算。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "getTestNow",
+          "local": "support::facades::Date::get_test_now; support::DateFactory::get_test_now",
+          "review": "implemented_tested",
+          "contract": "拥有所有权Date保留时区；共用TestClock。with_test_now以原生Future替代回调，正常/错误/panic/取消时清除当前测试时间，不恢复旧值；并发执行域隔离。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "hasTestNow",
+          "local": "support::facades::Date::has_test_now; support::DateFactory::has_test_now",
+          "review": "implemented_tested",
+          "contract": "拥有所有权Date保留时区；共用TestClock。with_test_now以原生Future替代回调，正常/错误/panic/取消时清除当前测试时间，不恢复旧值；并发执行域隔离。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "setTestNow",
+          "local": "support::facades::Date::set_test_now; support::DateFactory::set_test_now",
+          "review": "implemented_tested",
+          "contract": "拥有所有权Date保留时区；共用TestClock。with_test_now以原生Future替代回调，正常/错误/panic/取消时清除当前测试时间，不恢复旧值；并发执行域隔离。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "withTestNow",
+          "local": "support::facades::Date::with_test_now; support::DateFactory::with_test_now",
+          "review": "implemented_tested",
+          "contract": "拥有所有权Date保留时区；共用TestClock。with_test_now以原生Future替代回调，正常/错误/panic/取消时清除当前测试时间，不恢复旧值；并发执行域隔离。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        },
+        {
+          "upstream": "instance",
+          "local": "support::facades::Date::instance; support::DateFactory::instance",
+          "review": "implemented_tested",
+          "contract": "借用Date并返回保留时区的独立克隆。",
+          "evidence": "framework/tests/date_facade.rs；time_travel.rs实际HTTP/Artisan/模型时间戳；fixtures/date/clock-contract.json真实原类输出。"
+        }
+      ],
+      "clock_dependency": "固定Framework 1449bf24，复用已有Carbon 3.10.3/8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f作为此批明确固定比较器，符合Framework ^3.8.4；既有表达式解析器仍沿用其Carbon3.8.4参考，不据此宣称所有依赖行为完整对齐。",
+      "adaptation": "默认工厂只在无应用时共享；应用内正式date别名/类型单例，Weak owner，不共享冻结值。异步with_test_now使用既有任务局部TestClock，退出清除语义与固定原类一致。TestApp时间旅行既有嵌套恢复契约单独保留。",
+      "remaining": [
+        "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂、sleep及set_test_now_and_timezone",
+        "withTimeZone注解在当前固定比较器的默认Carbon路径实际UnknownMethod，需追踪useFactory与具体Factory委托，不以注解冒充默认入口成功",
+        "共享Facade mock/spy与异步root/替换生命周期还需逐项核对"
+      ]
     },
     {
       "type": "Event",

@@ -11,7 +11,7 @@ type TimeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 impl TestApp {
     /// Freezes the fixture's clock at the given instant.
     pub fn travel_to(&self, time: Date) {
-        self.clock.set(Some(time.as_date_time().timestamp()));
+        self.clock.set_date(Some(time));
     }
 
     /// Freezes the fixture's clock at its current time and returns that time.
@@ -48,7 +48,7 @@ impl TestApp {
         let clock = self.clock.clone();
         let container = self.app().container_handle();
         clock
-            .scope(time.as_date_time().timestamp(), async {
+            .scope_date(Some(time.clone()), async {
                 self.boot().await?;
                 application_scope(container, callback(self, time)).await
             })

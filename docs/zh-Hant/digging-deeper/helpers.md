@@ -137,6 +137,26 @@ let formatted = end.as_date_time().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
 
+### 日期門面與測試時鐘 {#date-facade}
+
+`support::facades::Date` 委託所屬應用的 `support::DateFactory`，`support::Date` 仍為日期值型別。`now`、`today`、`tomorrow` 和 `yesterday` 接收 `Option<DateTimezone>`；`None` 讀取所屬應用的目前時區。當地零點依夏令時間轉換計算，無應用時可使用預設 UTC 工廠。
+
+`set_test_now(Some(value))`、`get_test_now` 和 `has_test_now` 與測試時間旅行、HTTP、Artisan、模型時間戳記共用時鐘。`set_test_now(None)` 清除凍結。`with_test_now` 接收原生 Future，離開時清除測試時間，包括錯誤、panic 和取消；不會恢復先前的凍結值。並行執行域的凍結值互相隔離，應用之間不共用時鐘。需要巢狀恢復時使用測試應用的時間旅行方法。
+
+```rust
+use openrust::support::{Date as DateValue, DateTimezone, facades::Date};
+
+let frozen = DateValue::from_utc("2024-03-10T12:00:00Z".parse()?, DateTimezone::UTC);
+Date::with_test_now(Some(frozen), async {
+    let today = Date::today(None)?;
+    let tomorrow = Date::tomorrow(None)?;
+    Ok::<_, openrust::support::DateError>((today, tomorrow))
+}).await??;
+```
+
+`instance(&value)` 複製日期值。目前交付為時鐘與當地日期子集；解析、本地化、自訂工廠和其餘日期門面契約仍在補齊。
+
+
 ## 管線 {#pipeline}
 
 `Pipeline::send` 建立型別化非同步管線。`through` 取代階段，`pipe` 附加階段。呼叫 `next.run` 繼續執行，或直接傳回結果以短路。用 `then` 做最終投影，用 `then_return` 傳回傳遞值，用 `finally` 讀取原始輸入。

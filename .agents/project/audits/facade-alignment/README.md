@@ -29,7 +29,7 @@
 | Cookie | `support::facades::Cookie` | 核对创建/队列、has/get、默认参数、过期与解密后的当前请求 |
 | Crypt | `support::facades::Crypt` | 核对加解密、序列化适配、轮换、可用密钥和错误 |
 | DB | `support::facades::Db` | 核对管理器和连接全部委托、事务、事件、查询、危险命令限制 |
-| Date | 只有 `support::Date` 值对象 | 缺门面/工厂；核对时钟、解析、日历、语言、格式化、工厂替换及冻结时间，复用已有 jiff/测试时钟 |
+| Date | `support::facades::Date` 与 `support::DateFactory` | 日期时钟/当地日及冻结9入口已接；解析、日历、语言、宏、工厂替换等其余契约继续补齐，仍partial |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
 | Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 已补报告/渲染/映射/上下文、运行期配置、具类型fake、withoutExceptionHandling与全局限流；共享基类测试能力及逐入口最终裁决仍待闭合 |
 | File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行、宏、编译模块加载和条件代理已实测；JSON/glob/hash/MIME完整标志、平台及继承测试仍待闭合 |
@@ -432,3 +432,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 同步宏参数与返回值保留在调用线程，不进入应用共享状态；移除不必要的Send/Sync约束，仍要求拥有所有权的Any值。注册回调继续Send+Sync，保留应用隔离、类型错误和锁外执行。
 - cloud-macros/tests-first.log 实际15项通过，含公开Cloud门面接收并原样返回Rc<Cell<usize>>，验证指针身份与修改；其余真实Agent/Artisan Worker回归通过。此项不代表其他宏注册器或Cloud整体闭合。
 - clippy-first.log workspace/all-targets严格通过20.16秒；三语文档构建及桌面/移动6组实际浏览器检查通过。
+
+### Date：正式工厂与共用测试时钟（仍 partial）
+
+- 固定Date/DateFactory/Support Carbon实际源码及公开委托；旧版calendar/date和当前已提取解析器已检查，首批复用当前Jiff日期值、TestClock与TestApp，不新建时间来源。表达式解析、本地化等继续处理，不把已有值对象或此次9入口当作整门面完成。
+- 实际提供now/today/tomorrow/yesterday、get_test_now/has_test_now/set_test_now/with_test_now、instance；正式date单例/别名、弱应用owner、无应用默认工厂。冻结日期保留原时区，HTTP/Artisan/模型时间戳与测试旅行共用时钟。
+- 原Date facade/DateFactory/Carbon在既有PHP8.5.12容器实跑：比较器明确固定Carbon3.10.3/8e3643dc，符合Framework ^3.8.4。fixtures/date/clock-contract.json含原始结果与上游SHA。DST当天至明天23小时，withTestNow嵌套返回/异常后清除而非恢复。无替代时钟、无反射伪造该行为。
+- 发现withTimeZone注解在此默认Carbon路径实际抛UnknownMethod；当前不添加一个伪称默认已对齐的同名实现，下一步追踪自定义Factory路径并裁决。该问题明确保留在JSON，不从范围删除。其他未实现入口亦仍待处理。
+- tests-delivery.log实际14项通过（6门面、5日期、3时间旅行），time_travel真实HTTP/Artisan/SQLite模型时间戳已改从Date门面设置/读取；Cloud受影响15+6+13共34项回归通过。clippy-second.log workspace/all-targets严格31.25秒，三语文档构建与6组桌面/移动浏览器通过。首轮注解/default实现/文档检查错误日志保留，不计通过；临时PHP容器已直接移除，共享镜像未删除。

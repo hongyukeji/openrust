@@ -8,7 +8,7 @@ use crate::{
     support::facades::current_container,
 };
 
-type FrozenTime = Mutex<Option<Timestamp>>;
+type FrozenTime = Mutex<Option<super::Date>>;
 
 #[derive(Default)]
 pub(crate) struct TestClock {
@@ -36,16 +36,22 @@ impl TestClock {
             .unwrap_or_default()
     }
 
-    pub(crate) fn now(&self) -> Option<Timestamp> {
+    pub(crate) fn date(&self) -> Option<super::Date> {
         let scope = self.scoped();
-        *scope
+        scope
             .as_deref()
             .unwrap_or(&self.fixed)
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
-
+    pub(crate) fn now(&self) -> Option<Timestamp> {
+        self.date().map(|date| date.as_date_time().timestamp())
+    }
     pub(crate) fn set(&self, time: Option<Timestamp>) {
+        self.set_date(time.map(|time| super::Date::from_utc(time, super::DateTimezone::UTC)));
+    }
+    pub(crate) fn set_date(&self, time: Option<super::Date>) {
         let scope = self.scoped();
         *scope
             .as_deref()
@@ -53,12 +59,15 @@ impl TestClock {
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = time;
     }
-
-    pub(crate) async fn scope<F: Future>(self: Arc<Self>, time: Timestamp, future: F) -> F::Output {
+    pub(crate) async fn scope_date<F: Future>(
+        self: Arc<Self>,
+        time: Option<super::Date>,
+        future: F,
+    ) -> F::Output {
         let mut scopes = CLOCK_SCOPES.try_with(Vec::clone).unwrap_or_default();
         scopes.push(ClockScope {
             clock: self,
-            fixed: Arc::new(Mutex::new(Some(time))),
+            fixed: Arc::new(Mutex::new(time)),
         });
         CLOCK_SCOPES.scope(scopes, future).await
     }
@@ -77,6 +86,9 @@ pub(crate) fn frozen_utc_now() -> Option<Timestamp> {
 }
 
 fn frozen_now_for(container: Option<&Container>) -> Option<Timestamp> {
+    if container.is_none() {
+        return crate::support::date_factory::standalone_clock().now();
+    }
     container
         .and_then(|container| {
             container

@@ -137,6 +137,26 @@ let formatted = end.as_date_time().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
 
+### Date facade and test clock {#date-facade}
+
+`support::facades::Date` delegates to the application’s `support::DateFactory`; `support::Date` remains the date value type. `now`, `today`, `tomorrow` and `yesterday` take `Option<DateTimezone>`; `None` reads the owning application's current timezone. Civil midnights account for daylight-saving transitions. A default UTC factory is available without an application.
+
+`set_test_now(Some(value))`, `get_test_now` and `has_test_now` use the same clock as test travel, HTTP, Artisan and model timestamps. `set_test_now(None)` clears it. `with_test_now` accepts a native future and clears the test time on exit, including errors, panic and cancellation; it does not restore a previous freeze. Concurrent executions keep scoped values separate and application clocks are isolated. Use the test application's travel helpers when nested restoration is needed.
+
+```rust
+use openrust::support::{Date as DateValue, DateTimezone, facades::Date};
+
+let frozen = DateValue::from_utc("2024-03-10T12:00:00Z".parse()?, DateTimezone::UTC);
+Date::with_test_now(Some(frozen), async {
+    let today = Date::today(None)?;
+    let tomorrow = Date::tomorrow(None)?;
+    Ok::<_, openrust::support::DateError>((today, tomorrow))
+}).await??;
+```
+
+`instance(&value)` clones a date value. This is the clock and civil-day subset; parsing, localization, custom factories and the remaining date facade contracts are still being completed.
+
+
 ## Pipeline {#pipeline}
 
 `Pipeline::send` starts a typed async pipeline. `through` replaces the stages and `pipe` appends a stage. Call `next.run` to continue or return a result to short-circuit. Use `then` for a final projection, `then_return` to return the carried value, and `finally` for a callback that sees the original input.
