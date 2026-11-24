@@ -619,10 +619,13 @@ impl Resolution<'_, '_> {
             .iter()
             .map(|processor| {
                 let (key, arguments) = processor.parts();
-                let factory =
-                    find(&self.manager.processors, key).ok_or(LogError::InvalidConfiguration)?;
-                let _call = FactoryCall::enter(self.manager, name, &factory)?;
-                factory(arguments).map_err(|_| LogError::FactoryFailed)
+                if let Some(factory) = find(&self.manager.processors, key) {
+                    let _call = FactoryCall::enter(self.manager, name, &factory)?;
+                    factory(arguments).map_err(|_| LogError::FactoryFailed)
+                } else {
+                    super::processors::builtin(key, arguments)?
+                        .ok_or(LogError::InvalidConfiguration)
+                }
             })
             .collect::<LogResult<Vec<_>>>()?;
         processors.extend(stack_processors);
@@ -648,7 +651,8 @@ impl Resolution<'_, '_> {
                     factory(&options.formatter_with).map_err(|_| LogError::FactoryFailed)?
                 }
                 None if key == "json" => super::json::formatter(&options.formatter_with)?,
-                None => return Err(LogError::InvalidConfiguration),
+                None => super::formatters::builtin(key, &options.formatter_with)?
+                    .ok_or(LogError::InvalidConfiguration)?,
             };
             logger.set_formatter(formatter);
         }
@@ -850,6 +854,34 @@ impl Resolution<'_, '_> {
                 level,
                 bubble,
             });
+        }
+        if name == "browser_console" {
+            let handler = Handler::Registered {
+                write: super::browser::writer(self.manager.context_owner.clone())?,
+                level,
+                bubble,
+            };
+            return Ok(
+                if options
+                    .formatter
+                    .as_deref()
+                    .is_none_or(|name| name == "default")
+                {
+                    Handler::Formatted {
+                        handler: Arc::new(handler),
+                        formatter: Arc::new(|record| {
+                            Ok(format!(
+                                "[[{}]]{{macro: autolabel}} [[{}]]{{font-weight: bold}} {}",
+                                record.channel,
+                                record.level.label(),
+                                record.message()
+                            ))
+                        }),
+                    }
+                } else {
+                    handler
+                },
+            );
         }
         if name == "syslog_udp" {
             return Ok(Handler::Registered {

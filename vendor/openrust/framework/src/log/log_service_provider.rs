@@ -18,6 +18,10 @@ impl ServiceProvider for LogServiceProvider {
             let root = application.base_path().to_path_buf();
             let owner = Arc::downgrade(&application.container_handle());
             let container = application.container();
+            container.instance(Arc::new(super::browser::Control::default()))?;
+            container.scoped::<super::browser::Buffer, _>(|_| {
+                Ok(Arc::new(super::browser::Buffer::default()))
+            })?;
             let listeners = Arc::new(super::events::Listeners::default());
             container.instance(listeners.clone())?;
             container.instance(Arc::new(super::context::Hooks::default()))?;

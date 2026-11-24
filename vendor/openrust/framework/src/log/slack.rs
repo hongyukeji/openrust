@@ -1,5 +1,5 @@
 use super::{Level, LogError, LogRecord, LogResult, RecordHandler, webhook::Webhook};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{sync::Arc, time::Duration};
 
@@ -136,14 +136,7 @@ fn field(key: &str, value: Value) -> Value {
         let text = if compact {
             value.to_string()
         } else {
-            let mut bytes = Vec::new();
-            let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
-            value
-                .serialize(&mut serde_json::Serializer::with_formatter(
-                    &mut bytes, formatter,
-                ))
-                .expect("JSON字段可序列化");
-            String::from_utf8(bytes).expect("JSON编码使用UTF8")
+            super::json::pretty(&value)
         };
         format!(
             "```{}```",

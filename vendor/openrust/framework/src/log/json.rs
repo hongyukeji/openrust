@@ -97,6 +97,18 @@ pub(super) fn normalized_fields(record: &LogRecord<'_>) -> (LogContext, LogConte
     (context, options.fields(&record.extra, 2))
 }
 
+pub(super) fn pretty(value: &Value) -> String {
+    use serde::Serialize;
+    let mut bytes = Vec::new();
+    let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+    value
+        .serialize(&mut serde_json::Serializer::with_formatter(
+            &mut bytes, formatter,
+        ))
+        .expect("JSON字段可序列化");
+    String::from_utf8(bytes).expect("JSON编码使用UTF8")
+}
+
 impl Options {
     fn format(&self, record: &LogRecord<'_>) -> String {
         let level = match record.level {

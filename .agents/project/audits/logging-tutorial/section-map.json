@@ -96,15 +96,35 @@
     },
     {
       "anchor": "creating-monolog-handler-channels",
-      "status": "pending_contract_review"
+      "status": "core_consumers_verified_agent_example_pending",
+      "contract": "BrowserConsoleHandler与SyslogUdpHandler真实消费者已验；NewRelic官方Agent前置待单独核对",
+      "evidence": [
+        "browser_log_tutorial",
+        "network_log_tutorial",
+        "components-browser.log"
+      ]
     },
     {
       "anchor": "monolog-formatters",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "具体公开HTML格式器及内存／PSR处理器，原生RSS与JSON对象边界见第三簇",
+      "evidence": [
+        "log_components_tutorial",
+        "logging_docs_generated",
+        "components-consumers-final2.log",
+        "components-docs-consumers-final.log"
+      ]
     },
     {
       "anchor": "monolog-processors",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "具体公开HTML格式器及内存／PSR处理器，原生RSS与JSON对象边界见第三簇",
+      "evidence": [
+        "log_components_tutorial",
+        "logging_docs_generated",
+        "components-consumers-final2.log",
+        "components-docs-consumers-final.log"
+      ]
     },
     {
       "anchor": "creating-custom-channels-via-factories",

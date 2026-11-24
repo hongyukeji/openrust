@@ -23,8 +23,12 @@ macro_rules! log_methods {
     };
 }
 
+pub(crate) mod browser;
+pub mod formatters;
+pub use browser::BrowserConsoleHandler;
 mod facade;
 pub(crate) mod json;
+pub mod processors;
 mod rotating;
 mod sink;
 mod slack;

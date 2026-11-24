@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 輪替檔案管道
 
-使用 `daily` 或 `monthly` 產生如 `openrust-2026-11-11.log` 和 `openrust-2026-11.log` 的檔案。每個 UTC 週期內，第一筆達到門檻的記錄開啟當期檔案。`max_files` 包含目前的檔案，設為 0 時不限保留數量。應用程式預設保留 14 個日檔案和 3 個月檔案。清理僅處理基本檔名、副檔名與週期格式皆相符的一般檔案。
+使用 `daily` 或 `monthly` 產生如 `app-2026-11-11.log` 和 `app-2026-11.log` 的檔案。每個 UTC 週期內，第一筆達到門檻的記錄開啟當期檔案。`max_files` 包含目前的檔案，設為 0 時不限保留數量。應用程式預設保留 14 個日檔案和 3 個月檔案。清理僅處理基本檔名、副檔名與週期格式皆相符的一般檔案。
 
 ## 臨時管道與自訂管道
 
@@ -353,3 +353,24 @@ let settings = serde_json::json!({
 ```
 
 處理器接受整數或數字字串連接埠，以及 `facility`、`ident`、`rfc`：`0` 為 RFC 3164，`1`（預設）為 RFC 5424，`2` 帶毫秒精度。主機名稱取自系統，程式識別預設使用應用名稱。自訂格式化輸出多行時逐行傳送資料報；含標頭的名義長度上限為 65,023 位元組，同時受平台 Socket 限制。Unix 下連接埠 `0` 選擇本機資料報 Socket，相對路徑從應用根目錄解析。UDP 不提供送達確認；通道繼續沿用一般堆疊篩選、格式化及應急處理。
+
+## 內建格式器與處理器 {#native-log-components}
+
+`openrust::log::formatters::HtmlFormatter` 與 `openrust::log::processors::{MemoryUsageProcessor, PsrLogMessageProcessor}` 是可直接呼叫的公開型別，也可透過管道設定選擇：
+
+```json
+{"driver":"single","path":"storage/logs/formatted.html","formatter":"html","formatter_with":{"dateFormat":"Y-m-d H:i:s"},"processors":[{"processor":"memory_usage","with":{"realUsage":true,"useFormatting":false}},{"processor":"psr_log_message","with":{"removeUsedContextFields":true}}]}
+```
+
+`html` 跳脫訊息和欄位，`dateFormat` 使用既有的 PHP 風格日期格式。`psr_log_message` 替換 JSON 上下文中的預留位置，可移除已使用欄位；JSON 上下文不包含不透明 PHP 物件及其日期格式鉤子。`memory_usage` 將原生程序駐留記憶體寫入 `extra.memory_usage`，指標是作業系統記憶體，不是 PHP 配置器記憶體。`useFormatting` 預設 `true`，設為 `false` 保留數字位元組數。`realUsage: false` 會被拒絕，不回傳不同意義的替代指標。同名編譯註冊優先於內建工廠。
+
+## 瀏覽器主控台輸出 {#browser-log-output}
+
+開發時可設定管道：
+```json
+{"driver":"monolog","handler":"browser_console","level":"debug"}
+```
+
+`browser_console` 向 HTML 或 JavaScript 回應追加指令碼，保留層級、`[[文字]]{color: blue}` 樣式標記、管道標籤、上下文和附加欄位。JSON、HEAD、無本文狀態、已編碼內容、分段檔案和二進位下載保持原樣。CLI 不輸出瀏覽器指令碼。記錄依請求及應用程式隔離。對應公開型別為 `openrust::log::BrowserConsoleHandler`。
+
+串流本文在 trailers 或 EOF 前追加主控台輸出。原始本文串流在請求作用域關閉後消費，應提前用 `Log::channel(None)?` 取得自有日誌控制代碼並移入串流，不延長請求級 Facade 生命週期。動態瀏覽器管道應在回傳回應前建立，或預先宣告在 `logging.channels`，以便安裝本文包裝。

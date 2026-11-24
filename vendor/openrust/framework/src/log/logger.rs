@@ -545,13 +545,23 @@ fn append_single_line(line: &mut String, text: &str) {
     }
 }
 
-fn interpolate(message: &str, context: &LogContext) -> String {
-    use serde_json::Value;
+pub(super) fn interpolate(message: &str, context: &LogContext) -> String {
+    let mut special = context
+        .iter()
+        .filter(|(key, _)| key.contains(['{', '}']))
+        .map(|(key, value)| (format!("{key}}}"), value))
+        .collect::<Vec<_>>();
+    special.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
     let mut result = String::with_capacity(message.len());
     let mut remaining = message;
     while let Some(open) = remaining.find('{') {
         result.push_str(&remaining[..open]);
         remaining = &remaining[open + 1..];
+        if let Some((key, value)) = special.iter().find(|(key, _)| remaining.starts_with(key)) {
+            interpolate_value(value, &mut result);
+            remaining = &remaining[key.len()..];
+            continue;
+        }
         let Some(end) = remaining.find(['{', '}']) else {
             result.push('{');
             break;
@@ -563,23 +573,32 @@ fn interpolate(message: &str, context: &LogContext) -> String {
             remaining = &remaining[end..];
             continue;
         }
-        match context.get(key) {
-            Some(Value::Null | Value::Bool(false)) => {}
-            Some(Value::Bool(true)) => result.push('1'),
-            Some(Value::String(value)) => result.push_str(value),
-            Some(value @ (Value::Array(_) | Value::Object(_))) => {
-                result.push_str("array");
-                result.push_str(&value.to_string());
-            }
-            Some(Value::Number(value)) => result.push_str(&value.to_string()),
-            None => {
-                result.push('{');
-                result.push_str(key);
-                result.push('}');
-            }
+        if let Some(value) = context.get(key) {
+            interpolate_value(value, &mut result)
+        } else {
+            result.push('{');
+            result.push_str(key);
+            result.push('}');
         }
         remaining = &remaining[end + 1..];
     }
     result.push_str(remaining);
     result
+}
+
+fn interpolate_value(value: &serde_json::Value, result: &mut String) {
+    use serde_json::Value;
+    match value {
+        Value::Null | Value::Bool(false) => {}
+        Value::Bool(true) => result.push('1'),
+        Value::String(value) => result.push_str(value),
+        value @ (Value::Array(_) | Value::Object(_)) => {
+            result.push_str("array");
+            result.push_str(&value.to_string());
+        }
+        Value::Number(value) if value.is_f64() => result.push_str(
+            &crate::support::php_float_string(value.as_f64().expect("浮点数值")),
+        ),
+        Value::Number(value) => result.push_str(&value.to_string()),
+    }
 }

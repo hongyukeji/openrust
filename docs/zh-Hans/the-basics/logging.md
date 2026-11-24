@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 轮转文件渠道
 
-使用 `daily` 或 `monthly` 生成如 `openrust-2026-11-11.log` 和 `openrust-2026-11.log` 的文件。每个 UTC 周期内，首条达到阈值的记录打开当期文件。`max_files` 包含当前文件，设为 0 时不限保留数量。应用默认保留 14 个日文件和 3 个月文件。清理仅处理基本文件名、扩展名和周期格式均匹配的普通文件。
+使用 `daily` 或 `monthly` 生成如 `app-2026-11-11.log` 和 `app-2026-11.log` 的文件。每个 UTC 周期内，首条达到阈值的记录打开当期文件。`max_files` 包含当前文件，设为 0 时不限保留数量。应用默认保留 14 个日文件和 3 个月文件。清理仅处理基本文件名、扩展名和周期格式均匹配的普通文件。
 
 ## 临时渠道与自定义渠道
 
@@ -353,3 +353,24 @@ let settings = serde_json::json!({
 ```
 
 处理器接受整数或数字字符串端口，以及 `facility`、`ident`、`rfc`：`0` 为 RFC 3164，`1`（默认）为 RFC 5424，`2` 带毫秒精度。主机名取自系统，程序标识默认使用应用名称。自定义格式化输出多行时逐行发送数据报；含报文头的名义长度上限为 65,023 字节，同时受平台 Socket 限制。Unix 下端口 `0` 选择本地数据报 Socket，相对路径从应用根目录解析。UDP 不提供送达确认；渠道继续沿用普通堆栈过滤、格式化与应急处理。
+
+## 内置格式器与处理器 {#native-log-components}
+
+`openrust::log::formatters::HtmlFormatter` 和 `openrust::log::processors::{MemoryUsageProcessor, PsrLogMessageProcessor}` 是可直接调用的公开类型，也可通过渠道配置选择：
+
+```json
+{"driver":"single","path":"storage/logs/formatted.html","formatter":"html","formatter_with":{"dateFormat":"Y-m-d H:i:s"},"processors":[{"processor":"memory_usage","with":{"realUsage":true,"useFormatting":false}},{"processor":"psr_log_message","with":{"removeUsedContextFields":true}}]}
+```
+
+`html` 转义消息和字段，`dateFormat` 使用现有的 PHP 风格日期格式。`psr_log_message` 替换 JSON 上下文中的占位符，可移除已使用字段；JSON 上下文不包含不透明 PHP 对象及其日期格式钩子。`memory_usage` 将原生进程驻留内存写入 `extra.memory_usage`，指标是操作系统内存，不是 PHP 分配器内存。`useFormatting` 默认 `true`，设为 `false` 保留数字字节数。`realUsage: false` 会被拒绝，不返回不同含义的替代指标。同名编译注册优先于内置工厂。
+
+## 浏览器控制台输出 {#browser-log-output}
+
+开发时可配置渠道：
+```json
+{"driver":"monolog","handler":"browser_console","level":"debug"}
+```
+
+`browser_console` 向 HTML 或 JavaScript 响应追加脚本，保留级别、`[[文本]]{color: blue}` 样式标记、渠道标签、上下文和附加字段。JSON、HEAD、无正文状态、已编码内容、分段文件和二进制下载保持原样。CLI 不输出浏览器脚本。记录按请求和应用隔离。对应公开类型为 `openrust::log::BrowserConsoleHandler`。
+
+流式正文在 trailers 或 EOF 前追加控制台输出。原始正文流在请求作用域关闭后消费，应提前用 `Log::channel(None)?` 取得自有日志句柄并移入流内，不延长请求级 Facade 生命周期。动态浏览器渠道应在返回响应前创建，或预先声明在 `logging.channels`，以便安装正文包装。

@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Rotating File Channels
 
-Use `daily` or `monthly` for files such as `openrust-2026-11-11.log` and `openrust-2026-11.log`. The first accepted record of a UTC period opens its file. Set `max_files` to the number of files to keep, including the active file, or set it to zero for unlimited retention. The application defaults retain 14 daily files and three monthly files. Retention only considers regular files with the same base name, extension and period format.
+Use `daily` or `monthly` for files such as `app-2026-11-11.log` and `app-2026-11.log`. The first accepted record of a UTC period opens its file. Set `max_files` to the number of files to keep, including the active file, or set it to zero for unlimited retention. The application defaults retain 14 daily files and three monthly files. Retention only considers regular files with the same base name, extension and period format.
 
 ## On-Demand and Custom Channels
 
@@ -353,3 +353,24 @@ let settings = serde_json::json!({
 ```
 
 The handler accepts integer or numeric-string ports, `facility`, `ident` and `rfc`: `0` selects RFC 3164, `1` (default) RFC 5424, and `2` includes millisecond precision. The hostname comes from the OS; the default program identifier is the application name. Custom formatters can emit several lines, each sent in a separate datagram. The nominal datagram limit is 65,023 bytes including the header, subject to platform socket limits. On Unix, port `0` selects a local datagram socket; relative socket paths resolve from the application root. UDP provides no delivery acknowledgement. These drivers preserve normal stack filtering, formatting and emergency behavior.
+
+## Built-in Formatters and Processors {#native-log-components}
+
+`openrust::log::formatters::HtmlFormatter` and `openrust::log::processors::{MemoryUsageProcessor, PsrLogMessageProcessor}` are concrete public types. The channel configuration can select them directly:
+
+```json
+{"driver":"single","path":"storage/logs/formatted.html","formatter":"html","formatter_with":{"dateFormat":"Y-m-d H:i:s"},"processors":[{"processor":"memory_usage","with":{"realUsage":true,"useFormatting":false}},{"processor":"psr_log_message","with":{"removeUsedContextFields":true}}]}
+```
+
+`html` escapes message and field content and accepts the existing PHP-style `dateFormat`. `psr_log_message` interpolates JSON context and can remove used fields; opaque PHP objects and their date-format hooks are not part of JSON context. `memory_usage` records process resident memory in `extra.memory_usage`; it measures OS memory, not PHP allocator usage. `useFormatting` defaults to `true`; `false` retains numeric bytes. `realUsage: false` is rejected rather than returning an unrelated allocator metric. Compiled registrations with the same name override the built-in factory.
+
+## Browser Console Output {#browser-log-output}
+
+Configure a development channel:
+```json
+{"driver":"monolog","handler":"browser_console","level":"debug"}
+```
+
+`browser_console` appends a script to HTML or JavaScript responses. Severity, CSS markers `[[text]]{color: blue}`, channel labels, context and extra fields are retained. JSON, HEAD, bodyless statuses, encoded content, partial files and binary downloads are left intact. CLI commands do not print browser scripts. Records belong to one request and application. The handler is also available as `openrust::log::BrowserConsoleHandler`.
+
+Stream bodies append console output before trailers or EOF. Raw body streams are polled after the request scope closes; capture an owned logger with `Log::channel(None)?` before creating the stream, and move that handle into it. This does not keep request-scoped Facades alive. A dynamically built browser channel must be created before returning the response, or declared in `logging.channels`, so the body wrapper can be installed.

@@ -35,6 +35,7 @@ pub struct Kernel {
     application: Application,
     middleware: Middleware,
     views: Option<Arc<Factory>>,
+    browser_logs: Option<Arc<crate::log::browser::Control>>,
     ready: bool,
     termination_tasks: TaskTracker,
     routes: Option<Arc<crate::routing::Router>>,
@@ -63,6 +64,7 @@ impl Kernel {
         let middleware = application.configured_middleware().clone();
         Self {
             views: None,
+            browser_logs: None,
             application,
             middleware,
             ready: false,
@@ -120,6 +122,14 @@ impl Kernel {
         if let Err(error) = dispatched {
             response = self.render_exception(request, error).await;
             self.prepare_response(request, &mut response, head);
+        }
+        if let Some(control) = &self.browser_logs {
+            crate::log::browser::append(
+                &self.application.container_handle(),
+                control,
+                &mut response,
+                head,
+            );
         }
         response
     }
@@ -204,6 +214,25 @@ impl Kernel {
                     config.get("cors"),
                     &self.middleware.cors_skip_callbacks,
                 )?;
+                let browser_logs = self
+                    .application
+                    .container()
+                    .make::<crate::log::browser::Control>()?;
+                if config
+                    .get("logging.channels")
+                    .and_then(|v| v.as_object().cloned())
+                    .is_some_and(|channels| {
+                        channels.values().any(|channel| {
+                            channel.get("handler").and_then(serde_json::Value::as_str)
+                                == Some("browser_console")
+                        })
+                    })
+                {
+                    browser_logs
+                        .0
+                        .store(true, std::sync::atomic::Ordering::Release);
+                }
+                self.browser_logs = Some(browser_logs);
                 self.views = Some(
                     self.application
                         .container()

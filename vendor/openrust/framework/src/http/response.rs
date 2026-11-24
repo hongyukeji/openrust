@@ -409,6 +409,13 @@ impl Response {
     pub fn parts_mut(&mut self) -> &mut ResponseParts {
         &mut self.parts
     }
+    pub(crate) fn is_binary_file(&self) -> bool {
+        self.binary_file.is_some()
+    }
+    pub(crate) fn replace_body(&mut self, body: Body) {
+        self.body = body;
+        self.content = None;
+    }
     pub fn take_body(&mut self) -> Body {
         self.content = Some(Box::new(Bytes::new()));
         std::mem::replace(&mut self.body, Body::empty())
