@@ -1097,7 +1097,15 @@
         "contract": "省略timezone明确UTC而非应用默认时区；显式时区转换同一时刻。复用数字片段与3/6位PHP half-up舍入，保留固定Carbon3.10.3负毫秒拆分，包括-1ms为epoch+0.001s；不以数学除1000替代。",
         "adaptation": "原生Date年份超出Jiff范围时明确OutOfRange；非有限浮点与错误JSON形状明确拒绝。既有解析器6位舍入行为保留。",
         "evidence": "原Date门面/Carbon Timestamp.php实际120向量逐条裁决；原生范围外断言OutOfRange不跳过。Date门面和具体Factory均实调，覆盖所有4入口。",
-        "remaining": "可替换日期类/工厂/创建回调及严格模式仍须接入，不据此关闭Date。"
+        "probe_contracts": {
+        "entries": ["hasFormat", "hasFormatWithModifiers", "hasRelativeKeywords"],
+        "local": "Date/DateFactory::has_format/has_format_with_modifiers/has_relative_keywords",
+        "review": "implemented_tested_base",
+        "contract": "复用固定原Factory模式表、替换顺序与既有PCRE2；保留字段宽度、转义、修饰符、分支锚点/末尾换行和字节Unicode行为，模式成立不代表日历有效。相对关键词复用Calendar在2000-01-01与2001-12-25 UTC探测，不依赖测试时钟；空/null/0及非法表达式false。",
+        "evidence": "date_format_matching.rs读取45组原Date门面格式向量及27组原相对探测向量；门面和具体Factory均实际调用，含比Jiff宽的Calendar表达式。",
+        "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
+      },
+      "remaining": "可替换日期类/工厂/创建回调及严格模式仍须接入，不据此关闭Date。"
       },
       "remaining": "严格/非严格模式、可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
       },

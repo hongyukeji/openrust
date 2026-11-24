@@ -177,6 +177,15 @@ assert_eq!(seconds.format("U.u")?, milliseconds.format("U.u")?);
 
 时间戳字符串按固定数字片段兼容规则解释，不用于校验日期表达式。负毫秒保留比较版本的历史拆分行为：`-1` 得到 `1970-01-01 00:00:00.001000+00:00`。非有限数字及超出原生日期范围的值会返回错误。
 
+`has_format` 检查固定字段模式和宽度，`has_format_with_modifiers` 还解释 `#`、`!`、`|` 等修饰符。这些入口检查模式，不保证日历日期有效：`2024-02-30` 仍匹配 `Y-m-d`。`has_relative_keywords` 判断表达式是否依赖参考日期；null、空值和非法输入返回 false。
+
+```rust
+assert!(!Date::has_format("2024-2-9", "Y-m-d")?);
+assert!(Date::has_format_with_modifiers("31/08/2015", "d#m#Y")?);
+assert!(Date::has_relative_keywords("tomorrow")?);
+assert!(!Date::has_relative_keywords(None)?);
+```
+
 `instance(&value)` 克隆日期值。当前交付为时钟与当地日期子集；格式创建、本地化、自定义工厂和其余日期门面契约仍在补齐。
 
 

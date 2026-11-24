@@ -37,3 +37,10 @@ filtering, without consulting the host database or changing Calendar's version.
   number-format rounding are reused for seconds and milliseconds; negative
   millisecond parts retain that version's behavior. The source remains MIT
   licensed under `LICENSE.carbon`.
+
+- Date factory format probes reuse the `regexFormats` and
+  `regexFormatModifiers` tables and replacement order from the same fixed
+  Carbon `src/Carbon/Factory.php`. The immutable tables are published in
+  `resources/calendar/date-format-patterns.json` and evaluated with the
+  framework's existing PCRE2 dependency. Relative-expression probes reuse
+  Calendar with the two reference instants from Carbon `Traits/Date.php`.

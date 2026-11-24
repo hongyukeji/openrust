@@ -1,0 +1,272 @@
+[
+  {
+    "input": "2024-02-29",
+    "format": "Y-m-d",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "2024-02-30",
+    "format": "Y-m-d",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "2024-2-9",
+    "format": "Y-m-d",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "2024-2-9",
+    "format": "Y-n-j",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "13:12:45",
+    "format": "h:i:s",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "11:12:45",
+    "format": "h:i:s",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "11:12:60",
+    "format": "H:i:s",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "31/08/2015",
+    "format": "d#m#Y",
+    "has": false,
+    "modifiers": true
+  },
+  {
+    "input": "2015-08-31",
+    "format": "!Y-m-d",
+    "has": false,
+    "modifiers": true
+  },
+  {
+    "input": "2015-08-31",
+    "format": "Y-m-d|",
+    "has": false,
+    "modifiers": true
+  },
+  {
+    "input": "abc",
+    "format": "*",
+    "has": false,
+    "modifiers": true
+  },
+  {
+    "input": "",
+    "format": "*",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "a",
+    "format": "?",
+    "has": false,
+    "modifiers": true
+  },
+  {
+    "input": "é",
+    "format": "?",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "Fri",
+    "format": "D",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "whatever",
+    "format": "l",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "Jan",
+    "format": "M",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "fake",
+    "format": "F",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "2024",
+    "format": "Y",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "0000",
+    "format": "Y",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "12345",
+    "format": "Y",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "123456",
+    "format": "Y",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "CST",
+    "format": "e",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "America/New_York",
+    "format": "e",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "CST garbage",
+    "format": "e",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "junk America/Test",
+    "format": "e",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "+05:30",
+    "format": "P",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "+05:31",
+    "format": "P",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "Z",
+    "format": "p",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "-1",
+    "format": "U",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "",
+    "format": "U",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "1.25",
+    "format": "U",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "123456",
+    "format": "u",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "1234567",
+    "format": "u",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "2024-01-01\\n",
+    "format": "Y-m-d",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "2024-01-01\n",
+    "format": "Y-m-d",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "Y",
+    "format": "\\Y",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "\\2024",
+    "format": "\\\\Y",
+    "has": true,
+    "modifiers": false
+  },
+  {
+    "input": "[]",
+    "format": "[]",
+    "has": true,
+    "modifiers": false
+  },
+  {
+    "input": "abc",
+    "format": "[a-z]+",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "á",
+    "format": "\\w",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "a",
+    "format": "\\w",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "anything",
+    "format": "(",
+    "has": false,
+    "modifiers": false
+  },
+  {
+    "input": "2024/01/01",
+    "format": "Y/m/d",
+    "has": true,
+    "modifiers": true
+  },
+  {
+    "input": "foo.bar",
+    "format": "foo.bar",
+    "has": false,
+    "modifiers": false
+  }
+]

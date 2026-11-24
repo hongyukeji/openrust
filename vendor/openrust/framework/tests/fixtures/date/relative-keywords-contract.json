@@ -1,0 +1,110 @@
+[
+  {
+    "input": null,
+    "relative": false
+  },
+  {
+    "input": "",
+    "relative": false
+  },
+  {
+    "input": "0",
+    "relative": false
+  },
+  {
+    "input": " ",
+    "relative": false
+  },
+  {
+    "input": "now",
+    "relative": true
+  },
+  {
+    "input": "today",
+    "relative": true
+  },
+  {
+    "input": "tomorrow",
+    "relative": true
+  },
+  {
+    "input": "yesterday",
+    "relative": true
+  },
+  {
+    "input": "next monday",
+    "relative": true
+  },
+  {
+    "input": "last day of next month",
+    "relative": true
+  },
+  {
+    "input": "+1 day",
+    "relative": true
+  },
+  {
+    "input": "-2 hours",
+    "relative": true
+  },
+  {
+    "input": "12:30",
+    "relative": true
+  },
+  {
+    "input": "January",
+    "relative": true
+  },
+  {
+    "input": "2024",
+    "relative": true
+  },
+  {
+    "input": "2024-02-29",
+    "relative": false
+  },
+  {
+    "input": "2024-03-10T12:00:00Z",
+    "relative": false
+  },
+  {
+    "input": "@0",
+    "relative": false
+  },
+  {
+    "input": "1.25",
+    "relative": true
+  },
+  {
+    "input": "garbage",
+    "relative": false
+  },
+  {
+    "input": "next",
+    "relative": false
+  },
+  {
+    "input": "2024-02-30",
+    "relative": false
+  },
+  {
+    "input": "+100000 years",
+    "relative": true
+  },
+  {
+    "input": "last february",
+    "relative": false
+  },
+  {
+    "input": "2024-01-01 12:00 CST",
+    "relative": false
+  },
+  {
+    "input": "Monday 2024-01-01",
+    "relative": false
+  },
+  {
+    "input": "first day of January 2024",
+    "relative": false
+  }
+]

@@ -177,6 +177,15 @@ assert_eq!(seconds.format("U.u")?, milliseconds.format("U.u")?);
 
 Timestamp strings follow the fixed numeric-chunk compatibility rules, rather than validating date expressions. Negative milliseconds retain the comparison version's historical split behavior: `-1` becomes `1970-01-01 00:00:00.001000+00:00`. Non-finite numbers and dates outside the native range return errors.
 
+`has_format` checks the fixed field patterns and widths. `has_format_with_modifiers` also interprets modifiers such as `#`, `!` and `|`. These are pattern checks, not calendar validity checks: `2024-02-30` matches `Y-m-d`. `has_relative_keywords` checks whether an expression depends on its reference date; null, empty and invalid input return false.
+
+```rust
+assert!(!Date::has_format("2024-2-9", "Y-m-d")?);
+assert!(Date::has_format_with_modifiers("31/08/2015", "d#m#Y")?);
+assert!(Date::has_relative_keywords("tomorrow")?);
+assert!(!Date::has_relative_keywords(None)?);
+```
+
 `instance(&value)` clones a date value. This is the clock and civil-day subset; localized parsing, format-driven creation, custom factories and the remaining date facade contracts are still being completed.
 
 

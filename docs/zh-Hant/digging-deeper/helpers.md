@@ -177,6 +177,15 @@ assert_eq!(seconds.format("U.u")?, milliseconds.format("U.u")?);
 
 時間戳記字串依固定數字片段相容規則解讀，不用於驗證日期表達式。負毫秒保留比較版本的歷史拆分行為：`-1` 得到 `1970-01-01 00:00:00.001000+00:00`。非有限數字及超出原生日期範圍的值會回傳錯誤。
 
+`has_format` 檢查固定欄位模式和寬度，`has_format_with_modifiers` 也解讀 `#`、`!`、`|` 等修飾符。這些入口檢查模式，不保證日曆日期有效：`2024-02-30` 仍匹配 `Y-m-d`。`has_relative_keywords` 判斷表達式是否依賴參考日期；null、空值和無效輸入回傳 false。
+
+```rust
+assert!(!Date::has_format("2024-2-9", "Y-m-d")?);
+assert!(Date::has_format_with_modifiers("31/08/2015", "d#m#Y")?);
+assert!(Date::has_relative_keywords("tomorrow")?);
+assert!(!Date::has_relative_keywords(None)?);
+```
+
 `instance(&value)` 複製日期值。目前交付為時鐘與當地日期子集；格式建立、本地化、自訂工廠和其餘日期門面契約仍在補齊。
 
 

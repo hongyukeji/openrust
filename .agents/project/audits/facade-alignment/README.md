@@ -455,3 +455,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 正式4个create_from_timestamp/_utc/_ms/_ms_utc入口均由门面和具体Factory调用，默认UTC不读取应用默认时区，显式时区转换保留。输入形式共用DateInput，非有限数值不经JSON变成null。
 - 原类实际120向量包含整数/浮点/数字片段/舍入/负值/UTC与显式时区；超出原生Date年份范围的上游日期明确验证OutOfRange而非跳过。自定义工厂/创建回调、严格模式及其余入口继续在Date剩余项处理。
 - tests-final.log实际36项通过，120组原类向量均判定（含3组原生范围外明确错误，无跳过），另有解析/请求日期回归。clippy-first.log workspace/all-targets严格22.40秒；三语构建14.14秒与桌面/移动6浏览器通过。verified-upstream.json确认比较器Timestamp.php逐字节等于固定官方提交；一次性PHP容器已直接移除。
+
+### Date：固定格式模式与相对表达式探测（仍 partial）
+
+- 追踪到固定Carbon Factory实际的regexFormats/regexFormatModifiers和三次替换流程，复用项目已有PCRE2，而非用解析/格式化往返冒充hasFormat。原模式表以MIT来源保存在日历资源，SOURCES记录固定提交；不引入新依赖或新语法解释器。
+- has_format/has_format_with_modifiers实际覆盖宽度/转义/修饰符/Unicode字节/换行/上游分支锚点行为。has_relative_keywords在原两个UTC参考日期运行既有Calendar，保留空/null/0和无效false，支持宽日历表达式而不先强转Jiff日期。
+- 原Date门面与具体Factory实际45组格式、27组相对关键词向量通过；模式成立不保证日历有效，三语文档明确区分。其他Date入口、工厂替换和错误诊断继续处理，Date保持partial。
+- tests-second.log两个实际消费者测试对45+27组结果逐条核对通过；clippy-first.log workspace/all-targets严格24.61秒；三语文档构建及6组桌面/移动浏览器通过。原类PHP一次性容器直接删除，现有PCRE2和共享镜像保留。
