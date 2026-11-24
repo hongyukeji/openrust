@@ -43,3 +43,20 @@ pub trait Isolatable: Command {
         Ok(crate::cache::Ttl::Seconds(3600))
     }
 }
+
+/// 声明必填参数的自动提示及提示完成钩子。
+pub trait PromptsForMissingInput: Command {
+    fn prompt_for_missing_arguments_using(
+        &self,
+    ) -> std::collections::BTreeMap<String, crate::console::MissingInputPrompt> {
+        Default::default()
+    }
+    fn after_prompting_for_missing_arguments<'a>(
+        &'a self,
+        _app: &'a Application,
+        _input: &'a mut Input,
+        _output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<(), ConsoleError>> {
+        Box::pin(async { Ok(()) })
+    }
+}

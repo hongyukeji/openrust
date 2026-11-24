@@ -84,6 +84,10 @@ pub trait Command: Send + Sync {
         None
     }
 
+    fn prompting(&self) -> Option<&dyn crate::contracts::console::PromptsForMissingInput> {
+        None
+    }
+
     fn definition(&self) -> &CommandDefinition;
 
     fn handle<'a>(

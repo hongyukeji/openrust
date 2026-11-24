@@ -277,6 +277,18 @@ impl Application {
             )
     }
 
+    fn parsing_syntax(&self, version: &'static str) -> Syntax {
+        let mut syntax = self.syntax(version);
+        for (name, entry) in &self.commands {
+            if let Entry::Command(command) = entry
+                && command.prompting().is_some()
+            {
+                syntax = syntax.mut_subcommand(name, super::prompting::relaxed);
+            }
+        }
+        syntax
+    }
+
     pub(crate) async fn handle(
         &self,
         application: &FoundationApplication,
@@ -342,7 +354,8 @@ impl Application {
                 std::iter::once(OsString::from("artisan")).chain(arguments.iter().cloned()),
             )
         };
-        let mut result = parse(&mut syntax, &normalized);
+        let mut parsing = self.parsing_syntax(application.version());
+        let mut result = parse(&mut parsing, &normalized);
         if matches!(&result, Err(error) if error.kind() == ErrorKind::MissingRequiredArgument)
             && output.streams_to_terminal()
             && io::stdin().is_terminal()
@@ -351,7 +364,7 @@ impl Application {
             match self.prompt_for_missing_argument(application, name, &normalized) {
                 Ok(Some(arguments)) => {
                     normalized.splice(position + 1..position + 1, arguments);
-                    result = parse(&mut syntax, &normalized);
+                    result = parse(&mut parsing, &normalized);
                 }
                 Ok(None) => {}
                 Err(error) => {
@@ -495,12 +508,15 @@ impl Application {
     ) -> Result<i32, ConsoleError> {
         let name = self.resolve(command)?;
         let mut syntax = self.syntax(application.version());
-        let parsed = syntax.try_get_matches_from_mut(
-            ["artisan", name]
-                .into_iter()
-                .map(OsStr::new)
-                .chain(arguments.iter().map(OsString::as_os_str)),
-        );
+        syntax.build();
+        let parsed = self
+            .parsing_syntax(application.version())
+            .try_get_matches_from_mut(
+                ["artisan", name]
+                    .into_iter()
+                    .map(OsStr::new)
+                    .chain(arguments.iter().map(OsString::as_os_str)),
+            );
         let flags = || arguments.iter().take_while(|argument| *argument != "--");
         let suppress_stdout = || {
             flags().any(|argument| matches!(argument.to_str(), Some("--silent" | "--quiet" | "-q")))
@@ -573,8 +589,8 @@ impl Application {
         if let Some(environment) = environment {
             arguments.extend(["--env", environment]);
         }
-        let mut parsed = syntax
-            .clone()
+        let mut parsed = self
+            .parsing_syntax(application.version())
             .try_get_matches_from(arguments)
             .map_err(|error| ConsoleError::new(error.to_string()))?;
         let (_, matches) = parsed.remove_subcommand().expect("resolved command");
@@ -660,10 +676,12 @@ impl Application {
                     Entry::Closure(command) => command,
                     Entry::Command(command) => command.as_ref(),
                 };
-                let input = Input {
+                let mut parsing = self.parsing_syntax(application.version());
+                parsing.build();
+                let mut input = Input {
                     syntax: command.definition().syntax.clone(),
                     parsing_syntax: Arc::new(
-                        syntax
+                        parsing
                             .find_subcommand(command.definition().name())
                             .expect("已注册命令存在于解析定义")
                             .clone(),
@@ -672,6 +690,10 @@ impl Application {
                     matches: matches.clone(),
                     shutdown,
                 };
+                if let Some(prompting) = command.prompting() {
+                    super::prompting::prompt(prompting, application, &mut input, output).await?;
+                }
+                let matches = input.matches();
                 let definition = command.definition();
                 let Some(code) = definition
                     .isolated

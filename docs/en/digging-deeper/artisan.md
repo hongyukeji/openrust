@@ -388,3 +388,49 @@ fn register_edited() -> Result<(), ConsoleError> {
 `set_argument` takes CLI tokens; `set_option` takes JSON strings, Boolean switches, counts, arrays, or null for a bare optional value. Each edit reuses the original Clap parser and constraints and updates `matches()` as well as the typed helpers. The original remains unchanged if validation fails; other values, empty strings and non-UTF-8 OS arguments are preserved.
 
 These are CLI revalidation adapters, not arbitrary PHP object mutation. A value that cannot be represented by the definition, a positional gap, or clearing a nonempty default array returns an error rather than silently rebinding another field or restoring its default. Reading or editing global input does not reconfigure an output stream that has already been created.
+
+## Prompting for missing arguments {#prompting-for-missing-input}
+
+Implement `PromptsForMissingInput` and retain it with `.prompting()` before registering the command. Required arguments are collected in declaration order before final validation and isolation. Supplied arguments are not prompted again; `--no-interaction` skips prompting and still rejects missing required arguments.
+
+```rust
+use openrust::{
+    console::{Command, CommandDefinition, CommandRegistration, ConsoleError,
+        ConsoleFuture, Input, MissingInputPrompt, Output},
+    contracts::console::PromptsForMissingInput,
+    foundation::Application,
+    support::facades::Artisan,
+};
+use std::collections::BTreeMap;
+
+struct Deliver(CommandDefinition);
+impl Command for Deliver {
+    fn definition(&self) -> &CommandDefinition { &self.0 }
+    fn handle<'a>(&'a self, _: &'a Application, input: &'a Input,
+        output: &'a mut Output) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            output.stdout.push_str(&format!("user={}, queue={}",
+                input.argument("user").unwrap().as_str().unwrap(),
+                input.option("queue").unwrap()));
+            Ok(0)
+        })
+    }
+}
+impl PromptsForMissingInput for Deliver {
+    fn prompt_for_missing_arguments_using(&self) -> BTreeMap<String, MissingInputPrompt> {
+        BTreeMap::from([("user".into(),
+            MissingInputPrompt::text("Which user should receive the report?", "e.g. 123"))])
+    }
+}
+fn register_prompted() -> Result<(), ConsoleError> {
+    Artisan::add(Box::new(CommandRegistration::new(Deliver(
+        CommandDefinition::from_signature("reports:prompt {user} {--queue}")?
+    )).prompting()))
+}
+```
+
+The default question uses the argument description or name. `MissingInputPrompt::text` supplies a label and placeholder; `MissingInputPrompt::custom` accepts an asynchronous application/mutable-input/output callback returning CLI tokens (`Vec<OsString>`), including multiple array values. A custom callback may return `"0"`; the default text question rejects an empty answer or `"0"`, matching required-text validation. Question definitions are reevaluated for each missing argument.
+
+`after_prompting_for_missing_arguments` runs only after at least one missing argument was collected. It receives mutable `Input` and may call `set_option` or `set_argument`; final validation precedes execution. Compose `.prompting().isolatable()` on the same `CommandRegistration` when both traits are implemented. The adapter retains trait objects before type erasure and uses the existing registration, cache-lock and lifecycle pipeline.
+
+Default text questions require an attached terminal; captured HTTP/programmatic output does not read process stdin. Supply explicit arguments or a custom callback in those environments. No interaction is started for help. Cancellation and callback failures propagate through the existing error handling; callbacks do not hold the isolation lock while awaiting input.

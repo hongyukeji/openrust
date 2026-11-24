@@ -1,0 +1,21 @@
+{
+  "base": "dfa54903296aaf8e07293a0fc1ad8f79300077c7",
+  "sha256": {
+    "vendor/openrust/framework/src/console/application.rs": "2f8ab9a3d8a5d0af8d7f313dc236f3e148db42af1253ab069304b3f609be33e7",
+    "vendor/openrust/framework/src/console/command.rs": "90340a9e83871ddc0cc5600b03c9aa5116e22366ab99ce103480232492dc903e",
+    "vendor/openrust/framework/src/console/mod.rs": "2bc8159384c1ea25789409d2dda7c709e1f083f185197ad1bd282d80169c6254",
+    "vendor/openrust/framework/src/console/isolation.rs": "d68998c3fffd81c95c89f94cddbeffd76cd0144c0b3ccc23a22e84729ec57927",
+    "vendor/openrust/framework/src/console/input/mutation.rs": "8a435dd4b07890a8c35b5c61c6e91af6215e30ac5b5d2ac92a9a8bef62ba65ed",
+    "vendor/openrust/framework/src/console/prompting.rs": "643df8cf5e2b007942d68053ef39549e535271864a72a61e60613e5dce066b8d",
+    "vendor/openrust/framework/src/contracts/console.rs": "7d0cd8315f3d40cc1f0bc101bc326d06e1f7ff2d87e86d7ba81bed13b38e4595",
+    "vendor/openrust/framework/tests/console_prompting_tutorial.rs": "e8463fdffcbaa9e007fb12ade364bf7f1363f25bdf3230409e6964c7a845448d",
+    "tests/artisan_tutorial_docs.py": "e55a44991242b1e665e0efae9722eb145758bcfe9301462b80092c8617ae1d1d",
+    "docs/tests/check_artisan_tutorial.mjs": "8af9bc6a6a9a7ea7870ad5b1b59a722d7f8627876939ffbd432f340f9a0fc8a4",
+    "docs/en/digging-deeper/artisan.md": "077d6d97b1b02a8c5224df2cda590593b1ea66d610872d572fc3c8ee7338cba0",
+    "docs/zh-Hans/digging-deeper/artisan.md": "575492f5121401f5512e48592978b2d45e55250e141fa20ba6852263655834d7",
+    "docs/zh-Hant/digging-deeper/artisan.md": "b42ae2b10bc1917690259f71bc66b64e99f75eb71c10ca955df828329742534e",
+    ".agents/project/audits/artisan-tutorial/prompting-oracle.json": "b89f384961bcab2bef7e0d25ca62495692d3e67651b4ee2db756e822fe003dda"
+  },
+  "evidence": "target/tmp/artisan-tutorial-20261125/prompt-frozen-*",
+  "scope": "missing input flows; registry instance lifetime remains next associated batch"
+}

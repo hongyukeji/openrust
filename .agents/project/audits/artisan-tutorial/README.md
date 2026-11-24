@@ -51,3 +51,19 @@ Input可克隆，set_argument／set_option复用原Clap定义重建并验证输�
 最终7框架目标33项＋根4目标39项，共72项0忽略，其中三语正式Markdown直接提取15例；测试数不等于新增功能数。专项6项覆盖原子回退、类型和值保留、Kernel身份、真实TCP HTTP成功／JSON500／后续恢复、独立Artisan成功与失败、三组源码整组向量及原始verbose计数。实际main验证/up、静态文件、HTML／JSON404、HEAD、独立inspire／list／pail帮助、Pail真实错误捕获与超时清理、Ctrl+C退出0。三语双前缀／两宽度12组Chromium检查覆盖editing-command-input。fmt、workspace all-targets严格Clippy39.19s、main(pail)构建及三语构建退出0；站点仍有既有chunk-size提示，不冒称无警告。
 
 本轮中途快照误含未完成认证改动导致Clippy失败；仅将隔离快照恢复已提交认证基线，并在最终组合吸收aec95b92e及后续已提交记录，未改动活跃认证文件。另一次include_str相对层级错误、一次新增测试格式检查失败均修复重跑，不计失败为通过。最终日志input-edit-final-{signature-final,root,fmt,clippy,main,docs}.log、input-edit-normalized-{gates,resume}.log、input-edit-{runtime,browser}.log；失败证据单独保留。源码组合和SHA见accepted-input-edit.json。可复用缓存／依赖／日志与隔离源码保留，无本批运行服务或容器；共享守卫中途清理后已恢复验收。继续缺失输入提示、I/O、注册与生成、信号等剩余节，整章未闭合；不推送。
+
+## 第五簇：缺失输入提示与完成钩子（2026-11-25）
+
+第四簇已提交dfa549032。按固定PromptsForMissingInput源码接通contracts::console::PromptsForMissingInput、MissingInputPrompt和CommandRegistration<C>，保留Command trait对象之前显式选择.prompting()／.isolatable()；原Artisan::add、Console Application和Kernel注册管线不替换。装配器组合／嵌套保留已有标记，原IsolatedCommand也转发提示标记。旧v0.x仅有名称／帮助／异步run，没有可复用提示Trait；复用当前Clap、console::Term、容器、锁及命令执行。
+
+必填标量／数组按原声明顺序定位；每个缺失参数重新获取问题定义，支持默认名称／说明、文本标签与占位说明、异步应用／可变输入／输出回调。数组回调返回Vec<OsString>是明确CLI token适配；不伪装任意PHP值序列化。默认文本拒绝空及"0"，自定义回调可返回"0"。至少收集一项才执行after_prompting_for_missing_arguments，可修改输入；随后恢复原约束最终验证，再读取隔离ID／期限及执行。已有参数和help不询问；--no-interaction不询问且缺必填仍失败；回调错误、无效结果及Future取消不持有或泄漏隔离锁。
+
+首次回归暴露在已build的Clap定义上mut_arg会使索引错配，--isolated值被误认成silent；现从未build的原定义单独生成交互解析器，严格帮助定义保留。最终验证从原严格定义重建并带回完整全局选项、版本／help元数据，避免自动help重复。旧全局输入、Kernel定义身份、非UTF-8和隔离消费者均回归通过。编译夹具缺Trait导入／静态名称、锁可变借用、版本与自动help重复、遗漏两处解析器调用、Clippy多余import等失败日志保留，全部修复后复验，没有增加lint豁免或修改Clap依赖。最后补验确认自定义回调可修改当前输入，后一问题能读取该修改；quiet／silent抑制程序的问题及验证文案，用户键入回显仍由终端显示。
+
+固定PHP8.5.12实际运行原Concerns Trait、原Symfony ArrayInput及BufferedOutput，三组回调／数组／after钩子向量prompting-oracle.json由Rust正式Trait／Facade逐组比较；首次ArrayInput构造时误提前验证的失败保留，改为原bind后fill再validate流程。不是另写PHP提示替代实现。新五项实质测试覆盖类型组合、嵌套／提示后锁ID、来源错误、空答案、取消及恢复、真实TCP HTTP与独立Artisan；一个终端子进程夹具在常规测试中ignore，不计通过。
+
+终端验收脚本另执行六场景：PTY默认说明／占位问题及空／0重试后成功，--no-interaction拒绝缺参，无TTY立即错误，Ctrl+C（实际SIGINT，子进程-2／shell130），以及quiet／silent抑制问题与验证提示；不冒称优雅服务关闭或Windows实机已验证。三语正式Markdown直接提取18个消费者，另三个语言版本分别在PTY内真实执行自己的默认文本问题。默认文本使用现有原生console::Term展示，不声明与上游Prompts画面像素一致；未国际化默认问题遵守项目简体中文提示规则。捕获HTTP／程序化输出不会读取进程stdin；使用显式参数或自定义回调，边界已写入三语。
+
+最终6框架目标26项、根4目标42项，共68项父测试通过，另终端夹具1项ignore明确排除，PTY专门实跑独立记录；数据组和子进程不叠加为新功能数。fmt、workspace/all-targets严格Clippy28.56s、main(pail)和三语构建全0，12组双前缀／两宽度浏览器通过；实际main HTTP／静态／HTML与JSON404／HEAD、Artisan inspire／list／Pail真实错误捕获与超时清理／Ctrl+C通过。证据prompt-frozen-tests-v2.log、prompt-frozen-{root,fmt,clippy,main,docs}.log、prompt-frozen-tty.log／prompt-tty-results.json、prompt-frozen-formal-tty.log及逐语终端日志、prompt-frozen-browser.log和prompt-frozen-runtime.log；accepted-prompting.json保存源SHA。终端夹具目录清理，热缓存／依赖／日志／独立源码保留，无本批存活进程或容器。
+
+关联实测发现Artisan Facade连续call重建命令对象，不能把本批测试使用容器共享计数器说成命令实例持久化已经实现。registering-commands登记该缺口，下一簇立即复现／修复并补交；本批只闭合单次输入提示流程，prompting-for-missing-input待该关联项复验后最终核定。命令事件相对交互／锁的完整顺序仍随events节继续审计，不将现有observation回归冒充整节完结。其余I/O、生成／注册、信号和Dev／Tinker等未验节继续，不推送。

@@ -23,6 +23,9 @@ impl Command for IsolatedCommand {
     fn definition(&self) -> &CommandDefinition {
         &self.definition
     }
+    fn prompting(&self) -> Option<&dyn crate::contracts::console::PromptsForMissingInput> {
+        self.command.prompting()
+    }
     fn isolation(&self) -> Option<&dyn Isolatable> {
         Some(self.command.as_ref())
     }

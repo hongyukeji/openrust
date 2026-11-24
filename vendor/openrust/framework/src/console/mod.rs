@@ -12,6 +12,7 @@ mod isolation;
 mod list_command;
 pub(crate) mod localization;
 mod planned;
+mod prompting;
 pub mod scheduling;
 mod signature;
 pub(crate) mod task_command;
@@ -37,6 +38,7 @@ pub use command_input::CommandInput;
 pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
+pub use prompting::{CommandRegistration, MissingInputPrompt};
 
 /// A future for a console command or lifecycle hook.
 pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

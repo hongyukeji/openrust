@@ -1,0 +1,44 @@
+[
+    {
+        "supplied": [],
+        "arguments": {
+            "user": "0",
+            "items": [
+                "first",
+                "two words"
+            ]
+        },
+        "queue": true,
+        "prompted": 12
+    },
+    {
+        "supplied": {
+            "user": "42"
+        },
+        "arguments": {
+            "user": "42",
+            "items": [
+                "first",
+                "two words"
+            ]
+        },
+        "queue": true,
+        "prompted": 11
+    },
+    {
+        "supplied": {
+            "user": "42",
+            "items": [
+                "supplied"
+            ]
+        },
+        "arguments": {
+            "user": "42",
+            "items": [
+                "supplied"
+            ]
+        },
+        "queue": false,
+        "prompted": 0
+    }
+]

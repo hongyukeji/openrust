@@ -388,3 +388,49 @@ fn register_edited() -> Result<(), ConsoleError> {
 `set_argument` 接收 CLI 參數 token；`set_option` 接收 JSON 字串、布林開關、計數、陣列，以及表示可選值未帶參數的 null。每次修改重用原 Clap 解析器及約束，同時更新 `matches()` 與型別化助手；驗證失敗不改原輸入，保留其他值、空字串及非 UTF-8 OS 參數。
 
 這些入口依 CLI 定義重新驗證，並非任意 PHP 物件修改。定義無法表達的值、可選位置的空洞、清空非空預設陣列都會回傳錯誤，不悄悄重新繫結其他欄位或恢復預設值。讀取或修改全域輸入不會重新設定已建立的輸出串流。
+
+## 缺失必填參數的自動提示 {#prompting-for-missing-input}
+
+實作 `PromptsForMissingInput`，註冊前用 `.prompting()` 保留該 Trait。必填參數按宣告順序收集，隨後執行最終驗證與隔離。已傳參數不重複詢問；`--no-interaction` 跳過詢問，但仍拒絕缺失的必填參數。
+
+```rust
+use openrust::{
+    console::{Command, CommandDefinition, CommandRegistration, ConsoleError,
+        ConsoleFuture, Input, MissingInputPrompt, Output},
+    contracts::console::PromptsForMissingInput,
+    foundation::Application,
+    support::facades::Artisan,
+};
+use std::collections::BTreeMap;
+
+struct Deliver(CommandDefinition);
+impl Command for Deliver {
+    fn definition(&self) -> &CommandDefinition { &self.0 }
+    fn handle<'a>(&'a self, _: &'a Application, input: &'a Input,
+        output: &'a mut Output) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            output.stdout.push_str(&format!("user={}, queue={}",
+                input.argument("user").unwrap().as_str().unwrap(),
+                input.option("queue").unwrap()));
+            Ok(0)
+        })
+    }
+}
+impl PromptsForMissingInput for Deliver {
+    fn prompt_for_missing_arguments_using(&self) -> BTreeMap<String, MissingInputPrompt> {
+        BTreeMap::from([("user".into(),
+            MissingInputPrompt::text("Which user should receive the report?", "e.g. 123"))])
+    }
+}
+fn register_prompted() -> Result<(), ConsoleError> {
+    Artisan::add(Box::new(CommandRegistration::new(Deliver(
+        CommandDefinition::from_signature("reports:prompt {user} {--queue}")?
+    )).prompting()))
+}
+```
+
+預設問題使用參數說明或名稱。`MissingInputPrompt::text` 提供問題與佔位說明；`MissingInputPrompt::custom` 接收非同步的應用／可變輸入／輸出回呼，回傳 CLI token（`Vec<OsString>`），陣列參數可以回傳多個值。自訂回呼可以回傳 `"0"`；預設文字問題拒絕空答案或 `"0"`，保持必填文字驗證語意。每個缺失參數都會重新取得問題定義。
+
+`after_prompting_for_missing_arguments` 只在至少收集一個缺失參數後執行，接收可變 `Input`，可呼叫 `set_option` 或 `set_argument`；命令執行前再做最終驗證。型別同時實作兩種 Trait 時，可在同一個 `CommandRegistration` 上組合 `.prompting().isolatable()`。適配器在型別擦除前保留 Trait，重用既有註冊、快取鎖與生命週期管線。
+
+預設文字問題要求連接終端；HTTP／程式化擷取輸出不會讀取程序標準輸入。這些環境請明確傳參或提供自訂回呼。說明資訊不觸發互動。取消與回呼失敗沿既有錯誤處理傳播；等待輸入時不持有隔離鎖。

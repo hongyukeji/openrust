@@ -230,8 +230,17 @@
     },
     {
       "anchor": "prompting-for-missing-input",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_input_flow_pending_registration_lifetime",
+      "evidence": [
+        "console_prompting_tutorial",
+        "prompting-oracle.json",
+        "accepted-prompting.json",
+        "prompt-frozen-tty.log",
+        "prompt-frozen-formal-tty.log",
+        "prompt-frozen-runtime.log",
+        "prompt-frozen-browser.log"
+      ],
+      "contract": "单次必填收集／回调／after钩子／最终验证／隔离组合已验；连续命令实例生命周期关联项待下一簇"
     },
     {
       "anchor": "command-io",
@@ -290,7 +299,8 @@
     {
       "anchor": "registering-commands",
       "status": "pending_public_contract_review",
-      "evidence": []
+      "evidence": [],
+      "remaining": "实际Artisan::call重建命令对象，待修复实例生命周期并继续逐入口核对"
     },
     {
       "anchor": "programmatically-executing-commands",

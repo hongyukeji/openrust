@@ -45,6 +45,34 @@ impl Input {
         }
         self.edit(key, Edit::Option(value))
     }
+    pub(crate) fn validate_prompted(&mut self, version: &'static str) -> Result<(), ConsoleError> {
+        let mut parser = self
+            .syntax
+            .as_ref()
+            .clone()
+            .disable_help_flag(true)
+            .disable_version_flag(true);
+        if parser.get_version().is_none() {
+            parser = parser.version(version);
+        }
+        for arg in self.parsing_syntax.get_arguments() {
+            if !self
+                .syntax
+                .get_arguments()
+                .any(|own| own.get_id() == arg.get_id())
+            {
+                parser = parser.arg(arg.clone());
+            }
+        }
+        parser.build();
+        let matches = parser
+            .clone()
+            .try_get_matches_from(tokens(self, &parser, None)?)
+            .map_err(ConsoleError::from_source)?;
+        self.matches = matches;
+        self.parsing_syntax = std::sync::Arc::new(parser);
+        Ok(())
+    }
     fn edit(&mut self, key: &str, edit: Edit) -> Result<(), ConsoleError> {
         let mut parser = self.parsing_syntax.as_ref().clone();
         parser.build();
@@ -60,33 +88,7 @@ impl Input {
             Edit::Option(value) => option_groups(target, value)?,
         };
         let action = target.get_action().clone();
-        let mut tokens = vec![OsString::from(parser.get_name())];
-        let mut positional = Vec::new();
-        for (index, arg) in parser.get_arguments().enumerate() {
-            let id = arg.get_id().as_str();
-            let groups = if id == key {
-                expected.clone()
-            } else if self.matches.try_contains_id(id).is_ok()
-                && self.matches.value_source(id) == Some(ValueSource::DefaultValue)
-            {
-                Vec::new()
-            } else {
-                groups(&self.matches, id)
-            };
-            if option(arg) {
-                emit_option(&mut tokens, arg, &groups)?
-            } else {
-                positional.push((
-                    arg.get_index().unwrap_or(index + 1),
-                    groups.into_iter().flatten().collect::<Vec<_>>(),
-                ));
-            }
-        }
-        positional.sort_by_key(|(index, _)| *index);
-        if positional.iter().any(|(_, values)| !values.is_empty()) {
-            tokens.push("--".into());
-            tokens.extend(positional.into_iter().flat_map(|(_, values)| values));
-        }
+        let tokens = tokens(self, &parser, Some((key, &expected)))?;
         let matches = parser
             .try_get_matches_from(tokens)
             .map_err(ConsoleError::from_source)?;
@@ -231,4 +233,41 @@ fn emit_option(tokens: &mut Vec<OsString>, arg: &Arg, groups: &Groups) -> Result
         }
     }
     Ok(())
+}
+
+fn tokens(
+    input: &Input,
+    parser: &clap::Command,
+    edited: Option<(&str, &Groups)>,
+) -> Result<Vec<OsString>, ConsoleError> {
+    let mut tokens = vec![OsString::from(parser.get_name())];
+    let mut positional = Vec::new();
+    for (index, arg) in parser.get_arguments().enumerate() {
+        let id = arg.get_id().as_str();
+        let groups = if let Some((key, expected)) = edited
+            && id == key
+        {
+            expected.clone()
+        } else if input.matches.try_contains_id(id).is_ok()
+            && input.matches.value_source(id) == Some(ValueSource::DefaultValue)
+        {
+            Vec::new()
+        } else {
+            groups(&input.matches, id)
+        };
+        if option(arg) {
+            emit_option(&mut tokens, arg, &groups)?
+        } else {
+            positional.push((
+                arg.get_index().unwrap_or(index + 1),
+                groups.into_iter().flatten().collect::<Vec<_>>(),
+            ));
+        }
+    }
+    positional.sort_by_key(|(index, _)| *index);
+    if positional.iter().any(|(_, values)| !values.is_empty()) {
+        tokens.push("--".into());
+        tokens.extend(positional.into_iter().flat_map(|(_, values)| values));
+    }
+    Ok(tokens)
 }
