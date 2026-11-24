@@ -317,3 +317,15 @@ Confirmed.custom_field 与 CurrentPassword.guard 同时提供类型入口及 Rul
 隔离源码沿用已验收ba6d7b32018d32badfc67a1af8f088fedea9db06加第十五／十六组，未带入活跃其他修改。factories/gates.log 九阶段全0：MySQL8.4.13六目标37项0忽略（含三语3项）、workspace/all-targets严格Clippy1m20s、fmt、三语构建16.11s及浏览器、实际main构建7.75s与Artisan帮助／inspire退出0。首次三语代码混合规则数组缺少Regex.into()已由真实编译发现并修正，失败不计通过。核心／测试／教程与验收快照逐项SHA一致，证据 target/tmp/docs-chapters-20261124/factories/；本批临时MySQL自动回收，无常驻服务。
 
 上述命名入口闭合；rule-builders总节仍保留部分已验，直到数据库where、email及密码策略完成。数组消息位置与其余全章复核继续，不宣称全章完成。
+
+## 第十七组：数据库规则 where 的回调与数组入口（2026-11-24）
+
+固定 Rules/DatabaseRule::where/whereNot 与 ValidatesAttributes::validateExists/validateUnique、DatabasePresenceVerifier::addConditions 逐项核对。此前仅 using 可传回调，where只接标量；本批让同一个 r#where 接收 DatabaseWhere::callback，仍复用原 Conditions／嵌套条件／write连接，不另造查询器。第二参数复用查询层 BindingValues，单值保持旧调用，数组／空数组分别进入 where_in／where_not_in。Null及布尔类型继续绑定，条件不会拼SQL。
+
+Rust不能重载方法参数数量，也不能为普通方法省略参数；回调／空值条件显式传 Value::Null。DatabaseWhere 用专用回调构造区分字符串字段，避免稳定Rust中Fn泛型与外部字符串类型的重叠实现。该占位值不增加SQL条件。using、where_null、where_not_null、软删除及原标量入口保留。
+
+固定PHP8.5.12＋intl实际执行SQLite内存表50组，覆盖标量／数组／空数组／null／false／not数组、嵌套OR再AND软删除，以及Unique数组／回调，正式JSON在tests/reference/validation-database-where.json。Rust在真实MySQL8.4.13的实际TCP全部回放，比较成功投影及422错误键；已有read连接刻意不可达，继续证明使用write连接。三语directory_rules直接提取编译，在实际MySQL与HTTP Kernel分别验收两种租户成功、已删除／不存在拒绝、重复邮箱拒绝，未用手写平行规则代替文档。
+
+最终 database-where/gates-resumed.log 九阶段全0：六目标44项0忽略（文档6、aware6、factories2、fluent3、for_each4、http23）；workspace/all-targets严格Clippy、fmt、三语构建／浏览器、实际main与artisan help make:rule／inspire全部成功。更早TCP专项1项已过；文档夹具曾因捕获式配置闭包与fn指针契约不符失败，改从独立应用基目录读取前缀／验收环境读取URL后完整重跑，不计失败为通过。临时MySQL自动回收，无本批存活服务；源文件SHA与隔离组合一致。证据target/tmp/docs-chapters-20261124/database-where/。
+
+数据库where教程缺口关闭；email、密码、数组消息位置与全章复核继续，整章仍开放。

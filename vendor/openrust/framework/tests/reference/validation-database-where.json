@@ -1,0 +1,555 @@
+{
+  "framework": "13.40.0",
+  "cases": [
+    {
+      "mode": "where-scalar",
+      "data": {
+        "id": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 1
+      }
+    },
+    {
+      "mode": "where-scalar",
+      "data": {
+        "id": 2
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-scalar",
+      "data": {
+        "id": 3
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 3
+      }
+    },
+    {
+      "mode": "where-scalar",
+      "data": {
+        "id": 4
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 4
+      }
+    },
+    {
+      "mode": "where-scalar",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-array",
+      "data": {
+        "id": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 1
+      }
+    },
+    {
+      "mode": "where-array",
+      "data": {
+        "id": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 2
+      }
+    },
+    {
+      "mode": "where-array",
+      "data": {
+        "id": 3
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 3
+      }
+    },
+    {
+      "mode": "where-array",
+      "data": {
+        "id": 4
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 4
+      }
+    },
+    {
+      "mode": "where-array",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-empty",
+      "data": {
+        "id": 1
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-empty",
+      "data": {
+        "id": 2
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-empty",
+      "data": {
+        "id": 3
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-empty",
+      "data": {
+        "id": 4
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-empty",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-null",
+      "data": {
+        "id": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 1
+      }
+    },
+    {
+      "mode": "where-null",
+      "data": {
+        "id": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 2
+      }
+    },
+    {
+      "mode": "where-null",
+      "data": {
+        "id": 3
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-null",
+      "data": {
+        "id": 4
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 4
+      }
+    },
+    {
+      "mode": "where-null",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-false",
+      "data": {
+        "id": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 1
+      }
+    },
+    {
+      "mode": "where-false",
+      "data": {
+        "id": 2
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-false",
+      "data": {
+        "id": 3
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 3
+      }
+    },
+    {
+      "mode": "where-false",
+      "data": {
+        "id": 4
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-false",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-not-array",
+      "data": {
+        "id": 1
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-not-array",
+      "data": {
+        "id": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 2
+      }
+    },
+    {
+      "mode": "where-not-array",
+      "data": {
+        "id": 3
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-not-array",
+      "data": {
+        "id": 4
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-not-array",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-not-empty",
+      "data": {
+        "id": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 1
+      }
+    },
+    {
+      "mode": "where-not-empty",
+      "data": {
+        "id": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 2
+      }
+    },
+    {
+      "mode": "where-not-empty",
+      "data": {
+        "id": 3
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 3
+      }
+    },
+    {
+      "mode": "where-not-empty",
+      "data": {
+        "id": 4
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 4
+      }
+    },
+    {
+      "mode": "where-not-empty",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-callback",
+      "data": {
+        "id": 1
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 1
+      }
+    },
+    {
+      "mode": "where-callback",
+      "data": {
+        "id": 2
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 2
+      }
+    },
+    {
+      "mode": "where-callback",
+      "data": {
+        "id": 3
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "where-callback",
+      "data": {
+        "id": 4
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "id": 4
+      }
+    },
+    {
+      "mode": "where-callback",
+      "data": {
+        "id": 5
+      },
+      "passes": false,
+      "errors": [
+        "id"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-array",
+      "data": {
+        "email": "owned@example.test"
+      },
+      "passes": false,
+      "errors": [
+        "email"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-array",
+      "data": {
+        "email": "foreign@example.test"
+      },
+      "passes": false,
+      "errors": [
+        "email"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-array",
+      "data": {
+        "email": "deleted@example.test"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "email": "deleted@example.test"
+      }
+    },
+    {
+      "mode": "unique-array",
+      "data": {
+        "email": "second@example.test"
+      },
+      "passes": false,
+      "errors": [
+        "email"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-array",
+      "data": {
+        "email": "new@example.test"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "email": "new@example.test"
+      }
+    },
+    {
+      "mode": "unique-callback",
+      "data": {
+        "email": "owned@example.test"
+      },
+      "passes": false,
+      "errors": [
+        "email"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-callback",
+      "data": {
+        "email": "foreign@example.test"
+      },
+      "passes": false,
+      "errors": [
+        "email"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-callback",
+      "data": {
+        "email": "deleted@example.test"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "email": "deleted@example.test"
+      }
+    },
+    {
+      "mode": "unique-callback",
+      "data": {
+        "email": "second@example.test"
+      },
+      "passes": false,
+      "errors": [
+        "email"
+      ],
+      "validated": null
+    },
+    {
+      "mode": "unique-callback",
+      "data": {
+        "email": "new@example.test"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "email": "new@example.test"
+      }
+    }
+  ]
+}

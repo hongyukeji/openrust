@@ -114,6 +114,44 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async move {
         let mode = request.route("mode").unwrap();
         let rules = match mode {
+            mode if mode.starts_with("where-") || mode.starts_with("unique-") => {
+                use openrust::{database::Value as Binding, validation::rules::DatabaseWhere};
+                if mode.starts_with("unique-") {
+                    let rule = Rule::unique("directory.accounts", Some("email"));
+                    let rule = if mode == "unique-array" {
+                        rule.r#where("tenant", [7, 8])
+                    } else {
+                        rule.r#where(
+                            DatabaseWhere::callback(|query| {
+                                query.r#where("tenant", "=", 7).or_where("tenant", "=", 8)
+                            }),
+                            Binding::Null,
+                        )
+                    };
+                    RuleSet::new().field("email", [rule.where_null("deleted_at").into()])?
+                } else {
+                    let rule = Rule::exists("directory.accounts", Some("account_id"));
+                    let rule = match mode {
+                        "where-scalar" => rule.r#where("tenant", 7),
+                        "where-array" => rule.r#where("tenant", [7, 8]),
+                        "where-empty" => rule.r#where("tenant", Vec::<Binding>::new()),
+                        "where-null" => rule.r#where("deleted_at", Binding::Null),
+                        "where-false" => rule.r#where("enabled", false),
+                        "where-not-array" => rule.where_not("tenant", [7]),
+                        "where-not-empty" => rule.where_not("tenant", Vec::<Binding>::new()),
+                        "where-callback" => rule
+                            .r#where(
+                                DatabaseWhere::callback(|query| {
+                                    query.r#where("tenant", "=", 7).or_where("tenant", "=", 8)
+                                }),
+                                Binding::Null,
+                            )
+                            .where_null("deleted_at"),
+                        _ => unreachable!(),
+                    };
+                    RuleSet::new().field("id", [rule.into()])?
+                }
+            }
             "fluent" => RuleSet::new()
                 .field(
                     "ids",
@@ -880,10 +918,10 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
     .connection(None)
     .unwrap();
     let table = format!("{prefix}accounts");
-    db.statement(&format!("CREATE TABLE {table} (account_id INT PRIMARY KEY, email VARCHAR(100), tenant INT, deleted_at INT)"), &[])
+    db.statement(&format!("CREATE TABLE {table} (account_id INT PRIMARY KEY, email VARCHAR(100), tenant INT, enabled INT, deleted_at INT)"), &[])
         .await
         .unwrap();
-    db.statement(&format!("INSERT INTO {table} VALUES (1,'owned@example.test',7,NULL), (2,'foreign@example.test',8,NULL), (3,'deleted@example.test',7,1), (4,'second@example.test',7,NULL)"), &[])
+    db.statement(&format!("INSERT INTO {table} VALUES (1,'owned@example.test',7,0,NULL), (2,'foreign@example.test',8,1,NULL), (3,'deleted@example.test',7,0,1), (4,'second@example.test',7,1,NULL)"), &[])
         .await
         .unwrap();
     let references = format!("{prefix}references");
@@ -931,6 +969,39 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
         .await,
         json!({"ids":[1,1,4],"email":"owned@example.test"}),
     );
+    let fixture: Value =
+        serde_json::from_str(include_str!("reference/validation-database-where.json")).unwrap();
+    for case in fixture["cases"].as_array().unwrap() {
+        let passes = case["passes"].as_bool().unwrap();
+        let uri = format!("/api/presence/{}", case["mode"].as_str().unwrap());
+        let actual = send(
+            address,
+            &uri,
+            case["data"].clone(),
+            false,
+            if passes { 200 } else { 422 },
+        )
+        .await;
+        if passes {
+            assert_eq!(actual, case["validated"], "{case}");
+        } else {
+            assert_eq!(
+                actual["errors"]
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                case["errors"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap().to_owned())
+                    .collect::<Vec<_>>(),
+                "{case}"
+            );
+        }
+    }
     let fluent = call(
         "/api/presence/fluent",
         json!({"ids":[1,3,777],"email":"second@example.test"}),

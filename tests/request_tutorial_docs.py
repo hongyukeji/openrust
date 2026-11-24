@@ -103,9 +103,31 @@ pub fn register(_: &openrust::foundation::Application)->Result<openrust::routing
 }}
 '''
     code += '#[tokio::test]\nasync fn tutorial_' + name + '(){verify(' + name + '::register).await;}\n'
+code += r'''
+async fn verify_database(register:fn(&Application)->Result<Router,RoutingError>) {
+ use openrust::database::DatabaseManager;
+ let Ok(url)=std::env::var("OPENRUST_TEST_MYSQL_URL") else {assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());return;};
+ let prefix=format!("directory_docs_{:016x}_",fastrand::u64(..));
+ let config=std::collections::BTreeMap::from([("database".into(),json!({"default":"directory","connections":{"directory":{"url":url,"prefix":prefix}}}))]);
+ let manager=DatabaseManager::new(std::sync::Arc::new(openrust::config::Repository::new(config.clone())),".");let db=manager.connection(None).unwrap();
+ let table=format!("{prefix}accounts");db.statement(&format!("CREATE TABLE {table} (account_id INT PRIMARY KEY,email VARCHAR(100),tenant INT,deleted_at INT)"),&[]).await.unwrap();
+ db.statement(&format!("INSERT INTO {table} VALUES(1,'owned@example.test',7,NULL),(2,'foreign@example.test',8,NULL),(3,'deleted@example.test',7,1)"),&[]).await.unwrap();
+ let root=tempfile::tempdir().unwrap();let base=root.path().join(&prefix);std::fs::create_dir(&base).unwrap();let app=Application::configure(base).with_config(|base,_|Ok(std::collections::BTreeMap::from([("database".into(),json!({"default":"directory","connections":{"directory":{"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap(),"prefix":base.file_name().unwrap().to_str().unwrap()}}}))]))).with_routing(Routing::new(register)).create().unwrap();let mut kernel=Kernel::new(app);kernel.bootstrap().await.unwrap();
+ for(body,expected)in [(json!({"id":1,"email":"new@example.test"}),StatusCode::CREATED),(json!({"id":2,"email":"new@example.test"}),StatusCode::CREATED),(json!({"id":3,"email":"new@example.test"}),StatusCode::UNPROCESSABLE_ENTITY),(json!({"id":1,"email":"owned@example.test"}),StatusCode::UNPROCESSABLE_ENTITY),(json!({"id":5,"email":"new@example.test"}),StatusCode::UNPROCESSABLE_ENTITY)] {let(status,data)=call(&kernel,"POST","http://tutorial.test/accounts",&body.to_string()).await;assert_eq!(status,expected,"{data}");}
+ db.statement(&format!("DROP TABLE {table}"),&[]).await.unwrap();
+}
+'''
+for locale in ('en','zh-Hans','zh-Hant'):
+    name='database_'+locale.lower().replace('-','_')
+    code+='mod '+name+' {\n'+block(locale,'validation','directory_rules','{#database-validation-rules}')+r'''
+fn submit(request:&mut openrust::http::Request)->openrust::http::HttpFuture<'_,Result<openrust::http::Response,openrust::http::HttpError>> {Box::pin(async move {openrust::http::Response::json(openrust::http::StatusCode::CREATED,request.validate(directory_rules()?).await?)})}
+pub fn register(_: &openrust::foundation::Application)->Result<openrust::routing::Router,openrust::routing::RoutingError> {let mut router=openrust::routing::Router::new();router.post("/accounts",submit)?;Ok(router)}
+}
+'''
+    code+='#[tokio::test]\nasync fn tutorial_'+name+'(){verify_database('+name+'::register).await;}\n'
 target = source / 'vendor/openrust/framework/tests/request_docs_generated.rs'
 if not target.resolve().is_relative_to(source):
     parser.error('生成路径不能通过符号链接逃逸源码快照')
 target.write_text(code)
 subprocess.run(['rustfmt', '+1.94.0', '--edition', '2024', str(target)], check=True)
-print('已直接提取三语正式教程，生成三个 HTTP Kernel 消费者')
+print('已直接提取三语正式教程，生成 HTTP Kernel 消费者')

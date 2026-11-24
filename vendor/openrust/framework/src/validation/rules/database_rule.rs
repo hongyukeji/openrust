@@ -10,6 +10,30 @@ use crate::validation::{ValidationError, ValidationResult};
 
 type Callback = Arc<dyn Fn(Conditions) -> Conditions + Send + Sync>;
 
+/// 数据库字段或嵌套查询回调；显式区分Rust不能重载的参数形态。
+#[derive(Clone)]
+pub struct DatabaseWhere(WhereInput);
+#[derive(Clone)]
+enum WhereInput {
+    Column(String),
+    Callback(Callback),
+}
+impl DatabaseWhere {
+    pub fn callback(callback: impl Fn(Conditions) -> Conditions + Send + Sync + 'static) -> Self {
+        Self(WhereInput::Callback(Arc::new(callback)))
+    }
+}
+impl From<&str> for DatabaseWhere {
+    fn from(column: &str) -> Self {
+        Self(WhereInput::Column(column.to_owned()))
+    }
+}
+impl From<String> for DatabaseWhere {
+    fn from(column: String) -> Self {
+        Self(WhereInput::Column(column))
+    }
+}
+
 #[derive(Clone)]
 enum Condition {
     Compare(String, &'static str, Value),
@@ -46,6 +70,26 @@ impl DatabaseRule {
             table: model.get_table().to_owned(),
             column: column.map(str::to_owned),
             conditions: Vec::new(),
+        }
+    }
+
+    pub(super) fn where_constraint(
+        &mut self,
+        column: DatabaseWhere,
+        value: crate::database::query::BindingValues,
+    ) {
+        match column.0 {
+            WhereInput::Callback(callback) => {
+                self.conditions.push(Condition::Callback(callback));
+            }
+            WhereInput::Column(column) => match value {
+                crate::database::query::BindingValues::Values(values) => {
+                    self.in_set(&column, values, false)
+                }
+                crate::database::query::BindingValues::Value(value) => {
+                    self.compare(&column, "=", value)
+                }
+            },
         }
     }
 
@@ -121,13 +165,28 @@ impl DatabaseRule {
 
 macro_rules! database_conditions {
     () => {
-        pub fn r#where(mut self, column: &str, value: impl Into<Value>) -> Self {
-            self.target.compare(column, "=", value.into());
+        pub fn r#where(
+            mut self,
+            column: impl Into<super::database_rule::DatabaseWhere>,
+            value: impl Into<crate::database::query::BindingValues>,
+        ) -> Self {
+            self.target.where_constraint(column.into(), value.into());
             self
         }
 
-        pub fn where_not(mut self, column: &str, value: impl Into<Value>) -> Self {
-            self.target.compare(column, "!=", value.into());
+        pub fn where_not(
+            mut self,
+            column: &str,
+            value: impl Into<crate::database::query::BindingValues>,
+        ) -> Self {
+            match value.into() {
+                crate::database::query::BindingValues::Values(values) => {
+                    self.target.in_set(column, values, true)
+                }
+                crate::database::query::BindingValues::Value(value) => {
+                    self.target.compare(column, "!=", value)
+                }
+            }
             self
         }
 

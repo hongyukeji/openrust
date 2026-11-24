@@ -72,6 +72,20 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 Fluent rules support query constraints and soft-deleted rows. When updating a row, use `ignore` with a trusted identifier or `ignore_model` with a model already resolved and authorized by the application. Use a database unique constraint to enforce uniqueness across concurrent writes.
 
+`r#where` accepts a column or `DatabaseWhere::callback`, and a scalar or an array of typed bindings. Arrays become `where_in`; `where_not` with an array becomes `where_not_in`, including empty arrays. Pass `Value::Null` for the optional value when supplying a callback or a null constraint: Rust cannot overload method arity or omit ordinary arguments. Callbacks reuse the existing nested query conditions; the explicit null placeholder adds no SQL condition. The named `directory` database connection must be configured before using this example.
+
+```rust
+use openrust::{database::Value, validation::{Rule, RuleSet, ValidationResult, rules::DatabaseWhere}};
+fn directory_rules() -> ValidationResult<RuleSet> {
+    RuleSet::new()
+        .field("id", [Rule::exists("directory.accounts", Some("account_id"))
+            .r#where(DatabaseWhere::callback(|query| query.r#where("tenant", "=", 7).or_where("tenant", "=", 8)), Value::Null)
+            .where_null("deleted_at").into()])?
+        .field("email", [Rule::unique("directory.accounts", Some("email"))
+            .r#where("tenant", [7, 8]).where_null("deleted_at").into()])
+}
+```
+
 ## Form Request Validation {#form-request-validation}
 
 ### Creating a form request {#creating-form-requests}

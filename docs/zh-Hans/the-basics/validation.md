@@ -72,6 +72,20 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 流式规则支持附加查询条件和软删除筛选。更新记录时，用 `ignore` 传入可信的记录标识，或把应用已解析并授权的模型传给 `ignore_model`。并发写入的唯一性由数据库唯一约束保证。
 
+`r#where` 接收字段或 `DatabaseWhere::callback`，以及单个或数组类型化绑定值。数组转为 `where_in`；`where_not` 的数组转为 `where_not_in`，包含空数组。回调或空值约束显式传入 `Value::Null`：Rust 无法重载方法参数数量或省略普通参数。回调复用原嵌套查询条件，显式空值占位不增加 SQL 条件。使用示例前需配置名为 `directory` 的数据库连接。
+
+```rust
+use openrust::{database::Value, validation::{Rule, RuleSet, ValidationResult, rules::DatabaseWhere}};
+fn directory_rules() -> ValidationResult<RuleSet> {
+    RuleSet::new()
+        .field("id", [Rule::exists("directory.accounts", Some("account_id"))
+            .r#where(DatabaseWhere::callback(|query| query.r#where("tenant", "=", 7).or_where("tenant", "=", 8)), Value::Null)
+            .where_null("deleted_at").into()])?
+        .field("email", [Rule::unique("directory.accounts", Some("email"))
+            .r#where("tenant", [7, 8]).where_null("deleted_at").into()])
+}
+```
+
 ## 表单请求验证 {#form-request-validation}
 
 ### 创建表单请求 {#creating-form-requests}

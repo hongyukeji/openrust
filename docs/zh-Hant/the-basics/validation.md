@@ -72,6 +72,20 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 流暢介面支援附加查詢條件和軟刪除篩選。更新資料列時，用 `ignore` 傳入可信的識別碼，或將應用程式已解析並授權的模型傳給 `ignore_model`。並行寫入的唯一性由資料庫唯一約束保證。
 
+`r#where` 接收欄位或 `DatabaseWhere::callback`，以及單一或陣列型別化綁定值。陣列轉為 `where_in`；`where_not` 的陣列轉為 `where_not_in`，包含空陣列。回呼或空值約束明確傳入 `Value::Null`：Rust 無法多載方法參數數量或省略一般參數。回呼共用原巢狀查詢條件，明確空值佔位不增加 SQL 條件。使用範例前須設定名為 `directory` 的資料庫連線。
+
+```rust
+use openrust::{database::Value, validation::{Rule, RuleSet, ValidationResult, rules::DatabaseWhere}};
+fn directory_rules() -> ValidationResult<RuleSet> {
+    RuleSet::new()
+        .field("id", [Rule::exists("directory.accounts", Some("account_id"))
+            .r#where(DatabaseWhere::callback(|query| query.r#where("tenant", "=", 7).or_where("tenant", "=", 8)), Value::Null)
+            .where_null("deleted_at").into()])?
+        .field("email", [Rule::unique("directory.accounts", Some("email"))
+            .r#where("tenant", [7, 8]).where_null("deleted_at").into()])
+}
+```
+
 ## 表單請求驗證 {#form-request-validation}
 
 ### 建立表單請求 {#creating-form-requests}

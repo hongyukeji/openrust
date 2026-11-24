@@ -483,7 +483,7 @@
         {
           "anchor": "rule-builders",
           "title": "Rule Builders",
-          "status": "partially_verified_remaining_email_password_database",
+          "status": "partially_verified_remaining_email_password",
           "contract": [
             "已验StringRule/ArrayRule/Numeric/Date及参数化和条件对象；其余基础工厂、Confirmed/CurrentPassword等继续核对"
           ],
@@ -913,23 +913,35 @@
         {
           "anchor": "rule-exists",
           "title": "exists:_table_,_column_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Exists／Unique字符串／typed模型及数据库约束入口；原回归与第十七组where数组／嵌套回调，真实write连接"
+          ],
+          "evidence": [
+            "README.md#第十七组数据库规则-where-的回调与数组入口2026-11-24"
+          ]
         },
         {
           "anchor": "basic-usage-of-exists-rule",
           "title": "Basic Usage of Exists Rule",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Exists／Unique字符串／typed模型及数据库约束入口；原回归与第十七组where数组／嵌套回调，真实write连接"
+          ],
+          "evidence": [
+            "README.md#第十七组数据库规则-where-的回调与数组入口2026-11-24"
+          ]
         },
         {
           "anchor": "specifying-a-custom-column-name",
           "title": "Specifying a Custom Column Name",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Exists／Unique字符串／typed模型及数据库约束入口；原回归与第十七组where数组／嵌套回调，真实write连接"
+          ],
+          "evidence": [
+            "README.md#第十七组数据库规则-where-的回调与数组入口2026-11-24"
+          ]
         },
         {
           "anchor": "rule-extensions",
@@ -1558,9 +1570,13 @@
         {
           "anchor": "rule-unique",
           "title": "unique:_table_,_column_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Exists／Unique字符串／typed模型及数据库约束入口；原回归与第十七组where数组／嵌套回调，真实write连接"
+          ],
+          "evidence": [
+            "README.md#第十七组数据库规则-where-的回调与数组入口2026-11-24"
+          ]
         },
         {
           "anchor": "rule-uppercase",
