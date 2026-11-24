@@ -16,7 +16,7 @@
 - 把固定 Laravel 基线当作从 PHP 翻译到 Rust 的原文。像多语言翻译一样，保留原意和结构，用 Rust 表达相同的机制。默认装配、生命周期顺序、默认值和用户可观察行为均按上游保留，让熟悉 Laravel 的开发者可以逐项对照 PHP 源码阅读 Rust 实现。
 - Rust 标识符采用原生命名：类型／trait／枚举及变体用 `UpperCamelCase`，函数／方法／变量／参数／字段／模块／宏用 `snake_case`，常量与静态变量用 `SCREAMING_SNAKE_CASE`。例如局部变量使用 `base_path`，Builder 方法使用 `with_routing`。2026-11-23 用户确认此规则替代此前保留上游标识符大小写的要求；现有代码按[命名统一计划](plans/rust-naming-unification.md)分批迁移，不将待迁移代码视为已完成。
 - PHP 的命名参数、动态加载、异常等按需转换为 Rust 的 Builder、静态注册、`Result` 和异步接口，保留原有职责和调用时机。公开 Rust 方法采用 `with_routing`、`with_exceptions` 等表达；命令、配置键、环境变量、序列化字段、事件字符串、模板表达式和外部协议按各自既定契约保留，不能随 Rust 标识符机械替换。必要的命名例外限定最小范围并记录原因，迁移范围和验收见上述计划。
-- 所有 workspace 包通过 `[lints] workspace = true` 继承三种命名 lint 的 `deny`；不再为旧大小写保留命名豁免。`python3 tests/rust_naming.py` 核对成员策略和真实 Cargo 正反消费者，CI 同步执行该检查与格式检查。宏展开声明、生成源码和三语 Rust 示例须一起验收，FFI／外部字段与字符串契约独立裁决；历史验收不改写。
+- 所有 workspace 包通过 `[lints] workspace = true` 继承三种命名 lint 的 `deny`；不再为旧大小写保留命名豁免。`python3 tests/rust_naming.py` 核对成员策略和真实 Cargo 正反消费者。宏展开声明、生成源码和三语 Rust 示例须一起验收，FFI／外部字段与字符串契约独立裁决；历史验收不改写。
 - Rust 机制能带来更好的性能时，可以替换内部实现，前提是保持 Laravel 的核心机制、公开契约、默认值和错误行为。以针对性的测试验证等价行为，以测量支持性能收益。对每项语言适配或性能取舍，记录对应的 Laravel 源码、采用的 Rust 实现、原因和验证结果，并在交付时告知用户。
 
 ## 对齐审计与缺口闭环
