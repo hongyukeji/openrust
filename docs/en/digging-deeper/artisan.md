@@ -293,3 +293,28 @@ fn register_injected() -> Result<(), ConsoleError> {
     Artisan::command_with("mail:send-injected {user}", send)?.purpose("Send with an injected service")
 }
 ```
+
+## Typed command input {#typed-command-input}
+
+`Input::input()` returns a `CommandInput` snapshot. `input_value(key, default)` reads one value. The bag offers `string`/`str`, `integer`, `float`, `boolean`, their `_or` and `_strict` variants, `clamp`, `date`, `interval`, backed `r#enum`/`enums`, `array`, and `collect`, reusing the request input conversion rules. Date parsing uses the application time zone unless supplied, and returns an error for invalid input; the original error remains available through `ConsoleError::source`.
+
+```rust
+use openrust::{console::{ConsoleError, Input, Output}, support::facades::Artisan};
+
+fn register_typed() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "reports:send {--from=} {--limit=10} {--active}",
+        |input: &Input, output: &mut Output| {
+            let data = input.input();
+            let date = data.date("from", Some("!Y-m-d"), Some("UTC"))?;
+            let limit = data.integer_strict("limit", 10);
+            output.comment(&format!("limit={limit}, active={}, date={}", data.boolean("active"), date.is_some()));
+            Ok(0)
+        },
+    )?.purpose("Send a typed report")
+}
+```
+
+`arguments()` and `options()` keep their groups. For a `CommandInput` built with conflicting groups, the fixed implementation merges options then arguments, so arguments win. `all`/`to_array` return the combined data; `all_keys` retains missing selections as null and an empty selection returns the whole bag, while `only` omits missing paths. `get`, `has`/`exists`, `has_all`, `has_any`, `missing`, `filled`, `is_not_filled`, `any_filled`, and `except` use the existing dot-path rules. False, zero and empty arrays count as filled; empty strings and null do not.
+
+Conditional `when_has`, `when_filled`, `when_missing`, and `when_enum` return `Option<R>` (the enum variant also returns `Result`). `None` means the callback was not invoked; use `or_else` for a fallback. Rust keeps explicit callback return types rather than PHP’s truthiness-based union of the bag and callback value. Read dynamic properties with `get`/`exists`. These adapters do not execute arbitrary PHP expressions.

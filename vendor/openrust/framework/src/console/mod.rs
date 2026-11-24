@@ -2,6 +2,7 @@
 
 mod application;
 mod command;
+mod command_input;
 mod descriptor;
 pub mod events;
 pub mod generator_command;
@@ -31,6 +32,7 @@ pub use application::Application;
 pub use command::{
     ClosureCommand, Command, CommandCallback, CommandDefinition, IntoCommandCallback,
 };
+pub use command_input::CommandInput;
 pub use generator_command::GeneratorCommand;
 pub(crate) use localization::text as localized_text;
 
@@ -189,6 +191,7 @@ pub struct ConsoleError(ConsoleFailure);
 enum ConsoleFailure {
     Message(String),
     Dump(String),
+    Source(Arc<dyn Error + Send + Sync>),
 }
 
 impl ConsoleError {
@@ -196,9 +199,14 @@ impl ConsoleError {
         Self(ConsoleFailure::Message(message.into()))
     }
 
+    /// 保留下游错误类型与来源链，同时沿用控制台渲染流程。
+    pub fn from_source(error: impl Error + Send + Sync + 'static) -> Self {
+        Self(ConsoleFailure::Source(Arc::new(error)))
+    }
+
     pub(crate) fn dump_output(&self) -> Option<&str> {
         match &self.0 {
-            ConsoleFailure::Message(_) => None,
+            ConsoleFailure::Message(_) | ConsoleFailure::Source(_) => None,
             ConsoleFailure::Dump(output) => Some(output),
         }
     }
@@ -219,12 +227,20 @@ impl fmt::Display for ConsoleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             ConsoleFailure::Message(message) => f.write_str(message),
+            ConsoleFailure::Source(error) => error.fmt(f),
             ConsoleFailure::Dump(_) => f.write_str("collection debugging stopped execution"),
         }
     }
 }
 
-impl Error for ConsoleError {}
+impl Error for ConsoleError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match &self.0 {
+            ConsoleFailure::Source(error) => Some(error.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 pub(crate) use confirm_to_proceed as confirm_production;
 

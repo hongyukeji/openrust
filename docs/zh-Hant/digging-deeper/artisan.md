@@ -293,3 +293,28 @@ fn register_injected() -> Result<(), ConsoleError> {
     Artisan::command_with("mail:send-injected {user}", send)?.purpose("Send with an injected service")
 }
 ```
+
+## 型別化命令輸入 {#typed-command-input}
+
+`Input::input()` 回傳 `CommandInput` 快照，`input_value(key, default)` 讀取單個值。支援 `string`／`str`、`integer`、`float`、`boolean` 及其 `_or`／`_strict`、`clamp`、`date`、`interval`、backed `r#enum`／`enums`、`array` 和 `collect`，重用請求輸入的轉換規則。未指定日期時區時使用應用設定；無效日期回傳錯誤，`ConsoleError::source` 保留原始錯誤來源。
+
+```rust
+use openrust::{console::{ConsoleError, Input, Output}, support::facades::Artisan};
+
+fn register_typed() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "reports:send {--from=} {--limit=10} {--active}",
+        |input: &Input, output: &mut Output| {
+            let data = input.input();
+            let date = data.date("from", Some("!Y-m-d"), Some("UTC"))?;
+            let limit = data.integer_strict("limit", 10);
+            output.comment(&format!("limit={limit}, active={}, date={}", data.boolean("active"), date.is_some()));
+            Ok(0)
+        },
+    )?.purpose("Send a typed report")
+}
+```
+
+`arguments()` 和 `options()` 保留各組。直接建構的 `CommandInput` 若有同名鍵，固定實作先合併選項再合併位置參數，位置參數優先。`all`／`to_array` 回傳合併值；`all_keys` 將缺失的選中鍵保留為 null，空選擇回傳整組，而 `only` 忽略缺失路徑。`get`、`has`／`exists`、`has_all`、`has_any`、`missing`、`filled`、`is_not_filled`、`any_filled` 和 `except` 使用既有點路徑規則。false、零和空陣列屬於已填寫，空字串與 null 不屬於。
+
+條件入口 `when_has`、`when_filled`、`when_missing` 和 `when_enum` 回傳 `Option<R>`（列舉入口還回傳 `Result`）。`None` 表示未執行回呼，以 `or_else` 提供回退；Rust 使用明確回傳型別，不隱式混合 PHP 按真值決定的輸入物件與回呼回傳值。動態屬性使用 `get`／`exists`，這些適配不會執行任意 PHP 運算式。

@@ -9,6 +9,7 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 - 2026-11-25 固定Logging核心29节按用户核定范围闭合：通用Formattable类型与延迟自带格式器、实际HTTP／Artisan／浏览器和三语直接示例补齐；11目标61项、45个文档消费者及严格门禁通过。详见[最终核对](audits/logging-tutorial/README.md)和[逐节清单](audits/logging-tutorial/section-map.json)。用户将New Relic明确单列为[LOG-S01待选型供应商集成](plans/log-supplier-integrations.md)，专用APM未实现，不能算发布待账号。随后进入Artisan Console；URL／Validation、Error Handling及Settings既有闭合不重开。不推送，保护其他对话在途。
 
 - 2026-11-25 Artisan Console已建立[48节清单](audits/artisan-tutorial/section-map.json)，首簇签名／闭包输入／声明式依赖已通过实际HTTP／独立Artisan、6个正式示例、严格门禁和三语浏览器，详见[记录](audits/artisan-tutorial/README.md)。继续CommandInput类型化及提示／隔离／输出等逐项复核，整章未闭合；Tinker仍为Planned，不能冒称支持。不推送。
+- 2026-11-25 Artisan首簇已提交dc8137855，第二簇CommandInput类型化读取完成14组固定PHP向量、85项相关消费者（含请求输入30项及正式三语9例）、实际HTTP／独立Artisan与严格门禁。条件返回Option及分组优先级见[第二簇](audits/artisan-tutorial/README.md)。继续Isolatable及其他未验48节入口，整章不提前闭合，不推送。
 - 2026-11-24用户确认按建议执行完整版用户认证入门套件，正式授权、产品决定及依赖批次统一见[API-A01计划](plans/user-auth-starter-kit.md)。原待讨论状态已撤销；当前已记录决策，实现／新增整体验收待开展。后续直接按已确认方案推进，复用既有认证能力，保留其他在途工作，按规范实测后分批本地提交；不推送、不发布。
 
 - 2026-11-24 固定Error Handling教程18节已逐项闭合：报告助手、异常类型行为／忽略标记、异步命名视图、419重定向与会话闪存、真实错误页对象、八专用回退及发布均经真实HTTP／Artisan验证；三语正文与[18节账本](audits/error-tutorial/section-map.json)同步，证据与原生差异见[最终核对](audits/error-tutorial/README.md)。保留URL14节、Validation179节及Settings既定范围已闭合状态，不扩张为全框架API或发布矩阵完成。本轮只本地提交，未推送。

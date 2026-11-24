@@ -216,11 +216,16 @@
     },
     {
       "anchor": "retrieving-input",
-      "status": "partial_typed_command_input_pending",
+      "status": "verified_tutorial_scope",
       "evidence": [
-        "artisan_signature_tutorial"
+        "command_input_tutorial",
+        "request_input",
+        "artisan_docs_generated",
+        "input-oracle.json",
+        "input-runtime.log",
+        "input-browser.log"
       ],
-      "contract": "argument/option及分组读取已验，CommandInput类型化消费者待补齐"
+      "contract": "Input分组／单值及真实CommandInput类型化标量、日期、枚举、集合；明确Option条件返回与原生属性访问适配"
     },
     {
       "anchor": "prompting-for-input",
