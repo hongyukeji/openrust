@@ -18,6 +18,12 @@ pub trait Kernel: Send + Sync {
     fn terminate<'a>(&'a mut self, arguments: &'a [OsString], status: i32)
     -> ConsoleFuture<'a, ()>;
     fn register_command(&mut self, command: Box<dyn Command>) -> Result<(), ConsoleError>;
+    fn register_isolatable_command(
+        &mut self,
+        command: Box<dyn Isolatable>,
+    ) -> Result<(), ConsoleError> {
+        self.register_command(Box::new(crate::console::IsolatedCommand::new(command)))
+    }
     fn call<'a>(
         &'a mut self,
         command: &'a str,
@@ -25,4 +31,15 @@ pub trait Kernel: Send + Sync {
         output: Option<&'a mut Output>,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>>;
     fn output(&mut self) -> String;
+}
+
+/// 标记可隔离命令，并声明依赖本次输入的锁标识及有效期。
+/// 使用控制台／门面的隔离注册入口自动添加`--isolated`。
+pub trait Isolatable: Command {
+    fn isolatable_id(&self, _input: &Input) -> Result<Option<String>, ConsoleError> {
+        Ok(None)
+    }
+    fn isolation_lock_expires_at(&self, _input: &Input) -> Result<crate::cache::Ttl, ConsoleError> {
+        Ok(crate::cache::Ttl::Seconds(3600))
+    }
 }

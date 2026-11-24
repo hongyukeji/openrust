@@ -1,0 +1,14 @@
+{
+  "docs/en/digging-deeper/artisan.md": "cf7f50f309cf5fc5ad990639b7e02a4b0167938646848d059219224ed366abf7",
+  "docs/zh-Hans/digging-deeper/artisan.md": "f0f1c706cc75888e6f30b00ebf796886dbe990ac7b0053d49631859c4a110a84",
+  "docs/zh-Hant/digging-deeper/artisan.md": "d4a0a343c711df0b2396299606d815b1e1287ca96bfc84ab9d63273391b004f7",
+  "vendor/openrust/framework/src/cache/lock.rs": "52f8421cc3e8a59432f4ddc5b62b59108bc5460baee5dea959e61ba48d50cd6d",
+  "vendor/openrust/framework/src/cache/mod.rs": "a865e0a6d28dbfd8161f5e42d0ba5cc6791eae08f3a16035a47aeb6dc7d2c92a",
+  "vendor/openrust/framework/src/console/application.rs": "4dd66fac1dea7100b8041b13595890fdd89b5ac6c709839dcbcd250f3ce62e69",
+  "vendor/openrust/framework/src/console/command.rs": "78531179ca986d283a6469fa504b02c45c1e2578942ced5d0cc663472f71519a",
+  "vendor/openrust/framework/src/console/mod.rs": "588300d522724597972ef0e94bd20c61db63a7ba2b1c827164c31c63ef6888ea",
+  "vendor/openrust/framework/src/contracts/console.rs": "ab652500dc10e14633bd817830d17987ae2448744a0a81c772e40c85c80f840b",
+  "vendor/openrust/framework/src/support/facades.rs": "e06ee9c929e80d38f794c58f29c11693d0a6c9f1c484213b3487aef181e9071c",
+  "vendor/openrust/framework/src/console/isolation.rs": "379009e05d27553603eed4c49c1234e2b017a03b61585b07b82f13903fdaad0a",
+  "vendor/openrust/framework/tests/console_isolation_tutorial.rs": "6e2de76c48f32f855fb747c58de41a33652dc3cd852916f9ea419bf35071f374"
+}

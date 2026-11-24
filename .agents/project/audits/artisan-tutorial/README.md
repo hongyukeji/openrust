@@ -27,3 +27,15 @@ Artisan／Console Application原command保留Output闭包类型推断及成功�
 固定CommandInput＋InteractsWithData经真实PHP8.5.12运行14组缺失／null／空白／布尔／0／数组／数值字符串，结果input-oracle.json由Rust公开入口逐项比较。数组转字符串的PHP警告单独保留stderr，不篡改输出或冒称原生会触发PHP warning。新四项专项还验证日期配置时区和显式格式、非法日期／区间／枚举、来源类型及失败后下一命令恢复，真实TCP HTTP及独立Artisan都消费类型化输入。ConsoleError新增from_source，保留Clone及既有显示／退出流程，同时通过Error::source保留底层DateError／IntervalError／枚举错误，不提前字符串化。
 
 最终6框架目标52项＋根4目标33项，共85项0忽略；其中含原请求输入30项回归、三语9个直接示例，不能叠加为额外功能。范围格式、workspace/all-targets严格Clippy40.24s、main(pail)及三语构建全0。实际main HTTP／HTML与JSON404／静态／HEAD、独立Artisan与Pail真实错误捕获／清理／Ctrl+C通过，12组三语双前缀手机／桌面Chromium检查覆盖新增typed-command-input。证据target/tmp/artisan-tutorial-20261125/input-{tests,signature-final,root,fmt,clippy,main,docs,gates,runtime,browser}.log及input-oracle-stderr.log。初次PHP自动加载缺Collections映射的失败保留，修正来源加载后再取正式JSON；没有改源实现或伪造向量。进程／服务均已退出，继续复用原缓存，保留日志、依赖与隔离源码。下一簇核对Isolatable，整章仍未关闭，不推送。
+
+## 第三簇：Isolatable与数据库锁的整秒期限（2026-11-25）
+
+第二簇已本地提交35ee055c6。新增contracts::console::Isolatable及可选isolatable_id／isolation_lock_expires_at；Artisan::add_isolatable、Console Application::add_isolatable_command和Kernel契约register_isolatable_command接入同一注册／执行管线并自动添加--isolated。Rust擦除后的dyn Command无法自动发现另一Trait，明确选择携带Trait的注册入口；不能把普通add误写为会自动检测。私有适配器只借用原命令、克隆装配定义，不引入第二套命令执行器；原CommandDefinition::isolatable和既有add保留。
+
+默认无后缀、一小时；自定义ID追加至既有framework/command-{name}键，空字符串与未定义不同，缓存键前缀不重命名。Ttl复用既有Seconds／Until，显式输入支持相对与绝对期限。没有--isolated不读锁元数据也不锁；冲突默认退出0，可指定退出码。获取／释放复用现有Cache ScopedLock和PendingAcquisition，只有可见性扩大到crate内部；正常、错误和Future取消保留所有者检查与后台清理，不重造RAII或强制删除新拥有者。源代码ForceRelease与当前所有者安全释放的既有原生差异保留；进程强杀仍依赖期限，未冒称运行时清理可跨进程执行。
+
+实际六存储矩阵首轮array／file通过，SQLite期限反例失败且保留日志isolation-sqlite.log，未跳过或放宽等待。定位数据库边界对通用毫秒期限向上取整，会让整秒锁多保留近一秒。固定DatabaseLock::expiresAt真实PHP方法在固定时钟验证-1／0／1／3600公式，原始结果lock-expiry-oracle.json；现仅将数据库锁get／refresh的整秒期限设为当前Unix秒＋租期，再交既有边界持久化，保留值缓存与显式亚秒租约的向上取整策略。新增真实SQL续租读取expiration验证当前秒＋3，并在1250ms后验证一秒锁到期；旧拥有者释放不能影响替代拥有者。数据库夹具使用上游整数列，不扩大列类型掩盖毫秒问题。
+
+最终array／file／SQLite／MySQL8.4.13／PostgreSQL18.7／Redis8.10.3六矩阵各2项store消费者通过：默认Trait及旧Definition、空ID／不同ID、普通无锁／冲突退出0及17、执行失败释放、取消释放、相对／绝对到期、续租持久化及所有者；共享后端还用独立Artisan子进程核对真实互斥，array明确只保证本进程。独立真实TCP验证HTTP读取同一命令锁并在释放后恢复。Console Application和Kernel契约入口各自实际调用，不只检查方法声明。MySQL用TestApp::mysql私有schema，SQLite私有文件，PostgreSQL／Redis用验收专属临时实例；三库不访问开发数据库，Redis核对INFO8.x及PING，不执行共享清库。临时容器全部移除，无新增数据卷。
+
+最终主批6框架目标26项＋根4目标36项共62项0忽略，含正式三语12个直接提取示例；另8项既有缓存实际回归通过（file跨进程／本地并发、三库事务、MySQL／Redis scoped回调及Redis所有者锁）。六矩阵对相同store函数的重复执行不叠加为新功能数。首轮Output没有Debug的测试unwrap_err编译问题按匹配JoinError修复，没有给产品加无必要derive或lint豁免。workspace fmt、all-targets严格Clippy34.89s、main(pail)构建及三语构建全0，实际main HTTP／Artisan／Pail错误捕获与清理／Ctrl+C、三语双前缀手机与桌面12组浏览器通过。日志target/tmp/artisan-tutorial-20261125/isolation-{tests,tests-v2,sqlite,sqlite-v2,matrix-v2,matrix-final,gates,signature-final,root,fmt,clippy,main,docs,runtime,browser}.log和isolation-final-{backend}-{case}.log；源码哈希见accepted-source.json。未验证Windows新Trait／取消路径或真实Memcached／DynamoDB等供应商，未将此范围扩张为整个Cache或Artisan已闭合。继续缺失输入提示、I/O、生成／注册、信号及其余教程入口，不推送。

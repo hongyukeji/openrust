@@ -204,3 +204,7 @@ Redis Cluster 由 [03-09](../03-09/README.md) 跟踪。Windows 文件锁已补�
 
 - 对照固定 Laravel 跨进程原子锁及旧版文件缓存。复用现有文件锁和所有者令牌，无框架运行时代码改动。新增同一个测试程序的独立子进程夹具。 [Laravel 跨进程锁](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#managing-locks-across-processes)
 - 基于 `baac80470` 的 Windows 11 ARM64 原生 MSVC 与 macOS ARM64 分别验证两个进程竞争、胜者令牌恢复、错误令牌拒绝、独立 Artisan `cache:clear file --locks` 和清锁后重新取得。Windows 用来宾本地 NTFS。 [发布复验](../08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)
+
+## 2026-11-25：Artisan关联整秒数据库锁修复
+
+[Artisan第三簇](../artisan-tutorial/README.md#第三簇isolatable与数据库锁的整秒期限2026-11-25)真实SQLite超时反例暴露整秒锁经过通用毫秒向上取整会额外延长近一秒；仅数据库Lock get／refresh改为Unix当前秒加租期，值缓存及原生亚秒取整策略保留。三库整数列实际续租字段／到期／替代所有者、独立Artisan和既有缓存回归已复验；不改写历史当时通过的范围，不计为全部Cache类或发布矩阵重验。

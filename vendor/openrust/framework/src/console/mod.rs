@@ -8,6 +8,7 @@ pub mod events;
 pub mod generator_command;
 mod help_command;
 mod input;
+mod isolation;
 mod list_command;
 pub(crate) mod localization;
 mod planned;
@@ -34,6 +35,7 @@ pub use command::{
 };
 pub use command_input::CommandInput;
 pub use generator_command::GeneratorCommand;
+pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
 
 /// A future for a console command or lifecycle hook.

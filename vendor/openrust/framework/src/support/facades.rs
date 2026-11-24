@@ -769,6 +769,15 @@ impl Artisan {
             .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
     }
 
+    /// 注册隔离命令类型，保留同一应用装配作用域。
+    pub fn add_isolatable(
+        command: Box<dyn crate::contracts::console::Isolatable>,
+    ) -> Result<(), ConsoleError> {
+        CONSOLE
+            .try_with(|console| console.borrow_mut().add_isolatable_command(command))
+            .map_err(|_| ConsoleError::new("当前没有Artisan注册作用域"))?
+    }
+
     pub(crate) fn register(
         console: &mut Application,
         register: fn() -> Result<(), ConsoleError>,

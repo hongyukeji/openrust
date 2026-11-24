@@ -318,3 +318,49 @@ fn register_typed() -> Result<(), ConsoleError> {
 `arguments()` and `options()` keep their groups. For a `CommandInput` built with conflicting groups, the fixed implementation merges options then arguments, so arguments win. `all`/`to_array` return the combined data; `all_keys` retains missing selections as null and an empty selection returns the whole bag, while `only` omits missing paths. `get`, `has`/`exists`, `has_all`, `has_any`, `missing`, `filled`, `is_not_filled`, `any_filled`, and `except` use the existing dot-path rules. False, zero and empty arrays count as filled; empty strings and null do not.
 
 Conditional `when_has`, `when_filled`, `when_missing`, and `when_enum` return `Option<R>` (the enum variant also returns `Result`). `None` means the callback was not invoked; use `or_else` for a fallback. Rust keeps explicit callback return types rather than PHP’s truthiness-based union of the bag and callback value. Read dynamic properties with `get`/`exists`. These adapters do not execute arbitrary PHP expressions.
+
+## Isolatable commands {#isolatable-commands}
+
+Implement `contracts::console::Isolatable` on a command and register it with `Artisan::add_isolatable`, `console::Application::add_isolatable_command`, or the Console Kernel contract’s `register_isolatable_command`. This adds `--isolated[=code]` automatically. Rust explicitly selects the trait-aware registration path because an erased `dyn Command` cannot discover an unrelated trait implementation. The original `add` and `CommandDefinition::isolatable()` remain available; the latter uses the command name and a one-hour lease.
+
+```rust
+use openrust::{
+    cache::Ttl,
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    contracts::console::Isolatable,
+    foundation::Application,
+    support::facades::Artisan,
+};
+
+struct SendReports(CommandDefinition);
+impl Default for SendReports {
+    fn default() -> Self {
+        Self(CommandDefinition::from_signature("reports:isolated {user}").expect("valid signature"))
+    }
+}
+impl Command for SendReports {
+    fn definition(&self) -> &CommandDefinition { &self.0 }
+    fn handle<'a>(&'a self, _app: &'a Application, input: &'a Input, output: &'a mut Output)
+        -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            output.comment(&format!("Report for {}", input.argument("user").unwrap()));
+            Ok(0)
+        })
+    }
+}
+impl Isolatable for SendReports {
+    fn isolatable_id(&self, input: &Input) -> Result<Option<String>, ConsoleError> {
+        Ok(input.argument("user").and_then(|value| value.as_str().map(str::to_owned)))
+    }
+    fn isolation_lock_expires_at(&self, _input: &Input) -> Result<Ttl, ConsoleError> {
+        Ok(Ttl::Seconds(300))
+    }
+}
+fn register_isolated() -> Result<(), ConsoleError> {
+    Artisan::add_isolatable(Box::<SendReports>::default())
+}
+```
+
+Isolation is optional: normal calls do not acquire a lock. With `--isolated`, contention skips the handler and returns 0, or the code supplied by `--isolated=12`. The default trait methods also use the command name and one hour. Override `isolatable_id` to add an input-dependent suffix and `isolation_lock_expires_at` for `Ttl::Seconds` or `Ttl::Until(SystemTime)`. Empty IDs and absent IDs are distinct.
+
+All participating processes must use the same lock-capable cache store and namespace. Array stores coordinate only within the application process; file stores require a shared filesystem, and database/Redis stores use their configured backends. Normal completion, errors and in-runtime cancellation release owned locks. A terminated process relies on expiry. Expired owners cannot release their replacement’s lock. Database whole-second locks use Unix seconds plus the lease; subsecond leases retain their native rounding policy.

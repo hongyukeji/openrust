@@ -77,6 +77,11 @@ impl CommandDefinition {
 
 /// An Artisan command with a definition shared by dispatch, list, and help.
 pub trait Command: Send + Sync {
+    /// 隔离注册适配器提供标记；普通命令沿用定义中的可选开关。
+    fn isolation(&self) -> Option<&dyn crate::contracts::console::Isolatable> {
+        None
+    }
+
     fn definition(&self) -> &CommandDefinition;
 
     fn handle<'a>(

@@ -72,6 +72,14 @@ impl Application {
         self.add(Entry::Command(Arc::from(command))).map(|_| ())
     }
 
+    /// 注册Isolatable类型，自动装配可选隔离开关。
+    pub fn add_isolatable_command(
+        &mut self,
+        command: Box<dyn crate::contracts::console::Isolatable>,
+    ) -> Result<(), ConsoleError> {
+        self.add_command(Box::new(super::IsolatedCommand::new(command)))
+    }
+
     pub(crate) fn register_task_commands(&mut self) -> Result<(), ConsoleError> {
         for operation in [
             TaskCommand::Reload,
@@ -647,15 +655,25 @@ impl Application {
                 };
 
                 let name = definition.name();
-                let key = format!("framework/command-{name}");
+                let mut key = format!("framework/command-{name}");
+                let mut lease = Duration::from_secs(3600);
+                if let Some(isolation) = command.isolation() {
+                    if let Some(id) = isolation.isolatable_id(&input)? {
+                        key.push('-');
+                        key.push_str(&id);
+                    }
+                    lease = super::isolation::lease(isolation.isolation_lock_expires_at(&input)?);
+                }
                 let lock_error =
-                    |error| ConsoleError::new(format!("Command isolation lock: {error}"));
-                let mut lock =
-                    Cache::lock(&key, Some(Duration::from_secs(3600))).map_err(lock_error)?;
-                if !lock.get().await.map_err(lock_error)? {
+                    |error| ConsoleError::from_source(super::isolation::LockError(error));
+                let lock = Cache::lock(&key, Some(lease)).map_err(lock_error)?;
+                let Some(lock) = crate::cache::acquire_scoped_lock(lock, None)
+                    .await
+                    .map_err(lock_error)?
+                else {
                     output.comment(&format!("The [{name}] command is already running."));
                     return Ok(code);
-                }
+                };
                 let result = run_command_with_events(command, application, &input, output).await;
                 let released = lock.release().await.map_err(lock_error);
                 result.and_then(|status| released.map(|_| status))

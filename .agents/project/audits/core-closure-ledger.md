@@ -514,3 +514,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### Artisan固定教程首簇（2026-11-25）
 
 [48节深度账本](artisan-tutorial/README.md)首簇补齐签名解析、输入分组、Artisan与Console同作用域闭包、Arc服务执行期自动解析；48项相关消费者、实际HTTP／独立Artisan、6个三语直接示例及严格门禁通过。整章继续，尚有CommandInput等具体余项，不把此前66/66或这批通过代替公开契约复核；前章Logging核心及单列LOG-S01保持已确认边界，不推送。
+
+### Artisan类型化输入与隔离命令（2026-11-25）
+
+CommandInput批次35ee055c6已提交；[后续Isolatable](artisan-tutorial/README.md#第三簇isolatable与数据库锁的整秒期限2026-11-25)补齐Trait／注册／ID／期限，修复实测发现的数据库整秒锁额外延时。SQLite／MySQL8.4／PostgreSQL18及Redis8／file／array通过，实际HTTP／独立Artisan与正式三语12例、严格门禁通过，按核定范围本地交付。其余Artisan教程具体入口继续，不提高供应商／Windows或全类API完成状态，不推送。

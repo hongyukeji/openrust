@@ -318,3 +318,49 @@ fn register_typed() -> Result<(), ConsoleError> {
 `arguments()` 和 `options()` 保留各組。直接建構的 `CommandInput` 若有同名鍵，固定實作先合併選項再合併位置參數，位置參數優先。`all`／`to_array` 回傳合併值；`all_keys` 將缺失的選中鍵保留為 null，空選擇回傳整組，而 `only` 忽略缺失路徑。`get`、`has`／`exists`、`has_all`、`has_any`、`missing`、`filled`、`is_not_filled`、`any_filled` 和 `except` 使用既有點路徑規則。false、零和空陣列屬於已填寫，空字串與 null 不屬於。
 
 條件入口 `when_has`、`when_filled`、`when_missing` 和 `when_enum` 回傳 `Option<R>`（列舉入口還回傳 `Result`）。`None` 表示未執行回呼，以 `or_else` 提供回退；Rust 使用明確回傳型別，不隱式混合 PHP 按真值決定的輸入物件與回呼回傳值。動態屬性使用 `get`／`exists`，這些適配不會執行任意 PHP 運算式。
+
+## 隔離命令 {#isolatable-commands}
+
+命令實作 `contracts::console::Isolatable`，透過 `Artisan::add_isolatable`、`console::Application::add_isolatable_command` 或 Console Kernel 契約的 `register_isolatable_command` 註冊，自動提供 `--isolated[=code]`。Rust 的 `dyn Command` 擦除後無法自動發現另一 Trait，因此明確選擇帶 Trait 資訊的註冊入口。原有 `add` 和 `CommandDefinition::isolatable()` 保留；後者使用命令名及一小時鎖。
+
+```rust
+use openrust::{
+    cache::Ttl,
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    contracts::console::Isolatable,
+    foundation::Application,
+    support::facades::Artisan,
+};
+
+struct SendReports(CommandDefinition);
+impl Default for SendReports {
+    fn default() -> Self {
+        Self(CommandDefinition::from_signature("reports:isolated {user}").expect("valid signature"))
+    }
+}
+impl Command for SendReports {
+    fn definition(&self) -> &CommandDefinition { &self.0 }
+    fn handle<'a>(&'a self, _app: &'a Application, input: &'a Input, output: &'a mut Output)
+        -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            output.comment(&format!("Report for {}", input.argument("user").unwrap()));
+            Ok(0)
+        })
+    }
+}
+impl Isolatable for SendReports {
+    fn isolatable_id(&self, input: &Input) -> Result<Option<String>, ConsoleError> {
+        Ok(input.argument("user").and_then(|value| value.as_str().map(str::to_owned)))
+    }
+    fn isolation_lock_expires_at(&self, _input: &Input) -> Result<Ttl, ConsoleError> {
+        Ok(Ttl::Seconds(300))
+    }
+}
+fn register_isolated() -> Result<(), ConsoleError> {
+    Artisan::add_isolatable(Box::<SendReports>::default())
+}
+```
+
+隔離按需啟用，普通呼叫不取得鎖。指定 `--isolated` 時，衝突略過處理器並回傳 0；`--isolated=12` 可指定衝突退出碼。Trait 預設方法同樣使用命令名和一小時期限。覆寫 `isolatable_id` 追加與輸入有關的後綴，覆寫 `isolation_lock_expires_at` 回傳 `Ttl::Seconds` 或 `Ttl::Until(SystemTime)`；空 ID 與未提供 ID 不同。
+
+參與程序必須使用同一支援鎖的快取及命名空間。array 只在應用程序內協調，file 需要共享檔案系統，database／Redis 使用其設定後端。正常完成、錯誤和執行階段內取消會釋放所屬鎖；程序被終止時依靠期限恢復，過期的舊擁有者不會刪除新擁有者的鎖。資料庫整秒鎖採用 Unix 秒加租期，亞秒期限保留既定原生取整策略。

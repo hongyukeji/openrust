@@ -1,0 +1,22 @@
+[
+  {
+    "seconds": -1,
+    "current_time": 1700000000,
+    "expiration": 1700086400
+  },
+  {
+    "seconds": 0,
+    "current_time": 1700000000,
+    "expiration": 1700086400
+  },
+  {
+    "seconds": 1,
+    "current_time": 1700000000,
+    "expiration": 1700000001
+  },
+  {
+    "seconds": 3600,
+    "current_time": 1700000000,
+    "expiration": 1700003600
+  }
+]

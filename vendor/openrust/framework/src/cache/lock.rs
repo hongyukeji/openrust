@@ -11,7 +11,7 @@ use crate::contracts::cache::Lock as LockContract;
 
 use super::{
     CacheError, CacheFuture, CacheResult, Value, backend,
-    engine::{Change, Engine, Record, expires},
+    engine::{Change, Engine, Record, expires, now},
 };
 
 impl dyn LockContract {
@@ -81,7 +81,7 @@ where
     result
 }
 
-pub(super) async fn acquire_scoped(
+pub(crate) async fn acquire_scoped(
     mut lock: Box<dyn LockContract>,
     wait: Option<Duration>,
 ) -> CacheResult<Option<ScopedLock>> {
@@ -142,13 +142,13 @@ impl Drop for PendingAcquisition {
     }
 }
 
-pub(super) struct ScopedLock {
+pub(crate) struct ScopedLock {
     lock: Option<Box<dyn LockContract>>,
     runtime: Option<Handle>,
 }
 
 impl ScopedLock {
-    async fn release(mut self) -> CacheResult<()> {
+    pub(crate) async fn release(mut self) -> CacheResult<()> {
         let result = self.lock.as_mut().expect("acquired lock").release().await;
         self.lock = None;
         result.map(|_| ())
@@ -217,7 +217,7 @@ impl LockContract for Lock {
             Ok((
                 Change::Write(Record {
                     value: Value::from(owner.as_str()),
-                    expires: expires(lease)?,
+                    expires: lock_expiration(lease, database)?,
                 }),
                 true,
             ))
@@ -243,11 +243,12 @@ impl LockContract for Lock {
     fn refresh(&mut self, lease: Option<Duration>) -> CacheFuture<'_, CacheResult<bool>> {
         let owner = self.owner.clone();
         let lease = self.effective_lease(lease);
+        let database = self.database;
         Box::pin(self.engine.change(self.key.clone(), move |entry| {
             if let Some(mut entry) = entry
                 && entry.value.as_str() == Some(owner.as_str())
             {
-                entry.expires = expires(lease)?;
+                entry.expires = lock_expiration(lease, database)?;
                 return Ok((Change::Write(entry), true));
             }
             Ok((Change::Keep, false))
@@ -328,4 +329,19 @@ pub(super) async fn block_lock(
             return Err(CacheError::LockTimeout);
         }
     }
+}
+
+fn lock_expiration(lease: Option<Duration>, database: bool) -> CacheResult<i64> {
+    // 数据库整秒锁按当前Unix秒加租期，不能被通用亚秒向上取整额外延长一秒。
+    // 显式亚秒租期仍沿用数据库边界的既定保护策略。
+    if database
+        && let Some(lease) = lease
+        && lease.subsec_nanos() == 0
+    {
+        let millis = i64::try_from(lease.as_millis()).map_err(|_| CacheError::InvalidValue)?;
+        return (now()? / 1000 * 1000)
+            .checked_add(millis)
+            .ok_or(CacheError::InvalidValue);
+    }
+    expires(lease)
 }

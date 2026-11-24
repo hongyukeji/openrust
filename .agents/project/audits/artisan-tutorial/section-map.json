@@ -95,18 +95,42 @@
     },
     {
       "anchor": "isolatable-commands",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "console_isolation_tutorial",
+        "artisan_docs_generated",
+        "isolation-matrix-final.log",
+        "lock-expiry-oracle.json",
+        "isolation-runtime.log",
+        "isolation-browser.log"
+      ],
+      "contract": "Isolatable Trait及三类注册入口，原Definition保留；按需锁、ID／期限、退出与所有者安全释放；原生类型擦除使用明确注册路径"
     },
     {
       "anchor": "lock-id",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "console_isolation_tutorial",
+        "artisan_docs_generated",
+        "isolation-matrix-final.log",
+        "lock-expiry-oracle.json",
+        "isolation-runtime.log",
+        "isolation-browser.log"
+      ],
+      "contract": "Isolatable Trait及三类注册入口，原Definition保留；按需锁、ID／期限、退出与所有者安全释放；原生类型擦除使用明确注册路径"
     },
     {
       "anchor": "lock-expiration-time",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "console_isolation_tutorial",
+        "artisan_docs_generated",
+        "isolation-matrix-final.log",
+        "lock-expiry-oracle.json",
+        "isolation-runtime.log",
+        "isolation-browser.log"
+      ],
+      "contract": "Isolatable Trait及三类注册入口，原Definition保留；按需锁、ID／期限、退出与所有者安全释放；原生类型擦除使用明确注册路径"
     },
     {
       "anchor": "defining-input-expectations",

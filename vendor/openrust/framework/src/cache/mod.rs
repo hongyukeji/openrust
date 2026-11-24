@@ -60,6 +60,7 @@ pub use file_store::FileStore;
 pub use flexible::FlexibleOptions;
 pub use helper::cache;
 pub use lock::Lock;
+pub(crate) use lock::acquire_scoped as acquire_scoped_lock;
 pub use memcached_connector::Client as MemcachedClient;
 pub use memcached_lock::MemcachedLock;
 pub use memcached_store::MemcachedStore;
