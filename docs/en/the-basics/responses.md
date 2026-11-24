@@ -130,6 +130,8 @@ See [API Resources](../eloquent/resources.md) and [error handling](./errors.md).
 
 When registered in `routes/api.rs`, these routes also receive the configured API prefix, which defaults to `/api`.
 
+Unless a different locale or literal message is shown, the following default-message examples use the current request locale `en`; `zh-Hans` and `zh-Hant` return `成功` instead of `Success`. The functions can be returned directly from route handlers, for example `Route::get("/example-user", user_response)?;` after importing `Route`.
+
 ```rust
 use std::collections::BTreeMap;
 use openrust::{
@@ -139,7 +141,7 @@ use openrust::{
 };
 use serde_json::json;
 
-fn register() -> Result<(), RoutingError> {
+pub(crate) fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
         ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
             .with_message("Loaded.")
@@ -164,8 +166,18 @@ GET `/api/items` returns HTTP 200:
   "success": true,
   "code": "ok",
   "message": "Loaded.",
-  "data": [{"id": 1, "name": "Notebook"}],
-  "meta": {"page": 1, "per_page": 10, "total": 1, "total_pages": 1}
+  "data": [
+    {
+      "id": 1,
+      "name": "Notebook"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "per_page": 10,
+    "total": 1,
+    "total_pages": 1
+  }
 }
 ```
 
@@ -178,13 +190,105 @@ GET `/api/example-validation` returns HTTP 422:
   "success": false,
   "code": "validation_failed",
   "message": "Invalid input.",
-  "errors": {"email": ["Email is required."]}
+  "errors": {
+    "email": [
+      "Email is required."
+    ]
+  }
 }
 ```
 
 `success` defaults to HTTP 200; use a non-success status for `failure`. `with_status` changes the HTTP status only. For ordinary responses with a body, `into_response` rejects a mismatch between the success flag and HTTP status.
 
 `ApiResponse::empty()`, `success(())` and `success(Value::Null)` omit `data`; empty objects, arrays, `0`, `false` and empty strings remain present. HTTP 204, 205, 304 and informational responses have no body. Serialization failures use [error handling](./errors.md).
+
+#### A basic success response {#business-response-success}
+
+The smallest success response returns HTTP **200**:
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn user_response() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({"id": 1, "name": "Ada"}))
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {
+    "id": 1,
+    "name": "Ada"
+  }
+}
+```
+
+#### Empty payloads and no-content responses {#business-response-empty}
+
+These three functions return HTTP **200**, but only the first omits `data`:
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::{Value, json};
+
+fn empty_response() -> ApiResponse<()> {
+    ApiResponse::empty()
+}
+
+fn empty_object_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({}))
+}
+
+fn empty_array_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!([]))
+}
+```
+
+The complete JSON bodies for `empty_response`, `empty_object_response` and `empty_array_response`, respectively:
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success"
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {}
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": []
+}
+```
+
+For HTTP **204**, return no body at all, rather than an empty envelope:
+
+```rust
+use openrust::http::{ApiResponse, HttpError, Response, StatusCode};
+
+fn no_content_response() -> Result<Response, HttpError> {
+    ApiResponse::empty()
+        .with_status(StatusCode::NO_CONTENT)
+        .into_response()
+}
+```
+
+The response has status `204 No Content` and **zero body bytes**. Do not try to parse its body as JSON.
 
 ### Localized messages {#business-response-localization}
 
@@ -193,7 +297,9 @@ The default success message uses `response.ok`; framework exceptions use the cor
 Messages passed to `with_message` or `failure` are literal. Use `with_message_key` to translate at final serialization. For example, define this entry in `lang/zh-Hans/messages.json` under the default application language directory and return the response while the current locale is `zh-Hans`:
 
 ```json
-{"created": "已创建 :name。"}
+{
+  "created": "已创建 :name。"
+}
 ```
 
 ```rust
@@ -209,7 +315,31 @@ fn localized_response() -> ApiResponse<u64> {
 ```
 
 ```json
-{"success": true, "code": "ok", "message": "已创建 Notebook。", "data": 1}
+{
+  "success": true,
+  "code": "ok",
+  "message": "已创建 Notebook。",
+  "data": 1
+}
+```
+
+For English, add `lang/en/messages.json`:
+
+```json
+{
+  "created": "Created :name."
+}
+```
+
+The localized example above returns HTTP **200**. With the current request locale set to `en`, its complete body becomes:
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Created Notebook.",
+  "data": 1
+}
 ```
 
 ### Custom fields {#business-response-fields}
@@ -240,10 +370,14 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
   "success": true,
   "code": "saved",
   "message": "Saved.",
-  "data": {"id": 1},
+  "data": {
+    "id": 1
+  },
   "trace_id": "request-123"
 }
 ```
+
+The following complete response returns HTTP **200** and demonstrates top-level additions/removal, nested additions/replacement/removal, an array update/append, and a literal dotted key:
 
 ```rust
 use openrust::http::ApiResponse;
@@ -254,13 +388,89 @@ fn customized() -> ApiResponse<serde_json::Value> {
         "user": {"name": "Before", "password": "private"},
         "items": [{"id": 1}]
     }))
-    .additional([("request_id", json!("req-123"))])
+    .additional([
+        ("request_id", json!("req-123")),
+        ("temporary", json!(true)),
+    ])
     .with_field("data.user.name", "Ada")
+    .with_field("data.user.profile.city", "Shanghai")
     .with_field("data.items.0.selected", true)
+    .with_field("data.items.1", json!({"id": 2}))
     .without_field("data.user.password")
+    .without_field("temporary")
     .with_field(["data", "user", "first.name"], "Ada")
 }
 ```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "request_id": "req-123",
+  "data": {
+    "user": {
+      "name": "Ada",
+      "profile": {
+        "city": "Shanghai"
+      },
+      "first.name": "Ada"
+    },
+    "items": [
+      {
+        "id": 1,
+        "selected": true
+      },
+      {
+        "id": 2
+      }
+    ]
+  }
+}
+```
+
+#### Removing array elements and sparse indexes {#business-response-array-boundaries}
+
+Both functions below return HTTP **200**. Deleting index `1` or inserting index `2` while index `1` is absent preserves numeric keys. In both cases the complete response is:
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::{Value, json};
+
+fn removed_item_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({
+        "items": [{"id": 1}, {"id": 2}, {"id": 3}]
+    }))
+        .without_field("data.items.1")
+}
+
+fn sparse_item_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({
+        "items": [{"id": 1}]
+    }))
+        .with_field("data.items.2", json!({"id": 3}))
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {
+    "items": {
+      "0": {
+        "id": 1
+      },
+      "2": {
+        "id": 3
+      }
+    }
+  }
+}
+```
+
+Use contiguous indexes when the public contract requires a JSON array. Removing a missing path does nothing. A path such as `data.user.name` fails serialization if `data.user` is a non-null scalar; the framework handles that failure as a server error rather than replacing the scalar.
 
 ### Application information {#api-application-info}
 

@@ -130,6 +130,8 @@ API_RESPONSE_ENVELOPE=false
 
 在 `routes/api.rs` 註冊時，下列路徑還會帶上應用程式設定的 API 前綴，預設 `/api`。
 
+除另有語言或原文訊息說明外，下方預設訊息範例的目前請求語言為 `en`；切換為 `zh-Hans` 或 `zh-Hant` 時，`Success` 對應 `成功`。函式可以直接用於路由，例如匯入 `Route` 後呼叫 `Route::get("/example-user", user_response)?;`。
+
 ```rust
 use std::collections::BTreeMap;
 use openrust::{
@@ -139,7 +141,7 @@ use openrust::{
 };
 use serde_json::json;
 
-fn register() -> Result<(), RoutingError> {
+pub(crate) fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
         ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
             .with_message("Loaded.")
@@ -164,8 +166,18 @@ GET `/api/items` 回傳 HTTP 200：
   "success": true,
   "code": "ok",
   "message": "Loaded.",
-  "data": [{"id": 1, "name": "Notebook"}],
-  "meta": {"page": 1, "per_page": 10, "total": 1, "total_pages": 1}
+  "data": [
+    {
+      "id": 1,
+      "name": "Notebook"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "per_page": 10,
+    "total": 1,
+    "total_pages": 1
+  }
 }
 ```
 
@@ -178,13 +190,105 @@ GET `/api/example-validation` 回傳 HTTP 422：
   "success": false,
   "code": "validation_failed",
   "message": "Invalid input.",
-  "errors": {"email": ["Email is required."]}
+  "errors": {
+    "email": [
+      "Email is required."
+    ]
+  }
 }
 ```
 
 `success` 預設 HTTP 200；`failure` 應搭配非成功狀態碼。`with_status` 只修改 HTTP 狀態，不修改業務欄位；成功／失敗旗標與一般有本文狀態碼不一致時，`into_response` 回傳錯誤。
 
 `ApiResponse::empty()`、`success(())` 和 `success(Value::Null)` 省略 `data`；空物件、空陣列、`0`、`false` 和空字串仍保留。HTTP 204、205、304 及資訊狀態碼傳送空本文。序列化錯誤交給[例外處理](./errors.md)。
+
+#### 最簡單的成功回應 {#business-response-success}
+
+最簡單的成功呼叫回傳 HTTP **200**：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn user_response() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({"id": 1, "name": "Ada"}))
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {
+    "id": 1,
+    "name": "Ada"
+  }
+}
+```
+
+#### 空資料與無本文回應 {#business-response-empty}
+
+下列三個函式都回傳 HTTP **200**，但只有第一個省略 `data`：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::{Value, json};
+
+fn empty_response() -> ApiResponse<()> {
+    ApiResponse::empty()
+}
+
+fn empty_object_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({}))
+}
+
+fn empty_array_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!([]))
+}
+```
+
+`empty_response`、`empty_object_response`、`empty_array_response` 的完整 JSON 本文依序為：
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success"
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {}
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": []
+}
+```
+
+需要 HTTP **204** 時，整個本文為空，而不是回傳空的業務封裝：
+
+```rust
+use openrust::http::{ApiResponse, HttpError, Response, StatusCode};
+
+fn no_content_response() -> Result<Response, HttpError> {
+    ApiResponse::empty()
+        .with_status(StatusCode::NO_CONTENT)
+        .into_response()
+}
+```
+
+此回應狀態為 `204 No Content`，**本文為零位元組**，用戶端不要將它解析為 JSON。
 
 ### 國際化訊息 {#business-response-localization}
 
@@ -193,7 +297,9 @@ GET `/api/example-validation` 回傳 HTTP 422：
 `with_message` 和 `failure` 的訊息是原文，不自動翻譯。需要翻譯時使用 `with_message_key`，在最終序列化時解析。下例在應用程式預設語言目錄的 `lang/zh-Hans/messages.json` 定義詞條，並在目前語言為 `zh-Hans` 時回傳：
 
 ```json
-{"created": "已创建 :name。"}
+{
+  "created": "已创建 :name。"
+}
 ```
 
 ```rust
@@ -209,7 +315,31 @@ fn localized_response() -> ApiResponse<u64> {
 ```
 
 ```json
-{"success": true, "code": "ok", "message": "已创建 Notebook。", "data": 1}
+{
+  "success": true,
+  "code": "ok",
+  "message": "已创建 Notebook。",
+  "data": 1
+}
+```
+
+英文詞條放在 `lang/en/messages.json`：
+
+```json
+{
+  "created": "Created :name."
+}
+```
+
+上方本地化範例回傳 HTTP **200**。目前請求語言切換為 `en` 時，完整本文變為：
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Created Notebook.",
+  "data": 1
+}
 ```
 
 ### 自訂欄位 {#business-response-fields}
@@ -240,10 +370,14 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
   "success": true,
   "code": "saved",
   "message": "Saved.",
-  "data": {"id": 1},
+  "data": {
+    "id": 1
+  },
   "trace_id": "request-123"
 }
 ```
+
+以下完整範例回傳 HTTP **200**，同時展示頂級欄位新增與刪除、巢狀欄位新增／修改／刪除、陣列元素修改與附加，以及含點號的字面鍵：
 
 ```rust
 use openrust::http::ApiResponse;
@@ -254,13 +388,89 @@ fn customized() -> ApiResponse<serde_json::Value> {
         "user": {"name": "Before", "password": "private"},
         "items": [{"id": 1}]
     }))
-    .additional([("request_id", json!("req-123"))])
+    .additional([
+        ("request_id", json!("req-123")),
+        ("temporary", json!(true)),
+    ])
     .with_field("data.user.name", "Ada")
+    .with_field("data.user.profile.city", "Shanghai")
     .with_field("data.items.0.selected", true)
+    .with_field("data.items.1", json!({"id": 2}))
     .without_field("data.user.password")
+    .without_field("temporary")
     .with_field(["data", "user", "first.name"], "Ada")
 }
 ```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "request_id": "req-123",
+  "data": {
+    "user": {
+      "name": "Ada",
+      "profile": {
+        "city": "Shanghai"
+      },
+      "first.name": "Ada"
+    },
+    "items": [
+      {
+        "id": 1,
+        "selected": true
+      },
+      {
+        "id": 2
+      }
+    ]
+  }
+}
+```
+
+#### 陣列刪除與跳過索引 {#business-response-array-boundaries}
+
+下列兩個函式均回傳 HTTP **200**。刪除索引 `1`，或在缺少索引 `1` 時直接新增索引 `2`，都會保留原來的數字鍵。兩者的完整回應相同：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::{Value, json};
+
+fn removed_item_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({
+        "items": [{"id": 1}, {"id": 2}, {"id": 3}]
+    }))
+        .without_field("data.items.1")
+}
+
+fn sparse_item_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({
+        "items": [{"id": 1}]
+    }))
+        .with_field("data.items.2", json!({"id": 3}))
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {
+    "items": {
+      "0": {
+        "id": 1
+      },
+      "2": {
+        "id": 3
+      }
+    }
+  }
+}
+```
+
+若公共協定要求 JSON 陣列，請使用連續索引。刪除不存在的路徑不影響回應；如果 `data.user` 已是非 null 純量，再設定 `data.user.name` 會產生序列化錯誤，框架按服務例外處理，不會直接覆寫原純量。
 
 ### 應用資訊介面 {#api-application-info}
 

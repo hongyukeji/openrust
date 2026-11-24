@@ -130,6 +130,8 @@ API_RESPONSE_ENVELOPE=false
 
 在 `routes/api.rs` 注册时，下面的路径还会带上应用配置的 API 前缀，默认 `/api`。
 
+除另有语言或原文消息说明外，下方默认消息示例的当前请求语言为 `en`；切换为 `zh-Hans` 或 `zh-Hant` 时，`Success` 对应 `成功`。函数可以直接用于路由，例如导入 `Route` 后调用 `Route::get("/example-user", user_response)?;`。
+
 ```rust
 use std::collections::BTreeMap;
 use openrust::{
@@ -139,7 +141,7 @@ use openrust::{
 };
 use serde_json::json;
 
-fn register() -> Result<(), RoutingError> {
+pub(crate) fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
         ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
             .with_message("Loaded.")
@@ -164,8 +166,18 @@ GET `/api/items` 返回 HTTP 200：
   "success": true,
   "code": "ok",
   "message": "Loaded.",
-  "data": [{"id": 1, "name": "Notebook"}],
-  "meta": {"page": 1, "per_page": 10, "total": 1, "total_pages": 1}
+  "data": [
+    {
+      "id": 1,
+      "name": "Notebook"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "per_page": 10,
+    "total": 1,
+    "total_pages": 1
+  }
 }
 ```
 
@@ -178,13 +190,105 @@ GET `/api/example-validation` 返回 HTTP 422：
   "success": false,
   "code": "validation_failed",
   "message": "Invalid input.",
-  "errors": {"email": ["Email is required."]}
+  "errors": {
+    "email": [
+      "Email is required."
+    ]
+  }
 }
 ```
 
 `success` 默认 HTTP 200；`failure` 应配合非成功状态码。`with_status` 只修改 HTTP 状态，不修改业务字段；成功／失败标志与正常有正文状态码不一致时，`into_response` 返回错误。
 
 `ApiResponse::empty()`、`success(())` 和 `success(Value::Null)` 省略 `data`；空对象、空数组、`0`、`false` 和空字符串仍保留。HTTP 204、205、304 及信息状态码发送空正文。序列化错误交给[异常处理](./errors.md)。
+
+#### 最简单的成功响应 {#business-response-success}
+
+最简单的成功调用返回 HTTP **200**：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn user_response() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({"id": 1, "name": "Ada"}))
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {
+    "id": 1,
+    "name": "Ada"
+  }
+}
+```
+
+#### 空数据与无正文响应 {#business-response-empty}
+
+下面三个函数都返回 HTTP **200**，但只有第一个省略 `data`：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::{Value, json};
+
+fn empty_response() -> ApiResponse<()> {
+    ApiResponse::empty()
+}
+
+fn empty_object_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({}))
+}
+
+fn empty_array_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!([]))
+}
+```
+
+`empty_response`、`empty_object_response`、`empty_array_response` 的完整 JSON 正文依次为：
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success"
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {}
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": []
+}
+```
+
+需要 HTTP **204** 时，整个正文为空，而不是返回空的业务封装：
+
+```rust
+use openrust::http::{ApiResponse, HttpError, Response, StatusCode};
+
+fn no_content_response() -> Result<Response, HttpError> {
+    ApiResponse::empty()
+        .with_status(StatusCode::NO_CONTENT)
+        .into_response()
+}
+```
+
+该响应状态为 `204 No Content`，**正文为零字节**，客户端不要将它解析为 JSON。
 
 ### 国际化消息 {#business-response-localization}
 
@@ -193,7 +297,9 @@ GET `/api/example-validation` 返回 HTTP 422：
 `with_message` 和 `failure` 的消息是原文，不自动翻译。需要翻译时使用 `with_message_key`，在最终序列化时解析。下面在应用默认语言目录的 `lang/zh-Hans/messages.json` 定义词条，并在当前语言为 `zh-Hans` 时返回：
 
 ```json
-{"created": "已创建 :name。"}
+{
+  "created": "已创建 :name。"
+}
 ```
 
 ```rust
@@ -209,7 +315,31 @@ fn localized_response() -> ApiResponse<u64> {
 ```
 
 ```json
-{"success": true, "code": "ok", "message": "已创建 Notebook。", "data": 1}
+{
+  "success": true,
+  "code": "ok",
+  "message": "已创建 Notebook。",
+  "data": 1
+}
+```
+
+英文词条放在 `lang/en/messages.json`：
+
+```json
+{
+  "created": "Created :name."
+}
+```
+
+上面的本地化示例返回 HTTP **200**。当前请求语言切换为 `en` 时，完整正文变为：
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Created Notebook.",
+  "data": 1
+}
 ```
 
 ### 自定义字段 {#business-response-fields}
@@ -240,10 +370,14 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
   "success": true,
   "code": "saved",
   "message": "Saved.",
-  "data": {"id": 1},
+  "data": {
+    "id": 1
+  },
   "trace_id": "request-123"
 }
 ```
+
+下面的完整示例返回 HTTP **200**，同时展示顶级字段增加与删除、嵌套字段增加／修改／删除、数组元素修改与追加，以及含点号的字面键：
 
 ```rust
 use openrust::http::ApiResponse;
@@ -254,13 +388,89 @@ fn customized() -> ApiResponse<serde_json::Value> {
         "user": {"name": "Before", "password": "private"},
         "items": [{"id": 1}]
     }))
-    .additional([("request_id", json!("req-123"))])
+    .additional([
+        ("request_id", json!("req-123")),
+        ("temporary", json!(true)),
+    ])
     .with_field("data.user.name", "Ada")
+    .with_field("data.user.profile.city", "Shanghai")
     .with_field("data.items.0.selected", true)
+    .with_field("data.items.1", json!({"id": 2}))
     .without_field("data.user.password")
+    .without_field("temporary")
     .with_field(["data", "user", "first.name"], "Ada")
 }
 ```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "request_id": "req-123",
+  "data": {
+    "user": {
+      "name": "Ada",
+      "profile": {
+        "city": "Shanghai"
+      },
+      "first.name": "Ada"
+    },
+    "items": [
+      {
+        "id": 1,
+        "selected": true
+      },
+      {
+        "id": 2
+      }
+    ]
+  }
+}
+```
+
+#### 数组删除与跳过下标 {#business-response-array-boundaries}
+
+下面两个函数均返回 HTTP **200**。删除下标 `1`，或在缺少下标 `1` 时直接新增下标 `2`，都会保留原来的数字键。两者的完整响应相同：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::{Value, json};
+
+fn removed_item_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({
+        "items": [{"id": 1}, {"id": 2}, {"id": 3}]
+    }))
+        .without_field("data.items.1")
+}
+
+fn sparse_item_response() -> ApiResponse<Value> {
+    ApiResponse::success(json!({
+        "items": [{"id": 1}]
+    }))
+        .with_field("data.items.2", json!({"id": 3}))
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Success",
+  "data": {
+    "items": {
+      "0": {
+        "id": 1
+      },
+      "2": {
+        "id": 3
+      }
+    }
+  }
+}
+```
+
+如果公共协议要求 JSON 数组，请使用连续下标。删除不存在的路径不影响响应；如果 `data.user` 已是非 null 标量，再设置 `data.user.name` 会产生序列化错误，框架按服务异常处理，不会直接覆盖原标量。
 
 ### 应用信息接口 {#api-application-info}
 
