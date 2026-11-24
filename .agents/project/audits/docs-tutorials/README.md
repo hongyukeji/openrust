@@ -415,3 +415,15 @@ password/gates-final.log九阶段全0：MySQL8.4.13十八目标81项0忽略，wo
 final-entries/gates.log九阶段全0：25目标112项0忽略（含MySQL presence与Web session，其他目标依其原夹具），workspace/all-targets严格Clippy52.38s、fmt、三语构建浏览器、实际main及Artisan帮助／inspire成功。首轮新增Web夹具漏导入Validator trait已修复，不以未编译消费者计通过。源／测试／三语与冻结快照SHA一致，证据target/tmp/docs-chapters-20261124/final-entries/，本批MySQL和HTTP服务退出。没有宣称未改动数据库驱动的发布矩阵已通过。
 
 全章审查继续发现sometimes多字段参数仍只接受单字段，以及内联消息碰撞／通配规则名优先级需要固定源码反例核对，登记下一簇，不以循环调用或精确查找绕行宣称完成。公开类型未入教程的其他完整API审计仍属原对账范围，本批不宣称整个Validator类已齐。两个章节的最终逐节结论待下一簇及最终组合复核。
+
+## 第二十四组：多字段sometimes及内联消息层级优先（2026-11-24）
+
+固定Validator::sometimes、dataForSometimesIteration及FormatsMessages::getFromLocalArray逐行核对。sometimes同一入口接收单字段、数组、Vec或借用切片，ValidationAttributes只承载有序字段参数；单字段Cow借用且最后一份规则移交，不给原单字段路径增加字符串分配或规则克隆。共享原单字段编译／追加管线，保留重复字段、空列表、字段顺序、通配项上下文和先编译再条件判断。关联差异：条件为false也须记录通配主字段；否则对已有具体字段的错误显示会错误人化下划线。现以原RuleSet.origins合并实现，未另维护平行状态。
+
+内联消息依字段规则→规则→字段三个搜索层级，每层按调用方BTreeMap原生顺序匹配；不能预先用get精确键绕过较早的通配词条，也不能遗漏通配规则名。单层通配与语言目录跨层通配仍分开。PHP参考明确按相同键序ksort，裁决Rust原生BTreeMap的键顺序而非冒称保留PHP任意插入顺序；建议避免依赖重叠词条。普通无内联消息的成功验证路径不增加扫描，错误格式化仅构造一个字段规则键。
+
+新增固定PHP实际10组多字段／条件／上下文、8组内联碰撞和24组原教程games条件参考。真实TCP通过Facade与validate_request回放全部42组，显式区分验证前原值的数值／字符串／布尔比较，复用既有标量桥而非手写另一套比较。三语正式多字段示例直接提取执行，覆盖数值及字符串100、缺失reason/cost和正常投影。原ForEach上下文与编译回归保持。
+
+本批验收前重新从当前c904b0459归档整个HEAD，覆盖本批核定WIP、重建三语生成消费者，并触碰全部first-party Rust文件强制按当前源码重编译，未沿用初始ba6d快照当作最新HEAD。conditional-messages/gates.log九阶段全0：40目标159项0忽略（全部validation目标、请求签名、URL、表单未知字段、MessageBag、直接三语、真实MySQL presence／Web session等），workspace/all-targets严格Clippy46.84s、fmt、三语构建浏览器、实际main14.25s及Artisan帮助／inspire成功。源SHA与冻结组合一致，证据target/tmp/docs-chapters-20261124/conditional-messages/，MySQL及HTTP服务已回收。
+
+逐章初步复核还发现Validation快速入门的Blade消费者不能据结构化errors属性读取判为完成：$errors->any()/all()/first()及old()助手需要真实模板／HTTP复验。进入下一簇处理，尚不关闭两个章节。此前消息簇的“保留旧精确字段消息优先”在本簇被固定源码碰撞证据纠正；历史证据不改写。

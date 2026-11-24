@@ -231,3 +231,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第二十二组：Password配置默认、附加规则与UncompromisedVerifier／NotPwnedVerifier及原工厂接线闭合。456策略＋416泄漏参考真实HTTP，三语正式消费者与Artisan、MySQL十八目标81项／最后公开入口10项和严格门禁通过。人工整章审查新增Factory/Facade::validate、Validator::passes及回调列表／重定向消息输入关联入口，继续修复，不宣布整章闭合。
 
 2026-11-24 Validation第二十三组：Factory/Facade::validate、passes、批量after／服务及MessageProvider／with_errors正式接通；三语直接消费者、真实TCP与MySQL会话，25目标112项及严格门禁／Artisan通过。继续核对sometimes多字段与内联消息优先级，再做整章最终对账。
+
+2026-11-24 Validation第二十四组：sometimes多字段／false条件主名称与内联消息层级优先闭合。42组固定参考、真实HTTP、三语直接示例，当前HEAD全first-party重编译40目标159项及严格门禁／Artisan通过。继续处理快速入门的Blade errors方法与old助手实际消费者，再完成逐节总对账。

@@ -1680,16 +1680,24 @@
         {
           "anchor": "complex-conditional-validation",
           "title": "Complex Conditional Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "sometimes单／多字段、回调原数据及通配项、false条件主字段映射"
+          ],
+          "evidence": [
+            "README.md#第二十四组多字段sometimes及内联消息层级优先2026-11-24"
+          ]
         },
         {
           "anchor": "complex-conditional-array-validation",
           "title": "Complex Conditional Array Validation",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "sometimes单／多字段、回调原数据及通配项、false条件主字段映射"
+          ],
+          "evidence": [
+            "README.md#第二十四组多字段sometimes及内联消息层级优先2026-11-24"
+          ]
         },
         {
           "anchor": "validating-arrays",

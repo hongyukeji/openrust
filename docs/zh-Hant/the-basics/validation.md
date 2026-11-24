@@ -1018,3 +1018,31 @@ fn validate_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 ```
 
 `with_errors` 接收驗證器、`MessageProvider`、訊息包或訊息陣列，例如 `[("title", "標題無效。")]`。既有訊息包保持借用直到工作階段儲存，適配器不會先複製一次。請求與錯誤包名稱需明確提供。`after_many` 附加盒裝回呼清單；`after_rule` 和 `after_rules` 註冊實作 `AfterValidationRule` 的服務。在 Form Request 中，`into_callback()` 將服務轉換為原回呼型別並保留其清單順序。這些入口適配動態可呼叫物件，不改變執行順序或驗證管線。
+
+## 對多個欄位附加條件規則 {#conditional-multiple-fields}
+
+`sometimes` 接收單一欄位、陣列、向量或借用切片，保留欄位順序、重複欄位及每個萬用字元項目的回呼上下文。條件在驗證前讀取原始資料，因此範例復用既有純量比較橋，保留數值字串和布林值的比較行為。Rust 回呼接收 `&Data` 與 `Option<&Value>`，取代動態 Fluent 物件。單欄位借用不配置新字串。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::{facades::Validator, php_integer_less_than_value, php_loose_string_value_equal},
+    validation::{Data, Rule, RuleSet},
+};
+
+pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut validator = Validator::make(
+            Data::from_request(request).await?,
+            RuleSet::parse([("games", "required|integer|min:0")])?,
+        )?;
+        validator.sometimes(["reason", "cost"], vec![Rule::required()], |input, _| {
+            let games = &input.as_value()["games"];
+            php_integer_less_than_value(100, games) || php_loose_string_value_equal("100", games)
+        })?;
+        Response::json(StatusCode::CREATED, validator.validate_request(request).await?)
+    })
+}
+```
+
+行內訊息依序查找欄位／規則、規則、欄位，每層保留原生 `BTreeMap` 的遍歷順序。同層中較早的萬用字元詞條可以優先於後面的精確詞條；若不希望順序決定訊息，應避免重疊詞條。行內萬用字元只比對一層，也支援萬用字元規則名稱；語言檔案 custom 訊息仍走獨立的跨路徑查找。`sometimes` 條件為 false 時也記錄已解析萬用字元欄位的主名稱，供後續錯誤標籤使用。

@@ -70,3 +70,21 @@ pub(super) fn custom(
     }
     None
 }
+
+/// 内联消息先按字段规则、规则、字段查找；每层保留调用方有序映射的遍历顺序。
+pub(super) fn inline<'a>(
+    messages: &'a BTreeMap<String, String>,
+    attribute: &str,
+    rule: &str,
+) -> Option<&'a str> {
+    let specific = format!("{attribute}.{rule}");
+    for key in [specific.as_str(), rule, attribute] {
+        if let Some((_, message)) = messages.iter().find(|(pattern, _)| {
+            pattern.as_str() == key
+                || pattern.contains('*') && super::message_positions::matches(pattern, key)
+        }) {
+            return Some(message);
+        }
+    }
+    None
+}

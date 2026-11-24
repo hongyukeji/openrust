@@ -299070,6 +299070,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "sometimes multiple fields, inline message precedence and full chapter review; chapter open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第二十四组 multi-field sometimes and inline precedence",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "Blade errors methods, old helper and final chapter review; chapter open"
     }
   ]
 }

@@ -1018,3 +1018,31 @@ fn validate_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 ```
 
 `with_errors` accepts a validator, a `MessageProvider`, a message bag, or message arrays such as `[("title", "Invalid title.")]`. Existing bags are borrowed until session storage; the adapter does not clone them first. Specify the error bag and request explicitly. `after_many` adds a list of boxed callbacks; `after_rule` and `after_rules` register services implementing `AfterValidationRule`. In a Form Request, `into_callback()` converts that service into the existing callback type while preserving its place in the list. These methods adapt dynamic callable forms without changing callback order or the validation pipeline.
+
+## Conditional rules for several fields {#conditional-multiple-fields}
+
+`sometimes` accepts one field, an array, a vector, or a borrowed slice of fields. It keeps field order, repeated fields, and each wildcard item’s callback context. Conditions read the original data before validation, so this example reuses the scalar comparison bridge to preserve numeric-string and boolean behavior. Rust callbacks receive `&Data` and `Option<&Value>` instead of a dynamic Fluent object. Single-field borrowing does not allocate a new string.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::{facades::Validator, php_integer_less_than_value, php_loose_string_value_equal},
+    validation::{Data, Rule, RuleSet},
+};
+
+pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut validator = Validator::make(
+            Data::from_request(request).await?,
+            RuleSet::parse([("games", "required|integer|min:0")])?,
+        )?;
+        validator.sometimes(["reason", "cost"], vec![Rule::required()], |input, _| {
+            let games = &input.as_value()["games"];
+            php_integer_less_than_value(100, games) || php_loose_string_value_equal("100", games)
+        })?;
+        Response::json(StatusCode::CREATED, validator.validate_request(request).await?)
+    })
+}
+```
+
+Inline messages search attribute/rule, rule, and attribute in that order, retaining the native `BTreeMap` order within each tier. A wildcard can win before a later exact entry in that tier. Avoid overlapping entries when order should not decide the message. Inline wildcards match one segment, including wildcard rule names; language-file custom messages use their separate cross-path lookup. A false `sometimes` condition still records the parsed wildcard’s primary name, as required for later error labels.

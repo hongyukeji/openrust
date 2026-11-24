@@ -1018,3 +1018,31 @@ fn validate_form(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 ```
 
 `with_errors` 接收验证器、`MessageProvider`、消息包或消息数组，例如 `[("title", "标题无效。")]`。已有消息包保持借用直到会话存储，适配器不会先复制一次。请求与错误包名称需显式提供。`after_many` 追加盒装回调列表；`after_rule` 和 `after_rules` 注册实现 `AfterValidationRule` 的服务。在 Form Request 中，`into_callback()` 将服务转换为原回调类型并保留其列表顺序。这些入口适配动态可调用对象，不改变执行顺序或验证管线。
+
+## 对多个字段添加条件规则 {#conditional-multiple-fields}
+
+`sometimes` 接收单个字段、数组、向量或借用切片，保留字段顺序、重复字段及每个通配项的回调上下文。条件在验证前读取原始数据，因此示例复用既有标量比较桥，保留数值字符串和布尔值的比较行为。Rust 回调接收 `&Data` 与 `Option<&Value>`，替代动态 Fluent 对象。单字段借用不分配新字符串。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::{facades::Validator, php_integer_less_than_value, php_loose_string_value_equal},
+    validation::{Data, Rule, RuleSet},
+};
+
+pub fn store_collector(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut validator = Validator::make(
+            Data::from_request(request).await?,
+            RuleSet::parse([("games", "required|integer|min:0")])?,
+        )?;
+        validator.sometimes(["reason", "cost"], vec![Rule::required()], |input, _| {
+            let games = &input.as_value()["games"];
+            php_integer_less_than_value(100, games) || php_loose_string_value_equal("100", games)
+        })?;
+        Response::json(StatusCode::CREATED, validator.validate_request(request).await?)
+    })
+}
+```
+
+内联消息依次查找字段／规则、规则、字段，每层保留原生 `BTreeMap` 的遍历顺序。同层中较早的通配词条可以优先于后面的精确词条；若不希望顺序决定消息，应避免重叠词条。内联通配符只匹配一层，也支持通配规则名；语言文件 custom 消息仍走单独的跨路径查找。`sometimes` 条件为 false 时也记录已解析通配字段的主名称，供后续错误标签使用。

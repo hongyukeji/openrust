@@ -1,0 +1,1240 @@
+{
+  "framework": "13.40.0",
+  "sometimes": [
+    {
+      "attributes": [
+        "reason",
+        "cost"
+      ],
+      "condition": true,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ],
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "reason",
+        "cost"
+      ],
+      "condition": false,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "channels.*.address",
+        "channels.*.note"
+      ],
+      "condition": true,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "email",
+            "address": null
+          }
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "url",
+            "address": "x"
+          }
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "email",
+            "address": null
+          }
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "url",
+            "address": "x"
+          }
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ],
+        "channels.0.address": [
+          "The channels.0.address field is required."
+        ],
+        "channels.0.note": [
+          "The channels.0.note field is required."
+        ],
+        "channels.1.note": [
+          "The channels.1.note field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "channels.*.address",
+        "channels.*.note"
+      ],
+      "condition": false,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "email",
+            "address": null
+          }
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "url",
+            "address": "x"
+          }
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "email",
+            "address": null
+          }
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "type": "url",
+            "address": "x"
+          }
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "rows.*.account_id"
+      ],
+      "condition": true,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "account_id": null
+          }
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account_id field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "rows.*.account_id"
+      ],
+      "condition": false,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": {
+            "account_id": null
+          }
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account_id field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "reason",
+        "reason"
+      ],
+      "condition": true,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ],
+        "reason": [
+          "The reason field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [
+        "reason",
+        "reason"
+      ],
+      "condition": false,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        },
+        {
+          "input": {
+            "games": 101,
+            "channels": [
+              {
+                "type": "email",
+                "address": null
+              },
+              {
+                "type": "url",
+                "address": "x"
+              }
+            ],
+            "rows": [
+              {
+                "account_id": null
+              }
+            ]
+          },
+          "item": null
+        }
+      ],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [],
+      "condition": true,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ]
+      }
+    },
+    {
+      "attributes": [],
+      "condition": false,
+      "data": {
+        "games": 101,
+        "channels": [
+          {
+            "type": "email",
+            "address": null
+          },
+          {
+            "type": "url",
+            "address": "x"
+          }
+        ],
+        "rows": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "trace": [],
+      "errors": {
+        "rows.0.account_id": [
+          "The rows.0.account id field is required."
+        ]
+      }
+    }
+  ],
+  "messages": [
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "rows.*.name.required": "wildcard first",
+        "rows.0.name.required": "exact second"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "wildcard first"
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "rows.*.name.required": "wildcard second",
+        "rows.0.name.required": "exact first"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "wildcard second"
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "requ*": "generic wildcard"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "generic wildcard"
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "*.required": "attribute wildcard"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The rows.0.name field is required."
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "required": "generic exact",
+        "rows.0.name": "attribute only"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "generic exact"
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "required": "generic exact",
+        "rows.*.name.required": "wildcard first"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "wildcard first"
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "required": "generic exact",
+        "rows.*.name.required": "wildcard second",
+        "rows.0.name.required": "exact first"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "wildcard second"
+        ]
+      }
+    },
+    {
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "*.name.required": "suffix wildcard"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The rows.0.name field is required."
+        ]
+      }
+    }
+  ],
+  "collector": [
+    {
+      "data": {
+        "games": 99
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": 99
+      }
+    },
+    {
+      "data": {
+        "games": 99,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": 99
+      }
+    },
+    {
+      "data": {
+        "games": 100
+      },
+      "passes": false,
+      "errors": {
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": 100,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": 100,
+        "reason": "collection",
+        "cost": 20
+      }
+    },
+    {
+      "data": {
+        "games": 101
+      },
+      "passes": false,
+      "errors": {
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": 101,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": 101,
+        "reason": "collection",
+        "cost": 20
+      }
+    },
+    {
+      "data": {
+        "games": "99"
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": "99"
+      }
+    },
+    {
+      "data": {
+        "games": "99",
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": "99"
+      }
+    },
+    {
+      "data": {
+        "games": "100"
+      },
+      "passes": false,
+      "errors": {
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": "100",
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": "100",
+        "reason": "collection",
+        "cost": 20
+      }
+    },
+    {
+      "data": {
+        "games": "101"
+      },
+      "passes": false,
+      "errors": {
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": "101",
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": "101",
+        "reason": "collection",
+        "cost": 20
+      }
+    },
+    {
+      "data": {
+        "games": "abc"
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field must be an integer."
+        ],
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": "abc",
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field must be an integer."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": true
+      },
+      "passes": false,
+      "errors": {
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": true,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": true,
+      "errors": [],
+      "validated": {
+        "games": true,
+        "reason": "collection",
+        "cost": 20
+      }
+    },
+    {
+      "data": {
+        "games": false
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field must be an integer."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": false,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field must be an integer."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": null
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": null,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": []
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field is required."
+        ],
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": [],
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": 100.1
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field must be an integer."
+        ],
+        "reason": [
+          "The reason field is required."
+        ],
+        "cost": [
+          "The cost field is required."
+        ]
+      },
+      "validated": null
+    },
+    {
+      "data": {
+        "games": 100.1,
+        "reason": "collection",
+        "cost": 20
+      },
+      "passes": false,
+      "errors": {
+        "games": [
+          "The games field must be an integer."
+        ]
+      },
+      "validated": null
+    }
+  ]
+}

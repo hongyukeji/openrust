@@ -391,12 +391,31 @@ impl Validator {
         &mut self.errors
     }
 
-    pub fn sometimes(
+    pub fn sometimes<'a>(
         &mut self,
-        attribute: &str,
+        attributes: impl Into<super::ValidationAttributes<'a>>,
         rules: Vec<Rule>,
         condition: impl Fn(&Data, Option<&Value>) -> bool,
     ) -> ValidationResult<&mut Self> {
+        let mut attributes = attributes.into().into_iter().peekable();
+        let mut rules = rules;
+        while let Some(attribute) = attributes.next() {
+            let selected = if attributes.peek().is_none() {
+                std::mem::take(&mut rules)
+            } else {
+                rules.clone()
+            };
+            self.sometimes_attribute(&attribute, selected, &condition)?;
+        }
+        Ok(self)
+    }
+
+    fn sometimes_attribute(
+        &mut self,
+        attribute: &str,
+        rules: Vec<Rule>,
+        condition: &impl Fn(&Data, Option<&Value>) -> bool,
+    ) -> ValidationResult<()> {
         self.ensure_compiled()?;
         let candidate = if rules.is_empty() {
             path::parse(attribute)?;
@@ -421,19 +440,20 @@ impl Validator {
                     .into_iter()
                     .next()
                     .and_then(|(_, value)| value);
+                // 即使条件为false，解析到的通配主字段也影响原字段的显示名称。
+                if path != candidate.origin(declaration) {
+                    additions
+                        .origins
+                        .insert(path.clone(), candidate.origin(declaration).to_owned());
+                }
                 if condition(&self.data, item) && !rules.is_empty() {
                     additions =
                         additions.merged(RuleSet::new().field(path.clone(), rules.clone())?)?;
-                    if path != candidate.origin(declaration) {
-                        additions
-                            .origins
-                            .insert(path, candidate.origin(declaration).to_owned());
-                    }
                 }
             }
         }
         self.add_rules(additions)?;
-        Ok(self)
+        Ok(())
     }
 
     pub async fn validate_with_bag(&mut self, error_bag: &str) -> ValidationResult<ValidatedInput> {
@@ -1903,21 +1923,7 @@ impl Validator {
             }
         });
         if let Some(rule) = rule
-            && let Some(message) = self
-                .messages
-                .get(&format!("{attribute}.{rule}"))
-                .or_else(|| {
-                    self.messages.iter().find_map(|(key, value)| {
-                        (key.contains('*')
-                            && super::message_positions::matches(
-                                key,
-                                &format!("{attribute}.{rule}"),
-                            ))
-                        .then_some(value)
-                    })
-                })
-                .or_else(|| self.messages.get(rule))
-                .or_else(|| self.messages.get(&attribute))
+            && let Some(message) = super::message_catalog::inline(&self.messages, &attribute, rule)
         {
             return render(message);
         }
