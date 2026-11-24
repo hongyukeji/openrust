@@ -85,7 +85,12 @@ impl TwoFactorAuthenticatedSessionController {
                     .session_mut()
                     .map_err(internal)?
                     .forget(&["login.id"]);
-                user.mutate(Mutation::Replace(&recovery)).await?;
+                if let Err(error) = user.mutate(Mutation::Consume(&recovery)).await {
+                    if matches!(error, HttpError::Validation(_)) {
+                        user.emit(AccountEvent::Failed).await?;
+                    }
+                    return Err(error);
+                }
             } else {
                 let code = input(request, "code").await?;
                 let valid = if let Some(code) = code.filter(|v| !v.is_empty() && v != "0") {

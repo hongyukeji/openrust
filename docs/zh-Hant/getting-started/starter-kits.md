@@ -70,4 +70,80 @@ let plaintext = token.plain_text_token;
 
 修改憑據與簽發權杖會在提交前鎖定並重新核對目前身分／版本，要求使用者和權杖使用同一資料庫連線身分；獨立設定的權杖連線會明確失敗，不假裝具有原子安全保證。自訂使用者模型實作 `Clone` 並保留 `credential_version`；自訂權杖模型保留 `credential_stamp` 並在序列化中隱藏。含暫態欄位的權杖模型可覆寫 `PersonalAccessTokenModel::clone_token_model` 回傳 `self.clone()`，使屬性存取器保留這些狀態。
 
-以上為生命週期服務和產生的密碼 Action。裝置權杖登入／挑戰介面及完整帳戶中心仍在開發。僅註冊回應適配器不會啟用憑據策略。
+以上為生命週期服務和產生的密碼 Action。近期確認證明及完整帳戶中心仍在開發；裝置權杖登入見下節。僅註冊回應適配器不會啟用憑據策略。
+
+## 明確選擇裝置權杖登入 {#client-tokens}
+
+網頁和第一方 SPA 仍預設使用 Cookie 驗證。向 `/login` 請求 JSON 不會自動簽發個人權杖。已註冊帳戶可以明確申請裝置權杖：
+
+```sh
+curl -X POST http://localhost:8000/api/auth/token \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"email":"developer@example.test","password":"YOUR_PASSWORD","device_name":"phone","abilities":["account:read"]}'
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "成功",
+  "data": {
+    "token_type": "Bearer",
+    "token": "TOKEN_SHOWN_ONCE",
+    "expires_at": "2030-02-01T03:04:05Z",
+    "user": {
+      "id": 1,
+      "name": "開發者",
+      "email": "developer@example.test",
+      "email_verified_at": null
+    }
+  }
+}
+```
+
+簽發成功使用 HTTP 201 和 `Cache-Control: no-store`。請安全儲存憑據：資料庫僅存摘要，後續讀取不會再次回傳明文。存取 `/api/user` 等受保護入口時傳送 `Authorization: Bearer TOKEN_SHOWN_ONCE`。伺服器端和行動權杖客戶端不需要瀏覽器工作階段；第一方請求仍須遵守狀態中介軟體和 CSRF 保護。
+
+`device_name` 必填，最多255個字元；可選 `abilities` 是最多100個名稱的陣列。伺服器端依 `user.token_abilities` 核對，未知或空能力回傳422。啟用信箱驗證時，未驗證使用者只能取得與 `user.unverified_token_abilities` 的交集，預設是帳戶及權杖管理能力；判斷遵循實際 `MustVerifyEmail` 狀態。驗證成功不擴大既有權杖的能力。業務路由仍需應用授權及信箱驗證中介軟體。
+
+路徑跟隨 `API_PREFIX`。設定 `API_PREFIX=api/admin` 後，使用 `/api/admin/auth/token` 和 `/api/admin/auth/token/challenge`；保留現有資訊頁與目前使用者入口。產生的 Provider 明確呼叫 `openrust_fortify::starter::client::register_routes::<User>(app)`，獨立 Fortify 應用不受影響。
+
+帳戶存在已啟用的雙因素驗證時，正確密碼回傳 HTTP 200 和短期挑戰，不回傳存取權杖：
+
+```json
+{
+  "success": true,
+  "code": "auth_challenge_required",
+  "message": "請完成額外身分驗證。",
+  "data": {
+    "challenge": "OPAQUE_CHALLENGE",
+    "methods": [
+      "totp",
+      "recovery_code"
+    ],
+    "expires_at": "2030-01-02T03:09:05Z"
+  }
+}
+```
+
+向 POST `/api/auth/token/challenge` 傳送實際挑戰和目前 code，也可將 code 換成 `recovery_code`。完成後回傳相同的201權杖格式。挑戰五分鐘過期、僅能消費一次，保留原裝置名稱和已批准能力，不能用於存取資源。因素無效回傳422；挑戰過期、已消費或已失效回傳401。登入重用已設定的具名限流，因素嘗試另依帳戶限流，不能靠更換挑戰識別碼繞過。
+
+```json
+{
+  "challenge": "OPAQUE_CHALLENGE",
+  "recovery_code": "YOUR_RECOVERY_CODE"
+}
+```
+
+簽發在使用者列鎖內重新檢查最新狀態。憑據版本、相關帳戶／因素狀態或應用加密金鑰變化會使待完成驗證失效。恢復碼驗證在資料庫鎖下單次消費，一般公開替換方法維持原生行為。兌換中斷或失敗時可能需要重新登入，不會遺留可重複使用的已授權挑戰。
+
+原生時間戳記遷移發佈器在 User 連線中新增 `create_user_auth_challenges_table`，不儲存原始挑戰鍵或密碼。多節點共享資料庫、應用金鑰、驗證策略及快取；各節點讀取自己的應用設定。
+
+```sh
+./artisan auth:prune-challenges --hours=0
+```
+
+命令預設保留過期紀錄24小時，`--hours=0` 立即清理已經過期的紀錄。用現有[排程器](../digging-deeper/scheduling.md)安排執行，並配合 `sanctum:prune-expired`。驗證不等待清理才拒絕過期，重複清理安全。
+
+訊息遵循應用／請求語言及回退。已發佈的 `lang/{locale}/user.json` 優先於套件編譯預設值；升級補足英語、簡體中文和繁體中文缺鍵，保留既有自訂翻譯。
+
+本節涵蓋裝置登入和 TOTP／恢復碼挑戰。純權杖客戶端註冊、郵件驗證／找回、近期確認證明及完整帳戶中心仍在接線，另行追蹤剩餘工作。

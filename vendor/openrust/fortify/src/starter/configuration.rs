@@ -10,7 +10,11 @@ fn invalid(key: &str, expected: &'static str) -> ConfigError {
         expected,
     }
 }
-fn boolean(config: &dyn Repository, key: &str, default: bool) -> Result<bool, ConfigError> {
+pub(super) fn boolean(
+    config: &dyn Repository,
+    key: &str,
+    default: bool,
+) -> Result<bool, ConfigError> {
     match config.get(key) {
         None => Ok(default),
         Some(Value::Bool(value)) => Ok(value),

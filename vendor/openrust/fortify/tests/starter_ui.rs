@@ -1,3 +1,6 @@
+#[cfg(feature = "sanctum")]
+#[path = "../stubs/starter/migrations/auth-challenges.rs"]
+mod auth_challenge_migration;
 #[path = "../stubs/mod.rs"]
 mod installed;
 #[path = "../stubs/fortify_service_provider.rs"]
@@ -59,6 +62,7 @@ struct Server {
     mailer: Arc<openrust::mail::Mailer>,
     task: tokio::task::JoinHandle<()>,
     _root: Root,
+    _kernel: Arc<Kernel>,
 }
 impl Drop for Server {
     fn drop(&mut self) {
@@ -104,6 +108,23 @@ async fn start_profile(profile: &'static str) -> Server {
     start_options(profile, true).await
 }
 async fn start_options(profile: &'static str, verification: bool) -> Server {
+    start_security(profile, verification, false, "api").await
+}
+async fn start_security(
+    profile: &'static str,
+    verification: bool,
+    two_factor: bool,
+    prefix: &str,
+) -> Server {
+    start_security_catalog(profile, verification, two_factor, prefix, false).await
+}
+async fn start_security_catalog(
+    profile: &'static str,
+    verification: bool,
+    two_factor: bool,
+    prefix: &str,
+    legacy: bool,
+) -> Server {
     use axum::handler::Handler as _;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let root = Root(std::env::temp_dir().join(format!(
@@ -117,7 +138,7 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
     std::fs::write(root.0.join("app-url"), format!("http://{address}")).unwrap();
     std::fs::write(
         root.0.join("user-config.json"),
-        json!({"profile":profile,"registration":true,"email_verification":verification})
+        json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix})
             .to_string(),
     )
     .unwrap();
@@ -155,11 +176,18 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
     for locale in ["en", "zh-Hans", "zh-Hant"] {
         let target = root.0.join(format!("lang/{locale}/user.json"));
         std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-        std::fs::copy(
-            package.join(format!("stubs/starter/lang/{locale}.json")),
-            target,
-        )
-        .unwrap();
+        let original =
+            std::fs::read_to_string(package.join(format!("stubs/starter/lang/{locale}.json")))
+                .unwrap();
+        if legacy {
+            let mut values: Value = serde_json::from_str(&original).unwrap();
+            values.as_object_mut().unwrap().remove("challenge_required");
+            values.as_object_mut().unwrap().remove("challenges_pruned");
+            values["login"] = json!("自定义登录");
+            std::fs::write(target, serde_json::to_vec(&values).unwrap()).unwrap();
+        } else {
+            std::fs::write(target, original).unwrap();
+        }
     }
     app.boot().await.unwrap();
     let auth = app.make::<AuthManager>().await.unwrap();
@@ -204,6 +232,9 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
             table.string("password", None);
             table.remember_token();
             table.big_integer("credential_version").default(0);
+            table.text("two_factor_secret").nullable();
+            table.text("two_factor_recovery_codes").nullable();
+            table.timestamp("two_factor_confirmed_at", 0).nullable();
             table.timestamp("created_at", None).nullable();
             table.timestamp("updated_at", None).nullable();
             Ok(())
@@ -223,6 +254,19 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
             table.timestamp("last_used_at", 0).nullable();
             table.timestamp("expires_at", 0).nullable();
             table.timestamps();
+        })
+        .await
+        .unwrap();
+    #[cfg(feature = "sanctum")]
+    schema
+        .create("user_auth_challenges", |table| {
+            table.string("id", 64).primary();
+            table.string("purpose", 64);
+            table.string("owner_hash", 64).index();
+            table.text("payload");
+            table.big_integer("created_at");
+            table.big_integer("expires_at").index();
+            table.big_integer("consumed_at").nullable();
         })
         .await
         .unwrap();
@@ -261,7 +305,8 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
-    let service = transport.with_state(Arc::new(kernel)).into_make_service();
+    let kernel = Arc::new(kernel);
+    let service = transport.with_state(kernel.clone()).into_make_service();
     Server {
         address,
         mailer,
@@ -269,6 +314,7 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
             axum::serve(listener, service).await.unwrap();
         }),
         _root: root,
+        _kernel: kernel,
     }
 }
 struct Client {
@@ -451,6 +497,7 @@ fn full_configuration(
     Ok([
         ("app".into(),json!({"key":"a".repeat(32),"url":std::fs::read_to_string(base.join("app-url")).unwrap(),"env":"local","name":"用户套件测试","version":"1.2.3","locale":"zh-Hans","supported_locales":[],"debug":true})),
         ("user".into(),serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()),
+        ("api".into(),json!({"prefix":serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()["api_prefix"],"response_envelope":true})),
         ("database".into(),database_configuration(base)),
         ("session".into(),session_configuration(base)),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),
@@ -908,6 +955,7 @@ fn published_credential_migrations_implement_native_migration_contract() {
     fn migration(_: impl openrust::database::migrations::Migration) {}
     migration(user_credential_migration::Definition);
     migration(token_credential_migration::Definition);
+    migration(auth_challenge_migration::Definition);
 }
 
 #[cfg(feature = "sanctum")]
@@ -1003,4 +1051,388 @@ async fn password_update_revokes_bearer_and_allows_fresh_issuance() {
     let renewed = payload["data"]["plainTextToken"].as_str().unwrap();
     assert_ne!(token, renewed);
     assert_eq!(bearer_request(server.address, renewed).await, 200);
+}
+
+#[cfg(feature = "sanctum")]
+async fn token_client_request(
+    address: SocketAddr,
+    path: &str,
+    payload: Value,
+) -> (u16, String, Value) {
+    let mut client = Client {
+        address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    let (status, headers, body) = client
+        .exchange("POST", path, &payload.to_string(), true)
+        .await;
+    assert!(
+        client.cookies.is_empty(),
+        "无Cookie令牌客户端不应创建浏览器会话"
+    );
+    (status, headers, serde_json::from_str(&body).unwrap())
+}
+#[cfg(feature = "sanctum")]
+async fn register_token_user(server: &Server) {
+    let mut client = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(client.send("GET", "/register", "", false).await.0, 200);
+    let(status,body)=client.send("POST","/register",r#"{"name":"独立客户端","email":"device@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(
+        status,
+        201,
+        "{}",
+        token_failure(&serde_json::from_str(&body).unwrap_or(Value::Null))
+    );
+}
+#[cfg(feature = "sanctum")]
+fn device_login() -> Value {
+    json!({"email":"device@example.test","password":"long-password-123","device_name":"phone"})
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn stateless_password_token_login_keeps_sessions_separate_and_obeys_api_prefix() {
+    use openrust::support::facades::{App, Facade as _};
+    let server = start_security("full", true, false, "api/admin").await;
+    register_token_user(&server).await;
+    let mut wrong = device_login();
+    wrong["password"] = json!("incorrect");
+    let (status, _, body) =
+        token_client_request(server.address, "/api/admin/auth/token", wrong).await;
+    assert_eq!(status, 422, "{}", token_failure(&body));
+    let mut denied = device_login();
+    denied["abilities"] = json!(["admin:all"]);
+    let (status, _, body) =
+        token_client_request(server.address, "/api/admin/auth/token", denied).await;
+    assert_eq!(status, 422, "{}", token_failure(&body));
+    assert!(!body.to_string().contains(":attribute"));
+    let (status, headers, body) =
+        token_client_request(server.address, "/api/admin/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    assert!(headers.contains("no-store"));
+    assert_eq!(body["message"], "成功");
+    assert_eq!(body["data"]["token_type"], "Bearer");
+    assert!(body["data"]["expires_at"].is_string());
+    assert_eq!(body["data"]["user"].as_object().unwrap().len(), 4);
+    let token = body["data"]["token"].as_str().unwrap();
+    assert_eq!(bearer_request(server.address, token).await, 200);
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let sanctum = App::make::<openrust::sanctum::Sanctum>().await.unwrap();
+        let db = App::make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap();
+        let stored = sanctum
+            .personal_access_tokens(&db, "")
+            .unwrap()
+            .find_token(token)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            stored.abilities,
+            vec!["account:read", "account:update", "tokens:manage"]
+        );
+        assert!(
+            stored
+                .get_attribute_value("credential_stamp")
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            !serde_json::to_string(&stored)
+                .unwrap()
+                .contains("credential_stamp")
+        );
+    })
+    .await;
+    let (status, _, _) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 404);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn stateless_factor_challenges_reject_replay_and_consume_recovery_codes_atomically() {
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        database::{Value as DbValue, eloquent::Model as _},
+        support::facades::{App, Facade as _},
+    };
+    let server = start_security("full", true, true, "api").await;
+    register_token_user(&server).await;
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let app = server._kernel.get_application();
+        let fortify = app.make::<openrust_fortify::Fortify>().await.unwrap();
+        let encrypter = fortify.current_encrypter().unwrap();
+        let secret = encrypter.encrypt(b"JBSWY3DPEHPK3PXP", true).unwrap();
+        let recovery = encrypter
+            .encrypt(br#"["first-code","second-code","third-code"]"#, true)
+            .unwrap();
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        db.table("users")
+            .r#where("email", "=", "device@example.test")
+            .update(
+                [
+                    ("two_factor_secret".into(), secret.into()),
+                    ("two_factor_recovery_codes".into(), recovery.into()),
+                    (
+                        "two_factor_confirmed_at".into(),
+                        "2026-01-01 00:00:00".into(),
+                    ),
+                ]
+                .into(),
+            )
+            .await
+            .unwrap();
+        let cache = app
+            .make::<openrust::cache::CacheManager>()
+            .await
+            .unwrap()
+            .store(None)
+            .unwrap();
+        app.container()
+            .instance::<dyn openrust_fortify::contracts::TwoFactorAuthenticationProvider>(Arc::new(
+                openrust_fortify::TwoFactorAuthenticationProvider::new(Some(cache))
+                    .with_clock(|| Ok(1_234_567_890)),
+            ))
+            .unwrap();
+    })
+    .await;
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 200, "{}", token_failure(&body));
+    assert_eq!(body["code"], "auth_challenge_required");
+    assert!(body["data"].get("token").is_none());
+    let challenge = body["data"]["challenge"].as_str().unwrap();
+    assert!(body["data"]["expires_at"].is_string());
+    assert_eq!(bearer_request(server.address, challenge).await, 401);
+    let (status, _, body) = token_client_request(
+        server.address,
+        "/api/auth/token/challenge",
+        json!({"challenge":challenge,"code":"bad"}),
+    )
+    .await;
+    assert_eq!(status, 422, "{}", token_failure(&body));
+    let (status, headers, body) = token_client_request(
+        server.address,
+        "/api/auth/token/challenge",
+        json!({"challenge":challenge,"code":"742275"}),
+    )
+    .await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    assert!(headers.contains("no-store"));
+    assert_eq!(
+        bearer_request(server.address, body["data"]["token"].as_str().unwrap()).await,
+        200
+    );
+    let (status, _, _) = token_client_request(
+        server.address,
+        "/api/auth/token/challenge",
+        json!({"challenge":challenge,"code":"742275"}),
+    )
+    .await;
+    assert_eq!(status, 401);
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let next = body["data"]["challenge"].as_str().unwrap();
+    let (status, _, _) = token_client_request(
+        server.address,
+        "/api/auth/token/challenge",
+        json!({"challenge":next,"code":"742275"}),
+    )
+    .await;
+    assert_eq!(status, 422);
+    let (status, _, body) = token_client_request(
+        server.address,
+        "/api/auth/token/challenge",
+        json!({"challenge":next,"recovery_code":"first-code"}),
+    )
+    .await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let (_, _, a) = token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let (_, _, b) = token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let (a, b) = tokio::join!(
+        token_client_request(
+            server.address,
+            "/api/auth/token/challenge",
+            json!({"challenge":a["data"]["challenge"],"recovery_code":"second-code"})
+        ),
+        token_client_request(
+            server.address,
+            "/api/auth/token/challenge",
+            json!({"challenge":b["data"]["challenge"],"recovery_code":"second-code"})
+        )
+    );
+    let mut statuses = [a.0, b.0];
+    statuses.sort();
+    assert_eq!(statuses, [201, 422], "{:?} {:?}", a.2, b.2);
+    let (_, _, pending) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let app = server._kernel.get_application();
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        let mut query = app::models::User::query_on(&db).use_write_pdo();
+        query.r#where("email", "=", "device@example.test");
+        let mut user = query.first().await.unwrap().unwrap();
+        openrust_fortify::starter::credentials::revoke_all(&mut user)
+            .await
+            .unwrap();
+        assert!(matches!(
+            user.get_attribute("credential_version"),
+            Some(DbValue::Unsigned(1)) | Some(DbValue::Integer(1))
+        ));
+    })
+    .await;
+    let (status, _, body) = token_client_request(
+        server.address,
+        "/api/auth/token/challenge",
+        json!({"challenge":pending["data"]["challenge"],"recovery_code":"third-code"}),
+    )
+    .await;
+    assert_eq!(status, 401, "{}", token_failure(&body));
+}
+
+#[cfg(feature = "sanctum")]
+fn token_failure(value: &Value) -> Value {
+    let mut safe = value.clone();
+    if let Some(data) = safe.get_mut("data").and_then(Value::as_object_mut) {
+        for key in ["token", "challenge", "proof"] {
+            if data.contains_key(key) {
+                data.insert(key.into(), Value::String("[REDACTED]".into()));
+            }
+        }
+    }
+    safe
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn compiled_user_messages_preserve_overrides_and_artisan_prunes_challenges() {
+    use openrust::support::facades::{App, Facade as _};
+    let server = start_security_catalog("full", true, true, "api", true).await;
+    let mut browser = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    let (status, page) = browser.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200);
+    assert!(page.contains("自定义登录"));
+    register_token_user(&server).await;
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let app = server._kernel.get_application();
+        let fortify = app.make::<openrust_fortify::Fortify>().await.unwrap();
+        let secret = fortify
+            .current_encrypter()
+            .unwrap()
+            .encrypt(b"JBSWY3DPEHPK3PXP", true)
+            .unwrap();
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        db.table("users")
+            .r#where("email", "=", "device@example.test")
+            .update(
+                [
+                    ("two_factor_secret".into(), secret.into()),
+                    (
+                        "two_factor_confirmed_at".into(),
+                        "2026-01-01 00:00:00".into(),
+                    ),
+                ]
+                .into(),
+            )
+            .await
+            .unwrap();
+    })
+    .await;
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 200, "{}", token_failure(&body));
+    assert_eq!(body["message"], "请完成额外身份验证。");
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let app = server._kernel.get_application();
+        let clock = app.make::<openrust::support::DateFactory>().await.unwrap();
+        let instant = openrust::support::facades::Date::now(None)
+            .unwrap()
+            .as_date_time()
+            .timestamp()
+            .checked_add(jiff::SignedDuration::from_secs(301))
+            .unwrap();
+        clock.set_test_now(Some(openrust::support::Date::from_utc(
+            instant,
+            jiff::tz::TimeZone::UTC,
+        )));
+        let mut output = openrust::console::Output::default();
+        assert_eq!(
+            openrust::support::facades::Artisan::call(
+                "auth:prune-challenges",
+                &["--hours=0".into()],
+                &mut output
+            )
+            .await
+            .unwrap(),
+            0,
+            "{}",
+            output.stderr
+        );
+        assert!(output.stdout.contains('1'));
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        assert_eq!(
+            db.table("user_auth_challenges")
+                .use_write_pdo()
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        let mut output = openrust::console::Output::default();
+        assert_eq!(
+            openrust::support::facades::Artisan::call(
+                "auth:prune-challenges",
+                &["--hours=0".into()],
+                &mut output
+            )
+            .await
+            .unwrap(),
+            0,
+            "{}",
+            output.stderr
+        );
+        assert!(output.stdout.contains('0'));
+        let mut output = openrust::console::Output::default();
+        assert!(
+            openrust::support::facades::Artisan::call(
+                "auth:prune-challenges",
+                &["--hours=-1".into()],
+                &mut output
+            )
+            .await
+            .is_err()
+        );
+    })
+    .await;
 }

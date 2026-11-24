@@ -21,5 +21,7 @@
     "current_password": "目前密碼",
     "change_password": "變更密碼",
     "profile": "個人資料",
-    "verified": "你的電子郵件地址已驗證。"
+    "verified": "你的電子郵件地址已驗證。",
+    "challenge_required": "請完成額外身分驗證。",
+    "challenges_pruned": "已清理 :count 份過期驗證證明。"
 }

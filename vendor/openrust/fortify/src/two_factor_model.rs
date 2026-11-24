@@ -46,7 +46,7 @@ pub(crate) enum Mutation<'a> {
     Confirm(&'a str),
     Disable,
     Generate,
-    Replace(&'a str),
+    Consume(&'a str),
 }
 pub(crate) enum AccountEvent {
     Challenged,
@@ -131,9 +131,9 @@ impl<T: TwoFactorAuthenticatable> Account for TypedAccount<T> {
                         .call(&mut self.0)
                         .await
                 }
-                Mutation::Replace(code) => {
+                Mutation::Consume(code) => {
                     let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-                    self.0.replace_recovery_code(code, &fortify).await
+                    crate::actions::consume_recovery_code(&mut self.0, code, &fortify).await
                 }
             }
         })

@@ -147,3 +147,35 @@
 磁盘：`credential-runtime-upgrade-second.log`触及32GB，守卫安全停止并持Cargo锁清理全部项目编译产物，实际释放81,995,673,600字节，之后可用114,223,865,856字节。中断不计通过。源码、日志、数据库及数据卷保留；最终三库夹具临时容器已退出清理，正常增量缓存继续复用。收口时剩余空间见 `credential-delivery-space.json`。
 
 仍待后续：无Cookie令牌登录／额外因素挑战／近期证明、全设备HTTP入口、完整账户中心与头像、可替换注销及持久外部清理、SMTP／通知队列与跨进程／节点的整体验收、可选因素UI和最终安装矩阵。三语教程明确服务能力与尚未交付接口；不将本批通过扩大为A01-01至05闭合。真实供应商、硬件与生产发布继续单列。
+
+## 无 Cookie 令牌登录与持久挑战（本批验收通过）
+
+本单元沿用 S01、S02、S07，复用固定 Fortify Provider、Timebox、因素校验、原生恢复码事件及 Sanctum 事务签发，不另建访问令牌。默认 Cookie 登录保持不变；只有显式套件 Provider 注册 `/auth/token` 与 `/auth/token/challenge`，路径跟随 `api.prefix`。近期重新认证、令牌管理和完整账户中心仍继续开发。
+
+### 实现与边界
+
+- 密码登录遵循自定义认证回调、用户名规范化、命名登录限流与错误事件；密码重哈希前固定凭据版本，之后从主库重新确认密码／版本。设备名与能力请求校验，服务端白名单及未验证用户能力交集在用户锁内再核对；调用者不能放大权限。
+- 已启用且已绑定双因素时返回200和 `auth_challenge_required`，不返回访问令牌；完成 TOTP／恢复码后201。只返回一次明文 PAT，持久化摘要，沿用30天／更短全局期限。包含证明或访问令牌的成功响应 `no-store`，无 Cookie、无 Session 依赖；秘密不进入验收摘要。
+- 由现有迁移发布器增加 `user_auth_challenges`。不透明随机键仅保存摘要，载荷绑定用户、多态归属、用途、设备、已批准能力和凭据状态；AppKey HMAC还绑定有效邮箱／因素策略与因素状态。使用用户所属连接、主库读取、行锁和锁内时间检查；SQLite先取写锁，JSON精确比较避免MySQL排序规则放宽绑定。单次消费后再发权限，事务签发前再次核对期限及最新状态。中断可要求重新登录，不遗留可重放授权。
+- 原生公开 `replace_recovery_code` 保留固定上游字符串替换行为；认证消费采用新增内部事务入口，锁内刷新、核对密码／版本、精确验证恢复码、模型事件取消回滚，再保存及提交后派发原事件。两个独立挑战并发使用同一恢复码只能成功一个，不能靠各自进程快照重复使用。
+- 显式套件增加 `auth:prune-challenges --hours=24`，`--hours=0`立即清理已过期记录；负数／溢出拒绝。复用应用时钟与 Artisan，调度由应用选择。编译内置三语默认值只补缺键，保留已有应用语言文件及运行时覆盖；升级不用覆盖开发者字典。
+- 安装器按AST识别并升级旧标准Provider／模型能力，保留业务改动；先写模型能力再启用新泛型路由，避免中断后留下无法编译的Provider。第三份迁移按真实模型连接生成，不改现有账本。
+
+### 当前实际证据
+
+冻结源码为 `target/tmp/user-starter/source`，当前父提交 `f55b5f4c0`，最终交付SHA与范围在本单元结束时记录。
+
+- `client-tenth-gates.log`：安装11、持久挑战SQLite1、真实TCP HTTP16通过；MySQL／PostgreSQL标注忽略的2项未计通过。Fortify sanctum/all-targets 严格Clippy通过。新增旧版语言目录用例验证缺键默认值、保留自定义登录文案和真实Artisan命令分派／重复清理／非法参数。
+- `client-matrix-first.log`：独立MySQL8.4.13与PostgreSQL18.7各持久挑战1、数据库Session真实HTTP16通过，基础设施测试用 `--ignored` 明确执行；MySQL还实际运行原生认证14和因素模型4。挑战主库读取另配置不可用只读端点，成功证明没有误走副本。
+- `client-docs-first.log`：三语文档构建通过，两个挂载路径、桌面／手机12组浏览器通过，核对新章节锚点、公开路径及无横向溢出。
+
+早期新增测试错用了 `Application::handle_command` 的输出参数和 `count()` 无参形式，修正为真实 `Artisan::call` 与 `count("*")` 后才通过；失败日志保留。`client-sixth-gates.log`曾在代码生成时触及32GB，未计通过；守卫持锁清理81,829,707,776字节，之后可用113,779,240,960字节，后续恢复真实重编译。源文件、日志、数据和依赖下载保留。
+
+### 最终补验
+
+- `client-runtime-first.log`：真实生成项目执行两次 `./artisan init --starter-kit=full --extensions=api,fortify --no-interaction`，旧标准Provider安全升级并保留已有应用配置；挑战迁移首次执行、重复执行、回滚一步、重新执行通过。实际 `./artisan auth:prune-challenges --hours=0` 成功。
+- `client-runtime-http-fourth.log`与摘要JSON：21个真实TCP请求。使用原生密码确认、2FA绑定／确认和恢复码读取端点建立因素；没有绕过生产Controller直接给用户写因素。两个独立应用进程共享SQLite数据库和file缓存，签发挑战的进程终止后由另一个进程兑换；新进程重启、并发双节点仅一个201、重放401、不同AppKey实例401且不会烧掉合法实例的证明，均通过。过程的长期PAT、挑战、因素秘密不写摘要日志。首次夹具未刷新注册后CSRF返回419，修正为重新读页面；密码确认按原生201断言。错误响应不含秘密，失败返回沿用原生异常头；成功证明／签发返回no-store，不宣称全部异常自动增加该头。
+- `client-final-gates-first.log`：workspace/all-targets严格Clippy、Fortify sanctum/all-targets严格Clippy、格式检查通过；最终安装11、HTTP16、原生认证14、因素模型4通过。此轮不带外部连接的MySQL条件分支不计真实MySQL证据，真实证据以上述独立数据库矩阵为准。Fortify无Sanctum的all-targets检查通过。
+- 生成项目仅Fortify而关闭Sanctum的 `cargo check --no-default-features --features fortify --bin main` 通过，记录在 `client-runtime-feature-off.log`。最终源码范围／SHA为 `client-files.json`、`client-final-source-sha.json`；上游复用及协议差异见本节和唯一计划S01至S10。
+
+三库临时容器已由验收入口回收；三个HTTP节点退出；保留源码、日志、数据与正常增量缓存。本批收尾空间见 `client-delivery-space.json`。仍继续实现近期重新认证、当前令牌退出和本人令牌管理、无会话邮件闭环、完整账户中心／头像／注销、可选因素UI、SMTP／队列与最终安装矩阵，不将本单元当作任一整阶段闭合。真实手机、供应商短信／邮件、Windows和生产部署不由本机TCP测试冒充通过。

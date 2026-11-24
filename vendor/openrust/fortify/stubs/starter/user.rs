@@ -29,6 +29,7 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         */
         "token_expiration_days": get(env, "USER_TOKEN_EXPIRATION_DAYS", 30)?,
         "token_abilities": ["account:read", "account:update", "tokens:manage"],
+        "unverified_token_abilities": ["account:read","account:update","tokens:manage"],
         "avatar": {"disk":"public","max_kilobytes":2048,"max_dimension":4096}
     }))
 }

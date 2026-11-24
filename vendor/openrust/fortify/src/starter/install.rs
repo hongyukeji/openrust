@@ -89,6 +89,7 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
     provider.publishes_migrations(app, &[
         ("database/migrations/0001_01_01_000020_add_credential_version_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/user-credentials.rs")),
         ("database/migrations/0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs", include_bytes!("../../stubs/starter/migrations/token-credentials.rs")),
+        ("database/migrations/0001_01_01_000022_create_user_auth_challenges_table.rs", include_bytes!("../../stubs/starter/migrations/auth-challenges.rs")),
     ], "user-kit-migrations")?;
     // 使用已有路径发布器；应用自定义lang路径和旧resources/lang兼容遵循同一入口。
     for locale in ["en", "zh-Hans", "zh-Hant"] {
@@ -113,19 +114,57 @@ fn initialize<'a>(
             "crate::app::providers::user_service_provider::UserServiceProvider",
             "fortify",
         )?;
+        let provider_path = root.join("app/providers/user_service_provider.rs");
+        let provider_edit = if provider_path.exists() && !options.force {
+            let previous = read(&provider_path)?;
+            let template = include_str!("../../stubs/starter/user_service_provider.rs");
+            let addition = r#"            #[cfg(feature = "sanctum")]
+            openrust_fortify::starter::client::register_routes::<crate::app::models::User>(app)?;
+"#;
+            let legacy = template.replacen(addition, "", 1);
+            if legacy == template {
+                return Err(ConsoleError::new("用户套件Provider升级模板不一致"));
+            }
+            let edit = |expected: &str| {
+                openrust::foundation::console::source_edit::replace_generated_method(
+                    &previous,
+                    expected,
+                    template,
+                    "ServiceProvider",
+                    "boot",
+                )
+            };
+            if edit(template).is_ok() {
+                None
+            } else {
+                Some((previous.clone(), edit(&legacy)?))
+            }
+        } else {
+            None
+        };
         let model_path = root.join("app/models/user.rs");
         let model_previous = read(&model_path)?;
         let token_template = include_str!("../../stubs/starter/user-tokens.rs");
         let cloned =
             openrust::foundation::console::source_edit::UserModelSource::parse(&model_previous)?
                 .with_clone()?;
-        let model_updated =
+        let mut model_updated =
             openrust::foundation::console::source_edit::UserModelSource::parse(&cloned)?
                 .with_trait_method(
                     token_template,
                     "openrust::sanctum::HasApiTokens",
                     "create_token",
                 )?;
+        if !openrust::foundation::console::source_edit::UserModelSource::parse(&model_updated)?
+            .implements("openrust_fortify::TwoFactorAuthenticatable")
+        {
+            let newline = if model_previous.contains("\r\n") {
+                "\r\n"
+            } else {
+                "\n"
+            };
+            model_updated.push_str(&format!("{newline}#[cfg(feature = \"fortify\")]{newline}impl openrust_fortify::TwoFactorAuthenticatable for User {{}}{newline}"));
+        }
         let action_path = root.join("app/actions/fortify/mod.rs");
         let action_edit = if action_path.exists() && !options.force {
             let previous = read(&action_path)?;
@@ -245,6 +284,8 @@ fn initialize<'a>(
         ] {
             read(&root.join(relative))?;
         }
+        // 先写入被新Provider引用的模型能力，取消安装后也能再次编译并执行修复。
+        replace(&model_path, &model_previous, &model_updated)?;
         for tag in [
             "user-kit-config",
             "user-kit-support",
@@ -300,7 +341,10 @@ fn initialize<'a>(
                 ),
             )?;
         }
-        replace(&model_path, &model_previous, &model_updated)?;
+        if let Some((previous, updated)) = provider_edit {
+            replace(&provider_path, &previous, &updated)?;
+        }
+
         if let Some((previous, updated)) = create_edit {
             replace(&create_path, &previous, &updated)?;
         }

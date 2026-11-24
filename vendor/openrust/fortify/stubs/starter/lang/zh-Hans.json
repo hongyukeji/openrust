@@ -21,5 +21,7 @@
     "current_password": "当前密码",
     "change_password": "修改密码",
     "profile": "个人资料",
-    "verified": "你的邮箱已验证。"
+    "verified": "你的邮箱已验证。",
+    "challenge_required": "请完成额外身份验证。",
+    "challenges_pruned": "已清理 :count 份过期认证证明。"
 }

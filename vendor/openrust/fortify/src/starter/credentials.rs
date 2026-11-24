@@ -12,7 +12,7 @@ use openrust::{
 pub const VERSION_ATTRIBUTE: &str = "credential_version";
 pub const TOKEN_STAMP_ATTRIBUTE: &str = "credential_stamp";
 
-fn version(user: &dyn Authenticatable) -> AuthResult<u64> {
+pub(super) fn version(user: &dyn Authenticatable) -> AuthResult<u64> {
     match user.get_auth_attribute(VERSION_ATTRIBUTE)? {
         Some(Value::Integer(value)) if value >= 0 => Ok(value as u64),
         Some(Value::Unsigned(value)) => Ok(value),
@@ -198,6 +198,45 @@ pub async fn issue_with_expiration<M: openrust::sanctum::HasApiTokens + Clone>(
     abilities: &[&str],
     expires_at: Option<jiff::Timestamp>,
 ) -> AuthResult<NewAccessToken> {
+    issue_checked(
+        user,
+        sanctum,
+        database,
+        config,
+        Grant {
+            name,
+            abilities,
+            expires_at,
+        },
+        |_| Ok(()),
+    )
+    .await
+}
+
+pub(crate) struct Grant<'a> {
+    pub name: &'a str,
+    pub abilities: &'a [&'a str],
+    pub expires_at: Option<jiff::Timestamp>,
+}
+
+/// 客户端证明和可验证状态须在用户行锁内再次核对，不能在校验后留出变更窗口。
+pub(crate) async fn issue_checked<M, F>(
+    user: &mut M,
+    sanctum: &Sanctum,
+    database: &openrust::database::DatabaseManager,
+    config: &dyn Repository,
+    grant: Grant<'_>,
+    check: F,
+) -> AuthResult<NewAccessToken>
+where
+    M: openrust::sanctum::HasApiTokens + Clone,
+    F: FnOnce(&M) -> AuthResult<()> + Send,
+{
+    let Grant {
+        name,
+        abilities,
+        expires_at,
+    } = grant;
     if name.trim().is_empty() || name.chars().count() > 255 {
         return Err(AuthError::Configuration("令牌设备名称必须为1至255个字符"));
     }
@@ -240,6 +279,7 @@ pub async fn issue_with_expiration<M: openrust::sanctum::HasApiTokens + Clone>(
     let mut locked = user.clone();
     let mut transaction = connection.begin_transaction().await?;
     lock(&mut locked, &mut transaction).await?;
+    check(&locked)?;
     let owner_type = locked.get_morph_class()?;
     let owner_id = AuthIdentifier::try_from(locked.get_key().ok_or(AuthError::InvalidIdentity)?)?;
     let token = tokens

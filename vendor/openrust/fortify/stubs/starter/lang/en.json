@@ -21,5 +21,7 @@
     "current_password": "Current password",
     "change_password": "Change password",
     "profile": "Profile",
-    "verified": "Your email address has been verified."
+    "verified": "Your email address has been verified.",
+    "challenge_required": "Complete the additional authentication step.",
+    "challenges_pruned": "Pruned :count expired authentication records."
 }

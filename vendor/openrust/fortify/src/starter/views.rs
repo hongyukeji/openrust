@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 /// 装配已发布的应用视图；API预设只注册邮件落地所需的缺失页面入口。
 pub async fn register_views(app: &Application) -> ProviderResult {
+    super::messages::register(app).await?;
     let fortify = app.make::<Fortify>().await?;
     if fortify.config.get("user.email_verification") == Some(serde_json::json!(false)) {
         app.make::<openrust::events::Dispatcher>().await?.listen(

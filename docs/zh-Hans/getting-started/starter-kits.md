@@ -70,4 +70,80 @@ let plaintext = token.plain_text_token;
 
 修改凭据与签发令牌会在提交前锁定并重新核对当前身份／版本，要求用户和令牌使用同一数据库连接身份；独立配置的令牌连接会明确失败，不假装具有原子安全保证。自定义用户模型实现 `Clone` 并保留 `credential_version`；自定义令牌模型保留 `credential_stamp` 并在序列化中隐藏。含瞬态字段的令牌模型可覆写 `PersonalAccessTokenModel::clone_token_model` 返回 `self.clone()`，使属性访问器保留这些状态。
 
-以上为生命周期服务和生成的密码 Action。设备令牌登录／挑战接口及完整账户中心仍在开发。仅注册响应适配器不会启用凭据策略。
+以上为生命周期服务和生成的密码 Action。近期确认证明及完整账户中心仍在开发；设备令牌登录见下节。仅注册响应适配器不会启用凭据策略。
+
+## 显式设备令牌登录 {#client-tokens}
+
+网页和第一方 SPA 仍默认使用 Cookie 认证。向 `/login` 请求 JSON 不会自动签发个人令牌。已注册账户可以显式申请设备令牌：
+
+```sh
+curl -X POST http://localhost:8000/api/auth/token \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"email":"developer@example.test","password":"YOUR_PASSWORD","device_name":"phone","abilities":["account:read"]}'
+```
+
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "成功",
+  "data": {
+    "token_type": "Bearer",
+    "token": "TOKEN_SHOWN_ONCE",
+    "expires_at": "2030-02-01T03:04:05Z",
+    "user": {
+      "id": 1,
+      "name": "开发者",
+      "email": "developer@example.test",
+      "email_verified_at": null
+    }
+  }
+}
+```
+
+签发成功使用 HTTP 201 和 `Cache-Control: no-store`。请安全保存凭据：数据库仅存摘要，后续读取不会再次返回明文。访问 `/api/user` 等受保护入口时发送 `Authorization: Bearer TOKEN_SHOWN_ONCE`。服务端和移动令牌客户端不需要浏览器会话；第一方请求仍须遵守状态中间件和 CSRF 保护。
+
+`device_name` 必填，最多255个字符；可选 `abilities` 是最多100个名称的数组。服务端按 `user.token_abilities` 核对，未知或空能力返回422。启用邮箱验证时，未验证用户只能获得与 `user.unverified_token_abilities` 的交集，默认是账户及令牌管理能力；判断遵循实际 `MustVerifyEmail` 状态。验证成功不扩大已有令牌的能力。业务路由仍需应用授权及邮箱验证中间件。
+
+路径跟随 `API_PREFIX`。设置 `API_PREFIX=api/admin` 后，使用 `/api/admin/auth/token` 和 `/api/admin/auth/token/challenge`；保留现有信息页与当前用户入口。生成的 Provider 显式调用 `openrust_fortify::starter::client::register_routes::<User>(app)`，独立 Fortify 应用不受影响。
+
+账户存在已启用的双因素认证时，正确密码返回 HTTP 200 和短期挑战，不返回访问令牌：
+
+```json
+{
+  "success": true,
+  "code": "auth_challenge_required",
+  "message": "请完成额外身份验证。",
+  "data": {
+    "challenge": "OPAQUE_CHALLENGE",
+    "methods": [
+      "totp",
+      "recovery_code"
+    ],
+    "expires_at": "2030-01-02T03:09:05Z"
+  }
+}
+```
+
+向 POST `/api/auth/token/challenge` 发送实际挑战和当前 code，也可将 code 换成 `recovery_code`。完成后返回相同的201令牌格式。挑战五分钟过期、仅能消费一次，保留原设备名称和已批准能力，不能用于访问资源。因素无效返回422；挑战过期、已消费或已失效返回401。登录复用已配置的命名限流，因素尝试另按账户限流，不能靠更换挑战标识绕过。
+
+```json
+{
+  "challenge": "OPAQUE_CHALLENGE",
+  "recovery_code": "YOUR_RECOVERY_CODE"
+}
+```
+
+签发在用户行锁内重新检查最新状态。凭据版本、相关账户／因素状态或应用加密密钥变化会使待完成认证失效。恢复码认证在数据库锁下单次消费，普通公开替换方法保持原生行为。兑换中断或失败时可能需要重新登录，不会遗留可重复使用的已授权挑战。
+
+原生时间戳迁移发布器在 User 连接中新增 `create_user_auth_challenges_table`，不保存原始挑战键或密码。多节点共享数据库、应用密钥、认证策略及缓存；各节点读取自己的应用配置。
+
+```sh
+./artisan auth:prune-challenges --hours=0
+```
+
+命令默认保留过期记录24小时，`--hours=0` 立即清理已经过期的记录。用现有[调度器](../digging-deeper/scheduling.md)安排执行，并配合 `sanctum:prune-expired`。认证不等待清理才拒绝过期，重复清理安全。
+
+消息遵循应用／请求语言及回退。已发布的 `lang/{locale}/user.json` 优先于套件编译默认值；升级补足英语、简体中文和繁体中文缺键，保留已有自定义翻译。
+
+本节覆盖设备登录和 TOTP／恢复码挑战。纯令牌客户端注册、邮件验证／找回、近期确认证明及完整账户中心仍在接线，单独跟踪剩余工作。

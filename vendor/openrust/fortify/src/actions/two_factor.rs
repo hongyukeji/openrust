@@ -267,3 +267,117 @@ pub(crate) async fn replace_recovery_code<T: TwoFactorAuthenticatable>(
     )
     .await
 }
+
+/// 认证流程中的单次恢复码消费；公开的普通替换方法保留原生契约。
+pub(crate) async fn consume_recovery_code<T: TwoFactorAuthenticatable>(
+    user: &mut T,
+    code: &str,
+    fortify: &Fortify,
+) -> Result<(), HttpError> {
+    use subtle::ConstantTimeEq as _;
+    let original = user.state().clone();
+    let password = user.get_auth_password().map(str::to_owned);
+    let version_column = fortify
+        .config
+        .get("auth.session_credential_version_attribute")
+        .and_then(|value| value.as_str().map(str::to_owned));
+    let version = version_column
+        .as_deref()
+        .map(|name| user.get_auth_attribute(name))
+        .transpose()?;
+    let result = async {
+        if !user.state().exists() || user.get_raw_original(user.get_key_name()) != user.get_key() {
+            return Err(HttpError::Unauthenticated);
+        }
+        let key = user.get_key().cloned().ok_or(HttpError::Unauthenticated)?;
+        let connection = user.get_connection().map_err(internal)?;
+        let mut transaction = connection.begin_transaction().await.map_err(internal)?;
+        if connection.get_driver_name() == "sqlite" {
+            // SQLite没有SELECT FOR UPDATE；只对已知非主键列取得写锁，避免写入IDENTITY主键。
+            transaction
+                .table(user.get_table())
+                .r#where(user.get_key_name(), "=", key)
+                .update_with(
+                    [(
+                        "two_factor_recovery_codes".into(),
+                        openrust::database::query::Expression::new("two_factor_recovery_codes")
+                            .into(),
+                    )]
+                    .into(),
+                )
+                .await
+                .map_err(internal)?;
+        }
+        if let Err(error) = user.refresh_for_update(&mut transaction).await {
+            return Err(match error {
+                openrust::database::DatabaseError::ModelNotFound(_) => HttpError::Unauthenticated,
+                error => internal(error),
+            });
+        }
+        if user.get_auth_password() != password.as_deref()
+            || version_column
+                .as_deref()
+                .map(|name| user.get_auth_attribute(name))
+                .transpose()?
+                != version
+        {
+            return Err(HttpError::Unauthenticated);
+        }
+        let codes = Zeroizing::new(user.recovery_codes(fortify).map_err(internal)?);
+        if !codes
+            .iter()
+            .any(|stored| bool::from(stored.as_bytes().ct_eq(code.as_bytes())))
+        {
+            let message = Lang::get(
+                "The provided two factor recovery code was invalid.",
+                &Default::default(),
+                None,
+            )?;
+            return Err(HttpError::Validation(Box::new(
+                crate::http::responses::invalid("recovery_code", message),
+            )));
+        }
+        let ciphertext = text(user, "two_factor_recovery_codes")
+            .map_err(internal)?
+            .ok_or_else(|| internal(FortifyError::InvalidAttribute("two_factor_recovery_codes")))?;
+        let clear = Zeroizing::new(
+            fortify
+                .current_encrypter()
+                .map_err(internal)?
+                .decrypt(&ciphertext, true)
+                .map_err(internal)?,
+        );
+        let clear = std::str::from_utf8(&clear).map_err(|_| internal(FortifyError::InvalidUtf8))?;
+        let replacement = Zeroizing::new(RecoveryCode::generate(fortify));
+        let updated = Zeroizing::new(clear.replace(code, &replacement));
+        let encrypted = fortify
+            .current_encrypter()
+            .map_err(internal)?
+            .encrypt(updated.as_bytes(), true)
+            .map_err(internal)?;
+        user.force_fill([("two_factor_recovery_codes".into(), encrypted.into())].into())
+            .map_err(internal)?;
+        if !user
+            .save_in_transaction(&mut transaction)
+            .await
+            .map_err(internal)?
+        {
+            return Err(internal(std::io::Error::other("用户模型取消恢复码消费")));
+        }
+        transaction.commit().await.map_err(internal)?;
+        Ok(())
+    }
+    .await;
+    if let Err(error) = result {
+        *user.state_mut() = original;
+        return Err(error);
+    }
+    super::emit(
+        RecoveryCodeReplaced {
+            user: user.get_auth_identifier(),
+            code: Zeroizing::new(code.into()),
+        },
+        &[user],
+    )
+    .await
+}

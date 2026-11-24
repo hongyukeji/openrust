@@ -15,6 +15,8 @@ impl ServiceProvider for UserServiceProvider {
             openrust_fortify::starter::StarterKitServiceProvider
                 .register(app)
                 .await?;
+            #[cfg(feature = "sanctum")]
+            openrust_fortify::starter::client::register_routes::<crate::app::models::User>(app)?;
             openrust_fortify::starter::register_views(app).await
         })
     }
