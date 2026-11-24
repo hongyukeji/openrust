@@ -62,4 +62,6 @@ MySQL 和 PostgreSQL 分别由 `tests/mysql_acceptance.py`、`tests/postgres_acc
 
 [相邻服务整理](adjacent-services-2026-11-24.md)记录 Cashier 订阅选择与 Activitylog 日志准备的职责调整及验收。
 
-[最新静态复核结论](adjacent-services-2026-11-24.md#本次静态复核结论)汇总已完成项与 Pay 暂时保留的事务边界；该复核没有新增行为验收结果。
+[整理后的静态复核结论](adjacent-services-2026-11-24.md#本次静态复核结论)汇总当时已完成项与 Pay 暂时保留的事务边界；该次复核没有新增行为验收结果。
+
+[Pay 通知流程与内部存储分离](pay-notifications-2026-11-24.md)承接用户随后授权的 Pay 整理；前次暂时保留的裁决作为历史依据保留。

@@ -1,6 +1,6 @@
-use crate::{Error, ExpectedPayment, Result, VerifiedNotification};
+use crate::{Error, ExpectedPayment, Result, VerifiedNotification, notification_store};
 use openrust::database::{
-    Connection, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseFuture, DatabaseResult, Transaction,
     migrations::{Migration, MigrationContext},
 };
 use std::sync::Arc;
@@ -45,41 +45,14 @@ impl DatabaseNotifications {
                     Box::pin(async move {
                         let key = notice.key();
                         let fingerprint = notice.fingerprint();
-                        let record = [
-                            ("id".into(), Value::from(key.clone())),
-                            ("fingerprint".into(), fingerprint.clone().into()),
-                            ("status".into(), "pending".into()),
-                        ]
-                        .into_iter()
-                        .collect();
-                        // A no-op upsert acquires a write lock even on an existing row. On
-                        // SQLite it acquires the write lock before reading; on MySQL this
-                        // avoids upgrading the shared lock taken by INSERT IGNORE.
-                        tx.table("payment_notifications")
-                            .upsert(&[record], &["id"], Some(&["id"]))
-                            .await?;
-                        let stored = tx
-                            .table("payment_notifications")
-                            .r#where("id", "=", key.clone())
-                            .lock_for_update()
-                            .value("fingerprint")
-                            .await?;
-                        if stored != Value::from(fingerprint) {
+                        if !notification_store::claim(tx, &key, &fingerprint).await? {
                             return Ok((false, true));
                         }
-                        let status = tx
-                            .table("payment_notifications")
-                            .r#where("id", "=", key.clone())
-                            .value("status")
-                            .await?;
-                        if status == Value::from("done") {
+                        if notification_store::is_complete(tx, &key).await? {
                             return Ok((true, false));
                         }
                         handler(tx, &notice).await?;
-                        tx.table("payment_notifications")
-                            .r#where("id", "=", key)
-                            .update([("status".into(), "done".into())].into_iter().collect())
-                            .await?;
+                        notification_store::complete(tx, &key).await?;
                         Ok((false, false))
                     })
                 },

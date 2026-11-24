@@ -9,6 +9,7 @@ mod crypto;
 mod error;
 pub mod facades;
 mod manager;
+mod notification_store;
 mod notifications;
 mod types;
 mod wechat;

@@ -54,6 +54,8 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 
 ### Pay 暂时保留的事务边界
 
+后续状态：用户已继续授权[Pay 通知流程与内部存储整理](pay-notifications-2026-11-24.md)，实施与实际验收结果见该记录；以下保留静态复核时的裁决和事务要求。
+
 唯一按用户决定暂时保留的组合实现是 [pay/src/notifications.rs](../../../../vendor/openrust/pay/src/notifications.rs) 的 `DatabaseNotifications::process`。它是事务型通知服务与数据库存储的组合，位于独立 vendor 包中，不是应用模型中的业务流程；本次不将其记作已经拆分，也不新增 Pay 验收结论。
 
 - 已验签通知与可信订单的匹配校验在开启事务前执行。
