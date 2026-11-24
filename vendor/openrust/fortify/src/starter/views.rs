@@ -1,0 +1,153 @@
+use crate::{Fortify, http::responses::SimpleViewResponse};
+use openrust::{
+    foundation::Application,
+    http::{Response, StatusCode},
+    support::{ProviderResult, ServiceProvider, facades::View},
+};
+use std::sync::Arc;
+
+/// 装配已发布的应用视图；API预设只注册邮件落地所需的缺失页面入口。
+pub async fn register_views(app: &Application) -> ProviderResult {
+    let fortify = app.make::<Fortify>().await?;
+    fortify.login_view(if fortify.truthy("fortify.views") {
+        "user.auth.login"
+    } else {
+        "user.auth.mail-login"
+    });
+    fortify.register_view("user.auth.register");
+    fortify.confirm_password_view("user.auth.confirm-password");
+    fortify.request_password_reset_link_view("user.auth.forgot-password");
+    fortify.verify_email_view("user.auth.verify-email");
+    fortify.two_factor_challenge_view("user.auth.two-factor-challenge");
+    fortify.reset_password_view(SimpleViewResponse::callback(Arc::new(|request| {
+        Box::pin(async move {
+            let token = request.route("token").unwrap_or_default().to_owned();
+            let email = request
+                .input("email")
+                .await?
+                .and_then(|value| value.as_str().map(str::to_owned))
+                .unwrap_or_default();
+            let view = View::make(
+                "user.auth.reset-password",
+                [
+                    ("token".into(), token.into()),
+                    ("email".into(), email.into()),
+                ]
+                .into(),
+            )?;
+            Response::view(StatusCode::OK, view, Default::default(), request).await
+        })
+    })));
+    if fortify.truthy("fortify.views") {
+        super::StarterKitServiceProvider.load_routes_from(app, account_routes)?;
+    } else {
+        super::StarterKitServiceProvider.load_routes_from(app, fallback_routes)?;
+    }
+    Ok(())
+}
+fn fallback_routes() -> Result<(), openrust::routing::RoutingError> {
+    use crate::{
+        http::controllers::{AuthenticatedSessionController, NewPasswordController},
+        resolver::Resolver,
+    };
+    use openrust::{
+        routing::{ControllerDispatcher, RouteGroup},
+        support::facades::{Facade as _, Route},
+    };
+    let fortify = Resolver::<Fortify>::get_facade_root()
+        .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
+    let mut group = RouteGroup::new()
+        .prefix(fortify.string("fortify.prefix", ""))
+        .middleware_name("web");
+    if let Some(domain) = fortify
+        .config
+        .get("fortify.domain")
+        .and_then(|value| value.as_str().map(str::to_owned))
+    {
+        group = group.domain(domain);
+    }
+    Route::group(group, |router| {
+        router
+            .get(
+                &fortify.string("fortify.paths.login", "/login"),
+                ControllerDispatcher::new(AuthenticatedSessionController::create),
+            )?
+            .middleware_name(format!(
+                "guest:{}",
+                fortify.guard().as_deref().unwrap_or("web")
+            ))
+            .name("login");
+        if crate::Features::new(fortify.config.clone())
+            .enabled(crate::Features::email_verification())
+            .map_err(|_| openrust::routing::RoutingError::InvalidAction)?
+        {
+            router
+                .get(
+                    &fortify.string("fortify.paths.verification.notice", "/email/verify"),
+                    email_receipt,
+                )?
+                .middleware_name(format!(
+                    "auth:{}",
+                    fortify.guard().as_deref().unwrap_or("web")
+                ))
+                .name("verification.notice");
+        }
+        router
+            .get(
+                &fortify.string("fortify.paths.password.reset", "/reset-password/{token}"),
+                ControllerDispatcher::new(NewPasswordController::create),
+            )?
+            .name("password.reset");
+        Ok(())
+    })
+}
+
+fn account_routes() -> Result<(), openrust::routing::RoutingError> {
+    use crate::resolver::Resolver;
+    use openrust::{
+        routing::RouteGroup,
+        support::facades::{Facade as _, Route},
+    };
+    let fortify = Resolver::<Fortify>::get_facade_root()
+        .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
+    let group = RouteGroup::new()
+        .middleware_name("web")
+        .middleware_name("auth.session")
+        .middleware_name(format!(
+            "auth:{}",
+            fortify.guard().as_deref().unwrap_or("web")
+        ));
+    Route::group(group, |router| {
+        router.get("/user/profile", account)?.name("user.profile");
+        if fortify.string("fortify.home", "/home") == "/home" {
+            router.get("/home", account)?.name("dashboard");
+        }
+        Ok(())
+    })
+}
+fn account(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        let user = super::UserResource::current(request).await?;
+        let view = View::make("user.home", [("user".into(), user.into())].into())?;
+        Response::view(StatusCode::OK, view, Default::default(), request).await
+    })
+}
+
+fn email_receipt(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        let user = super::UserResource::current(request).await?;
+        let view = View::make(
+            "user.auth.verify-email",
+            [(
+                "verified".into(),
+                (!user["email_verified_at"].is_null()).into(),
+            )]
+            .into(),
+        )?;
+        Response::view(StatusCode::OK, view, Default::default(), request).await
+    })
+}

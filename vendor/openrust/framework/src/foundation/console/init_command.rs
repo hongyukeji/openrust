@@ -50,6 +50,12 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             .value_name("LIST")
             .help("Comma-separated extensions: api,broadcasting,reverb,grpc,passport,fortify,passkeys,socialite,precognition,oidc,sso; all installs the complete profile"),
     );
+    syntax = syntax.arg(
+        clap::Arg::new("starter-kit")
+            .long("starter-kit")
+            .value_parser(["full", "api"])
+            .help("安装用户套件：full 完整网页与用户 API，api 仅用户 API 和必要邮件落地页"),
+    );
     artisan.add_command(Box::new(InitCommand(CommandDefinition::new(syntax))))?;
     artisan.add_command(Box::new(ResourcesCommand(CommandDefinition::new(
         clap::Command::new("init:resources")
@@ -83,8 +89,23 @@ impl Command for InitCommand {
             let force = matches.get_flag("force");
             let dry = matches.get_flag("dry-run");
             let without_migration = matches.get_flag("without-migration");
-            let mut extensions =
-                Extensions::parse(matches.get_one::<String>("extensions").map(String::as_str))?;
+            let starter = matches.get_one::<String>("starter-kit").map(String::as_str);
+            let selection = matches
+                .get_one::<String>("extensions")
+                .map(String::as_str)
+                .or_else(|| starter.map(|_| "api,fortify"));
+            let mut extensions = Extensions::parse(selection)?;
+            if let Some(starter) = starter {
+                extensions.names.push(
+                    if starter == "full" {
+                        "user-web"
+                    } else {
+                        "user-api"
+                    }
+                    .into(),
+                );
+                extensions = Extensions::parse(Some(&extensions.names.join(",")))?;
+            }
             let interactive =
                 !matches.get_flag("no-interaction") && io::stdin().is_terminal() && !dry;
             for file in [
@@ -127,7 +148,9 @@ impl Command for InitCommand {
                 read(&root.join(".env.example"))?
             };
             let mut values = parse_environment(&source)?;
-            if interactive && matches.get_one::<String>("extensions").is_none() {
+            if interactive && matches.get_one::<String>("extensions").is_none() && starter.is_none()
+            {
+                output.comment("用户套件：user-web 为完整网页与用户 API，user-api 为仅用户 API；也可输入其他扩展名称组成自定义配置，all 保留现有扩展组合。\n");
                 let mut choice = BTreeMap::new();
                 prompt(&mut choice, "EXTENSIONS", "all", false)?;
                 extensions = Extensions::parse(choice.get("EXTENSIONS").map(String::as_str))?;
@@ -428,6 +451,7 @@ impl Command for InitCommand {
 
 const DEFAULT_EXTENSIONS: &str = "api,broadcasting,reverb,grpc";
 const AUTH_EXTENSIONS: &str = "passport,fortify,passkeys,socialite,precognition,oidc,sso";
+const USER_EXTENSIONS: &str = "user-web,user-api";
 
 struct Extensions {
     names: Vec<String>,
@@ -448,9 +472,10 @@ impl Extensions {
             }
             if !DEFAULT_EXTENSIONS.split(',').any(|known| known == name)
                 && !AUTH_EXTENSIONS.split(',').any(|known| known == name)
+                && !USER_EXTENSIONS.split(',').any(|known| known == name)
             {
                 return Err(ConsoleError::new(format!(
-                    "Unknown initialization extension `{name}`. Supported: {DEFAULT_EXTENSIONS},{AUTH_EXTENSIONS}. No changes were made."
+                    "Unknown initialization extension `{name}`. Supported: {DEFAULT_EXTENSIONS},{AUTH_EXTENSIONS},{USER_EXTENSIONS}. No changes were made."
                 )));
             }
             if !names.iter().any(|known| known == name) {
@@ -466,6 +491,8 @@ impl Extensions {
             ("passport", &["api"][..]),
             ("passkeys", &["fortify"][..]),
             ("sso", &["oidc", "fortify"][..]),
+            ("user-web", &["api", "fortify"][..]),
+            ("user-api", &["api", "fortify"][..]),
         ] {
             if names.iter().any(|name| name == extension) {
                 for dependency in dependencies {
@@ -474,6 +501,13 @@ impl Extensions {
                     }
                 }
             }
+        }
+        if names.iter().any(|name| name == "user-web")
+            && names.iter().any(|name| name == "user-api")
+        {
+            return Err(ConsoleError::new(
+                "用户套件的 full 和 api 预设不能同时选择；尚未修改文件",
+            ));
         }
         Ok(Self { names })
     }
@@ -484,7 +518,74 @@ impl Extensions {
         force: bool,
         env: &BTreeMap<String, String>,
     ) -> Result<(), ConsoleError> {
-        if self.has("passkeys") && (force || !root.join("config/fortify.rs").exists()) {
+        if self.has("user-web") || self.has("user-api") {
+            for key in [
+                "USER_REGISTRATION",
+                "USER_EMAIL_VERIFICATION",
+                "USER_TWO_FACTOR",
+                "USER_PASSKEYS",
+            ] {
+                if env.get(key).is_some_and(|value| {
+                    !matches!(
+                        value.to_ascii_lowercase().as_str(),
+                        "true" | "false" | "(true)" | "(false)" | "1" | "0"
+                    )
+                }) {
+                    return Err(ConsoleError::new(format!(
+                        "{key} 必须是有效布尔值；尚未修改文件"
+                    )));
+                }
+            }
+            if let Some(days) = env.get("USER_TOKEN_EXPIRATION_DAYS")
+                && !days.parse::<u64>().ok().is_some_and(|days| {
+                    days > 0
+                        && days
+                            .checked_mul(86400)
+                            .is_some_and(|seconds| seconds <= i64::MAX as u64)
+                })
+            {
+                return Err(ConsoleError::new(
+                    "USER_TOKEN_EXPIRATION_DAYS 必须是有效的正整数天数；尚未修改文件",
+                ));
+            }
+            if env
+                .get("USER_STARTER_PROFILE")
+                .is_some_and(|profile| profile != if self.has("user-web") { "full" } else { "api" })
+            {
+                return Err(ConsoleError::new(
+                    "USER_STARTER_PROFILE 与所选用户套件预设不一致；请调整环境配置或选择匹配的预设，尚未修改文件",
+                ));
+            }
+            super::source_edit::enable_stateful_api(&read(&root.join("bootstrap/app.rs"))?)?;
+            let provider_path = root.join("bootstrap/providers.rs");
+            let providers = read(&provider_path)?;
+            if !providers
+                .contains("crate::app::providers::user_service_provider::UserServiceProvider")
+            {
+                super::provider_make_command::append_registration(
+                    &providers,
+                    &provider_path,
+                    "#[cfg(feature = \"fortify\")]\nBox::new(crate::app::providers::user_service_provider::UserServiceProvider),",
+                )?;
+            }
+            for relative in [
+                "app/models/user.rs",
+                "app/providers/mod.rs",
+                "bootstrap/providers.rs",
+            ] {
+                let source = read(&root.join(relative))?;
+                if relative == "app/models/user.rs" {
+                    super::source_edit::UserModelSource::parse(&source)?;
+                }
+            }
+        }
+        if (self.has("passkeys")
+            || (self.has("user-web") || self.has("user-api"))
+                && env.get("USER_PASSKEYS").is_some_and(|value| {
+                    matches!(value.to_ascii_lowercase().as_str(), "true" | "(true)" | "1")
+                }))
+            && (force || !root.join("config/fortify.rs").exists())
+        {
             let fallback = format!("http://localhost:{}", value(env, "APP_PORT", "8000"));
             let origin = value(env, "APP_URL", &fallback);
             let valid = url::Url::parse(origin).is_ok_and(|url| {
@@ -521,16 +622,21 @@ impl Extensions {
         .collect()
     }
     fn services(&self) -> Vec<&str> {
-        ["passport", "fortify", "oidc", "reverb"]
-            .into_iter()
-            .filter(|name| self.has(name))
-            .collect()
+        [
+            "passport", "user-web", "user-api", "fortify", "oidc", "reverb",
+        ]
+        .into_iter()
+        .filter(|name| self.has(name))
+        .collect()
     }
     fn report(&self, output: &mut Output) {
+        if self.has("user-web") || self.has("user-api") {
+            output.info("用户认证套件：显式装配配置、应用 Provider、认证页面及安全用户资源；保留现有业务文件与凭据。邮件、可选身份供应商及生产部署须按实际环境验收。\n");
+        }
         if self.has("passport") {
             output.info("Passport: install keys, migrations, User token support and the independent api guard; /user remains auth:sanctum. Register OAuth clients for your consumers.\n");
         }
-        if self.has("fortify") {
+        if self.has("fortify") && !self.has("user-web") && !self.has("user-api") {
             output.info("Fortify / Passkeys: install authentication actions, provider, configuration and migrations. New configuration uses views=false and email-verification; Passkeys is enabled when selected. Existing custom configuration is preserved. Configure the frontend password.reset route or ResetPassword::create_url_using. Verify mail delivery and HTTPS / exact WebAuthn origins before production use.\n");
         }
         if self.has("socialite") {

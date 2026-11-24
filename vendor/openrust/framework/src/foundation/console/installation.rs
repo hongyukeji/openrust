@@ -119,6 +119,47 @@ impl<'a> SourceInstallation<'a> {
 
     /// Register an explicitly installed application provider, preserving existing entries.
     pub fn register_provider(&self, qualified: &str) -> Result<(), ConsoleError> {
+        self.register_provider_when(qualified, None, true)
+    }
+
+    /// 将按需安装的 Provider 绑定到应用 Cargo 特性，关闭特性时不留下悬空引用。
+    pub fn register_optional_provider(
+        &self,
+        qualified: &str,
+        feature: &str,
+    ) -> Result<(), ConsoleError> {
+        if feature.is_empty()
+            || !feature
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            return Err(ConsoleError::new("Provider 的 Cargo 特性名称无效"));
+        }
+        self.register_provider_when(qualified, Some(feature), true)
+    }
+
+    /// 安装写入前检查Provider列表是否可安全装配，不修改源码。
+    pub fn validate_optional_provider(
+        &self,
+        qualified: &str,
+        feature: &str,
+    ) -> Result<(), ConsoleError> {
+        if feature.is_empty()
+            || !feature
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            return Err(ConsoleError::new("Provider 的 Cargo 特性名称无效"));
+        }
+        self.register_provider_when(qualified, Some(feature), false)
+    }
+
+    fn register_provider_when(
+        &self,
+        qualified: &str,
+        feature: Option<&str>,
+        write: bool,
+    ) -> Result<(), ConsoleError> {
         if qualified.split("::").any(|part| {
             part.is_empty()
                 || !part.bytes().enumerate().all(|(index, byte)| {
@@ -142,12 +183,16 @@ impl<'a> SourceInstallation<'a> {
         {
             return Ok(());
         }
-        let updated = super::provider_make_command::append_registration(
-            &previous,
-            &path,
-            &format!("Box::new({qualified}),"),
-        )?;
-        super::source_edit::replace(&path, &previous, &updated)
+        let registration = match feature {
+            Some(feature) => format!("#[cfg(feature = \"{feature}\")]\n    Box::new({qualified}),"),
+            None => format!("Box::new({qualified}),"),
+        };
+        let updated =
+            super::provider_make_command::append_registration(&previous, &path, &registration)?;
+        if write {
+            super::source_edit::replace(&path, &previous, &updated)?;
+        }
+        Ok(())
     }
 
     pub async fn publish(

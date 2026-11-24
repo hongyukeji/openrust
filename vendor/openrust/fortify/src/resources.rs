@@ -17,6 +17,7 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
     app.container()
         .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
         .register("fortify", crate::console::install_command::initialize);
+    crate::starter::install::register(app)?;
     let provider = FortifyServiceProvider;
     provider.publishes(
         app,

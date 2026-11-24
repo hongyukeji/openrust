@@ -1,9 +1,14 @@
 //! 显式安装的用户套件；不改变独立 Fortify 应用的响应与功能默认值。
 
+mod configuration;
+pub(crate) mod install;
 mod responses;
 mod user_resource;
+mod views;
 
+pub use configuration::configure;
 pub use user_resource::UserResource;
+pub use views::register_views;
 
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},

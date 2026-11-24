@@ -15,7 +15,7 @@ use crate::{
     foundation::Application,
 };
 
-use super::source_edit::{file_error, insert_before, lock_manifest, read, replace};
+use super::source_edit::{file_error, lock_manifest, read, replace};
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(ProviderMakeCommand(CommandDefinition::new(
@@ -168,60 +168,67 @@ pub(super) fn append_registration(
 ) -> Result<String, ConsoleError> {
     let manual = || {
         ConsoleError::new(format!(
-            "Cannot locate the provider list in {}. Register {registration} manually.",
+            "无法确定 {} 的唯一 Provider 列表，请手动注册 {registration}",
             path.display()
         ))
     };
-    let mut vectors = source
-        .lines()
-        .enumerate()
-        .filter(|(_, line)| line.trim_start().starts_with("vec!["));
-    let (line_number, line) = vectors.next().ok_or_else(&manual)?;
-    if vectors.next().is_some() {
+    let file = syn::parse_file(source).map_err(|_| manual())?;
+    let functions: Vec<_> = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Fn(function) if function.sig.ident == "providers" => Some(function),
+            _ => None,
+        })
+        .collect();
+    if functions.len() != 1 {
         return Err(manual());
     }
-    if line.trim_end() == "    vec![" {
-        return insert_before(source, path, &format!("    {registration}"), |line| {
-            line.trim_end_matches(['\r', '\n']) == "    ]"
-        });
+    // 同时支持直接返回vec与安装器生成的let providers = vec；保留外围cfg和自定义逻辑。
+    let vectors: Vec<_> = functions[0]
+        .block
+        .stmts
+        .iter()
+        .filter_map(|statement| {
+            let candidate = match statement {
+                syn::Stmt::Local(local) => {
+                    local
+                        .init
+                        .as_ref()
+                        .and_then(|init| match init.expr.as_ref() {
+                            syn::Expr::Macro(value) => Some(&value.mac),
+                            _ => None,
+                        })
+                }
+                syn::Stmt::Expr(syn::Expr::Macro(value), _) => Some(&value.mac),
+                syn::Stmt::Macro(value) => Some(&value.mac),
+                _ => None,
+            };
+            candidate.filter(|value| value.path.is_ident("vec"))
+        })
+        .collect();
+    if vectors.len() != 1 {
+        return Err(manual());
     }
-
-    let entries = line
-        .trim_end()
-        .strip_prefix("    vec![")
-        .and_then(|line| line.strip_suffix(']'))
-        .ok_or_else(&manual)?
-        .trim();
-    let entries = entries.strip_suffix(',').unwrap_or(entries).trim_end();
+    let vector = vectors[0];
+    let syn::MacroDelimiter::Bracket(bracket) = &vector.delimiter else {
+        return Err(manual());
+    };
+    let trailing = vector.tokens.clone().into_iter().last().is_none_or(
+        |token| matches!(token,proc_macro2::TokenTree::Punct(punct) if punct.as_char()==','),
+    );
     let newline = if source.contains("\r\n") {
         "\r\n"
     } else {
         "\n"
     };
-    let mut list = format!("    vec![{newline}");
-    for entry in entries.split(',').filter(|_| !entries.is_empty()) {
-        let entry = entry.trim();
-        let provider = entry
-            .strip_prefix("Box::new(")
-            .and_then(|entry| entry.strip_suffix(')'))
-            .ok_or_else(&manual)?;
-        if provider.is_empty()
-            || !provider
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':' | b'#'))
-        {
-            return Err(manual());
-        }
-        list.push_str(&format!("        {entry},{newline}"));
-    }
-    list.push_str(&format!("        {registration}{newline}    ]"));
-    let offset: usize = source
-        .split_inclusive('\n')
-        .take(line_number)
-        .map(str::len)
-        .sum();
+    let registration = registration.replace("\r\n", "\n").replace('\n', newline);
+    let addition = format!(
+        "{}{newline}        {registration}{newline}    ",
+        if trailing { "" } else { "," }
+    );
     let mut updated = source.to_owned();
-    updated.replace_range(offset..offset + line.len(), &list);
+    updated.insert_str(bracket.span.close().byte_range().start, &addition);
     Ok(updated)
 }
 

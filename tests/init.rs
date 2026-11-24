@@ -406,3 +406,74 @@ fn init_uses_the_first_repeated_environment_like_application_boot() {
     assert!(output.contains(".env.first:"));
     assert!(!root.path().join("tmp").exists());
 }
+
+fn user_project() -> TestProject {
+    let root = project();
+    for (relative, source) in [
+        ("bootstrap/app.rs", include_str!("../bootstrap/app.rs")),
+        (
+            "bootstrap/providers.rs",
+            include_str!("../bootstrap/providers.rs"),
+        ),
+        (
+            "app/providers/mod.rs",
+            include_str!("../app/providers/mod.rs"),
+        ),
+        ("app/models/user.rs", include_str!("../app/models/user.rs")),
+    ] {
+        let target = root.path().join(relative);
+        fs::create_dir_all(target.parent().unwrap()).unwrap();
+        fs::write(target, source).unwrap();
+    }
+    root
+}
+#[test]
+fn user_starter_dry_run_selects_only_requested_authentication_dependencies() {
+    for (profile, selected) in [("full", "user-web"), ("api", "user-api")] {
+        let root = user_project();
+        let before = fs::read(root.path().join(".env")).unwrap();
+        let output = run(
+            root.path(),
+            &[
+                "init",
+                "--dry-run",
+                "--starter-kit",
+                profile,
+                "--no-interaction",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains(selected));
+        assert!(text.contains("用户认证套件"));
+        assert!(!text.contains("Selected extensions: api,broadcasting"));
+        assert_eq!(before, fs::read(root.path().join(".env")).unwrap());
+        assert!(!root.path().join("config/user.rs").exists());
+    }
+}
+#[test]
+fn user_starter_invalid_environment_fails_before_writes() {
+    for value in [
+        "USER_REGISTRATION=invalid",
+        "USER_TOKEN_EXPIRATION_DAYS=0",
+        "USER_STARTER_PROFILE=api",
+    ] {
+        let root = user_project();
+        let previous = fs::read_to_string(root.path().join(".env")).unwrap() + value + "\n";
+        fs::write(root.path().join(".env"), &previous).unwrap();
+        let output = run(
+            root.path(),
+            &["init", "--starter-kit=full", "--no-interaction"],
+        );
+        assert!(!output.status.success(), "{value}");
+        assert_eq!(
+            previous,
+            fs::read_to_string(root.path().join(".env")).unwrap()
+        );
+        assert!(!root.path().join("config/user.rs").exists());
+    }
+}

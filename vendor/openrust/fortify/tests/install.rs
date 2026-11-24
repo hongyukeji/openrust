@@ -224,7 +224,261 @@ async fn installer_keeps_literal_hidden_fields_supported() {
         "{}",
         output.stderr
     );
-    assert!(root.read("app/models/user.rs").contains(
+    assert!(root.read("app/models/user.rs").replace(",]", "]").contains(
         ".hidden(&[\"password\", \"remember_token\", \"two_factor_secret\", \"two_factor_recovery_codes\"])"
     ));
+}
+
+struct UserKernel(openrust::testing::TestApp);
+impl UserKernel {
+    async fn handle(&mut self, arguments: &[String], output: &mut Output) -> i32 {
+        let result = self.0.artisan(arguments.iter().map(String::as_str)).await;
+        output.stdout = result.stdout;
+        output.stderr = result.stderr;
+        result.status
+    }
+}
+impl Root {
+    fn user_kernel(&self) -> UserKernel {
+        UserKernel(
+            openrust::testing::TestApp::create(|_| {
+                Application::configure(self.0.clone())
+                    .with_providers(vec![Box::new(FortifyResourcesServiceProvider)])
+            })
+            .unwrap(),
+        )
+    }
+}
+
+#[tokio::test]
+async fn user_web_preset_registers_optional_resources_and_preserves_edits() {
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    for attempt in 0..2 {
+        let mut output = Output::default();
+        assert_eq!(
+            kernel
+                .handle(
+                    &[
+                        "init:resources".into(),
+                        "--extensions=user-web,api,fortify".into(),
+                        "--no-interaction".into()
+                    ],
+                    &mut output
+                )
+                .await,
+            0,
+            "{}",
+            output.stderr
+        );
+        assert!(
+            root.0
+                .join("resources/views/user/auth/login.blade.html")
+                .is_file()
+        );
+        assert!(
+            root.0
+                .join("resources/views/user/auth/reset-password.blade.html")
+                .is_file()
+        );
+        assert!(root.0.join("lang/zh-Hans/user.json").is_file());
+        assert!(root.read("config/mod.rs").contains("user::load(env)?"));
+        let providers = root.read("bootstrap/providers.rs");
+        assert_eq!(
+            providers
+                .matches(
+                    "Box::new(crate::app::providers::user_service_provider::UserServiceProvider)"
+                )
+                .count(),
+            1
+        );
+        assert!(providers.contains("#[cfg(feature = \"fortify\")]"));
+        if attempt == 0 {
+            std::fs::write(
+                root.0.join("resources/views/user/auth/login.blade.html"),
+                "custom-login",
+            )
+            .unwrap();
+        }
+    }
+    assert_eq!(
+        root.read("resources/views/user/auth/login.blade.html"),
+        "custom-login"
+    );
+    let original = root.read("config/user.rs");
+    assert!(original.contains("USER_TOKEN_EXPIRATION_DAYS"));
+    let mut output = Output::default();
+    assert_eq!(
+        kernel
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-web,api,fortify".into(),
+                    "--force".into()
+                ],
+                &mut output
+            )
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert_ne!(
+        root.read("resources/views/user/auth/login.blade.html"),
+        "custom-login"
+    );
+}
+#[tokio::test]
+async fn api_user_preset_keeps_email_landing_without_full_ui() {
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    let mut output = Output::default();
+    assert_eq!(
+        kernel
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-api,api,fortify".into()
+                ],
+                &mut output
+            )
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert!(
+        !root
+            .0
+            .join("resources/views/user/auth/login.blade.html")
+            .exists()
+    );
+    assert!(!root.0.join("resources/views/user/home.blade.html").exists());
+    assert!(
+        root.0
+            .join("resources/views/user/auth/reset-password.blade.html")
+            .is_file()
+    );
+    assert!(
+        root.read("config/user.rs")
+            .contains("\"USER_STARTER_PROFILE\", \"api\"")
+    );
+}
+#[tokio::test]
+async fn conflicting_user_presets_fail_before_publishing() {
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    let mut output = Output::default();
+    assert_ne!(
+        kernel
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-web,user-api".into()
+                ],
+                &mut output
+            )
+            .await,
+        0
+    );
+    assert!(!root.0.join("config/user.rs").exists());
+    assert!(!root.0.join("resources").exists());
+}
+
+#[tokio::test]
+async fn user_preset_extends_a_previously_installed_fortify_provider_list() {
+    let root = Root::new();
+    let mut output = Output::default();
+    assert_eq!(
+        root.kernel()
+            .handle(&["fortify:install".into()], &mut output)
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert!(
+        root.read("bootstrap/providers.rs")
+            .contains("let providers: Vec")
+    );
+    assert_eq!(
+        root.user_kernel()
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-web,api,fortify".into()
+                ],
+                &mut output
+            )
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert_eq!(
+        root.read("bootstrap/providers.rs")
+            .matches("Box::new(openrust_fortify::FortifyServiceProvider)")
+            .count(),
+        1
+    );
+    assert_eq!(
+        root.read("bootstrap/providers.rs")
+            .matches("Box::new(crate::app::providers::user_service_provider::UserServiceProvider)")
+            .count(),
+        1
+    );
+}
+#[tokio::test]
+async fn user_preset_rejects_unknown_provider_layout_before_publishing() {
+    let root = Root::new();
+    std::fs::write(
+        root.0.join("bootstrap/providers.rs"),
+        "pub fn providers() {}\n",
+    )
+    .unwrap();
+    let mut output = Output::default();
+    assert_ne!(
+        root.user_kernel()
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-api,api,fortify".into()
+                ],
+                &mut output
+            )
+            .await,
+        0
+    );
+    assert!(!root.0.join("config/user.rs").exists());
+    assert!(!root.0.join("resources/views/user").exists());
+}
+
+#[tokio::test]
+async fn user_preset_keeps_the_public_api_information_route_and_adds_authenticated_user() {
+    let root = Root::new();
+    std::fs::create_dir_all(root.0.join("routes")).unwrap();
+    std::fs::write(
+        root.0.join("routes/api.rs"),
+        include_str!("../stubs/starter/api-base-routes.rs"),
+    )
+    .unwrap();
+    let mut output = Output::default();
+    assert_eq!(
+        root.user_kernel()
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-api,api,fortify".into()
+                ],
+                &mut output
+            )
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    let source = root.read("routes/api.rs");
+    assert!(source.contains("ApiController::index"));
+    assert!(source.contains("auth:sanctum"));
+    assert!(source.contains("UserResource::current"));
 }

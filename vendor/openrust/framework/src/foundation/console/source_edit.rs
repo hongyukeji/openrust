@@ -1,3 +1,7 @@
+mod generated_function;
+pub use generated_function::replace_generated_function;
+mod middleware;
+pub use middleware::enable_stateful_api;
 mod user_model;
 pub use user_model::UserModelSource;
 

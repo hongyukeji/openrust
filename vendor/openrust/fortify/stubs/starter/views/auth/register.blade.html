@@ -1,0 +1,20 @@
+@extends('user.layout')
+@section('title', __('user.register'))
+@section('content')
+<form method="POST" action="{{ route('register.store') }}">
+@csrf
+<label for="name">{{ __('user.name') }}</label>
+<input id="name" name="name" type="text" value="{{ old('name') }}" autocomplete="name" required>
+@error('name')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="email">{{ __('user.email') }}</label>
+<input id="email" name="email" type="email" value="{{ old('email') }}" autocomplete="username" required>
+@error('email')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="password">{{ __('user.password') }}</label>
+<input id="password" name="password" type="password" autocomplete="new-password" required>
+@error('password')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="password_confirmation">{{ __('user.password_confirmation') }}</label>
+<input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required>
+@error('password_confirmation')<p class="error" role="alert">{{ $message }}</p>@enderror
+<button type="submit">{{ __('user.register') }}</button>
+</form>
+@endsection

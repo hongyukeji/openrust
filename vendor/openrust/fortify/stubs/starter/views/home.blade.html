@@ -1,0 +1,18 @@
+@extends('user.layout')
+@section('title', __('user.account'))
+@section('content')
+<p>{{ $user['name'] }} · {{ $user['email'] }}</p>
+@if(config('user.email_verification', true))
+@if(!$user['email_verified_at'])<p><a href="{{ route('verification.notice') }}">{{ __('user.verify_email') }}</a></p>@endif
+@endif
+<fieldset><legend>{{ __('user.profile') }}</legend>
+<form method="POST" action="{{ route('user-profile-information.update') }}">
+@csrf
+@method('PUT')
+<label for="name">{{ __('user.name') }}</label><input id="name" name="name" value="{{ $user['name'] }}" autocomplete="name" required>
+@error('name', 'updateProfileInformation')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="email">{{ __('user.email') }}</label><input id="email" name="email" type="email" value="{{ $user['email'] }}" autocomplete="email" required>
+@error('email', 'updateProfileInformation')<p class="error" role="alert">{{ $message }}</p>@enderror
+<button type="submit">{{ __('user.save') }}</button></form></fieldset>
+<form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">{{ __('user.logout') }}</button></form>
+@endsection

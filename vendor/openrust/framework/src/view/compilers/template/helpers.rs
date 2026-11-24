@@ -8,6 +8,7 @@ use crate::support::Arr;
 #[derive(Serialize, Deserialize)]
 enum Operation {
     CurrentLocale,
+    Route,
     Repository,
     FrameworkVersion,
     Query,
@@ -72,6 +73,8 @@ impl Helper {
             ("in_array", Operation::InArray, 2, 3),
             ("old", Operation::Request(RequestOperation::Old), 0, 2),
             ("config", Operation::Config, 1, 2),
+            ("route", Operation::Route, 1, 3),
+            ("URL::route", Operation::Route, 1, 3),
             ("Config::get", Operation::Config, 1, 2),
             ("Config::has", Operation::HasConfig, 1, 1),
             ("Config::string", Operation::StringConfig, 1, 1),
@@ -214,6 +217,25 @@ impl Helper {
             Operation::CurrentLocale => crate::support::facades::App::current_locale()
                 .map(ViewValue::String)
                 .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
+            Operation::Route => {
+                let name = arguments[0]
+                    .as_ref()
+                    .as_str()
+                    .ok_or_else(|| render_error("路由名称必须是字符串。"))?;
+                let parameters = arguments
+                    .get(1)
+                    .map(|value| route_parameters(value.as_ref()))
+                    .transpose()?
+                    .unwrap_or_default();
+                let absolute = match arguments.get(2).map(|value| value.as_ref()) {
+                    None => true,
+                    Some(ViewValue::Bool(value)) => *value,
+                    Some(_) => return Err(render_error("路由绝对地址选项必须是布尔值。")),
+                };
+                crate::support::facades::Url::route(name, &parameters, absolute)
+                    .map(ViewValue::String)
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+            }
             Operation::Repository => Ok(crate::foundation::Application::REPOSITORY.into()),
             Operation::FrameworkVersion => Ok(crate::foundation::Application::VERSION.into()),
             Operation::ViteAsset
@@ -374,5 +396,66 @@ impl Helper {
                 Ok(ViewValue::Bool(found))
             }
         }
+    }
+}
+
+/*
+ * 只将模板中的数据映射到现有URL参数类型，编码、缺失参数和签名规则仍由URL生成器处理。
+ */
+fn route_parameters(value: &ViewValue) -> ViewResult<crate::routing::RouteParameters<'static>> {
+    use crate::routing::{RouteParameter, UrlValue};
+    fn convert(value: serde_json::Value) -> UrlValue<'static> {
+        match value {
+            serde_json::Value::Null => UrlValue::Null,
+            serde_json::Value::Bool(value) => UrlValue::Bool(value),
+            serde_json::Value::Number(value) => UrlValue::Number(value),
+            serde_json::Value::String(value) => UrlValue::String(value),
+            serde_json::Value::Array(items) => UrlValue::Array(
+                items
+                    .into_iter()
+                    .map(|value| RouteParameter::positional(convert(value)))
+                    .collect(),
+            ),
+            serde_json::Value::Object(items) => UrlValue::Array(
+                items
+                    .into_iter()
+                    .map(|(name, value)| RouteParameter::named(name, convert(value)))
+                    .collect(),
+            ),
+        }
+    }
+    match value {
+        ViewValue::Null => Ok(vec![]),
+        ViewValue::Array(items) => items
+            .iter()
+            .map(|value| {
+                value
+                    .to_json()
+                    .map(|value| RouteParameter::positional(convert(value)))
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+            })
+            .collect(),
+        ViewValue::Object(items) => items
+            .iter()
+            .map(|(name, value)| {
+                value
+                    .to_json()
+                    .map(|value| {
+                        if name
+                            .parse::<i64>()
+                            .is_ok_and(|index| index.to_string() == *name)
+                        {
+                            RouteParameter::positional(convert(value))
+                        } else {
+                            RouteParameter::named(name, convert(value))
+                        }
+                    })
+                    .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
+            })
+            .collect(),
+        value => value
+            .to_json()
+            .map(|value| vec![RouteParameter::positional(convert(value))])
+            .map_err(|source| super::ViewError::RenderFailed(Box::new(source))),
     }
 }

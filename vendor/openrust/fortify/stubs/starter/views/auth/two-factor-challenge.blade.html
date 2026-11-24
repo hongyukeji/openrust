@@ -1,0 +1,14 @@
+@extends('user.layout')
+@section('title', __('user.two_factor'))
+@section('content')
+<form method="POST" action="{{ route('two-factor.login.store') }}">
+@csrf
+<label for="code">{{ __('user.code') }}</label>
+<input id="code" name="code" type="text" autocomplete="one-time-code">
+@error('code')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="recovery_code">{{ __('user.recovery_code') }}</label>
+<input id="recovery_code" name="recovery_code" type="text" autocomplete="off">
+@error('recovery_code')<p class="error" role="alert">{{ $message }}</p>@enderror
+<button type="submit">{{ __('user.login') }}</button>
+</form>
+@endsection

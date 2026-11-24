@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="{{ app()->currentLocale() }}" dir="auto">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>@yield('title') · {{ config('app.name') }}</title>
+    <style>
+        *{box-sizing:border-box}body{margin:0;padding:24px;background:#f5f6fa;color:#1b2435;font:16px/1.6 system-ui,sans-serif}main{max-width:640px;margin:5vh auto;background:white;padding:32px;border:1px solid #dde2eb;border-radius:12px}h1{font-size:1.5rem;margin-top:0}a{color:#245bcc}label{display:block;margin:16px 0 6px}input:not([type=checkbox]){width:100%;padding:10px;border:1px solid #8c98ac;border-radius:6px;font:inherit}button{margin-top:20px;padding:10px 20px;border:0;border-radius:6px;background:#245bcc;color:white;font:inherit;cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #efb24a;outline-offset:3px}.error{color:#a51b26}.status{padding:12px;background:#e7f5eb}nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:20px}fieldset{margin:20px 0;padding:0;border:0}legend{font-weight:600}footer{margin-top:24px;color:#59667c;font-size:.875rem}@media(max-width:480px){body{padding:12px}main{padding:20px;margin:12px auto}}
+    </style>
+</head>
+<body>
+<main>
+    <h1>@yield('title')</h1>
+    @session('status')<p role="status" class="status">{{ __($value) }}</p>@endsession
+    @yield('content')
+    <footer>{{ config('app.name') }} · {{ config('app.version') }}</footer>
+</main>
+</body>
+</html>
