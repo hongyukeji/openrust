@@ -4,8 +4,8 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
-    routing::{RouteGroup, Router, RoutingError},
+    http::{Body, HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    routing::{RouteGroup, RouteMetadata, Router, RoutingError},
 };
 
 fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -17,9 +17,41 @@ fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move { Ok(Response::new(StatusCode::OK, Body::from(text))) })
 }
 
+fn method_report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let methods = request
+        .parts()
+        .extensions
+        .get::<RouteMetadata>()
+        .unwrap()
+        .methods
+        .join(",");
+    Box::pin(async move { Ok(Response::from(methods)) })
+}
+
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/", || "root")?;
+    router.r#match(
+        &[Method::POST, Method::GET, Method::POST],
+        "/method-duplicates",
+        method_report,
+    )?;
+    router.r#match(
+        &[Method::HEAD, Method::GET, Method::HEAD],
+        "/method-explicit-head",
+        method_report,
+    )?;
+    let mut many = (0..12)
+        .map(|i| Method::from_bytes(format!("EXTENDED-METHOD-{i}").as_bytes()).unwrap())
+        .collect::<Vec<_>>();
+    many.extend([Method::GET, Method::GET]);
+    router.r#match(&many, "/method-many", method_report)?;
+    router.r#match(
+        &[Method::from_bytes(b"get").unwrap()],
+        "/method-case",
+        method_report,
+    )?;
+
     router.get("/literal+(x)[y].txt", || "literal")?;
     router.get("/Case", || "case")?;
     router.get("/café/文件", || "unicode")?;
@@ -128,6 +160,69 @@ async fn literal_paths_preserve_http_defaults_order_domains_and_cached_registrat
             assert_eq!(response.status(), 200);
             assert_eq!(response.text().await.unwrap(), body);
         }
+        for (path, expected) in [
+            ("/method-duplicates", "POST,GET,POST,HEAD".to_owned()),
+            ("/method-explicit-head", "HEAD,GET,HEAD".to_owned()),
+            (
+                "/method-many",
+                (0..12)
+                    .map(|i| format!("EXTENDED-METHOD-{i}"))
+                    .chain(["GET".into(), "GET".into(), "HEAD".into()])
+                    .collect::<Vec<_>>()
+                    .join(","),
+            ),
+        ] {
+            let response = client.get(format!("{base}{path}")).send().await.unwrap();
+            assert_eq!(response.status(), 200);
+            assert_eq!(response.text().await.unwrap(), expected);
+        }
+        for method in [Method::POST, Method::GET] {
+            assert_eq!(
+                client
+                    .request(method, format!("{base}/method-duplicates"))
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                200
+            );
+        }
+        let response = client
+            .put(format!("{base}/method-duplicates"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 405);
+        assert_eq!(response.headers()["allow"], "GET, HEAD, POST");
+        let response = client
+            .request(
+                Method::from_bytes(b"EXTENDED-METHOD-11").unwrap(),
+                format!("{base}/method-many"),
+            )
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        let response = client
+            .request(
+                Method::from_bytes(b"get").unwrap(),
+                format!("{base}/method-case"),
+            )
+            .send()
+            .await
+            .unwrap();
+        // 注册入口按既有契约归一化小写方法；传输层的小写方法本身不等于 GET。
+        assert_eq!(response.status(), 405);
+        assert_eq!(response.headers()["allow"], "GET, HEAD");
+        assert_eq!(
+            client
+                .get(format!("{base}/method-case"))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
         for length in [1024, 1025] {
             let response = client
                 .get(format!("{base}/{}", "z".repeat(length - 1)))

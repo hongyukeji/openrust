@@ -1,0 +1,1126 @@
+{
+  "base": "eff38a1d46d9c2a2fbfcf9cfae3ab843eabfa1aa",
+  "allocations": {
+    "before": {
+      "routes_get": {
+        "case": "routes_get",
+        "iterations": 1,
+        "allocs": 1028,
+        "reallocs": 143,
+        "deallocs": 1028,
+        "requested_bytes": 181420,
+        "peak_live_bytes": 92328,
+        "retained_bytes": 0
+      },
+      "routes_get_cold": {
+        "case": "routes_get_cold",
+        "iterations": 1,
+        "allocs": 1028,
+        "reallocs": 143,
+        "deallocs": 1028,
+        "requested_bytes": 181420,
+        "peak_live_bytes": 92328,
+        "retained_bytes": 0
+      },
+      "routes_any": {
+        "case": "routes_any",
+        "iterations": 1,
+        "allocs": 1804,
+        "reallocs": 173,
+        "deallocs": 1804,
+        "requested_bytes": 249236,
+        "peak_live_bytes": 121584,
+        "retained_bytes": 0
+      },
+      "routes_dynamic": {
+        "case": "routes_dynamic",
+        "iterations": 1,
+        "allocs": 24452,
+        "reallocs": 6415,
+        "deallocs": 24452,
+        "requested_bytes": 51948588,
+        "peak_live_bytes": 2677897,
+        "retained_bytes": 0
+      },
+      "routes_duplicate": {
+        "case": "routes_duplicate",
+        "iterations": 1,
+        "allocs": 1028,
+        "reallocs": 5,
+        "deallocs": 1028,
+        "requested_bytes": 173996,
+        "peak_live_bytes": 87912,
+        "retained_bytes": 0
+      },
+      "pattern": {
+        "case": "pattern",
+        "iterations": 1,
+        "allocs": 128,
+        "reallocs": 0,
+        "deallocs": 128,
+        "requested_bytes": 2048,
+        "peak_live_bytes": 16,
+        "retained_bytes": 0
+      },
+      "regex": {
+        "case": "regex",
+        "iterations": 1,
+        "allocs": 12672,
+        "reallocs": 3328,
+        "deallocs": 12672,
+        "requested_bytes": 2631552,
+        "peak_live_bytes": 9808,
+        "retained_bytes": 0
+      },
+      "match_first": {
+        "case": "match_first",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      },
+      "match_last": {
+        "case": "match_last",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      },
+      "match_miss": {
+        "case": "match_miss",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      }
+    },
+    "after": {
+      "routes_get": {
+        "case": "routes_get",
+        "iterations": 1,
+        "allocs": 772,
+        "reallocs": 143,
+        "deallocs": 772,
+        "requested_bytes": 169644,
+        "peak_live_bytes": 92236,
+        "retained_bytes": 0
+      },
+      "routes_get_cold": {
+        "case": "routes_get_cold",
+        "iterations": 1,
+        "allocs": 772,
+        "reallocs": 143,
+        "deallocs": 772,
+        "requested_bytes": 169644,
+        "peak_live_bytes": 92236,
+        "retained_bytes": 0
+      },
+      "routes_any": {
+        "case": "routes_any",
+        "iterations": 1,
+        "allocs": 1548,
+        "reallocs": 173,
+        "deallocs": 1548,
+        "requested_bytes": 205204,
+        "peak_live_bytes": 121240,
+        "retained_bytes": 0
+      },
+      "routes_dynamic": {
+        "case": "routes_dynamic",
+        "iterations": 1,
+        "allocs": 24196,
+        "reallocs": 6415,
+        "deallocs": 24196,
+        "requested_bytes": 51936812,
+        "peak_live_bytes": 2677897,
+        "retained_bytes": 0
+      },
+      "routes_duplicate": {
+        "case": "routes_duplicate",
+        "iterations": 1,
+        "allocs": 772,
+        "reallocs": 5,
+        "deallocs": 772,
+        "requested_bytes": 162220,
+        "peak_live_bytes": 87820,
+        "retained_bytes": 0
+      },
+      "pattern": {
+        "case": "pattern",
+        "iterations": 1,
+        "allocs": 128,
+        "reallocs": 0,
+        "deallocs": 128,
+        "requested_bytes": 2048,
+        "peak_live_bytes": 16,
+        "retained_bytes": 0
+      },
+      "regex": {
+        "case": "regex",
+        "iterations": 1,
+        "allocs": 12672,
+        "reallocs": 3328,
+        "deallocs": 12672,
+        "requested_bytes": 2631552,
+        "peak_live_bytes": 9808,
+        "retained_bytes": 0
+      },
+      "match_first": {
+        "case": "match_first",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      },
+      "match_last": {
+        "case": "match_last",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      },
+      "match_miss": {
+        "case": "match_miss",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      }
+    }
+  },
+  "timing": {
+    "routes_get": {
+      "before_median_ns": 85218.33,
+      "after_median_ns": 73745.0,
+      "paired_change_pct": -13.590291993107485,
+      "ci95_pct": [
+        -14.830657036673445,
+        -12.125352996687756
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        78810.84,
+        99838.75
+      ],
+      "after_range_ns": [
+        69393.34,
+        90695.83
+      ],
+      "before_iqr_ns": [
+        83850.83,
+        89621.67
+      ],
+      "after_iqr_ns": [
+        72717.08,
+        75822.08
+      ]
+    },
+    "routes_get_cold": {
+      "before_median_ns": 129666.0,
+      "after_median_ns": 116667.0,
+      "paired_change_pct": -10.02420733919146,
+      "ci95_pct": [
+        -12.597193638914872,
+        -7.408210528141835
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        106125.0,
+        153625.0
+      ],
+      "after_range_ns": [
+        93666.0,
+        132584.0
+      ],
+      "before_iqr_ns": [
+        125292.0,
+        135083.0
+      ],
+      "after_iqr_ns": [
+        111667.0,
+        121542.0
+      ]
+    },
+    "routes_any": {
+      "before_median_ns": 226745.83,
+      "after_median_ns": 207127.92,
+      "paired_change_pct": -7.369319787733097,
+      "ci95_pct": [
+        -9.692341618658041,
+        -6.460805103387591
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        212477.5,
+        289245.42
+      ],
+      "after_range_ns": [
+        194641.67,
+        349979.58
+      ],
+      "before_iqr_ns": [
+        221245.83,
+        232620.0
+      ],
+      "after_iqr_ns": [
+        202038.75,
+        214181.25
+      ]
+    },
+    "routes_dynamic": {
+      "before_median_ns": 2971329.2,
+      "after_median_ns": 2949295.9,
+      "paired_change_pct": -0.03350900346320573,
+      "ci95_pct": [
+        -1.2791097879885638,
+        0.2837189000436391
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        2717529.2,
+        4955016.6
+      ],
+      "after_range_ns": [
+        2655612.5,
+        4948933.3
+      ],
+      "before_iqr_ns": [
+        2860979.2,
+        3050487.5
+      ],
+      "after_iqr_ns": [
+        2821579.2,
+        3088358.3
+      ]
+    },
+    "routes_duplicate": {
+      "before_median_ns": 45921.67,
+      "after_median_ns": 36336.66,
+      "paired_change_pct": -20.925564101564852,
+      "ci95_pct": [
+        -22.288009526140474,
+        -19.474769013466908
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        42622.5,
+        68528.34
+      ],
+      "after_range_ns": [
+        34146.25,
+        74817.08
+      ],
+      "before_iqr_ns": [
+        45162.08,
+        46354.17
+      ],
+      "after_iqr_ns": [
+        35520.83,
+        36818.34
+      ]
+    },
+    "pattern": {
+      "before_median_ns": 4952.09,
+      "after_median_ns": 4994.17,
+      "paired_change_pct": 1.281018944562562,
+      "ci95_pct": [
+        -0.7890495460501135,
+        5.197837699517005
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        4250.83,
+        10853.75
+      ],
+      "after_range_ns": [
+        4212.5,
+        5465.0
+      ],
+      "before_iqr_ns": [
+        4846.67,
+        5056.67
+      ],
+      "after_iqr_ns": [
+        4875.42,
+        5133.75
+      ]
+    },
+    "regex": {
+      "before_median_ns": 741825.41,
+      "after_median_ns": 740656.25,
+      "paired_change_pct": -0.8468013501957805,
+      "ci95_pct": [
+        -1.3279110455199583,
+        -0.049493374633124976
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        700934.58,
+        817335.0
+      ],
+      "after_range_ns": [
+        702440.0,
+        907181.25
+      ],
+      "before_iqr_ns": [
+        733297.5,
+        752292.08
+      ],
+      "after_iqr_ns": [
+        717853.33,
+        746959.59
+      ]
+    },
+    "match_first": {
+      "before_median_ns": 12.87542,
+      "after_median_ns": 12.84333,
+      "paired_change_pct": -0.3219729749777467,
+      "ci95_pct": [
+        -1.2228071554729714,
+        0.06444251039552373
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        12.08667,
+        14.30167
+      ],
+      "after_range_ns": [
+        11.77,
+        22.51791
+      ],
+      "before_iqr_ns": [
+        12.575,
+        12.95542
+      ],
+      "after_iqr_ns": [
+        12.66209,
+        12.93958
+      ]
+    },
+    "match_last": {
+      "before_median_ns": 389.3125,
+      "after_median_ns": 389.05042,
+      "paired_change_pct": -0.8251268940374645,
+      "ci95_pct": [
+        -1.395087493979763,
+        0.21444549041755856
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        366.65709,
+        414.96584
+      ],
+      "after_range_ns": [
+        373.22416,
+        444.23541
+      ],
+      "before_iqr_ns": [
+        384.135,
+        394.04583
+      ],
+      "after_iqr_ns": [
+        383.88125,
+        393.22625
+      ]
+    },
+    "match_miss": {
+      "before_median_ns": 240.35375,
+      "after_median_ns": 243.54084,
+      "paired_change_pct": -0.3082523077932109,
+      "ci95_pct": [
+        -2.311347336998071,
+        1.7417227018578174
+      ],
+      "pairs": 31,
+      "before_range_ns": [
+        221.07625,
+        369.19875
+      ],
+      "after_range_ns": [
+        215.05,
+        261.37041
+      ],
+      "before_iqr_ns": [
+        232.24708,
+        245.67583
+      ],
+      "after_iqr_ns": [
+        233.26083,
+        246.47583
+      ]
+    }
+  },
+  "profile_before": {
+    "routes_get": {
+      "case": "routes_get",
+      "iterations": 1,
+      "allocs": 1028,
+      "reallocs": 143,
+      "deallocs": 1028,
+      "requested_bytes": 181420,
+      "peak_live_bytes": 92328,
+      "retained_bytes": 0
+    },
+    "routes_get_cold": {
+      "case": "routes_get_cold",
+      "iterations": 1,
+      "allocs": 1028,
+      "reallocs": 143,
+      "deallocs": 1028,
+      "requested_bytes": 181420,
+      "peak_live_bytes": 92328,
+      "retained_bytes": 0
+    },
+    "routes_any": {
+      "case": "routes_any",
+      "iterations": 1,
+      "allocs": 1804,
+      "reallocs": 173,
+      "deallocs": 1804,
+      "requested_bytes": 249236,
+      "peak_live_bytes": 121584,
+      "retained_bytes": 0
+    },
+    "routes_dynamic": {
+      "case": "routes_dynamic",
+      "iterations": 1,
+      "allocs": 24452,
+      "reallocs": 6415,
+      "deallocs": 24452,
+      "requested_bytes": 51948588,
+      "peak_live_bytes": 2677897,
+      "retained_bytes": 0
+    },
+    "routes_duplicate": {
+      "case": "routes_duplicate",
+      "iterations": 1,
+      "allocs": 1028,
+      "reallocs": 5,
+      "deallocs": 1028,
+      "requested_bytes": 173996,
+      "peak_live_bytes": 87912,
+      "retained_bytes": 0
+    },
+    "prepare": {
+      "case": "prepare",
+      "iterations": 1,
+      "allocs": 256,
+      "reallocs": 128,
+      "deallocs": 256,
+      "requested_bytes": 5120,
+      "peak_live_bytes": 32,
+      "retained_bytes": 0
+    },
+    "pattern": {
+      "case": "pattern",
+      "iterations": 1,
+      "allocs": 128,
+      "reallocs": 0,
+      "deallocs": 128,
+      "requested_bytes": 2048,
+      "peak_live_bytes": 16,
+      "retained_bytes": 0
+    },
+    "regex": {
+      "case": "regex",
+      "iterations": 1,
+      "allocs": 12672,
+      "reallocs": 3328,
+      "deallocs": 12672,
+      "requested_bytes": 2631552,
+      "peak_live_bytes": 9808,
+      "retained_bytes": 0
+    },
+    "uri": {
+      "case": "uri",
+      "iterations": 1,
+      "allocs": 128,
+      "reallocs": 128,
+      "deallocs": 128,
+      "requested_bytes": 3072,
+      "peak_live_bytes": 16,
+      "retained_bytes": 0
+    },
+    "handler": {
+      "case": "handler",
+      "iterations": 1,
+      "allocs": 128,
+      "reallocs": 0,
+      "deallocs": 128,
+      "requested_bytes": 2048,
+      "peak_live_bytes": 16,
+      "retained_bytes": 0
+    },
+    "method_vec": {
+      "case": "method_vec",
+      "iterations": 1,
+      "allocs": 128,
+      "reallocs": 128,
+      "deallocs": 128,
+      "requested_bytes": 15360,
+      "peak_live_bytes": 96,
+      "retained_bytes": 0
+    },
+    "method_metadata": {
+      "case": "method_metadata",
+      "iterations": 1,
+      "allocs": 384,
+      "reallocs": 0,
+      "deallocs": 384,
+      "requested_bytes": 7040,
+      "peak_live_bytes": 55,
+      "retained_bytes": 0
+    },
+    "method_set": {
+      "case": "method_set",
+      "iterations": 1,
+      "allocs": 128,
+      "reallocs": 0,
+      "deallocs": 128,
+      "requested_bytes": 5632,
+      "peak_live_bytes": 44,
+      "retained_bytes": 0
+    },
+    "match_first": {
+      "case": "match_first",
+      "iterations": 1,
+      "allocs": 0,
+      "reallocs": 0,
+      "deallocs": 0,
+      "requested_bytes": 0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0
+    },
+    "match_last": {
+      "case": "match_last",
+      "iterations": 1,
+      "allocs": 0,
+      "reallocs": 0,
+      "deallocs": 0,
+      "requested_bytes": 0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0
+    },
+    "match_miss": {
+      "case": "match_miss",
+      "iterations": 1,
+      "allocs": 0,
+      "reallocs": 0,
+      "deallocs": 0,
+      "requested_bytes": 0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0
+    }
+  },
+  "profile_after": {
+    "routes_get": {
+      "case": "routes_get",
+      "iterations": 1,
+      "allocs": 772,
+      "reallocs": 143,
+      "deallocs": 772,
+      "requested_bytes": 169644,
+      "peak_live_bytes": 92236,
+      "retained_bytes": 0
+    },
+    "routes_any": {
+      "case": "routes_any",
+      "iterations": 1,
+      "allocs": 1548,
+      "reallocs": 173,
+      "deallocs": 1548,
+      "requested_bytes": 205204,
+      "peak_live_bytes": 121240,
+      "retained_bytes": 0
+    },
+    "routes_dynamic": {
+      "case": "routes_dynamic",
+      "iterations": 1,
+      "allocs": 24196,
+      "reallocs": 6415,
+      "deallocs": 24196,
+      "requested_bytes": 51936812,
+      "peak_live_bytes": 2677897,
+      "retained_bytes": 0
+    },
+    "routes_duplicate": {
+      "case": "routes_duplicate",
+      "iterations": 1,
+      "allocs": 772,
+      "reallocs": 5,
+      "deallocs": 772,
+      "requested_bytes": 162220,
+      "peak_live_bytes": 87820,
+      "retained_bytes": 0
+    },
+    "match_first": {
+      "case": "match_first",
+      "iterations": 1,
+      "allocs": 0,
+      "reallocs": 0,
+      "deallocs": 0,
+      "requested_bytes": 0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0
+    },
+    "match_last": {
+      "case": "match_last",
+      "iterations": 1,
+      "allocs": 0,
+      "reallocs": 0,
+      "deallocs": 0,
+      "requested_bytes": 0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0
+    },
+    "match_miss": {
+      "case": "match_miss",
+      "iterations": 1,
+      "allocs": 0,
+      "reallocs": 0,
+      "deallocs": 0,
+      "requested_bytes": 0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0
+    }
+  },
+  "legacy_recheck": {
+    "before": {
+      "case": "routes_get",
+      "iterations": 1,
+      "allocs": 13700,
+      "reallocs": 3471,
+      "deallocs": 13700,
+      "requested_bytes": 2826604,
+      "peak_live_bytes": 988069,
+      "retained_bytes": 0
+    },
+    "after": {
+      "case": "routes_get",
+      "iterations": 1,
+      "allocs": 1028,
+      "reallocs": 143,
+      "deallocs": 1028,
+      "requested_bytes": 181420,
+      "peak_live_bytes": 92328,
+      "retained_bytes": 0
+    }
+  },
+  "binary_sha256": {
+    "after_time": "bc549b50fa54f57791f926e0c0cd7c94e6d8af39d4b25569c4dbe427f4ab823a",
+    "before_time": "56283c0ac376814d6f280af4dcb7ff7e7c26f9996f841249a6dc59556bd21884",
+    "after_alloc": "7cd96598a0c6c51ce1d8705b0c677e9c02c45f93af05bd9c40a483cd85d0a9a3",
+    "before_alloc": "ae625ffe94bd02c4cb314388e47b4668caedab73c08d1af663dd3b9cb0097f43"
+  },
+  "get_method_copy": "alloc=128 realloc=0 bytes=6144 peak=48 live=0",
+  "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: aarch64-apple-darwin\nrelease: 1.94.0\nLLVM version: 21.1.8\n",
+  "get_method_copy_runs": [
+    "alloc=128 realloc=0 bytes=6144 peak=48 live=0",
+    "alloc=128 realloc=0 bytes=6144 peak=48 live=0",
+    "alloc=128 realloc=0 bytes=6144 peak=48 live=0",
+    "alloc=128 realloc=0 bytes=6144 peak=48 live=0",
+    "alloc=128 realloc=0 bytes=6144 peak=48 live=0"
+  ],
+  "accepted_source_sha256": {
+    "vendor/openrust/framework/src/routing/router.rs": "8c03d4aabf1b83e9e64835f29443f933eb3a3f44cdde276f4546ef7ac3758e7d",
+    "vendor/openrust/framework/src/foundation/http/form_request.rs": "cf364c2fc658fcd8c74e1da9d1e3bed591d39cd1af594859d927c2320a4d9516",
+    "vendor/openrust/framework/tests/routing_literal_patterns.rs": "ebd0d2289773cf565d3321799edceafe9251d7663cc89760773ddd6282562385"
+  },
+  "gates": [
+    {
+      "name": "routing",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "openrust-framework",
+        "--test",
+        "routing_literal_patterns",
+        "--test",
+        "routing_methods",
+        "--test",
+        "routing_groups",
+        "--test",
+        "routing_shortcuts",
+        "--test",
+        "routing_named",
+        "--test",
+        "request_input",
+        "--test",
+        "route_metadata",
+        "--test",
+        "form_request_unknown_fields",
+        "--test",
+        "validation_aware_tutorial"
+      ]
+    },
+    {
+      "name": "binding",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "openrust-framework",
+        "--test",
+        "eloquent_route_binding",
+        "eloquent_bindings_run_in_http_middleware_on_sqlite",
+        "--",
+        "--exact"
+      ]
+    },
+    {
+      "name": "application",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "openrust",
+        "--test",
+        "startup",
+        "--test",
+        "console",
+        "--test",
+        "resource_generator",
+        "--",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "name": "fmt",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ]
+    },
+    {
+      "name": "clippy",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "openrust-framework",
+        "-p",
+        "openrust",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    {
+      "name": "release-main",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--bin",
+        "main"
+      ]
+    }
+  ],
+  "binary_acceptance": {
+    "cli": [
+      {
+        "args": [
+          "list",
+          "--format=json"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "stub:publish",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "queue:work",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:list",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "not-a-real-command"
+        ],
+        "exit": 1
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:list",
+          "--json"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:clear"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:cache"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:cache"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:clear"
+        ],
+        "exit": 0
+      }
+    ],
+    "http": [
+      {
+        "cached": false,
+        "path": "/",
+        "method": "GET",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 22917
+      },
+      {
+        "cached": false,
+        "path": "/",
+        "method": "HEAD",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 0
+      },
+      {
+        "cached": false,
+        "path": "/up",
+        "method": "GET",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 1896
+      },
+      {
+        "cached": false,
+        "path": "/not-found",
+        "method": "GET",
+        "status": 404,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 136
+      },
+      {
+        "cached": false,
+        "path": "/not-found",
+        "method": "GET",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      },
+      {
+        "cached": false,
+        "path": "/api/not-found",
+        "method": "GET",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      },
+      {
+        "cached": true,
+        "path": "/",
+        "method": "GET",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 22917
+      },
+      {
+        "cached": true,
+        "path": "/",
+        "method": "HEAD",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 0
+      },
+      {
+        "cached": true,
+        "path": "/up",
+        "method": "GET",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 1896
+      },
+      {
+        "cached": true,
+        "path": "/not-found",
+        "method": "GET",
+        "status": 404,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 136
+      },
+      {
+        "cached": true,
+        "path": "/not-found",
+        "method": "GET",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      },
+      {
+        "cached": true,
+        "path": "/api/not-found",
+        "method": "GET",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      }
+    ],
+    "registered_commands_count": 134,
+    "command_names_unique": true
+  },
+  "accepted_tests": {
+    "routing_input_form_validation": 53,
+    "sqlite_binding": 1,
+    "application": 37,
+    "baseline_compatibility_control": 4
+  },
+  "profile_notes": {
+    "method_vec": "GET-only match control: one method cloned, then HEAD appended; not the get() input",
+    "get_method_copy": "get() uses GET and HEAD already: actual independent control is 128 alloc / 0 realloc / 6144 bytes",
+    "matching": "prebuilt 128-literal-route table, internal candidate selection only; excludes HTTP transport, decoding and handlers",
+    "common_build_prerequisite": "both before and after include the identical FormRequest validation Future boxing fix; unpatched base Release failure retained",
+    "accepted_scope": "base plus task files; concurrent unrelated changes and later commits were not overlaid"
+  },
+  "allocation_repeats_per_variant_case": 5
+}

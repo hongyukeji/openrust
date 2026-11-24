@@ -65,3 +65,5 @@ GET的alloc减少92.50%，累计请求字节减少93.58%。字面路径编译本
 - 两个额外临时静态测点均在隔离Router中：`__profile_pattern`仅编译并black_box一个RoutePattern；`__profile_regex`编译`format!(r"\A{}\z", regex::escape(uri))`，使用相同dotall RegexBuilder。两组一致，正式检查前移除这些适配器及examples。
 - 复测现有独立二进制可在根目录运行：`python3 -B tests/build_guard.py --workflow route-registration --target-dir target/tmp/array-release/cargo-target -- python3 -B .agents/project/audits/route-registration-allocations/measure.py`。用`ROUTE_PERF_DIR`选择项目`target/tmp/`内的独立数据目录，目录下须包含相同布局的before／after二进制；脚本会写入该目录，不覆盖其他任务。
 - 本批没有改CLI、缓存格式、公开路由API和三语用法；纯内部优化无需改变开发者代码。临时适配器和注册脚本没有写入生产源码。其他协作者的工作区／索引保留，仅本地提交，不推送。
+
+[后续注册与匹配审计](followup/README.md)复测当前1028次分配，记录方法暂存／去重优化、同基线Release波动和当前HTTP／Artisan验收；本页保留初次字面路径优化的历史结果。

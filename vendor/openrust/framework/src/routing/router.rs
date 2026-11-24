@@ -877,18 +877,27 @@ impl Router {
     }
 
     pub(super) fn insert_route(&mut self, methods: &[Method], mut route: Route) -> &mut Route {
-        let mut methods = methods.to_vec();
-        if methods.contains(&Method::GET) && !methods.contains(&Method::HEAD) {
-            methods.push(Method::HEAD);
-        }
-        route.methods = methods
-            .iter()
-            .map(|method| method.as_str().to_owned())
-            .collect();
+        let head = (methods.contains(&Method::GET) && !methods.contains(&Method::HEAD))
+            .then_some(Method::HEAD);
+        let all_methods = methods.iter().chain(head.iter());
+        // 元数据保留原始方法顺序和重复项；补充的 HEAD 仍在最后。
+        let mut metadata = Vec::with_capacity(methods.len() + usize::from(head.is_some()));
+        metadata.extend(all_methods.clone().map(|method| method.as_str().to_owned()));
+        route.methods = metadata;
         self.route_cache = None;
         self.has_domains |= route.domain.is_some();
         let index = self.routes.len();
-        for method in methods.iter().collect::<HashSet<_>>() {
+        // 常用短方法列表直接借用输入；长列表保留哈希去重，避免平方级扫描。
+        let mut seen = (methods.len() > VERBS.len())
+            .then(|| HashSet::with_capacity(methods.len() + usize::from(head.is_some())));
+        for (position, method) in all_methods.enumerate() {
+            let duplicate = match &mut seen {
+                Some(seen) => !seen.insert(method),
+                None => methods[..position].contains(method),
+            };
+            if duplicate {
+                continue;
+            }
             let routes = self.by_method.entry(method.clone()).or_default();
             if let Some(slot) = routes.iter_mut().find(|&&mut entry| {
                 let previous = &self.routes[entry];

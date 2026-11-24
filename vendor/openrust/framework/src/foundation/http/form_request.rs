@@ -82,18 +82,18 @@ pub trait FormRequest: Send + Sync {
                     )
                 });
             }
-            let validated = validator
-                .validate_request(request)
-                .await
-                .map_err(|mut error| {
-                    if let ValidationError::Invalid(exception) = &mut error {
-                        exception.error_bag(self.error_bag());
-                        if let Some(path) = self.redirect_to() {
-                            exception.redirect_to(path);
-                        }
+            // 在既有 ValidationFuture 边界擦除验证器内部 Future，避免外层表单布局递归过深。
+            let validation: ValidationFuture<'_, ValidationResult<ValidatedInput>> =
+                Box::pin(validator.validate_request(request));
+            let validated = validation.await.map_err(|mut error| {
+                if let ValidationError::Invalid(exception) = &mut error {
+                    exception.error_bag(self.error_bag());
+                    if let Some(path) = self.redirect_to() {
+                        exception.redirect_to(path);
                     }
-                    error
-                })?;
+                }
+                error
+            })?;
             if request.is_precognitive() {
                 (crate::foundation::Precognition::after_validation_hook(request))(&validator)?;
             }
