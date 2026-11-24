@@ -36,3 +36,13 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 本项已按范围实施并验收，取代前次“Pay 暂时保留”的当前状态；前次裁决保留作历史依据。不存在本次已识别但未处理的分层事项，不据此宣称全部框架服务重新完成行为审计。
 
 验收日志位于 `target/tmp/model-layering-optional-20261124/pay-*.log`。两组隔离数据库容器均已回收，开发服务与数据卷保留；收尾清理本批源码快照、临时应用、文档产物和一次性编排脚本，保留日志与可复用构建缓存。只本地提交本批实现、测试、三语指南及记录，不推送。
+
+## Pay 整理后的静态分层复核
+
+2026-11-24，在实现提交 `9135ea0b4` 后，按当前源码复核生产模型、模型能力 trait、Record／注册适配器、内部存储操作及直接服务消费者。结论：**Pay 整理已完成并按前述范围验收；本轮未发现新增待整改项，也未发现已整理职责回流或遗漏。** 该结论限定于上述分层复核范围，不代表全部框架公开契约再次通过行为验收。
+
+- [notifications.rs](../../../../vendor/openrust/pay/src/notifications.rs) 保留公开通知入口、订单匹配、事务编排、冲突／重复裁决及业务回调；[notification_store.rs](../../../../vendor/openrust/pay/src/notification_store.rs) 仅使用传入的事务执行占用、加锁读取、完成状态读取与更新，不自行开启事务或调用业务回调。去重、行锁、业务回调和完成标记仍在同一事务内。独立 Migration 实现属于迁移职责，不作为模型或通知流程越层处理。
+- Cashier、Activitylog、Fortify、Passkeys、Passport、Scout 的既有委托边界保持完整；User、模型关系和自身状态方法，以及适配器中的类型转接、实例身份、锁定和持久化符合分层规范。Settings、Pennant 的模型消费者继续委托 Repository／Driver。当前没有据此需要继续拆分或新增转发层的具体文件。
+- 独立扩展源码归所属 `vendor/openrust/<package>/` crate；当前 Sanctum 源码位于 framework 的可选模块。安装器发布到根应用的配置、迁移和模型接入属于消费者产物。应用接入中未发现本轮应处理的扩展安装残留，基础 API 配置和空路由入口不算残留。
+
+本节记录的是**静态复核**；上文19项三库测试、HTTP／Artisan、严格 Clippy 和三语文档检查属于实施提交时的**既有行为验收**，不重复计作本轮结果。本轮未修改业务代码，未重新执行 Rust、HTTP、Artisan、数据库或文档站构建测试；仅核对记录内容、相对链接、章节锚点、来源提交及 `git diff --check`。本次只本地提交记录，不推送，保留其他协作者改动。

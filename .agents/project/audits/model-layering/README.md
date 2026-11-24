@@ -65,3 +65,5 @@ MySQL 和 PostgreSQL 分别由 `tests/mysql_acceptance.py`、`tests/postgres_acc
 [整理后的静态复核结论](adjacent-services-2026-11-24.md#本次静态复核结论)汇总当时已完成项与 Pay 暂时保留的事务边界；该次复核没有新增行为验收结果。
 
 [Pay 通知流程与内部存储分离](pay-notifications-2026-11-24.md)承接用户随后授权的 Pay 整理；前次暂时保留的裁决作为历史依据保留。
+
+[Pay 整理后的静态复核](pay-notifications-2026-11-24.md#pay-整理后的静态分层复核)确认 Pay 已完成，复核范围内未发现新增待整改项；静态结论与既有行为验收分别记录。
