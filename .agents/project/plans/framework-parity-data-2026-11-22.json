@@ -299014,6 +299014,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "remaining Rule factories and database where, email modes, password policies, array message positions and full chapter review; chapter open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第十六组 named factories, confirmation, guard, ImageFile",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "database where, email, password, message positions and full chapter review; chapter open"
     }
   ]
 }

@@ -376,6 +376,32 @@ fn store_condition(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 
 `Rule::when` and `Rule::unless` choose complete rule lists during compilation, before wildcard expansion. Boolean/callback objects such as `RequiredIf`, `RequiredUnless`, `ExcludeIf`, `ExcludeUnless`, `ProhibitedIf` and `ProhibitedUnless` compile per expanded attribute. `RuleCondition::lazy` accepts a zero-argument callback; `callback` receives the existing typed `Data`. Conditions run again after `set_data` or `set_rules`, not on every validation pass.
 
+### Named Rule Factories {#named-rule-factories}
+
+Named factories use the same validator as string rules. `rules::{AcceptedIf, DeclinedIf, MissingIf, MissingUnless, PresentIf, PresentUnless}` accept a field and a scalar or list of comparison values. `RequiredWith`, `RequiredWithout`, `PresentWith` and related field-list rules take explicit arrays or iterators; Rust has no variadic method arguments. Parameterized rules preserve comma and quote boundaries. `ArrayKeys`, `Contains`, `DoesntContain`, `Regex` and `NotRegex` also work as actual typed rules through `.into()`.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleBuilder, RuleSet},
+};
+fn store_factories(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("username", [Rule::required(), Rule::regex("/^[a-z]+$/").into(), Rule::confirmed().custom_field("confirmation")])?
+            .field("terms", [Rule::accepted_if("account_type", ["personal", "business"]).into()])?
+            .field("nickname", [Rule::exclude_with("username").into()])?
+            .field("email", [Rule::required_without(["phone", "mobile"]).into()])?
+            .field("settings", [Rule::present_if("account_type", "business").into()])?
+            .field("profile", [Rule::array_keys(["name", "email"]).into()])?
+            .field("roles", [Rule::contains(["reader"]).into(), Rule::doesnt_contain(["admin"]).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+```
+
+`Confirmed::new().custom_field("confirmation")` and `Rule::confirmed().custom_field("confirmation")` select a custom confirmation field. `CurrentPassword::new().guard("web")` or `Rule::current_password(None).guard("web")` selects the named authentication guard, replacing the default selection; this requires a real authenticated guard and configured hasher. `Rule::file()` returns `File`; `Rule::image_file(false)` returns `ImageFile`. ImageFile shares file size, extension, encoding and dimension constraints; pass `true` explicitly to allow SVG.
+
 ## Rules that Receive Data and the Validator {#accessing-additional-data}
 
 Implement `DataAwareRule::set_data` to receive the current typed `Data`, including upload metadata. Implement `ValidatorAwareRule::set_validator` to receive a handle to the same validator. Use `Rule::data_aware`, `Rule::validator_aware`, or `Rule::aware` when both traits are implemented. Stable Rust cannot dynamically discover optional traits on a `dyn ValidationRule`, so these adapters explicitly select the setters; `Rule::custom` remains the ordinary stateless entry.

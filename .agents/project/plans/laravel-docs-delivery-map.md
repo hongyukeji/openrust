@@ -213,3 +213,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第十四组：四类链式builder、五类参数化类型／Trait、条件规则与六类布尔回调对象接通。130＋50组固定数据与真实HTTP，42项回归＋三语消费者3项通过，额外MySQL8.4.13重叠30项与实际Artisan通过；严格Clippy/fmt/三语构建浏览器通过。setter、email、密码及新发现的数组消息索引占位符等继续，整章未关闭。
 
 2026-11-24 Validation第十五组：DataAware/ValidatorAware可变setter与同一验证器安全句柄闭合，29组固定数据及实际HTTP验证顺序、变更、错误联动、取消／隔离与原始文件句柄。当前HEAD隔离组合MySQL8.4.13回归47项＋三语消费者3项通过；恢复清理后严格Clippy/fmt/文档浏览器及实际Artisan通过。基础工厂、where入口、email、密码及数组消息位置继续，整章仍开放。
+
+2026-11-24 Validation第十六组：命名规则工厂、Confirmed/CurrentPassword链式配置与ImageFile类型闭合；101行为＋78参数固定对照、真实TCP／认证／UDP及MySQL8.4.13六目标37项通过，三语正式消费者、严格Clippy/fmt/文档浏览器及实际Artisan通过。数据库where、email、密码、消息位置和全章复核继续。

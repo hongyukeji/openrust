@@ -3,6 +3,12 @@ use super::{Rule, rule::Kind};
 /// 保留既有 Rule::min/Rule::max 构造器，同时允许原生方法链。
 pub trait RuleBuilder: Sized {
     fn and(self, rule: Rule) -> Rule;
+    fn custom_field(self, field: &str) -> Rule {
+        self.and(super::rules::Confirmed::new().custom_field(field).into())
+    }
+    fn guard(self, guard: &str) -> Rule {
+        self.and(super::rules::CurrentPassword::new().guard(guard).into())
+    }
     fn min(self, value: impl Into<bigdecimal::BigDecimal>) -> Rule {
         self.and(Rule::min(value))
     }
@@ -104,6 +110,21 @@ pub trait RuleBuilder: Sized {
     }
 }
 impl RuleBuilder for Rule {
+    fn custom_field(self, field: &str) -> Rule {
+        if matches!(self.0, Kind::Confirmed(_)) {
+            Rule::new(Kind::Confirmed(Some(field.to_owned())))
+        } else {
+            self.and(super::rules::Confirmed::new().custom_field(field).into())
+        }
+    }
+    fn guard(self, guard: &str) -> Rule {
+        if matches!(self.0, Kind::CurrentPassword(_)) {
+            Rule::new(Kind::CurrentPassword(Some(guard.to_owned())))
+        } else {
+            self.and(super::rules::CurrentPassword::new().guard(guard).into())
+        }
+    }
+
     fn and(self, rule: Rule) -> Rule {
         let mut rules = match self.0 {
             Kind::Chained(rules) => rules,

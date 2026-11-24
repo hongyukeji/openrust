@@ -303,3 +303,17 @@ ValidatorHandle::with 与 with_async 读写调用方同一个 Validator，不能
 最后将三语既有缓存失效说明限定为验证执行之外的修改，避免与运行期保留当前错误包矛盾；仅文字调整，三语重建15.50秒与对应HTML内容断言通过（aware/docs-final-wording.log）。
 
 本簇关闭状态感知setter及以上关联差异。完整章节继续：其余基础Rule工厂、Confirmed.custom_field／CurrentPassword.guard、数据库where闭包入口与数组条件、email模式、密码策略和数组消息索引占位符。rule-builders总节改为部分已验，避免只因新增若干类型就关闭全节；URL与Validation整章仍不在本批宣布完成。
+
+## 第十六组：命名工厂、确认字段与认证 guard（2026-11-24）
+
+逐项核对固定 Rule 工厂及 Rules/{AcceptedIf,DeclinedIf,MissingIf,MissingUnless,PresentIf,PresentUnless,ExcludeWith,ExcludeWithout,InArray,InArrayKeys,MissingWith,MissingWithAll,PresentWith,PresentWithAll,Prohibits,RequiredArrayKeys,RequiredWith,RequiredWithAll,RequiredWithout,RequiredWithoutAll,ProhibitedIfAccepted,ProhibitedIfDeclined,RequiredIfAccepted,RequiredIfDeclined,Regex,NotRegex,Confirmed,CurrentPassword,ArrayKeys,Contains,DoesntContain,ImageFile}。旧版可复用内容已在前置组核定；本批补的是类型／工厂入口，继续复用原解析器、编译器、文件及认证管线，不另跑校验实现。基础 accepted/declined/exclude/filled/missing/prohibited/hex_color/json/list/mac_address/ulid/active_url 也接通专用构造。
+
+ParameterizedRule 保留比较值成员边界；AcceptedIf 的非字符串值按 JSON 编码，另五类按固定源码的 null/布尔文字与标量转换，不能统一强转。ComparisonValues 接受标量、数组及集合；字段列表显式数组／迭代器对应 PHP 可变参数，Rust 无可变参数方法。ArrayKeys 保留原始逗号分割，Contains/DoesntContain 按原源码转义成员；Regex 原样保留模式。ImageFile 是实际公开类型，复用 File 的上传大小、扩展名、编码与尺寸处理，默认拒绝SVG。
+
+Confirmed.custom_field 与 CurrentPassword.guard 同时提供类型入口及 RuleBuilder 链式入口；链式调用替换当前确认字段／guard，不能叠加旧默认约束。保留已有 Rule::confirmed() 与 current_password(Option<&str>)，Rust同名固有方法不能重载，以明确类型／trait表达。
+
+固定 PHP8.5.12 实际生成101组行为和78组参数／声明对照，保存 tests/reference/validation-factories.json；无上游脚本进入正式源码。真实TCP回放成功／422及投影／错误键，实际multipart覆盖File、ImageFile默认SVG拒绝与允许SVG。真实认证guard／bcrypt证明显式web覆盖默认admin，错误密码及无认证admin拒绝；真实UDP覆盖A/AAAA、超时、失败恢复和实例隔离的active_url构造。三语正式教程直接提取编译运行，验证成功、确认错误、条件要求、数组键与排除投影。
+
+隔离源码沿用已验收ba6d7b32018d32badfc67a1af8f088fedea9db06加第十五／十六组，未带入活跃其他修改。factories/gates.log 九阶段全0：MySQL8.4.13六目标37项0忽略（含三语3项）、workspace/all-targets严格Clippy1m20s、fmt、三语构建16.11s及浏览器、实际main构建7.75s与Artisan帮助／inspire退出0。首次三语代码混合规则数组缺少Regex.into()已由真实编译发现并修正，失败不计通过。核心／测试／教程与验收快照逐项SHA一致，证据 target/tmp/docs-chapters-20261124/factories/；本批临时MySQL自动回收，无常驻服务。
+
+上述命名入口闭合；rule-builders总节仍保留部分已验，直到数据库where、email及密码策略完成。数组消息位置与其余全章复核继续，不宣称全章完成。

@@ -376,6 +376,32 @@ fn store_condition(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 
 `Rule::when`、`Rule::unless` 在通配展开前编译选择完整规则列表；`RequiredIf`、`RequiredUnless`、`ExcludeIf`、`ExcludeUnless`、`ProhibitedIf`、`ProhibitedUnless` 等布尔／回调对象按展开后的属性编译。`RuleCondition::lazy` 接收零参数回调，`callback` 接收已有类型化 `Data`。条件在 `set_data`、`set_rules` 后重新运行，不在每次验证时重复执行。
 
+### 命名规则工厂 {#named-rule-factories}
+
+命名工厂和字符串规则使用同一个验证器。`rules::{AcceptedIf, DeclinedIf, MissingIf, MissingUnless, PresentIf, PresentUnless}` 接收字段和单个或列表比较值。`RequiredWith`、`RequiredWithout`、`PresentWith` 等字段列表规则显式接收数组或迭代器；Rust 方法没有可变参数。参数化规则保留逗号和引号边界。`ArrayKeys`、`Contains`、`DoesntContain`、`Regex`、`NotRegex` 也能作为真实类型通过 `.into()` 使用。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleBuilder, RuleSet},
+};
+fn store_factories(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("username", [Rule::required(), Rule::regex("/^[a-z]+$/").into(), Rule::confirmed().custom_field("confirmation")])?
+            .field("terms", [Rule::accepted_if("account_type", ["personal", "business"]).into()])?
+            .field("nickname", [Rule::exclude_with("username").into()])?
+            .field("email", [Rule::required_without(["phone", "mobile"]).into()])?
+            .field("settings", [Rule::present_if("account_type", "business").into()])?
+            .field("profile", [Rule::array_keys(["name", "email"]).into()])?
+            .field("roles", [Rule::contains(["reader"]).into(), Rule::doesnt_contain(["admin"]).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+```
+
+`Confirmed::new().custom_field("confirmation")` 和 `Rule::confirmed().custom_field("confirmation")` 选择自定义确认字段。`CurrentPassword::new().guard("web")` 或 `Rule::current_password(None).guard("web")` 选择具名认证 guard，替换默认选择；需要实际认证 guard 和已配置的哈希器。`Rule::file()` 返回 `File`；`Rule::image_file(false)` 返回 `ImageFile`。ImageFile 复用文件大小、扩展名、编码和尺寸约束；允许 SVG 时显式传入 `true`。
+
 ## 接收数据与验证器的规则 {#accessing-additional-data}
 
 实现 `DataAwareRule::set_data` 接收当前类型化 `Data`，包括上传元数据；实现 `ValidatorAwareRule::set_validator` 接收同一个验证器的句柄。分别通过 `Rule::data_aware`、`Rule::validator_aware` 接入，两种 trait 都实现时使用 `Rule::aware`。稳定 Rust 无法动态发现 `dyn ValidationRule` 上的可选 trait，因此由适配器明确选择 setter；`Rule::custom` 保持普通无状态入口。

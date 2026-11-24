@@ -250,6 +250,179 @@ impl Rule {
     pub fn required_if(condition: impl Into<super::RuleCondition>) -> super::rules::RequiredIf {
         super::rules::RequiredIf::new(condition)
     }
+    pub fn accepted() -> Self {
+        Self::new(Kind::Accepted)
+    }
+    pub fn active_url() -> Self {
+        Self::new(Kind::ActiveUrl)
+    }
+    pub fn declined() -> Self {
+        Self::new(Kind::Declined)
+    }
+    pub fn exclude() -> Self {
+        Self::new(Kind::Exclude)
+    }
+    pub fn filled() -> Self {
+        Self::new(Kind::Filled)
+    }
+    pub fn missing() -> Self {
+        Self::new(Kind::Missing)
+    }
+    pub fn prohibited() -> Self {
+        Self::new(Kind::Prohibited)
+    }
+    pub fn hex_color() -> Self {
+        Self::parse("hex_color").expect("固定内置规则")
+    }
+    pub fn json() -> Self {
+        Self::parse("json").expect("固定内置规则")
+    }
+    pub fn list() -> Self {
+        Self::parse("list").expect("固定内置规则")
+    }
+    pub fn mac_address() -> Self {
+        Self::parse("mac_address").expect("固定内置规则")
+    }
+    pub fn ulid() -> Self {
+        Self::parse("ulid").expect("固定内置规则")
+    }
+    pub fn accepted_if(
+        field: impl Into<String>,
+        values: impl Into<super::rules::ComparisonValues>,
+    ) -> super::rules::AcceptedIf {
+        super::rules::AcceptedIf::new(field, values)
+    }
+    pub fn declined_if(
+        field: impl Into<String>,
+        values: impl Into<super::rules::ComparisonValues>,
+    ) -> super::rules::DeclinedIf {
+        super::rules::DeclinedIf::new(field, values)
+    }
+    pub fn missing_if(
+        field: impl Into<String>,
+        values: impl Into<super::rules::ComparisonValues>,
+    ) -> super::rules::MissingIf {
+        super::rules::MissingIf::new(field, values)
+    }
+    pub fn missing_unless(
+        field: impl Into<String>,
+        values: impl Into<super::rules::ComparisonValues>,
+    ) -> super::rules::MissingUnless {
+        super::rules::MissingUnless::new(field, values)
+    }
+    pub fn present_if(
+        field: impl Into<String>,
+        values: impl Into<super::rules::ComparisonValues>,
+    ) -> super::rules::PresentIf {
+        super::rules::PresentIf::new(field, values)
+    }
+    pub fn present_unless(
+        field: impl Into<String>,
+        values: impl Into<super::rules::ComparisonValues>,
+    ) -> super::rules::PresentUnless {
+        super::rules::PresentUnless::new(field, values)
+    }
+    pub fn exclude_with(field: impl Into<String>) -> super::rules::ExcludeWith {
+        super::rules::ExcludeWith::new(field)
+    }
+    pub fn exclude_without(field: impl Into<String>) -> super::rules::ExcludeWithout {
+        super::rules::ExcludeWithout::new(field)
+    }
+    pub fn in_array(field: impl Into<String>) -> super::rules::InArray {
+        super::rules::InArray::new(field)
+    }
+    pub fn prohibited_if_accepted(field: impl Into<String>) -> super::rules::ProhibitedIfAccepted {
+        super::rules::ProhibitedIfAccepted::new(field)
+    }
+    pub fn prohibited_if_declined(field: impl Into<String>) -> super::rules::ProhibitedIfDeclined {
+        super::rules::ProhibitedIfDeclined::new(field)
+    }
+    pub fn required_if_accepted(field: impl Into<String>) -> super::rules::RequiredIfAccepted {
+        super::rules::RequiredIfAccepted::new(field)
+    }
+    pub fn required_if_declined(field: impl Into<String>) -> super::rules::RequiredIfDeclined {
+        super::rules::RequiredIfDeclined::new(field)
+    }
+    pub fn in_array_keys(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::InArrayKeys {
+        super::rules::InArrayKeys::new(fields)
+    }
+    pub fn missing_with(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::MissingWith {
+        super::rules::MissingWith::new(fields)
+    }
+    pub fn missing_with_all(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::MissingWithAll {
+        super::rules::MissingWithAll::new(fields)
+    }
+    pub fn present_with(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::PresentWith {
+        super::rules::PresentWith::new(fields)
+    }
+    pub fn present_with_all(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::PresentWithAll {
+        super::rules::PresentWithAll::new(fields)
+    }
+    pub fn prohibits(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::Prohibits {
+        super::rules::Prohibits::new(fields)
+    }
+    pub fn required_array_keys(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::RequiredArrayKeys {
+        super::rules::RequiredArrayKeys::new(fields)
+    }
+    pub fn required_with(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::RequiredWith {
+        super::rules::RequiredWith::new(fields)
+    }
+    pub fn required_with_all(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::RequiredWithAll {
+        super::rules::RequiredWithAll::new(fields)
+    }
+    pub fn required_without(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::RequiredWithout {
+        super::rules::RequiredWithout::new(fields)
+    }
+    pub fn required_without_all(
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::RequiredWithoutAll {
+        super::rules::RequiredWithoutAll::new(fields)
+    }
+    pub fn regex(pattern: impl Into<String>) -> super::rules::Regex {
+        super::rules::Regex::new(pattern)
+    }
+    pub fn not_regex(pattern: impl Into<String>) -> super::rules::NotRegex {
+        super::rules::NotRegex::new(pattern)
+    }
+    pub fn array_keys<T: Into<Value>>(
+        values: impl IntoIterator<Item = T>,
+    ) -> super::rules::ArrayKeys {
+        super::rules::ArrayKeys::new(values)
+    }
+    pub fn contains<T: Into<Value>>(values: impl IntoIterator<Item = T>) -> super::rules::Contains {
+        super::rules::Contains::new(values)
+    }
+    pub fn doesnt_contain<T: Into<Value>>(
+        values: impl IntoIterator<Item = T>,
+    ) -> super::rules::DoesntContain {
+        super::rules::DoesntContain::new(values)
+    }
+    pub fn image_file(allow_svg: bool) -> super::rules::ImageFile {
+        super::rules::ImageFile::new(allow_svg)
+    }
+    pub fn file() -> File {
+        File::default()
+    }
     pub fn required() -> Self {
         Self::new(Kind::Required)
     }

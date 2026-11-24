@@ -1,0 +1,2466 @@
+{
+    "cases": [
+        {
+            "name": "accepted",
+            "input": {
+                "value": "yes"
+            },
+            "parameters": null,
+            "declaration": "accepted",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "yes"
+            }
+        },
+        {
+            "name": "accepted",
+            "input": {
+                "value": "no"
+            },
+            "parameters": null,
+            "declaration": "accepted",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.accepted"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "declined",
+            "input": {
+                "value": false
+            },
+            "parameters": null,
+            "declaration": "declined",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": false
+            }
+        },
+        {
+            "name": "declined",
+            "input": {
+                "value": true
+            },
+            "parameters": null,
+            "declaration": "declined",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.declined"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "exclude",
+            "input": {
+                "value": "A"
+            },
+            "parameters": null,
+            "declaration": "exclude",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "filled",
+            "input": {
+                "value": "A"
+            },
+            "parameters": null,
+            "declaration": "filled",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "filled",
+            "input": {
+                "value": ""
+            },
+            "parameters": null,
+            "declaration": "filled",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.filled"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "filled",
+            "input": {},
+            "parameters": null,
+            "declaration": "filled",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "missing",
+            "input": {},
+            "parameters": null,
+            "declaration": "missing",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "missing",
+            "input": {
+                "value": null
+            },
+            "parameters": null,
+            "declaration": "missing",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.missing"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "prohibited",
+            "input": {
+                "value": "A"
+            },
+            "parameters": null,
+            "declaration": "prohibited",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.prohibited"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "prohibited",
+            "input": {
+                "value": ""
+            },
+            "parameters": null,
+            "declaration": "prohibited",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": ""
+            }
+        },
+        {
+            "name": "prohibited",
+            "input": {},
+            "parameters": null,
+            "declaration": "prohibited",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "hex_color",
+            "input": {
+                "value": "#ffaa00"
+            },
+            "parameters": null,
+            "declaration": "hex_color",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "#ffaa00"
+            }
+        },
+        {
+            "name": "hex_color",
+            "input": {
+                "value": "#fff"
+            },
+            "parameters": null,
+            "declaration": "hex_color",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "#fff"
+            }
+        },
+        {
+            "name": "hex_color",
+            "input": {
+                "value": "invalid"
+            },
+            "parameters": null,
+            "declaration": "hex_color",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.hex_color"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "json",
+            "input": {
+                "value": "{\"a\":1}"
+            },
+            "parameters": null,
+            "declaration": "json",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "{\"a\":1}"
+            }
+        },
+        {
+            "name": "json",
+            "input": {
+                "value": "{bad"
+            },
+            "parameters": null,
+            "declaration": "json",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.json"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "list",
+            "input": {
+                "value": [
+                    1,
+                    2
+                ]
+            },
+            "parameters": null,
+            "declaration": "list",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": [
+                    1,
+                    2
+                ]
+            }
+        },
+        {
+            "name": "list",
+            "input": {
+                "value": {
+                    "a": 1
+                }
+            },
+            "parameters": null,
+            "declaration": "list",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.list"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "mac_address",
+            "input": {
+                "value": "00:1A:2B:3C:4D:5E"
+            },
+            "parameters": null,
+            "declaration": "mac_address",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "00:1A:2B:3C:4D:5E"
+            }
+        },
+        {
+            "name": "mac_address",
+            "input": {
+                "value": "invalid"
+            },
+            "parameters": null,
+            "declaration": "mac_address",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.mac_address"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "ulid",
+            "input": {
+                "value": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+            },
+            "parameters": null,
+            "declaration": "ulid",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+            }
+        },
+        {
+            "name": "ulid",
+            "input": {
+                "value": "invalid"
+            },
+            "parameters": null,
+            "declaration": "ulid",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.ulid"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "accepted_if",
+            "input": {
+                "account_type": "personal",
+                "value": "yes"
+            },
+            "parameters": [
+                "accepted_if",
+                "account_type",
+                "personal",
+                "business"
+            ],
+            "declaration": "accepted_if:account_type,personal,business",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "yes"
+            }
+        },
+        {
+            "name": "accepted_if",
+            "input": {
+                "account_type": "business",
+                "value": "no"
+            },
+            "parameters": [
+                "accepted_if",
+                "account_type",
+                "personal",
+                "business"
+            ],
+            "declaration": "accepted_if:account_type,personal,business",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.accepted_if"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "accepted_if",
+            "input": {
+                "account_type": "other"
+            },
+            "parameters": [
+                "accepted_if",
+                "account_type",
+                "personal",
+                "business"
+            ],
+            "declaration": "accepted_if:account_type,personal,business",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "declined_if",
+            "input": {
+                "account_type": "personal",
+                "value": "no"
+            },
+            "parameters": [
+                "declined_if",
+                "account_type",
+                "personal",
+                "business"
+            ],
+            "declaration": "declined_if:account_type,personal,business",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "no"
+            }
+        },
+        {
+            "name": "declined_if",
+            "input": {
+                "account_type": "business",
+                "value": "yes"
+            },
+            "parameters": [
+                "declined_if",
+                "account_type",
+                "personal",
+                "business"
+            ],
+            "declaration": "declined_if:account_type,personal,business",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.declined_if"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "declined_if",
+            "input": {
+                "account_type": "other"
+            },
+            "parameters": [
+                "declined_if",
+                "account_type",
+                "personal",
+                "business"
+            ],
+            "declaration": "declined_if:account_type,personal,business",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "missing_if",
+            "input": {
+                "other": true,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_if",
+                "other",
+                "true"
+            ],
+            "declaration": "missing_if:other,true",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.missing_if"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "missing_if",
+            "input": {
+                "other": false,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_if",
+                "other",
+                "true"
+            ],
+            "declaration": "missing_if:other,true",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "missing_if",
+            "input": {
+                "other": true
+            },
+            "parameters": [
+                "missing_if",
+                "other",
+                "true"
+            ],
+            "declaration": "missing_if:other,true",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "missing_unless",
+            "input": {
+                "other": false,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_unless",
+                "other",
+                "false"
+            ],
+            "declaration": "missing_unless:other,false",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "missing_unless",
+            "input": {
+                "other": true,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_unless",
+                "other",
+                "false"
+            ],
+            "declaration": "missing_unless:other,false",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.missing_unless"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "missing_unless",
+            "input": {},
+            "parameters": [
+                "missing_unless",
+                "other",
+                "false"
+            ],
+            "declaration": "missing_unless:other,false",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "present_if",
+            "input": {
+                "other": null
+            },
+            "parameters": [
+                "present_if",
+                "other",
+                "null"
+            ],
+            "declaration": "present_if:other,null",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.present_if"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "present_if",
+            "input": {
+                "other": null,
+                "value": null
+            },
+            "parameters": [
+                "present_if",
+                "other",
+                "null"
+            ],
+            "declaration": "present_if:other,null",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": null
+            }
+        },
+        {
+            "name": "present_if",
+            "input": {},
+            "parameters": [
+                "present_if",
+                "other",
+                "null"
+            ],
+            "declaration": "present_if:other,null",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.present_if"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "present_unless",
+            "input": {
+                "other": "A"
+            },
+            "parameters": [
+                "present_unless",
+                "other",
+                "A"
+            ],
+            "declaration": "present_unless:other,A",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "present_unless",
+            "input": {
+                "other": "B"
+            },
+            "parameters": [
+                "present_unless",
+                "other",
+                "A"
+            ],
+            "declaration": "present_unless:other,A",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.present_unless"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "present_unless",
+            "input": {
+                "other": "B",
+                "value": null
+            },
+            "parameters": [
+                "present_unless",
+                "other",
+                "A"
+            ],
+            "declaration": "present_unless:other,A",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": null
+            }
+        },
+        {
+            "name": "exclude_with",
+            "input": {
+                "other": "A",
+                "value": "B"
+            },
+            "parameters": [
+                "exclude_with",
+                "other"
+            ],
+            "declaration": "exclude_with:other",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "exclude_with",
+            "input": {
+                "value": "B"
+            },
+            "parameters": [
+                "exclude_with",
+                "other"
+            ],
+            "declaration": "exclude_with:other",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "B"
+            }
+        },
+        {
+            "name": "exclude_without",
+            "input": {
+                "other": null,
+                "value": "B"
+            },
+            "parameters": [
+                "exclude_without",
+                "other"
+            ],
+            "declaration": "exclude_without:other",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "exclude_without",
+            "input": {
+                "other": "A",
+                "value": "B"
+            },
+            "parameters": [
+                "exclude_without",
+                "other"
+            ],
+            "declaration": "exclude_without:other",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "B"
+            }
+        },
+        {
+            "name": "in_array",
+            "input": {
+                "other": [
+                    "A",
+                    "B"
+                ],
+                "value": "A"
+            },
+            "parameters": [
+                "in_array",
+                "other.*"
+            ],
+            "declaration": "in_array:other.*",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "in_array",
+            "input": {
+                "other": [
+                    "A",
+                    "B"
+                ],
+                "value": "C"
+            },
+            "parameters": [
+                "in_array",
+                "other.*"
+            ],
+            "declaration": "in_array:other.*",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.in_array"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "in_array_keys",
+            "input": {
+                "value": {
+                    "first": 1
+                }
+            },
+            "parameters": [
+                "in_array_keys",
+                "first",
+                "second"
+            ],
+            "declaration": "in_array_keys:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": {
+                    "first": 1
+                }
+            }
+        },
+        {
+            "name": "in_array_keys",
+            "input": {
+                "value": {
+                    "third": 1
+                }
+            },
+            "parameters": [
+                "in_array_keys",
+                "first",
+                "second"
+            ],
+            "declaration": "in_array_keys:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.in_array_keys"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "missing_with",
+            "input": {
+                "first": null,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_with",
+                "first",
+                "second"
+            ],
+            "declaration": "missing_with:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.missing_with"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "missing_with",
+            "input": {
+                "value": "A"
+            },
+            "parameters": [
+                "missing_with",
+                "first",
+                "second"
+            ],
+            "declaration": "missing_with:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "missing_with_all",
+            "input": {
+                "first": null,
+                "second": null,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "missing_with_all:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.missing_with_all"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "missing_with_all",
+            "input": {
+                "first": null,
+                "value": "A"
+            },
+            "parameters": [
+                "missing_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "missing_with_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "present_with",
+            "input": {
+                "first": null
+            },
+            "parameters": [
+                "present_with",
+                "first",
+                "second"
+            ],
+            "declaration": "present_with:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.present_with"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "present_with",
+            "input": {
+                "first": null,
+                "value": null
+            },
+            "parameters": [
+                "present_with",
+                "first",
+                "second"
+            ],
+            "declaration": "present_with:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": null
+            }
+        },
+        {
+            "name": "present_with",
+            "input": {},
+            "parameters": [
+                "present_with",
+                "first",
+                "second"
+            ],
+            "declaration": "present_with:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "present_with_all",
+            "input": {
+                "first": null
+            },
+            "parameters": [
+                "present_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "present_with_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "present_with_all",
+            "input": {
+                "first": null,
+                "second": null
+            },
+            "parameters": [
+                "present_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "present_with_all:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.present_with_all"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "present_with_all",
+            "input": {
+                "first": null,
+                "second": null,
+                "value": null
+            },
+            "parameters": [
+                "present_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "present_with_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": null
+            }
+        },
+        {
+            "name": "prohibits",
+            "input": {
+                "first": "A",
+                "value": "B"
+            },
+            "parameters": [
+                "prohibits",
+                "first",
+                "second"
+            ],
+            "declaration": "prohibits:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.prohibits"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "prohibits",
+            "input": {
+                "first": "",
+                "value": "B"
+            },
+            "parameters": [
+                "prohibits",
+                "first",
+                "second"
+            ],
+            "declaration": "prohibits:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "B"
+            }
+        },
+        {
+            "name": "prohibits",
+            "input": {
+                "value": "B"
+            },
+            "parameters": [
+                "prohibits",
+                "first",
+                "second"
+            ],
+            "declaration": "prohibits:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "B"
+            }
+        },
+        {
+            "name": "required_array_keys",
+            "input": {
+                "value": {
+                    "first": 1,
+                    "second": 2
+                }
+            },
+            "parameters": [
+                "required_array_keys",
+                "first",
+                "second"
+            ],
+            "declaration": "required_array_keys:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": {
+                    "first": 1,
+                    "second": 2
+                }
+            }
+        },
+        {
+            "name": "required_array_keys",
+            "input": {
+                "value": {
+                    "first": 1
+                }
+            },
+            "parameters": [
+                "required_array_keys",
+                "first",
+                "second"
+            ],
+            "declaration": "required_array_keys:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_array_keys"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_with",
+            "input": {
+                "first": "A"
+            },
+            "parameters": [
+                "required_with",
+                "first",
+                "second"
+            ],
+            "declaration": "required_with:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_with"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_with",
+            "input": {
+                "first": "A",
+                "value": "B"
+            },
+            "parameters": [
+                "required_with",
+                "first",
+                "second"
+            ],
+            "declaration": "required_with:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "B"
+            }
+        },
+        {
+            "name": "required_with",
+            "input": {},
+            "parameters": [
+                "required_with",
+                "first",
+                "second"
+            ],
+            "declaration": "required_with:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "required_with_all",
+            "input": {
+                "first": "A"
+            },
+            "parameters": [
+                "required_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "required_with_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "required_with_all",
+            "input": {
+                "first": "A",
+                "second": "B"
+            },
+            "parameters": [
+                "required_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "required_with_all:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_with_all"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_with_all",
+            "input": {
+                "first": "A",
+                "second": "B",
+                "value": "C"
+            },
+            "parameters": [
+                "required_with_all",
+                "first",
+                "second"
+            ],
+            "declaration": "required_with_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "C"
+            }
+        },
+        {
+            "name": "required_without",
+            "input": {
+                "first": "A"
+            },
+            "parameters": [
+                "required_without",
+                "first",
+                "second"
+            ],
+            "declaration": "required_without:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_without"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_without",
+            "input": {
+                "first": "A",
+                "second": "B"
+            },
+            "parameters": [
+                "required_without",
+                "first",
+                "second"
+            ],
+            "declaration": "required_without:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "required_without",
+            "input": {
+                "value": "C"
+            },
+            "parameters": [
+                "required_without",
+                "first",
+                "second"
+            ],
+            "declaration": "required_without:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "C"
+            }
+        },
+        {
+            "name": "required_without_all",
+            "input": {
+                "first": "A"
+            },
+            "parameters": [
+                "required_without_all",
+                "first",
+                "second"
+            ],
+            "declaration": "required_without_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "required_without_all",
+            "input": {},
+            "parameters": [
+                "required_without_all",
+                "first",
+                "second"
+            ],
+            "declaration": "required_without_all:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_without_all"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_without_all",
+            "input": {
+                "value": "C"
+            },
+            "parameters": [
+                "required_without_all",
+                "first",
+                "second"
+            ],
+            "declaration": "required_without_all:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "C"
+            }
+        },
+        {
+            "name": "prohibited_if_accepted",
+            "input": {
+                "other": "yes",
+                "value": "A"
+            },
+            "parameters": [
+                "prohibited_if_accepted",
+                "other"
+            ],
+            "declaration": "prohibited_if_accepted:other",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.prohibited_if_accepted"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "prohibited_if_accepted",
+            "input": {
+                "other": "no",
+                "value": "A"
+            },
+            "parameters": [
+                "prohibited_if_accepted",
+                "other"
+            ],
+            "declaration": "prohibited_if_accepted:other",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "prohibited_if_declined",
+            "input": {
+                "other": "no",
+                "value": "A"
+            },
+            "parameters": [
+                "prohibited_if_declined",
+                "other"
+            ],
+            "declaration": "prohibited_if_declined:other",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.prohibited_if_declined"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "prohibited_if_declined",
+            "input": {
+                "other": "yes",
+                "value": "A"
+            },
+            "parameters": [
+                "prohibited_if_declined",
+                "other"
+            ],
+            "declaration": "prohibited_if_declined:other",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "required_if_accepted",
+            "input": {
+                "other": "yes"
+            },
+            "parameters": [
+                "required_if_accepted",
+                "other"
+            ],
+            "declaration": "required_if_accepted:other",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_if_accepted"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_if_accepted",
+            "input": {
+                "other": "yes",
+                "value": "A"
+            },
+            "parameters": [
+                "required_if_accepted",
+                "other"
+            ],
+            "declaration": "required_if_accepted:other",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "required_if_accepted",
+            "input": {
+                "other": "no"
+            },
+            "parameters": [
+                "required_if_accepted",
+                "other"
+            ],
+            "declaration": "required_if_accepted:other",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "required_if_declined",
+            "input": {
+                "other": "no"
+            },
+            "parameters": [
+                "required_if_declined",
+                "other"
+            ],
+            "declaration": "required_if_declined:other",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.required_if_declined"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "required_if_declined",
+            "input": {
+                "other": "no",
+                "value": "A"
+            },
+            "parameters": [
+                "required_if_declined",
+                "other"
+            ],
+            "declaration": "required_if_declined:other",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "required_if_declined",
+            "input": {
+                "other": "yes"
+            },
+            "parameters": [
+                "required_if_declined",
+                "other"
+            ],
+            "declaration": "required_if_declined:other",
+            "passes": true,
+            "errors": [],
+            "validated": []
+        },
+        {
+            "name": "regex",
+            "input": {
+                "value": "a,c"
+            },
+            "parameters": null,
+            "declaration": "regex:/^(a|b),c$/",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "a,c"
+            }
+        },
+        {
+            "name": "regex",
+            "input": {
+                "value": "b,c"
+            },
+            "parameters": null,
+            "declaration": "regex:/^(a|b),c$/",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "b,c"
+            }
+        },
+        {
+            "name": "regex",
+            "input": {
+                "value": "c"
+            },
+            "parameters": null,
+            "declaration": "regex:/^(a|b),c$/",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.regex"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "not_regex",
+            "input": {
+                "value": "test-A"
+            },
+            "parameters": null,
+            "declaration": "not_regex:/^test-/i",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.not_regex"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "not_regex",
+            "input": {
+                "value": "OK"
+            },
+            "parameters": null,
+            "declaration": "not_regex:/^test-/i",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "OK"
+            }
+        },
+        {
+            "name": "array_keys",
+            "input": {
+                "value": {
+                    "first": 1
+                }
+            },
+            "parameters": null,
+            "declaration": "array_keys:first,second",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": {
+                    "first": 1
+                }
+            }
+        },
+        {
+            "name": "array_keys",
+            "input": {
+                "value": {
+                    "first": 1,
+                    "extra": 2
+                }
+            },
+            "parameters": null,
+            "declaration": "array_keys:first,second",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.array_keys"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "contains",
+            "input": {
+                "value": [
+                    "a,b",
+                    "quoted\"value",
+                    "extra"
+                ]
+            },
+            "parameters": null,
+            "declaration": "contains:\"a,b\",\"quoted\"\"value\"",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": [
+                    "a,b",
+                    "quoted\"value",
+                    "extra"
+                ]
+            }
+        },
+        {
+            "name": "contains",
+            "input": {
+                "value": [
+                    "a,b"
+                ]
+            },
+            "parameters": null,
+            "declaration": "contains:\"a,b\",\"quoted\"\"value\"",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.contains"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "doesnt_contain",
+            "input": {
+                "value": [
+                    "other"
+                ]
+            },
+            "parameters": null,
+            "declaration": "doesnt_contain:\"a,b\",\"quoted\"\"value\"",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": [
+                    "other"
+                ]
+            }
+        },
+        {
+            "name": "doesnt_contain",
+            "input": {
+                "value": [
+                    "a,b"
+                ]
+            },
+            "parameters": null,
+            "declaration": "doesnt_contain:\"a,b\",\"quoted\"\"value\"",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.doesnt_contain"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "confirmed",
+            "input": {
+                "value": "A",
+                "repeat_value": "A"
+            },
+            "parameters": [
+                "confirmed",
+                "repeat_value"
+            ],
+            "declaration": "confirmed:repeat_value",
+            "passes": true,
+            "errors": [],
+            "validated": {
+                "value": "A"
+            }
+        },
+        {
+            "name": "confirmed",
+            "input": {
+                "value": "A",
+                "repeat_value": "B"
+            },
+            "parameters": [
+                "confirmed",
+                "repeat_value"
+            ],
+            "declaration": "confirmed:repeat_value",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.confirmed"
+                ]
+            },
+            "validated": null
+        },
+        {
+            "name": "confirmed",
+            "input": {
+                "value": "A",
+                "value_confirmation": "A"
+            },
+            "parameters": [
+                "confirmed",
+                "repeat_value"
+            ],
+            "declaration": "confirmed:repeat_value",
+            "passes": false,
+            "errors": {
+                "value": [
+                    "validation.confirmed"
+                ]
+            },
+            "validated": null
+        }
+    ],
+    "parameters": [
+        {
+            "method": "acceptedIf",
+            "value": true,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "true"
+            ],
+            "declaration": "accepted_if:other,true"
+        },
+        {
+            "method": "declinedIf",
+            "value": true,
+            "parameters": [
+                "declined_if",
+                "other",
+                "true"
+            ],
+            "declaration": "declined_if:other,true"
+        },
+        {
+            "method": "missingIf",
+            "value": true,
+            "parameters": [
+                "missing_if",
+                "other",
+                "true"
+            ],
+            "declaration": "missing_if:other,true"
+        },
+        {
+            "method": "missingUnless",
+            "value": true,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "true"
+            ],
+            "declaration": "missing_unless:other,true"
+        },
+        {
+            "method": "presentIf",
+            "value": true,
+            "parameters": [
+                "present_if",
+                "other",
+                "true"
+            ],
+            "declaration": "present_if:other,true"
+        },
+        {
+            "method": "presentUnless",
+            "value": true,
+            "parameters": [
+                "present_unless",
+                "other",
+                "true"
+            ],
+            "declaration": "present_unless:other,true"
+        },
+        {
+            "method": "acceptedIf",
+            "value": false,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "false"
+            ],
+            "declaration": "accepted_if:other,false"
+        },
+        {
+            "method": "declinedIf",
+            "value": false,
+            "parameters": [
+                "declined_if",
+                "other",
+                "false"
+            ],
+            "declaration": "declined_if:other,false"
+        },
+        {
+            "method": "missingIf",
+            "value": false,
+            "parameters": [
+                "missing_if",
+                "other",
+                "false"
+            ],
+            "declaration": "missing_if:other,false"
+        },
+        {
+            "method": "missingUnless",
+            "value": false,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "false"
+            ],
+            "declaration": "missing_unless:other,false"
+        },
+        {
+            "method": "presentIf",
+            "value": false,
+            "parameters": [
+                "present_if",
+                "other",
+                "false"
+            ],
+            "declaration": "present_if:other,false"
+        },
+        {
+            "method": "presentUnless",
+            "value": false,
+            "parameters": [
+                "present_unless",
+                "other",
+                "false"
+            ],
+            "declaration": "present_unless:other,false"
+        },
+        {
+            "method": "acceptedIf",
+            "value": null,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "null"
+            ],
+            "declaration": "accepted_if:other,null"
+        },
+        {
+            "method": "declinedIf",
+            "value": null,
+            "parameters": [
+                "declined_if",
+                "other",
+                "null"
+            ],
+            "declaration": "declined_if:other,null"
+        },
+        {
+            "method": "missingIf",
+            "value": null,
+            "parameters": [
+                "missing_if",
+                "other",
+                "null"
+            ],
+            "declaration": "missing_if:other,null"
+        },
+        {
+            "method": "missingUnless",
+            "value": null,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "null"
+            ],
+            "declaration": "missing_unless:other,null"
+        },
+        {
+            "method": "presentIf",
+            "value": null,
+            "parameters": [
+                "present_if",
+                "other",
+                "null"
+            ],
+            "declaration": "present_if:other,null"
+        },
+        {
+            "method": "presentUnless",
+            "value": null,
+            "parameters": [
+                "present_unless",
+                "other",
+                "null"
+            ],
+            "declaration": "present_unless:other,null"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 1,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "1"
+            ],
+            "declaration": "accepted_if:other,1"
+        },
+        {
+            "method": "declinedIf",
+            "value": 1,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1"
+            ],
+            "declaration": "declined_if:other,1"
+        },
+        {
+            "method": "missingIf",
+            "value": 1,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1"
+            ],
+            "declaration": "missing_if:other,1"
+        },
+        {
+            "method": "missingUnless",
+            "value": 1,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1"
+            ],
+            "declaration": "missing_unless:other,1"
+        },
+        {
+            "method": "presentIf",
+            "value": 1,
+            "parameters": [
+                "present_if",
+                "other",
+                "1"
+            ],
+            "declaration": "present_if:other,1"
+        },
+        {
+            "method": "presentUnless",
+            "value": 1,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1"
+            ],
+            "declaration": "present_unless:other,1"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 1.0,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "1"
+            ],
+            "declaration": "accepted_if:other,1"
+        },
+        {
+            "method": "declinedIf",
+            "value": 1.0,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1"
+            ],
+            "declaration": "declined_if:other,1"
+        },
+        {
+            "method": "missingIf",
+            "value": 1.0,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1"
+            ],
+            "declaration": "missing_if:other,1"
+        },
+        {
+            "method": "missingUnless",
+            "value": 1.0,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1"
+            ],
+            "declaration": "missing_unless:other,1"
+        },
+        {
+            "method": "presentIf",
+            "value": 1.0,
+            "parameters": [
+                "present_if",
+                "other",
+                "1"
+            ],
+            "declaration": "present_if:other,1"
+        },
+        {
+            "method": "presentUnless",
+            "value": 1.0,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1"
+            ],
+            "declaration": "present_unless:other,1"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 1.0e-5,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "1.0e-5"
+            ],
+            "declaration": "accepted_if:other,1.0e-5"
+        },
+        {
+            "method": "declinedIf",
+            "value": 1.0e-5,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1.0E-5"
+            ],
+            "declaration": "declined_if:other,1.0E-5"
+        },
+        {
+            "method": "missingIf",
+            "value": 1.0e-5,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1.0E-5"
+            ],
+            "declaration": "missing_if:other,1.0E-5"
+        },
+        {
+            "method": "missingUnless",
+            "value": 1.0e-5,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1.0E-5"
+            ],
+            "declaration": "missing_unless:other,1.0E-5"
+        },
+        {
+            "method": "presentIf",
+            "value": 1.0e-5,
+            "parameters": [
+                "present_if",
+                "other",
+                "1.0E-5"
+            ],
+            "declaration": "present_if:other,1.0E-5"
+        },
+        {
+            "method": "presentUnless",
+            "value": 1.0e-5,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1.0E-5"
+            ],
+            "declaration": "present_unless:other,1.0E-5"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 10000000000000000.0,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "10000000000000000"
+            ],
+            "declaration": "accepted_if:other,10000000000000000"
+        },
+        {
+            "method": "declinedIf",
+            "value": 10000000000000000.0,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1.0E+16"
+            ],
+            "declaration": "declined_if:other,1.0E+16"
+        },
+        {
+            "method": "missingIf",
+            "value": 10000000000000000.0,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1.0E+16"
+            ],
+            "declaration": "missing_if:other,1.0E+16"
+        },
+        {
+            "method": "missingUnless",
+            "value": 10000000000000000.0,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1.0E+16"
+            ],
+            "declaration": "missing_unless:other,1.0E+16"
+        },
+        {
+            "method": "presentIf",
+            "value": 10000000000000000.0,
+            "parameters": [
+                "present_if",
+                "other",
+                "1.0E+16"
+            ],
+            "declaration": "present_if:other,1.0E+16"
+        },
+        {
+            "method": "presentUnless",
+            "value": 10000000000000000.0,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1.0E+16"
+            ],
+            "declaration": "present_unless:other,1.0E+16"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 1.0e+17,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "1.0e+17"
+            ],
+            "declaration": "accepted_if:other,1.0e+17"
+        },
+        {
+            "method": "declinedIf",
+            "value": 1.0e+17,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1.0E+17"
+            ],
+            "declaration": "declined_if:other,1.0E+17"
+        },
+        {
+            "method": "missingIf",
+            "value": 1.0e+17,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1.0E+17"
+            ],
+            "declaration": "missing_if:other,1.0E+17"
+        },
+        {
+            "method": "missingUnless",
+            "value": 1.0e+17,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1.0E+17"
+            ],
+            "declaration": "missing_unless:other,1.0E+17"
+        },
+        {
+            "method": "presentIf",
+            "value": 1.0e+17,
+            "parameters": [
+                "present_if",
+                "other",
+                "1.0E+17"
+            ],
+            "declaration": "present_if:other,1.0E+17"
+        },
+        {
+            "method": "presentUnless",
+            "value": 1.0e+17,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1.0E+17"
+            ],
+            "declaration": "present_unless:other,1.0E+17"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 1.0e+20,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "1.0e+20"
+            ],
+            "declaration": "accepted_if:other,1.0e+20"
+        },
+        {
+            "method": "declinedIf",
+            "value": 1.0e+20,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1.0E+20"
+            ],
+            "declaration": "declined_if:other,1.0E+20"
+        },
+        {
+            "method": "missingIf",
+            "value": 1.0e+20,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1.0E+20"
+            ],
+            "declaration": "missing_if:other,1.0E+20"
+        },
+        {
+            "method": "missingUnless",
+            "value": 1.0e+20,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1.0E+20"
+            ],
+            "declaration": "missing_unless:other,1.0E+20"
+        },
+        {
+            "method": "presentIf",
+            "value": 1.0e+20,
+            "parameters": [
+                "present_if",
+                "other",
+                "1.0E+20"
+            ],
+            "declaration": "present_if:other,1.0E+20"
+        },
+        {
+            "method": "presentUnless",
+            "value": 1.0e+20,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1.0E+20"
+            ],
+            "declaration": "present_unless:other,1.0E+20"
+        },
+        {
+            "method": "acceptedIf",
+            "value": 1.2345678901234567,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "1.2345678901234567"
+            ],
+            "declaration": "accepted_if:other,1.2345678901234567"
+        },
+        {
+            "method": "declinedIf",
+            "value": 1.2345678901234567,
+            "parameters": [
+                "declined_if",
+                "other",
+                "1.2345678901235"
+            ],
+            "declaration": "declined_if:other,1.2345678901235"
+        },
+        {
+            "method": "missingIf",
+            "value": 1.2345678901234567,
+            "parameters": [
+                "missing_if",
+                "other",
+                "1.2345678901235"
+            ],
+            "declaration": "missing_if:other,1.2345678901235"
+        },
+        {
+            "method": "missingUnless",
+            "value": 1.2345678901234567,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "1.2345678901235"
+            ],
+            "declaration": "missing_unless:other,1.2345678901235"
+        },
+        {
+            "method": "presentIf",
+            "value": 1.2345678901234567,
+            "parameters": [
+                "present_if",
+                "other",
+                "1.2345678901235"
+            ],
+            "declaration": "present_if:other,1.2345678901235"
+        },
+        {
+            "method": "presentUnless",
+            "value": 1.2345678901234567,
+            "parameters": [
+                "present_unless",
+                "other",
+                "1.2345678901235"
+            ],
+            "declaration": "present_unless:other,1.2345678901235"
+        },
+        {
+            "method": "acceptedIf",
+            "value": -0.0,
+            "parameters": [
+                "accepted_if",
+                "other",
+                "-0"
+            ],
+            "declaration": "accepted_if:other,-0"
+        },
+        {
+            "method": "declinedIf",
+            "value": -0.0,
+            "parameters": [
+                "declined_if",
+                "other",
+                "-0"
+            ],
+            "declaration": "declined_if:other,-0"
+        },
+        {
+            "method": "missingIf",
+            "value": -0.0,
+            "parameters": [
+                "missing_if",
+                "other",
+                "-0"
+            ],
+            "declaration": "missing_if:other,-0"
+        },
+        {
+            "method": "missingUnless",
+            "value": -0.0,
+            "parameters": [
+                "missing_unless",
+                "other",
+                "-0"
+            ],
+            "declaration": "missing_unless:other,-0"
+        },
+        {
+            "method": "presentIf",
+            "value": -0.0,
+            "parameters": [
+                "present_if",
+                "other",
+                "-0"
+            ],
+            "declaration": "present_if:other,-0"
+        },
+        {
+            "method": "presentUnless",
+            "value": -0.0,
+            "parameters": [
+                "present_unless",
+                "other",
+                "-0"
+            ],
+            "declaration": "present_unless:other,-0"
+        },
+        {
+            "method": "acceptedIf",
+            "value": "a,b",
+            "parameters": [
+                "accepted_if",
+                "other",
+                "a,b"
+            ],
+            "declaration": "accepted_if:other,\"a,b\""
+        },
+        {
+            "method": "declinedIf",
+            "value": "a,b",
+            "parameters": [
+                "declined_if",
+                "other",
+                "a,b"
+            ],
+            "declaration": "declined_if:other,\"a,b\""
+        },
+        {
+            "method": "missingIf",
+            "value": "a,b",
+            "parameters": [
+                "missing_if",
+                "other",
+                "a,b"
+            ],
+            "declaration": "missing_if:other,\"a,b\""
+        },
+        {
+            "method": "missingUnless",
+            "value": "a,b",
+            "parameters": [
+                "missing_unless",
+                "other",
+                "a,b"
+            ],
+            "declaration": "missing_unless:other,\"a,b\""
+        },
+        {
+            "method": "presentIf",
+            "value": "a,b",
+            "parameters": [
+                "present_if",
+                "other",
+                "a,b"
+            ],
+            "declaration": "present_if:other,\"a,b\""
+        },
+        {
+            "method": "presentUnless",
+            "value": "a,b",
+            "parameters": [
+                "present_unless",
+                "other",
+                "a,b"
+            ],
+            "declaration": "present_unless:other,\"a,b\""
+        },
+        {
+            "method": "acceptedIf",
+            "value": "quoted\"value",
+            "parameters": [
+                "accepted_if",
+                "other",
+                "quoted\"value"
+            ],
+            "declaration": "accepted_if:other,\"quoted\"\"value\""
+        },
+        {
+            "method": "declinedIf",
+            "value": "quoted\"value",
+            "parameters": [
+                "declined_if",
+                "other",
+                "quoted\"value"
+            ],
+            "declaration": "declined_if:other,\"quoted\"\"value\""
+        },
+        {
+            "method": "missingIf",
+            "value": "quoted\"value",
+            "parameters": [
+                "missing_if",
+                "other",
+                "quoted\"value"
+            ],
+            "declaration": "missing_if:other,\"quoted\"\"value\""
+        },
+        {
+            "method": "missingUnless",
+            "value": "quoted\"value",
+            "parameters": [
+                "missing_unless",
+                "other",
+                "quoted\"value"
+            ],
+            "declaration": "missing_unless:other,\"quoted\"\"value\""
+        },
+        {
+            "method": "presentIf",
+            "value": "quoted\"value",
+            "parameters": [
+                "present_if",
+                "other",
+                "quoted\"value"
+            ],
+            "declaration": "present_if:other,\"quoted\"\"value\""
+        },
+        {
+            "method": "presentUnless",
+            "value": "quoted\"value",
+            "parameters": [
+                "present_unless",
+                "other",
+                "quoted\"value"
+            ],
+            "declaration": "present_unless:other,\"quoted\"\"value\""
+        }
+    ]
+}

@@ -15,7 +15,7 @@ use openrust::{
     hashing::HashOptions,
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::{Route, Validator},
-    validation::{Data, Factory, RuleSet},
+    validation::{Data, Factory, Rule, RuleBuilder, RuleSet, rules::CurrentPassword},
 };
 use serde_json::{Value, json};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -56,6 +56,15 @@ impl FormRequest for CurrentForm {
         &self,
         request: &Request,
     ) -> openrust::validation::ValidationResult<RuleSet> {
+        if let Some(builder) = request.header("x-builder").unwrap() {
+            let guard = request.header("x-guard").unwrap().unwrap_or("web");
+            let rule = match builder {
+                "typed" => CurrentPassword::new().guard(guard).into(),
+                "trait" => Rule::current_password(None).guard(guard),
+                _ => unreachable!(),
+            };
+            return RuleSet::new().field("current_password", [rule]);
+        }
         RuleSet::parse([(
             "current_password",
             request
@@ -232,6 +241,21 @@ async fn current_password_matches_php_with_real_named_guards_and_hasher() {
         )
         .await;
         assert_eq!(actual, status);
+    }
+    for builder in ["typed", "trait"] {
+        for (guard, password, expected) in [
+            ("web", "correct-password", 200),
+            ("web", "bad", 422),
+            ("admin", "correct-password", 422),
+        ] {
+            let (actual, body) = send(
+                address,
+                json!({"current_password":password}),
+                &format!("X-Builder: {builder}\r\nX-Default: admin\r\nX-Guard: {guard}\r\n"),
+            )
+            .await;
+            assert_eq!(actual, expected, "{builder}/{guard}: {body}");
+        }
     }
     server.abort();
     let _ = server.await;

@@ -53,7 +53,7 @@ impl From<NotIn> for Rule {
     }
 }
 
-fn scalar(value: serde_json::Value) -> String {
+pub(super) fn scalar(value: serde_json::Value) -> String {
     if let serde_json::Value::Number(number) = &value
         && number.is_f64()
     {

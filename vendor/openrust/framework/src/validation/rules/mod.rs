@@ -43,3 +43,16 @@ mod conditional;
 pub use conditional::{
     ExcludeIf, ExcludeUnless, ProhibitedIf, ProhibitedUnless, RequiredIf, RequiredUnless,
 };
+
+mod named;
+pub use named::{
+    AcceptedIf, ArrayKeys, ComparisonValues, Confirmed, Contains, CurrentPassword, DeclinedIf,
+    DoesntContain, ExcludeWith, ExcludeWithout, InArray, InArrayKeys, MissingIf, MissingUnless,
+    MissingWith, MissingWithAll, NotRegex, PresentIf, PresentUnless, PresentWith, PresentWithAll,
+    ProhibitedIfAccepted, ProhibitedIfDeclined, Prohibits, Regex, RequiredArrayKeys,
+    RequiredIfAccepted, RequiredIfDeclined, RequiredWith, RequiredWithAll, RequiredWithout,
+    RequiredWithoutAll,
+};
+
+mod image_file;
+pub use image_file::ImageFile;

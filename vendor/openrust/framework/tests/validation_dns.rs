@@ -12,7 +12,7 @@ use hickory_resolver::{
 };
 use openrust::{
     contracts::validation::{Factory as _, Validator as _},
-    validation::{Data, Factory, RuleSet, Validator},
+    validation::{Data, Factory, Rule, RuleSet, Validator},
 };
 use serde_json::json;
 use std::{
@@ -27,7 +27,7 @@ fn validator(url: &str, resolver: TokioResolver) -> Validator {
     let mut validator = Factory::default()
         .make(
             Data::new(json!({"value":url})).unwrap(),
-            RuleSet::parse([("value", "active_url")]).unwrap(),
+            RuleSet::new().field("value", [Rule::active_url()]).unwrap(),
             Default::default(),
             Default::default(),
         )

@@ -483,7 +483,7 @@
         {
           "anchor": "rule-builders",
           "title": "Rule Builders",
-          "status": "partially_verified_remaining_factories",
+          "status": "partially_verified_remaining_email_password_database",
           "contract": [
             "已验StringRule/ArrayRule/Numeric/Date及参数化和条件对象；其余基础工厂、Confirmed/CurrentPassword等继续核对"
           ],
@@ -494,23 +494,35 @@
         {
           "anchor": "rule-accepted",
           "title": "accepted",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-accepted-if",
           "title": "accepted_if:anotherfield,value,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-active-url",
           "title": "active_url",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-after",
@@ -580,9 +592,13 @@
         {
           "anchor": "rule-array-keys",
           "title": "array_keys:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-ascii",
@@ -637,30 +653,46 @@
         {
           "anchor": "rule-confirmed",
           "title": "confirmed",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-contains",
           "title": "contains:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-doesnt-contain",
           "title": "doesnt_contain:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-current-password",
           "title": "current_password",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-date",
@@ -709,16 +741,24 @@
         {
           "anchor": "rule-declined",
           "title": "declined",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-declined-if",
           "title": "declined_if:anotherfield,value,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-different",
@@ -818,9 +858,13 @@
         {
           "anchor": "rule-exclude",
           "title": "exclude",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-exclude-if",
@@ -847,16 +891,24 @@
         {
           "anchor": "rule-exclude-with",
           "title": "exclude_with:_anotherfield_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-exclude-without",
           "title": "exclude_without:_anotherfield_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-exists",
@@ -896,9 +948,13 @@
         {
           "anchor": "rule-filled",
           "title": "filled",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-gt",
@@ -917,9 +973,13 @@
         {
           "anchor": "rule-hex-color",
           "title": "hex_color",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-image",
@@ -942,16 +1002,24 @@
         {
           "anchor": "rule-in-array",
           "title": "in_array:_anotherfield_.*",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-in-array-keys",
           "title": "in_array_keys:_value_.*",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-integer",
@@ -996,9 +1064,13 @@
         {
           "anchor": "rule-json",
           "title": "json",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-lt",
@@ -1024,16 +1096,24 @@
         {
           "anchor": "rule-list",
           "title": "list",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-mac",
           "title": "mac_address",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-max",
@@ -1106,37 +1186,57 @@
         {
           "anchor": "rule-missing",
           "title": "missing",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-missing-if",
           "title": "missing_if:_anotherfield_,_value_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-missing-unless",
           "title": "missing_unless:_anotherfield_,_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-missing-with",
           "title": "missing_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-missing-with-all",
           "title": "missing_with_all:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-not-in",
@@ -1152,9 +1252,13 @@
         {
           "anchor": "rule-not-regex",
           "title": "not_regex:_pattern_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-nullable",
@@ -1184,37 +1288,57 @@
         {
           "anchor": "rule-present-if",
           "title": "present_if:_anotherfield_,_value_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-present-unless",
           "title": "present_unless:_anotherfield_,_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-present-with",
           "title": "present_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-present-with-all",
           "title": "present_with_all:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-prohibited",
           "title": "prohibited",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-prohibited-if",
@@ -1230,16 +1354,24 @@
         {
           "anchor": "rule-prohibited-if-accepted",
           "title": "prohibited_if_accepted:_anotherfield_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-prohibited-if-declined",
           "title": "prohibited_if_declined:_anotherfield_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-prohibited-unless",
@@ -1255,16 +1387,24 @@
         {
           "anchor": "rule-prohibits",
           "title": "prohibits:_anotherfield_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-regex",
           "title": "regex:_pattern_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required",
@@ -1287,16 +1427,24 @@
         {
           "anchor": "rule-required-if-accepted",
           "title": "required_if_accepted:_anotherfield_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required-if-declined",
           "title": "required_if_declined:_anotherfield_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required-unless",
@@ -1312,37 +1460,57 @@
         {
           "anchor": "rule-required-with",
           "title": "required_with:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required-with-all",
           "title": "required_with_all:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required-without",
           "title": "required_without:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required-without-all",
           "title": "required_without_all:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-required-array-keys",
           "title": "required_array_keys:_foo_,_bar_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-same",
@@ -1415,9 +1583,13 @@
         {
           "anchor": "rule-ulid",
           "title": "ulid",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "字符串／专用命名工厂及相应类型入口，保持原验证管线；条件参数与认证／DNS消费者见第十六组"
+          ],
+          "evidence": [
+            "README.md#第十六组命名工厂确认字段与认证-guard2026-11-24"
+          ]
         },
         {
           "anchor": "rule-uuid",
