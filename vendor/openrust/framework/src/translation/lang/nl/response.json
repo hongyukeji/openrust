@@ -1,0 +1,15 @@
+{
+    "ok": "Geslaagd",
+    "bad_request": "Ongeldig verzoek.",
+    "unauthenticated": "Authenticatie vereist.",
+    "forbidden": "Toegang geweigerd.",
+    "not_found": "Bron niet gevonden.",
+    "method_not_allowed": "Methode niet toegestaan.",
+    "conflict": "De bewerking is in strijd met de huidige status.",
+    "validation_failed": "De ingediende gegevens zijn ongeldig.",
+    "rate_limited": "Te veel verzoeken. Probeer het later opnieuw.",
+    "internal_error": "Er is een interne serverfout opgetreden.",
+    "service_unavailable": "Dienst tijdelijk niet beschikbaar.",
+    "csrf_token_mismatch": "De sessie is verlopen. Probeer het opnieuw.",
+    "invalid_signature": "Ongeldige handtekening."
+}

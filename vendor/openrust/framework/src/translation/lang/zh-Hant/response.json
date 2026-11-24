@@ -1,0 +1,15 @@
+{
+    "ok": "成功",
+    "bad_request": "請求無效。",
+    "unauthenticated": "請先登入。",
+    "forbidden": "沒有存取權限。",
+    "not_found": "資源不存在。",
+    "method_not_allowed": "不支援此請求方法。",
+    "conflict": "操作與目前狀態衝突。",
+    "validation_failed": "提交的資料有誤。",
+    "rate_limited": "請求過於頻繁，請稍後重試。",
+    "internal_error": "伺服器內部錯誤。",
+    "service_unavailable": "服務暫時無法使用。",
+    "csrf_token_mismatch": "工作階段已過期，請重試。",
+    "invalid_signature": "簽章無效。"
+}

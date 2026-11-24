@@ -1,0 +1,15 @@
+{
+    "ok": "Thành công",
+    "bad_request": "Yêu cầu không hợp lệ.",
+    "unauthenticated": "Cần xác thực.",
+    "forbidden": "Truy cập bị từ chối.",
+    "not_found": "Không tìm thấy tài nguyên.",
+    "method_not_allowed": "Phương thức không được phép.",
+    "conflict": "Thao tác xung đột với trạng thái hiện tại.",
+    "validation_failed": "Dữ liệu đã gửi không hợp lệ.",
+    "rate_limited": "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
+    "internal_error": "Đã xảy ra lỗi máy chủ nội bộ.",
+    "service_unavailable": "Dịch vụ tạm thời không khả dụng.",
+    "csrf_token_mismatch": "Phiên đã hết hạn. Vui lòng thử lại.",
+    "invalid_signature": "Chữ ký không hợp lệ."
+}

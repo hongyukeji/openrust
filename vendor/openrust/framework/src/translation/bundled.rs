@@ -303,6 +303,30 @@ pub(crate) const CATALOGS: &[(&str, &str)] = &[
         "zh-Hant/welcome.json",
         include_str!("lang/zh-Hant/welcome.json"),
     ),
+    ("en/response.json", include_str!("lang/en/response.json")),
+    (
+        "zh-Hans/response.json",
+        include_str!("lang/zh-Hans/response.json"),
+    ),
+    (
+        "zh-Hant/response.json",
+        include_str!("lang/zh-Hant/response.json"),
+    ),
+    ("de/response.json", include_str!("lang/de/response.json")),
+    ("es/response.json", include_str!("lang/es/response.json")),
+    ("fr/response.json", include_str!("lang/fr/response.json")),
+    ("it/response.json", include_str!("lang/it/response.json")),
+    ("pt/response.json", include_str!("lang/pt/response.json")),
+    ("nl/response.json", include_str!("lang/nl/response.json")),
+    ("ru/response.json", include_str!("lang/ru/response.json")),
+    ("hi/response.json", include_str!("lang/hi/response.json")),
+    ("id/response.json", include_str!("lang/id/response.json")),
+    ("tr/response.json", include_str!("lang/tr/response.json")),
+    ("vi/response.json", include_str!("lang/vi/response.json")),
+    ("ja/response.json", include_str!("lang/ja/response.json")),
+    ("ko/response.json", include_str!("lang/ko/response.json")),
+    ("ar/response.json", include_str!("lang/ar/response.json")),
+    ("th/response.json", include_str!("lang/th/response.json")),
 ];
 
 pub(super) fn load(locale: &str, group: &str) -> TranslationResult<Lines> {

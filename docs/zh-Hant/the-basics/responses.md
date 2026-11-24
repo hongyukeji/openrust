@@ -214,7 +214,11 @@ fn localized_response() -> ApiResponse<u64> {
 
 ### 自訂欄位 {#business-response-fields}
 
-`with_field` 設定頂層欄位，`additional` 批次淺合併，`without_field` 移除欄位。操作依鏈式呼叫順序執行，後呼叫覆寫先呼叫；巢狀物件整體替換。可以覆寫標準欄位，因此應由應用程式統一約束公開協定。加入名為 `status` 的 JSON 欄位不會改變 HTTP 狀態。
+`with_field` 從回應根開始設定點路徑，`without_field` 刪除對應欄位；支援巢狀物件及陣列索引。`additional` 淺合併字面的頂級鍵，可傳 JSON Map 或鍵值對陣列。操作按呼叫順序生效，後者覆蓋前者；JSON 欄位修改不會改變 `with_status` 設定的 HTTP 狀態。
+
+缺失路徑會自動建立，既有 null 可作為空佔位；經過非 null 純量時回傳序列化錯誤，不靜默覆蓋父資料。刪除缺失路徑不報錯。沿用既有 `Arr` 規則：`*` 是字面鍵，連續數字索引保持陣列，跨索引新增或刪除中間元素會保留鍵並呈現為 JSON 物件，不自動重排。含點號的字面鍵使用片段陣列，例如 `["data", "user", "first.name"]`。字串刪除路徑優先刪除完整的頂級字面鍵，與 `Arr::forget` 相同。
+
+欄位操作在預設空值省略及訊息翻譯之後執行，因此可以顯式加入 `data: null`、覆蓋 `code` 或刪除 `message`。應用應自行維持自訂後公開協定的一致性。
 
 下列回應回傳 HTTP 200：
 
@@ -241,6 +245,26 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
 }
 ```
 
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn customized() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({
+        "user": {"name": "Before", "password": "private"},
+        "items": [{"id": 1}]
+    }))
+    .additional([("request_id", json!("req-123"))])
+    .with_field("data.user.name", "Ada")
+    .with_field("data.items.0.selected", true)
+    .without_field("data.user.password")
+    .with_field(["data", "user", "first.name"], "Ada")
+}
+```
+
+### 應用資訊介面 {#api-application-info}
+
+根應用透過 `ApiController::index` 提供公開的 `GET /api`。名稱及版本讀取 `app.name`、`app.version`，可透過 `APP_NAME`、`APP_VERSION` 設定；位址遵循 `API_PREFIX`，例如 `api/admin` 對應 `/api/admin`。無需認證擴充或資料庫。預設訊息使用請求語言，英文為 `Success`，簡體與繁體中文為 `成功`。框架隨附既有 18 種預設語言的回應詞條，`lang:publish` 會發佈 `response.json` 供應用覆蓋。自訂鍵缺失時遵循既有語言回退；翻譯來源格式錯誤時回傳安全的服務例外，不把翻譯診斷偽裝為成功訊息。
 
 ## 重新導向回應
 

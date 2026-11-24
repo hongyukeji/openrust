@@ -154,7 +154,7 @@ pub(crate) fn write(
     *target = packed(items);
 }
 
-pub(super) fn forget(target: &mut Value, parts: &[&str], expand_wildcards: bool) {
+pub(crate) fn forget(target: &mut Value, parts: &[&str], expand_wildcards: bool) {
     let Some((&key, rest)) = parts.split_first() else {
         return;
     };

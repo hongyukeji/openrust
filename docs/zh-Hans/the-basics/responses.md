@@ -214,7 +214,11 @@ fn localized_response() -> ApiResponse<u64> {
 
 ### 自定义字段 {#business-response-fields}
 
-`with_field` 设置顶级字段，`additional` 批量浅合并，`without_field` 移除字段。操作按链式调用顺序执行，后调用覆盖先调用；嵌套对象整体替换。可以覆盖标准字段，因此应由应用统一约束公共协议。添加名为 `status` 的 JSON 字段不会改变 HTTP 状态。
+`with_field` 从响应根开始设置点路径，`without_field` 删除对应字段；支持嵌套对象和数组下标。`additional` 浅合并字面的顶级键，可传 JSON Map 或键值对数组。操作按调用顺序生效，后者覆盖前者；JSON 字段修改不会改变 `with_status` 设置的 HTTP 状态。
+
+缺失路径会自动建立，已有 null 可作为空占位；经过非 null 标量时返回序列化错误，不静默覆盖父数据。删除缺失路径不报错。沿用现有 `Arr` 规则：`*` 是字面键，连续数字下标保持数组，跨下标新增或删除中间元素会保留键并表现为 JSON 对象，不自动重排。含点号的字面键使用片段数组，例如 `["data", "user", "first.name"]`。字符串删除路径优先删除完整的顶级字面键，与 `Arr::forget` 相同。
+
+字段操作在默认空值省略和消息翻译之后执行，因此可以显式加入 `data: null`、覆盖 `code` 或删除 `message`。应用应自行保持定制后公共协议的一致性。
 
 下面的响应返回 HTTP 200：
 
@@ -241,6 +245,26 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
 }
 ```
 
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn customized() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({
+        "user": {"name": "Before", "password": "private"},
+        "items": [{"id": 1}]
+    }))
+    .additional([("request_id", json!("req-123"))])
+    .with_field("data.user.name", "Ada")
+    .with_field("data.items.0.selected", true)
+    .without_field("data.user.password")
+    .with_field(["data", "user", "first.name"], "Ada")
+}
+```
+
+### 应用信息接口 {#api-application-info}
+
+根应用通过 `ApiController::index` 提供公开的 `GET /api`。名称和版本读取 `app.name`、`app.version`，可通过 `APP_NAME`、`APP_VERSION` 设置；地址遵循 `API_PREFIX`，例如 `api/admin` 对应 `/api/admin`。无需认证扩展或数据库。默认消息使用请求语言，英文为 `Success`，简体和繁体中文为 `成功`。框架随附现有 18 种默认语言的响应词条，`lang:publish` 会发布 `response.json` 供应用覆盖。自定义键缺失时遵循既有语言回退；翻译源格式错误时返回安全的服务异常，不把翻译诊断伪装成成功消息。
 
 ## 重定向响应
 

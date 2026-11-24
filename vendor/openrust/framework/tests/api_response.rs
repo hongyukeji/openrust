@@ -232,12 +232,12 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
 
     assert_eq!(
         send(address, "/created", 201).await,
-        json!({"success": true, "code": "ok", "message": "ok", "data": {"id": 1}})
+        json!({"success": true, "code": "ok", "message": "Success", "data": {"id": 1}})
     );
     assert_eq!(
         send(address, "/items", 200).await,
         json!({
-            "success": true, "code": "ok", "message": "ok", "data": [1, 2],
+            "success": true, "code": "ok", "message": "Success", "data": [1, 2],
             "meta": {"page": 2, "per_page": 2, "total": 4, "total_pages": 2}
         })
     );
@@ -250,7 +250,7 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
     );
     assert_eq!(
         send(address, "/empty", 200).await,
-        json!({"success": true, "code": "ok", "message": "ok"})
+        json!({"success": true, "code": "ok", "message": "Success"})
     );
     assert_eq!(send(address, "/no-content", 204).await, Value::Null);
     assert_eq!(

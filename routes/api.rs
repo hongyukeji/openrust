@@ -1,5 +1,7 @@
-use openrust::routing::RoutingError;
+use openrust::{routing::RoutingError, support::facades::Route};
+
+use crate::app::http::controllers::api_controller::ApiController;
 
 pub(crate) fn register() -> Result<(), RoutingError> {
-    Ok(())
+    Route::get("/", ApiController::index)
 }

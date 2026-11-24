@@ -427,7 +427,7 @@ fn artisan_publishes_consumable_catalogs_without_replacing_bcp47_resources() {
             "{}",
             String::from_utf8_lossy(&result.stderr)
         );
-        for name in ["auth", "pagination", "passwords", "validation"] {
+        for name in ["auth", "pagination", "passwords", "validation", "response"] {
             let published = catalogs.join(format!("en/{name}.json"));
             let _: serde_json::Value =
                 serde_json::from_slice(&fs::read(published).unwrap()).unwrap();

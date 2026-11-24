@@ -1,0 +1,15 @@
+{
+    "ok": "成功",
+    "bad_request": "请求无效。",
+    "unauthenticated": "请先登录。",
+    "forbidden": "没有访问权限。",
+    "not_found": "资源不存在。",
+    "method_not_allowed": "不支持该请求方法。",
+    "conflict": "操作与当前状态冲突。",
+    "validation_failed": "提交的数据有误。",
+    "rate_limited": "请求过于频繁，请稍后重试。",
+    "internal_error": "服务器内部错误。",
+    "service_unavailable": "服务暂时不可用。",
+    "csrf_token_mismatch": "会话已过期，请重试。",
+    "invalid_signature": "签名无效。"
+}

@@ -15,6 +15,8 @@ pub(crate) mod models;
 mod app {
     pub(crate) use crate::{http, models};
 }
+#[path = "../routes/api.rs"]
+mod api;
 #[path = "../config/mod.rs"]
 mod config;
 #[path = "../routes/web.rs"]
@@ -159,46 +161,51 @@ impl Root {
                     middleware.set_locale(&[]).unwrap();
                 }
             })
-            .with_routing(Routing::default().web(|| {
-                web::register()?;
-                Route::get("/locale", default_locale)?;
-                Route::get("/escaped-repository", || {
-                    openrust::view::view("welcome")
-                        .with("name", "App")
-                        .with("version", "1.0.0")
-                        .with("language", "en")
-                        .with("repository", "https://example.test/a?x=1&y=\"two\"")
-                })?;
-                Route::get("/other", || openrust::view::view("other"))?;
-                Route::get("/form-token", || openrust::view::view("form-token"))?;
-                Route::get("/validation", validate)?;
-                Route::get("/metadata", || {
-                    let mut response = Response::from("metadata");
-                    response
-                        .parts_mut()
-                        .headers
-                        .insert("content-language", "fr".parse().unwrap());
-                    response
-                        .parts_mut()
-                        .headers
-                        .append("vary", "Accept-Encoding".parse().unwrap());
-                    response
-                        .parts_mut()
-                        .headers
-                        .append("vary", "Origin".parse().unwrap());
-                    response
-                })?;
-                Route::get("/vary-star", || {
-                    Response::from("star").header("vary".parse().unwrap(), "*".parse().unwrap())
-                })?;
-                Route::get("/vary-existing", || {
-                    Response::from("existing").header(
-                        "vary".parse().unwrap(),
-                        "Origin, accept-language".parse().unwrap(),
-                    )
-                })?;
-                Route::get("/switch", switched_locale)
-            }))
+            .with_routing(
+                Routing::default()
+                    .web(|| {
+                        web::register()?;
+                        Route::get("/locale", default_locale)?;
+                        Route::get("/escaped-repository", || {
+                            openrust::view::view("welcome")
+                                .with("name", "App")
+                                .with("version", "1.0.0")
+                                .with("language", "en")
+                                .with("repository", "https://example.test/a?x=1&y=\"two\"")
+                        })?;
+                        Route::get("/other", || openrust::view::view("other"))?;
+                        Route::get("/form-token", || openrust::view::view("form-token"))?;
+                        Route::get("/validation", validate)?;
+                        Route::get("/metadata", || {
+                            let mut response = Response::from("metadata");
+                            response
+                                .parts_mut()
+                                .headers
+                                .insert("content-language", "fr".parse().unwrap());
+                            response
+                                .parts_mut()
+                                .headers
+                                .append("vary", "Accept-Encoding".parse().unwrap());
+                            response
+                                .parts_mut()
+                                .headers
+                                .append("vary", "Origin".parse().unwrap());
+                            response
+                        })?;
+                        Route::get("/vary-star", || {
+                            Response::from("star")
+                                .header("vary".parse().unwrap(), "*".parse().unwrap())
+                        })?;
+                        Route::get("/vary-existing", || {
+                            Response::from("existing").header(
+                                "vary".parse().unwrap(),
+                                "Origin, accept-language".parse().unwrap(),
+                            )
+                        })?;
+                        Route::get("/switch", switched_locale)
+                    })
+                    .api(api::register),
+            )
             .create()
             .unwrap();
         let mut kernel = Kernel::new(application);

@@ -1,0 +1,15 @@
+{
+    "ok": "成功",
+    "bad_request": "無効なリクエストです。",
+    "unauthenticated": "認証が必要です。",
+    "forbidden": "アクセスが拒否されました。",
+    "not_found": "リソースが見つかりません。",
+    "method_not_allowed": "許可されていないメソッドです。",
+    "conflict": "操作が現在の状態と競合しています。",
+    "validation_failed": "送信されたデータは無効です。",
+    "rate_limited": "リクエストが多すぎます。しばらくしてから再試行してください。",
+    "internal_error": "サーバー内部エラーが発生しました。",
+    "service_unavailable": "サービスは一時的に利用できません。",
+    "csrf_token_mismatch": "セッションの有効期限が切れました。再試行してください。",
+    "invalid_signature": "無効な署名です。"
+}

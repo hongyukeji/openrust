@@ -118,7 +118,23 @@ pub(super) fn build<R: JsonResource + ?Sized>(
     {
         with.insert("jsonapi".into(), information);
     }
-    let payload = wrap(data, wrapper, resource.force_wrapping(), with, additional);
+    let business = !resource.is_json_api() && crate::http::ApiResponse::enabled_for(request);
+    let mut payload = wrap(
+        data,
+        if business { Some("data") } else { wrapper },
+        resource.force_wrapping(),
+        with,
+        additional,
+    );
+    if business {
+        let fields = payload.as_object_mut().expect("业务资源响应为对象");
+        for (key, value) in crate::http::ApiResponse::status_fields(resource.status())? {
+            fields.entry(key).or_insert(value);
+        }
+        if fields.get("data").is_some_and(Value::is_null) {
+            fields.remove("data");
+        }
+    }
     let status = resource.status();
     let mut response = if status == StatusCode::RESET_CONTENT {
         Response::empty(status)

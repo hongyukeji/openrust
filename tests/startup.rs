@@ -32,6 +32,9 @@ mod app {
 #[path = "../routes/web.rs"]
 mod web;
 
+#[path = "../routes/api.rs"]
+mod api;
+
 #[path = "../config/mod.rs"]
 mod config;
 
@@ -83,6 +86,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(root.0.join("routes/api.rs").exists());
     let generated_config = fs::read_to_string(&api_config).unwrap();
     assert!(generated_config.contains("API_PREFIX"));
+    assert!(generated_config.contains("API_RESPONSE_ENVELOPE"));
     let custom_config =
         format!("{generated_config}\n// Keep the application's API configuration.\n");
     fs::write(&api_config, &custom_config).unwrap();
@@ -124,7 +128,14 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(!api.exists());
     assert!(default_bootstrap.contains(".api(routes::api::register)"));
     assert!(default_modules.contains("mod api;"));
-    fs::write(&api, include_str!("../routes/api.rs").replace('\n', "\r\n")).unwrap();
+    fs::write(
+        &api,
+        include_str!(
+            "../vendor/openrust/framework/src/foundation/console/stubs/api-base-routes.stub"
+        )
+        .replace('\n', "\r\n"),
+    )
+    .unwrap();
     for (command, module, registration) in [
         ("install:api", "api", ".api(routes::api::register)"),
         (
@@ -253,6 +264,45 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
         let mut configuration = web_config(root, env)?;
         configuration.insert("api".into(), installed_api::load(env)?);
         Ok(configuration)
+    }
+
+    for (raw, expected) in [
+        ("", Some(true)),
+        ("true", Some(true)),
+        ("false", Some(false)),
+        ("1", Some(true)),
+        ("0", Some(false)),
+        ("(TRUE)", Some(true)),
+        ("(FALSE)", Some(false)),
+        ("invalid", None),
+    ] {
+        let root = TestRoot::new("api-envelope-template");
+        if !raw.is_empty() {
+            fs::write(
+                root.0.join(".env"),
+                format!("API_RESPONSE_ENVELOPE={raw}\n"),
+            )
+            .unwrap();
+        }
+        let app = Application::configure(root.0.clone())
+            .with_config(|base, env| {
+                let expected = match env.get_utf8("API_RESPONSE_ENVELOPE")? {
+                    Some("invalid") => None,
+                    Some("false" | "0" | "(FALSE)") => Some(false),
+                    _ => Some(true),
+                };
+                let installed = installed_api::load(env);
+                if let Some(expected) = expected {
+                    assert_eq!(installed.unwrap()["response_envelope"], expected);
+                } else {
+                    assert!(matches!(installed, Err(ConfigError::InvalidType { .. })));
+                }
+                web_config(base, env)
+            })
+            .create()
+            .unwrap();
+        let result = Kernel::new(app).bootstrap().await;
+        assert_eq!(result.is_ok(), expected.is_some());
     }
 
     fn custom_cors(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
@@ -1774,11 +1824,27 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
-        .with_routing(Routing::default().web(web::register))
+        .with_routing(Routing::default().web(web::register).api(api::register))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(application);
     kernel.bootstrap().await.unwrap();
+
+    let (parts, body) = axum::extract::Request::builder()
+        .uri("/api")
+        .body(Body::empty())
+        .unwrap()
+        .into_parts();
+    let response = kernel.handle(&mut Request::from_parts(parts, body)).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let value: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(response.into_parts().1, 4096)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(value["data"]["name"], "Startup Test");
+    assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
 
     let (parts, body) = http_request().into_parts();
     let (_, body) = kernel

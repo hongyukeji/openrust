@@ -32,7 +32,7 @@ pub use ::http::{
     Extensions, HeaderMap, Method, StatusCode, Uri, request::Parts as RequestParts,
     response::Parts as ResponseParts,
 };
-pub use api_response::{ApiResponse, PageMeta};
+pub use api_response::{ApiResponse, ApiResponsePath, PageMeta};
 pub use body::Body;
 pub(crate) use download::filename_header;
 pub use error::{HttpError, abort, abort_responsable, abort_response};

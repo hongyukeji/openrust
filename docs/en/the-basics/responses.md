@@ -214,7 +214,11 @@ fn localized_response() -> ApiResponse<u64> {
 
 ### Custom fields {#business-response-fields}
 
-`with_field` sets a top-level field, `additional` shallow-merges fields and `without_field` removes a field. Operations run in call order; later operations win and nested objects are replaced as a whole. Standard fields may also be overridden, so keep the public schema consistent in your application. A JSON field named `status` does not change the HTTP status.
+`with_field` sets a dot path from the response root; `without_field` removes one. Both support nested objects and array indexes. `additional` shallow-merges literal top-level keys and accepts a JSON map or key/value pairs. Operations execute in call order; later operations win. Editing the response body does not change the HTTP status set by `with_status`.
+
+Missing paths are created, including null placeholders. Traversing an existing non-null scalar returns a serialization error instead of replacing its parent. Removing a missing path is harmless. Paths use the existing `Arr` rules: `*` is literal, contiguous array indexes remain an array, and a gap or deletion from the middle preserves keys as a JSON object. Indexes are not silently renumbered. To access a literal key containing a dot, pass segments such as `["data", "user", "first.name"]`. For string removal paths, an existing complete top-level literal key takes precedence, as with `Arr::forget`.
+
+Edits run after default null omission and message translation, so an explicit edit can add `data: null`, replace `code`, or remove `message`. The application owns any deliberate changes to its public response contract.
 
 This response returns HTTP 200:
 
@@ -241,6 +245,26 @@ fn custom_response() -> ApiResponse<serde_json::Value> {
 }
 ```
 
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn customized() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({
+        "user": {"name": "Before", "password": "private"},
+        "items": [{"id": 1}]
+    }))
+    .additional([("request_id", json!("req-123"))])
+    .with_field("data.user.name", "Ada")
+    .with_field("data.items.0.selected", true)
+    .without_field("data.user.password")
+    .with_field(["data", "user", "first.name"], "Ada")
+}
+```
+
+### Application information {#api-application-info}
+
+The root application exposes public `GET /api` through `ApiController::index`. It reads `app.name` and `app.version`, so `APP_NAME` and `APP_VERSION` control the returned values. The URL follows `API_PREFIX`; for example `api/admin` exposes `/api/admin`. No authentication package or database is required. The default message comes from the request locale (`Success` for English, `成功` for Simplified and Traditional Chinese). The framework bundles response messages for its 18 default locales; `lang:publish` publishes `response.json` for application overrides. Missing custom keys follow the configured translation fallback. A malformed translation source produces a safe server error, rather than a successful response containing a translation diagnostic.
 
 ## Redirect responses
 

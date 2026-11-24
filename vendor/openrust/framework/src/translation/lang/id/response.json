@@ -1,0 +1,15 @@
+{
+    "ok": "Berhasil",
+    "bad_request": "Permintaan tidak valid.",
+    "unauthenticated": "Autentikasi diperlukan.",
+    "forbidden": "Akses ditolak.",
+    "not_found": "Sumber daya tidak ditemukan.",
+    "method_not_allowed": "Metode tidak diizinkan.",
+    "conflict": "Operasi bertentangan dengan keadaan saat ini.",
+    "validation_failed": "Data yang dikirim tidak valid.",
+    "rate_limited": "Terlalu banyak permintaan. Coba lagi nanti.",
+    "internal_error": "Terjadi kesalahan internal server.",
+    "service_unavailable": "Layanan sementara tidak tersedia.",
+    "csrf_token_mismatch": "Sesi telah kedaluwarsa. Silakan coba lagi.",
+    "invalid_signature": "Tanda tangan tidak valid."
+}

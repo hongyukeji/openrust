@@ -1,0 +1,15 @@
+{
+    "ok": "Operación completada",
+    "bad_request": "Solicitud no válida.",
+    "unauthenticated": "Se requiere autenticación.",
+    "forbidden": "Acceso denegado.",
+    "not_found": "Recurso no encontrado.",
+    "method_not_allowed": "Método no permitido.",
+    "conflict": "La operación entra en conflicto con el estado actual.",
+    "validation_failed": "Los datos enviados no son válidos.",
+    "rate_limited": "Demasiadas solicitudes. Inténtalo más tarde.",
+    "internal_error": "Se ha producido un error interno del servidor.",
+    "service_unavailable": "Servicio no disponible temporalmente.",
+    "csrf_token_mismatch": "La sesión ha caducado. Inténtalo de nuevo.",
+    "invalid_signature": "Firma no válida."
+}

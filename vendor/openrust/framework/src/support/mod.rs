@@ -47,8 +47,8 @@ pub use calendar::{InputDate, InputInterval, IntervalError};
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};
 pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_set};
 pub(crate) use data::{
-    MAX_DEPTH as DATA_MAX_DEPTH, check_depth as data_check_depth, segments as data_path_segments,
-    write as data_write,
+    MAX_DEPTH as DATA_MAX_DEPTH, check_depth as data_check_depth, forget as data_forget_parts,
+    segments as data_path_segments, write as data_write,
 };
 pub use date::{
     Date, DateError, DateInterval, DateTimezone, MonthOverflow, days, hours, microseconds,

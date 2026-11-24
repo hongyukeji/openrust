@@ -1,0 +1,15 @@
+{
+    "ok": "Sucesso",
+    "bad_request": "Pedido inválido.",
+    "unauthenticated": "Autenticação necessária.",
+    "forbidden": "Acesso negado.",
+    "not_found": "Recurso não encontrado.",
+    "method_not_allowed": "Método não permitido.",
+    "conflict": "A operação entra em conflito com o estado atual.",
+    "validation_failed": "Os dados enviados são inválidos.",
+    "rate_limited": "Demasiados pedidos. Tente novamente mais tarde.",
+    "internal_error": "Ocorreu um erro interno do servidor.",
+    "service_unavailable": "Serviço temporariamente indisponível.",
+    "csrf_token_mismatch": "A sessão expirou. Tente novamente.",
+    "invalid_signature": "Assinatura inválida."
+}

@@ -1,0 +1,15 @@
+{
+    "ok": "Success",
+    "bad_request": "Invalid request.",
+    "unauthenticated": "Authentication required.",
+    "forbidden": "Access denied.",
+    "not_found": "Resource not found.",
+    "method_not_allowed": "Method not allowed.",
+    "conflict": "The operation conflicts with the current state.",
+    "validation_failed": "The submitted data is invalid.",
+    "rate_limited": "Too many requests. Please try again later.",
+    "internal_error": "An internal server error occurred.",
+    "service_unavailable": "Service temporarily unavailable.",
+    "csrf_token_mismatch": "The session has expired. Please try again.",
+    "invalid_signature": "Invalid signature."
+}

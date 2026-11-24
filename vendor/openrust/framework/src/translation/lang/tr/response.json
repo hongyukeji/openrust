@@ -1,0 +1,15 @@
+{
+    "ok": "Başarılı",
+    "bad_request": "Geçersiz istek.",
+    "unauthenticated": "Kimlik doğrulaması gerekli.",
+    "forbidden": "Erişim reddedildi.",
+    "not_found": "Kaynak bulunamadı.",
+    "method_not_allowed": "Yönteme izin verilmiyor.",
+    "conflict": "İşlem mevcut durumla çelişiyor.",
+    "validation_failed": "Gönderilen veriler geçersiz.",
+    "rate_limited": "Çok fazla istek. Lütfen daha sonra tekrar deneyin.",
+    "internal_error": "Dahili sunucu hatası oluştu.",
+    "service_unavailable": "Hizmet geçici olarak kullanılamıyor.",
+    "csrf_token_mismatch": "Oturumun süresi doldu. Lütfen tekrar deneyin.",
+    "invalid_signature": "Geçersiz imza."
+}

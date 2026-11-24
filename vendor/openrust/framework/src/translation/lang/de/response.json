@@ -1,0 +1,15 @@
+{
+    "ok": "Erfolgreich",
+    "bad_request": "Ungültige Anfrage.",
+    "unauthenticated": "Authentifizierung erforderlich.",
+    "forbidden": "Zugriff verweigert.",
+    "not_found": "Ressource nicht gefunden.",
+    "method_not_allowed": "Methode nicht erlaubt.",
+    "conflict": "Die Aktion steht im Konflikt mit dem aktuellen Zustand.",
+    "validation_failed": "Die übermittelten Daten sind ungültig.",
+    "rate_limited": "Zu viele Anfragen. Bitte später erneut versuchen.",
+    "internal_error": "Ein interner Serverfehler ist aufgetreten.",
+    "service_unavailable": "Dienst vorübergehend nicht verfügbar.",
+    "csrf_token_mismatch": "Die Sitzung ist abgelaufen. Bitte erneut versuchen.",
+    "invalid_signature": "Ungültige Signatur."
+}
