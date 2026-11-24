@@ -252,7 +252,7 @@ fn configure(exceptions: &mut Exceptions) {
 
 浮点数先按 PHP 默认的 14 位有效数字转为文本，例如浮点值 `1e13` 通过、`1e14` 不通过，而整数值 `100000000000000` 通过。`regex` 只接受字符串或数值；布尔值与未声明 `nullable` 的 `null` 不通过。
 
-正则包含 `|` 时，使用 `RuleSet::field` 的规则数组并通过 `Rule::parse` 解析，避免被当成规则分隔符。支持 PCRE2 修饰符 `i m s x u A U J n D`；`D` 使 `$` 仅匹配输入末尾，多行模式下遵循 PCRE2 原生语义。其他尚不支持的修饰符返回 `InvalidRule`，不表示已经支持 PHP 的全部 PCRE 选项。
+正则包含 `|` 时，使用 `RuleSet::field` 的规则数组并通过 `Rule::parse` 解析，避免被当成规则分隔符。支持 PCRE2 修饰符 `i m s x u A U J n D S X r`；`D` 使 `$` 仅匹配输入末尾，多行模式下遵循 PCRE2 原生语义。`S` 接受但不额外 study，`X` 沿用 PCRE2 已有的严格转义检查，`r` 限制 ASCII 与非 ASCII 字符间的大小写折叠。忽略模式开头的 ASCII 空白和修饰符间的空格／换行；未知修饰符（含修饰符间的制表符）返回 `InvalidRule`。
 
 `Validator::after` 在规则检查后运行，可追加错误。`sometimes` 按条件追加规则，通配符回调收到所在父项。`stop_on_first_failure(true)` 在不同字段间停止检查，`bail` 只停止当前字段。`safe()` 必须在验证成功后调用，只暴露已验证的数据。
 

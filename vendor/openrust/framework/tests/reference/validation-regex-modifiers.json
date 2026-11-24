@@ -1,0 +1,6500 @@
+{
+  "cases": [
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/S",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/X",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iu",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^k$/iur",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iu",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^ſ$/iur",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/ i",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a+$/\ni",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": " /a/i",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "{^a$}i",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/D",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/mD",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/a/A",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(?<x>a)|(?<x>b)/J",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/(a)/n",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "a",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "a",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "A",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "A",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "aa",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "aa",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "a\n",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "a\n",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "ba",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "ba",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "k",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "k",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "K",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "K",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "s",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "s",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "ſ",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "ſ",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "b",
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "b",
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": 12,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": 12,
+      "passes": true,
+      "errors": [],
+      "wire_passes": true,
+      "wire_errors": []
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": true,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": null,
+      "passes": false,
+      "errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      },
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    },
+    {
+      "pattern": "/^a$/iiSSXXrr",
+      "kind": "not_regex",
+      "value": "",
+      "passes": true,
+      "errors": [],
+      "wire_passes": false,
+      "wire_errors": {
+        "value": [
+          "The value field format is invalid."
+        ]
+      }
+    }
+  ]
+}

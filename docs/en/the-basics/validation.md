@@ -252,7 +252,7 @@ Default `integer` follows PHP integer validation, including some integral floats
 
 Floats first use PHP’s default 14 significant digits when converted to text: the float `1e13` passes, `1e14` fails, and the integer `100000000000000` passes. `regex` accepts only strings or numbers; booleans and `null` without `nullable` fail.
 
-Use `Rule::parse` inside a `RuleSet::field` array for regular expressions containing `|`, so the separator is not interpreted as another rule. PCRE2 modifiers `i m s x u A U J n D` are supported. `D` makes `$` match only the end of the subject unless multiline mode is enabled. Other unsupported modifiers return `InvalidRule`; the parser does not claim every PHP PCRE option.
+Use `Rule::parse` inside a `RuleSet::field` array for regular expressions containing `|`, so the separator is not interpreted as another rule. PCRE2 modifiers `i m s x u A U J n D S X r` are supported. `D` makes `$` match only the end of the subject unless multiline mode is enabled. `S` is accepted without extra study, and `X` uses PCRE2’s existing strict escape handling. `r` restricts ASCII/non-ASCII case folding. Leading ASCII whitespace is skipped; spaces and newlines between modifiers are ignored. Unknown modifiers, including tabs between modifiers, return `InvalidRule`.
 
 `Validator::after` runs after rule checks and can add errors. `sometimes` conditionally adds rules; wildcard callbacks receive the parent item. `stop_on_first_failure(true)` stops checks across fields, while `bail` stops one field. `safe()` requires successful validation and exposes only validated data.
 

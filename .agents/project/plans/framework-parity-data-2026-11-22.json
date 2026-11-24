@@ -299084,6 +299084,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "Final per-section chapter reconciliation and binary acceptance"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第二十六组 regex modifiers",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "FormRequest named redirect target and final chapter reconciliation"
     }
   ]
 }

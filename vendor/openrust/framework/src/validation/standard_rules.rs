@@ -44,6 +44,7 @@ pub(super) fn check_exponent(value: &Value) -> ValidationResult<()> {
 }
 
 pub(super) fn regex(pattern: &str) -> ValidationResult<pcre2::bytes::Regex> {
+    let pattern = pattern.trim_start_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
     let delimiter = pattern.chars().next().ok_or(ValidationError::InvalidRule)?;
     if delimiter.is_ascii_alphanumeric() || delimiter == '\\' || delimiter.is_whitespace() {
         return Err(ValidationError::InvalidRule);
@@ -60,13 +61,13 @@ pub(super) fn regex(pattern: &str) -> ValidationResult<pcre2::bytes::Regex> {
         .filter(|end| *end > 0)
         .ok_or(ValidationError::InvalidRule)?;
     let modifiers = &pattern[end + delimiter.len_utf8()..];
-    if modifiers.chars().any(|ch| !"imsxuAUJnD".contains(ch)) {
+    if modifiers.chars().any(|ch| !"imsxuAUJnDSXr \n".contains(ch)) {
         return Err(ValidationError::InvalidRule);
     }
     let body = &pattern[delimiter.len_utf8()..end];
     let prefix: String = modifiers
         .chars()
-        .filter(|ch| "imsxUJn".contains(*ch))
+        .filter(|ch| "imsxUJnr".contains(*ch))
         .collect();
     let body = if modifiers.contains('A') {
         format!("\\A(?:{body})")

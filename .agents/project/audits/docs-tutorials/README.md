@@ -438,3 +438,14 @@ old全局及request()->old复用既有异步请求桥与真实request.old，不�
 真实TCP覆盖默认／具名错误、all/first/has/get通配、@error、旧输入／null／HTML转义、下一次请求回收、Js::from及正式三语Blade代码直接提取执行；5项专项通过，序列化形状与原类型直接比较。validation-view/consumers.log为MySQL8.4.13的51目标230项0忽略，含验证全套、真实database Session和Blade／View回归；严格workspace/all-targets Clippy48.36s及fmt通过。文档首轮因重复锚点失败，改为独立displaying-errors-and-old-input后构建、浏览器、实际main及Artisan帮助／inspire均通过，最终正式代码提取5项再次通过。blade_arithmetic旧缓存测试硬编码45而生产已48，改为从实际当前版本降一验证重建，不更改生产缓存版本。源／测试与冻结快照一致；证据target/tmp/docs-chapters-20261124/validation-view/，本批临时MySQL及HTTP服务已回收。
 
 本簇关闭Validation教程的错误展示／表单恢复。其余Blade指令全集、可变消息袋模板操作不属于本轮两章范围，不以本簇宣称Blade整章完成。两个章节逐节总对账与最终实际二进制验收继续。
+
+
+## 第二十六组：正则修饰符与模式解析的关联缺口（2026-11-24）
+
+逐节复核regex/not_regex的preg_match契约，发现原白名单拒绝合法S/X/r和修饰符空格／换行。对照PHP官方修饰符说明（https://www.php.net/manual/en/reference.pcre.pattern.modifiers.php）并使用既有固定框架＋PHP8.5.12实际执行；修复前真实Rust消费者首例返回InvalidRule。复用原PCRE2编译器：S接受且不额外study，X沿用原严格转义，r传入原生内联选项；模式前ASCII空白及修饰符间空格／换行按参考处理，未知标识仍拒绝。未新增引擎、依赖或通用全仓替换。
+
+正式JSON金标准480组同时保存独立验证值与真实固定TrimStrings／ConvertEmptyStringsToNull管线后的HTTP结果，避免把输入归一化差异误归正则。最初HTTP夹具直接套用未归一化参考，在空串及带换行输入失败；现改由原生参考中间件实际计算wire结果后重跑，未更改生产中间件。Factory与Rule::parse／规则数组消费者、真实TCP逐组核对regex与not_regex成功／422消息；J重复组、n、A、D、多行、r跨ASCII字符、重复修饰符、成对分隔符及非法标识均覆盖。
+
+regex-modifiers/gates-accepted.log九阶段全0：MySQL8.4.13共55目标236项0忽略，含全部Validation、真实database Session、三语提取、实际Artisan生成类型消费者、URI和Blade／View；workspace/all-targets严格Clippy／fmt、三语构建浏览器及实际main／Artisan通过。验证View新测试文件另做独立rustfmt并纳入本轮回归，补齐cargo fmt未排版的新测试文件。最终源与快照一致，证据target/tmp/docs-chapters-20261124/regex-modifiers/及final-chapters/；本批MySQL／参考容器和HTTP服务回收。
+
+两个章节最终人工复核另发现FormRequest只有redirect_to，缺少教程RedirectToRoute对应的专用目标；不能用业务层手写Url::route绕行当作已实现。进入下一功能簇，最终逐节账本保持待提交，不提前宣布整章关闭。
