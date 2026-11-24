@@ -922,10 +922,77 @@
       "type": "Config",
       "source": "src/Illuminate/Support/Facades/Config.php",
       "public_entries": [
-        "has", "get", "getMany", "string", "integer", "float", "boolean", "array", "collection", "set",
-        "prepend", "push", "all", "macro", "mixin", "hasMacro", "flushMacros"
+        "has",
+        "get",
+        "getMany",
+        "string",
+        "integer",
+        "float",
+        "boolean",
+        "array",
+        "collection",
+        "set",
+        "prepend",
+        "push",
+        "all",
+        "macro",
+        "mixin",
+        "hasMacro",
+        "flushMacros",
+        "offsetExists",
+        "offsetGet",
+        "offsetSet",
+        "offsetUnset"
       ],
-      "review": "pending"
+      "review": "partial",
+      "local": "support::facades::Config; config::Repository; contracts::config::Repository",
+      "reader_contracts": {
+        "entries": [
+          "has",
+          "get",
+          "getMany",
+          "string",
+          "integer",
+          "float",
+          "boolean",
+          "array",
+          "collection",
+          "set"
+        ],
+        "local": "原始get/get_or/get_or_else、六种严格getter及*_with_default/*_or_else、get_many/set_many；Repository与Facade均提供",
+        "review": "implemented_tested_base",
+        "contract": "默认值仅缺键使用，null/错误类型不吞，惰性默认最多一次；整数/浮点严格区分，数组/保键集合。完整字面键优先。批量普通键/逐键值/惰性值保序，重复最后结果且位置不变，逐键读取可见之前默认回调的修改；批量写按序非事务。",
+        "consumers": "门面每次解析当前仓储；对象安全的契约方法传递默认闭包，具体仓储提供普通闭包便利入口，覆写在Facade实际生效。string_or容错扩展原语义保留，不改成严格getter。",
+        "evidence": "readers-contract.json固定Config Facade/Repository实际48种类型/默认闭包结果及原始/批量值；config_readers.rs、config_facade/access/scoped_overrides实际HTTP/Artisan/替换/作用域与原生NaN默认。",
+        "reuse": "核对旧版config/repository.rs typed_reader及raw_reading_preserves_null_false_empty_and_literal_key_priority；复用读取规则和回归边界，不移植旧Figment状态/快照版本体系，也不把当前Request宽松转换套给Config。"
+      },
+      "inherited_public_entries": [
+        {
+          "entry": "offsetExists",
+          "source": "Config/Repository.php ArrayAccess",
+          "review": "pending"
+        },
+        {
+          "entry": "offsetGet",
+          "source": "Config/Repository.php ArrayAccess",
+          "review": "pending"
+        },
+        {
+          "entry": "offsetSet",
+          "source": "Config/Repository.php ArrayAccess",
+          "review": "pending"
+        },
+        {
+          "entry": "offsetUnset",
+          "source": "Config/Repository.php ArrayAccess",
+          "review": "pending"
+        }
+      ],
+      "remaining": [
+        "macro/mixin/hasMacro/flushMacros实际Macroable接线及共享Facade生命周期/替身仍待核对",
+        "ArrayAccess四个公开入口、空路径写入与其余写入/列表操作的完整逐项裁决；不会以读取子集关闭Config",
+        "Rust配置原始值是JSON；PHP任意对象/非JSON值与可失败默认闭包的公开适配仍须具体裁决，不能以静态语言理由笼统跳过"
+      ]
     },
     {
       "type": "Context",

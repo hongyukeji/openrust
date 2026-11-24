@@ -6,6 +6,23 @@ use std::{
 use super::{ConfigError, Value};
 use crate::contracts::config::{self, Repository as _};
 
+macro_rules! public_reader {
+    ($name:ident,$with:ident,$lazy:ident,$output:ty,$default:ty) => {
+        pub fn $name(&self, key: &str) -> Result<$output, ConfigError> {
+            <Self as config::Repository>::$name(self, key)
+        }
+        pub fn $with(&self, key: &str, default: $default) -> Result<$output, ConfigError> {
+            <Self as config::Repository>::$with(self, key, default)
+        }
+        pub fn $lazy(
+            &self,
+            key: &str,
+            default: impl FnOnce() -> $default,
+        ) -> Result<$output, ConfigError> {
+            <Self as config::Repository>::$lazy(self, key, Box::new(default))
+        }
+    };
+}
 /// Stores configuration values under dot-separated paths.
 pub struct Repository {
     values: RwLock<BTreeMap<String, Value>>,
@@ -13,6 +30,42 @@ pub struct Repository {
 }
 
 impl Repository {
+    public_reader!(string, string_with_default, string_or_else, String, String);
+    public_reader!(integer, integer_with_default, integer_or_else, i64, i64);
+    public_reader!(float, float_with_default, float_or_else, f64, f64);
+    public_reader!(boolean, boolean_with_default, boolean_or_else, bool, bool);
+    public_reader!(array, array_with_default, array_or_else, Value, Value);
+    public_reader!(
+        collection,
+        collection_with_default,
+        collection_or_else,
+        crate::support::Collection,
+        Value
+    );
+    pub fn get_or(&self, key: &str, default: Value) -> Value {
+        <Self as config::Repository>::get_or(self, key, default)
+    }
+    pub fn get_or_else(&self, key: &str, default: impl FnOnce() -> Value) -> Value {
+        <Self as config::Repository>::get_or_else(self, key, Box::new(default))
+    }
+    pub fn get_many<'a, K: Into<super::ConfigKey<'a>>>(
+        &self,
+        keys: impl IntoIterator<Item = K>,
+    ) -> indexmap::IndexMap<String, Value> {
+        <Self as config::Repository>::get_many(self, keys.into_iter().map(Into::into).collect())
+    }
+    pub fn set_many<K: Into<String>>(
+        &self,
+        values: impl IntoIterator<Item = (K, Value)>,
+    ) -> Result<(), ConfigError> {
+        <Self as config::Repository>::set_many(
+            self,
+            &values
+                .into_iter()
+                .map(|(key, value)| (key.into(), value))
+                .collect::<Vec<_>>(),
+        )
+    }
     pub fn new(values: BTreeMap<String, Value>) -> Self {
         Self {
             values: RwLock::new(values),
@@ -173,6 +226,10 @@ fn validate_key(key: &str) -> Result<(), ConfigError> {
 }
 
 fn get<'a>(values: &'a BTreeMap<String, Value>, key: &str) -> Option<&'a Value> {
+    // 与原仓储和旧版回归一致，完整字面键优先于点路径。
+    if let Some(value) = values.get(key) {
+        return Some(value);
+    }
     let mut path = key.split('.');
     let mut value = values.get(path.next()?)?;
     for segment in path {

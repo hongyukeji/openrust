@@ -1,0 +1,520 @@
+{
+    "typed": [
+        {
+            "method": "string",
+            "key": "missing",
+            "default": "fallback",
+            "calls": 1,
+            "result": {
+                "value": "fallback"
+            }
+        },
+        {
+            "method": "string",
+            "key": "text",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "value": "hello"
+            }
+        },
+        {
+            "method": "string",
+            "key": "integer",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "string",
+            "key": "float",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "string",
+            "key": "bool",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "string",
+            "key": "array",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "string",
+            "key": "list",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "string",
+            "key": "null",
+            "default": "fallback",
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "integer",
+            "key": "missing",
+            "default": 42,
+            "calls": 1,
+            "result": {
+                "value": 42
+            }
+        },
+        {
+            "method": "integer",
+            "key": "text",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "integer",
+            "key": "integer",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "value": 3
+            }
+        },
+        {
+            "method": "integer",
+            "key": "float",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "integer",
+            "key": "bool",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "integer",
+            "key": "array",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "integer",
+            "key": "list",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "integer",
+            "key": "null",
+            "default": 42,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "float",
+            "key": "missing",
+            "default": 1.25,
+            "calls": 1,
+            "result": {
+                "value": 1.25
+            }
+        },
+        {
+            "method": "float",
+            "key": "text",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "float",
+            "key": "integer",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "float",
+            "key": "float",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "value": 3
+            }
+        },
+        {
+            "method": "float",
+            "key": "bool",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "float",
+            "key": "array",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "float",
+            "key": "list",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "float",
+            "key": "null",
+            "default": 1.25,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "missing",
+            "default": true,
+            "calls": 1,
+            "result": {
+                "value": true
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "text",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "integer",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "float",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "bool",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "value": false
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "array",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "list",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "boolean",
+            "key": "null",
+            "default": true,
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "array",
+            "key": "missing",
+            "default": {
+                "default": 1
+            },
+            "calls": 1,
+            "result": {
+                "value": {
+                    "default": 1
+                }
+            }
+        },
+        {
+            "method": "array",
+            "key": "text",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "array",
+            "key": "integer",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "array",
+            "key": "float",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "array",
+            "key": "bool",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "array",
+            "key": "array",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "value": {
+                    "named": "value"
+                }
+            }
+        },
+        {
+            "method": "array",
+            "key": "list",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "value": [
+                    1,
+                    2
+                ]
+            }
+        },
+        {
+            "method": "array",
+            "key": "null",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "collection",
+            "key": "missing",
+            "default": {
+                "default": 1
+            },
+            "calls": 1,
+            "result": {
+                "value": {
+                    "default": 1
+                }
+            }
+        },
+        {
+            "method": "collection",
+            "key": "text",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "collection",
+            "key": "integer",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "collection",
+            "key": "float",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "collection",
+            "key": "bool",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        },
+        {
+            "method": "collection",
+            "key": "array",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "value": {
+                    "named": "value"
+                }
+            }
+        },
+        {
+            "method": "collection",
+            "key": "list",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "value": [
+                    1,
+                    2
+                ]
+            }
+        },
+        {
+            "method": "collection",
+            "key": "null",
+            "default": {
+                "default": 1
+            },
+            "calls": 0,
+            "result": {
+                "error": "InvalidArgumentException"
+            }
+        }
+    ],
+    "raw": [
+        {
+            "key": "missing",
+            "has": false,
+            "value": "default"
+        },
+        {
+            "key": "null",
+            "has": true,
+            "value": null
+        },
+        {
+            "key": "bool",
+            "has": true,
+            "value": false
+        },
+        {
+            "key": "literal.dot",
+            "has": true,
+            "value": "literal"
+        },
+        {
+            "key": "literal.dot.missing",
+            "has": false,
+            "value": "default"
+        }
+    ],
+    "raw_calls": 2,
+    "many": {
+        "text": "hello",
+        "missing": "fallback",
+        "null": null,
+        "bool": false
+    },
+    "bulk": {
+        "first": 1,
+        "second": 2
+    }
+}

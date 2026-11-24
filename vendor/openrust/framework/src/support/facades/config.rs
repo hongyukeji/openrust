@@ -4,13 +4,30 @@ use indexmap::IndexMap;
 use serde::de::DeserializeOwned;
 
 use crate::{
-    config::{ConfigError, Value},
+    config::{ConfigError, ConfigKey, Value},
     container::ServiceKey,
     contracts::{config::Repository, container::BindingResolutionError},
     support::Collection,
 };
 
 use super::Facade;
+
+macro_rules! facade_reader {
+    ($name:ident,$with:ident,$lazy:ident,$output:ty,$default:ty,$arg:ty,$make:path) => {
+        pub fn $name(key: &str) -> Result<$output, ConfigError> {
+            Self::get_facade_root()?.$name(key)
+        }
+        pub fn $with(key: &str, default: $arg) -> Result<$output, ConfigError> {
+            Self::get_facade_root()?.$with(key, $make(default))
+        }
+        pub fn $lazy(
+            key: &str,
+            default: impl FnOnce() -> $default,
+        ) -> Result<$output, ConfigError> {
+            Self::get_facade_root()?.$lazy(key, Box::new(default))
+        }
+    };
+}
 
 /// Reads the current application's configuration repository.
 pub struct Config;
@@ -32,18 +49,30 @@ impl Config {
 
     /// Returns the default only when the key is absent.
     pub fn get_or(key: &str, default: Value) -> Result<Value, BindingResolutionError> {
-        Ok(Self::get(key)?.unwrap_or(default))
+        Ok(Self::get_facade_root()?.get_or(key, default))
     }
 
-    /// Reads multiple keys with per-key defaults, in input order.
-    pub fn get_many<'a>(
-        keys: impl IntoIterator<Item = (&'a str, Value)>,
+    /// 按输入顺序读取普通键、逐键默认值或惰性默认值。
+    pub fn get_many<'a, K: Into<ConfigKey<'a>>>(
+        keys: impl IntoIterator<Item = K>,
     ) -> Result<IndexMap<String, Value>, BindingResolutionError> {
-        let repository = Self::get_facade_root()?;
-        Ok(keys
-            .into_iter()
-            .map(|(key, default)| (key.to_owned(), repository.get(key).unwrap_or(default)))
-            .collect())
+        Ok(Self::get_facade_root()?.get_many(keys.into_iter().map(Into::into).collect()))
+    }
+    pub fn get_or_else(
+        key: &str,
+        default: impl FnOnce() -> Value,
+    ) -> Result<Value, BindingResolutionError> {
+        Ok(Self::get_facade_root()?.get_or_else(key, Box::new(default)))
+    }
+    pub fn set_many<K: Into<String>>(
+        values: impl IntoIterator<Item = (K, Value)>,
+    ) -> Result<(), ConfigError> {
+        Self::get_facade_root()?.set_many(
+            &values
+                .into_iter()
+                .map(|(key, value)| (key.into(), value))
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// Deserializes a configuration value or section into a Rust type.
@@ -84,48 +113,64 @@ impl Config {
         Self::get_facade_root()?.push(key, value)
     }
 
-    pub fn string(key: &str) -> Result<String, ConfigError> {
-        typed(key, "a string", |value| match value {
-            Value::String(value) => Some(value),
-            _ => None,
-        })
-    }
-
-    /// Returns the configured string or the default if it cannot be read as a string.
+    // 兼容既有欢迎页的容错扩展；严格缺键默认值使用string_with_default。
     pub fn string_or(key: &str, default: impl Into<String>) -> String {
         Self::string(key).unwrap_or_else(|_| default.into())
     }
-
-    pub fn integer(key: &str) -> Result<i64, ConfigError> {
-        typed(key, "an integer", |value| value.as_i64())
-    }
-
-    pub fn float(key: &str) -> Result<f64, ConfigError> {
-        typed(key, "a float", |value| match value {
-            Value::Number(number) if number.is_f64() => number.as_f64(),
-            _ => None,
-        })
-    }
-
-    pub fn boolean(key: &str) -> Result<bool, ConfigError> {
-        typed(key, "a boolean", |value| value.as_bool())
-    }
-
-    /// Accepts lists and named maps, corresponding to both forms of PHP arrays.
-    pub fn array(key: &str) -> Result<Value, ConfigError> {
-        typed(key, "an array", |value| match value {
-            Value::Array(_) | Value::Object(_) => Some(value),
-            _ => None,
-        })
-    }
-
-    pub fn collection(key: &str) -> Result<Collection, ConfigError> {
-        typed(key, "an array", |value| match value {
-            Value::Array(items) => Some(items.into_iter().collect()),
-            Value::Object(items) => Some(Collection::from_entries(items)),
-            _ => None,
-        })
-    }
+    facade_reader!(
+        string,
+        string_with_default,
+        string_or_else,
+        String,
+        String,
+        impl Into<String>,
+        Into::into
+    );
+    facade_reader!(
+        integer,
+        integer_with_default,
+        integer_or_else,
+        i64,
+        i64,
+        i64,
+        std::convert::identity
+    );
+    facade_reader!(
+        float,
+        float_with_default,
+        float_or_else,
+        f64,
+        f64,
+        f64,
+        std::convert::identity
+    );
+    facade_reader!(
+        boolean,
+        boolean_with_default,
+        boolean_or_else,
+        bool,
+        bool,
+        bool,
+        std::convert::identity
+    );
+    facade_reader!(
+        array,
+        array_with_default,
+        array_or_else,
+        Value,
+        Value,
+        Value,
+        std::convert::identity
+    );
+    facade_reader!(
+        collection,
+        collection_with_default,
+        collection_or_else,
+        Collection,
+        Value,
+        Value,
+        std::convert::identity
+    );
 }
 
 fn typed<T>(

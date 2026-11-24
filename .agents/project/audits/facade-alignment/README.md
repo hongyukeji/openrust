@@ -24,12 +24,12 @@
 | Cache | `support::facades::Cache` | 核对默认仓储、Store、锁、tags、memo、替身及上下文隔离 |
 | Cloud | `support::facades::Cloud` 与真实托管 SQS/Unix Agent | 8个声明入口、真实 Worker Agent 领取/上报及队列遥测已验；远端失败任务重试已验；异常遥测、凭据缓存和其余队列契约仍待闭合 |
 | Concurrency | `support::facades::Concurrency` | 核对 Manager 选择、run/defer、驱动和生命周期 |
-| Config | `support::facades::Config` | 核对全部仓储转发、类型读取、缺键默认、多个配置与 Serde 适配 |
+| Config | `support::facades::Config` | 已补严格/惰性默认、批量读写、字面键优先和仓储覆写转发；宏、ArrayAccess、写入边界与共享替身仍待闭合 |
 | Context | `support::facades::Context` | 核对可见/隐藏上下文、增删、dehydrate/hydrate、事件及测试行为 |
 | Cookie | `support::facades::Cookie` | 核对创建/队列、has/get、默认参数、过期与解密后的当前请求 |
 | Crypt | `support::facades::Crypt` | 核对加解密、序列化适配、轮换、可用密钥和错误 |
 | DB | `support::facades::Db` | 核对管理器和连接全部委托、事务、事件、查询、危险命令限制 |
-| Date | `support::facades::Date` 与 `support::DateFactory` | 时钟、解析、格式/时间戳创建及探测已有公开入口与验收；错误诊断、本地化、日历配置、宏、工厂替换及共享Facade能力仍未闭合 |
+| Date | `support::facades::Date` 与 `support::DateFactory` | 已补时钟、解析、创建/探测、对象/ID及基础宏；默认可变类、工厂替换、诊断、本地化、日历配置、完整动态分派与共享Facade能力未闭合 |
 | Event | `support::facades::Event` | 核对 Dispatcher 全部委托、事务后派发和 fake 的排除/作用域 |
 | Exceptions | 已接 `support::facades::Exceptions` 与真实异常契约 | 已补报告/渲染/映射/上下文、运行期配置、具类型fake、withoutExceptionHandling与全局限流；共享基类测试能力及逐入口最终裁决仍待闭合 |
 | File | 已接 `support::facades::File` 与 `filesystem::Filesystem` | 本地读写、锁、原子替换、目录、基础 glob、摘要、惰性行、宏、编译模块加载和条件代理已实测；JSON/glob/hash/MIME完整标志、平台及继承测试仍待闭合 |
@@ -513,3 +513,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 正式提供命名宏、移除/get/has、混入提供器、通用优先级和同级FIFO、重置、动态宏调用；命名宏返回任意原生类型，通用宏默认转换日期。原回调句柄可保留；回调执行及销毁旧注册在锁外，支持重入，错误不会吞掉。
 - Rust动态调用沿用已有Cloud/File门面的具类型类型擦除模式；运行期不新增关联函数，不执行PHP trait源码。参数/结果不施加多余Send约束；所属应用注册表和同一时钟用于HTTP/Worker，独立应用/Factory隔离。默认可变类、类/Callable/Factory替换与实例trait混入仍待处理。
 - tests-third.log实际10项通过（4项新增含并发HTTP/应用隔离、Rc身份/重入、真实Artisan/独立SQLite Worker，6项时钟回归）；workspace/all-targets严格Clippy44.63秒，三语构建和6组浏览器通过。第一次原类比较器暴露通用宏默认返回转换错误，已修正比较器与本地行为；初次模块复制顺序失败不计通过，日志保留。PHP一次性容器已直接删除，SQLite夹具由TestApp回收，热缓存保留。
+
+### Config：严格默认值、批量读取及仓储转发（仍 partial）
+
+- 实际核对固定Config Facade/Repository与Arr::get。48组读取覆盖缺键、null、错误类型、整数/浮点、列表/对象/保键集合及默认闭包次数，另核对原始/批量值。比较器首次缺集合trait造成的Error未作为证据，加载实际依赖后重跑。
+- 门面与具体Repository均提供六种严格读取及固定/惰性缺键默认、普通/逐键/惰性get_many、set_many。契约采用对象安全默认实现，Facade真正转发可替换仓储覆写；旧string_or容错扩展保持不变，不机械套Request转换。
+- 参考旧版typed_reader及字面键回归，修复当前完整字面点键优先级；复用当前RwLock仓储/列表/Collection。批量按输入顺序读取，前一默认回调写入可影响后续键；不移植旧Figment/发布版本体系或误改成整批快照。
+- 真实HTTP验证成功/已有错误类型500 JSON，实际Artisan验证新默认值入口，仓储替换/重绑定与应用请求/任务作用域回归；ArrayAccess四个公开入口、宏、写入边界和非JSON值/可失败默认闭包仍待处理，Config不关闭。
+- tests-third.log实际14项通过；新增CLI后tests-fifth.log6项通过（总计15项不同消费者，不重复累加矩阵），含真实HTTP的500 JSON、真实Artisan默认读取、替换/重绑定/作用域及48组双入口原类对照。workspace/all-targets严格Clippy40.39秒，三语构建14.01秒及6组浏览器通过。早期类型推断/不存在的断言方法失败日志保留，不计通过；PHP一次性容器已直接删除，未触及32GB停线，热缓存保留。

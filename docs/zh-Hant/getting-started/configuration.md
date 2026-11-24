@@ -59,6 +59,26 @@ pub fn application_name() -> String {
 
 用 `Config::string_or("app.name", "App")` 直接取得字串。缺少鍵、值為 `null` 或型別不符、設定儲存庫無法使用時，均使用傳入的預設值。需要嚴格讀取並處理錯誤時，用 `Config::string("app.name")?`。原始值讀取 `Config::get_or("app.name", Value::from("App"))?` 僅在缺少鍵時使用預設值，並保留顯式空值。`Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按輸入順序讀取多個鍵，各自套用預設值。讀取整組設定時，為結構體衍生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
+嚴格讀取方法另有 `*_with_default`、`*_or_else`：僅在缺鍵時使用預設值，明確 null 或既有值型別不符仍回傳錯誤。惰性預設值在讀取後最多執行一次；整數與浮點數保持型別區分。倉儲不可用時，先回傳綁定錯誤，不呼叫預設值。
+
+```rust
+use openrust::config::ConfigKey;
+let name = Config::string_with_default("app.name", "App")?;
+let retries = Config::integer_with_default("services.retries", 3)?;
+let ratio = Config::float_or_else("services.ratio", || 1.5)?;
+let selected = Config::get_many(["app.name", "app.locale"])?;
+let custom = Config::get_many([
+    ConfigKey::from("app.name"),
+    ConfigKey::lazy("services.label", || Value::from("fallback")),
+])?;
+Config::set_many([("services.enabled", Value::Bool(true))])?;
+```
+
+六種嚴格讀取均提供上述預設值入口；門面的字串預設值可直接傳 `&str`，陣列與集合預設值使用 JSON 清單或物件。`get_many` 也保留既有 `(鍵, 預設值)` 寫法，重複鍵保留首次位置並採用最後一次結果，既有 null 不執行惰性預設值。讀取按輸入順序進行，前一預設值回呼的修改可被後續鍵讀取。`set_many` 按順序寫入，不構成交易。完整字面鍵優先於點分路徑。
+
+`openrust::config::Repository` 同樣提供這些讀取與批次操作；設定契約提供預設實作，替換倉儲後公開入口仍可用，門面也會遵循自訂倉儲對型別化讀取的覆寫。
+
+
 ## 編輯環境檔案 {#editing-environment-files}
 
 `EnvironmentFile` 修改磁碟中的環境檔案；`Config::set` 只修改目前的設定儲存庫，`Environment` 則是不可變的啟動快照。寫入檔案不會自動更新後兩者，也不會重新啟動服務。

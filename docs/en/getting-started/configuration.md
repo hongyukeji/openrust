@@ -59,6 +59,26 @@ After replacing `app`, subsequent writes follow call order: replacing `app.ui` r
 
 Use `Config::string_or("app.name", "App")` to get a `String` directly. It returns the default if the key is absent, the value is null or another type, or the repository is unavailable. Use `Config::string("app.name")?` for strict reads. Raw `Config::get_or("app.name", Value::from("App"))?` defaults only when the key is absent and preserves an explicit null. `Config::get_many([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
 
+The strict readers also provide `*_with_default` and `*_or_else`. Defaults are used only when the key is absent; an explicit null or the wrong stored type still returns an error. Lazy defaults run once at most, after the lookup. Integers and floats keep their distinct types. An unavailable repository returns a binding error before calling a default.
+
+```rust
+use openrust::config::ConfigKey;
+let name = Config::string_with_default("app.name", "App")?;
+let retries = Config::integer_with_default("services.retries", 3)?;
+let ratio = Config::float_or_else("services.ratio", || 1.5)?;
+let selected = Config::get_many(["app.name", "app.locale"])?;
+let custom = Config::get_many([
+    ConfigKey::from("app.name"),
+    ConfigKey::lazy("services.label", || Value::from("fallback")),
+])?;
+Config::set_many([("services.enabled", Value::Bool(true))])?;
+```
+
+All six strict readers have these defaults. String defaults accept `&str` through the facade; array and collection defaults accept JSON arrays or objects. `get_many` also keeps the existing `(key, default)` form. It preserves the first insertion position of duplicate keys and uses their last value. An existing null does not run a lazy default. Reads follow input order, including changes made by a previous default callback. `set_many` writes in order without a transaction. A complete literal key takes precedence over a dot-separated path.
+
+`openrust::config::Repository` exposes the same readers and bulk operations. The configuration contract provides default implementations so replacing the repository preserves the public entry points; facade calls also respect typed-reader overrides.
+
+
 ## Editing Environment Files {#editing-environment-files}
 
 `EnvironmentFile` edits the application's environment file on disk. `Config::set` changes the current configuration repository; the `Environment` boot snapshot remains immutable. File edits do not automatically change either one or restart services.

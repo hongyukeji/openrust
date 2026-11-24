@@ -4,6 +4,9 @@ pub(crate) mod cache;
 mod environment;
 mod environment_file;
 mod error;
+mod key;
+pub(crate) mod typed;
+pub use key::ConfigKey;
 mod repository;
 
 pub use environment::Environment;
