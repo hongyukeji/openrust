@@ -1,0 +1,28 @@
+[
+    "before:first",
+    true,
+    "after:second",
+    [
+        1,
+        "kept:second",
+        9
+    ],
+    [
+        3,
+        "replaced:mixed",
+        9
+    ],
+    "factory",
+    [
+        3,
+        false
+    ],
+    [
+        5,
+        false,
+        4
+    ],
+    "second",
+    "macro",
+    "BadMethodCallException"
+]

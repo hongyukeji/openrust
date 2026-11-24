@@ -46,6 +46,37 @@ macro_rules! typed_reader {
 }
 /// Reads and updates application configuration.
 pub trait Repository: Send + Sync {
+    fn macro_registry(
+        &self,
+    ) -> Result<std::sync::Arc<crate::config::ConfigMacroRegistry>, ConfigError> {
+        crate::config::macros::current_registry()
+    }
+    fn register_macro(
+        &self,
+        name: &str,
+        callback: crate::config::ConfigMacro,
+    ) -> Result<(), ConfigError> {
+        self.macro_registry()?.register(name.into(), callback);
+        Ok(())
+    }
+    fn has_macro(&self, name: &str) -> Result<bool, ConfigError> {
+        Ok(self.macro_registry()?.has(name))
+    }
+    fn flush_macros(&self) -> Result<(), ConfigError> {
+        self.macro_registry()?.clear();
+        Ok(())
+    }
+    fn invoke_macro(
+        &self,
+        context: &dyn Repository,
+        name: &str,
+        arguments: crate::config::ConfigMacroArguments,
+        actual: &'static str,
+    ) -> Result<crate::config::ConfigMacroOutput, ConfigError> {
+        self.macro_registry()?
+            .invoke(context, name, arguments, actual)
+    }
+
     fn has(&self, key: &str) -> bool;
     fn get(&self, key: &str) -> Option<Value>;
     fn all(&self) -> BTreeMap<String, Value>;

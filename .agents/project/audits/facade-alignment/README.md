@@ -536,3 +536,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 原Config Facade和Repository实际执行27步并逐步比较完整快照，覆盖缺键／已有null、空字符串、空点分段、字面星号、NUL、前导零、完整字面键优先与列表写入。删除字符串键额外拒绝规则，环境文件自身校验不变。
 - `target/tmp/facade-alignment/config-offsets/tests-consumers.log`实际14项通过，含新增4项、原读取6项与作用域4项；真实HTTP确认unset后仍存在null且下次请求恢复默认语言，真实Artisan确认空点分路径及null存在性。workspace严格Clippy1m13s、三语站点15.94s、6浏览器跳转通过。
 - 原始比较器、JSON快照和失败／最终日志保留；无外部账号要求。宏、替身生命周期、动态非字符串键和非JSON配置值等其余契约继续处理，不将本子集算作Config闭合。
+
+### Config：宏、混入与应用隔离（仍 partial）
+
+- 复核固定Macroable实际实现和原Config Facade/Repository；旧版未提供当前注册与动态调用实现。复用既有File／Cloud的类型擦除与锁外回调模式，Config复用当前仓储与应用容器，不创建平行配置快照。
+- 正式Config及Repository注册／混入／检查／清空／具类型调用接线。宏回调接收当前实际仓储及其覆写；应用级注册跨默认仓储替换保留，双应用隔离。独立仓储在应用上下文外拥有自己的注册表；该原生作用域差异已同步三语。
+- 惰性mixin工厂按顺序执行，replace=false跳过已有名及工厂，失败保留先前注册。回调和退休捕获值在锁外执行／释放，支持重入清空／注册。同步参数和结果仅Any，实际Rc对象身份保留；持久回调继续Send+Sync。普通已有方法优先，不因宏同名覆盖；具类型macro_call显式调用注册宏。
+- `target/tmp/facade-alignment/config-macros/`保留固定PHP8.5.12原类执行输出及fixture。最终组合21项全部通过，含7新测试、实际双应用HTTP、Artisan及SQLite真实queue:work连续两任务语言隔离。最初测试捕获闭包不符配置fn指针及工厂捕获生命周期编译失败已修正，失败日志保留。
+- workspace严格Clippy42.47s、三语构建18.32s及6浏览器跳转通过。无外部供应商或数据库账号要求；完整共享Facade替身、非JSON原始配置值等边界继续核对，Config仍partial，整个门面任务继续。

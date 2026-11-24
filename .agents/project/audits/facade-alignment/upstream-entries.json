@@ -997,7 +997,7 @@
         }
       ],
       "remaining": [
-        "macro/mixin/hasMacro/flushMacros实际Macroable接线及共享Facade生命周期/替身仍待核对",
+        "共享Facade生命周期/替身仍须逐项核对；Config四个Macroable入口和实际调用已验收，不以宏子集关闭Config",
         "写入/列表操作其余边界及动态非字符串键仍须逐项裁决；ArrayAccess与本批字符串写入边界已验收，不代表Config整体关闭",
         "Rust配置原始值是JSON；PHP任意对象/非JSON值与可失败默认闭包的公开适配仍须具体裁决，不能以静态语言理由笼统跳过"
       ],
@@ -1006,6 +1006,21 @@
         "contract": "offsetUnset是set(null)，含不存在键；has/offsetExists对null仍true。空字符串、空点分段、字面星号、NUL、前导零及完整字面键遵循原仓储。同步Rust入口使用具名方法，不返回锁外可变索引引用。",
         "consumers": "Facade真实虚调用仓储覆写；HTTP语言配置设null后下一请求恢复应用默认；真实Artisan读写/清空仍保留键。",
         "evidence": "target/tmp/facade-alignment/config-offsets；PHP固定原类27步逐次快照，config_offsets 4 + config_readers 6 + scoped_overrides 4全部实际通过；workspace严格Clippy1m13s、三语构建15.94s及6浏览器检查通过。"
+      },
+      "macro_contracts": {
+        "entries": [
+          "macro",
+          "mixin",
+          "hasMacro",
+          "flushMacros",
+          "__call",
+          "__callStatic"
+        ],
+        "review": "implemented_tested_base",
+        "local": "Config::r#macro/mixin/mixin_using/has_macro/flush_macros/macro_call及Repository，正式对象安全仓储可覆写注册表、注册、查询、调用。",
+        "contract": "应用级注册表跨HTTP/Artisan/Worker及默认仓储替换保留；独立仓储在应用上下文外持自身注册。持久Fn线程安全，单次参数/结果Any可含Rc且不要求Clone。回调接收当前真实仓储；普通同名方法不被覆盖。具名列表和惰性工厂表达反射mixin；replace=false跳过已有名及工厂，失败保留先前结果，重入在锁外。",
+        "evidence": "固定原Config Facade/Repository与Macroable容器实跑macros-contract.json；7新增+14配置回归共21项，真实双应用HTTP/Artisan/SQLite Worker两任务隔离。workspace严格Clippy42.47s、三语站点18.32s与6浏览器通过。",
+        "boundaries": "不提供Rust自动反射或动态方法语法，macro_call正式具类型入口。默认应用注册表与独立仓储边界显式文档化；共用Facade测试替身完整契约仍另核。"
       }
     },
     {

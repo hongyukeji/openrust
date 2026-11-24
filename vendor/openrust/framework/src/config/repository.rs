@@ -27,6 +27,7 @@ macro_rules! public_reader {
 pub struct Repository {
     values: RwLock<BTreeMap<String, Value>>,
     owner: Weak<crate::container::Container>,
+    macros: Arc<super::ConfigMacroRegistry>,
 }
 
 impl Repository {
@@ -82,6 +83,7 @@ impl Repository {
         Self {
             values: RwLock::new(values),
             owner: Weak::new(),
+            macros: Arc::default(),
         }
     }
 
@@ -128,6 +130,18 @@ impl Repository {
 }
 
 impl config::Repository for Repository {
+    fn macro_registry(&self) -> Result<Arc<super::ConfigMacroRegistry>, ConfigError> {
+        use crate::contracts::container::Container as _;
+        if let Some(owner) = self.owner.upgrade() {
+            return owner.make().map_err(Into::into);
+        }
+        if crate::support::facades::current_container().is_some() {
+            super::macros::current_registry()
+        } else {
+            Ok(self.macros.clone())
+        }
+    }
+
     fn has(&self, key: &str) -> bool {
         self.get(key).is_some()
     }

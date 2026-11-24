@@ -964,6 +964,9 @@ impl Application {
         self.shared
             .container
             .scoped::<crate::config::LocaleOverrides, _>(|_| Ok(Arc::default()))?;
+        self.shared
+            .container
+            .instance(Arc::new(crate::config::ConfigMacroRegistry::default()))?;
         let config = Arc::new(
             Repository::new(Default::default()).with_owner(Arc::downgrade(&self.shared.container)),
         );

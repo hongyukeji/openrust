@@ -42,6 +42,63 @@ impl Facade for Config {
 }
 
 impl Config {
+    pub fn r#macro<A: std::any::Any, T: std::any::Any>(
+        name: impl Into<String>,
+        callback: impl Fn(&dyn Repository, A) -> Result<T, ConfigError> + Send + Sync + 'static,
+    ) -> Result<(), ConfigError> {
+        Self::get_facade_root()?
+            .register_macro(&name.into(), crate::config::ConfigMacro::new(callback))
+    }
+    pub fn mixin<K: Into<String>>(
+        macros: impl IntoIterator<Item = (K, crate::config::ConfigMacro)>,
+        replace: bool,
+    ) -> Result<(), ConfigError> {
+        let repository = Self::get_facade_root()?;
+        for (name, callback) in macros {
+            let name = name.into();
+            if replace || !repository.has_macro(&name)? {
+                repository.register_macro(&name, callback)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn mixin_using<
+        K: Into<String>,
+        F: FnOnce() -> Result<crate::config::ConfigMacro, ConfigError>,
+    >(
+        factories: impl IntoIterator<Item = (K, F)>,
+        replace: bool,
+    ) -> Result<(), ConfigError> {
+        let repository = Self::get_facade_root()?;
+        for (name, factory) in factories {
+            let name = name.into();
+            if replace || !repository.has_macro(&name)? {
+                repository.register_macro(&name, factory()?)?;
+            }
+        }
+        Ok(())
+    }
+    pub fn has_macro(name: &str) -> Result<bool, ConfigError> {
+        Self::get_facade_root()?.has_macro(name)
+    }
+    pub fn flush_macros() -> Result<(), ConfigError> {
+        Self::get_facade_root()?.flush_macros()
+    }
+    pub fn macro_call<T: std::any::Any, A: std::any::Any>(
+        name: &str,
+        arguments: A,
+    ) -> Result<T, ConfigError> {
+        let repository = Self::get_facade_root()?;
+        repository
+            .invoke_macro(
+                repository.as_ref(),
+                name,
+                Box::new(arguments),
+                std::any::type_name::<A>(),
+            )?
+            .into_value(name)
+    }
+
     /// Returns the value at a dot-separated key, if it exists.
     pub fn get(key: &str) -> Result<Option<Value>, BindingResolutionError> {
         Ok(Self::get_facade_root()?.get(key))

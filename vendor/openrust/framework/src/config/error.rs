@@ -7,12 +7,31 @@ use crate::contracts::container::BindingResolutionError;
 #[non_exhaustive]
 pub enum ConfigError {
     Unavailable(BindingResolutionError),
-    InvalidKey { key: String },
-    InvalidType { key: String, expected: &'static str },
+    InvalidKey {
+        key: String,
+    },
+    InvalidType {
+        key: String,
+        expected: &'static str,
+    },
+    UnknownMacro(String),
+    MacroType {
+        name: String,
+        expected: &'static str,
+        actual: &'static str,
+    },
+    MacroContextUnavailable,
     InvalidEnvironmentName,
-    InvalidEnvironmentFile { path: PathBuf },
-    InvalidCache { path: PathBuf },
-    ReadFailed { path: PathBuf, source: io::Error },
+    InvalidEnvironmentFile {
+        path: PathBuf,
+    },
+    InvalidCache {
+        path: PathBuf,
+    },
+    ReadFailed {
+        path: PathBuf,
+        source: io::Error,
+    },
 }
 
 impl fmt::Display for ConfigError {
@@ -21,6 +40,16 @@ impl fmt::Display for ConfigError {
             Self::Unavailable(source) => write!(f, "configuration unavailable: {source}"),
             Self::InvalidKey { key } => write!(f, "invalid configuration key {key}"),
             Self::InvalidType { key, expected } => write!(f, "{key} must be {expected}"),
+            Self::UnknownMacro(name) => write!(f, "配置宏 {name} 未注册"),
+            Self::MacroType {
+                name,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "配置宏 {name} 类型不匹配：需要 {expected}，实际 {actual}"
+            ),
+            Self::MacroContextUnavailable => f.write_str("配置宏需要应用上下文或独立仓储"),
             Self::InvalidEnvironmentName => f.write_str("invalid environment name"),
             Self::InvalidEnvironmentFile { path } => {
                 write!(f, "invalid environment file syntax in {}", path.display())

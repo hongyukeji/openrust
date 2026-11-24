@@ -81,6 +81,23 @@ Config::set_many([("services.enabled", Value::Bool(true))])?;
 
 下标访问使用具名入口 `offset_exists`、`offset_get`、`offset_set` 和 `offset_unset`，实际转发当前仓储及其自定义覆写。`offset_unset("key")?` 是将值设为 null：键仍存在，`offset_exists` 返回 true，`offset_get` 返回 `Some(Value::Null)`；原来不存在的键也会创建为 null。字符串键可以为空，也可以包含空的点分片段或字面 `*`；星号不是通配符。这些入口与 `set` 共用请求／任务的语言配置隔离。同步仓储无法提供稳定的可变下标引用，因此 Rust 使用具名方法。
 
+## 配置宏 {#configuration-macros}
+
+在应用启动时注册宏，通过公开门面直接调用：
+
+```rust
+Config::r#macro("feature", |repository, key: String| {
+    repository.boolean(&format!("features.{key}"))
+})?;
+let enabled = Config::macro_call::<bool, _>("feature", "search".to_owned())?;
+```
+
+回调接收当前仓储，包括替换后的仓储及其读取覆写。`has_macro` 检查注册，`flush_macros` 清空注册。`mixin([(name, ConfigMacro::new(callback))], true)` 替换同名宏；传 false 则保留已有宏。`mixin_using` 按顺序执行工厂：传 false 时已有名称连工厂也不执行；工厂失败保留此前注册，后续工厂不再执行。回调和被替换的捕获值在注册锁外执行或释放，可以再次注册、调用和清空宏。
+
+注册表归所属应用，替换默认仓储后仍保留，HTTP、命令和 Worker 共用该应用的注册；不同应用互不污染。应用上下文外的独立 `Repository::new` 拥有自己的注册表。自定义仓储可以覆写对象安全的注册、检查、调用或 `macro_registry` 契约。即使注册同名宏，`Config::get` 等普通方法仍按原行为执行；`macro_call` 显式调用指定宏。
+
+长期保存的回调要求 `Send + Sync + 'static`，同步调用的参数和结果只要求 `Any`，可传递不可复制对象或 `Rc`。宏未注册、参数／结果类型不符和回调失败均明确报错。具类型调用替代动态方法语法，无需取得底层对象。
+
 ## 编辑环境文件 {#editing-environment-files}
 
 `EnvironmentFile` 修改磁盘中的环境文件；`Config::set` 只修改当前配置仓储，`Environment` 则是不可变的启动快照。写文件不会自动更新后两者，也不会重启服务。

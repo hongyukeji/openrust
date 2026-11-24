@@ -81,6 +81,23 @@ Config::set_many([("services.enabled", Value::Bool(true))])?;
 
 下標存取使用具名入口 `offset_exists`、`offset_get`、`offset_set` 和 `offset_unset`，實際轉送目前倉儲及其自訂覆寫。`offset_unset("key")?` 是將值設為 null：鍵仍存在，`offset_exists` 傳回 true，`offset_get` 傳回 `Some(Value::Null)`；原來不存在的鍵也會建立為 null。字串鍵可以為空，也可以包含空的點分片段或字面 `*`；星號不是萬用字元。這些入口與 `set` 共用請求／任務的語言設定隔離。同步倉儲無法提供穩定的可變下標參照，因此 Rust 使用具名方法。
 
+## 設定巨集 {#configuration-macros}
+
+在應用啟動時註冊巨集，透過公開門面直接呼叫：
+
+```rust
+Config::r#macro("feature", |repository, key: String| {
+    repository.boolean(&format!("features.{key}"))
+})?;
+let enabled = Config::macro_call::<bool, _>("feature", "search".to_owned())?;
+```
+
+回呼接收目前倉儲，包括替換後的倉儲及其讀取覆寫。`has_macro` 檢查註冊，`flush_macros` 清空註冊。`mixin([(name, ConfigMacro::new(callback))], true)` 替換同名巨集；傳 false 則保留既有巨集。`mixin_using` 依序執行工廠：傳 false 時既有名稱連工廠也不執行；工廠失敗保留先前註冊，後續工廠不再執行。回呼及被替換的捕獲值在註冊鎖外執行或釋放，可以再次註冊、呼叫及清空巨集。
+
+註冊表歸所屬應用，替換預設倉儲後仍保留，HTTP、命令及 Worker 共用該應用的註冊；不同應用互不污染。應用上下文外的獨立 `Repository::new` 擁有自己的註冊表。自訂倉儲可以覆寫物件安全的註冊、檢查、呼叫或 `macro_registry` 契約。即使註冊同名巨集，`Config::get` 等普通方法仍按原行為執行；`macro_call` 明確呼叫指定巨集。
+
+長期保存的回呼要求 `Send + Sync + 'static`，同步呼叫的參數及結果只要求 `Any`，可傳遞不可複製物件或 `Rc`。巨集未註冊、參數／結果型別不符及回呼失敗均明確報錯。具型別呼叫取代動態方法語法，無需取得底層物件。
+
 ## 編輯環境檔案 {#editing-environment-files}
 
 `EnvironmentFile` 修改磁碟中的環境檔案；`Config::set` 只修改目前的設定儲存庫，`Environment` 則是不可變的啟動快照。寫入檔案不會自動更新後兩者，也不會重新啟動服務。

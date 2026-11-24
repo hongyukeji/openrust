@@ -81,6 +81,23 @@ All six strict readers have these defaults. String defaults accept `&str` throug
 
 The named ArrayAccess methods `offset_exists`, `offset_get`, `offset_set`, and `offset_unset` forward to the current repository, including custom overrides. `offset_unset("key")?` assigns null: the key remains present, `offset_exists` returns true, and `offset_get` returns `Some(Value::Null)`. It also creates a null entry when the key was absent. String keys may be empty or contain empty dot segments or literal `*`; the asterisk is a key, not a wildcard. These methods follow the same request/task locale isolation as `set`. Rust uses named methods because a synchronized repository cannot expose stable mutable indexing references.
 
+## Configuration Macros {#configuration-macros}
+
+Register a macro during application boot, then call it through the public facade:
+
+```rust
+Config::r#macro("feature", |repository, key: String| {
+    repository.boolean(&format!("features.{key}"))
+})?;
+let enabled = Config::macro_call::<bool, _>("feature", "search".to_owned())?;
+```
+
+The callback receives the current repository, including a swapped repository and its overridden readers. `has_macro` checks registration and `flush_macros` clears it. `mixin([(name, ConfigMacro::new(callback))], true)` replaces existing macros; pass false to keep them. `mixin_using` accepts ordered factories: with false, an existing name skips the factory entirely. A factory error retains earlier registrations and stops later factories. Callbacks and retired captures run outside the registry lock, so they can register, call, or clear macros again.
+
+Macros belong to an application, survive replacing its default repository, and are shared by its HTTP, command, and Worker consumers. Different applications have independent registrations. A standalone `Repository::new` outside any application owns its registry. A custom repository can override the object-safe registration, lookup, invocation, or `macro_registry` contract. Ordinary methods such as `Config::get` remain ordinary methods even if a macro has the same name; `macro_call` explicitly invokes the named macro.
+
+Stored callbacks must be `Send + Sync + 'static`; the arguments and result of a synchronous call only require `Any` and may carry non-cloneable or `Rc` values. Missing macros, argument/result type mismatches, and callback failures return explicit errors. This typed invocation replaces dynamic method syntax; no root-object access is needed.
+
 ## Editing Environment Files {#editing-environment-files}
 
 `EnvironmentFile` edits the application's environment file on disk. `Config::set` changes the current configuration repository; the `Environment` boot snapshot remains immutable. File edits do not automatically change either one or restart services.
