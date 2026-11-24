@@ -2,7 +2,7 @@
 
 上游以[固定文档导航](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/documentation.md)为准。下表按上游导航排列，开发顺序和验收单元见[分批交付计划](../plan.md)。需确认表示生态移植范围需要独立确认。编号表示计划。
 
-对应路径在[英文](../../../docs/en/README.md)、[简体中文](../../../docs/zh_CN/README.md)和[繁體中文](../../../docs/zh_TW/README.md)导航中相同。固定导航共 103 个章节入口，对应 102 个上游正文路径。Browser Tests 与 Dusk 共用一个路径。API Documentation 是外部参考入口。
+对应路径在[英文](../../../docs/en/README.md)、[简体中文](../../../docs/zh-Hans/README.md)和[繁體中文](../../../docs/zh-Hant/README.md)导航中相同。固定导航共 103 个章节入口，对应 102 个上游正文路径。Browser Tests 与 Dusk 共用一个路径。API Documentation 是外部参考入口。
 
 ## Prologue
 
@@ -183,9 +183,9 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 | --- | --- | --- |
 | URL Generation：固定教程14节 | 已逐项闭合；保留APP_URL优先与previous同源策略，不等于完整类API／全框架发布 | [最终教程核对](../audits/docs-tutorials/final-review-2026-11-24.md) |
 | Validation：固定教程179节 | 已逐项闭合，含ForEach／fluent／Aware／email及关联入口；保留列明原生适配 | [最终教程核对](../audits/docs-tutorials/final-review-2026-11-24.md) |
-| Error Handling：固定教程18节 | 按依赖接续；report助手与类型自身行为／标记已验收；错误页／发布仍开放 | [逐节对账](../audits/error-tutorial/README.md) |
+| Error Handling：固定教程18节 | 已逐项闭合；含报告助手、类型自身行为／标记、异步命名视图、419会话重定向、真实错误对象与8页发布；原生边界见记录 | [逐节对账](../audits/error-tutorial/README.md) |
 | Settings：既定类型化设置与单机／集群协调 | 功能已闭合；发布环境矩阵保留待验，不重开功能任务 | [最终闭合复核](../audits/settings-coordination/README.md) |
-| 其他章节及上述章节的剩余示例 | 依现有细分单元接续；未取得教程消费者证据的，不新增已通过结论 | [统一差异账本](framework-parity-data-2026-11-22.json) |
+| 其他章节及完整类型API | 依现有细分单元接续；未取得教程消费者证据的，不新增已通过结论 | [统一差异账本](framework-parity-data-2026-11-22.json) |
 
 2026-11-24 URL第二组：Url::full与固定PHP实际输出对齐；Request实例／门面支持验签过滤回调，实际HTTP覆盖过期链接的bootstrap渲染及默认回退。13项专项／回归通过，严格Clippy／fmt／三语构建通过。整章其他教程逐项继续核对；APP_URL来源优先和previous同源限制保留明确差异，见[逐组记录](../audits/docs-tutorials/README.md)。
 

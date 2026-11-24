@@ -400,3 +400,78 @@ pub fn reject_order(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 ```
+
+## 异步命名视图响应 {#async-exception-rendering}
+
+将 `configure_async` 传给 `with_exceptions`，并按下面模板创建 `resources/views/errors/invalid-order.blade.html`。
+
+```rust
+use openrust::{
+    foundation::configuration::Exceptions,
+    http::StatusCode,
+    support::facades::Response,
+    view::ViewData,
+};
+
+fn configure_async(exceptions: &mut Exceptions) {
+    exceptions.render_async::<std::io::Error>(|error, request| {
+        Box::pin(async move {
+            let data = ViewData::from_iter([
+                ("message".into(), error.to_string().into()),
+            ]);
+            let response = Response::view_for_request(
+                "errors.invalid-order", data, StatusCode::CONFLICT,
+                Default::default(), request,
+            ).await?;
+            Ok(Some(response))
+        })
+    });
+}
+```
+
+```blade
+<h1>{{ $message }}</h1>
+```
+
+`render_async::<E>` 接收装箱的异步结果：`Ok(Some(response))` 处理异常，`Ok(None)` 继续后续回调与默认渲染，`Err(HttpError)` 报告新错误并渲染其默认响应。同步和异步回调按注册顺序执行，最终响应只经过一次 `respond`。回调借用原异常和可变请求，因此 `Response::view_for_request` 复用同一视图工厂、请求与会话。
+
+运行期通过 Facade 使用 `Exceptions::renderable_async::<E>`。异常类型可覆盖 `ExceptionBehavior::render_async`；默认实现委托同步 `render`，保持类型自身方法优先且不重复执行，均由 `use_exception::<E>` 接入。显式异步入口避免为了 I/O 阻塞执行器；同步 `Exceptions::render` 仅执行同步回调，正常 HTTP 处理与 `ExceptionHandler::render_http` 等待两种回调。
+
+## 过期页面重定向与消息闪存 {#respond-with-session}
+
+最终回调可将 419 响应重定向，并为下一次请求闪存消息。需要可变请求时使用 `respond_async`，它替换先前的最终回调。将 `configure_response` 传给 `with_exceptions`。
+
+```rust
+use openrust::{
+    contracts::debug::Exception,
+    foundation::configuration::Exceptions,
+    http::{HttpFuture, Request, Response},
+    support::facades::Redirect,
+};
+
+const MESSAGE: &str = "页面已过期，请重试。";
+
+fn expired_response<'a>(
+    response: Response,
+    _: &'a Exception<'_>,
+    request: &'a mut Request,
+) -> HttpFuture<'a, Response> {
+    Box::pin(async move {
+        if response.status().as_u16() != 419 {
+            return response;
+        }
+        let redirect = Redirect::back(request, Some("/form"), Default::default())
+            .and_then(|redirect| redirect.with(request, "message", MESSAGE.into()));
+        match redirect {
+            Ok(redirect) => redirect.into(),
+            Err(_) => response,
+        }
+    })
+}
+
+fn configure_response(exceptions: &mut Exceptions) {
+    exceptions.respond_async(expired_response);
+}
+```
+
+Web 会话中间件在此回调后持久化闪存数据。示例在重定向或会话不可用时保留原响应。运行期通过 `Exceptions::respond_using_async` 注册；只读调整继续使用同步 `respond`，同步底层渲染不执行异步回调。

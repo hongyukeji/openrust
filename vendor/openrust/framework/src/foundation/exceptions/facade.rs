@@ -196,6 +196,22 @@ impl Exceptions {
             configuration.render(callback);
         })
     }
+    /// 为当前应用注册异步渲染回调，与renderable共享注册顺序。
+    pub fn renderable_async<E: Error + Sync + 'static>(
+        callback: impl for<'a> Fn(
+            &'a E,
+            &'a mut Request,
+        ) -> crate::http::HttpFuture<
+            'a,
+            Result<Option<Response>, crate::http::HttpError>,
+        > + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.render_async(callback);
+        })
+    }
     /// 为当前应用注册异常类型自身的报告、渲染和上下文方法。
     pub fn use_exception<E: crate::contracts::debug::ExceptionBehavior>()
     -> Result<(), BindingResolutionError> {
@@ -260,6 +276,21 @@ impl Exceptions {
     ) -> Result<(), BindingResolutionError> {
         Self::configure(|configuration| {
             configuration.context(callback);
+        })
+    }
+    /// 在当前应用配置最终异步响应回调。
+    pub fn respond_using_async(
+        callback: impl for<'a, 'e> Fn(
+            Response,
+            &'a Exception<'e>,
+            &'a mut Request,
+        ) -> crate::http::HttpFuture<'a, Response>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Result<(), BindingResolutionError> {
+        Self::configure(|configuration| {
+            configuration.respond_async(callback);
         })
     }
     pub fn respond_using(

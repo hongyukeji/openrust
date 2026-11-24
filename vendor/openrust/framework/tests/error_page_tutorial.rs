@@ -41,6 +41,32 @@ impl fmt::Display for MutableError {
     }
 }
 impl Error for MutableError {}
+impl openrust::contracts::debug::ExceptionBehavior for MutableError {
+    fn render_async<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Option<Response>, HttpError>> {
+        Box::pin(async move {
+            if request.route("id") != Some("own-async") {
+                return Ok(None);
+            }
+            let data =
+                openrust::view::ViewData::from_iter([("message".into(), self.to_string().into())]);
+            request
+                .with_container(async move {
+                    openrust::support::facades::Response::view(
+                        "errors.custom",
+                        data,
+                        StatusCode::CONFLICT,
+                        Default::default(),
+                    )
+                    .await
+                    .map(Some)
+                })
+                .await
+        })
+    }
+}
 fn fail(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let code = request.route("code").unwrap();
@@ -151,22 +177,90 @@ async fn start(
             production_config
         })
         .with_exceptions(move |e| {
+            e.use_exception::<MutableError>();
+            e.render_async::<std::io::Error>(|error, _| {
+                Box::pin(async move {
+                    if error.to_string() != "mapped-async-original" {
+                        return Ok(None);
+                    }
+                    tokio::task::yield_now().await;
+                    Ok(Some(Response::new(
+                        StatusCode::CONFLICT,
+                        Body::from(error.to_string()),
+                    )))
+                })
+            });
+            e.render::<HttpError>(|_, request| {
+                (request.route("id") == Some("sync-first"))
+                    .then(|| Response::new(StatusCode::CONFLICT, Body::from("SYNC-FIRST")))
+            });
+            e.render_async::<HttpError>(|error, request| {
+                Box::pin(async move {
+                    if request.route("id") == Some("async-response") {
+                        return Err(openrust::http::HttpResponseException::new(Response::new(
+                            StatusCode::IM_A_TEAPOT,
+                            Body::from("PREPARED-ASYNC"),
+                        ))
+                        .into());
+                    }
+                    match request.route("id") {
+                        Some("async" | "async-fail") => {}
+                        _ => return Ok(None),
+                    }
+                    let name = if request.route("id") == Some("async-fail") {
+                        "errors.absent"
+                    } else {
+                        "errors.custom"
+                    };
+                    let data = openrust::view::ViewData::from_iter([(
+                        "message".into(),
+                        error.to_string().into(),
+                    )]);
+                    tokio::task::yield_now().await;
+                    openrust::support::facades::Response::view_for_request(
+                        name,
+                        data,
+                        StatusCode::CONFLICT,
+                        Default::default(),
+                        request,
+                    )
+                    .await
+                    .map(Some)
+                })
+            });
+            e.render::<HttpError>(|_, request| {
+                (request.route("id") == Some("async-fallback"))
+                    .then(|| Response::new(StatusCode::GONE, Body::from("SYNC-AFTER-NONE")))
+            });
             e.map_optional::<HttpError, _>(|error| match error {
                 HttpError::Aborted {
                     status, headers, ..
-                } if *status == StatusCode::IM_A_TEAPOT => Some(openrust::http::abort(
-                    StatusCode::GONE,
-                    "mapped <entry>",
-                    (**headers).clone(),
+                } if *status == StatusCode::IM_A_TEAPOT => Some(SharedException::new(
+                    openrust::http::abort(StatusCode::GONE, "mapped <entry>", (**headers).clone()),
                 )),
+                HttpError::Aborted { status, .. } if *status == StatusCode::PRECONDITION_FAILED => {
+                    Some(SharedException::new(std::io::Error::other(
+                        "mapped-async-original",
+                    )))
+                }
                 _ => None,
             });
             e.report::<ViewError>(move |_| {
                 observed.fetch_add(1, Ordering::SeqCst);
                 ReportDecision::Stop
             });
-            e.respond(move |response, exception, _| {
-                if failures.load(Ordering::SeqCst) > 0 {
+            e.respond(move |mut response, exception, request| {
+                let count: usize = response
+                    .headers()
+                    .get("x-respond-count")
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.parse().ok())
+                    .unwrap_or(0);
+                response
+                    .parts_mut()
+                    .headers
+                    .insert("x-respond-count", (count + 1).to_string().parse().unwrap());
+                if request.uri().path() == "/error/404" && failures.load(Ordering::SeqCst) > 0 {
                     assert_eq!(exception.downcast_ref::<ViewError>().is_some(), debug);
                 }
                 response
@@ -183,6 +277,26 @@ async fn start(
         *trace.0.lock().unwrap() = "mutated".into();
         Ok(())
     });
+    App::set_facade_application(Some(&app), async {
+        Exceptions::renderable_async::<HttpError>(|_, request| {
+            Box::pin(async move {
+                if request.route("id") != Some("facade-async") {
+                    return Ok(None);
+                }
+                openrust::support::facades::Response::view_for_request(
+                    "errors.custom",
+                    Default::default(),
+                    StatusCode::CONFLICT,
+                    Default::default(),
+                    request,
+                )
+                .await
+                .map(Some)
+            })
+        })
+        .unwrap();
+    })
+    .await;
     if let Some(delay) = delay {
         App::set_facade_application(Some(&app), async {
             let original = Exceptions::handler().unwrap();
@@ -420,4 +534,34 @@ async fn formal_three_language_blade_examples_render_the_original_http_error() {
         );
         assert!(text.contains("<code>410</code>"), "{text}");
     }
+}
+
+#[tokio::test]
+async fn asynchronous_exception_renderers_use_named_response_views_and_preserve_order_and_failures()
+{
+    let root = tempfile::tempdir().unwrap();
+    template(
+        root.path(),
+        "custom",
+        "<async>VIEW {{ $message ?? 'facade' }}</async>",
+    );
+    let failures = Arc::new(AtomicUsize::new(0));
+    let server = start(root.path(), false, None, failures.clone()).await;
+    for (path, status, body) in [
+        ("/error/410/async", 409, "<async>VIEW"),
+        ("/error/410/async-response", 418, "PREPARED-ASYNC"),
+        ("/error/412", 409, "mapped-async-original"),
+        ("/error/410/nobody", 410, "<h1>410"),
+        ("/error/410/sync-first", 409, "SYNC-FIRST"),
+        ("/error/410/async-fallback", 410, "SYNC-AFTER-NONE"),
+        ("/error/410/facade-async", 409, "<async>VIEW facade</async>"),
+        ("/error/source/own-async", 409, "<async>VIEW before</async>"),
+        ("/error/410/async-fail", 500, "<h1>500</h1>"),
+    ] {
+        let text = send(server.address, path.into(), "text/html").await;
+        assert!(text.starts_with(&format!("HTTP/1.1 {status}")), "{text}");
+        assert!(text.contains(body), "{text}");
+        assert!(text.contains("\r\nx-respond-count: 1\r\n"), "{text}");
+    }
+    assert_eq!(failures.load(Ordering::SeqCst), 1);
 }

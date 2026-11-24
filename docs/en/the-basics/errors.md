@@ -400,3 +400,78 @@ pub fn reject_order(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 ```
+
+## Asynchronous named-view responses {#async-exception-rendering}
+
+Pass `configure_async` to `with_exceptions`, and create `resources/views/errors/invalid-order.blade.html` with the template below.
+
+```rust
+use openrust::{
+    foundation::configuration::Exceptions,
+    http::StatusCode,
+    support::facades::Response,
+    view::ViewData,
+};
+
+fn configure_async(exceptions: &mut Exceptions) {
+    exceptions.render_async::<std::io::Error>(|error, request| {
+        Box::pin(async move {
+            let data = ViewData::from_iter([
+                ("message".into(), error.to_string().into()),
+            ]);
+            let response = Response::view_for_request(
+                "errors.invalid-order", data, StatusCode::CONFLICT,
+                Default::default(), request,
+            ).await?;
+            Ok(Some(response))
+        })
+    });
+}
+```
+
+```blade
+<h1>{{ $message }}</h1>
+```
+
+`render_async::<E>` accepts a boxed asynchronous result: `Ok(Some(response))` handles the exception, `Ok(None)` continues through the next callback and the default renderer, and `Err(HttpError)` reports the new error and renders its default response. Synchronous and asynchronous callbacks keep their registration order; the final response passes through `respond` once. The async callback borrows the original exception and mutable request, so `Response::view_for_request` uses the same view factory, request and session.
+
+Use `Exceptions::renderable_async::<E>` to register at runtime through the facade. An exception type can override `ExceptionBehavior::render_async`; its default implementation delegates to `render`, preserving type-method precedence without calling it twice. Both enter through `use_exception::<E>`. This explicit async entry avoids blocking an executor for I/O; synchronous `Exceptions::render` only executes synchronous callbacks. Normal HTTP processing and `ExceptionHandler::render_http` await both kinds.
+
+## Redirecting expired pages and flashing a message {#respond-with-session}
+
+A final callback can redirect a 419 response and flash a message for the next request. Use `respond_async` when the callback needs a mutable request; it replaces the earlier final callback. Pass `configure_response` to `with_exceptions`.
+
+```rust
+use openrust::{
+    contracts::debug::Exception,
+    foundation::configuration::Exceptions,
+    http::{HttpFuture, Request, Response},
+    support::facades::Redirect,
+};
+
+const MESSAGE: &str = "The page expired, please try again.";
+
+fn expired_response<'a>(
+    response: Response,
+    _: &'a Exception<'_>,
+    request: &'a mut Request,
+) -> HttpFuture<'a, Response> {
+    Box::pin(async move {
+        if response.status().as_u16() != 419 {
+            return response;
+        }
+        let redirect = Redirect::back(request, Some("/form"), Default::default())
+            .and_then(|redirect| redirect.with(request, "message", MESSAGE.into()));
+        match redirect {
+            Ok(redirect) => redirect.into(),
+            Err(_) => response,
+        }
+    })
+}
+
+fn configure_response(exceptions: &mut Exceptions) {
+    exceptions.respond_async(expired_response);
+}
+```
+
+The web session middleware persists the flash data after this callback. If the redirect or session is unavailable, this example keeps the original response. Runtime registration uses `Exceptions::respond_using_async`. The synchronous `respond` API remains available for read-only adjustments; synchronous low-level rendering does not execute asynchronous callbacks.

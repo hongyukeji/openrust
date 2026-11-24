@@ -45,3 +45,32 @@ URL Generation与Validation已按两个固定章节闭合，不重开。按交�
 最终再核对rendering-exceptions中的命名视图响应：公开Response::view本身是异步，但旧render回调为同步，不能以手拼HTML替代此消费者。该关联入口在本簇之后单独接通并验收；在其完成前不关闭整章。
 
 第三簇最终门禁：18目标138项0忽略通过，workspace/all-targets严格Clippy1m08s、fmt、三语构建全通过；最后仅排版测试函数后6项复验通过，定向Clippy再核对。浏览器check_browser/check_scope/check_api_snapshot --without-export均0。实际main的help vendor:publish、8页发布／保护／force、HTTP /up、自定义404、启用既有业务封装后的JSON404、HEAD空正文、发布后默认404、Artisan inspire及Ctrl+C退出0通过。首次实际JSON夹具沿用了旧Not Found文本，已按当前既有默认封装Resource not found.修正断言；重复使用临时目录导致original取到自定义页的夹具错误已换全新目录复验，均不修改产品默认值或把失败计为通过。证据pages-{consumers,clippy,fmt,docs,main,artisan,browser,runtime-final,tests-formatted,final-test-clippy}.log；无存活测试服务器。
+
+
+## 第四簇：异步命名视图消费者与最终逐节复核
+
+固定rendering-exceptions正式示例返回response()->view。现有Response::view是异步请求级转换，不能在同步render闭包await，也不能以手拼HTML代替。新增Configuration::render_async、Facade::renderable_async及ExceptionBehavior::render_async，复用原渲染器注册表与实际ResponseFactory；同步／异步配置保持同一注册顺序，类型自身方法仍先执行。类型异步默认方法只委托同步render一次；Err(HttpError)报告新错误并走默认响应，不递归重入失败的用户回调，最终respond一次。同步Exceptions::render保留同步语义，不阻塞执行器；正常HTTP及异步render_http执行两类回调。异步闭包使用Send Future及Sync错误借用，是原生调度约束，不把缺少命名视图消费者归咎语言限制。
+
+真实专项覆盖Response::view（Request::with_container）及view_for_request、模板错误回退、精确回调顺序、None到后续／默认、异常自身异步方法、映射后的通用错误、运行期Facade和respond一次。三语新增Rust／Blade示例从正式Markdown直接提取，实际TCP请求带Accept: application/json仍得到自定义HTML409及转义后的原消息；没有平行配置实现。旧测试包装处理器不支持configure，已在替换前注册运行期回调；同一HttpError类型的两条映射会按既有唯一类型规则替换，夹具已合并为同一映射，不改产品契约。失败原始日志保留，不计通过。
+
+最终19目标142项0忽略通过，含原异常报告／渲染／Context／映射／替身／关闭处理、视图原生值／查找、请求与Response/Session门面、API前缀及新教程消费者。workspace --all-targets --locked严格Clippy49.99s、fmt、三语构建通过；实际main的HTTP/Artisan/Ctrl+C复验通过，真正./artisan脚本的inspire及vendor:publish也退出0。最新已提交业务响应三语说明进入最终文档构建，不夹带其正文。原记录证据async-{tests-v3,consumers,clippy,fmt,docs,docs-final,main,artisan,runtime-final,launcher,browser}.log。
+
+### 最终范围与必要差异
+
+18个固定文档锚点与section-map逐项集合相等，每项有实际公开契约和消费者，不再使用重复泛化证据代替具体入口；该18节教程范围闭合。URL Generation14节与Validation179节保持已闭合，不重做；Settings既定功能状态保持不变。此结论不等于完整Debug类逐方法、整个View/Logging模块、跨平台或全框架正式发布。
+
+保留四类原生边界：Error/Result与显式StatusCode／headers代替throw和动态可选参数；类型可选方法用use_exception建立元数据，ShouldntReport在擦除前保留标记；共享错误持有真实Arc，不从不透明借用伪造拥有者；I/O渲染使用显式异步入口，同步低层入口不运行异步回调。模板来源最多32层，避免循环／无界遍历；模板表达式四个上游方法名及原生别名均保留。默认错误HTML为独立编写的中性页面，保留状态／通用标题和覆盖机制，不承诺上游视觉像素一致。laravel-errors属于既有外部CLI标签，不因品牌清理更名；项目身份和crate路径保持。没有修改序列化格式、事件、数据库、既有CLI默认值或业务响应开关。
+
+本轮无真实外部阻塞；没有数据库或驱动实现变更，不将这些定向结果计作三库／跨平台发布验收。两个32GB磁盘中断按守卫规则清理profiles并恢复验收，未把中断算通过；日志／源码／依赖下载／数据均保留。提交前保留其他协作者工作区和索引，全部提交本地且禁止推送。最终提交号与清理结果另附。
+
+最终复验命令入口（均由 `tests/build_guard.py --workflow docs-chapters --target-dir target/tmp/rust-naming/cargo-target --tmp-dir target/tmp/pv` 包装Cargo，源码位于 `target/tmp/error-tutorial-20261124/source`）：
+
+- `python3 -B tests/error_tutorial_docs.py --source target/tmp/error-tutorial-20261124/source` 从三语正文生成四个教程测试目标。
+- `cargo test --manifest-path <source>/Cargo.toml -p openrust-framework --locked`，逐一传入 `--test`：`exception_response_docs_generated`、`async_exception_docs_generated`、`error_page_tutorial`、`view_native_values`、`view_finder`、`request_facade`、`response_session_facades`、`api_prefix_boundary`、`exception_behavior_tutorial`、`exception_behavior_docs_generated`、`report_helper`、`error_docs_generated`、`exceptions_facade`、`exception_reporting`、`exception_rendering`、`exception_map_facade`、`exception_context_facade`、`exception_handler_fake`、`exception_ownership`、`without_exception_handling`。
+- `cargo clippy --manifest-path <source>/Cargo.toml --workspace --all-targets --locked -- -D warnings`、`cargo fmt --manifest-path <source>/Cargo.toml --all --check`、`cargo build --manifest-path <source>/Cargo.toml --bin main --locked`；最新HEAD额外两份已提交路由原型测试进入最终Clippy组合，不夹带本批提交。
+- `npm --prefix <source>/docs run build`；`node <source>/docs/tests/check_browser.mjs`、`check_scope.mjs`、`check_api_snapshot.mjs --without-export`。Playwright／浏览器采用既有安装，环境定位见临时browser.py。
+- `main artisan help vendor:publish`、`main artisan vendor:publish --tag=laravel-errors [--force] --no-interaction`、`<source>/artisan inspire`／`vendor:publish`；实际独立main在随机端口、独立APP_BASE_PATH、array Session及禁用其他Runner下处理 `/up`、普通/JSON/HEAD缺失页，再Ctrl+C核对退出0。禁用后台服务仅用于HTTP/Artisan专项隔离，不修改应用默认配置。
+
+最终逐例补核：固定respond示例的419→back()->with(message)不能用只读回调直接完成。现补Configuration::respond_async与Facade::respond_using_async，最终回调允许借用同一可变Request；同步与异步最终回调互相替换，后注册者生效，不叠加。原同步入口保留，正常HTTP等待异步回调；没有引入全局Session或第二套响应器。三语正式configure_response／expired_response代码直接提取，file Session下真实TCP覆盖Bootstrap与运行期Facade两种入口：419转302、Location以/form结尾、加密Cookie往返、下一次读到消息、再下一次已老化删除、404保留且旧回调不再执行。定制重定向不可用时保留原响应是文档示例明确策略，不吞掉框架内部错误。底层回退逻辑由原HTTP渲染共享，异步渲染错误同样保留预制HttpResponseException与既有验证重定向，不另造响应流程；预制418及respond只一次已专项覆盖。
+
+最终完整组合20目标145项0忽略通过；最后一次workspace/all-targets严格Clippy48.84s、fmt、三语站点构建、三组浏览器检查均退出0。实际main重新验证/up、普通／JSON／HEAD404、定制／发布模板、发布保护／force、inspire及Ctrl+C退出0；最后真正./artisan脚本的inspire与发布也通过。证据respond-{tests,consumers,clippy,fmt,docs,main,artisan,browser,runtime-final,launcher}.log。之前142项阶段结果保留为当时状态，最终以本段和18节清单为准；无外部阻塞。用户的“下一章”按计划关闭Error Handling；Logging仅为接续顺序，未在本轮开始新模块。

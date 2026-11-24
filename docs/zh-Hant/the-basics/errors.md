@@ -400,3 +400,78 @@ pub fn reject_order(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 ```
+
+## 非同步命名視圖回應 {#async-exception-rendering}
+
+將 `configure_async` 傳給 `with_exceptions`，並依下面範本建立 `resources/views/errors/invalid-order.blade.html`。
+
+```rust
+use openrust::{
+    foundation::configuration::Exceptions,
+    http::StatusCode,
+    support::facades::Response,
+    view::ViewData,
+};
+
+fn configure_async(exceptions: &mut Exceptions) {
+    exceptions.render_async::<std::io::Error>(|error, request| {
+        Box::pin(async move {
+            let data = ViewData::from_iter([
+                ("message".into(), error.to_string().into()),
+            ]);
+            let response = Response::view_for_request(
+                "errors.invalid-order", data, StatusCode::CONFLICT,
+                Default::default(), request,
+            ).await?;
+            Ok(Some(response))
+        })
+    });
+}
+```
+
+```blade
+<h1>{{ $message }}</h1>
+```
+
+`render_async::<E>` 接收裝箱的非同步結果：`Ok(Some(response))` 處理例外，`Ok(None)` 繼續後續回呼與預設轉譯，`Err(HttpError)` 報告新錯誤並轉譯其預設回應。同步與非同步回呼依註冊順序執行，最終回應只經過一次 `respond`。回呼借用原例外與可變請求，因此 `Response::view_for_request` 重用同一視圖工廠、請求與工作階段。
+
+執行期透過 Facade 使用 `Exceptions::renderable_async::<E>`。例外類型可覆寫 `ExceptionBehavior::render_async`；預設實作委託同步 `render`，保持類型自身方法優先且不重複執行，均由 `use_exception::<E>` 接入。明確的非同步入口避免為了 I/O 阻塞執行器；同步 `Exceptions::render` 僅執行同步回呼，正常 HTTP 處理與 `ExceptionHandler::render_http` 等待兩種回呼。
+
+## 過期頁面重新導向與訊息閃存 {#respond-with-session}
+
+最終回呼可將 419 回應重新導向，並為下一次請求閃存訊息。需要可變請求時使用 `respond_async`，它取代先前的最終回呼。將 `configure_response` 傳給 `with_exceptions`。
+
+```rust
+use openrust::{
+    contracts::debug::Exception,
+    foundation::configuration::Exceptions,
+    http::{HttpFuture, Request, Response},
+    support::facades::Redirect,
+};
+
+const MESSAGE: &str = "頁面已過期，請重試。";
+
+fn expired_response<'a>(
+    response: Response,
+    _: &'a Exception<'_>,
+    request: &'a mut Request,
+) -> HttpFuture<'a, Response> {
+    Box::pin(async move {
+        if response.status().as_u16() != 419 {
+            return response;
+        }
+        let redirect = Redirect::back(request, Some("/form"), Default::default())
+            .and_then(|redirect| redirect.with(request, "message", MESSAGE.into()));
+        match redirect {
+            Ok(redirect) => redirect.into(),
+            Err(_) => response,
+        }
+    })
+}
+
+fn configure_response(exceptions: &mut Exceptions) {
+    exceptions.respond_async(expired_response);
+}
+```
+
+Web 工作階段中介層在此回呼後持久化閃存資料。範例在重新導向或工作階段不可用時保留原回應。執行期透過 `Exceptions::respond_using_async` 註冊；唯讀調整繼續使用同步 `respond`，同步底層轉譯不執行非同步回呼。

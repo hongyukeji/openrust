@@ -3,7 +3,7 @@ use std::{any::TypeId, error::Error, sync::Arc};
 use crate::{
     cache::rate_limiting::Limit,
     contracts::debug::{Exception, SharedException},
-    http::{Request, Response},
+    http::{HttpError, HttpFuture, Request, Response},
     log::{Level, LogContext},
     support::Lottery,
 };
@@ -13,7 +13,27 @@ type Throttle =
     dyn Fn(&Exception<'_>) -> Option<(ReportThrottle, Option<&'static str>)> + Send + Sync;
 type Reporter = dyn Fn(&Exception<'_>) -> ReportDecision + Send + Sync;
 type Renderer = dyn Fn(&Exception<'_>, &Request) -> Option<Response> + Send + Sync;
+type AsyncRenderer = dyn for<'a, 'e> Fn(
+        &'a Exception<'e>,
+        &'a mut Request,
+    ) -> HttpFuture<'a, Result<Option<Response>, HttpError>>
+    + Send
+    + Sync;
+#[derive(Clone)]
+enum RendererEntry {
+    Sync(Arc<Renderer>),
+    Async(Arc<AsyncRenderer>),
+}
 type Responder = dyn Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync;
+
+type AsyncResponder = dyn for<'a, 'e> Fn(Response, &'a Exception<'e>, &'a mut Request) -> HttpFuture<'a, Response>
+    + Send
+    + Sync;
+#[derive(Clone)]
+enum ResponderEntry {
+    Sync(Arc<Responder>),
+    Async(Arc<AsyncResponder>),
+}
 
 type Mapper = dyn Fn(&Exception<'_>) -> Option<SharedException> + Send + Sync;
 #[derive(Clone)]
@@ -73,6 +93,7 @@ pub struct Exceptions {
     exception_types: Vec<TypeId>,
     exception_reporters: Vec<Arc<Reporter>>,
     exception_renderers: Vec<Arc<Renderer>>,
+    exception_async_renderers: Vec<Arc<AsyncRenderer>>,
     behavior_context: Vec<Arc<Context>>,
     throttles: Vec<Arc<Throttle>>,
     ignored: Vec<Rule>,
@@ -84,8 +105,8 @@ pub struct Exceptions {
     context: Vec<Arc<Context>>,
     exception_context: Vec<ErrorContext>,
     without_duplicates: bool,
-    renderers: Vec<Arc<Renderer>>,
-    responder: Option<Arc<Responder>>,
+    renderers: Vec<RendererEntry>,
+    responder: Option<ResponderEntry>,
     dont_flash: Vec<String>,
 }
 
@@ -106,6 +127,13 @@ impl Exceptions {
                 exception
                     .downcast_ref::<E>()
                     .and_then(|error| error.render(request))
+            }));
+        self.exception_async_renderers
+            .push(Arc::new(|exception, request| {
+                match exception.downcast_ref::<E>() {
+                    Some(error) => error.render_async(request),
+                    None => Box::pin(async { Ok(None) }),
+                }
             }));
         // 类型名复用原诊断注册；实例context仅在报告上下文构造时调用一次。
         self.exception_context::<E>(|_| LogContext::new());
@@ -426,11 +454,32 @@ impl Exceptions {
         &mut self,
         callback: impl Fn(&E, &Request) -> Option<Response> + Send + Sync + 'static,
     ) -> &mut Self {
-        self.renderers.push(Arc::new(move |exception, request| {
-            exception
-                .downcast_ref::<E>()
-                .and_then(|error| callback(error, request))
-        }));
+        self.renderers
+            .push(RendererEntry::Sync(Arc::new(move |exception, request| {
+                exception
+                    .downcast_ref::<E>()
+                    .and_then(|error| callback(error, request))
+            })));
+        self
+    }
+
+    /// 异步HTTP渲染器，与同步渲染器按注册顺序执行；None继续，错误交回异常边界。
+    pub fn render_async<E: Error + Sync + 'static>(
+        &mut self,
+        callback: impl for<'a> Fn(
+            &'a E,
+            &'a mut Request,
+        ) -> HttpFuture<'a, Result<Option<Response>, HttpError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.renderers.push(RendererEntry::Async(Arc::new(
+            move |exception, request| match exception.downcast_ref::<E>() {
+                Some(error) => callback(error, request),
+                None => Box::pin(async { Ok(None) }),
+            },
+        )));
         self
     }
 
@@ -439,7 +488,23 @@ impl Exceptions {
         &mut self,
         callback: impl Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync + 'static,
     ) -> &mut Self {
-        self.responder = Some(Arc::new(callback));
+        self.responder = Some(ResponderEntry::Sync(Arc::new(callback)));
+        self
+    }
+
+    /// 在最终响应阶段借用可变请求，允许异步转换和Session闪存；后注册者替换前者。
+    pub fn respond_async(
+        &mut self,
+        callback: impl for<'a, 'e> Fn(
+            Response,
+            &'a Exception<'e>,
+            &'a mut Request,
+        ) -> HttpFuture<'a, Response>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.responder = Some(ResponderEntry::Async(Arc::new(callback)));
         self
     }
 
@@ -483,8 +548,46 @@ impl Exceptions {
     ) -> Option<Response> {
         self.exception_renderers
             .iter()
-            .chain(&self.renderers)
+            .chain(self.renderers.iter().filter_map(|entry| match entry {
+                RendererEntry::Sync(render) => Some(render),
+                RendererEntry::Async(_) => None,
+            }))
             .find_map(|render| render(exception, request))
+    }
+
+    pub(crate) async fn render_using_async(
+        &self,
+        exception: &Exception<'_>,
+        request: &mut Request,
+    ) -> Result<Option<Response>, HttpError> {
+        for render in &self.exception_async_renderers {
+            if let Some(response) = render(exception, request).await? {
+                return Ok(Some(response));
+            }
+        }
+        for entry in &self.renderers {
+            let response = match entry {
+                RendererEntry::Sync(render) => render(exception, request),
+                RendererEntry::Async(render) => render(exception, request).await?,
+            };
+            if response.is_some() {
+                return Ok(response);
+            }
+        }
+        Ok(None)
+    }
+
+    pub(crate) async fn respond_using_async(
+        &self,
+        response: Response,
+        exception: &Exception<'_>,
+        request: &mut Request,
+    ) -> Response {
+        match &self.responder {
+            Some(ResponderEntry::Sync(respond)) => respond(response, exception, request),
+            Some(ResponderEntry::Async(respond)) => respond(response, exception, request).await,
+            None => response,
+        }
     }
 
     pub(crate) fn respond_using(
@@ -494,8 +597,8 @@ impl Exceptions {
         request: &Request,
     ) -> Response {
         match &self.responder {
-            Some(respond) => respond(response, exception, request),
-            None => response,
+            Some(ResponderEntry::Sync(respond)) => respond(response, exception, request),
+            Some(ResponderEntry::Async(_)) | None => response,
         }
     }
 }

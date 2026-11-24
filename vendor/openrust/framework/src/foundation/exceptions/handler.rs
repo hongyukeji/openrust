@@ -148,8 +148,10 @@ impl Handler {
                 )
                 .await;
             }
-            let response = self.render_unmapped_core(request, &exception);
-            return self.finish_render(request, &exception, response).await;
+            return match self.render_async_core(request, &exception).await {
+                Ok(response) => self.finish_render(request, &exception, response).await,
+                Err(error) => self.render_callback_failure(request, error).await,
+            };
         }
         self.render_http_unmapped_response(request, error).await
     }
@@ -165,26 +167,79 @@ impl Handler {
         let exception = Exception::Http(error);
         let configuration_snapshot = self.configuration();
         let config = configuration_snapshot.as_ref();
-        let response = if let Some(custom) =
-            config.and_then(|config| config.render_using(&exception, request))
-        {
-            custom
-        } else if let Some(response) = exception
+        let custom = match config {
+            Some(config) => config.render_using_async(&exception, request).await,
+            None => Ok(None),
+        };
+        let custom = match custom {
+            Ok(custom) => custom,
+            Err(error) => return self.render_callback_failure(request, error).await,
+        };
+        let response = match custom {
+            Some(response) => response,
+            None => self.render_http_fallback(request, error, config).await,
+        };
+        self.finish_render(request, &exception, response).await
+    }
+
+    async fn render_http_fallback(
+        &self,
+        request: &mut Request,
+        error: &HttpError,
+        config: Option<&Exceptions>,
+    ) -> Response {
+        let exception = Exception::Http(error);
+        if let Some(response) = exception
             .downcast_ref::<HttpResponseException>()
             .and_then(HttpResponseException::take_response)
         {
-            response
-        } else {
-            let json = self.renders_json(request, &exception);
-            let redirect = match error {
-                HttpError::Validation(validation) if !json => {
-                    super::validation_redirect::response(request, validation, config).await
-                }
-                _ => None,
-            };
-            redirect.unwrap_or_else(|| self.render_default(request, &exception, json))
+            return response;
+        }
+        let json = self.renders_json(request, &exception);
+        let redirect = match error {
+            HttpError::Validation(validation) if !json => {
+                super::validation_redirect::response(request, validation, config).await
+            }
+            _ => None,
         };
-        self.finish_render(request, &exception, response).await
+        redirect.unwrap_or_else(|| self.render_default(request, &exception, json))
+    }
+
+    async fn render_async_core(
+        &self,
+        request: &mut Request,
+        exception: &Exception<'_>,
+    ) -> Result<Response, HttpError> {
+        let custom = match self.configuration() {
+            Some(config) => config.render_using_async(exception, request).await?,
+            None => None,
+        };
+        Ok(custom
+            .or_else(|| {
+                exception
+                    .downcast_ref::<HttpResponseException>()
+                    .and_then(HttpResponseException::take_response)
+            })
+            .unwrap_or_else(|| {
+                self.render_default(request, exception, self.renders_json(request, exception))
+            }))
+    }
+
+    async fn render_callback_failure(&self, request: &mut Request, error: HttpError) -> Response {
+        if matches!(error, HttpError::DumpAndDie(_)) {
+            return error.bare_response();
+        }
+        let error = std::sync::Arc::new(error);
+        super::view_exception::scope(error.clone(), async {
+            let exception = Exception::Http(&error);
+            let _ = self.report_with_request(request, &exception).await;
+            let configuration = self.configuration();
+            let response = self
+                .render_http_fallback(request, &error, configuration.as_ref())
+                .await;
+            self.finish_render(request, &exception, response).await
+        })
+        .await
     }
 
     async fn finish_render(
@@ -201,11 +256,23 @@ impl Handler {
             let view_error = Exception::Error(&failure.error);
             let _ = self.report_with_request(request, &view_error).await;
             if failure.debug {
-                let response = self.render_unmapped_core(request, &view_error);
-                return self.respond(response, &view_error, request);
+                let response = match self.render_async_core(request, &view_error).await {
+                    Ok(response) => response,
+                    Err(error) => {
+                        let exception = Exception::Http(&error);
+                        let _ = self.report_with_request(request, &exception).await;
+                        let response = self.render_default(
+                            request,
+                            &exception,
+                            self.renders_json(request, &exception),
+                        );
+                        return self.respond_async(response, &exception, request).await;
+                    }
+                };
+                return self.respond_async(response, &view_error, request).await;
             }
         }
-        self.respond(response, exception, request)
+        self.respond_async(response, exception, request).await
     }
 
     fn render_unmapped(&self, request: &Request, exception: &Exception<'_>) -> Response {
@@ -250,6 +317,22 @@ impl Handler {
                 })
         };
         super::render::default_response(request, exception, error, json, debug)
+    }
+
+    async fn respond_async(
+        &self,
+        response: Response,
+        exception: &Exception<'_>,
+        request: &mut Request,
+    ) -> Response {
+        match self.configuration() {
+            Some(config) => {
+                config
+                    .respond_using_async(response, exception, request)
+                    .await
+            }
+            None => response,
+        }
     }
 
     fn respond(

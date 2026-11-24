@@ -1,7 +1,7 @@
 use super::SharedException;
 use crate::{
     foundation::configuration::ReportDecision,
-    http::{Request, Response},
+    http::{HttpError, HttpFuture, Request, Response},
     log::LogContext,
 };
 use std::error::Error;
@@ -15,6 +15,13 @@ pub trait ExceptionBehavior: Error + Send + Sync + 'static {
     }
     fn render(&self, _request: &Request) -> Option<Response> {
         None
+    }
+    /// 需要异步响应转换时覆盖此方法；默认委托原同步render，不执行两次。
+    fn render_async<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Option<Response>, HttpError>> {
+        Box::pin(async move { Ok(self.render(request)) })
     }
     fn context(&self) -> LogContext {
         LogContext::new()
