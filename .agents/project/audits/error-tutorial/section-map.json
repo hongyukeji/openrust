@@ -1,0 +1,295 @@
+{
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "docs_sha256": "fd201e8dfa33f013cb1181914d8f309955161d1b509592b5e5f989ab9d347d11",
+  "sections": [
+    {
+      "anchor": "introduction",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "configuration",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "handling-exceptions",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "reporting-exceptions",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "global-log-context",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "exception-log-context",
+      "status": "pending_contract_gap",
+      "contract": "异常自身context的显式类型注册与默认报告联动继续核对",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "the-report-helper",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "deduplicating-reported-exceptions",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "exception-log-levels",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "ignoring-exceptions-by-type",
+      "status": "pending_contract_gap",
+      "contract": "ShouldntReport标记未提供原生契约，不能以dont_report回调代替",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "rendering-exceptions",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "rendering-exceptions-as-json",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "customizing-the-exception-response",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "renderable-exceptions",
+      "status": "pending_contract_gap",
+      "contract": "异常类型自身report/render尚无专用接线，不能以bootstrap回调替代",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "throttling-reported-exceptions",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "http-exceptions",
+      "status": "verified_tutorial_scope",
+      "contract": "with_exceptions／Handler及对应已验公开入口，详见README逐项证据",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "custom-http-error-pages",
+      "status": "pending_contract_gap",
+      "contract": "缺少实际异常对象模板消费者和默认模板发布入口",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    },
+    {
+      "anchor": "fallback-http-error-pages",
+      "status": "pending_contract_gap",
+      "contract": "当前仅排除404/500/503，固定文档为八种专用状态，待修复",
+      "evidence": [
+        "report_helper",
+        "error_docs_generated",
+        "exception_reporting",
+        "exception_rendering",
+        "exceptions_facade",
+        "exception_context_facade",
+        "exception_handler_fake",
+        "exception_map_facade",
+        "without_exception_handling"
+      ]
+    }
+  ]
+}

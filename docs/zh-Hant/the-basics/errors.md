@@ -303,3 +303,18 @@ Exceptions::throttle_using_all(|exception| {
 未指定 `.by(...)` 時依實際 Rust 錯誤型別分組，不依訊息分組。擁有錯誤的 `Exceptions::report(error)` 自動保留型別；借用查詢使用 `Exception::typed(&error)`，具體型別的 `Arc<E>` 使用 `SharedException::from_typed_arc(error)`。映射後的報告依目標型別計費；明確的 `.by("supplier-timeout")` 可讓不同型別共用配額。
 
 已抹除型別的 `Arc<dyn Error + Send + Sync>` 或 `Exception::Error(&dyn_error)` 無法還原 Rust 具體型別名稱。請明確指定 `.by(...)`，或使用上述建構器保留型別。全域無鍵策略遇到缺少型別資訊時沿用限流失敗放行規則，保留原例外報告，不會把所有未知型別悄悄混入同一配額。原有具型別策略仍可為舊借用呼叫推斷符合的型別。
+
+
+## report 助手 {#the-report-helper}
+
+匯入 `openrust::support::report`，報告一個擁有所有權的例外後繼續目前流程，不產生回應。它使用目前應用程式的處理器，沿用忽略策略、回呼、限流和去重。非同步等待其 `LogResult`；日誌失敗仍傳播錯誤。同一例外需要多次報告時，使用 `SharedException` 並複製共享控制代碼。助手不會替換或安裝處理器。
+
+```rust
+use openrust::{http::{HttpError, Response, StatusCode}, support::report};
+
+pub async fn recover_order() -> Result<Response, HttpError> {
+    let error = std::io::Error::other("recoverable-order-failure");
+    report(error).await?;
+    Response::json(StatusCode::OK, serde_json::json!({"recovered": true}))
+}
+```

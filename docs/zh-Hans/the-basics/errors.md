@@ -303,3 +303,18 @@ Exceptions::throttle_using_all(|exception| {
 未指定 `.by(...)` 时按实际 Rust 错误类型分组，不按消息分组。拥有错误的 `Exceptions::report(error)` 自动保留类型；借用查询使用 `Exception::typed(&error)`，具体类型的 `Arc<E>` 使用 `SharedException::from_typed_arc(error)`。映射后的报告按目标类型计费；显式 `.by("supplier-timeout")` 可以让不同类型共享配额。
 
 已擦除类型的 `Arc<dyn Error + Send + Sync>` 或 `Exception::Error(&dyn_error)` 无法恢复 Rust 具体类型名。请显式指定 `.by(...)`，或使用上述构造器保留类型。全局无键策略遇到缺失类型信息时沿用限流失败放行规则，保留原异常报告，不会把所有未知类型悄悄混入同一配额。原有具类型策略仍可为旧借用调用推断匹配类型。
+
+
+## report 助手 {#the-report-helper}
+
+导入 `openrust::support::report`，报告一个拥有所有权的异常后继续当前流程，不生成响应。它使用当前应用的处理器，沿用忽略策略、回调、限流和去重。异步等待其 `LogResult`；日志失败仍传播错误。同一异常需要多次报告时，使用 `SharedException` 并克隆共享句柄。助手不会替换或安装处理器。
+
+```rust
+use openrust::{http::{HttpError, Response, StatusCode}, support::report};
+
+pub async fn recover_order() -> Result<Response, HttpError> {
+    let error = std::io::Error::other("recoverable-order-failure");
+    report(error).await?;
+    Response::json(StatusCode::OK, serde_json::json!({"recovered": true}))
+}
+```

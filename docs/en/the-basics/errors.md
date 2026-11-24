@@ -303,3 +303,18 @@ Exceptions::throttle_using_all(|exception| {
 A limit without `.by(...)` groups by the actual Rust error type, not its message. Owned `Exceptions::report(error)` preserves this metadata automatically. For borrowed queries use `Exception::typed(&error)`; for a typed `Arc<E>` use `SharedException::from_typed_arc(error)`. Mapped reports use the mapped type. An explicit `.by("supplier-timeout")` can share a quota across types.
 
 A previously erased `Arc<dyn Error + Send + Sync>` or `Exception::Error(&dyn_error)` cannot recover a concrete Rust type name. Supply a `.by(...)` key or retain the type with these constructors. If a catch-all keyless limit receives no type metadata, it admits the original report, following the limiter-failure policy; it never silently groups all unknown types together. Existing typed policies can infer their matching type for legacy borrowed calls.
+
+
+## The report helper {#the-report-helper}
+
+Import `openrust::support::report` to report an owned error without rendering a response. It uses the current application handler, including ignore rules, callbacks, throttling and duplicate detection. Await its `LogResult`; a logging failure remains an error. Use `SharedException` and clone its handle when the same error must be reported again. The helper does not replace or install a handler.
+
+```rust
+use openrust::{http::{HttpError, Response, StatusCode}, support::report};
+
+pub async fn recover_order() -> Result<Response, HttpError> {
+    let error = std::io::Error::other("recoverable-order-failure");
+    report(error).await?;
+    Response::json(StatusCode::OK, serde_json::json!({"recovered": true}))
+}
+```

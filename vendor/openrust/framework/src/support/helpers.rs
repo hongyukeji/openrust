@@ -145,3 +145,10 @@ impl Retry {
 #[cfg(test)]
 #[path = "../../tests/unit/deferred_lifecycle.rs"]
 mod deferred_lifecycle;
+
+/// 报告异常后继续当前流程；复用当前应用的异常处理器，不生成HTTP响应。
+pub async fn report(
+    error: impl std::error::Error + Send + Sync + 'static,
+) -> crate::log::LogResult<()> {
+    super::facades::Exceptions::report(error).await
+}
