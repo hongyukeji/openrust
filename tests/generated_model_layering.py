@@ -19,8 +19,14 @@ impl User {
     pub(crate) fn layering_marker() -> &'static str { "retained" }
 }
 '''
-SERVICE = '''use crate::app::models::{User, layering_probe::LayeringProbe, field_probe::FieldProbe, customized_probe::CustomizedProbe};
+SERVICE = '''use crate::app::models::{User, layering_probe::LayeringProbe, field_probe::FieldProbe, customized_probe::CustomizedProbe, misplaced_hidden_probe::MisplacedHiddenProbe};
 use openrust::{contracts::auth::MustVerifyEmail, database::eloquent::Model, hashing::{Hash, HashOptions}, http::HttpError};
+fn hides_sensitive<M: Model>(model: &M) -> Result<bool, HttpError> {
+    let values = model.to_array()?;
+    let serialized = serde_json::to_string(&values).unwrap();
+    Ok(["two_factor_secret", "two_factor_recovery_codes"].iter().all(|key| model.get_hidden().contains(key) && !values.contains_key(*key))
+        && !serialized.contains("layering-secret-probe") && !serialized.contains("layering-recovery-probe"))
+}
 fn capabilities<T: openrust::sanctum::HasApiTokens + openrust_passport::HasApiTokens + openrust_fortify::TwoFactorAuthenticatable + openrust_fortify::passkeys::PasskeyAuthenticatable>() {}
 pub(crate) fn run() -> openrust::http::HttpFuture<'static, Result<String, HttpError>> {
     Box::pin(async {
@@ -29,10 +35,19 @@ pub(crate) fn run() -> openrust::http::HttpFuture<'static, Result<String, HttpEr
     let mut user = User::create([("name".into(), "Layering".into()), ("email".into(), "layering@example.test".into()), ("password".into(), password.into())].into()).await?;
     assert!(!user.has_verified_email());
     assert!(user.mark_email_as_verified().await.map_err(|e| HttpError::Internal { source: Box::new(e) })?);
-    let loaded = User::find(user.get_key().unwrap().clone()).await?.unwrap();
+    let mut loaded = User::find(user.get_key().unwrap().clone()).await?.unwrap();
     assert!(loaded.has_verified_email());
+    let sensitive = || [("two_factor_secret".into(), "layering-secret-probe".into()), ("two_factor_recovery_codes".into(), "layering-recovery-probe".into())].into();
+    loaded.force_fill(sensitive())?;
+    assert!(hides_sensitive(&loaded)?);
+    let mut exposed = MisplacedHiddenProbe::from_state(Default::default());
+    exposed.force_fill(sensitive())?;
+    assert!(!hides_sensitive(&exposed)?);
+    let leaked = exposed.to_array()?;
+    assert_eq!(leaked["two_factor_secret"], "layering-secret-probe");
+    assert_eq!(leaked["two_factor_recovery_codes"], "layering-recovery-probe");
     user.delete().await?;
-    Ok(serde_json::json!({"table": LayeringProbe::from_state(Default::default()).get_table(), "custom": CustomizedProbe::stub_marker(), "field": FieldProbe::EMAIL, "user": User::layering_marker(), "verified": loaded.has_verified_email()}).to_string())
+    Ok(serde_json::json!({"table": LayeringProbe::from_state(Default::default()).get_table(), "custom": CustomizedProbe::stub_marker(), "field": FieldProbe::EMAIL, "user": User::layering_marker(), "sensitive_hidden": true, "misplaced_hidden_rejected": true, "verified": loaded.has_verified_email()}).to_string())
     })
 }
 '''
@@ -52,7 +67,7 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(Probe(CommandDefinition::new(clap::Command::new("layering:probe")))))
 }
 '''
-EXPECTED = {'table': 'layering_probes', 'custom': 'custom-stub', 'field': 'email', 'user': 'retained', 'verified': True}
+EXPECTED = {'table': 'layering_probes', 'custom': 'custom-stub', 'field': 'email', 'user': 'retained', 'verified': True, 'sensitive_hidden': True, 'misplaced_hidden_rejected': True}
 
 
 def run():
@@ -178,8 +193,13 @@ def run():
     action_source = action.read_bytes()
     cli('fortify:install')
     assert action.read_bytes() == action_source
+    # 故意错放字段的模型只用于序列化反例；没有业务流程或数据库访问。
+    misplaced = (generated / 'vendor/openrust/framework/src/foundation/console/stubs/model.rs.stub').read_text()
+    misplaced = misplaced.replace('{{model}}', 'MisplacedHiddenProbe').replace('{{table_reference}}', '"users"').replace('{{connection}}', '')
+    misplaced = misplaced.replace('ModelMetadata::new("users")', 'ModelMetadata::new("users").fillable(&["two_factor_secret", "two_factor_recovery_codes"]).hidden(&["password", "remember_token"])')
+    (generated / 'app/models/misplaced_hidden_probe.rs').write_text(misplaced)
     modules = generated / 'app/models/mod.rs'
-    modules.write_text(modules.read_text() + '\npub(crate) mod layering_probe;\npub(crate) mod field_probe;\npub(crate) mod customized_probe;\n')
+    modules.write_text(modules.read_text() + '\npub(crate) mod layering_probe;\npub(crate) mod field_probe;\npub(crate) mod customized_probe;\npub(crate) mod misplaced_hidden_probe;\n')
     services = generated / 'app/services'
     assert not services.exists()
     services.mkdir()
