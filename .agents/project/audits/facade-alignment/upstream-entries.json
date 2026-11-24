@@ -1271,6 +1271,14 @@
         ],
         "note": "原95项注解集合之外发现8个实际静态入口；追加到同一public_entries并逐项保留待办。Factory自身use*与默认Date类未反射到的注解另行跟踪，不把反射缺失当作跳过。getFormatsToIsoReplacements与getIsoUnits包含真实Closure，不允许用JSON空对象冒充可调用。"
       },
+      "component_creation_contract": {
+        "entries": ["create", "createSafe", "createStrict", "createFromDate", "createMidnightDate", "createFromTime"],
+        "local": "Date/DateFactory::{create,create_safe,create_strict,create_from_date,create_midnight_date,create_from_time}; DateComponents/StrictDateComponents",
+        "review": "implemented_tested_base",
+        "contract": "复用既有raw格式创建、6位half-up和日历年运算；Default保留create固定值，current显式null当前分量。mock默认保留原时区，显式时区转换。严格创建不泄漏应用设置，安全创建拒绝溢出/DST间隙，宽松返回None。",
+        "adaptation": "Rust无默认/命名参数，以公开分量类型提供Default/current及字段更新；严格类型为整数，不复制PHP弱类型调用的小数隐式截断弃用行为。原生年份超出Jiff范围明确OutOfRange。字符串/日期对象重载、Month枚举及自定义创建/类/工厂仍待接入，不以数值分量子集算完整create闭合。",
+        "evidence": "constructors-contract.json固定原Date/Creator真实258结果，公开门面及具体Factory均逐条判定，另真实HTTP消费者与格式创建/Worker回归。"
+      },
       "sleep_contract": {
         "entry": "sleep",
         "local": "Date/DateFactory::sleep(seconds: f64).await",
@@ -1299,9 +1307,9 @@
       },
       "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
       },
-      "remaining": "可替换日期类/工厂/创建回调及严格模式仍须接入，不据此关闭Date。"
+      "remaining": "可替换日期类/工厂/创建回调仍须接入，不据此关闭Date。"
       },
-      "remaining": "严格/非严格模式、可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
+      "remaining": "可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
       },
       "remaining": [
         "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂及set_test_now_and_timezone",

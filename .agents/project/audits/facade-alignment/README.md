@@ -484,3 +484,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 原Carbon3.10.3 Date::sleep及Symfony NativeClock实际核对。冻结时使用既有TestClock原子推进，不修改先前返回的日期；复用已有InputInterval及Calendar后备扫描器，保留小数舍入、DST和科学计数文本的原行为。旧版已提取区间/扫描器可复用，不另写解释器。
 - 非冻结时复用原生Sleep异步等待，按原秒/微秒截断，负值直接返回；非有限值及原生时长范围明确报错。应用/独立工厂/任务局部作用域仍隔离，未添加全局时钟。Date其他缺口继续保留。
 - tests-third.log实际9项通过（3项新增及6项时钟回归），原比较器10组冻结结果和4组真实时钟结果保留；workspace/all-targets严格Clippy22.03秒，三语构建14.55秒与6组桌面/移动浏览器通过。首次编译错误保留，不算通过；一次性PHP容器已直接删除，未触及32GB，热缓存保留。
+
+### Date：分量创建、严格创建与安全创建（仍 partial）
+
+- 六个正式入口使用同一raw格式创建器，复用旧版提取的Calendar与PHP half-up舍入，不另写日期解释器。固定Date/Creator原类258组覆盖缺省/null、mock时区、正负/超界年份、日期进位、DST间隙/重复时间、严格及宽松模式。
+- Rust分量对象显式区分Default固定值与current全部null；StrictDateComponents用整数秒保留原方法的整数参数契约，PHP弱类型浮点截断弃用提示只在比较器原日志保留，Rust不隐式截断。超过Jiff范围明确OutOfRange。安全创建检查分量并拒绝归一化后的变化；严格创建不修改应用共享严格设置。
+- create的字符串/日期对象重载、Month枚举、可替换创建器/日期类/工厂、完整错误诊断继续处理；现有不可变Date值与原默认可变Carbon也仍是实际缺口，不以已匹配时间戳冒充可变性闭合。
+- tests-fourth.log实际9项通过（新增3项含真实HTTP，格式创建/真实Artisan Worker及请求日期6项回归），258组原类向量均判定；workspace/all-targets严格Clippy49.42秒，三语构建14.09秒及6组浏览器通过。比较器弃用输出改发stderr后生成纯JSON，初次输出混入提示导致的失败不计通过；PHP一次性容器已直接移除，热缓存保留。

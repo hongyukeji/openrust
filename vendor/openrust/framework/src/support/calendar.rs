@@ -296,6 +296,10 @@ fn parse_factory_format_with_zone(
     format::parse(text, pattern, civil, &zone)
 }
 
+pub(crate) fn date_component_seconds(value: f64) -> Result<String> {
+    timestamp::number_format_timestamp(value)
+}
+
 pub(crate) fn date_from_timestamp(value: Value, milliseconds: bool) -> Result<InputDate> {
     let text = match value {
         Value::String(text) => text,

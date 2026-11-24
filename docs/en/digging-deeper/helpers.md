@@ -215,6 +215,23 @@ assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
 Date::sleep(0.25).await?;
 ```
 
+`create` and `create_safe` accept `DateComponents`; `create_strict` accepts `StrictDateComponents` with integer seconds. `Default` uses year 0, January 1 at midnight; `current()` uses `None` for every component to read the current clock. Explicit `None` components inherit the mock's original timezone when no timezone is supplied. A supplied timezone converts the mock first.
+
+```rust
+use openrust::support::{DateComponents, StrictDateComponents};
+let value = Date::create(DateComponents {
+    year: Some(2024), month: Some(2), day: Some(30),
+    ..Default::default()
+}, None)?.unwrap(); // 2024-03-01
+let safe = Date::create_safe(DateComponents {
+    year: Some(2024), month: Some(2), day: Some(29),
+    ..DateComponents::current()
+}, None)?;
+let strict = Date::create_strict(StrictDateComponents::default(), None)?;
+```
+
+`create_safe` rejects invalid calendar components and DST gaps instead of normalizing them; invalid values return an error in strict mode or `None` in lenient mode. `create_strict` always validates, leaving the application's strict-mode setting unchanged. Its integer components prevent PHP's implicit fractional-to-integer coercion. Years outside -9999 through 9999 return `DateError::OutOfRange`. `create_from_date(year, month, day, timezone)` keeps the clock time; `create_midnight_date` sets midnight. `create_from_time(hour, minute, second, timezone)` keeps the clock date; use `Some(0)` for midnight, and `None` to inherit a component.
+
 `instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 

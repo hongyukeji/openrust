@@ -215,6 +215,23 @@ assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
 Date::sleep(0.25).await?;
 ```
 
+`create`、`create_safe` 接收 `DateComponents`；`create_strict` 接收秒分量为整数的 `StrictDateComponents`。`Default` 为 0 年 1 月 1 日零点，`current()` 将全部分量设为 `None`，从当前时钟读取。分量显式为 `None` 且未指定时区时沿用 mock 原时区；指定时区则先转换 mock。
+
+```rust
+use openrust::support::{DateComponents, StrictDateComponents};
+let value = Date::create(DateComponents {
+    year: Some(2024), month: Some(2), day: Some(30),
+    ..Default::default()
+}, None)?.unwrap(); // 2024-03-01
+let safe = Date::create_safe(DateComponents {
+    year: Some(2024), month: Some(2), day: Some(29),
+    ..DateComponents::current()
+}, None)?;
+let strict = Date::create_strict(StrictDateComponents::default(), None)?;
+```
+
+`create_safe` 拒绝无效日历分量和夏令时间隙，不自动进位；严格模式返回错误，宽松模式返回 `None`。`create_strict` 始终校验，不改变应用的严格模式设置；整数分量在类型层面避免 PHP 将小数隐式截断。超出 -9999 至 9999 的年份返回 `DateError::OutOfRange`。`create_from_date(year, month, day, timezone)` 保留时钟时间，`create_midnight_date` 使用零点。`create_from_time(hour, minute, second, timezone)` 保留时钟日期；用 `Some(0)` 设置零值，用 `None` 继承分量。
+
 `instance(&value)` 克隆日期值。目前尚不提供本地化创建、自定义工厂与错误诊断入口。
 
 

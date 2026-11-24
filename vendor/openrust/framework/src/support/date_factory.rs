@@ -1,5 +1,7 @@
 //! 日期工厂与应用时钟；日期值沿用现有带时区的 Date。
 use super::{Date, DateError, DateTimezone, TestClock};
+mod constructors;
+pub use constructors::{DateComponents, StrictDateComponents};
 mod format_creation;
 mod format_matching;
 mod input;
