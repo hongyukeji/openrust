@@ -303,3 +303,15 @@ fn gather(
     }
     Ok(flat)
 }
+
+impl crate::contracts::validation::CompilableRules for CompilationError {
+    fn compile(
+        &self,
+        _: &str,
+        _: Option<&Value>,
+        _: &Map<String, Value>,
+        _: Option<&Value>,
+    ) -> ValidationResult<RuleSet> {
+        Err(self.error())
+    }
+}

@@ -20,12 +20,15 @@ struct Registrations {
     fallback_messages: BTreeMap<String, String>,
     resolver: Option<ValidatorResolver>,
     include_unvalidated_array_keys: bool,
+    password_defaults: Option<Arc<dyn Fn() -> super::rules::Password + Send + Sync>>,
+    uncompromised: Option<Arc<dyn crate::contracts::validation::UncompromisedVerifier>>,
 }
 
 /// 扩展按验证器创建时取得注册快照；工厂克隆共享注册表和DNS测试策略。
 #[derive(Clone, Default)]
 pub struct Factory {
     translator: Option<Arc<Translator>>,
+    pub(super) owner: std::sync::Weak<crate::container::Container>,
     presence: Option<DatabasePresenceVerifier>,
     registrations: Arc<RwLock<Registrations>>,
     dns_policy: Arc<std::sync::atomic::AtomicBool>,
@@ -37,6 +40,66 @@ impl Factory {
             translator: Some(translator),
             ..Default::default()
         }
+    }
+
+    /// 默认策略按应用保存；调用回调时不持有注册锁。
+    pub fn set_password_defaults(
+        &self,
+        callback: impl Fn() -> super::rules::Password + Send + Sync + 'static,
+    ) {
+        self.registrations
+            .write()
+            .expect("验证器注册锁损坏")
+            .password_defaults = Some(Arc::new(callback));
+    }
+    pub fn password_defaults(&self) -> super::rules::Password {
+        let callback = self
+            .registrations
+            .read()
+            .expect("验证器注册锁损坏")
+            .password_defaults
+            .clone();
+        callback.map_or_else(|| super::rules::Password::min(8), |callback| callback())
+    }
+    pub fn set_uncompromised_verifier(
+        &self,
+        verifier: Arc<dyn crate::contracts::validation::UncompromisedVerifier>,
+    ) {
+        self.registrations
+            .write()
+            .expect("验证器注册锁损坏")
+            .uncompromised = Some(verifier);
+    }
+    pub(super) async fn verify_uncompromised(
+        &self,
+        value: &super::Value,
+        threshold: i64,
+    ) -> ValidationResult<bool> {
+        use crate::contracts::container::Container as _;
+        let verifier = self
+            .registrations
+            .read()
+            .expect("验证器注册锁损坏")
+            .uncompromised
+            .clone();
+        let verifier = match verifier {
+            Some(verifier) => verifier,
+            None => {
+                let owner =
+                    self.owner
+                        .upgrade()
+                        .ok_or_else(|| super::ValidationError::Execution {
+                            source: std::io::Error::other("密码泄漏验证器尚未配置").into(),
+                        })?;
+                owner
+                    .make_async::<dyn crate::contracts::validation::UncompromisedVerifier>()
+                    .await
+                    .map_err(|source| super::ValidationError::Execution {
+                        source: Box::new(source),
+                    })?
+            }
+        };
+        verifier.verify(value, threshold).await
     }
 
     /// 每个应用共享自己的测试策略，已创建验证器也可观察切换，不使用进程全局状态。

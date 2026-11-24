@@ -22,8 +22,19 @@ impl ServiceProvider for ValidationServiceProvider {
                     crate::foundation::http::FormRequestDefaults::default(),
                 ))
             })?;
-            container.singleton_named("validator", |container| {
+            container.singleton::<dyn crate::contracts::validation::UncompromisedVerifier, _>(
+                |container| {
+                    let verifier = super::NotPwnedVerifier::new(
+                        container.make::<crate::http::client::Factory>()?,
+                        None,
+                    );
+                    Ok(Arc::new(verifier))
+                },
+            )?;
+            let owner = Arc::downgrade(&app.container_handle());
+            container.singleton_named("validator", move |container| {
                 let mut factory = Factory::new(container.get::<Translator>("translator")?);
+                factory.owner = owner.clone();
                 factory.set_presence_verifier(DatabasePresenceVerifier::new(
                     container.make::<dyn crate::database::ConnectionResolverInterface>()?,
                 ));

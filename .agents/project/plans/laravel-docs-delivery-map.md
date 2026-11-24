@@ -227,3 +227,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第二十组：尺寸规则与声明规则消息类型修复；378固定标量组＋6文件组由真实HTTP回放，MySQL十四目标70项与严格门禁／三语／实际Artisan通过。消息目录、密码及全章复核继续。
 
 2026-11-24 Validation第二十一组：语言目录消息／属性通配、尺寸类型键与嵌套标签闭合。22固定参考＋三语正式JSON直接消费及真实HTTP通过，MySQL十五目标72项与严格门禁／实际Artisan通过。密码与逐节最终审查继续。
+
+2026-11-24 Validation第二十二组：Password配置默认、附加规则与UncompromisedVerifier／NotPwnedVerifier及原工厂接线闭合。456策略＋416泄漏参考真实HTTP，三语正式消费者与Artisan、MySQL十八目标81项／最后公开入口10项和严格门禁通过。人工整章审查新增Factory/Facade::validate、Validator::passes及回调列表／重定向消息输入关联入口，继续修复，不宣布整章闭合。

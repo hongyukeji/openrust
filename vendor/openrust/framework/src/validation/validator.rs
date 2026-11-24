@@ -1092,7 +1092,9 @@ impl Validator {
             return self.evaluate_nested(attribute, rules).await;
         }
         if let Kind::Password(password) = rule {
-            return Ok(password.failures(value, nullable));
+            return self
+                .evaluate_password(attribute, password, value, nullable)
+                .await;
         }
         let file = self.data.file(attribute);
         if let Some(file) = file {
@@ -1657,11 +1659,62 @@ impl Validator {
             .collect())
     }
 
+    async fn evaluate_password(
+        &self,
+        attribute: &str,
+        password: &super::rules::Password,
+        value: Option<&Value>,
+        nullable: bool,
+    ) -> ValidationResult<Vec<RuleFailure>> {
+        if password.skip(value, nullable) {
+            return Ok(Vec::new());
+        }
+        let mut validator = self.make_nested(attribute, password.into_iter().collect())?;
+        let original = value.cloned();
+        let policy = password.clone();
+        let field = attribute.to_owned();
+        validator.after(move |validator| {
+            for failure in policy.complexity_failures(original.as_ref()) {
+                let message = validator.format_message(&field, &field, failure);
+                validator.errors.add(unescape(&field), message);
+            }
+            Ok(())
+        });
+        let failures = Self::nested_failures(&mut validator).await?;
+        if !failures.is_empty() {
+            return Ok(failures);
+        }
+        if let Some(threshold) = password.compromised_threshold
+            && !self
+                .factory
+                .as_ref()
+                .ok_or_else(|| ValidationError::Execution {
+                    source: std::io::Error::other("密码规则缺少原工厂").into(),
+                })?
+                .verify_uncompromised(value.unwrap_or(&Value::Null), threshold)
+                .await?
+        {
+            let message = validator.format_message(
+                attribute,
+                attribute,
+                RuleFailure::new("validation.password.uncompromised"),
+            );
+            let mut failure = RuleFailure::new(message);
+            failure.translated = true;
+            return Ok(vec![failure]);
+        }
+        Ok(Vec::new())
+    }
+
     async fn evaluate_nested(
         &self,
         attribute: &str,
         rules: Vec<Rule>,
     ) -> ValidationResult<Vec<RuleFailure>> {
+        Self::nested_failures(&mut self.make_nested(attribute, rules)?).await
+    }
+
+    fn make_nested(&self, attribute: &str, rules: Vec<Rule>) -> ValidationResult<Self> {
         let factory = self
             .factory
             .as_ref()
@@ -1684,6 +1737,10 @@ impl Validator {
         if self.dns_resolver.is_some() {
             validator.dns_resolver = self.dns_resolver.clone();
         }
+        Ok(validator)
+    }
+
+    async fn nested_failures(validator: &mut Self) -> ValidationResult<Vec<RuleFailure>> {
         match validator.validate().await {
             Ok(_) => Ok(Vec::new()),
             Err(ValidationError::Invalid(_)) => Ok(validator
@@ -2015,6 +2072,9 @@ fn fallback(rule: &str) -> &str {
             "The :attribute field must contain at least one uppercase and one lowercase letter."
         }
         "password.letters" => "The :attribute field must contain at least one letter.",
+        "password.uncompromised" => {
+            "The given :attribute has appeared in a data leak. Please choose a different :attribute."
+        }
         "password.numbers" => "The :attribute field must contain at least one number.",
         "password.symbols" => "The :attribute field must contain at least one symbol.",
         "ascii" => {

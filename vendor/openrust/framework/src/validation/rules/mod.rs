@@ -22,7 +22,7 @@ pub use enum_rule::Enum;
 pub use exists::Exists;
 pub use file::{File, FileSize};
 pub use in_rule::{In, NotIn};
-pub use password::Password;
+pub use password::{Password, PasswordRules};
 pub use unique::Unique;
 pub(super) use unique::{Exclusion, prepare_id};
 

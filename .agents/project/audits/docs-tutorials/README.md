@@ -385,3 +385,19 @@ DNS共享原active_url的Hickory传输与解析器配置，绕过hosts／localho
 旧validation_http将users.0.account_id人化为空格，与固定源码和参考第一例冲突；仅修正该预期，原始历史记录保持。最终message-catalog/gates-resumed.log九阶段全0：MySQL8.4.13十五目标72项0忽略，严格workspace/all-targets Clippy／fmt、三语构建和浏览器、实际main／Artisan帮助及inspire通过。首次中文示例多余空格及测试Clippy嵌套if问题已修复复验，不以失败当通过。原始日志、最终参考与SHA在target/tmp/docs-chapters-20261124/message-catalog/；本批MySQL和HTTP服务已退出。
 
 本批关闭语言消息与属性教程及关联缺口；密码默认策略／泄漏查询／附加规则和全部179节最终对账继续，整章未关闭。
+
+## 第二十二组：密码默认策略、原工厂附加规则与泄漏验证（2026-11-24）
+
+固定Rules/Password、NotPwnedVerifier、UncompromisedVerifier及ValidationServiceProvider逐入口核对。旧v0.x只有基础validation runner和认证密码操作，没有该策略／泄漏类型可直接提取；保留当前复杂度正则，删除独立手写string/min/max执行分支，通过原Factory的同一make_shared装配链执行可迭代基础／附加规则，再执行after复杂度检查；读取原密码，不让DataAware修改子数据改变复杂度输入。初级失败不查询泄漏源，附加rules替换上一批，与email的追加规则语义区分。
+
+Password::defaults读取当前应用策略，set_defaults注册Fn()->Password回调，required／sometimes基于配置，min／new保持显式构造；已构造策略不随设置变化。稳定Rust不能同名0／1参数重载，getter／setter分名并返回Result；Default trait不能返回Result时把装配错误保留为编译错误规则，不默默退回min8。应用工厂共享注册状态，回调在锁外执行，不把PHP静态全局策略复制为多应用数据竞争。教程约定为返回Password的回调，不声明PHP任意动态Rule返回值的反射能力。最大值0保留状态而不生成限制；applied_rules返回原生类型化状态（无新Serde协议），to_password_rules_string及公开IntoIterator真实消费者均验。
+
+新增UncompromisedVerifier公开trait和NotPwnedVerifier默认Provider绑定，Factory保存弱容器并在实际查询时解析契约，重绑定可影响既有工厂／已构造验证器；独立Factory有显式set_uncompromised_verifier。trait用值＋有符号阈值替代动态数组。复用现有HttpFactory池、请求中间件和aws-lc SHA1；仅发大写前五位，Add-Padding=true，默认30秒，严格count>threshold，保留空值及字符串0、异常报告／失败开放、非成功HTTP响应回退。该行为与固定源码一致，是本地密码约束的补充，不宣称远端可用性保证。异常报告失败继续传播，不吞掉装配错误。
+
+固定PHP实际456组策略／可空／输入、4组配置默认、Aware子验证器顺序及416组范围查询参考分别保存正式JSON。真实TCP回放456组，公开迭代器执行固定PHP导出的规则列表；两应用24并发默认策略互不污染，真实Artisan password:check核对四种默认入口、冻结对象和Facade验证。Aware规则实测data→validator→validate，原Factory resolver父／子各一次，原值复杂度失败且不调用泄漏源。既有历史api-f01密码参考完全保持。
+
+泄漏验证以实际HTTP传输回放416组并额外150ms超时，核对本地范围服务收到的哈希前缀／padding、无完整哈希或明文、阈值、填充值／非数字计数、500、连接关闭、无查询和报告次数。另实际应用Provider/Factory/Facade路径验证已知泄漏422、初级失败不出站、503回退成功、运行期替换trait后已创建工厂不再出站。没有请求真实外部密码服务或发送用户密码。三语正式Provider＋控制器示例由tests/password_tutorial_docs.py直接提取编译，并在实际HTTP Kernel验201／422，不维护平行应用代码。
+
+password/gates-final.log九阶段全0：MySQL8.4.13十八目标81项0忽略，workspace/all-targets严格Clippy／fmt、三语构建浏览器、实际main与Artisan帮助／inspire成功。最后新增公开迭代器与四种默认入口断言后，final-public.log四阶段全0：10项实际消费者、最终Clippy／fmt通过。早期缺泄漏回退文案、usize尺寸转换、测试ConsoleError转换及测试宏的Clippy问题均修复复验，失败日志保留。证据target/tmp/docs-chapters-20261124/password/；最终SHA一致，无本批存活容器或HTTP服务，临时源码／日志与热缓存保留。
+
+本批关闭Password教程策略簇。完整章节人工复核另外发现Factory/Facade::validate和Validator::passes教程专用入口缺失，以及after回调列表、RedirectResponse::with_errors的Validator／数组消费者适配仍需核对修复；不以原make→validate绕行或errors()摘取关闭这些例子。全章逐节对账继续，本记录不是整个Validator／Factory类未入教程API的完整性声明。

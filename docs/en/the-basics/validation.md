@@ -916,3 +916,38 @@ Create or override keys in `lang/en/validation.json`. Language-file `custom` wil
   }
 }
 ```
+
+## Password policies {#password-policies}
+
+Register the provider in `bootstrap/providers.rs`. `Password::defaults()` reads the application policy; `set_defaults` registers its callback. Rust separates the zero-argument getter and callback setter instead of overloading one dynamic method. Without an application context, the default requires eight characters. `required()` and `sometimes()` use the configured policy, while `min(n)` starts a fresh explicit policy. Policies already constructed keep their values when defaults change.
+
+```rust
+use openrust::{
+    foundation::Application,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::{ProviderResult, ServiceProvider},
+    validation::{Rule, RuleSet, rules::Password},
+};
+
+struct PasswordServiceProvider;
+impl ServiceProvider for PasswordServiceProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            Password::set_defaults(|| Password::min(12).mixed_case().numbers())?;
+            Ok(())
+        })
+    }
+}
+
+fn store_password(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rule = Password::defaults()?.symbols().rules([Rule::max(64)]);
+        let data = request.validate(RuleSet::new().field("password", [rule.into()])?).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
+
+Use `letters`, `mixed_case`, `numbers`, `symbols`, `max`, `when`, `unless` and `when_else` to compose a policy. `rules` replaces the previous additional rule list. Base and additional checks use the original validator factory, including custom messages and aware rules; complexity checks still inspect the original password. The policy is iterable as its base/additional rules; complexity and breach checks belong to the policy itself. `applied_rules()` returns typed settings, and `to_password_rules_string()` builds an HTML `passwordrules` attribute.
+
+Add `.uncompromised(0)` to reject any known occurrence, or pass a higher threshold to allow that many occurrences. The default verifier sends only the first five uppercase SHA-1 characters to the breach range API with padding enabled. Basic failures do not query it. As in the fixed mechanism, connection exceptions are reported and an unavailable service or unsuccessful response permits the password; this check supplements the local policy. The default timeout is 30 seconds. Override the `UncompromisedVerifier` contract for another source; standalone factories can use `set_uncompromised_verifier`. Trait arguments are an explicit value and signed threshold, not a dynamic data array. Application-local defaults and bindings isolate concurrent applications; they do not use process-global mutable state.

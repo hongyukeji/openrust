@@ -916,3 +916,38 @@ fn configure_email_tests() -> ValidationResult<()> {
   }
 }
 ```
+
+## 密码策略 {#password-policies}
+
+在 `bootstrap/providers.rs` 注册该 Provider。`Password::defaults()` 读取应用策略，`set_defaults` 注册回调；Rust 将无参数读取与回调设置分为两个方法。没有应用上下文时默认至少八个字符。`required()` 和 `sometimes()` 使用已配置的策略，`min(n)` 则创建新的显式策略。修改默认值不会改变已经创建的策略对象。
+
+```rust
+use openrust::{
+    foundation::Application,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::{ProviderResult, ServiceProvider},
+    validation::{Rule, RuleSet, rules::Password},
+};
+
+struct PasswordServiceProvider;
+impl ServiceProvider for PasswordServiceProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            Password::set_defaults(|| Password::min(12).mixed_case().numbers())?;
+            Ok(())
+        })
+    }
+}
+
+fn store_password(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rule = Password::defaults()?.symbols().rules([Rule::max(64)]);
+        let data = request.validate(RuleSet::new().field("password", [rule.into()])?).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
+
+使用 `letters`、`mixed_case`、`numbers`、`symbols`、`max`、`when`、`unless` 和 `when_else` 组合策略。`rules` 替换前一批附加规则。基础与附加规则使用原验证工厂，包含自定义消息和 aware 规则；复杂度检查仍读取原密码。迭代策略得到基础与附加规则，复杂度和泄漏检查属于策略本身。`applied_rules()` 返回类型化状态，`to_password_rules_string()` 生成 HTML `passwordrules` 属性。
+
+追加 `.uncompromised(0)` 拒绝任何已知泄漏，传入更高阈值则允许出现不超过该次数。默认验证器只向泄漏范围 API 发送 SHA-1 大写哈希的前五位并启用填充，基础规则失败时不查询。依固定机制，连接异常会报告；服务不可达或响应不成功时允许密码通过，因此该检查是本地策略的补充。默认超时 30 秒。可替换 `UncompromisedVerifier` 契约接入其他来源；独立工厂可调用 `set_uncompromised_verifier`。Trait 显式接收值与有符号阈值，替代动态数据数组。默认策略与绑定按应用隔离，不使用进程全局可变状态。

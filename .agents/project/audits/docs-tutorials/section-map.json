@@ -1758,20 +1758,24 @@
         {
           "anchor": "validating-passwords",
           "title": "Validating Passwords",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "Password默认／条件／附加规则、实际泄漏与trait绑定；公开状态和迭代器"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第二十二组密码默认策略原工厂附加规则与泄漏验证2026-11-24"
+          ]
         },
         {
           "anchor": "defining-default-password-rules",
           "title": "Defining Default Password Rules",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "Password默认／条件／附加规则、实际泄漏与trait绑定；公开状态和迭代器"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第二十二组密码默认策略原工厂附加规则与泄漏验证2026-11-24"
+          ]
         },
         {
           "anchor": "custom-validation-rules",

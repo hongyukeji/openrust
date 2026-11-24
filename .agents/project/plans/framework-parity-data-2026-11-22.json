@@ -299056,6 +299056,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "password policies and full chapter review; chapter open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第二十二组 Password and uncompromised verification",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "factory validate facade, passes, callback lists and redirect messages, full chapter review; chapter open"
     }
   ]
 }

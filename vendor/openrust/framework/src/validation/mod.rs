@@ -171,3 +171,6 @@ pub use conditional_rules::{ConditionalRules, RuleCondition};
 mod aware_rule;
 mod validator_handle;
 pub use validator_handle::ValidatorHandle;
+
+mod not_pwned_verifier;
+pub use not_pwned_verifier::NotPwnedVerifier;
