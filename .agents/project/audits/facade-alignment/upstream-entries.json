@@ -1425,6 +1425,14 @@
         "evidence": "35组原类单位输出、7天独立副本、14组原创建探测，在公开门面及具体Factory实际调用；严格true/false均验。",
         "remaining": "自定义Date类/工厂和创建钩子仍未接入，Date保持partial。"
       },
+      "time_string_creation_contract": {
+        "entry": "createFromTimeString",
+        "local": "Date/DateFactory::create_from_time_string",
+        "review": "implemented_tested_base",
+        "contract": "从today零点修改，无冒号补:0；复用既有扫描器，修改时保留原对象时区，不把文本中的时区用来转换时刻。保留进位、微秒、相对/完整日期和NUL扫描行为；严格/宽松下无效表达式都报错。",
+        "evidence": "time-string-contract.json固定Creator实际90结果；公开Factory/门面、真实HTTP构造器与既有日期创建/解析回归，原生固定偏移及20MiB限制。",
+        "remaining": "可替换工厂/类、创建钩子与默认可变日期类仍随Date其余契约继续处理。"
+      },
       "object_creation_contract": {
         "entries": [
           "make",

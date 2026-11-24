@@ -296,6 +296,19 @@ fn parse_factory_format_with_zone(
     format::parse(text, pattern, civil, &zone)
 }
 
+pub(crate) fn modify_date_input(text: &str, date: &super::Date) -> Result<InputDate> {
+    if text.len() > MAX_CALENDAR_BYTES {
+        return Err(limit_error());
+    }
+    let time = date.as_date_time();
+    let zone = ResolvedTimezone::from_jiff(time.time_zone().clone(), time.timestamp());
+    parse::modify_date(
+        text,
+        CalendarInstant::from_timestamp(time.timestamp())?,
+        &zone,
+    )
+}
+
 pub(crate) fn date_component_seconds(value: f64) -> Result<String> {
     timestamp::number_format_timestamp(value)
 }

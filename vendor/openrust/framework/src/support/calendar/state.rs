@@ -420,6 +420,13 @@ impl ParseState {
         self.apply_relative(prefer_dst)
     }
 
+    pub(super) fn finish_modification(mut self) -> Result<CalendarInstant> {
+        // 对既有日期的modify不接受表达式覆盖对象时区，其他扫描状态继续沿用。
+        self.timezone = self.base_timezone.clone();
+        self.zone_count = 0;
+        self.finish()
+    }
+
     fn apply_relative(mut self, prefer_dst: Option<bool>) -> Result<CalendarInstant> {
         self.special_early()?;
         self.adjust_weekday()?;

@@ -245,6 +245,13 @@ let from_id = Date::create_from_id("01ARZ3NDEKTSV4RRFFQ69G5FAV")?;
 
 `create_from_id` accepts ULID, time-based UUID v1/v2/v6/v7 text, or the framework's native UUID/ULID values. Non-time UUIDs and malformed or overflowing identifiers return an error. UUID v2 loses the low 32 timestamp bits by design. Dates use UTC offsets and keep the source converter's microsecond rounding and error behavior; years outside the native date range return `DateError::OutOfRange`.
 
+`create_from_time_string(time, timezone)` modifies today at midnight using the existing date-expression parser. A time without a colon receives `:0`; `"12"` therefore means noon. The resulting date keeps the supplied or application timezone, even if the text mentions a different timezone. Normalization and relative/full-date expressions follow the date modifier rules; invalid expressions return an error in both strict and lenient modes.
+
+```rust
+let noon = Date::create_from_time_string("12", None)?;
+let precise = Date::create_from_time_string("12:34:56.123456", None)?;
+```
+
 `instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 

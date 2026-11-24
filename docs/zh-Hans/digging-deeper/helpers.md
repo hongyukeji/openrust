@@ -245,6 +245,13 @@ let from_id = Date::create_from_id("01ARZ3NDEKTSV4RRFFQ69G5FAV")?;
 
 `create_from_id` 接收 ULID、时间型 UUID v1/v2/v6/v7 文本，或框架原生 UUID/ULID 值。非时间型 UUID、无效或溢出的标识返回错误；UUID v2 按其定义丢弃时间戳低 32 位。日期使用 UTC 偏移，保留来源转换器的微秒舍入和错误行为；超出原生日期范围的年份返回 `DateError::OutOfRange`。
 
+`create_from_time_string(time, timezone)` 从今天零点开始，复用日期表达式解析器修改时间。没有冒号时补上 `:0`，因此 `"12"` 表示中午。结果保留指定或应用时区，即使文本提及其他时区也不改变；进位、相对表达式和完整日期按日期修改规则处理。无效表达式在严格及宽松模式下都返回错误。
+
+```rust
+let noon = Date::create_from_time_string("12", None)?;
+let precise = Date::create_from_time_string("12:34:56.123456", None)?;
+```
+
 `instance(&value)` 克隆日期值。目前尚不提供本地化创建、自定义工厂与错误诊断入口。
 
 

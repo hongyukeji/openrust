@@ -499,3 +499,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 实测发现原生ULID解码库会接受首位8的溢出文本，公开入口额外按原规则拒绝；UUID v2清零低32位，URN大小写、非RFC/非时间UUID、100ns舍入、科学计数与微秒进位错误均保留。原生10889年明确OutOfRange。原日期类可变性、自定义工厂/类/回调仍未闭合。
 - 原JSON后续日期契约从层层嵌套提升为同类型并列字段，保留每项内容与历史remaining；3个继承入口记为基础路径已验，不将剩余宏等改为完成。本机PHP缺旧libtidy，未改宿主环境，统一使用既有PHP8.5.12一次性容器作比较器。
 - tests-sixth.log实际8项通过（2项新增公开消费者及6项解析/时间戳回归），195组原类结果均判定；workspace/all-targets严格Clippy10.04秒，三语构建与6组桌面/移动浏览器通过。先前ULID溢出、UUID边界及固定偏移夹具失败日志保留，不计通过；PHP/Composer一次性容器已直接删除，既有共享镜像保留。
+
+### Date：从时间字符串创建（仍 partial）
+
+- 固定Creator原createFromTimeString实际90组，覆盖默认/UTC/纽约、严格/宽松、无冒号补:0、24点进位/25点错误、DST、微秒、相对/完整日期、NUL和无效表达式。
+- 从所属工厂today零点修改，沿用既有Calendar扫描器并增加修改结束路径，保留原对象时区，不误用普通构造解析将文本UTC/+05:30当成结果时区。20MiB限额和原生固定偏移实测；没有新增日期解释器或平行时钟。
+- 公开门面与具体Factory均逐条核对，真实HTTP构造器增加时间文本结果；其余创建/解析回归。Date可变性、替换、诊断和宏等剩余不因本入口通过就关闭。
+- tests-first.log实际9项通过，tests-http.log对新增HTTP时间文本路径复验5项；90组原结果逐条核对。workspace/all-targets严格Clippy22.55秒，三语构建13.86秒和6组浏览器通过；PHP一次性容器已直接删除，未触及32GB停线，热缓存保留。

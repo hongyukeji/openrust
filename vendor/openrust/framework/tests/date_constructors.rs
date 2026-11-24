@@ -165,7 +165,7 @@ fn constructed_endpoint(
             ..Default::default()
         };
         let result=(||->Result<Value,DateError>{
-   Ok(json!({"normalized":Date::create(parts,None)?.unwrap().format("Y-m-d")?,"safe_failed":Date::create_safe(parts,None).is_err(),"midnight":Date::create_midnight_date(None,None,None,None)?.unwrap().format("Y-m-d H:i:s")?}))
+   Ok(json!({"time_text":Date::create_from_time_string("12:34 UTC",None)?.format("H:i:s")?,"normalized":Date::create(parts,None)?.unwrap().format("Y-m-d")?,"safe_failed":Date::create_safe(parts,None).is_err(),"midnight":Date::create_midnight_date(None,None,None,None)?.unwrap().format("Y-m-d H:i:s")?}))
   })().map_err(|source|openrust::http::HttpError::Internal{source:Box::new(source)})?;
         openrust::http::Response::json(openrust::http::StatusCode::OK, result)
     })
@@ -192,7 +192,7 @@ async fn real_http_consumer_uses_same_clock_and_returns_safe_failure_without_cha
         .unwrap()
         .assert_ok()
         .assert_exact_json(
-            &json!({"normalized":"2024-03-01","safe_failed":true,"midnight":"2024-03-10 00:00:00"}),
+            &json!({"time_text":"12:34:00","normalized":"2024-03-01","safe_failed":true,"midnight":"2024-03-10 00:00:00"}),
         );
     App::set_facade_application(Some(app.app()), async {
         assert!(Date::is_strict_mode_enabled().unwrap());

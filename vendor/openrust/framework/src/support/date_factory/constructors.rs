@@ -255,6 +255,25 @@ impl DateFactory {
             timezone,
         )
     }
+    pub fn create_from_time_string(
+        &self,
+        time: &str,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        use crate::support::calendar::{CalendarError, modify_date_input};
+        let today = self.today(timezone)?;
+        let time = if time.contains(':') {
+            std::borrow::Cow::Borrowed(time)
+        } else {
+            std::borrow::Cow::Owned(format!("{time}:0"))
+        };
+        let result = modify_date_input(&time, &today).map_err(|error| match error {
+            CalendarError::InvalidExpression => DateError::InvalidExpression,
+            CalendarError::OutOfRange => DateError::OutOfRange,
+            CalendarError::LimitExceeded => DateError::InputTooLarge,
+        })?;
+        Date::from_input(result)
+    }
     pub fn create_from_time(
         &self,
         hour: Option<i64>,
@@ -308,6 +327,12 @@ impl DateFacade {
         timezone: Option<DateTimezone>,
     ) -> Result<Option<Date>, DateError> {
         Self::factory()?.create_midnight_date(year, month, day, timezone)
+    }
+    pub fn create_from_time_string(
+        time: &str,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        Self::factory()?.create_from_time_string(time, timezone)
     }
     pub fn create_from_time(
         hour: Option<i64>,

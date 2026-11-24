@@ -25,6 +25,17 @@ pub(super) fn parse_date(
     Ok(InputDate::new(state.finish()?, zone))
 }
 
+pub(super) fn modify_date(
+    text: &str,
+    now: CalendarInstant,
+    zone: &ResolvedTimezone,
+) -> Result<InputDate> {
+    Ok(InputDate::new(
+        scan(text, now, zone, false)?.finish_modification()?,
+        zone.clone(),
+    ))
+}
+
 pub(super) fn add_interval(
     date: &str,
     interval: &str,
