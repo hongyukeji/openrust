@@ -1,0 +1,369 @@
+{
+  "base_commit": "0eeb12e3a098332c3fd398234bc20f5e7ccf2c25",
+  "integration_parent_at_review": "8ac053571495493e884c6be99bacc1035a299145",
+  "changed_file_sha256": {
+    "vendor/openrust/framework/src/sanctum/service_provider.rs": "58edd688df49d044392e014f61e54caf1f1eef57f67794231f9f37f76f9c65c7",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_provider.rs": "63b937b05ff9665fdb39af01c3e1de168a35fb9f1ebe7d658c14b8bd6c68728d",
+    "docs/en/eloquent/factories.md": "8771394e68e5def2d71004e5263c04b084516dd8dbe4a6d014c416da1ec87b5a",
+    "docs/zh-Hans/eloquent/factories.md": "e2ec3087701533c5abb98271d405640735ec1da503f93d1a536af66a3e4146e2",
+    "docs/zh-Hant/eloquent/factories.md": "b0f12802f8ef9bc8f815fe11ff61d8b978287776bd8d6a6638eaa397ce495775",
+    "tests/job_batches.rs": "d418700e916069974e328e2e0196fc633e73faf4ab4e444b19498aa7df07f8a1",
+    "docs/en/digging-deeper/queues.md": "24f104e314cd1625ac0af592eca727ba01abde2fc3581ade671091271b86c2e0",
+    "docs/zh-Hans/digging-deeper/queues.md": "2fc898293904b4ad2a43a3b7cf1d35838489dab815de53f7c116c0bd00f40a47",
+    "docs/zh-Hant/digging-deeper/queues.md": "ea0e710cbef1a1b7a65e224942cc2d66a83fe78a3a4e2655c6f6a1032966918f",
+    "vendor/openrust/framework/tests/cloud.rs": "34aaa1e09b0fe968a709b164e60b153f4cad8c70fffd4e33e0dc2286d18b5d77",
+    "vendor/openrust/framework/tests/cloud_failed_jobs.rs": "c98cc9ea05f992452d4dd22bd2d52acc6cc08af4abe3fecbe5da61ad09d87adf",
+    "vendor/aws-smithy-types/benches/base64.rs": "a20fb78b7cb4ba7d6ee920641d41f76874af4876448c4253fd0bc0dfd601bade",
+    "vendor/openrust/framework/tests/eloquent_relationships.rs": "b36f2c3910bc5615dd729c38c32a3b06aebe3b8d7404013ed08c32246e786c45"
+  },
+  "test_executions": {
+    "cloud": 28,
+    "tutorial": 54,
+    "application": 37,
+    "sanctum": 1,
+    "faker": 42,
+    "batches": 1,
+    "relationships-final": 1
+  },
+  "rust_total": 164,
+  "criterion_test_mode_consumers": 24,
+  "binary": {
+    "cli": [
+      {
+        "args": [
+          "list",
+          "--format=json"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "stub:publish",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "queue:work",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:list",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "not-a-real-command"
+        ],
+        "exit": 1
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "./artisan",
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      }
+    ],
+    "http": [
+      {
+        "path": "/",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 22917
+      },
+      {
+        "path": "/",
+        "method": "HEAD",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 0
+      },
+      {
+        "path": "/up",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 1896
+      },
+      {
+        "path": "/not-found",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 404,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 136
+      },
+      {
+        "path": "/not-found",
+        "method": "GET",
+        "accept": "application/json",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      },
+      {
+        "path": "/api/not-found",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      }
+    ],
+    "registered_commands": [
+      "about",
+      "build",
+      "clear-compiled",
+      "completion",
+      "db",
+      "dev",
+      "docs",
+      "down",
+      "env",
+      "help",
+      "init",
+      "inspire",
+      "list",
+      "migrate",
+      "optimize",
+      "pail",
+      "reload",
+      "serve",
+      "test",
+      "tinker",
+      "up",
+      "auth:clear-resets",
+      "cache:clear",
+      "cache:forget",
+      "cache:prune-stale-tags",
+      "channel:list",
+      "config:cache",
+      "config:clear",
+      "config:publish",
+      "config:show",
+      "db:monitor",
+      "db:seed",
+      "db:show",
+      "db:table",
+      "db:wipe",
+      "dev:list",
+      "env:decrypt",
+      "env:encrypt",
+      "event:cache",
+      "event:clear",
+      "event:list",
+      "install:api",
+      "install:broadcasting",
+      "install:grpc",
+      "jwt:secret",
+      "key:generate",
+      "lang:publish",
+      "make:agent",
+      "make:cache-table",
+      "make:cast",
+      "make:channel",
+      "make:class",
+      "make:command",
+      "make:component",
+      "make:config",
+      "make:controller",
+      "make:enum",
+      "make:event",
+      "make:exception",
+      "make:factory",
+      "make:filter",
+      "make:interface",
+      "make:job",
+      "make:job-middleware",
+      "make:listener",
+      "make:mail",
+      "make:middleware",
+      "make:migration",
+      "make:model",
+      "make:notification",
+      "make:notifications-table",
+      "make:observer",
+      "make:package",
+      "make:policy",
+      "make:provider",
+      "make:queue-batches-table",
+      "make:queue-failed-table",
+      "make:queue-table",
+      "make:request",
+      "make:resource",
+      "make:rule",
+      "make:scope",
+      "make:seeder",
+      "make:session-table",
+      "make:test",
+      "make:tool",
+      "make:trait",
+      "make:view",
+      "migrate:fresh",
+      "migrate:install",
+      "migrate:refresh",
+      "migrate:reset",
+      "migrate:rollback",
+      "migrate:status",
+      "model:fields",
+      "model:prune",
+      "model:show",
+      "optimize:clear",
+      "package:discover",
+      "package:install",
+      "package:uninstall",
+      "queue:clear",
+      "queue:failed",
+      "queue:flush",
+      "queue:forget",
+      "queue:listen",
+      "queue:monitor",
+      "queue:pause",
+      "queue:prune-batches",
+      "queue:prune-failed",
+      "queue:restart",
+      "queue:resume",
+      "queue:retry",
+      "queue:retry-batch",
+      "queue:work",
+      "route:cache",
+      "route:clear",
+      "route:list",
+      "schedule:clear-cache",
+      "schedule:interrupt",
+      "schedule:list",
+      "schedule:pause",
+      "schedule:resume",
+      "schedule:run",
+      "schedule:test",
+      "schedule:work",
+      "schema:dump",
+      "session:garbage-collect",
+      "storage:link",
+      "storage:unlink",
+      "stub:publish",
+      "vendor:publish",
+      "view:cache",
+      "view:clear"
+    ],
+    "shutdown_exit": 0
+  },
+  "checks": {
+    "workspace_fmt": 0,
+    "vendor_bench_fmt": 0,
+    "root_framework_sanctum_all_targets_clippy_D_warnings": 0,
+    "three_language_docs_build": 0,
+    "browser_layouts_passed": 12,
+    "browser_navigation_combinations_passed": 6
+  },
+  "evidence_directory": "target/tmp/array-followup/",
+  "cleanup": [
+    "docs/.vitepress/dist",
+    "docs/node_modules (dependency link)",
+    "vendor/aws-smithy-types/Cargo.lock (isolated fixture)"
+  ],
+  "disk_free_bytes_after_cleanup": 64703795200
+}

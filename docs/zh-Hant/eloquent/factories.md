@@ -181,7 +181,7 @@ fn regional_date_sample() -> DatabaseResult<String> {
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_date_samples() -> DatabaseResult<[Value; 3]> {
+fn named_date_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let faker = Faker::new("cs-CZ")?;
     faker.format("setDefaultTimezone", &["Asia/Tokyo".into()])?;
     Ok([
@@ -454,7 +454,7 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_miscellaneous_samples() -> DatabaseResult<[Value; 3]> {
+fn named_miscellaneous_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let faker = Faker::new("en-US")?;
     Ok([
         faker.format("locale", &[])?,
@@ -565,7 +565,7 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_phone_samples() -> DatabaseResult<[Value; 2]> {
+fn named_phone_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let malaysia = Faker::new("ms-MY")?;
     let canada = Faker::new("en-CA")?;
     Ok([
@@ -747,7 +747,7 @@ fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 73]> {
+fn identity_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     let birthdate = jiff::civil::Date::new(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -941,7 +941,7 @@ fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_color_samples() -> DatabaseResult<[Value; 3]> {
+fn named_color_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let faker = Faker::new("zh-Hant-TW")?;
     let colors = faker.ext(r"Faker\Extension\ColorExtension")?;
     Ok([
@@ -1324,7 +1324,7 @@ fn nordic_address_samples() -> DatabaseResult<(String, String, String)> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
+fn spanish_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([
         fake(Some("es-ES"))?.address(),
         fake(Some("es-AR"))?.address(),
@@ -1339,7 +1339,7 @@ fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
+fn portuguese_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("pt-BR"))?.address(), fake(Some("pt-PT"))?.address()])
 }
 ```
@@ -1349,7 +1349,7 @@ fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn italian_address_samples() -> DatabaseResult<[String; 2]> {
+fn italian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("it-IT"))?.address(), fake(Some("it-CH"))?.address()])
 }
 ```
@@ -1359,7 +1359,7 @@ fn italian_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn greek_address_samples() -> DatabaseResult<[String; 2]> {
+fn greek_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("el-GR"))?.address(), fake(Some("el-CY"))?.address()])
 }
 ```
@@ -1369,7 +1369,7 @@ fn greek_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
+fn romanian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("ro-RO"))?.address(), fake(Some("ro-MD"))?.address()])
 }
 ```
@@ -1379,7 +1379,7 @@ fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
+fn croatian_slovenian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("hr-HR"))?.address(), fake(Some("sl-SI"))?.address()])
 }
 ```
@@ -1389,7 +1389,7 @@ fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
+fn lithuanian_latvian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("lt-LT"))?.address(), fake(Some("lv-LV"))?.address()])
 }
 ```
@@ -1399,7 +1399,7 @@ fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
+fn armenian_georgian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("hy-AM"))?.address(), fake(Some("ka-GE"))?.address()])
 }
 ```
@@ -1409,7 +1409,7 @@ fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
+fn serbian_montenegrin_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([
         fake(Some("sr-RS"))?.address(),
         fake(Some("sr-Cyrl-RS"))?.address(),
@@ -1424,7 +1424,7 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
+fn hungarian_and_fallback_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([
         fake(Some("hu-HU"))?.address(),
         fake(Some("bg-BG"))?.address(),
@@ -1815,7 +1815,7 @@ fn polish_plate_sample() -> DatabaseResult<String> {
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 use serde_json::json;
 
-fn named_regional_plate_samples() -> DatabaseResult<[Value; 3]> {
+fn named_regional_plate_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let taiwan = Faker::new("zh-Hant-TW")?;
     let malaysia = Faker::new("ms-MY")?;
     let poland = Faker::new("pl-PL")?;
@@ -1865,7 +1865,7 @@ fn company_phrase_sample() -> DatabaseResult<(String, String)> {
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 use serde_json::json;
 
-fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
+fn named_person_and_company_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let malaysia = Faker::new("ms-MY")?;
     let taiwan = Faker::new("zh-Hant-TW")?;
     Ok([

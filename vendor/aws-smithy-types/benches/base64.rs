@@ -11,12 +11,12 @@ fn random_string(len: usize) -> String {
     Alphanumeric.sample_string(&mut rand::thread_rng(), len)
 }
 
-const INPUT_SIZES: [usize; 4] = [1, 10, 1_000, 100_000];
+const INPUT_SIZES: &[usize] = &[1, 10, 1_000, 100_000];
 
 fn bench_encodes(c: &mut Criterion) {
     let mut group = c.benchmark_group("Encode");
 
-    for length in INPUT_SIZES {
+    for &length in INPUT_SIZES {
         let input = &random_string(length);
 
         group.bench_with_input(
@@ -34,7 +34,7 @@ fn bench_encodes(c: &mut Criterion) {
 fn bench_decodes(c: &mut Criterion) {
     let mut group = c.benchmark_group("Decode");
 
-    for length in INPUT_SIZES {
+    for &length in INPUT_SIZES {
         let string = &random_string(length);
         let encoded = &aws_smithy_types::base64::encode(string);
 
@@ -53,7 +53,7 @@ fn bench_decodes(c: &mut Criterion) {
 fn bench_encoded_lengths(c: &mut Criterion) {
     let mut group = c.benchmark_group("Decoded length");
 
-    for length in INPUT_SIZES {
+    for &length in INPUT_SIZES {
         group.bench_with_input(
             BenchmarkId::new("handrolled_base64", length),
             &length,

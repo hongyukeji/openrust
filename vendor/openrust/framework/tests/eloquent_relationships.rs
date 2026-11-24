@@ -7997,7 +7997,7 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
     );
 }
 
-async fn verify_eager_limits(db: &Connection, mysql: bool, parents: [&Author; 2]) {
+async fn verify_eager_limits<const N: usize>(db: &Connection, mysql: bool, parents: [&Author; N]) {
     let featured = || {
         FEATURED_POSTS
             .with_pivot_value("label", "rank fixture")

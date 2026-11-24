@@ -648,7 +648,10 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 ```rust
 use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};
 
-fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
+fn batched_chains(
+    left: impl IntoIterator<Item = Payload>,
+    right: impl IntoIterator<Item = Payload>,
+) -> PendingBatch {
     Bus::batch([]).add_chain(left).add_chain(right)
 }
 ```

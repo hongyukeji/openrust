@@ -682,7 +682,7 @@ async fn real_artisan_retry_downloads_and_requeues_an_encrypted_record_then_real
         State(state): State<Arc<Mutex<StateData>>>,
         headers: HeaderMap,
         body: Bytes,
-    ) -> ([(&'static str, &'static str); 1], String) {
+    ) -> impl axum::response::IntoResponse {
         let action = headers["x-amz-target"]
             .to_str()
             .unwrap()

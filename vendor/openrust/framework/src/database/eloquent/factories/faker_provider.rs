@@ -820,7 +820,9 @@ fn date_calendar_period(faker: &Faker, args: &[Value], years: i32) -> DatabaseRe
 }
 
 fn default_elements() -> &'static [Json] {
-    static ELEMENTS: LazyLock<[Json; 3]> = LazyLock::new(|| ["a", "b", "c"].map(Json::from));
+    const VALUES: &[&str] = &["a", "b", "c"];
+    static ELEMENTS: LazyLock<[Json; VALUES.len()]> =
+        LazyLock::new(|| std::array::from_fn(|index| Json::from(VALUES[index])));
     &*ELEMENTS
 }
 

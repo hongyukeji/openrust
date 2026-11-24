@@ -2,7 +2,7 @@ use crate::support::publishing::{PublishSource, PublishableResource};
 
 const PROVIDER: &str = "OpenRust\\Sanctum\\SanctumServiceProvider";
 
-pub(crate) fn publishable_resources() -> [PublishableResource; 2] {
+pub(crate) fn publishable_resources() -> impl IntoIterator<Item = PublishableResource> {
     [
         PublishableResource {
             provider: PROVIDER,

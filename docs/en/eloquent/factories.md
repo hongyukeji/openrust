@@ -181,7 +181,7 @@ Date strings use the generator’s `set_default_timezone(Some(zone))` override, 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_date_samples() -> DatabaseResult<[Value; 3]> {
+fn named_date_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let faker = Faker::new("cs-CZ")?;
     faker.format("setDefaultTimezone", &["Asia/Tokyo".into()])?;
     Ok([
@@ -454,7 +454,7 @@ Use `toLower` and `toUpper` through `format` to convert UTF-8 text with Unicode 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_miscellaneous_samples() -> DatabaseResult<[Value; 3]> {
+fn named_miscellaneous_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let faker = Faker::new("en-US")?;
     Ok([
         faker.format("locale", &[])?,
@@ -565,7 +565,7 @@ Use the same formatter names with `format` or `unique().format`. Malaysian mobil
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_phone_samples() -> DatabaseResult<[Value; 2]> {
+fn named_phone_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let malaysia = Faker::new("ms-MY")?;
     let canada = Faker::new("en-CA")?;
     Ok([
@@ -747,7 +747,7 @@ With `bn-BD`, `company()` combines a catalog name and type, also available from 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 73]> {
+fn identity_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     let birthdate = jiff::civil::Date::new(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -941,7 +941,7 @@ The same ten names work through `format` with the generator’s locale. Calling 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 
-fn named_color_samples() -> DatabaseResult<[Value; 3]> {
+fn named_color_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let faker = Faker::new("zh-Hant-TW")?;
     let colors = faker.ext(r"Faker\Extension\ColorExtension")?;
     Ok([
@@ -1324,7 +1324,7 @@ The Spanish Address providers cover Spain, Argentina, Peru, and Venezuela. Argen
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
+fn spanish_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([
         fake(Some("es-ES"))?.address(),
         fake(Some("es-AR"))?.address(),
@@ -1339,7 +1339,7 @@ Brazilian addresses place the postcode first and include the state abbreviation 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
+fn portuguese_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("pt-BR"))?.address(), fake(Some("pt-PT"))?.address()])
 }
 ```
@@ -1349,7 +1349,7 @@ Italian addresses include a five-digit postcode and province fields. The provinc
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn italian_address_samples() -> DatabaseResult<[String; 2]> {
+fn italian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("it-IT"))?.address(), fake(Some("it-CH"))?.address()])
 }
 ```
@@ -1359,7 +1359,7 @@ Greek addresses preserve two postcode formats, optional hyphenated building numb
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn greek_address_samples() -> DatabaseResult<[String; 2]> {
+fn greek_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("el-GR"))?.address(), fake(Some("el-CY"))?.address()])
 }
 ```
@@ -1369,7 +1369,7 @@ Romanian and Moldovan Romanian addresses preserve four street layouts, including
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
+fn romanian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("ro-RO"))?.address(), fake(Some("ro-MD"))?.address()])
 }
 ```
@@ -1379,7 +1379,7 @@ Croatian addresses sample street and city names from local catalogs and use five
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
+fn croatian_slovenian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("hr-HR"))?.address(), fake(Some("sl-SI"))?.address()])
 }
 ```
@@ -1389,7 +1389,7 @@ Lithuanian addresses use the `LT-` postcode prefix and three address layouts, in
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
+fn lithuanian_latvian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("lt-LT"))?.address(), fake(Some("lv-LV"))?.address()])
 }
 ```
@@ -1399,7 +1399,7 @@ Armenian addresses place the region first and end with a four-digit postcode beg
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
+fn armenian_georgian_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([fake(Some("hy-AM"))?.address(), fake(Some("ka-GE"))?.address()])
 }
 ```
@@ -1409,7 +1409,7 @@ Serbian addresses use Cyrillic for `sr-RS` and `sr-Cyrl-RS`, and Latin for `sr-L
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
+fn serbian_montenegrin_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([
         fake(Some("sr-RS"))?.address(),
         fake(Some("sr-Cyrl-RS"))?.address(),
@@ -1424,7 +1424,7 @@ Hungarian addresses begin with a four-digit postcode and use weighted capital, l
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
+fn hungarian_and_fallback_address_samples() -> DatabaseResult<impl IntoIterator<Item = String>> {
     Ok([
         fake(Some("hu-HU"))?.address(),
         fake(Some("bg-BG"))?.address(),
@@ -1815,7 +1815,7 @@ Use `format("licensePlate", args)` for the Polish provider. The positional argum
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 use serde_json::json;
 
-fn named_regional_plate_samples() -> DatabaseResult<[Value; 3]> {
+fn named_regional_plate_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let taiwan = Faker::new("zh-Hant-TW")?;
     let malaysia = Faker::new("ms-MY")?;
     let poland = Faker::new("pl-PL")?;
@@ -1865,7 +1865,7 @@ Use the Company formatter names with `format(name, &[])` for slogans, business p
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
 use serde_json::json;
 
-fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
+fn named_person_and_company_samples() -> DatabaseResult<impl IntoIterator<Item = Value>> {
     let malaysia = Faker::new("ms-MY")?;
     let taiwan = Faker::new("zh-Hant-TW")?;
     Ok([

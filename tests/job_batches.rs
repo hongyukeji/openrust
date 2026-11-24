@@ -468,7 +468,10 @@ fn append_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 
-fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
+fn batched_chains(
+    left: impl IntoIterator<Item = Payload>,
+    right: impl IntoIterator<Item = Payload>,
+) -> PendingBatch {
     Bus::batch([]).add_chain(left).add_chain(right)
 }
 

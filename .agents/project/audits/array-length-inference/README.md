@@ -69,3 +69,7 @@
 - 完整命令、原始输出、列表初始化校验、CLI／HTTP结构化结果保留于 `target/tmp/array-runtime/`。本目录 [结构化验收摘要](runtime-2026-11-24.json) 保存测试基线、计数及38份关键源码／清单的SHA256。核心命令由 `run_more.py`、`database_acceptance.py`、`mysql_redis.py`、`binary_acceptance.py`、`sms_acceptance.py` 记录；均在项目内执行。
 - 未发现本批列表改造引起的回归，无需修改生产源码或开发者三语用法文档。此次更新仅为验收记录，不扩大为全框架、全部数据库驱动或Windows发布验收。
 - 本批HTTP进程和临时MySQL／PostgreSQL／Redis容器已全部退出并回收，无外部短信或真实支付调用。源码快照、日志和可复用独占增量缓存留在项目内；未清理其他协作者产物。收尾磁盘实测约55.5 GB可用，高于32 GB停线。仅本地提交，不推送。
+
+## 全仓遗漏补查
+
+后续检查及补齐见[全仓补查记录](followup-2026-11-24.md)，包含保留项、三语教程消费者和最终验收。

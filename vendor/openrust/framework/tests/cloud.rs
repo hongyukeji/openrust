@@ -687,7 +687,7 @@ async fn real_sqs_protocol_forwards_metrics_publish_reservation_and_settlement()
         State(state): State<Arc<Mutex<StateData>>>,
         headers: http::HeaderMap,
         body: Bytes,
-    ) -> ([(&'static str, &'static str); 1], String) {
+    ) -> impl axum::response::IntoResponse {
         let action = headers
             .get("x-amz-target")
             .unwrap()
