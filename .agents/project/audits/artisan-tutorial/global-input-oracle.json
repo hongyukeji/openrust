@@ -1,0 +1,73 @@
+[
+    {
+        "tokens": [
+            "read",
+            "Ada",
+            "--ansi",
+            "-vv",
+            "--env=testing",
+            "--no-interaction"
+        ],
+        "status": 0,
+        "arguments": {
+            "command": "read",
+            "user": "Ada"
+        },
+        "options": {
+            "queue": "default",
+            "help": false,
+            "silent": false,
+            "quiet": false,
+            "verbose": true,
+            "version": false,
+            "ansi": true,
+            "no-interaction": true,
+            "env": "testing"
+        }
+    },
+    {
+        "tokens": [
+            "read-alias",
+            "Ada",
+            "--no-ansi"
+        ],
+        "status": 0,
+        "arguments": {
+            "command": "read-alias",
+            "user": "Ada"
+        },
+        "options": {
+            "queue": "default",
+            "help": false,
+            "silent": false,
+            "quiet": false,
+            "verbose": false,
+            "version": false,
+            "ansi": false,
+            "no-interaction": false,
+            "env": null
+        }
+    },
+    {
+        "tokens": [
+            "read",
+            "Ada"
+        ],
+        "status": 0,
+        "arguments": {
+            "command": "read",
+            "user": "Ada"
+        },
+        "options": {
+            "queue": "default",
+            "help": false,
+            "silent": false,
+            "quiet": false,
+            "verbose": false,
+            "version": false,
+            "ansi": null,
+            "no-interaction": false,
+            "env": null
+        }
+    }
+]

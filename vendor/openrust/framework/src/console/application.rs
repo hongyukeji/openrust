@@ -398,8 +398,20 @@ impl Application {
 
         let result = if let Some((name, matches)) = matches.remove_subcommand() {
             let entry = &self.commands[&name];
-            self.dispatch(entry, application, &matches, &syntax, output, shutdown)
-                .await
+            self.dispatch(
+                entry,
+                application,
+                (
+                    position
+                        .and_then(|p| arguments[p].to_str())
+                        .unwrap_or(&name),
+                    &matches,
+                ),
+                &syntax,
+                output,
+                shutdown,
+            )
+            .await
         } else {
             Ok(list_command::run(self, &syntax, None, output))
         };
@@ -463,8 +475,15 @@ impl Application {
                 input.syntax.get_name()
             )));
         }
-        self.dispatch(entry, application, input.matches(), &syntax, output, None)
-            .await
+        self.dispatch(
+            entry,
+            application,
+            (command, input.matches()),
+            &syntax,
+            output,
+            None,
+        )
+        .await
     }
 
     pub(crate) async fn call_arguments(
@@ -520,7 +539,7 @@ impl Application {
             .dispatch(
                 &self.commands[name],
                 application,
-                &matches,
+                (command, &matches),
                 &syntax,
                 output,
                 None,
@@ -562,7 +581,7 @@ impl Application {
         Box::pin(self.dispatch(
             entry,
             application,
-            &matches,
+            (name, &matches),
             syntax,
             &mut Output::default(),
             None,
@@ -574,11 +593,12 @@ impl Application {
         &self,
         entry: &Entry,
         application: &FoundationApplication,
-        matches: &clap::ArgMatches,
+        invocation: (&str, &clap::ArgMatches),
         syntax: &Syntax,
         output: &mut Output,
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
+        let (invoked_name, matches) = invocation;
         let (verbosity, suppressed) = (output.verbosity, output.suppressed);
         output.verbosity = verbosity.max(
             matches
@@ -642,6 +662,13 @@ impl Application {
                 };
                 let input = Input {
                     syntax: command.definition().syntax.clone(),
+                    parsing_syntax: Arc::new(
+                        syntax
+                            .find_subcommand(command.definition().name())
+                            .expect("已注册命令存在于解析定义")
+                            .clone(),
+                    ),
+                    invoked_name: Some(invoked_name.to_owned()),
                     matches: matches.clone(),
                     shutdown,
                 };

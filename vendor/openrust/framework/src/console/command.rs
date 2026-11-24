@@ -70,6 +70,8 @@ impl CommandDefinition {
         Ok(Input {
             shutdown: None,
             syntax: self.syntax.clone(),
+            parsing_syntax: self.syntax.clone(),
+            invoked_name: None,
             matches,
         })
     }

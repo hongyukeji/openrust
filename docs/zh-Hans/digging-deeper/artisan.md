@@ -364,3 +364,27 @@ fn register_isolated() -> Result<(), ConsoleError> {
 隔离按需启用，普通调用不获取锁。指定 `--isolated` 时，冲突跳过处理器并返回 0；`--isolated=12` 可指定冲突退出码。Trait 默认方法同样使用命令名和一小时期限。覆盖 `isolatable_id` 追加与输入有关的后缀，覆盖 `isolation_lock_expires_at` 返回 `Ttl::Seconds` 或 `Ttl::Until(SystemTime)`；空 ID 与未提供 ID 不同。
 
 参与进程必须使用同一支持锁的缓存及命名空间。array 只在应用进程内协调，file 需要共享文件系统，database／Redis 使用其配置后端。正常完成、错误和运行时内取消会释放所属锁；进程被终止时依靠期限恢复，过期的旧拥有者不会删除新拥有者的锁。数据库整秒锁采用 Unix 秒加租期，亚秒期限保留既定原生取整策略。
+
+## 全局选项与经过验证的输入修改 {#editing-command-input}
+
+分派后的 `Input` 助手包含调用时的 `command` 参数（保留别名）及继承的全局选项：`verbose` 为布尔值，`env` 为可空字符串，`ansi` 为 null／true／false。`no-ansi` 合并到 `ansi`，不单列选项。`matches()` 保留原生 Clap 开关、环境值及详细程度计数，既有 CLI 解析和输出优先级不变。单独调用 `CommandDefinition::parse` 仍按其声明范围解析。`Input::clone` 保留注册定义身份及关停令牌，修改后的副本仍可交给 Console Kernel。
+
+```rust
+use openrust::{console::{ConsoleError, Input, Output}, support::facades::Artisan};
+use serde_json::json;
+
+fn register_edited() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:edit {user} {--queue=default}", |input: &Input, output: &mut Output| {
+        let mut edited = input.clone();
+        edited.set_argument("user", ["42"])?;
+        edited.set_option("queue", json!("priority"))?;
+        let data = edited.input();
+        output.comment(&format!("user={}, queue={}", data.string("user"), data.string("queue")));
+        Ok(0)
+    })?.purpose("Edit parsed command input")
+}
+```
+
+`set_argument` 接收 CLI 参数 token；`set_option` 接收 JSON 字符串、布尔开关、计数、数组，以及表示可选值未带参数的 null。每次修改复用原 Clap 解析器及约束，同时更新 `matches()` 与类型化助手；验证失败不改原输入，保留其他值、空字符串及非 UTF-8 OS 参数。
+
+这些入口按 CLI 定义重新验证，不是任意 PHP 对象修改。定义无法表达的值、可选位置的空洞、清空非空默认数组都会返回错误，不悄悄重绑定其他字段或恢复默认值。读取或修改全局输入不会重新配置已经创建的输出流。

@@ -364,3 +364,27 @@ fn register_isolated() -> Result<(), ConsoleError> {
 Isolation is optional: normal calls do not acquire a lock. With `--isolated`, contention skips the handler and returns 0, or the code supplied by `--isolated=12`. The default trait methods also use the command name and one hour. Override `isolatable_id` to add an input-dependent suffix and `isolation_lock_expires_at` for `Ttl::Seconds` or `Ttl::Until(SystemTime)`. Empty IDs and absent IDs are distinct.
 
 All participating processes must use the same lock-capable cache store and namespace. Array stores coordinate only within the application process; file stores require a shared filesystem, and database/Redis stores use their configured backends. Normal completion, errors and in-runtime cancellation release owned locks. A terminated process relies on expiry. Expired owners cannot release their replacement’s lock. Database whole-second locks use Unix seconds plus the lease; subsecond leases retain their native rounding policy.
+
+## Global options and validated input edits {#editing-command-input}
+
+Dispatched `Input` helpers include the invoked `command` argument (including aliases) and inherited global options: `verbose` is boolean, `env` is a nullable string, and `ansi` is null/true/false. `no-ansi` contributes to `ansi` rather than appearing as a separate option. `matches()` retains native Clap flags, environment values and verbosity counts; existing CLI parsing and output precedence remain unchanged. A standalone `CommandDefinition::parse` retains its declared argument scope. `Input::clone` keeps the registered definition identity and shutdown token, so an edited clone remains usable by the Console Kernel.
+
+```rust
+use openrust::{console::{ConsoleError, Input, Output}, support::facades::Artisan};
+use serde_json::json;
+
+fn register_edited() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:edit {user} {--queue=default}", |input: &Input, output: &mut Output| {
+        let mut edited = input.clone();
+        edited.set_argument("user", ["42"])?;
+        edited.set_option("queue", json!("priority"))?;
+        let data = edited.input();
+        output.comment(&format!("user={}, queue={}", data.string("user"), data.string("queue")));
+        Ok(0)
+    })?.purpose("Edit parsed command input")
+}
+```
+
+`set_argument` takes CLI tokens; `set_option` takes JSON strings, Boolean switches, counts, arrays, or null for a bare optional value. Each edit reuses the original Clap parser and constraints and updates `matches()` as well as the typed helpers. The original remains unchanged if validation fails; other values, empty strings and non-UTF-8 OS arguments are preserved.
+
+These are CLI revalidation adapters, not arbitrary PHP object mutation. A value that cannot be represented by the definition, a positional gap, or clearing a nonempty default array returns an error rather than silently rebinding another field or restoring its default. Reading or editing global input does not reconfigure an output stream that has already been created.

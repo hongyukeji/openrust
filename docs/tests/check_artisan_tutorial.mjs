@@ -20,8 +20,9 @@ try {
                     assert.equal(await page.locator('h2#command-signatures').count(),1);
                     assert.equal(await page.locator('h2#typed-command-input').count(),1);
                     assert.equal(await page.locator('h2#isolatable-commands').count(),1);
+                    assert.equal(await page.locator('h2#editing-command-input').count(),1);
                     const text=await page.locator('.vp-doc').innerText();
-                    for (const snippet of ['command_with','from_signature','Arc<Mailer>','register_injected','{--Q|queue=default}','register_typed','integer_strict','input.input()','register_isolated','add_isolatable']) assert(text.includes(snippet),`${locale}: ${snippet}`);
+                    for (const snippet of ['command_with','from_signature','Arc<Mailer>','register_injected','{--Q|queue=default}','register_typed','integer_strict','input.input()','register_isolated','add_isolatable','register_edited','set_option']) assert(text.includes(snippet),`${locale}: ${snippet}`);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

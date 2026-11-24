@@ -1,0 +1,20 @@
+{
+  "base": "8ce3432b757418bb96569f8f7534d16d28822adb",
+  "sha256": {
+    "vendor/openrust/framework/src/console/application.rs": "9e09d6fa77d1fea45894777698b676e7c4f44848f8adab4d3ed806ccd48ed689",
+    "vendor/openrust/framework/src/console/command.rs": "cfb000e5ce9e85f1ad51c0f96191c7fd4fd518f0fc969a9d84b5e55321fe7e40",
+    "vendor/openrust/framework/src/console/input.rs": "36464d77cbdf4952ae3f32e08457507a59d4b5450894ea10607e1cc89d8f48ad",
+    "vendor/openrust/framework/src/console/mod.rs": "f28f2158982d4b787979d3c295e382a985e53eead3765c0ca59b29bdc4a743ac",
+    "vendor/openrust/framework/src/console/input/mutation.rs": "874db659b80fb3842d6c7030849fe475270e85d47c179e9f1b4aa77a79f927f3",
+    "vendor/openrust/framework/tests/command_input_tutorial.rs": "7a7469078a60b01d3570dfd0a2c718c3a542d642f13e9d930a7b44dcf003985f",
+    "vendor/openrust/framework/tests/console_input_mutation.rs": "341ee3cd4a164259d0346e1f6806805eed9ac56a9de8e806bd1bb02bb06104c7",
+    "tests/artisan_tutorial_docs.py": "c08a7f039f8b444fade7b2f4b69f971f17cb9811c3d642c17ce32e570b2a8f43",
+    "docs/tests/check_artisan_tutorial.mjs": "aa136fa1e55b7c12a644208a61bcc0504615cdc4cefc6977185d3f5a1563f6fb",
+    "docs/en/digging-deeper/artisan.md": "1410a18b9eda80298385fa04317774088bdc3ed231fcbdaf00edf13e9e205938",
+    "docs/zh-Hans/digging-deeper/artisan.md": "6c3caaff180693b01e0238accd6126243e90c6811b0fd9aa8895447edda6448f",
+    "docs/zh-Hant/digging-deeper/artisan.md": "0f07091e3479903800bee6b3d36a621b09689d2b5cbe0610aeaf10d471ae41be",
+    ".agents/project/audits/artisan-tutorial/global-input-oracle.json": "8d57342b67e24b8c6699cb911c5439419398aaf413c44c03c17bfa6e90388bc1"
+  },
+  "evidence": "target/tmp/artisan-tutorial-20261125/input-edit-*",
+  "scope": "global input metadata and validated edits; not the whole Artisan chapter"
+}

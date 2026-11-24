@@ -247,7 +247,8 @@
         "artisan_docs_generated",
         "input-oracle.json",
         "input-runtime.log",
-        "input-browser.log"
+        "input-browser.log",
+        "第四簇：global-input-oracle.json + console_input_mutation + accepted-input-edit.json；真实HTTP／Artisan及原子失败回退"
       ],
       "contract": "Input分组／单值及真实CommandInput类型化标量、日期、枚举、集合；明确Option条件返回与原生属性访问适配"
     },

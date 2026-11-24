@@ -42,8 +42,11 @@ pub(crate) use localization::text as localized_text;
 pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Parsed arguments and options for a command.
+#[derive(Clone)]
 pub struct Input {
     syntax: Arc<clap::Command>,
+    parsing_syntax: Arc<clap::Command>,
+    invoked_name: Option<String>,
     matches: ArgMatches,
     shutdown: Option<tokio_util::sync::CancellationToken>,
 }
@@ -57,6 +60,8 @@ impl Input {
     pub fn with_shutdown(&self, shutdown: tokio_util::sync::CancellationToken) -> Self {
         Self {
             syntax: self.syntax.clone(),
+            parsing_syntax: self.parsing_syntax.clone(),
+            invoked_name: self.invoked_name.clone(),
             matches: self.matches.clone(),
             shutdown: Some(shutdown),
         }

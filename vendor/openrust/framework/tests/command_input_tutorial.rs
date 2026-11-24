@@ -189,6 +189,12 @@ fn config(
     ]))
 }
 fn commands() -> Result<(), ConsoleError> {
+    Artisan::command_with("tutorial:globals", |input: &Input, output: &mut Output| {
+        output
+            .stdout
+            .push_str(&serde_json::to_string(&input.options()).unwrap());
+        Ok(0)
+    })?;
     Artisan::command_with("tutorial:typed {user} {--from=} {--count=12tail} {--kind=ready} {--id=*} {--active}",|input:&Input, output:&mut Output| {
         let bag=input.input();
         let date=bag.date("from",Some("!Y-m-d"),None)?.map(|date|date.format("Y-m-d P")).transpose().map_err(ConsoleError::from_source)?;
@@ -308,4 +314,37 @@ async fn calendar_interval_enum_errors_retain_sources_and_do_not_poison_followin
         let error=bag.r#enum::<State>("states",None).unwrap_err();assert!(error.source().is_some());assert_eq!(bag.when_enum::<State,_>("ready",|v|v==State::Ready).unwrap(),Some(true));
         let mut output=Output::default();assert!(Artisan::call("tutorial:typed",&["Ada".into(),"--from=not-a-date".into()],&mut output).await.is_err());assert_eq!(Artisan::call("tutorial:typed",&["Ada".into(),"--from=2026-11-25".into()],&mut output).await.unwrap(),0);
     }).await;
+}
+
+#[tokio::test]
+async fn grouped_input_exposes_actual_inherited_global_options() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = Application::configure(root.path().into())
+        .with_config(config)
+        .with_routing(Routing::default().commands(commands))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let mut output = Output::default();
+        assert_eq!(
+            Artisan::call(
+                "tutorial:globals",
+                &[
+                    "--ansi".into(),
+                    "--verbose".into(),
+                    "--no-interaction".into()
+                ],
+                &mut output
+            )
+            .await
+            .unwrap(),
+            0
+        );
+        let options: Value = serde_json::from_str(&output.stdout).unwrap();
+        assert_eq!(options["ansi"], true);
+        assert_eq!(options["verbose"], true);
+        assert_eq!(options["no-interaction"], true);
+    })
+    .await;
 }

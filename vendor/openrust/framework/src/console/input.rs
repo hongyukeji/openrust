@@ -1,10 +1,14 @@
 use serde_json::{Map, Value};
 
 use super::Input;
+mod mutation;
 
 impl Input {
     /// 按名称读取位置参数；未知名称返回None。
     pub fn argument(&self, name: &str) -> Option<Value> {
+        if name == "command" && !self.argument_definition(name, false) {
+            return self.invoked_name.clone().map(Value::String);
+        }
         self.argument_definition(name, false)
             .then(|| self.value(name))
             .flatten()
@@ -18,22 +22,29 @@ impl Input {
     }
 
     pub fn arguments(&self) -> Map<String, Value> {
-        self.values(false)
+        let mut values = self.values(false);
+        if let Some(name) = &self.invoked_name {
+            values
+                .entry("command")
+                .or_insert_with(|| Value::String(name.clone()));
+        }
+        values
     }
     pub fn options(&self) -> Map<String, Value> {
         self.values(true)
     }
 
     fn argument_definition(&self, name: &str, option: bool) -> bool {
-        self.syntax.get_arguments().any(|arg| {
+        self.parsing_syntax.get_arguments().any(|arg| {
             arg.get_id().as_str() == name
                 && (arg.get_long().is_some() || arg.get_short().is_some()) == option
         })
     }
     fn values(&self, option: bool) -> Map<String, Value> {
-        self.syntax
+        self.parsing_syntax
             .get_arguments()
             .filter(|arg| (arg.get_long().is_some() || arg.get_short().is_some()) == option)
+            .filter(|arg| !(option && arg.get_id().as_str() == "no-ansi" && self.inherited("ansi")))
             .map(|arg| {
                 (
                     arg.get_id().to_string(),
@@ -42,9 +53,46 @@ impl Input {
             })
             .collect()
     }
+    fn inherited(&self, name: &str) -> bool {
+        self.invoked_name.is_some()
+            && !self
+                .syntax
+                .get_arguments()
+                .any(|arg| arg.get_id().as_str() == name)
+    }
     fn value(&self, name: &str) -> Option<Value> {
+        if self.inherited(name) {
+            match name {
+                "verbose" => {
+                    return Some(Value::Bool(self.raw_value(name)?.as_u64().unwrap_or(0) > 0));
+                }
+                "env" => {
+                    return Some(
+                        self.raw_value(name)?
+                            .as_array()
+                            .and_then(|v| v.last())
+                            .cloned()
+                            .unwrap_or(Value::Null),
+                    );
+                }
+                "ansi" => {
+                    return Some(if self.raw_value("ansi") == Some(Value::Bool(true)) {
+                        Value::Bool(true)
+                    } else if self.raw_value("no-ansi") == Some(Value::Bool(true)) {
+                        Value::Bool(false)
+                    } else {
+                        Value::Null
+                    });
+                }
+                "no-ansi" => return None,
+                _ => {}
+            }
+        }
+        self.raw_value(name)
+    }
+    fn raw_value(&self, name: &str) -> Option<Value> {
         let arg = self
-            .syntax
+            .parsing_syntax
             .get_arguments()
             .find(|arg| arg.get_id().as_str() == name)?;
         let array = matches!(arg.get_action(), clap::ArgAction::Append)
@@ -110,7 +158,16 @@ impl Input {
         if array {
             Some(Value::Array(Vec::new()))
         } else {
-            None
+            match arg.get_action() {
+                clap::ArgAction::SetTrue
+                | clap::ArgAction::Help
+                | clap::ArgAction::HelpShort
+                | clap::ArgAction::HelpLong
+                | clap::ArgAction::Version => Some(Value::Bool(false)),
+                clap::ArgAction::SetFalse => Some(Value::Bool(true)),
+                clap::ArgAction::Count => Some(Value::from(0)),
+                _ => None,
+            }
         }
     }
 }

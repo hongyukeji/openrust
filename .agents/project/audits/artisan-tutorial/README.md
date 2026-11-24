@@ -39,3 +39,15 @@ Artisan／Console Application原command保留Output闭包类型推断及成功�
 最终array／file／SQLite／MySQL8.4.13／PostgreSQL18.7／Redis8.10.3六矩阵各2项store消费者通过：默认Trait及旧Definition、空ID／不同ID、普通无锁／冲突退出0及17、执行失败释放、取消释放、相对／绝对到期、续租持久化及所有者；共享后端还用独立Artisan子进程核对真实互斥，array明确只保证本进程。独立真实TCP验证HTTP读取同一命令锁并在释放后恢复。Console Application和Kernel契约入口各自实际调用，不只检查方法声明。MySQL用TestApp::mysql私有schema，SQLite私有文件，PostgreSQL／Redis用验收专属临时实例；三库不访问开发数据库，Redis核对INFO8.x及PING，不执行共享清库。临时容器全部移除，无新增数据卷。
 
 最终主批6框架目标26项＋根4目标36项共62项0忽略，含正式三语12个直接提取示例；另8项既有缓存实际回归通过（file跨进程／本地并发、三库事务、MySQL／Redis scoped回调及Redis所有者锁）。六矩阵对相同store函数的重复执行不叠加为新功能数。首轮Output没有Debug的测试unwrap_err编译问题按匹配JoinError修复，没有给产品加无必要derive或lint豁免。workspace fmt、all-targets严格Clippy34.89s、main(pail)构建及三语构建全0，实际main HTTP／Artisan／Pail错误捕获与清理／Ctrl+C、三语双前缀手机与桌面12组浏览器通过。日志target/tmp/artisan-tutorial-20261125/isolation-{tests,tests-v2,sqlite,sqlite-v2,matrix-v2,matrix-final,gates,signature-final,root,fmt,clippy,main,docs,runtime,browser}.log和isolation-final-{backend}-{case}.log；源码哈希见accepted-source.json。未验证Windows新Trait／取消路径或真实Memcached／DynamoDB等供应商，未将此范围扩张为整个Cache或Artisan已闭合。继续缺失输入提示、I/O、生成／注册、信号及其余教程入口，不推送。
+
+## 第四簇：完整全局输入与原子修改（2026-11-25）
+
+第三簇已提交714f869b4。本簇先用真实Artisan复现继承全局选项未进入Input助手的问题，再保留原注册定义身份，增加完整解析定义和调用名称元数据。分派、Kernel::call、子任务和Facade调用都携带实际名称；别名保留在arguments.command。单独CommandDefinition::parse仍只解析声明的输入，不伪造应用级命令参数。
+
+固定Illuminate Console Application结合Symfony Console v7.4.0在真实PHP8.5.12执行三组默认／别名／显式全局选项，原始结果global-input-oracle.json由Rust消费者整组比较。verbose助手为布尔，env为可空字符串，ansi为null／true／false，no-ansi合并为ansi；matches仍保留原生计数和原始开关，既有CLI解析、环境多值及ANSI同时指定时的原输出优先级不改。此处不是把实现差异当语言限制，而是保留底层兼容同时修复公开助手。来源自动加载失败与修正后的原始输出均留在临时日志，不提交PHP脚本。
+
+Input可克隆，set_argument／set_option复用原Clap定义重建并验证输入；失败原子回退，保留定义身份、关停令牌、数组无值组、空字符串、前导短横、非UTF-8参数及未修改字段。ANSI支持布尔或null，verbose可用布尔及原生数值计数。它是经过CLI约束的原生适配，不模拟任意PHP可变对象：跳过可选位置后只改后位、清空非空默认数组等CLI无法表达的状态会报错，synthetic command元数据不能用于重定向命令。上述限制在三语正文明确，不以替代写法证明完整InputInterface。
+
+最终7框架目标33项＋根4目标39项，共72项0忽略，其中三语正式Markdown直接提取15例；测试数不等于新增功能数。专项6项覆盖原子回退、类型和值保留、Kernel身份、真实TCP HTTP成功／JSON500／后续恢复、独立Artisan成功与失败、三组源码整组向量及原始verbose计数。实际main验证/up、静态文件、HTML／JSON404、HEAD、独立inspire／list／pail帮助、Pail真实错误捕获与超时清理、Ctrl+C退出0。三语双前缀／两宽度12组Chromium检查覆盖editing-command-input。fmt、workspace all-targets严格Clippy39.19s、main(pail)构建及三语构建退出0；站点仍有既有chunk-size提示，不冒称无警告。
+
+本轮中途快照误含未完成认证改动导致Clippy失败；仅将隔离快照恢复已提交认证基线，并在最终组合吸收aec95b92e及后续已提交记录，未改动活跃认证文件。另一次include_str相对层级错误、一次新增测试格式检查失败均修复重跑，不计失败为通过。最终日志input-edit-final-{signature-final,root,fmt,clippy,main,docs}.log、input-edit-normalized-{gates,resume}.log、input-edit-{runtime,browser}.log；失败证据单独保留。源码组合和SHA见accepted-input-edit.json。可复用缓存／依赖／日志与隔离源码保留，无本批运行服务或容器；共享守卫中途清理后已恢复验收。继续缺失输入提示、I/O、注册与生成、信号等剩余节，整章未闭合；不推送。
