@@ -95,16 +95,11 @@ fn ascii_domain(host: &str) -> Option<String> {
             Ok(encoded) => encoded,
             Err(Error::ContextJ | Error::Bidi) => {
                 // 默认UIDNA没有启用ContextJ/Bidi；其余检查仍由成熟实现执行。
-                #[allow(
-                    deprecated,
-                    reason = "默认UIDNA未启用上下文检查，需要保留已验证U-label的原始Punycode"
-                )]
                 let (decoded, original) = if let Some(payload) = label.strip_prefix("xn--") {
                     (idna::punycode::decode_to_string(payload)?, Some(payload))
                 } else {
                     (label.to_owned(), None)
                 };
-                #[allow(deprecated, reason = "复用既有Punycode编码器实现UIDNA默认选项")]
                 let encoded = idna::punycode::encode_str(&decoded)?;
                 if original.is_some_and(|original| original != encoded) {
                     return None;

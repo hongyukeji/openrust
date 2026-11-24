@@ -297,10 +297,6 @@ fn label_too_long(label: &str) -> bool {
             false
         } else {
             // Compute length even when UTS 46 would report another diagnostic.
-            #[allow(
-                deprecated,
-                reason = "Raw Punycode is required for diagnostic label length"
-            )]
             idna::punycode::encode_str(part).is_some_and(|encoded| encoded.len() + 4 > 63)
         }
     })
