@@ -298993,6 +298993,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "Enum/In/NotIn, fluent builders, DataAware/ValidatorAware, email and password policies; full chapter remains open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第十三组 Enum/In/NotIn",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "fluent builders and associated parameter handling, aware rules, email, password; chapter remains open"
     }
   ]
 }

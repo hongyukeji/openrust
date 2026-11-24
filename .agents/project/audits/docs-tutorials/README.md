@@ -253,3 +253,15 @@ make:rule与生成模板消费者本组闭合。逐失败首选语言、DataAwar
 最终 safe/final-gates.log 三阶段全0：新测试2、mutation6、正式三语提取HTTP消费者3，合计11项0忽略；先前 ForEach4 与规则对象2 回归也通过。safe/gates.log 的真实 main 构建与 artisan help make:request 退出0；三语构建、浏览器、根与docs挂载、API参考检查均0。最后编号修复后重新执行上述11项、workspace/all-targets严格Clippy（20.82秒）与fmt，全通过；未用先前源码的静态证据替代最终修复。未改命令行为、错误响应格式或默认值。日志／原始PHP／负消费者保留于target/tmp/docs-chapters-20261124/safe及safe-*，无本批常驻服务或容器；热缓存继续由守卫管理。
 
 本簇关闭教程已验证数据操作差异；接续 Enum/In/NotIn、剩余fluent builder、状态感知setter、email和密码策略，全章仍保持开放。
+
+## 第十三组：Enum、In、NotIn 真实规则对象（2026-11-24）
+
+固定规则对象源码及文档 rule-enum、rule-in、rule-not-in 对照确认原 Enum/In 只有空壳。现 Rule::r#enum::<E>() / rules::Enum<E> 复用应用已有 BackedEnum 和弱标量输入转换；only/except 接收原生枚举值，非空 only 优先，when/unless/when_else 配置同一实例，不另跑独立验证器。执行使用原 ValidationRule/RuleContext，沿用当前工厂译器及消息。显式双分支方法对应 PHP 可选第三参数；Rust JSON 载荷仍为后备标量，实例直接判断用 passes_case，不复制 PHP 反射／对象载荷。既有公开方法和格式保持。
+
+Rule::r#in / rules::In、Rule::not_in / rules::NotIn 使用 Vec 保留成员界限，包含逗号／引号，不拼接未转义字符串。构造接受 Into<Value>，数字浮点／布尔／空值复用既有标量转换。枚举列表由应用显式映射后备值，避免假称语言支持运行期反射所有成员。r# 为 Rust 关键字语法，混合规则列表通过 Into<Rule>，不是新的序列化名称。
+
+固定 PHP8.5.12 实际执行140组字符串／整数枚举、弱转换、null/数组、only/except 优先及条件分支，输出保存 tests/reference/validation-enum.json；弃用提示单独写stderr原样保留，不混入JSON或关闭诊断。真实 TCP 每组比较200/422与值／错误，再验证列表成员、逗号／引号、数组逐项限制和拒绝项。新增专项1项（含上述140数据组合）＋ForEach4＋mutation6共11项0忽略，三语正式示例直接提取的3项HTTP Kernel消费者通过。safe2前置回归亦通过，不将数据条目当作功能数。
+
+最终 enum/gates.log 提取、消费者、workspace/all-targets严格Clippy（45.96秒）、fmt、三语构建与浏览器全0。当前候选实际main构建通过，APP_BASE_PATH指向隔离源码执行 artisan help make:rule 退出0。源码与验收快照核SHA；本批无常驻服务／数据库／容器。日志及固定源码留在target/tmp/docs-chapters-20261124/enum和enum-*，编译缓存由既有守卫复用。
+
+本簇关闭上述三条教程规则对象缺口。剩余 fluent 仍在处理中；其中 url/uuid 参数过滤与 numeric:strict 已确认不能仅靠旧解析器名称视为完成，将在下簇同时修复。状态感知规则、email与密码策略仍开放，全章未关闭。

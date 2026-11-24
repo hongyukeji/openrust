@@ -757,11 +757,13 @@
         {
           "anchor": "rule-enum",
           "title": "enum",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "Rule and typed rules Enum/In/NotIn; filtering, conditional configuration, real validation consumers"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第十三组enuminnotin-真实规则对象2026-11-24"
+          ]
         },
         {
           "anchor": "rule-exclude",
@@ -871,11 +873,13 @@
         {
           "anchor": "rule-in",
           "title": "in:_foo_,_bar_,...",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "Rule and typed rules Enum/In/NotIn; filtering, conditional configuration, real validation consumers"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第十三组enuminnotin-真实规则对象2026-11-24"
+          ]
         },
         {
           "anchor": "rule-in-array",
@@ -1055,11 +1059,13 @@
         {
           "anchor": "rule-not-in",
           "title": "not_in:_foo_,_bar_,...",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "Rule and typed rules Enum/In/NotIn; filtering, conditional configuration, real validation consumers"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第十三组enuminnotin-真实规则对象2026-11-24"
+          ]
         },
         {
           "anchor": "rule-not-regex",

@@ -153,6 +153,16 @@ impl Rule {
         AnyOf::new(rules)
     }
 
+    pub fn r#enum<E: crate::support::BackedEnum + PartialEq>() -> super::rules::Enum<E> {
+        super::rules::Enum::new()
+    }
+    pub fn r#in<T: Into<Value>>(values: impl IntoIterator<Item = T>) -> super::rules::In {
+        super::rules::In::new(values)
+    }
+    pub fn not_in<T: Into<Value>>(values: impl IntoIterator<Item = T>) -> super::rules::NotIn {
+        super::rules::NotIn::new(values)
+    }
+
     pub fn required() -> Self {
         Self::new(Kind::Required)
     }

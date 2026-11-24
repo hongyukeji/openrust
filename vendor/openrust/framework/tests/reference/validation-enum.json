@@ -1,0 +1,862 @@
+[
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": "draft",
+        "passes": true
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": "ready",
+        "passes": true
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "all",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": "draft",
+        "passes": true
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "only",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": "ready",
+        "passes": true
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "except",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": "draft",
+        "passes": true
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "precedence",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": "ready",
+        "passes": true
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "string",
+        "mode": "when",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": 0,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": 1,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": 2,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": "1",
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": "1.2",
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": 1.9,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": true,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": false,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "all",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": 1,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": "1",
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": "1.2",
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": 1.9,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": true,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "only",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": 0,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": 2,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": false,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "except",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": 1,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": 2,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": "1",
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": "1.2",
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": 1.9,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": true,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "precedence",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": "draft",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": "ready",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": "other",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": 0,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": 1,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": 2,
+        "passes": true
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": "1",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": "1.2",
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": 1.9,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": true,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": false,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": null,
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": [],
+        "passes": false
+    },
+    {
+        "kind": "integer",
+        "mode": "when",
+        "value": [
+            "x"
+        ],
+        "passes": false
+    }
+]

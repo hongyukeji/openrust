@@ -276,6 +276,53 @@ fn store_safe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 Subsets remain typed `ValidatedInput` values rather than untyped arrays so uploaded file handles survive filtering and merging. Use `file()` or typed collection values to access files; JSON projections represent files as `null` without exposing local paths. `to_array()` and indexing expose that JSON projection. `contracts::support::{ValidatedData, Arrayable, ArrayAccess}` provide the corresponding generic contracts. A manually constructed `ValidatedInput::new` does not run validation; use a request or validator for untrusted input.
 
+## Enums and Value Lists {#rule-enum}
+
+`Rule::r#enum::<E>()` and `rules::Enum<E>` validate an application enum through the existing `BackedEnum` mapping. `only` and `except` accept enum cases; a non-empty `only` list takes precedence. `when`, `unless` and `when_else` conditionally configure that same rule. `when_else` takes both branches explicitly because Rust has no optional function arguments. JSON remains a backing scalar, not a Rust enum object.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::BackedEnum,
+    validation::{Rule, RuleSet},
+};
+
+#[derive(PartialEq)]
+enum ServerStatus { Pending, Active }
+
+impl BackedEnum for ServerStatus {
+    type Backing = String;
+    fn try_from_backing(value: String) -> Option<Self> {
+        match value.as_str() {
+            "pending" => Some(Self::Pending),
+            "active" => Some(Self::Active),
+            _ => None,
+        }
+    }
+}
+
+fn store_status(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rule = Rule::r#enum::<ServerStatus>()
+            .when(true, |rule| rule.only([ServerStatus::Active]));
+        let data = request.validate(RuleSet::new()
+            .field("status", [Rule::required(), rule.into()])?).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+
+fn store_zone(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = request.validate(RuleSet::new()
+            .field("zone", [Rule::required(), Rule::r#in(["first-zone", "second-zone"]).into()])?
+            .field("topping", [Rule::not_in(["sprinkles", "cherries"]).into()])?).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
+
+`Rule::r#in`, `rules::In`, `Rule::not_in` and `rules::NotIn` keep each list value intact, including commas and quotes. Members accept `Into<serde_json::Value>` and use the existing scalar conversion. Map application enum cases to their backing values explicitly for lists. The `r#` prefix is required for Rust keywords; it does not change the method name. Use `.into()` when combining a typed rule with ordinary rules in one array.
+
 ## Message Bags {#message-bags}
 
 Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `into_messages()` only when flattening is intended.

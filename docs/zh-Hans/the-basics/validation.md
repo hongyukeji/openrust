@@ -276,6 +276,53 @@ fn store_safe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 子集保留为类型化的 `ValidatedInput`，而不是无类型数组，以保留筛选和合并后的上传文件句柄。通过 `file()` 或类型化集合读取文件；JSON 投影将文件表示为 `null`，不公开本地路径。`to_array()` 和索引读取此 JSON 投影。`contracts::support::{ValidatedData, Arrayable, ArrayAccess}` 提供对应泛型契约。手动构造 `ValidatedInput::new` 不执行验证；不可信输入应通过请求或验证器处理。
 
+## 枚举与值列表 {#rule-enum}
+
+`Rule::r#enum::<E>()` 和 `rules::Enum<E>` 通过已有 `BackedEnum` 映射验证应用枚举。`only`、`except` 接收枚举成员；非空 `only` 列表优先。`when`、`unless`、`when_else` 按条件配置同一个规则；Rust 没有可选函数参数，`when_else` 显式传入两个分支。JSON 保持后备标量，不转换成 Rust 枚举对象。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::BackedEnum,
+    validation::{Rule, RuleSet},
+};
+
+#[derive(PartialEq)]
+enum ServerStatus { Pending, Active }
+
+impl BackedEnum for ServerStatus {
+    type Backing = String;
+    fn try_from_backing(value: String) -> Option<Self> {
+        match value.as_str() {
+            "pending" => Some(Self::Pending),
+            "active" => Some(Self::Active),
+            _ => None,
+        }
+    }
+}
+
+fn store_status(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rule = Rule::r#enum::<ServerStatus>()
+            .when(true, |rule| rule.only([ServerStatus::Active]));
+        let data = request.validate(RuleSet::new()
+            .field("status", [Rule::required(), rule.into()])?).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+
+fn store_zone(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = request.validate(RuleSet::new()
+            .field("zone", [Rule::required(), Rule::r#in(["first-zone", "second-zone"]).into()])?
+            .field("topping", [Rule::not_in(["sprinkles", "cherries"]).into()])?).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
+
+`Rule::r#in`、`rules::In`、`Rule::not_in`、`rules::NotIn` 保留每个列表成员边界，包括逗号和引号。成员接收 `Into<serde_json::Value>`，复用已有标量转换；列表中的应用枚举显式映射为后备值。`r#` 是 Rust 关键字所需语法，不改变方法名。类型化规则与普通规则放入同一个数组时使用 `.into()`。
+
 ## 消息包 {#message-bags}
 
 使用 `MessageBag` 收集有序字段错误，`ViewErrorBag` 管理命名包。`add` 去重，`merge(&other)` 保留重复。`first(key, format)` 在没有消息时返回空字符串。`get(key, format)` 返回 `MessageLookup::Exact` 或保留字段名的通配映射；仅在确实需要扁平消息时调用 `into_messages()`。
