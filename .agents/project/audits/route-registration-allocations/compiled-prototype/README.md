@@ -108,7 +108,7 @@
 依次在项目根调用 prepare.py prototype／baseline，通过 `tests/build_guard.py --workflow route-compiled-prototype --target-dir target/tmp/array-release/cargo-target -- <命令>` 构建隔离副本。脚本会接入原型及诊断example，不能把隔离代码拷回正式src。
 
 ```sh
-python3 -B .agents/project/audits/route-registration-allocations/compiled-prototype/prepare.py prototype --revision 176353051e38f379ee2ade811d15be14a7c2fcb4
+python3 -B .agents/project/audits/route-registration-allocations/compiled-prototype/prepare.py prototype --revision 176353051e38f379ee2ade811d15be14a7c2fcb4 --prototype-revision 98be650c2
 # 隔离source中：
 cargo fmt --all
 cargo build --release --locked -p openrust-framework --example compiled_prototype_alloc --example compiled_prototype_time
@@ -119,3 +119,5 @@ cargo test --locked -p openrust-framework --test routing_compiled_matrix -- --no
 分别保存两版example为工作流bin/prototype_alloc、prototype_time、baseline_alloc、baseline_time；两版都设置 `CARGO_PROFILE_RELEASE_INCREMENTAL=true`。之后由同一守卫运行本目录measure.py，默认写入该工作流，另设ROUTE_PROTO_DIR仅允许项目target/tmp内目录。HTTP矩阵可通过ROUTE_PROTOTYPE_CACHE_OUTPUT保存缓存副本，路径必须位于隔离工作流内。
 
 两版检查命令固定在verify.py，在build_guard中调用`python3 -B <本目录>/verify.py baseline`或`prototype`。最终源码通过格式及框架／根应用all-targets严格Clippy；原型隔离副本的workspace all-targets严格Clippy亦通过，完整命令见JSON。原始日志保留，临时隔离源码／辅助脚本在退出后清理，独立诊断二进制、样本、缓存字节与日志保留在工作流目录；Cargo缓存按磁盘守卫规则复用。再次运行prepare.py会从指定提交重建，不读取其他协作者的在途源码。
+
+[第二轮原型优化](refinement/README.md)继续处理动态匹配分配、首项查找及重叠编译成本，另存同基线三版复测数据；本页是第一轮历史验收。

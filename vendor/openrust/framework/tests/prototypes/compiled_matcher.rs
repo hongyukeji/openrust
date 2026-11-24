@@ -1,31 +1,24 @@
-//! 仅由隔离原型脚本接入 Router；不属于正式路由实现或公开 API。
+//! 只在隔离副本中接入；保留注册顺序的保守前缀索引，不属于公开 API。
 use super::{HashMap, Method, Router};
-use regex::{RegexSet, RegexSetBuilder};
 use std::sync::Arc;
 
 pub(super) struct CompiledMatcher {
     methods: HashMap<Method, Arc<MethodMatcher>>,
-    requires_fallback: bool,
 }
 struct MethodMatcher {
-    literals: HashMap<Box<str>, Vec<(usize, usize)>>,
-    dynamic: Vec<Candidate>,
-    chunks: Vec<CandidateChunk>,
+    prefixes: HashMap<Box<str>, Vec<Candidate>>,
+    lengths: Vec<usize>,
+    first_normal: Option<usize>,
+    literals: usize,
+    dynamic: usize,
 }
-// Symfony 同样使用有序的动态正则块；不将万级前缀塞入同一个集合。
-const CHUNK_SIZE: usize = 256;
-struct CandidateChunk {
-    start: usize,
-    end: usize,
-    prefixes: Option<RegexSet>,
-}
+#[derive(Clone, Copy)]
 struct Candidate {
     ordinal: usize,
     index: usize,
-    prefix_len: usize,
 }
 fn prefix_len(path: &str) -> usize {
-    // 可选参数可能连分隔符一起消失；只使用必然存在的保守字面前缀。
+    // 可选参数可能连分隔符一起消失，只索引必然存在的部分。
     path.split('{')
         .next()
         .unwrap_or_default()
@@ -51,16 +44,11 @@ impl CompiledMatcher {
                 (method.clone(), matcher)
             })
             .collect();
-        let requires_fallback = shared
-            .iter()
-            .any(|(_, matcher)| matcher.chunks.iter().any(|chunk| chunk.prefixes.is_none()));
-        Self {
-            methods,
-            requires_fallback,
-        }
+        Self { methods }
     }
+    // 沿用隔离注入器的接口；本版不再编译前缀正则，不存在集合编译失败。
     pub(super) fn requires_fallback(&self) -> bool {
-        self.requires_fallback
+        false
     }
     pub(super) fn matched(
         &self,
@@ -70,130 +58,104 @@ impl CompiledMatcher {
         path: &str,
     ) -> Option<usize> {
         let matcher = self.methods.get(method)?;
-        let mut fallback: Option<(usize, usize)> = None;
-        let mut select = |ordinal: usize, index: usize| {
-            let route = &router.routes[index];
-            if !route.matches(host, path) {
-                return None;
-            }
-            if route.is_fallback {
-                if fallback.is_none_or(|(old, _)| ordinal < old) {
-                    fallback = Some((ordinal, index));
-                }
-                None
-            } else {
-                Some(index)
-            }
-        };
-        // 能进入该表的静态候选不受任何在先动态路径遮蔽；域名仍精确核对。
-        if let Some(candidates) = matcher.literals.get(path) {
-            for &(ordinal, index) in candidates {
-                if let Some(index) = select(ordinal, index) {
-                    return Some(index);
-                }
-            }
+        // 第一个普通路由命中时一定胜出，不必建立候选结果或检查索引。
+        if let Some(index) = matcher.first_normal
+            && router.routes[index].matches(host, path)
+        {
+            return Some(index);
         }
-        for chunk in &matcher.chunks {
-            if let Some(prefixes) = &chunk.prefixes {
-                // 失败的块不创建 SetMatches，避免每个未命中块分配结果集合。
-                if !prefixes.is_match(path) {
+        let mut normal: Option<Candidate> = None;
+        let mut fallback: Option<Candidate> = None;
+        for &length in &matcher.lengths {
+            if length > path.len() {
+                break;
+            }
+            // 前缀是字节长度；请求的同一位置可能落在另一 Unicode 字符内部。
+            let Some(prefix) = path.get(..length) else {
+                continue;
+            };
+            let Some(candidates) = matcher.prefixes.get(prefix) else {
+                continue;
+            };
+            for &candidate in candidates {
+                if normal.is_some_and(|old| candidate.ordinal >= old.ordinal) {
+                    break;
+                }
+                if Some(candidate.index) == matcher.first_normal {
                     continue;
                 }
-                for candidate in prefixes
-                    .matches(path)
-                    .iter()
-                    .map(|id| &matcher.dynamic[chunk.start + id])
+                let route = &router.routes[candidate.index];
+                if route.is_fallback && fallback.is_some_and(|old| candidate.ordinal >= old.ordinal)
                 {
-                    if let Some(index) = select(candidate.ordinal, candidate.index) {
-                        return Some(index);
-                    }
+                    continue;
                 }
-            } else {
-                for candidate in &matcher.dynamic[chunk.start..chunk.end] {
-                    let uri = router.routes[candidate.index].registration_uri();
-                    if path.starts_with(&uri[..candidate.prefix_len])
-                        && let Some(index) = select(candidate.ordinal, candidate.index)
-                    {
-                        return Some(index);
-                    }
+                if !route.matches(host, path) {
+                    continue;
+                }
+                if route.is_fallback {
+                    fallback = Some(candidate);
+                } else {
+                    normal = Some(candidate);
+                    break;
                 }
             }
         }
-        fallback.map(|(_, index)| index)
+        // 桶按前缀长度访问，赢家只按原 ordinal 选择，绝不改为最长／静态优先。
+        normal.or(fallback).map(|candidate| candidate.index)
     }
     pub(super) fn stats(&self) -> (usize, usize, usize) {
         let mut unique = Vec::new();
         let mut literals = 0;
         let mut dynamic = 0;
-        let mut fallback = 0;
         for matcher in self.methods.values() {
             let pointer = Arc::as_ptr(matcher);
             if unique.contains(&pointer) {
                 continue;
             }
             unique.push(pointer);
-            literals += matcher.literals.values().map(Vec::len).sum::<usize>();
-            dynamic += matcher.dynamic.len();
-            fallback += matcher
-                .chunks
-                .iter()
-                .filter(|chunk| chunk.prefixes.is_none())
-                .count();
+            literals += matcher.literals;
+            dynamic += matcher.dynamic;
         }
-        (literals, dynamic, fallback)
+        (literals, dynamic, 0)
     }
 }
 impl MethodMatcher {
     fn compile(router: &Router, positions: &[usize]) -> Self {
-        let mut literals: HashMap<Box<str>, Vec<(usize, usize)>> = HashMap::new();
-        let mut dynamic: Vec<Candidate> = Vec::new();
+        let mut prefixes: HashMap<Box<str>, Vec<Candidate>> = HashMap::new();
+        let mut lengths = Vec::new();
+        let mut first_normal = None;
+        let mut literals = 0;
+        let mut dynamic = 0;
         for (ordinal, &index) in positions.iter().enumerate() {
-            let path = router.routes[index].registration_uri();
-            let shadowed = !path.contains('{')
-                && dynamic.iter().any(|candidate| {
-                    let previous = &router.routes[candidate.index];
-                    path.starts_with(&previous.registration_uri()[..candidate.prefix_len])
-                        && previous.__prototype_path_matches(path)
-                });
-            if !path.contains('{') && !shadowed {
-                literals
-                    .entry(path.into())
-                    .or_default()
-                    .push((ordinal, index));
+            let route = &router.routes[index];
+            let path = route.registration_uri();
+            let length = if path.contains('{') {
+                dynamic += 1;
+                prefix_len(path)
             } else {
-                dynamic.push(Candidate {
-                    ordinal,
-                    index,
-                    prefix_len: prefix_len(path),
-                });
+                literals += 1;
+                path.len()
+            };
+            if !route.is_fallback {
+                first_normal.get_or_insert(index);
+            }
+            let prefix = &path[..length];
+            // get_mut 借用键；只为新的前缀分配，不为重复前缀临时构造 Box。
+            if let Some(candidates) = prefixes.get_mut(prefix) {
+                candidates.push(Candidate { ordinal, index });
+            } else {
+                prefixes.insert(prefix.into(), vec![Candidate { ordinal, index }]);
+                lengths.push(length);
             }
         }
-        let chunks = dynamic
-            .chunks(CHUNK_SIZE)
-            .enumerate()
-            .map(|(number, candidates)| {
-                let expressions = candidates.iter().map(|candidate| {
-                    let path = router.routes[candidate.index].registration_uri();
-                    if path.contains('{') {
-                        format!(r"\A{}", regex::escape(&path[..candidate.prefix_len]))
-                    } else {
-                        format!(r"\A{}\z", regex::escape(path))
-                    }
-                });
-                CandidateChunk {
-                    start: number * CHUNK_SIZE,
-                    end: number * CHUNK_SIZE + candidates.len(),
-                    prefixes: RegexSetBuilder::new(expressions)
-                        .size_limit(10 * 1024 * 1024)
-                        .build()
-                        .ok(),
-                }
-            })
-            .collect();
+        lengths.sort_unstable();
+        lengths.dedup();
         Self {
+            prefixes,
+            lengths,
+            first_normal,
             literals,
             dynamic,
-            chunks,
         }
     }
 }
@@ -274,7 +236,7 @@ mod tests {
         }
     }
     #[test]
-    fn unicode_separators_optional_prefixes_and_failed_set_fallback() {
+    fn unicode_separators_and_optional_prefixes() {
         let mut router = Router::new();
         for uri in [
             "/café/文件",
@@ -286,15 +248,7 @@ mod tests {
         ] {
             router.get(uri, || "ok").unwrap();
         }
-        let positions = router.by_method.get(&Method::GET).unwrap();
-        let mut method = MethodMatcher::compile(&router, positions);
-        for chunk in &mut method.chunks {
-            chunk.prefixes = None;
-        }
-        let fallback = CompiledMatcher {
-            methods: [(Method::GET, Arc::new(method))].into(),
-            requires_fallback: true,
-        };
+        let matcher = CompiledMatcher::compile(&router);
         for path in [
             "/café/文件",
             "/file",
@@ -311,7 +265,7 @@ mod tests {
             let old = router
                 .legacy_matched(&Method::GET, "", path)
                 .map(std::ptr::from_ref);
-            let new = fallback
+            let new = matcher
                 .matched(&router, &Method::GET, "", path)
                 .map(|id| std::ptr::from_ref(&router.routes[id]));
             assert_eq!(old, new, "{path}");
@@ -333,5 +287,141 @@ mod tests {
             compiled.methods.get(&Method::GET).unwrap(),
             compiled.methods.get(&Method::HEAD).unwrap()
         ));
+    }
+    #[test]
+    fn prefix_buckets_keep_order_with_different_lengths_constraints_and_hosts() {
+        // 前缀长度访问顺序不能决定赢家；约束和域名失败后仍应检查后续候选。
+        for reverse in [false, true] {
+            let mut router = Router::new();
+            router.get("/sentinel", || "sentinel").unwrap();
+            let mut paths = ["/a/{rest}", "/a/b/{id}", "/a/b/fixed", "/a/b/{id?}"];
+            if reverse {
+                paths.reverse();
+            }
+            for uri in paths {
+                let route = router.get(uri, || "ok").unwrap();
+                if uri == "/a/{rest}" {
+                    route.r#where("rest", ".*").unwrap();
+                }
+            }
+            router.get("/{all}", || "fallback").unwrap().is_fallback = true;
+            router
+                .get("/number/{id}", || "number")
+                .unwrap()
+                .where_number("id")
+                .unwrap();
+            router.get("/number/{slug}", || "slug").unwrap();
+            router
+                .group(RouteGroup::new().domain("one.test"), |r| {
+                    r.get("/host/{id}", || "first")?;
+                    Ok(())
+                })
+                .unwrap();
+            router
+                .group(RouteGroup::new().domain("two.test"), |r| {
+                    r.get("/host/fixed", || "second")?;
+                    Ok(())
+                })
+                .unwrap();
+            for host in ["", "one.test", "TWO.TEST"] {
+                same(
+                    &router,
+                    host,
+                    &[
+                        "/a/b",
+                        "/a/b/fixed",
+                        "/a/b/42",
+                        "/a/b/c/d",
+                        "/number/42",
+                        "/number/slug",
+                        "/host/fixed",
+                        "/elsewhere",
+                    ],
+                );
+            }
+        }
+    }
+    #[test]
+    fn unicode_boundaries_empty_prefix_and_fallback_first_do_not_skip_normal_routes() {
+        let mut router = Router::new();
+        router.get("/{rest}", || "fallback").unwrap().is_fallback = true;
+        router.get("/xy/{id}", || "longer").unwrap();
+        router.get("/é/{id}", || "unicode").unwrap();
+        router.get("/{root?}", || "optional").unwrap();
+        router.get("/first", || "literal").unwrap();
+        same(
+            &router,
+            "",
+            &[
+                "/",
+                "/xy/a",
+                "/é/a",
+                "/文/a",
+                "/文",
+                "/first",
+                "/none",
+                "/none/two/three",
+            ],
+        );
+        // 所有路由都是 fallback 时，也只按原 ordinal 选择。
+        let mut fallback = Router::new();
+        fallback.get("/a/{id}", || "early").unwrap().is_fallback = true;
+        fallback.get("/{any}", || "late").unwrap().is_fallback = true;
+        same(&fallback, "", &["/a/42", "/other", "/missing/extra/42"]);
+    }
+    #[test]
+    fn generated_permutations_compare_every_query_to_the_legacy_matcher() {
+        let uris = [
+            "/p/{id}",
+            "/p/fixed",
+            "/p/{id?}",
+            "/p/a/{id}",
+            "/p/a/fixed",
+            "/p/a/{id?}",
+            "/file.{ext?}",
+            "/pre-{id?}",
+            "/café/{id}",
+            "/xy/{id}",
+            "/{id}",
+            "/fixed",
+        ];
+        let mut state = 0x1234_5678_u64;
+        for _ in 0..32 {
+            let mut order: Vec<_> = (0..uris.len()).collect();
+            for n in (1..order.len()).rev() {
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+                order.swap(n, state as usize % (n + 1));
+            }
+            let mut router = Router::new();
+            for (ordinal, index) in order.into_iter().enumerate() {
+                let route = router.get(uris[index], || "ok").unwrap();
+                if ordinal.is_multiple_of(4) {
+                    route.is_fallback = true;
+                }
+            }
+            same(
+                &router,
+                "",
+                &[
+                    "/",
+                    "/p",
+                    "/p/fixed",
+                    "/p/42",
+                    "/p/a",
+                    "/p/a/fixed",
+                    "/p/a/42",
+                    "/p/a/b/c",
+                    "/file",
+                    "/file.txt",
+                    "/pre",
+                    "/pre-a",
+                    "/café/42",
+                    "/文/42",
+                    "/xy/42",
+                    "/fixed",
+                    "/missing",
+                ],
+            );
+        }
     }
 }

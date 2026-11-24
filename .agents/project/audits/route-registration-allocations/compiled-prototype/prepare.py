@@ -1,11 +1,13 @@
 """只向项目内隔离源码注入原型；正式 Router 与公开 API 不变。"""
 from pathlib import Path
-import json, subprocess, tarfile, io, shutil, argparse
+import json, subprocess, tarfile, io, shutil, argparse, os
 ROOT = Path(__file__).resolve().parents[5]
-BASE = ROOT / 'target/tmp/route-compiled-prototype'
+BASE = Path(os.environ.get('ROUTE_PROTO_DIR', ROOT / 'target/tmp/route-compiled-prototype')).resolve()
+assert BASE.is_relative_to(ROOT / 'target/tmp')
 parser = argparse.ArgumentParser()
 parser.add_argument('variant', choices=['baseline', 'prototype'])
 parser.add_argument('--revision', help='首次创建隔离副本时固定基线；已有副本继续使用 base.txt')
+parser.add_argument('--prototype-revision', help='从指定提交读取旧原型作同基线对照')
 args = parser.parse_args()
 BASE.mkdir(parents=True, exist_ok=True)
 source = BASE / 'source'
@@ -17,9 +19,14 @@ if not source.exists():
         archive.extractall(source, filter='data')
     for name in ['router.rs', 'route.rs']:
         shutil.copy2(source / 'vendor/openrust/framework/src/routing' / name, BASE / ('original-' + name))
+if args.revision:
+    assert subprocess.check_output(['git', 'rev-parse', args.revision], cwd=ROOT, text=True).strip() == (BASE / 'base.txt').read_text().strip(), '隔离副本基线不同，请另选 ROUTE_PROTO_DIR'
 prototype = ROOT / 'vendor/openrust/framework/tests/prototypes/compiled_matcher.rs'
 (source / prototype.relative_to(ROOT)).parent.mkdir(parents=True, exist_ok=True)
-shutil.copy2(prototype, source / prototype.relative_to(ROOT))
+if args.prototype_revision:
+    (source / prototype.relative_to(ROOT)).write_bytes(subprocess.check_output(['git', 'show', args.prototype_revision + ':' + str(prototype.relative_to(ROOT))], cwd=ROOT))
+else:
+    shutil.copy2(prototype, source / prototype.relative_to(ROOT))
 router = (BASE / 'original-router.rs').read_text()
 router = router.replace('    fn matched(&self, method:', '    fn legacy_matched(&self, method:', 1)
 if args.variant == 'prototype':
@@ -51,7 +58,7 @@ router += module + '''impl Router {
 }
 '''.replace('BODY',body).replace('PREPARE',prepare).replace('STATS',stats).replace('RESET',reset)
 (source / 'vendor/openrust/framework/src/routing/router.rs').write_text(router)
-route = (BASE / 'original-route.rs').read_text() + '\nimpl Route { pub(super) fn __prototype_path_matches(&self, path: &str) -> bool { self.pattern.matches(path) } }\n' if args.variant == 'prototype' else (BASE / 'original-route.rs').read_text()
+route = (BASE / 'original-route.rs').read_text() + '\nimpl Route { pub(super) fn __prototype_path_matches(&self, path: &str) -> bool { self.pattern.matches(path) } }\n' if args.variant == 'prototype' and args.prototype_revision else (BASE / 'original-route.rs').read_text()
 (source / 'vendor/openrust/framework/src/routing/route.rs').write_text(route)
 print(source)
 
