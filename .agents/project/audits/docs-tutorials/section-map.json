@@ -483,11 +483,13 @@
         {
           "anchor": "rule-builders",
           "title": "Rule Builders",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-accepted",
@@ -513,16 +515,24 @@
         {
           "anchor": "rule-after",
           "title": "after:_date_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-after-or-equal",
           "title": "after\\_or\\_equal:_date_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-anyof",
@@ -559,9 +569,13 @@
         {
           "anchor": "rule-array",
           "title": "array",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-array-keys",
@@ -587,16 +601,24 @@
         {
           "anchor": "rule-before",
           "title": "before:_date_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-before-or-equal",
           "title": "before\\_or\\_equal:_date_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-between",
@@ -643,30 +665,46 @@
         {
           "anchor": "rule-date",
           "title": "date",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-date-equals",
           "title": "date_equals:_date_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-date-format",
           "title": "date_format:_format_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-decimal",
           "title": "decimal:_min_,_max_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-declined",
@@ -692,16 +730,24 @@
         {
           "anchor": "rule-digits",
           "title": "digits:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-digits-between",
           "title": "digits_between:_min_,_max_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-dimensions",
@@ -713,9 +759,13 @@
         {
           "anchor": "rule-distinct",
           "title": "distinct",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-doesnt-start-with",
@@ -775,16 +825,24 @@
         {
           "anchor": "rule-exclude-if",
           "title": "exclude_if:_anotherfield_,_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-exclude-unless",
           "title": "exclude_unless:_anotherfield_,_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-exclude-with",
@@ -905,23 +963,35 @@
         {
           "anchor": "rule-ip",
           "title": "ip",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "ipv4",
           "title": "ipv4",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "ipv6",
           "title": "ipv6",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-json",
@@ -975,9 +1045,13 @@
         {
           "anchor": "rule-max-digits",
           "title": "max_digits:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-mimetypes",
@@ -1010,16 +1084,24 @@
         {
           "anchor": "rule-min-digits",
           "title": "min_digits:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-multiple-of",
           "title": "multiple_of:_value_",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-missing",
@@ -1084,9 +1166,13 @@
         {
           "anchor": "rule-numeric",
           "title": "numeric",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-present",
@@ -1133,9 +1219,13 @@
         {
           "anchor": "rule-prohibited-if",
           "title": "prohibited_if:_anotherfield_,_value_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-prohibited-if-accepted",
@@ -1154,9 +1244,13 @@
         {
           "anchor": "rule-prohibited-unless",
           "title": "prohibited_unless:_anotherfield_,_value_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-prohibits",
@@ -1182,9 +1276,13 @@
         {
           "anchor": "rule-required-if",
           "title": "required_if:_anotherfield_,_value_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-required-if-accepted",
@@ -1203,9 +1301,13 @@
         {
           "anchor": "rule-required-unless",
           "title": "required_unless:_anotherfield_,_value_,...",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-required-with",
@@ -1266,16 +1368,24 @@
         {
           "anchor": "rule-string",
           "title": "string",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-timezone",
           "title": "timezone",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-unique",
@@ -1294,9 +1404,13 @@
         {
           "anchor": "rule-url",
           "title": "url",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "rule-ulid",
@@ -1308,9 +1422,13 @@
         {
           "anchor": "rule-uuid",
           "title": "uuid",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "原规则管线与正式typed builder/RuleBuilder/ParameterizedRule/条件类型消费者，详见第十四组"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "conditionally-adding-rules",
@@ -1376,9 +1494,13 @@
         {
           "anchor": "error-message-indexes-and-positions",
           "title": "Error Message Indexes and Positions",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "confirmed_gap_pending_implementation",
+          "contract": [
+            ":index/:position/:ordinal-position 及第二／第三层占位符"
+          ],
+          "evidence": [
+            "README.md"
+          ]
         },
         {
           "anchor": "validating-files",

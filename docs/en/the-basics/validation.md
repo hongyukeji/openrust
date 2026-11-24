@@ -323,6 +323,59 @@ fn store_zone(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 `Rule::r#in`, `rules::In`, `Rule::not_in` and `rules::NotIn` keep each list value intact, including commas and quotes. Members accept `Into<serde_json::Value>` and use the existing scalar conversion. Map application enum cases to their backing values explicitly for lists. The `r#` prefix is required for Rust keywords; it does not change the method name. Use `.into()` when combining a typed rule with ordinary rules in one array.
 
+## Fluent Rule Builders {#fluent-rule-builders}
+
+`rules::{StringRule, ArrayRule, Numeric, Date}` compile into the existing rule pipeline; validation order, error messages, wildcard dependencies and validated projection remain shared. Import `RuleBuilder` to chain string and array rules while preserving the existing `Rule::min` and `Rule::max` constructors: Rust cannot declare a static constructor and an inherent instance method with the same name. Typed builders also work directly through `.into()`.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleBuilder, RuleSet},
+};
+
+fn store_policy(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("name", [Rule::required(), Rule::string().alpha_dash(true).min(2).max(20)])?
+            .field("amount", [Rule::required(), Rule::numeric(false).min(1).max(100).decimal(2, Some(2)).into()])?
+            .field("starts_on", [Rule::required(), Rule::date().format("Y-m-d").after("2023-12-31").into()])?
+            .field("website", [Rule::required(), Rule::url().protocols(["https"]).into()])?
+            .field("id", [Rule::required(), Rule::uuid().version(4).into()])?
+            .field("address", [Rule::required(), Rule::ip().version(4)?.into()])?
+            .field("zone", [Rule::required(), Rule::timezone(["per_country", "US"]).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+
+fn store_typed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::validation::rules::{ArrayRule, Numeric, StringRule};
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("name", [StringRule::new().min(2).max(20).into()])?
+            .field("profile", [ArrayRule::new(["name", "email"]).min(1).into()])?
+            .field("count", [Numeric::new(true).integer(true).min(1).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_condition(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::validation::RuleCondition;
+    Box::pin(async move {
+        let required = RuleCondition::callback(|data| Ok(data.as_value()["requires_title"] == true));
+        let rules = RuleSet::new()
+            .field("title", [Rule::required_if(required).into()])?
+            .field("metadata", [Rule::when(true, vec![Rule::array()], Vec::new()).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+
+```
+
+`Numeric` supports decimal places, digits, comparisons, multiples and strict integer checks. Fractional bounds use `BigDecimal` explicitly. `Date` supports formats, before/after/equality, exclusive or inclusive ranges, and today/now helpers using the current application clock and timezone. Date arguments accept strings or `support::Date`; date objects are formatted when the constraint is added. Builders support `when`, `unless` and `when_else`.
+
+`rules::{Url, Uuid, IpAddress, Distinct, Timezone}` implement `contracts::validation::ParameterizedRule`; custom implementations can enter through `Rule::parameterized`. `Rule::distinct().strict().ignore_case()` configures element comparisons. IP versions accept 4 or 6 and return an error for other values. URL protocols, UUID versions (including `nil`/`max`) and `numeric:strict` also work in string rules. `integer_strict()` and `boolean_strict()` preserve the existing zero-argument constructors while exposing strict variants.
+
+`Rule::when` and `Rule::unless` choose complete rule lists during compilation, before wildcard expansion. Boolean/callback objects such as `RequiredIf`, `RequiredUnless`, `ExcludeIf`, `ExcludeUnless`, `ProhibitedIf` and `ProhibitedUnless` compile per expanded attribute. `RuleCondition::lazy` accepts a zero-argument callback; `callback` receives the existing typed `Data`. Conditions run again after `set_data` or `set_rules`, not on every validation pass.
+
 ## Message Bags {#message-bags}
 
 Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `into_messages()` only when flattening is intended.

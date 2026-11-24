@@ -9,3 +9,6 @@ pub use compilable_rules::CompilableRules;
 pub use factory::Factory;
 pub use validation_rule::ValidationRule;
 pub use validator::Validator;
+
+mod parameterized_rule;
+pub use parameterized_rule::ParameterizedRule;

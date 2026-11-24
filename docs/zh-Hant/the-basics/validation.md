@@ -323,6 +323,59 @@ fn store_zone(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
 
 `Rule::r#in`、`rules::In`、`Rule::not_in`、`rules::NotIn` 保留每個清單成員邊界，包括逗號和引號。成員接收 `Into<serde_json::Value>`，重用既有純量轉換；清單中的應用列舉明確映射為後備值。`r#` 是 Rust 關鍵字所需語法，不改變方法名稱。型別化規則與一般規則放入同一個陣列時使用 `.into()`。
 
+## 鏈式規則建構器 {#fluent-rule-builders}
+
+`rules::{StringRule, ArrayRule, Numeric, Date}` 編譯到既有規則管線，共用執行順序、錯誤訊息、萬用字元依賴和驗證投影。匯入 `RuleBuilder` 後可鏈式設定字串和陣列，同時保留既有 `Rule::min`、`Rule::max` 建構器；Rust 不允許靜態建構器與固有實例方法同名。型別化建構器也可直接透過 `.into()` 傳入。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleBuilder, RuleSet},
+};
+
+fn store_policy(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("name", [Rule::required(), Rule::string().alpha_dash(true).min(2).max(20)])?
+            .field("amount", [Rule::required(), Rule::numeric(false).min(1).max(100).decimal(2, Some(2)).into()])?
+            .field("starts_on", [Rule::required(), Rule::date().format("Y-m-d").after("2023-12-31").into()])?
+            .field("website", [Rule::required(), Rule::url().protocols(["https"]).into()])?
+            .field("id", [Rule::required(), Rule::uuid().version(4).into()])?
+            .field("address", [Rule::required(), Rule::ip().version(4)?.into()])?
+            .field("zone", [Rule::required(), Rule::timezone(["per_country", "US"]).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+
+fn store_typed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::validation::rules::{ArrayRule, Numeric, StringRule};
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("name", [StringRule::new().min(2).max(20).into()])?
+            .field("profile", [ArrayRule::new(["name", "email"]).min(1).into()])?
+            .field("count", [Numeric::new(true).integer(true).min(1).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+fn store_condition(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::validation::RuleCondition;
+    Box::pin(async move {
+        let required = RuleCondition::callback(|data| Ok(data.as_value()["requires_title"] == true));
+        let rules = RuleSet::new()
+            .field("title", [Rule::required_if(required).into()])?
+            .field("metadata", [Rule::when(true, vec![Rule::array()], Vec::new()).into()])?;
+        Response::json(StatusCode::CREATED, request.validate(rules).await?)
+    })
+}
+
+```
+
+`Numeric` 支援小數位、位數、比較、倍數和嚴格整數檢查；小數邊界明確使用 `BigDecimal`。`Date` 支援格式、前後／相等、開閉區間及 today／now 快捷方法，重用目前應用時鐘和時區。日期參數接收字串或 `support::Date`，日期物件在新增約束時按當時格式轉換。建構器支援 `when`、`unless`、`when_else`。
+
+`rules::{Url, Uuid, IpAddress, Distinct, Timezone}` 實作 `contracts::validation::ParameterizedRule`，自訂實作透過 `Rule::parameterized` 接入。`Rule::distinct().strict().ignore_case()` 設定元素比較。IP 版本接收 4 或 6，其他值傳回錯誤。URL 協定、UUID 版本（含 `nil`／`max`）及 `numeric:strict` 也支援字串規則。`integer_strict()`、`boolean_strict()` 在保留原零參數建構器的同時提供嚴格版本。
+
+`Rule::when`、`Rule::unless` 在萬用字元展開前編譯選擇完整規則清單；`RequiredIf`、`RequiredUnless`、`ExcludeIf`、`ExcludeUnless`、`ProhibitedIf`、`ProhibitedUnless` 等布林／回呼物件按展開後的屬性編譯。`RuleCondition::lazy` 接收零參數回呼，`callback` 接收既有型別化 `Data`。條件在 `set_data`、`set_rules` 後重新執行，不在每次驗證時重複執行。
+
 ## 訊息包 {#message-bags}
 
 使用 `MessageBag` 收集有序欄位錯誤，`ViewErrorBag` 管理具名包。`add` 去重，`merge(&other)` 保留重複。`first(key, format)` 在沒有訊息時傳回空字串。`get(key, format)` 傳回 `MessageLookup::Exact` 或保留欄位名的萬用字元映射；僅在確實需要扁平訊息時呼叫 `into_messages()`。

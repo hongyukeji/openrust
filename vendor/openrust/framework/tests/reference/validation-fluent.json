@@ -1,0 +1,1370 @@
+[
+    {
+        "name": "string_size",
+        "value": "abc",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "abc"
+        }
+    },
+    {
+        "name": "string_size",
+        "value": "a",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.min.string",
+                "validation.between.string",
+                "validation.size.string"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_size",
+        "value": "abcdef",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.max.string",
+                "validation.between.string",
+                "validation.size.string"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_size",
+        "value": 123,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.string"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_size",
+        "value": null,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.required"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_size",
+        "value": [],
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.required"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_alpha",
+        "value": "abc",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "abc"
+        }
+    },
+    {
+        "name": "string_alpha",
+        "value": "éé",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "éé"
+        }
+    },
+    {
+        "name": "string_alpha",
+        "value": "123",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_alpha",
+        "value": "a-b",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_alpha_ascii",
+        "value": "abc",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "abc"
+        }
+    },
+    {
+        "name": "string_alpha_ascii",
+        "value": "éé",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_alpha_ascii",
+        "value": "123",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_dash",
+        "value": "a-B_1",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "a-B_1"
+        }
+    },
+    {
+        "name": "string_dash",
+        "value": "éé",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha_dash"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_dash",
+        "value": "a b",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha_dash"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_num",
+        "value": "abc12",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "abc12"
+        }
+    },
+    {
+        "name": "string_num",
+        "value": "é12",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "é12"
+        }
+    },
+    {
+        "name": "string_num",
+        "value": "a-b",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.alpha_num"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_ascii",
+        "value": "abc",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "abc"
+        }
+    },
+    {
+        "name": "string_ascii",
+        "value": "éé",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.ascii"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_lower",
+        "value": "abc",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "abc"
+        }
+    },
+    {
+        "name": "string_lower",
+        "value": "ABC",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.lowercase"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_lower",
+        "value": "123",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "123"
+        }
+    },
+    {
+        "name": "string_upper",
+        "value": "abc",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.uppercase"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_upper",
+        "value": "ABC",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "ABC"
+        }
+    },
+    {
+        "name": "string_upper",
+        "value": "123",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "123"
+        }
+    },
+    {
+        "name": "string_affix",
+        "value": "A!",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "A!"
+        }
+    },
+    {
+        "name": "string_affix",
+        "value": "B!",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "B!"
+        }
+    },
+    {
+        "name": "string_affix",
+        "value": "BAD!",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.doesnt_start_with"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_affix",
+        "value": "A?",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.ends_with",
+                "validation.doesnt_end_with"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_affix",
+        "value": "C!",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.starts_with"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "array_size",
+        "value": [
+            1,
+            2
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": [
+                1,
+                2
+            ]
+        }
+    },
+    {
+        "name": "array_size",
+        "value": [
+            1
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.size.array"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "array_size",
+        "value": [],
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.required"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "array_size",
+        "value": [
+            1,
+            2,
+            3,
+            4
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.max.array",
+                "validation.between.array",
+                "validation.size.array"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "array_size",
+        "value": "x",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.array",
+                "validation.size.array"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "array_keys",
+        "value": {
+            "name": "A"
+        },
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": {
+                "name": "A"
+            }
+        }
+    },
+    {
+        "name": "array_keys",
+        "value": {
+            "name": "A",
+            "extra": 1
+        },
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.array"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "array_keys",
+        "value": [],
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.required"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_strict",
+        "value": 1,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 1
+        }
+    },
+    {
+        "name": "numeric_strict",
+        "value": 1.5,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 1.5
+        }
+    },
+    {
+        "name": "numeric_strict",
+        "value": "1",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.numeric"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_strict",
+        "value": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.numeric"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_strict",
+        "value": null,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.required"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_size",
+        "value": 2,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 2
+        }
+    },
+    {
+        "name": "numeric_size",
+        "value": "2",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2"
+        }
+    },
+    {
+        "name": "numeric_size",
+        "value": -3,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.between.numeric",
+                "validation.min.numeric",
+                "validation.size.numeric"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_size",
+        "value": 6,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.between.numeric",
+                "validation.max.numeric",
+                "validation.size.numeric"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_size",
+        "value": 1.5,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.integer",
+                "validation.size.numeric"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_size",
+        "value": "x",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.numeric",
+                "validation.integer",
+                "validation.size.numeric"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_decimal",
+        "value": "1.23",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "1.23"
+        }
+    },
+    {
+        "name": "numeric_decimal",
+        "value": "1.234",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "1.234"
+        }
+    },
+    {
+        "name": "numeric_decimal",
+        "value": "1.2",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.decimal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_decimal",
+        "value": "1e2",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.decimal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_decimal",
+        "value": 1.23,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 1.23
+        }
+    },
+    {
+        "name": "numeric_integer",
+        "value": 2,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 2
+        }
+    },
+    {
+        "name": "numeric_integer",
+        "value": "2",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.integer"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_integer",
+        "value": 2.0,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.integer"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_integer",
+        "value": true,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.numeric",
+                "validation.integer"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_digits",
+        "value": 123,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 123
+        }
+    },
+    {
+        "name": "numeric_digits",
+        "value": "123",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "123"
+        }
+    },
+    {
+        "name": "numeric_digits",
+        "value": 12,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.digits",
+                "validation.min_digits"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_digits",
+        "value": "001",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.integer"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_digits",
+        "value": -123,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.digits",
+                "validation.digits_between",
+                "validation.min_digits",
+                "validation.max_digits"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_multiple",
+        "value": 3,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 3
+        }
+    },
+    {
+        "name": "numeric_multiple",
+        "value": 6,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 6
+        }
+    },
+    {
+        "name": "numeric_multiple",
+        "value": 4,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.multiple_of"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_multiple",
+        "value": 0,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 0
+        }
+    },
+    {
+        "name": "numeric_compare",
+        "value": 3,
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 3
+        }
+    },
+    {
+        "name": "numeric_compare",
+        "value": 1,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.gt.numeric",
+                "validation.gte.numeric",
+                "validation.same"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "numeric_compare",
+        "value": 5,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.lt.numeric",
+                "validation.lte.numeric",
+                "validation.same"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_format",
+        "value": "2024-02-29",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2024-02-29"
+        }
+    },
+    {
+        "name": "date_format",
+        "value": "2023-02-29",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.date_format"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_format",
+        "value": "01/01/2024",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.date_format"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_format",
+        "value": 42,
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.date_format"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_window",
+        "value": "2024-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.after"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_window",
+        "value": "2024-06-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2024-06-01"
+        }
+    },
+    {
+        "name": "date_window",
+        "value": "2025-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.before"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_inclusive",
+        "value": "2024-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2024-01-01"
+        }
+    },
+    {
+        "name": "date_inclusive",
+        "value": "2024-06-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2024-06-01"
+        }
+    },
+    {
+        "name": "date_inclusive",
+        "value": "2025-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2025-01-01"
+        }
+    },
+    {
+        "name": "date_inclusive",
+        "value": "2023-12-31",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.after_or_equal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_equals",
+        "value": "2024-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2024-01-01"
+        }
+    },
+    {
+        "name": "date_equals",
+        "value": "2024-01-02",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.date_equals"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_before_today",
+        "value": "1900-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "1900-01-01"
+        }
+    },
+    {
+        "name": "date_before_today",
+        "value": "2999-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.before"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_after_today",
+        "value": "1900-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.after"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_after_today",
+        "value": "2999-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2999-01-01"
+        }
+    },
+    {
+        "name": "date_today_before",
+        "value": "1900-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "1900-01-01"
+        }
+    },
+    {
+        "name": "date_today_before",
+        "value": "2999-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.before_or_equal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_today_after",
+        "value": "1900-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.after_or_equal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_today_after",
+        "value": "2999-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2999-01-01"
+        }
+    },
+    {
+        "name": "date_past",
+        "value": "1900-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "1900-01-01"
+        }
+    },
+    {
+        "name": "date_past",
+        "value": "2999-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.before"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_future",
+        "value": "1900-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.after"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_future",
+        "value": "2999-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2999-01-01"
+        }
+    },
+    {
+        "name": "date_now_past",
+        "value": "1900-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "1900-01-01"
+        }
+    },
+    {
+        "name": "date_now_past",
+        "value": "2999-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.before_or_equal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_now_future",
+        "value": "1900-01-01",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.after_or_equal"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "date_now_future",
+        "value": "2999-01-01",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "2999-01-01"
+        }
+    },
+    {
+        "name": "url",
+        "value": "https://example.com",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "https://example.com"
+        }
+    },
+    {
+        "name": "url",
+        "value": "http://example.com",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.url"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "url",
+        "value": "ftp://example.com",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.url"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "url",
+        "value": "HTTPS://example.com",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "HTTPS://example.com"
+        }
+    },
+    {
+        "name": "url",
+        "value": "https://localhost",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "https://localhost"
+        }
+    },
+    {
+        "name": "uuid4",
+        "value": "550e8400-e29b-41d4-a716-446655440000",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "550e8400-e29b-41d4-a716-446655440000"
+        }
+    },
+    {
+        "name": "uuid4",
+        "value": "550e8400-e29b-11d4-a716-446655440000",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.uuid"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "uuid4",
+        "value": "00000000-0000-0000-0000-000000000000",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.uuid"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "uuid4",
+        "value": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.uuid"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "uuid_nil",
+        "value": "00000000-0000-0000-0000-000000000000",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "00000000-0000-0000-0000-000000000000"
+        }
+    },
+    {
+        "name": "uuid_nil",
+        "value": "550e8400-e29b-41d4-a716-446655440000",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.uuid"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "uuid_max",
+        "value": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        }
+    },
+    {
+        "name": "uuid_max",
+        "value": "550e8400-e29b-41d4-a716-446655440000",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.uuid"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "ip4",
+        "value": "127.0.0.1",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "127.0.0.1"
+        }
+    },
+    {
+        "name": "ip4",
+        "value": "::1",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.ipv4"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "ip4",
+        "value": "invalid",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.ipv4"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "ip6",
+        "value": "127.0.0.1",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.ipv6"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "ip6",
+        "value": "::1",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "::1"
+        }
+    },
+    {
+        "name": "ip6",
+        "value": "invalid",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.ipv6"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "timezone",
+        "value": "America/New_York",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "America/New_York"
+        }
+    },
+    {
+        "name": "timezone",
+        "value": "Asia/Tokyo",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.timezone"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "timezone",
+        "value": "UTC",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.timezone"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_csv",
+        "value": "apple",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "apple"
+        }
+    },
+    {
+        "name": "string_csv",
+        "value": "boat",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "boat"
+        }
+    },
+    {
+        "name": "string_csv",
+        "value": "cat",
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.starts_with"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "name": "string_csv",
+        "value": "a,b",
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": "a,b"
+        }
+    },
+    {
+        "name": "array_csv",
+        "value": {
+            "a": 1
+        },
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": {
+                "a": 1
+            }
+        }
+    },
+    {
+        "name": "array_csv",
+        "value": {
+            "b": 1
+        },
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": {
+                "b": 1
+            }
+        }
+    },
+    {
+        "name": "array_csv",
+        "value": {
+            "a,b": 1
+        },
+        "passes": false,
+        "errors": {
+            "value": [
+                "validation.array"
+            ]
+        },
+        "validated": null
+    }
+]

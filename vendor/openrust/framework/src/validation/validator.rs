@@ -364,8 +364,10 @@ impl Validator {
             let sometimes = contains(rules, |rule| matches!(rule, Kind::Sometimes));
             let bail = contains(rules, |rule| matches!(rule, Kind::Bail));
             let numeric = contains(rules, |rule| {
-                matches!(rule, Kind::Integer | Kind::StrictInteger | Kind::Numeric)
-                    || matches!(rule, Kind::Scalar(rule) if rule.name() == "decimal")
+                matches!(
+                    rule,
+                    Kind::Integer | Kind::StrictInteger | Kind::Numeric | Kind::StrictNumeric
+                ) || matches!(rule, Kind::Scalar(rule) if rule.name() == "decimal")
             });
             let presence_rules = contains(rules, |rule| {
                 matches!(rule, Kind::Exists(_) | Kind::Unique(_))
@@ -1087,6 +1089,7 @@ impl Validator {
                 Some("integer")
             }
             (Kind::StrictBoolean, Some(value)) if !value.is_boolean() => Some("boolean"),
+            (Kind::StrictNumeric, Some(value)) if !value.is_number() => Some("numeric"),
             (Kind::Numeric, Some(value)) if !super::standard_rules::numeric(value) => {
                 Some("numeric")
             }
@@ -1119,6 +1122,23 @@ impl Validator {
                     .then(|| RuleFailure::new("validation.active_url"))
                     .into_iter()
                     .collect());
+            }
+            (Kind::UrlProtocols(protocols), Some(value))
+                if !value.as_str().is_some_and(|value| {
+                    crate::support::Str::is_url(
+                        value,
+                        &protocols.iter().map(String::as_str).collect::<Vec<_>>(),
+                    )
+                }) =>
+            {
+                Some("url")
+            }
+            (Kind::UuidVersion(version), Some(value))
+                if !value
+                    .as_str()
+                    .is_some_and(|value| uuid_version(value, version)) =>
+            {
+                Some("uuid")
             }
             (Kind::Url, Some(value))
                 if !value
@@ -2029,4 +2049,16 @@ fn dependent_path_for_values(
         path::parse(other)?;
         Ok(other.to_owned())
     }
+}
+
+fn uuid_version(value: &str, parameters: &str) -> bool {
+    let parameters = super::rule_parameters::csv(parameters);
+    if parameters.len() != 1 {
+        return crate::support::Str::is_uuid(value, None);
+    }
+    if parameters[0] == "max" {
+        return value.len() == 36 && uuid::Uuid::parse_str(value).is_ok_and(|uuid| uuid.is_max());
+    }
+    let version = crate::support::input_scalars::integer_string(&parameters[0]);
+    u8::try_from(version).is_ok_and(|version| crate::support::Str::is_uuid(value, Some(version)))
 }

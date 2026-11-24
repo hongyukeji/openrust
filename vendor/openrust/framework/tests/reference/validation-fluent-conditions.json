@@ -1,0 +1,566 @@
+[
+    {
+        "kind": "required_if",
+        "flag": true,
+        "input": {},
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": true,
+        "input": {
+            "value": null
+        },
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": true,
+        "input": {
+            "value": ""
+        },
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": true,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": false,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": false,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": false,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_if",
+        "flag": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": true,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": true,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": true,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": true,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": false,
+        "input": {},
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": false,
+        "input": {
+            "value": null
+        },
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": false,
+        "input": {
+            "value": ""
+        },
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "required_unless",
+        "flag": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": true,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": true,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": true,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": true,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": false,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": false,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": false,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_if",
+        "flag": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": true,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": true,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": true,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": true,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": false,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": false,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": false,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "exclude_unless",
+        "flag": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": true,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": true,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": true,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": true,
+        "input": {
+            "value": "A"
+        },
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": false,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": false,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": false,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_if",
+        "flag": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": true,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": true,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": true,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": true,
+        "input": {
+            "value": "A"
+        },
+        "passes": true,
+        "validated": {
+            "value": "A"
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": false,
+        "input": {},
+        "passes": true,
+        "validated": [],
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": false,
+        "input": {
+            "value": null
+        },
+        "passes": true,
+        "validated": {
+            "value": null
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": false,
+        "input": {
+            "value": ""
+        },
+        "passes": true,
+        "validated": {
+            "value": ""
+        },
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "prohibited_unless",
+        "flag": false,
+        "input": {
+            "value": "A"
+        },
+        "passes": false,
+        "validated": null,
+        "calls": 1,
+        "calls_at_make": 1
+    },
+    {
+        "kind": "when",
+        "wildcard": true,
+        "calls_at_make": 1,
+        "calls": 1
+    },
+    {
+        "kind": "required_if",
+        "wildcard": true,
+        "calls_at_make": 3,
+        "calls": 3
+    }
+]

@@ -209,3 +209,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第十二组：safe结果筛选／合并／集合／迭代及ValidatedData契约接通，文件句柄与数字追加状态保留；真实TCP含FormRequest/multipart、三语提取及回归11项0忽略通过，实际Artisan帮助与严格Clippy/fmt/三语构建浏览器通过。其余规则类型与setter等继续，整章未关闭。
 
 2026-11-24 Validation第十三组：Enum/In/NotIn由空壳补齐，140组固定PHP行为由真实TCP回放，含过滤优先与值列表成员边界。11项回归＋三语消费者3项、实际Artisan、严格Clippy/fmt/三语构建浏览器通过。剩余fluent参数过滤等关联缺口继续，整章未关闭。
+
+2026-11-24 Validation第十四组：四类链式builder、五类参数化类型／Trait、条件规则与六类布尔回调对象接通。130＋50组固定数据与真实HTTP，42项回归＋三语消费者3项通过，额外MySQL8.4.13重叠30项与实际Artisan通过；严格Clippy/fmt/三语构建浏览器通过。setter、email、密码及新发现的数组消息索引占位符等继续，整章未关闭。

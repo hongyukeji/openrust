@@ -265,3 +265,21 @@ Rule::r#in / rules::In、Rule::not_in / rules::NotIn 使用 Vec 保留成员界�
 最终 enum/gates.log 提取、消费者、workspace/all-targets严格Clippy（45.96秒）、fmt、三语构建与浏览器全0。当前候选实际main构建通过，APP_BASE_PATH指向隔离源码执行 artisan help make:rule 退出0。源码与验收快照核SHA；本批无常驻服务／数据库／容器。日志及固定源码留在target/tmp/docs-chapters-20261124/enum和enum-*，编译缓存由既有守卫复用。
 
 本簇关闭上述三条教程规则对象缺口。剩余 fluent 仍在处理中；其中 url/uuid 参数过滤与 numeric:strict 已确认不能仅靠旧解析器名称视为完成，将在下簇同时修复。状态感知规则、email与密码策略仍开放，全章未关闭。
+
+## 第十四组：链式构建器、参数化规则与条件编译（2026-11-24）
+
+固定 Rules/{StringRule,Numeric,ArrayRule,Date,Url,Uuid,IpAddress,Distinct,Timezone}、Rule 工厂、ParameterizedRule、ConditionalRules 与布尔回调对象逐类型核对；复用既有 scalar/date/dimension/presence 管线及第十一组编译器，不在 builder 内另跑一套校验。旧版相关可复用部分已在前置组核对，缺少本批公开类型与条件对象，沿用当前正式实现补齐。
+
+StringRule、Numeric、ArrayRule、Date 通过 CompilableRules 展开到同一字段规则，保留消息和投影。RuleBuilder trait 允许 Rule::string().min(...).max(...) 及数组链，并保留已发布 Rule::min/Rule::max 静态构造器：Rust 不允许同名固有实例方法；需显式导入 trait。提供直接类型化构造和 Into<Rule>，不把字符串替代写法计作类型已实现。数值小数边界显式 BigDecimal，避免不可失败隐式转换浮点；Date 参数使用既有 support::Date 或字符串，按添加约束时的格式转换，原应用时钟／时区不变。
+
+ParameterizedRule trait 提供真实参数向量；Url/Uuid/IpAddress/Distinct/Timezone 与自定义 Trait 消费者进入同一解析器，保持成员边界。发现原 numeric:strict、url:协议和uuid:版本实际落入扩展分支，已接到内置规则，字符串／Trait／builder 三入口均验收；严格布尔／整数新构造保留原零参数入口。UUID nil/max及指定版本、URL协议、IP无效版本错误、区域时区均有实际消费者。Numeric::digits/digits_between/exactly 按固定源码添加 integer，不能仅附加位数／size；约束去重并保留首次顺序。String/Array 字符串 builder 的逗号分隔语义按固定源码保留，ParameterizedRule 单独保护向量边界，不擅改既有规则格式。
+
+Rule::when/unless 与 ConditionalRules 在通配展开前求值；RequiredIf/RequiredUnless/ExcludeIf/ExcludeUnless/ProhibitedIf/ProhibitedUnless 各有真实类型和 Into<Rule>，回调在每个展开属性编译时运行。RuleCondition::lazy 接收零参数闭包，callback 显式接收 typed Data；稳定Rust不能以PHP动态可选参数表达重载，分支和列表显式传入。缺省分支空规则仍保留字段声明，用原 bind 处理空规则，而非错误返回500。重复验证不重算条件，set_data/set_rules 按原编译生命周期重算。
+
+固定PHP8.5.12 实际130组 builder 数据、50组条件及生命周期保存为 validation-fluent.json 和 validation-fluent-conditions.json。附加 portable-ascii 2.0.3 原源码／许可仅放target/tmp作实际PHP依赖，Ramsey复用原4.7.6；未将PHP或新依赖引入运行产物。JSON对照启用PRESERVE_ZERO_FRACTION，避免把严格整数反例2.0错误重放成2；诊断独立stderr保留。HTTP默认空串转null按正式全局中间件验收，原工厂对照仍比较未转换的精确值，未弱化断言。
+
+最终 fluent/gates.log 六阶段全0：6目标42项0忽略（fluent3、enum1、for_each4、scalars5、mutation6、http23）；三语正式示例直接提取并运行3项HTTP Kernel消费者，覆盖两种构造、协议／版本／严格模式及条件分支。workspace/all-targets严格Clippy47.61秒、fmt、三语构建与浏览器三项均通过。额外 MySQL8.4.13 真实验收3目标30项0忽略（与上述有重叠，不累加成独立功能数），write presence 与动态展开仍通过。实际main构建、artisan help make:rule、artisan inspire 全部退出0；fluent/consumers.log记录四阶段成功。验收容器已自动清理，测试服务已退出，源码与日志／热缓存保留，项目磁盘守卫保持启用。
+
+最后移除静态无参数分支中的冗余参数判断，fluent/final.log 的专项3项、workspace严格Clippy（21.20秒）、fmt再次全部通过；与前述正式教程内容及可观察行为一致。
+
+本批关闭已列构建器及其参数分发／条件求值差异。DataAware/ValidatorAware、email扩展模式、密码默认与泄漏策略仍开放；全文复核还发现数组错误的 :index/:position/:ordinal-position 及多层占位符缺口，已登记接续，不把本批或原关键词清单当作全章闭合。其余 Rule 工厂与规则类型仍按逐节清单对账。

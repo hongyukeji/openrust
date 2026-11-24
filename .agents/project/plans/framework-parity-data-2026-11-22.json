@@ -299000,6 +299000,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "fluent builders and associated parameter handling, aware rules, email, password; chapter remains open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第十四组 fluent/parameterized/conditional rules",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "aware setters, email, password, index/position messages and remaining full-chapter review; chapter open"
     }
   ]
 }

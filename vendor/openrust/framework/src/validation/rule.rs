@@ -38,6 +38,7 @@ pub(super) enum Kind {
     StrictInteger,
     StrictBoolean,
     Numeric,
+    StrictNumeric,
     Date,
     DateComparison {
         name: &'static str,
@@ -49,8 +50,10 @@ pub(super) enum Kind {
     },
     Accepted,
     Url,
+    UrlProtocols(Vec<String>),
     ActiveUrl,
     Uuid,
+    UuidVersion(String),
     In(Vec<String>),
     NotIn(Vec<String>),
     InArray(String),
@@ -79,6 +82,8 @@ pub(super) enum Kind {
     Exists(Exists),
     Unique(Unique),
     Custom(Arc<dyn ValidationRule>),
+    ConditionalRules(super::ConditionalRules),
+    Chained(Vec<Rule>),
     ForEach(super::NestedRules),
     Compilable(Arc<dyn crate::contracts::validation::CompilableRules>),
 }
@@ -163,6 +168,87 @@ impl Rule {
         super::rules::NotIn::new(values)
     }
 
+    pub fn numeric(strict: bool) -> super::rules::Numeric {
+        super::rules::Numeric::new(strict)
+    }
+    pub fn date() -> super::rules::Date {
+        super::rules::Date::new()
+    }
+    pub fn date_time() -> super::rules::Date {
+        Self::date()
+    }
+    pub fn integer_strict() -> Self {
+        Self::new(Kind::StrictInteger)
+    }
+    pub fn boolean_strict() -> Self {
+        Self::new(Kind::StrictBoolean)
+    }
+    pub(super) fn is_compilable(&self) -> bool {
+        matches!(
+            self.0,
+            Kind::ConditionalRules(_) | Kind::Chained(_) | Kind::ForEach(_) | Kind::Compilable(_)
+        )
+    }
+    pub fn parameterized(
+        rule: impl crate::contracts::validation::ParameterizedRule + 'static,
+    ) -> Self {
+        Self::compilable(super::rules::Parameterized(rule))
+    }
+    pub fn url() -> super::rules::Url {
+        super::rules::Url::new()
+    }
+    pub fn uuid() -> super::rules::Uuid {
+        super::rules::Uuid::new()
+    }
+    pub fn ip() -> super::rules::IpAddress {
+        super::rules::IpAddress::new()
+    }
+    pub fn distinct() -> super::rules::Distinct {
+        super::rules::Distinct::new()
+    }
+    pub fn timezone(
+        arguments: impl IntoIterator<Item = impl Into<String>>,
+    ) -> super::rules::Timezone {
+        super::rules::Timezone::new(arguments)
+    }
+    pub fn when(
+        condition: impl Into<super::RuleCondition>,
+        rules: Vec<Rule>,
+        default: Vec<Rule>,
+    ) -> super::ConditionalRules {
+        super::ConditionalRules::new(condition, rules, default)
+    }
+    pub fn unless(
+        condition: impl Into<super::RuleCondition>,
+        rules: Vec<Rule>,
+        default: Vec<Rule>,
+    ) -> super::ConditionalRules {
+        super::ConditionalRules::unless(condition, rules, default)
+    }
+    pub fn prohibited_unless(
+        condition: impl Into<super::RuleCondition>,
+    ) -> super::rules::ProhibitedUnless {
+        super::rules::ProhibitedUnless::new(condition)
+    }
+    pub fn prohibited_if(condition: impl Into<super::RuleCondition>) -> super::rules::ProhibitedIf {
+        super::rules::ProhibitedIf::new(condition)
+    }
+    pub fn exclude_unless(
+        condition: impl Into<super::RuleCondition>,
+    ) -> super::rules::ExcludeUnless {
+        super::rules::ExcludeUnless::new(condition)
+    }
+    pub fn exclude_if(condition: impl Into<super::RuleCondition>) -> super::rules::ExcludeIf {
+        super::rules::ExcludeIf::new(condition)
+    }
+    pub fn required_unless(
+        condition: impl Into<super::RuleCondition>,
+    ) -> super::rules::RequiredUnless {
+        super::rules::RequiredUnless::new(condition)
+    }
+    pub fn required_if(condition: impl Into<super::RuleCondition>) -> super::rules::RequiredIf {
+        super::rules::RequiredIf::new(condition)
+    }
     pub fn required() -> Self {
         Self::new(Kind::Required)
     }
@@ -388,6 +474,43 @@ impl Rule {
             "file" => File::default().into(),
             "image" => File::image(false).into(),
             _ => match rule.split_once(':') {
+                Some(("numeric", parameter)) => Self::new(
+                    if super::rule_parameters::csv(parameter)
+                        .first()
+                        .is_some_and(|value| value == "strict")
+                    {
+                        Kind::StrictNumeric
+                    } else {
+                        Kind::Numeric
+                    },
+                ),
+                Some(("integer", parameter)) => Self::new(
+                    if super::rule_parameters::csv(parameter)
+                        .first()
+                        .is_some_and(|value| value == "strict")
+                    {
+                        Kind::StrictInteger
+                    } else {
+                        Kind::Integer
+                    },
+                ),
+                Some(("boolean", parameter)) => Self::new(
+                    if super::rule_parameters::csv(parameter)
+                        .first()
+                        .is_some_and(|value| value == "strict")
+                    {
+                        Kind::StrictBoolean
+                    } else {
+                        Kind::Boolean
+                    },
+                ),
+                Some(("url", parameter)) => Self::new(Kind::UrlProtocols(
+                    super::rule_parameters::csv(parameter)
+                        .into_iter()
+                        .map(|value| value.into_owned())
+                        .collect(),
+                )),
+                Some(("uuid", parameter)) => Self::new(Kind::UuidVersion(parameter.to_owned())),
                 Some((name @ ("same" | "different"), arguments)) => Self::new(Kind::Relation {
                     same: name == "same",
                     fields: super::rule_parameters::csv(arguments)

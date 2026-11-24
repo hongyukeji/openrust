@@ -75,11 +75,11 @@ impl RuleSet {
     }
 
     pub(super) fn compile_scoped(self, original: &Data, data: &Data) -> ValidationResult<Self> {
-        if !self.fields.iter().any(|(_, rules)| {
-            rules
-                .iter()
-                .any(|rule| matches!(rule.0, Kind::ForEach(_) | Kind::Compilable(_)))
-        }) {
+        if !self
+            .fields
+            .iter()
+            .any(|(_, rules)| rules.iter().any(Rule::is_compilable))
+        {
             return Ok(self);
         }
         let mut output = Self::new();
@@ -165,10 +165,21 @@ impl Compiler<'_> {
         if depth > 64 {
             return Err(ValidationError::LimitsExceeded);
         }
-        if !rules
+        if rules
             .iter()
-            .any(|rule| matches!(rule.0, Kind::ForEach(_) | Kind::Compilable(_)))
+            .any(|rule| matches!(rule.0, Kind::ConditionalRules(_)))
         {
+            let mut resolved = Vec::new();
+            for rule in rules {
+                if let Kind::ConditionalRules(rule) = &rule.0 {
+                    resolved.extend_from_slice(rule.resolve(master)?);
+                } else {
+                    resolved.push(rule.clone());
+                }
+            }
+            return self.field(attribute, origin, &resolved, selections, depth + 1, master);
+        }
+        if !rules.iter().any(Rule::is_compilable) {
             return self.emit(attribute, origin, rules.to_vec(), selections);
         }
         let segments = path::parse(attribute)?;
@@ -200,6 +211,7 @@ impl Compiler<'_> {
             };
             for rule in rules {
                 let compiled = match &rule.0 {
+                    Kind::Chained(rules) => bind(&actual, NestedRuleSet::Value(rules.clone()))?,
                     Kind::ForEach(rule) => bind(
                         &actual,
                         rule.resolve(&super::NestedRuleContext {
@@ -227,10 +239,7 @@ impl Compiler<'_> {
                         || compiled.origin(child).to_owned(),
                         |suffix| format!("{origin}{suffix}"),
                     );
-                    let nested_data = if child_rules
-                        .iter()
-                        .any(|rule| matches!(rule.0, Kind::ForEach(_) | Kind::Compilable(_)))
-                    {
+                    let nested_data = if child_rules.iter().any(Rule::is_compilable) {
                         Some(Data::new(path::from_flat(&flat)?)?)
                     } else {
                         None
