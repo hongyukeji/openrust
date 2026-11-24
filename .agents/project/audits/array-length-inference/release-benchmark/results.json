@@ -1,0 +1,691 @@
+{
+  "source": {
+    "head": "a15c7b891dd8c121cbf936d1f8562638355cfa85",
+    "comparison": "same committed code and contents; only framework length-inference hunks reversed before A; 31 current providers in both A/B",
+    "before_provider_count": 31,
+    "before_stub_count": 40,
+    "initial_adjustments": "provider and stub fixed literals match current contents (31/40), no entries removed"
+  },
+  "environment": {
+    "cpu": "Apple M4 Max",
+    "model": "Mac16,5",
+    "logical_cpus": 16,
+    "os": "27.2.1",
+    "toolchain": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: aarch64-apple-darwin\nrelease: 1.94.0\nLLVM version: 21.1.8",
+    "profile": "Cargo --release defaults, CARGO_PROFILE_RELEASE_INCREMENTAL=true; no RUSTFLAGS overrides",
+    "timing_allocator": "default System; no counter installed",
+    "allocation_allocator": "counted System in a separate binary"
+  },
+  "timing_run_1": {
+    "timing": {
+      "methods": {
+        "samples_per_version": 31,
+        "before_median_ns": 24.717458,
+        "after_median_ns": 21.874875,
+        "before_p95_ns": 32.568958,
+        "after_p95_ns": 34.474167,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -11.310288623968013,
+        "paired_bootstrap_ci95_pct": [
+          -12.188585252584161,
+          -10.741081068054958
+        ]
+      },
+      "routes_get": {
+        "samples_per_version": 31,
+        "before_median_ns": 812660.0,
+        "after_median_ns": 819968.33,
+        "before_p95_ns": 1055425.83,
+        "after_p95_ns": 1036857.91,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -0.15428969341717558,
+        "paired_bootstrap_ci95_pct": [
+          -1.1742079319316368,
+          0.8130980023326018
+        ]
+      },
+      "routes_any": {
+        "samples_per_version": 31,
+        "before_median_ns": 960696.66,
+        "after_median_ns": 946550.83,
+        "before_p95_ns": 1171729.16,
+        "after_p95_ns": 1151523.75,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -0.1839142699697427,
+        "paired_bootstrap_ci95_pct": [
+          -1.0733163189938555,
+          0.7993578645207888
+        ]
+      },
+      "application_create": {
+        "samples_per_version": 31,
+        "before_median_ns": 15780.9375,
+        "after_median_ns": 15700.354,
+        "before_p95_ns": 59105.25,
+        "after_p95_ns": 45893.271,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -1.1800808371713711,
+        "paired_bootstrap_ci95_pct": [
+          -3.961863416745437,
+          1.1885303864575647
+        ]
+      },
+      "faker_new": {
+        "samples_per_version": 31,
+        "before_median_ns": 209.66,
+        "after_median_ns": 211.49833,
+        "before_p95_ns": 301.58417,
+        "after_p95_ns": 280.01834,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.3084119775618843,
+        "paired_bootstrap_ci95_pct": [
+          -1.0479640610845942,
+          1.2047944641238928
+        ]
+      },
+      "faker_format": {
+        "samples_per_version": 31,
+        "before_median_ns": 78.39791666666666,
+        "after_median_ns": 78.07041666666667,
+        "before_p95_ns": 93.10875,
+        "after_p95_ns": 111.185,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 1.1201066328542675,
+        "paired_bootstrap_ci95_pct": [
+          -0.7128811133200852,
+          3.6258032715022592
+        ]
+      },
+      "elements": {
+        "samples_per_version": 31,
+        "before_median_ns": 0.7616361,
+        "after_median_ns": 0.7385902666666667,
+        "before_p95_ns": 0.8783680333333334,
+        "after_p95_ns": 0.9319055666666667,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.23774398547435904,
+        "paired_bootstrap_ci95_pct": [
+          -1.0695754180162886,
+          1.043956890872244
+        ]
+      },
+      "faker_new_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 22834.0,
+        "after_median_ns": 23750.0,
+        "before_p95_ns": 29667.0,
+        "after_p95_ns": 30459.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 3.776660779785357,
+        "paired_bootstrap_ci95_pct": [
+          2.581473609635143,
+          5.8577552884953255
+        ]
+      },
+      "faker_format_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 9583.0,
+        "after_median_ns": 9166.0,
+        "before_p95_ns": 12459.0,
+        "after_p95_ns": 11500.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -4.874163746416061,
+        "paired_bootstrap_ci95_pct": [
+          -5.73059843518714,
+          -4.025400925626954
+        ]
+      },
+      "elements_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 5917.0,
+        "after_median_ns": 5541.0,
+        "before_p95_ns": 7708.0,
+        "after_p95_ns": 7333.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -4.528813559322032,
+        "paired_bootstrap_ci95_pct": [
+          -7.57575757575758,
+          -3.2320495451906295
+        ]
+      },
+      "noop_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 125.0,
+        "after_median_ns": 166.0,
+        "before_p95_ns": 292.0,
+        "after_p95_ns": 250.0,
+        "zero_duration_pairs": 12,
+        "relative_change": "not defined at timer floor; absolute control only"
+      }
+    },
+    "methodology": {
+      "seed": 192731,
+      "warm_pairs": 31,
+      "cold_pairs": 151,
+      "bootstrap_resamples": 10000,
+      "order": "randomized paired process calls",
+      "time_binary": "standard allocator, no counters",
+      "alloc_binary": "separate counted System allocator, five repeats",
+      "practical_regression_threshold_pct": 5,
+      "cold_overhead_control": "noop, absolute only; zero measurements never divided"
+    }
+  },
+  "timing_run_2": {
+    "timing": {
+      "methods": {
+        "samples_per_version": 31,
+        "before_median_ns": 23.668542,
+        "after_median_ns": 20.868166,
+        "before_p95_ns": 23.890916,
+        "after_p95_ns": 21.159083,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -11.691203451598042,
+        "paired_bootstrap_ci95_pct": [
+          -12.143798602207223,
+          -11.523781275006662
+        ]
+      },
+      "routes_get": {
+        "samples_per_version": 31,
+        "before_median_ns": 759432.08,
+        "after_median_ns": 763663.75,
+        "before_p95_ns": 776447.91,
+        "after_p95_ns": 786425.83,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.1955211508666066,
+        "paired_bootstrap_ci95_pct": [
+          -0.14390220547865207,
+          0.5727388827424518
+        ]
+      },
+      "routes_any": {
+        "samples_per_version": 31,
+        "before_median_ns": 903012.08,
+        "after_median_ns": 906028.33,
+        "before_p95_ns": 921869.58,
+        "after_p95_ns": 916722.92,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.06794373715013347,
+        "paired_bootstrap_ci95_pct": [
+          -0.3463872951402158,
+          0.7854970372661363
+        ]
+      },
+      "application_create": {
+        "samples_per_version": 31,
+        "before_median_ns": 14411.083,
+        "after_median_ns": 14409.0,
+        "before_p95_ns": 14691.854,
+        "after_p95_ns": 14866.521,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.2181802584679815,
+        "paired_bootstrap_ci95_pct": [
+          -0.4249350040667954,
+          0.5392170918055106
+        ]
+      },
+      "faker_new": {
+        "samples_per_version": 31,
+        "before_median_ns": 197.72458,
+        "after_median_ns": 197.15958,
+        "before_p95_ns": 204.28167,
+        "after_p95_ns": 208.44625,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -0.35327589924106784,
+        "paired_bootstrap_ci95_pct": [
+          -1.7815617538285533,
+          0.768538742123015
+        ]
+      },
+      "faker_format": {
+        "samples_per_version": 31,
+        "before_median_ns": 73.77305666666666,
+        "after_median_ns": 73.40347333333334,
+        "before_p95_ns": 81.18583333333333,
+        "after_p95_ns": 79.87319333333333,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -1.2416255239343421,
+        "paired_bootstrap_ci95_pct": [
+          -1.922492958837374,
+          0.13009266210424197
+        ]
+      },
+      "elements": {
+        "samples_per_version": 31,
+        "before_median_ns": 0.6753027666666667,
+        "after_median_ns": 0.6728291666666667,
+        "before_p95_ns": 0.6972125,
+        "after_p95_ns": 0.7144736333333334,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -0.13538999597605406,
+        "paired_bootstrap_ci95_pct": [
+          -0.6813783229971504,
+          0.29887752524306865
+        ]
+      },
+      "faker_new_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 21708.0,
+        "after_median_ns": 22709.0,
+        "before_p95_ns": 26375.0,
+        "after_p95_ns": 26625.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 5.33028571428571,
+        "paired_bootstrap_ci95_pct": [
+          4.147799311718892,
+          6.477714285714287
+        ]
+      },
+      "faker_format_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 9167.0,
+        "after_median_ns": 8917.0,
+        "before_p95_ns": 10584.0,
+        "after_p95_ns": 10166.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -2.3222222222222255,
+        "paired_bootstrap_ci95_pct": [
+          -3.203787294946603,
+          -1.4064069650630673
+        ]
+      },
+      "elements_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 5417.0,
+        "after_median_ns": 5291.0,
+        "before_p95_ns": 7750.0,
+        "after_p95_ns": 6375.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -2.2222222222222254,
+        "paired_bootstrap_ci95_pct": [
+          -3.8285400256457214,
+          -0.7636363636363663
+        ]
+      },
+      "noop_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 125.0,
+        "after_median_ns": 125.0,
+        "before_p95_ns": 291.0,
+        "after_p95_ns": 250.0,
+        "zero_duration_pairs": 8,
+        "relative_change": "not defined at timer floor; absolute control only"
+      }
+    },
+    "methodology": {
+      "seed": 192731,
+      "warm_pairs": 31,
+      "cold_pairs": 151,
+      "bootstrap_resamples": 10000,
+      "order": "randomized paired process calls",
+      "time_binary": "standard allocator, no counters",
+      "alloc_binary": "separate counted System allocator, five repeats",
+      "practical_regression_threshold_pct": 5,
+      "cold_overhead_control": "noop, absolute only; zero measurements never divided"
+    }
+  },
+  "allocations_per_operation_same_in_both": {
+    "methods": {
+      "allocs": 0.0,
+      "reallocs": 0.0,
+      "deallocs": 0.0,
+      "requested_bytes": 0.0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "routes_get": {
+      "allocs": 13700.0,
+      "reallocs": 3471.0,
+      "deallocs": 13700.0,
+      "requested_bytes": 2826604.0,
+      "peak_live_bytes": 988069,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "routes_any": {
+      "allocs": 14476.0,
+      "reallocs": 3501.0,
+      "deallocs": 14476.0,
+      "requested_bytes": 2894420.0,
+      "peak_live_bytes": 1016899,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "application_create": {
+      "allocs": 71.0,
+      "reallocs": 9.0,
+      "deallocs": 71.0,
+      "requested_bytes": 15948.0,
+      "peak_live_bytes": 11957,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "faker_new": {
+      "allocs": 4.0,
+      "reallocs": 0.0,
+      "deallocs": 4.0,
+      "requested_bytes": 20.0,
+      "peak_live_bytes": 15,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "faker_format": {
+      "allocs": 3.0,
+      "reallocs": 0.0,
+      "deallocs": 3.0,
+      "requested_bytes": 38.0,
+      "peak_live_bytes": 25,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "elements": {
+      "allocs": 0.0,
+      "reallocs": 0.0,
+      "deallocs": 0.0,
+      "requested_bytes": 0.0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "faker_new_cold": {
+      "allocs": 4.0,
+      "reallocs": 0.0,
+      "deallocs": 4.0,
+      "requested_bytes": 20.0,
+      "peak_live_bytes": 15,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "faker_format_cold": {
+      "allocs": 6.0,
+      "reallocs": 0.0,
+      "deallocs": 3.0,
+      "requested_bytes": 41.0,
+      "peak_live_bytes": 28,
+      "retained_bytes": 3,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "elements_cold": {
+      "allocs": 3.0,
+      "reallocs": 0.0,
+      "deallocs": 0.0,
+      "requested_bytes": 3.0,
+      "peak_live_bytes": 3,
+      "retained_bytes": 3,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    },
+    "noop_cold": {
+      "allocs": 0.0,
+      "reallocs": 0.0,
+      "deallocs": 0.0,
+      "requested_bytes": 0.0,
+      "peak_live_bytes": 0,
+      "retained_bytes": 0,
+      "before_equals_after": true,
+      "repeats_per_version": 5
+    }
+  },
+  "fault_control": {
+    "before": {
+      "minor_faults": {
+        "zero_iteration_median": 1269,
+        "first_constructor_median": 1292,
+        "paired_increment_median": 23
+      },
+      "major_faults": {
+        "zero_iteration_median": 0,
+        "first_constructor_median": 0,
+        "paired_increment_median": 0
+      }
+    },
+    "after": {
+      "minor_faults": {
+        "zero_iteration_median": 1269,
+        "first_constructor_median": 1293,
+        "paired_increment_median": 24
+      },
+      "major_faults": {
+        "zero_iteration_median": 0,
+        "first_constructor_median": 0,
+        "paired_increment_median": 0
+      }
+    }
+  },
+  "fault_scope": "whole child process, paired n=0 control vs n=1; not function-local",
+  "assembly": {
+    "before_instructions": 70,
+    "after_instructions": 70,
+    "same_opcode_sequence": true,
+    "scope": "Faker::new body only; operands/addresses and callees are not proven equivalent"
+  },
+  "before_source_sha256": {
+    "vendor/openrust/framework/src/bus/callback.rs": "5474252848f3d2c1355af95dff4aee7502cad5c878789a68bf7d1e58bbcf2d16",
+    "vendor/openrust/framework/src/console/generator_command.rs": "e61e9e35355f7348d2c7cb1e3a2674aefc228a65e1466323eee819bf01951922",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker.rs": "cb2909fd53ef00218ffaeafb56b9b67501dec31766ce8c22a77409aff8912870",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_address.rs": "a7c5419e4aaf62f095fa4a99b209285802d7a1fed1c102b8f4e5adf7eb456a23",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_identity.rs": "ecedeedc65d0bbc604ab8f039e720708a1f59b0c0013674c9bd034027b263d27",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_user_agent.rs": "8e7135e79ee3e0db22efdcc8d78e835259b6ed733ba395fbc8e26bd8a146b072",
+    "vendor/openrust/framework/src/database/query/builder/bindings.rs": "e53b0a13a1d444f017133c08b0077379214375713c8dd335ed82f5c7b33363f6",
+    "vendor/openrust/framework/src/foundation/application.rs": "df33511131c99476479984dc212b524b4234b76939ccb110847aa9b59c1a80bd",
+    "vendor/openrust/framework/src/foundation/configuration/middleware.rs": "2eb6542fc3fe1a8c46116d2ccb6a8b7f2885933f58877b6f8fcebe726e647bfc",
+    "vendor/openrust/framework/src/foundation/console/stub_publish_command.rs": "0f05d6e4a9f46345761fda40ac33717b4f8bbe8ec68f3960818af83b4c8dd598",
+    "vendor/openrust/framework/src/foundation/inspiring.rs": "9433c0dcf3c7477e2d72744f528fc43525b651cb2b275beef0ec3a88bcf8c60a",
+    "vendor/openrust/framework/src/routing/resource.rs": "363b066373b91458a3749bb709d80ab72f900fa12eb1c79861ae3be5203d2be3",
+    "vendor/openrust/framework/src/routing/router.rs": "d5fe48dbe488d689afbdf1244196e890b985a3e835a60617c4b299bf1d82dcd9",
+    "vendor/openrust/framework/src/support/input_scalars.rs": "6cd2918d63c397052721007e593246892502e83f005d22a805b67cb9f1621860",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_provider.rs": "a3c9af09c27edf7fd8116b9f5dd1c0a45b2681efd43ae3ae5a4af57fad23cf1d",
+    "vendor/openrust/framework/src/sanctum/service_provider.rs": "219f3c84b323186f143c01fab7ab0f72c7b7e6511fe46b54ba1e147902799b36"
+  },
+  "after_source_sha256": {
+    "vendor/openrust/framework/src/bus/callback.rs": "4d0e166cb79f6d8a74dfae00ec50827fd0901d6b7fd13435ad65aa84cd593d9f",
+    "vendor/openrust/framework/src/console/generator_command.rs": "37cfec004b684029b4786e5e50ecf9bec03a608a026c91fac53e39278c6483f0",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker.rs": "cdbf00291b6b167c5d4be01beb6a290fbf5023ee45c1924347b6340b83ceb764",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_address.rs": "c3a1d634390fb7a39356829ddcfe4ce4e637e3226cfaf0e6f4544f77540e68d4",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_identity.rs": "5fae69e3a2c1ff76cf18b3a41260edca20e5041753c8b0273d10b9b1358a4c2f",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_user_agent.rs": "43c1271b03a32c277f3b242183ad37d32310df38812464cc765bf6c7bfbb3da8",
+    "vendor/openrust/framework/src/database/query/builder/bindings.rs": "73b58f1494f172995c1955023321811fda6b57350ceba988fe78617f39ef0f8f",
+    "vendor/openrust/framework/src/foundation/application.rs": "db77310c41078d9d685668c000710819c439bc26ed7cc040f04ffee7e66491ee",
+    "vendor/openrust/framework/src/foundation/configuration/middleware.rs": "42098746c7cf787c017b76a128ae47a8706e30970a14233dc0f3ae7a8aa1404d",
+    "vendor/openrust/framework/src/foundation/console/stub_publish_command.rs": "8d3e7570af3396ff4ea913b5918288705b5fb5543c8255141a45e2b00b91e4ab",
+    "vendor/openrust/framework/src/foundation/inspiring.rs": "a2f87b6ccf101e954354aa83d9f456d5f58eecb014c36ecfc40a1452b342a713",
+    "vendor/openrust/framework/src/routing/resource.rs": "66cac8a7ca24f281f77ff5fec40af0bb3e75866edab2880e22d24128d113db13",
+    "vendor/openrust/framework/src/routing/router.rs": "214e427259642f3ceccc7e2897b5f5d91fb33d7543f752c4b8a89886ae0e9df0",
+    "vendor/openrust/framework/src/support/input_scalars.rs": "96a6517362d10def8d91b2ac03fe03da71f67dd387b91007231ecc5d90c9f7d2",
+    "vendor/openrust/framework/src/database/eloquent/factories/faker_provider.rs": "e6b8e1c7a0da372d612f9241d705eb80250c541a5e19176c35f2036c0ad577de",
+    "vendor/openrust/framework/src/sanctum/service_provider.rs": "58edd688df49d044392e014f61e54caf1f1eef57f67794231f9f37f76f9c65c7"
+  },
+  "binary_sha256": {
+    "after_time": "8bb3f3bc8ea7161717f61c0a9a8307b8ed5b5b01c67988fe711d0bdc7e517747",
+    "before_time": "88a086c5b757ad17730226c4aee05ceb049d573503227bfe196f9c5ba6b17597",
+    "after_alloc": "b339d18b6936c1f75a1ad177648d8dd790599883740e9c086561c98cfc40cbed",
+    "before_alloc": "1d0cb29c5e7806661a2f85f206c08eeeadef6ad666f362e33fc503e2b52e0b64"
+  },
+  "probe_source_sha256": {
+    "probe_alloc.rs": "9fe4a2499cedee8d638d4c17ba959106f164cfec34904b8e78f7cf26b8fce708",
+    "probe_time.rs": "7ff9fa908d07287a81dc241041f26a71f817407d55ff1b04479a7c03d9a665df",
+    "probe_support.rs": "855c98e54e195bb050baee86d49f5db919506b7b9f44fa98695d8eec4c31847f"
+  },
+  "evidence_directory": "target/tmp/array-release/",
+  "reproducer_checks": "prepare-only generated both exact measured source hashes; durable allocator/self-test and analysis scripts reproduced observed results",
+  "result": "No additional observed Rust heap allocation. Controlled steady-state CIs within +/-5% or faster. Cold constructor point +3.43% (~0.62 us), CI +1.51..+5.14%; cannot prove cold equivalence or literal zero overhead. Exploratory and fixed-argv control results retained, no unique cause proven.",
+  "timing_controlled_final": {
+    "timing": {
+      "methods": {
+        "samples_per_version": 31,
+        "before_median_ns": 23.736417,
+        "after_median_ns": 21.022334,
+        "before_p95_ns": 24.598084,
+        "after_p95_ns": 21.916833,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -11.391121856754548,
+        "paired_bootstrap_ci95_pct": [
+          -12.049092758234014,
+          -11.035519492648927
+        ]
+      },
+      "routes_get": {
+        "samples_per_version": 31,
+        "before_median_ns": 770619.17,
+        "after_median_ns": 773377.08,
+        "before_p95_ns": 805581.25,
+        "after_p95_ns": 806343.75,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.4140374276651926,
+        "paired_bootstrap_ci95_pct": [
+          -0.4568168333229372,
+          0.98463501861068
+        ]
+      },
+      "routes_any": {
+        "samples_per_version": 31,
+        "before_median_ns": 906304.17,
+        "after_median_ns": 908760.0,
+        "before_p95_ns": 934520.42,
+        "after_p95_ns": 956880.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.887436263277741,
+        "paired_bootstrap_ci95_pct": [
+          0.1162593614758789,
+          1.4213832194794884
+        ]
+      },
+      "application_create": {
+        "samples_per_version": 31,
+        "before_median_ns": 14515.667,
+        "after_median_ns": 14595.9795,
+        "before_p95_ns": 15807.7085,
+        "after_p95_ns": 15209.854,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.8208523652851296,
+        "paired_bootstrap_ci95_pct": [
+          -0.2736173000004727,
+          1.0591849588880375
+        ]
+      },
+      "faker_new": {
+        "samples_per_version": 31,
+        "before_median_ns": 198.85291,
+        "after_median_ns": 198.97959,
+        "before_p95_ns": 210.045,
+        "after_p95_ns": 207.83,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 0.05133663056406945,
+        "paired_bootstrap_ci95_pct": [
+          -0.7293030342255147,
+          1.0044722438006026
+        ]
+      },
+      "faker_format": {
+        "samples_per_version": 31,
+        "before_median_ns": 74.67583333333333,
+        "after_median_ns": 73.51347,
+        "before_p95_ns": 78.11514,
+        "after_p95_ns": 79.00972,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -1.556545513385632,
+        "paired_bootstrap_ci95_pct": [
+          -2.305198630858929,
+          -0.19624784110359172
+        ]
+      },
+      "elements": {
+        "samples_per_version": 31,
+        "before_median_ns": 0.6768972,
+        "after_median_ns": 0.6794708333333334,
+        "before_p95_ns": 0.7399722,
+        "after_p95_ns": 0.7404222333333333,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -0.028819504059252044,
+        "paired_bootstrap_ci95_pct": [
+          -0.44837074963947066,
+          1.0209659841624141
+        ]
+      },
+      "faker_new_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 21334.0,
+        "after_median_ns": 21958.0,
+        "before_p95_ns": 25458.0,
+        "after_p95_ns": 25625.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": 3.429411764705881,
+        "paired_bootstrap_ci95_pct": [
+          1.5078790074261939,
+          5.13502858269268
+        ]
+      },
+      "faker_format_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 9084.0,
+        "after_median_ns": 8291.0,
+        "before_p95_ns": 10167.0,
+        "after_p95_ns": 10000.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -9.128767123287673,
+        "paired_bootstrap_ci95_pct": [
+          -10.003272608268787,
+          -7.688966116420504
+        ]
+      },
+      "elements_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 5167.0,
+        "after_median_ns": 4542.0,
+        "before_p95_ns": 6292.0,
+        "after_p95_ns": 5333.0,
+        "zero_duration_pairs": 0,
+        "paired_median_change_pct": -12.01949106659448,
+        "paired_bootstrap_ci95_pct": [
+          -13.48571428571429,
+          -10.407066052227343
+        ]
+      },
+      "noop_cold": {
+        "samples_per_version": 151,
+        "before_median_ns": 125.0,
+        "after_median_ns": 84.0,
+        "before_p95_ns": 291.0,
+        "after_p95_ns": 250.0,
+        "zero_duration_pairs": 10,
+        "relative_change": "not defined at timer floor; absolute control only"
+      }
+    },
+    "methodology": {
+      "seed": 192731,
+      "warm_pairs": 31,
+      "cold_pairs": 151,
+      "bootstrap_resamples": 10000,
+      "order": "randomized paired process calls",
+      "argv0": "array-perf (identical in both arms)",
+      "time_binary": "standard allocator, no counters",
+      "alloc_binary": "separate counted System allocator, five repeats",
+      "practical_regression_threshold_pct": 5,
+      "cold_overhead_control": "noop, absolute only; zero measurements never divided"
+    }
+  },
+  "argv0_control": {
+    "case": "faker_new_cold",
+    "fixed_argv0": "array-perf",
+    "samples_per_version": 151,
+    "before_median_ns": 27917,
+    "after_median_ns": 28417,
+    "paired_median_change_pct": 1.323544982882141,
+    "paired_bootstrap_ci95_pct": [
+      0.0,
+      2.811801043774631
+    ]
+  },
+  "fault_invocation": "argv0 fixed to array-perf in both arms",
+  "invocation_control": "Final primary run fixes argv0 to array-perf using subprocess executable=; the first two exploratory runs used actual binary filenames as argv0."
+}
