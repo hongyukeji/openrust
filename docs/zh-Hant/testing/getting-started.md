@@ -54,6 +54,8 @@ pub fn register_parallel_hooks() -> Result<(), ParallelTestError> {
 
 目前適配為每個案例獨立程序，並非跨案例常駐工作程序；現有受管 MySQL 夾具仍各自建立及清理資料庫。可重用資料庫命名、重建／刪除命令選項、取消時的非同步鉤子／資料庫回收及 Linux／Windows 原生程序驗收仍單列待補，不能憑生命週期入口認定這些能力已提供。
 
+用例結束時僅執行已註冊的清理回呼，不再重新設定快取前綴或編譯視圖路徑；清理回呼可以讀取測試正文修改後的設定。
+
 ## 測試環境 {#test-environment}
 
 Artisan 給 Cargo 子程序設定 `APP_ENV=testing`。應用程式以該環境啟動時優先讀取 `.env.testing`，缺少時讀取 `.env`。程序環境和所選檔案都未定義 `CACHE_STORE` 或 `SESSION_DRIVER` 時，引導器分別補上 `array`。資料庫測試設定應放在測試環境中。修改環境設定前，可用 `./artisan config:clear` 清除應用程式的設定快取。

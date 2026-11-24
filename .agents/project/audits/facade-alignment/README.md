@@ -565,3 +565,9 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - CLI7场景确认默认前缀及without-cache、不同进程/token并发、预期失败teardown、筛选/列举、无效参数和Ctrl+C无活跃子进程。当前取消仍不执行异步teardown，不将子进程退出冒充完整资源回收。候选父e03be8acc完整workspace严格Clippy1m17s、fmt、三语站点16.22s、/和/docs/共12浏览器通过。
 - 本批初期宏参数、测试Trait导入与冻结脚本匹配失败均已修正，失败日志保留。触线按规范持锁清理项目编译产物，净释放67,201,376,256字节；原始记录与当前源码SHA均保留。MySQL/Redis临时容器已清理，源码/日志/数据库卷未动，热缓存继续按规范复用。
 - 标准可复用数据库命名与重建/保留/删除策略、取消时异步清理、Linux/Windows进程实机及共享Facade测试契约仍未闭合，继续原任务。
+
+### ParallelTesting：用例清理不得重新准备隔离配置
+
+- 复核固定TestCaches/TestViews发现它们只注册setUpTestCase，原生case_callbacks共享展开却在tearDownTestCase再次prepare_case。这会覆盖正文修改的cache.prefix/view.compiled，并污染用户清理回调；本次明确区分setup和teardown，不改进程清理及原有裸服务语义。旧版没有对应公开生命周期可直接复用，沿用前两批固定源码证据和现有回调实现。
+- 新增正式run_parallel_test消费者，在成功、正文Result错误和panic三种路径检查实际清理回调及最终配置，均保留正文配置与原始错误／panic。独立MySQL8.4、Redis组合17项通过；定向严格Clippy通过，日志target/tmp/facade-alignment/parallel-teardown/。
+- 这是局部生命周期修复。数据库标准复用与重建／删除选项、取消异步清理及全门面剩余契约仍未闭合，继续原任务，不推送。

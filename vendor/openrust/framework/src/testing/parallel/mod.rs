@@ -88,7 +88,7 @@ macro_rules! process_callbacks {
     };
 }
 macro_rules! case_callbacks {
-    ($register:ident,$call:ident,$field:ident) => {
+    ($register:ident,$call:ident,$field:ident,$prepare:literal) => {
         pub fn $register(
             &self,
             callback: impl for<'a> Fn(&'a mut TestApp, Value) -> ParallelTestFuture<'a>
@@ -106,7 +106,7 @@ macro_rules! case_callbacks {
             let app = test.app().share();
             crate::support::facades::App::set_facade_application(Some(&app), async {
                 if self.in_parallel()? {
-                    if self.default_isolation {
+                    if $prepare && self.default_isolation {
                         self.prepare_case(test).await?;
                     }
                     let callbacks = self
@@ -256,11 +256,17 @@ impl ParallelTesting {
         process_down,
         cleanup_process
     );
-    case_callbacks!(set_up_test_case, call_set_up_test_case_callbacks, case_up);
+    case_callbacks!(
+        set_up_test_case,
+        call_set_up_test_case_callbacks,
+        case_up,
+        true
+    );
     case_callbacks!(
         tear_down_test_case,
         call_tear_down_test_case_callbacks,
-        case_down
+        case_down,
+        false
     );
     database_callbacks!(
         set_up_test_database_before_migrating,

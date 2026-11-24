@@ -54,6 +54,8 @@ pub fn register_parallel_hooks() -> Result<(), ParallelTestError> {
 
 当前适配为每个用例独立进程，并非跨用例常驻工作进程；现有受管 MySQL 夹具仍各自创建和清理数据库。可复用数据库命名、重建／删除命令选项、取消时的异步钩子／数据库回收及 Linux／Windows 原生进程验收仍单列待补，不能凭生命周期入口认定这些能力已提供。
 
+用例结束时仅执行已注册的清理回调，不再重新设置缓存前缀或编译视图路径；清理回调可以读取测试正文修改后的配置。
+
 ## 测试环境 {#test-environment}
 
 Artisan 给 Cargo 子进程设置 `APP_ENV=testing`。应用用该环境启动时优先读取 `.env.testing`，缺失时读取 `.env`。进程环境与所选文件均未定义 `CACHE_STORE` 或 `SESSION_DRIVER` 时，引导器分别补上 `array`。数据库测试配置应放在测试环境里。修改环境配置前，可用 `./artisan config:clear` 清除应用的配置缓存。

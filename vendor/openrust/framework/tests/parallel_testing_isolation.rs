@@ -327,3 +327,67 @@ async fn resolved_view_factory_moves_its_live_compiler_without_resolving_the_bla
     })
     .await;
 }
+
+#[tokio::test]
+async fn case_teardown_preserves_body_configuration_on_success_error_and_panic() {
+    use futures_util::FutureExt as _;
+    use std::{panic::AssertUnwindSafe, sync::Mutex};
+    for outcome in ["success", "error", "panic"] {
+        let mut case = fixture().await;
+        let app = App::set_facade_application(Some(case.app()), async {
+            App::get_facade_root().unwrap()
+        })
+        .await;
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        App::set_facade_application(Some(&app), async {
+            ParallelTesting::swap(Arc::new(service("lifecycle"))).unwrap();
+            let observations = observed.clone();
+            ParallelTesting::tear_down_test_case(move |_, _| {
+                let observations = observations.clone();
+                Box::pin(async move {
+                    observations
+                        .lock()
+                        .unwrap()
+                        .push((Config::get("cache.prefix")?, Config::get("view.compiled")?));
+                    Ok(())
+                })
+            })
+            .unwrap();
+            let result = AssertUnwindSafe(case.run_parallel_test(move |_| {
+                Box::pin(async move {
+                    assert_eq!(
+                        Config::get("cache.prefix")?,
+                        Some(json!("base_test_lifecycle_"))
+                    );
+                    Config::set("cache.prefix", json!("body_prefix"))?;
+                    Config::set("view.compiled", json!("body/views"))?;
+                    match outcome {
+                        "error" => Err(std::io::Error::other("正文失败").into()),
+                        "panic" => panic!("正文panic"),
+                        _ => Ok(()),
+                    }
+                })
+            }))
+            .catch_unwind()
+            .await;
+            match outcome {
+                "error" => assert_eq!(result.unwrap().unwrap_err().to_string(), "正文失败"),
+                "panic" => assert!(result.is_err()),
+                _ => result.unwrap().unwrap(),
+            }
+            assert_eq!(
+                *observed.lock().unwrap(),
+                vec![(Some(json!("body_prefix")), Some(json!("body/views")))]
+            );
+            assert_eq!(
+                Config::get("cache.prefix").unwrap(),
+                Some(json!("body_prefix"))
+            );
+            assert_eq!(
+                Config::get("view.compiled").unwrap(),
+                Some(json!("body/views"))
+            );
+        })
+        .await;
+    }
+}

@@ -54,6 +54,8 @@ The application binding enables these defaults. A standalone `testing::ParallelT
 
 The current native adapter uses an isolated process per test, rather than keeping a worker alive across multiple cases. Existing owned MySQL fixtures still create and clean their own databases. Reusable database naming, recreate/drop command options, asynchronous hook/database cleanup on cancellation, and native Linux/Windows process acceptance remain separate open items; they are not provided by the lifecycle API alone.
 
+Test-case teardown invokes registered cleanup callbacks without preparing cache prefixes or compiled-view paths again; configuration changes made by the test remain visible to those callbacks.
+
 ## Test environment {#test-environment}
 
 Artisan sets `APP_ENV=testing` for the Cargo child process. When the application boots with that setting, it selects `.env.testing` if present and otherwise reads `.env`. The bootstrap supplies `array` for `CACHE_STORE` and `SESSION_DRIVER` when neither the process environment nor the selected file defines them. Keep test database settings in the test environment and clear any application configuration cache with `./artisan config:clear` before changing its settings.
