@@ -74,3 +74,8 @@ URL Generation与Validation已按两个固定章节闭合，不重开。按交�
 最终逐例补核：固定respond示例的419→back()->with(message)不能用只读回调直接完成。现补Configuration::respond_async与Facade::respond_using_async，最终回调允许借用同一可变Request；同步与异步最终回调互相替换，后注册者生效，不叠加。原同步入口保留，正常HTTP等待异步回调；没有引入全局Session或第二套响应器。三语正式configure_response／expired_response代码直接提取，file Session下真实TCP覆盖Bootstrap与运行期Facade两种入口：419转302、Location以/form结尾、加密Cookie往返、下一次读到消息、再下一次已老化删除、404保留且旧回调不再执行。定制重定向不可用时保留原响应是文档示例明确策略，不吞掉框架内部错误。底层回退逻辑由原HTTP渲染共享，异步渲染错误同样保留预制HttpResponseException与既有验证重定向，不另造响应流程；预制418及respond只一次已专项覆盖。
 
 最终完整组合20目标145项0忽略通过；最后一次workspace/all-targets严格Clippy48.84s、fmt、三语站点构建、三组浏览器检查均退出0。实际main重新验证/up、普通／JSON／HEAD404、定制／发布模板、发布保护／force、inspire及Ctrl+C退出0；最后真正./artisan脚本的inspire与发布也通过。证据respond-{tests,consumers,clippy,fmt,docs,main,artisan,browser,runtime-final,launcher}.log。之前142项阶段结果保留为当时状态，最终以本段和18节清单为准；无外部阻塞。用户的“下一章”按计划关闭Error Handling；Logging仅为接续顺序，未在本轮开始新模块。
+
+
+最终提交核对：EH-01 `ea9e11d72`（共享导出立即修复 `9e7062e2c`）、EH-02 `5956d2b64`、EH-03 `8d9a3186b`、EH-04 `a535eabce`；完整哈希见[本地提交账本](commits.json)。每次实际提交范围／父提交及工作区保留均已核对，本批验收源码与提交字节一致。最后一批13文件含必要源码、测试、三语与内部账本，没有夹带其他业务响应或路由原型文件。提交后工作区及索引干净；这只是当时状态，不授权删除后续协作改动。
+
+已确认无占用后回收六个本批独立运行目录、隔离文档dist及一次性修改脚本；保留源码快照、原始日志、可复用Cargo热缓存和依赖下载，没有操作数据库／数据卷。清理前可用57694142464字节，清理后57769558016字节（约53.80GiB），实测变化+75415552字节。清理明细target/tmp/error-tutorial-20261124/cleanup.json；无本批测试服务遗留。没有推送。

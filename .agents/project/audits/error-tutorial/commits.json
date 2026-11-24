@@ -1,0 +1,34 @@
+{
+  "chapter": "Error Handling",
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "tutorial_anchors": 18,
+  "commits": [
+    {
+      "unit": "EH-01 报告助手",
+      "commit": "ea9e11d72a2f581b1b602b6bceaf41ff0bac10ff",
+      "title": "feat(debug): 接通报告助手并建立异常教程对账"
+    },
+    {
+      "unit": "EH-01 共享导出修复",
+      "commit": "9e7062e2ccadd1a71921bc3623726983191075fe",
+      "title": "fix(support): 恢复并行提交的内部字段删除导出"
+    },
+    {
+      "unit": "EH-02 异常实例行为与忽略标记",
+      "commit": "5956d2b6407ade7a7e096d8d66d932c8ad314634",
+      "title": "feat(debug): 接通异常实例行为与不报告标记"
+    },
+    {
+      "unit": "EH-03 错误页对象与默认模板发布",
+      "commit": "8d9a3186bfb4ea2dd1f247076fa87e01734b8912",
+      "title": "feat(debug): 补齐错误页对象与默认模板发布"
+    },
+    {
+      "unit": "EH-04 异步渲染/最终响应及教程闭环",
+      "commit": "a535eabce3a50801226f8038196d26617c4b2e34",
+      "title": "feat(debug): 支持异步异常响应并闭合错误处理教程"
+    }
+  ],
+  "push_authorized": false
+}
