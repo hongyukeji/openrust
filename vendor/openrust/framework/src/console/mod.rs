@@ -3,8 +3,10 @@
 mod application;
 mod command;
 mod command_input;
+mod command_io;
 mod descriptor;
 pub mod events;
+mod formatting;
 pub mod generator_command;
 mod help_command;
 mod input;
@@ -32,9 +34,12 @@ use regex::Regex;
 
 pub use application::Application;
 pub use command::{
-    ClosureCommand, Command, CommandCallback, CommandDefinition, IntoCommandCallback,
+    AsyncCommandCallback, ClosureCommand, Command, CommandCallback, CommandDefinition,
+    IntoCommandCallback,
 };
 pub use command_input::CommandInput;
+pub use command_io::CommandIo;
+pub use formatting::ConsoleFormatError;
 pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
@@ -84,6 +89,8 @@ pub struct Output {
     verbosity: u8,
     suppressed: bool,
     terminal: bool,
+    capture_generation: u64,
+    formatter: formatting::Formatter,
 }
 
 impl Output {

@@ -1,0 +1,206 @@
+[
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "Plain",
+        "output": "Plain\n"
+    },
+    {
+        "ansi": false,
+        "method": "info",
+        "message": "Ready",
+        "output": "Ready\n"
+    },
+    {
+        "ansi": false,
+        "method": "comment",
+        "message": "Note",
+        "output": "Note\n"
+    },
+    {
+        "ansi": false,
+        "method": "question",
+        "message": "Which?",
+        "output": "Which?\n"
+    },
+    {
+        "ansi": false,
+        "method": "warn",
+        "message": "Caution",
+        "output": "Caution\n"
+    },
+    {
+        "ansi": false,
+        "method": "error",
+        "message": "Failed",
+        "output": "Failed\n"
+    },
+    {
+        "ansi": false,
+        "method": "alert",
+        "message": "你好",
+        "output": "**************\n*     你好     *\n**************\n\n"
+    },
+    {
+        "ansi": false,
+        "method": "newLine",
+        "message": 3,
+        "output": "\n\n\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "<unknown>literal<\/unknown>",
+        "output": "<unknown>literal<\/unknown>\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "<INFO>uppercase<\/INFO>",
+        "output": "<INFO>uppercase<\/INFO>\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "<fg=red;bg=blue;options=bold,underscore,blink,reverse,conceal>styles<\/>",
+        "output": "styles\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "<fg=bright-white;bg=gray>Bright<\/>",
+        "output": "Bright\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "<fg=green>Green<\/info>",
+        "output": "Green\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "<info>green<\/info>",
+        "output": "green\n"
+    },
+    {
+        "ansi": false,
+        "method": "info",
+        "message": "A<comment>yellow<\/comment>B",
+        "output": "AyellowB\n"
+    },
+    {
+        "ansi": false,
+        "method": "line",
+        "message": "\\<info>literal\\<\/info>",
+        "output": "<info>literal<\/info>\n"
+    },
+    {
+        "ansi": false,
+        "method": "comment",
+        "message": "<options=bold>Bold<\/> and <fg=gray>Gray<\/>",
+        "output": "Bold and Gray\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "Plain",
+        "output": "Plain\n"
+    },
+    {
+        "ansi": true,
+        "method": "info",
+        "message": "Ready",
+        "output": "\u001b[32mReady\u001b[39m\n"
+    },
+    {
+        "ansi": true,
+        "method": "comment",
+        "message": "Note",
+        "output": "\u001b[33mNote\u001b[39m\n"
+    },
+    {
+        "ansi": true,
+        "method": "question",
+        "message": "Which?",
+        "output": "\u001b[30;46mWhich?\u001b[39;49m\n"
+    },
+    {
+        "ansi": true,
+        "method": "warn",
+        "message": "Caution",
+        "output": "\u001b[33mCaution\u001b[39m\n"
+    },
+    {
+        "ansi": true,
+        "method": "error",
+        "message": "Failed",
+        "output": "\u001b[37;41mFailed\u001b[39;49m\n"
+    },
+    {
+        "ansi": true,
+        "method": "alert",
+        "message": "你好",
+        "output": "\u001b[33m**************\u001b[39m\n\u001b[33m*     你好     *\u001b[39m\n\u001b[33m**************\u001b[39m\n\n"
+    },
+    {
+        "ansi": true,
+        "method": "newLine",
+        "message": 3,
+        "output": "\n\n\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "<unknown>literal<\/unknown>",
+        "output": "<unknown>literal<\/unknown>\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "<INFO>uppercase<\/INFO>",
+        "output": "<INFO>uppercase<\/INFO>\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "<fg=red;bg=blue;options=bold,underscore,blink,reverse,conceal>styles<\/>",
+        "output": "\u001b[31;44;1;4;5;7;8mstyles\u001b[39;49;22;24;25;27;28m\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "<fg=bright-white;bg=gray>Bright<\/>",
+        "output": "\u001b[97;100mBright\u001b[39;49m\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "<fg=green>Green<\/info>",
+        "output": "\u001b[32mGreen\u001b[39m\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "<info>green<\/info>",
+        "output": "\u001b[32mgreen\u001b[39m\n"
+    },
+    {
+        "ansi": true,
+        "method": "info",
+        "message": "A<comment>yellow<\/comment>B",
+        "output": "\u001b[32mA\u001b[39m\u001b[33myellow\u001b[39m\u001b[32mB\u001b[39m\n"
+    },
+    {
+        "ansi": true,
+        "method": "line",
+        "message": "\\<info>literal\\<\/info>",
+        "output": "<info>literal<\/info>\n"
+    },
+    {
+        "ansi": true,
+        "method": "comment",
+        "message": "<options=bold>Bold<\/> and <fg=gray>Gray<\/>",
+        "output": "\u001b[1mBold\u001b[22m\u001b[33m and \u001b[39m\u001b[90mGray\u001b[39m\n"
+    }
+]

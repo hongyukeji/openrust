@@ -15,6 +15,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 - 2026-11-25 Artisan第六簇实例生命周期已修复：Facade连续调用不再重建命令；首次并发只装配一次，失败可重试、嵌套无锁重入、多应用隔离和独立CLI均经实际验证。81项父消费者（含三语21例、调度5项与Runner）、真实HTTP／主程序／三语PTY／浏览器和严格门禁通过；32GB守卫清理后已恢复冷编译完成。见[第六簇](audits/artisan-tutorial/README.md)。Prompt关联项已闭合；其余注册／I/O／事件等继续，整章未闭合，不推送。
 
+- 2026-11-25 Artisan第七簇默认I/O输出已验：CommandIo与八类消息、共享样式、实时／捕获、输入定义和捕获异步闭包适配；34默认PHP＋三色深18向量、门闩真实流式／嵌套顺序／HTTP错误恢复通过。104父消费者、三语24例、初始化／Runner／严格门禁／主程序／浏览器通过，见[第七簇](audits/artisan-tutorial/README.md)。逐消息详细程度、OutputStyle、问答／表格／进度等公开余项保留[类型清单](audits/artisan-tutorial/io-contracts.json)，继续推进，整章未闭合、不推送。
+
 - 2026-11-25用户授权持续开发完整用户认证入门套件，遇到实现问题按固定基线自行裁决。按[API-A01计划](plans/user-auth-starter-kit.md)的A01-01至05实施，当前已验显式响应与安全资源、full／api双安装预设及基础Blade页面；34项直接消费者、三库各4项真实HTTP、双预设真实Artisan／HTTP与严格门禁通过。邮件链接与密码浏览器会话单元亦已通过三库、file／database／Redis及SPA回归；继续SMTP／队列、PAT／无密码及跨节点撤销、账户中心；进度和证据见[本批记录](audits/user-auth-starter/README.md)。全部批次未闭合，不以底层已有模块或部分验收代替完整交付。保留其他在途工作，按规范实测后分批本地提交；不推送、不发布。
 
 - 2026-11-24 固定Error Handling教程18节已逐项闭合：报告助手、异常类型行为／忽略标记、异步命名视图、419重定向与会话闪存、真实错误页对象、八专用回退及发布均经真实HTTP／Artisan验证；三语正文与[18节账本](audits/error-tutorial/section-map.json)同步，证据与原生差异见[最终核对](audits/error-tutorial/README.md)。保留URL14节、Validation179节及Settings既定范围已闭合状态，不扩张为全框架API或发布矩阵完成。本轮只本地提交，未推送。

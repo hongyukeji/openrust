@@ -455,3 +455,45 @@ fn register_counter() -> Result<(), ConsoleError> {
 每次呼叫獨立持有輸入、輸出、詳細程度和生命週期作用域。命令執行失敗不會重建註冊表；註冊失敗不會公開半成品，後續可以重試。執行命令時不持有註冊表鎖，因此支援巢狀呼叫。
 
 並行請求可能執行同一個命令物件。共享欄位須保證執行緒安全；請求輸入、使用者和請求層級依賴在 `handle` 或目前的 `command_with` 回呼中解析，不在命令註冊時擷取請求資料。
+
+## 寫入命令輸出 {#writing-command-output}
+
+透過 `input.io(output)` 借用目前命令上下文。`line`、`info`、`comment`、`question`、`warn`、`error`、`alert` 和 `new_line(count)` 使用同一輸出。`info` 輸出綠色訊息；`output_components()` 保留既有資訊／警告／錯誤元件配置。輸出失敗可透過 `ConsoleError::source` 讀取原始原因。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+fn register_output() -> Result<(), ConsoleError> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    Artisan::command_with("reports:output", AsyncCommandCallback::new(move |_, input, output| {
+        let calls = calls.clone();
+        Box::pin(async move {
+            tokio::task::yield_now().await;
+            let mut io = input.io(output);
+            io.info("Report ready")?;
+            io.line("<options=bold>Summary</>")?;
+            io.comment("Report generated")?;
+            io.question("Review the report")?;
+            io.warn("One record was skipped")?;
+            io.error("A record needs correction")?;
+            io.new_line(1)?;
+            io.alert("Check complete")?;
+            io.output_components().info("Saved");
+            io.line(&format!("Calls: {}", calls.fetch_add(1, Ordering::SeqCst) + 1))?;
+            Ok(0)
+        })
+    }))?.purpose("Display a report")
+}
+```
+
+寫入前解析命名樣式、前景／背景色、樣式選項及超連結。未知標籤保持字面量，跳脫尖括號正常顯示。未閉合的樣式狀態屬於該輸出物件，不傳入另一輸出；標籤巢狀、顏色或選項非法時回傳 `ConsoleFormatError`。`--ansi`／`--no-ansi` 控制色彩，`--quiet`／`--silent` 抑制普通訊息。
+
+一般 CLI 入口即時傳送這些訊息，並先傳送尚未寫出的元件；不會在 `stdout` 中保留無界終端歷史。程式化 `Output::default()` 將文字擷取到 `stdout`，可用於 HTTP 回應或斷言。原生命令事件的緩衝輸出欄位記錄待寫／擷取文字，不是原始終端輸出的日誌歸檔。
+
+`AsyncCommandCallback::new` 為擷取狀態的非同步閉包明確 boxed-future 回傳型別，仍將同一個回呼交給既有 `command_with`，不增加第二個執行器或額外回呼層。具名非同步函式繼續可用。`has_argument`／`has_option` 檢查輸入定義，已宣告但未賦值的輸入仍存在；`input()` 提供型別化輸入，`input_value` 支援缺失時的回退值。
+
+這裡說明訊息的預設詳細程度。逐訊息詳細程度及其他 `OutputStyle`、互動問題、表格與進度條入口分別核對，不能由上述輸出方法推斷已經提供。

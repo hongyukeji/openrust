@@ -756,6 +756,7 @@ async fn run_command_with_events(
         .await
         .map_err(|error| ConsoleError::new(error.to_string()))?;
     let offset = output.stdout.len();
+    let generation = output.capture_generation;
     let started = std::time::Instant::now();
     let status = command.handle(application, input, output).await?;
     let duration = started.elapsed();
@@ -767,7 +768,15 @@ async fn run_command_with_events(
                 definition: command.definition().syntax.clone(),
                 exit_code: status,
                 duration,
-                output: output.stdout[offset..].to_owned(),
+                output: if generation == output.capture_generation {
+                    output
+                        .stdout
+                        .get(offset..)
+                        .unwrap_or(&output.stdout)
+                        .to_owned()
+                } else {
+                    output.stdout.clone()
+                },
             }),
             &mut crate::events::EventContext::new(),
         )

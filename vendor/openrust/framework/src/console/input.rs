@@ -4,6 +4,13 @@ use super::Input;
 mod mutation;
 
 impl Input {
+    /// 判断定义中是否存在参数，而不是判断它当前是否有值。
+    pub fn has_argument(&self, name: &str) -> bool {
+        self.argument_definition(name, false) || (name == "command" && self.invoked_name.is_some())
+    }
+    pub fn has_option(&self, name: &str) -> bool {
+        self.argument_definition(name, true) && !(name == "no-ansi" && self.inherited(name))
+    }
     /// 按名称读取位置参数；未知名称返回None。
     pub fn argument(&self, name: &str) -> Option<Value> {
         if name == "command" && !self.argument_definition(name, false) {
@@ -44,7 +51,9 @@ impl Input {
         self.parsing_syntax
             .get_arguments()
             .filter(|arg| (arg.get_long().is_some() || arg.get_short().is_some()) == option)
-            .filter(|arg| !(option && arg.get_id().as_str() == "no-ansi" && self.inherited("ansi")))
+            .filter(|arg| {
+                !(option && arg.get_id().as_str() == "no-ansi" && self.inherited("no-ansi"))
+            })
             .map(|arg| {
                 (
                     arg.get_id().to_string(),

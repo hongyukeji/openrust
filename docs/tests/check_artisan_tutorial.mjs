@@ -23,8 +23,9 @@ try {
                     assert.equal(await page.locator('h2#editing-command-input').count(),1);
                     assert.equal(await page.locator('h2#prompting-for-missing-input').count(),1);
                     assert.equal(await page.locator('h2#command-lifecycle').count(),1);
+                    assert.equal(await page.locator('h2#writing-command-output').count(),1);
                     const text=await page.locator('.vp-doc').innerText();
-                    for (const snippet of ['command_with','from_signature','Arc<Mailer>','register_injected','{--Q|queue=default}','register_typed','integer_strict','input.input()','register_isolated','add_isolatable','register_edited','set_option','register_prompted','PromptsForMissingInput','CommandRegistration','register_counter','AtomicUsize']) assert(text.includes(snippet),`${locale}: ${snippet}`);
+                    for (const snippet of ['command_with','from_signature','Arc<Mailer>','register_injected','{--Q|queue=default}','register_typed','integer_strict','input.input()','register_isolated','add_isolatable','register_edited','set_option','register_prompted','PromptsForMissingInput','CommandRegistration','register_counter','AtomicUsize','register_output','AsyncCommandCallback','output_components']) assert(text.includes(snippet),`${locale}: ${snippet}`);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

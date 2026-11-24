@@ -286,8 +286,16 @@
     },
     {
       "anchor": "writing-output",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_default_parameters_remaining_io_contracts",
+      "evidence": [
+        "console_io_tutorial",
+        "io-output-oracle.json",
+        "io-color-oracle.json",
+        "artisan_docs_generated",
+        "accepted-io.json"
+      ],
+      "native": "console::CommandIo",
+      "remaining": "逐消息verbosity／line的style参数及公开OutputStyle等详见io-contracts.json；整节仍在推进"
     },
     {
       "anchor": "tables",

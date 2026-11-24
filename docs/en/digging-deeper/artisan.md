@@ -455,3 +455,45 @@ fn register_counter() -> Result<(), ConsoleError> {
 Each invocation keeps its own input, output, verbosity and lifecycle scope. A command failure does not rebuild the registry. Failed registration does not publish a partial registry and may retry. No registry lock is held during command execution, so nested calls remain possible.
 
 Concurrent requests may execute the same command object. Keep shared fields thread safe, and resolve request-specific inputs, users and dependencies inside `handle` or the current `command_with` callback; do not capture request data while registering commands.
+
+## Writing command output {#writing-command-output}
+
+Use `input.io(output)` to borrow the current command context. `line`, `info`, `comment`, `question`, `warn`, `error`, `alert` and `new_line(count)` write through the same output. `info` writes a green message; `output_components()` retains the existing information/warning/error component layout. Output errors remain available through `ConsoleError::source`.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+fn register_output() -> Result<(), ConsoleError> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    Artisan::command_with("reports:output", AsyncCommandCallback::new(move |_, input, output| {
+        let calls = calls.clone();
+        Box::pin(async move {
+            tokio::task::yield_now().await;
+            let mut io = input.io(output);
+            io.info("Report ready")?;
+            io.line("<options=bold>Summary</>")?;
+            io.comment("Report generated")?;
+            io.question("Review the report")?;
+            io.warn("One record was skipped")?;
+            io.error("A record needs correction")?;
+            io.new_line(1)?;
+            io.alert("Check complete")?;
+            io.output_components().info("Saved");
+            io.line(&format!("Calls: {}", calls.fetch_add(1, Ordering::SeqCst) + 1))?;
+            Ok(0)
+        })
+    }))?.purpose("Display a report")
+}
+```
+
+Named style tags, foreground/background colors, options and hyperlinks are formatted before writing. Unknown tags remain literal; escaped angle brackets remain visible. Unclosed style state belongs to the output object and does not leak into a different output. Malformed nesting, colors or options return `ConsoleFormatError`. `--ansi` and `--no-ansi` control decoration; `--quiet` and `--silent` suppress normal messages.
+
+The normal CLI entry streams these helpers immediately and sends any pending components first. It does not keep an unbounded terminal transcript in `stdout`. Programmatic `Output::default()` captures the text in `stdout` for HTTP responses or assertions. Native buffered command-event metadata contains pending/captured text, rather than an archive of raw terminal writes.
+
+`AsyncCommandCallback::new` supplies the boxed-future return type for capturing asynchronous closures. It passes the same callback to the existing `command_with` dispatcher without a second executor or extra callback layer. Named asynchronous functions remain supported. Input definitions can be checked with `has_argument`/`has_option`, including declared inputs whose current value is missing; `input()` exposes the typed bag and `input_value` reads a value with a fallback.
+
+This entry documents default message verbosity. Per-message verbosity and additional `OutputStyle`, interactive question, table and progress interfaces are tracked separately; their presence is not implied by these output methods.

@@ -87,3 +87,19 @@ Input可克隆，set_argument／set_option复用原Clap定义重建并验证输�
 ### 第六簇提交组合补验（2026-11-25）
 
 cfbe860c0提交窗口中，本地历史进入独立认证提交d8c7ee4b7；accepted-registry.json如实保留原验收基线229301926，不能把旧认证组合的验收冒称为新父提交组合。已重新从Git读取8ce3432b7至cfbe860c0的67条已提交路径，未复制任何当前认证／I/O在途代码；逐条与HEAD blob比较。补验当前纯提交组合35框架＋62根父测试共97项通过，含初始化16项、21个三语示例、Runner与调度；终端夹具ignore仍不计通过。fmt、workspace all-targets严格Clippy24.81s、main(pail)和三语构建退出0，实际main HTTP／Artisan／Pail／Ctrl+C及12组浏览器再验通过。证据registry-head-{framework,root,fmt,clippy,main,docs,gates,runtime,browser}.log，组合源哈希见accepted-registry-combination.json。未改写原始验收证据或覆盖其他在途改动。
+
+## 第七簇：命令I/O基础输出与共享格式器（2026-11-25）
+
+第六簇cfbe860c0及组合补验7918a9e61已提交。本簇先逐类型盘点InteractsWithIO的公开方法及OutputStyle声明，索引io-contracts.json仍明确区分未核对／默认参数已验／完整入口待补；不把Output原有is_verbose等同名函数冒充OutputStyle类型，也不因八个消息名存在宣布整个I/O已闭合。默认写出新增console::CommandIo与Input::io，借用同一Input／Output；读取入口与has_argument／has_option按定义判断，包括已声明而未赋值及应用command元数据。input／input_value延用现有CommandInput。
+
+line／info／comment／question／warn／error／alert／new_line(count)沿原write_raw捕获／实时路径，不建第二个输出通道。info是普通绿字，既有Output信息／警告／错误组件不改义；output_components保留这些组件入口，未冒称完整上游组件Factory。程序化Output::default捕获文本，实际HTTP返回相同字节；CLI及时输出，并先发出旧组件pending后再写新行，避免消息乱序。终端不积累整段历史，旧组件缓冲在发送时取出。事件缓冲代际检测避免嵌套调用中原offset越界，不用unwrap_or_default丢掉仍有的缓冲；CommandFinished的原生output额外字段仍只指缓冲文本，不伪称完整原始终端日志。固定上游事件顺序／可变输入输出仍在events节待审，事件字符串与已有序列化标识未改。
+
+共享有状态格式器按固定Symfony Console v7.4.0核对：命名样式、未知标签保留、尖括号转义、按输出对象保留的标签栈、命名／属性等价关闭、基础／亮色／HEX、options、OSC8链接及终端支持条件。正常与ANSI两套34个真实PHP InteractsWithIO＋OutputStyle结果，加上独立进程4／8／24bit三套各6个Formatter结果，由实际Facade逐条比较。非法HEX字母不照搬PHP hexdec警告后继续计算，返回ConsoleFormatError，这是明确Rust校验差异；合法三／六位与三色深按向量一致。无效颜色／选项／嵌套保留具体Error类型及来源。quiet／silent在格式化前跳过，隐藏的开标签或无效色彩不能改变后续样式或产生错误；实际HTTP错误返回JSON500，后续正常请求恢复。
+
+捕获异步闭包初轮编译反例暴露IntoCommandCallback多形态泛型不能提供预期boxed-future返回型；不是把缺口叫语言限制后换具名函数算通过。新增AsyncCommandCallback::new明确预期HRTB签名，将同一个Arc直接移入原command_with，不添加额外执行器／回调层；实际捕获Arc计数、await及连续Facade调用已验。声明式Arc<Service>依赖解析同时改用ConsoleError::from_source，真实未注册服务保留BindingResolutionError。初轮错误integer传参、异步闭包推导及三语消费者夹具缺Output导入的失败日志保留，产品／夹具修正后复验，不加lint豁免。
+
+终端二进制测试用文件门闩验证IO_BEFORE在命令完成前到达；父进程确认子进程仍存活才释放，随后IO_AFTER只出现一次。嵌套旧组件／新行按顺序各出现一次，quiet／silent不输出消息，终端缓冲保持空；没有用最终stdout冒充实时写入。新9项实质消费者覆盖以上、输入定义、具体错误及恢复、输出间样式隔离、闭包捕获、三色深及真实TCP；流式子进程夹具常规ignore不计通过，实际由父测试调用。固定来源脚本仅在target/tmp，正式新增许可src/console/LICENSE.symfony及THIRD_PARTY_NOTICES摘要；与打包分发同行，不塞进内部目录。JetBrains-JediTerm、IDEA_INITIAL_DIRECTORY、KONSOLE_VERSION是准确的外部终端兼容标识，保留原因是OSC8支持判断，不是框架品牌宣传。
+
+最终8框架目标39项＋根6目标65项，共104父测试通过（含三语24个正式直接示例、初始化16项与Runner）；两终端夹具ignore明确排除，流式夹具在实际父消费者内运行，三语提示示例另逐语PTY复验。workspace fmt、all-targets严格Clippy25.13s、main(pail)及三语构建全0，实际main HTTP／静态／HTML及JSON404／HEAD、独立Artisan inspire／list／Pail错误捕获与清理／Ctrl+C通过，12组双前缀／两宽度浏览器覆盖新writing-command-output。候选已吸收提交版c0a2a7b9c，未夹带当前其他数据库／认证在途内容；sha见accepted-io.json。证据io-frozen-tests.log及额外io-final-http.log、io-frozen-{root,fmt,clippy,main,docs,gates,runtime,formal-tty,browser}.log，原始PHP结果与stderr、io-tests*.log保留。合法输出向量和非法hex差异的验证分开记录，不把PHP异常前缺依赖的结果计通过。
+
+三语明确消息默认详细程度、实时／捕获边界、类型化读取及原生闭包适配；逐消息verbosity／可选style、OutputStyle、交互问答、表格／进度条及其余公开契约继续依io-contracts核对。writing-output更新为默认参数已验，整节／整章均不提前关闭。保留增量缓存、独立源码与日志，正式示例PTY夹具清理；本批无存活服务或容器，不推送。

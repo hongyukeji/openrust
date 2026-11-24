@@ -61,5 +61,8 @@ async fn formal_registry_example() {
 }
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_registry{\n'+registry+registry_checks+'}\n')
+    output_code=re.search(r'```rust\n(.*?)```',text.split('{#writing-command-output}',1)[1],re.S).group(1)
+    output_checks='use openrust::console::Output;\n'+registry_checks.replace('fn formal_registry_example()', 'fn formal_output_example()').replace('.commands(register_counter)', '.commands(register_output)').replace('"reports:count"','"reports:output"').replace('assert_eq!(output.stdout,expected);','assert!(output.stdout.contains("Report ready") && output.stdout.contains("Summary") && output.stdout.contains(&format!("Calls: {}",expected))); assert!(!output.stdout.contains("<options="));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_output{\n'+output_code+output_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

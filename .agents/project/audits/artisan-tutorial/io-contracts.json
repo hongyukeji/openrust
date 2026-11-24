@@ -1,0 +1,437 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "classes": {
+    "InteractsWithIO": [
+      {
+        "method": "input",
+        "source_line": 67,
+        "signature": "public function input($key = null, $default = null)",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::input / input_value",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "hasArgument",
+        "source_line": 80,
+        "signature": "public function hasArgument($name)",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::has_argument",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "argument",
+        "source_line": 91,
+        "signature": "public function argument($key = null)",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::argument / arguments",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "arguments",
+        "source_line": 105,
+        "signature": "public function arguments()",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::arguments",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "hasOption",
+        "source_line": 116,
+        "signature": "public function hasOption($name)",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::has_option",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "option",
+        "source_line": 127,
+        "signature": "public function option($key = null)",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::option / options",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "options",
+        "source_line": 141,
+        "signature": "public function options()",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::options",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "confirm",
+        "source_line": 153,
+        "signature": "public function confirm($question, $default = false)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "ask",
+        "source_line": 165,
+        "signature": "public function ask($question, $default = null)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "anticipate",
+        "source_line": 178,
+        "signature": "public function anticipate($question, $choices, $default = null)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "askWithCompletion",
+        "source_line": 191,
+        "signature": "public function askWithCompletion($question, $choices, $default = null)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "secret",
+        "source_line": 209,
+        "signature": "public function secret($question, $fallback = true)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "choice",
+        "source_line": 228,
+        "signature": "public function choice($question, array $choices, $default = null, $attempts = null, $multiple = false)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "table",
+        "source_line": 246,
+        "signature": "public function table($headers, $rows, $tableStyle = 'default', array $columnStyles = [])",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "withProgressBar",
+        "source_line": 274,
+        "signature": "public function withProgressBar($totalSteps, Closure $callback)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "info",
+        "source_line": 306,
+        "signature": "public function info($string, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::info",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通"
+        ]
+      },
+      {
+        "method": "line",
+        "source_line": 319,
+        "signature": "public function line($string, $style = null, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::line",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通",
+          "可选style参数及公开格式器配置尚待接通"
+        ]
+      },
+      {
+        "method": "comment",
+        "source_line": 333,
+        "signature": "public function comment($string, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::comment",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通"
+        ]
+      },
+      {
+        "method": "question",
+        "source_line": 345,
+        "signature": "public function question($string, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::question",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通"
+        ]
+      },
+      {
+        "method": "error",
+        "source_line": 357,
+        "signature": "public function error($string, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::error",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通"
+        ]
+      },
+      {
+        "method": "warn",
+        "source_line": 369,
+        "signature": "public function warn($string, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::warn",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通"
+        ]
+      },
+      {
+        "method": "alert",
+        "source_line": 387,
+        "signature": "public function alert($string, $verbosity = null)",
+        "status": "verified_default_message_parameters",
+        "native": "console::CommandIo::alert",
+        "evidence": [
+          "io-output-oracle.json",
+          "io-color-oracle.json",
+          "console_io_tutorial"
+        ],
+        "remaining": [
+          "逐消息verbosity参数尚待接通"
+        ]
+      },
+      {
+        "method": "newLine",
+        "source_line": 404,
+        "signature": "public function newLine($count = 1)",
+        "status": "verified_native_explicit_arguments",
+        "native": "console::CommandIo::new_line(count)",
+        "evidence": [
+          "console_io_tutorial",
+          "command_input_tutorial",
+          "io-tests-final.log"
+        ]
+      },
+      {
+        "method": "setInput",
+        "source_line": 417,
+        "signature": "public function setInput(InputInterface $input)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "setOutput",
+        "source_line": 428,
+        "signature": "public function setOutput(OutputStyle $output)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "getOutput",
+        "source_line": 468,
+        "signature": "public function getOutput()",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "outputComponents",
+        "source_line": 478,
+        "signature": "public function outputComponents()",
+        "status": "verified_legacy_component_subset",
+        "native": "console::CommandIo::output_components",
+        "evidence": [
+          "console_io_tutorial::live_binary_emits_before_completion_and_nested_components_keep_order_without_duplication"
+        ],
+        "remaining": [
+          "目前返回原生Output组件入口，仅信息／警告／错误组件已确认；未冒称完整上游Factory类型"
+        ]
+      }
+    ],
+    "OutputStyle": [
+      {
+        "method": "__construct",
+        "source_line": 44,
+        "signature": "public function __construct(InputInterface $input, OutputInterface $output)",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "askQuestion",
+        "source_line": 55,
+        "signature": "public function askQuestion(Question $question): mixed",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "write",
+        "source_line": 68,
+        "signature": "public function write(string|iterable $messages, bool $newline = false, int $options = 0): void",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "writeln",
+        "source_line": 80,
+        "signature": "public function writeln(string|iterable $messages, int $type = self::OUTPUT_NORMAL): void",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "newLine",
+        "source_line": 94,
+        "signature": "public function newLine(int $count = 1): void",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "newLinesWritten",
+        "source_line": 105,
+        "signature": "public function newLinesWritten()",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "newLineWritten",
+        "source_line": 119,
+        "signature": "public function newLineWritten()",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "isQuiet",
+        "source_line": 154,
+        "signature": "public function isQuiet(): bool",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "isVerbose",
+        "source_line": 164,
+        "signature": "public function isVerbose(): bool",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "isVeryVerbose",
+        "source_line": 174,
+        "signature": "public function isVeryVerbose(): bool",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "isDebug",
+        "source_line": 184,
+        "signature": "public function isDebug(): bool",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      },
+      {
+        "method": "getOutput",
+        "source_line": 194,
+        "signature": "public function getOutput()",
+        "status": "pending_entry_and_behavior_review",
+        "native": null,
+        "evidence": []
+      }
+    ]
+  },
+  "notes": [
+    "声明索引仅用于盘点，不是实现或验收证据。",
+    "对应公开类型、参数、默认值及真实消费者验收后逐项更新。",
+    "表格／进度条及问答继承入口按本章实际承诺另行核对，不把通用回调当专用接口。"
+  ],
+  "native_adaptations": [
+    {
+      "native": "AsyncCommandCallback::new",
+      "reason": "多形态IntoCommandCallback约束不能给捕获异步闭包推导boxed-future返回类型，显式构造器提供预期签名；Arc直接移入既有执行器，无第二个回调执行层",
+      "evidence": [
+        "console_io_tutorial::captured_async_callbacks_use_the_same_facade_and_dependency_errors_keep_their_source",
+        "artisan_docs_generated"
+      ]
+    },
+    {
+      "native": "CommandIo terminal streaming",
+      "reason": "沿用write_raw；终端及时写入且不缓存整段历史，Output::default按原行为捕获文本；组件pending在下一次实时写入前按序发出",
+      "evidence": [
+        "console_io_tutorial::live_binary_emits_before_completion_and_nested_components_keep_order_without_duplication"
+      ]
+    },
+    {
+      "native": "ConsoleFormatError::InvalidColor",
+      "reason": "合法3／6位HEX及4／8／24bit输出按固定向量；非法HEX字母不复刻PHP hexdec警告后继续取值，返回明确格式错误",
+      "evidence": [
+        "console_io_tutorial::color_depths_hex_colors_and_hyperlinks_match_the_fixed_formatter_in_independent_processes"
+      ]
+    }
+  ]
+}

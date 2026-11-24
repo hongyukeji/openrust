@@ -455,3 +455,45 @@ fn register_counter() -> Result<(), ConsoleError> {
 每次调用独立持有输入、输出、详细程度和生命周期作用域。命令执行失败不会重建注册表；注册失败不会公开半成品，后续可以重试。执行命令时不持有注册表锁，因此支持嵌套调用。
 
 并发请求可能执行同一个命令对象。共享字段须保证线程安全；请求输入、用户和请求级依赖在 `handle` 或当前 `command_with` 回调中解析，不在命令注册时捕获请求数据。
+
+## 写入命令输出 {#writing-command-output}
+
+通过 `input.io(output)` 借用当前命令上下文。`line`、`info`、`comment`、`question`、`warn`、`error`、`alert` 和 `new_line(count)` 使用同一输出。`info` 输出绿色消息；`output_components()` 保留现有信息／警告／错误组件布局。输出失败可通过 `ConsoleError::source` 读取原始原因。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+fn register_output() -> Result<(), ConsoleError> {
+    let calls = Arc::new(AtomicUsize::new(0));
+    Artisan::command_with("reports:output", AsyncCommandCallback::new(move |_, input, output| {
+        let calls = calls.clone();
+        Box::pin(async move {
+            tokio::task::yield_now().await;
+            let mut io = input.io(output);
+            io.info("Report ready")?;
+            io.line("<options=bold>Summary</>")?;
+            io.comment("Report generated")?;
+            io.question("Review the report")?;
+            io.warn("One record was skipped")?;
+            io.error("A record needs correction")?;
+            io.new_line(1)?;
+            io.alert("Check complete")?;
+            io.output_components().info("Saved");
+            io.line(&format!("Calls: {}", calls.fetch_add(1, Ordering::SeqCst) + 1))?;
+            Ok(0)
+        })
+    }))?.purpose("Display a report")
+}
+```
+
+写入前解析命名样式、前景／背景色、样式选项及超链接。未知标签保持字面量，转义尖括号正常显示。未闭合的样式状态属于该输出对象，不传入另一输出；标签嵌套、颜色或选项非法时返回 `ConsoleFormatError`。`--ansi`／`--no-ansi` 控制颜色，`--quiet`／`--silent` 抑制普通消息。
+
+普通 CLI 入口实时发送这些消息，并先发送尚未写出的组件；不会在 `stdout` 中保留无界终端历史。程序化 `Output::default()` 将文本捕获到 `stdout`，可用于 HTTP 响应或断言。原生命令事件的缓冲输出字段记录待写／捕获文本，不是原始终端输出的日志归档。
+
+`AsyncCommandCallback::new` 为捕获状态的异步闭包明确 boxed-future 返回类型，仍将同一个回调交给既有 `command_with`，不增加第二个执行器或额外回调层。具名异步函数继续可用。`has_argument`／`has_option` 检查输入定义，已声明但未赋值的输入仍存在；`input()` 提供类型化输入，`input_value` 支持缺失时的回退值。
+
+这里说明消息的默认详细程度。逐消息详细程度及其他 `OutputStyle`、交互问题、表格和进度条入口分别核对，不能由上述输出方法推断已经提供。

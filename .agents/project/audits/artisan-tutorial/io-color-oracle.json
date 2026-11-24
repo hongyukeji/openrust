@@ -1,0 +1,80 @@
+{
+  "truecolor": [
+    {
+      "message": "<fg=#f00>short red</>",
+      "output": "\u001b[38;2;255;0;0mshort red\u001b[39m"
+    },
+    {
+      "message": "<fg=#203040;bg=#abc>rgb</>",
+      "output": "\u001b[38;2;32;48;64;48;2;170;187;204mrgb\u001b[39;49m"
+    },
+    {
+      "message": "<fg=#808080>gray</>",
+      "output": "\u001b[38;2;128;128;128mgray\u001b[39m"
+    },
+    {
+      "message": "<fg=#000>black</>",
+      "output": "\u001b[38;2;0;0;0mblack\u001b[39m"
+    },
+    {
+      "message": "<fg=#ffffff>white</>",
+      "output": "\u001b[38;2;255;255;255mwhite\u001b[39m"
+    },
+    {
+      "message": "<href=https://example.com>link</>",
+      "output": "\u001b]8;;https://example.com\u001b\\link\u001b]8;;\u001b\\"
+    }
+  ],
+  "256color": [
+    {
+      "message": "<fg=#f00>short red</>",
+      "output": "\u001b[38;5;196mshort red\u001b[39m"
+    },
+    {
+      "message": "<fg=#203040;bg=#abc>rgb</>",
+      "output": "\u001b[38;5;59;48;5;152mrgb\u001b[39;49m"
+    },
+    {
+      "message": "<fg=#808080>gray</>",
+      "output": "\u001b[38;5;244mgray\u001b[39m"
+    },
+    {
+      "message": "<fg=#000>black</>",
+      "output": "\u001b[38;5;16mblack\u001b[39m"
+    },
+    {
+      "message": "<fg=#ffffff>white</>",
+      "output": "\u001b[38;5;231mwhite\u001b[39m"
+    },
+    {
+      "message": "<href=https://example.com>link</>",
+      "output": "\u001b]8;;https://example.com\u001b\\link\u001b]8;;\u001b\\"
+    }
+  ],
+  "dumb": [
+    {
+      "message": "<fg=#f00>short red</>",
+      "output": "\u001b[31mshort red\u001b[39m"
+    },
+    {
+      "message": "<fg=#203040;bg=#abc>rgb</>",
+      "output": "\u001b[30;47mrgb\u001b[39;49m"
+    },
+    {
+      "message": "<fg=#808080>gray</>",
+      "output": "\u001b[37mgray\u001b[39m"
+    },
+    {
+      "message": "<fg=#000>black</>",
+      "output": "\u001b[30mblack\u001b[39m"
+    },
+    {
+      "message": "<fg=#ffffff>white</>",
+      "output": "\u001b[37mwhite\u001b[39m"
+    },
+    {
+      "message": "<href=https://example.com>link</>",
+      "output": "\u001b]8;;https://example.com\u001b\\link\u001b]8;;\u001b\\"
+    }
+  ]
+}

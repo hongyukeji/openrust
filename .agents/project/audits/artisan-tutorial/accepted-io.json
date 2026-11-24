@@ -1,0 +1,23 @@
+{
+  "base": "c0a2a7b9c824a7c35c0b3bf92f4554076edd76b2",
+  "sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "8670864cb6423f051ce9039294da6e09f978cebe0399acd33cd3c2f074cfda9d",
+    "vendor/openrust/framework/src/console/application.rs": "dcddee4335d9b41cedd7260ecbd1b0774c8eb017f2348330a4a325880e1df44d",
+    "vendor/openrust/framework/src/console/input.rs": "b8d85d17c0ebd99b5a22fc835f653dc0b078a45334f1eb74876d7ec3564df88e",
+    "vendor/openrust/framework/src/console/command_io.rs": "87916f9c0fc52d5849b28eaa56e26d1830dddeee7c8c986dac2769766a98f54d",
+    "vendor/openrust/framework/src/console/formatting.rs": "1d2efe7816fd223232094357964dd2b6f531ed93a930447e433ec74552dd2ad7",
+    "vendor/openrust/framework/tests/console_io_tutorial.rs": "2015e4283759ccfd3f6f5d3c06981bb26ef175cc828c65c079cdf16f3fe038f7",
+    "vendor/openrust/framework/src/console/command.rs": "4d1aedf1f5fba66bc54628015bdd78998ae9759dabb1c745af2fdc6688f47436",
+    "tests/artisan_tutorial_docs.py": "a19c01ad96799519e4a82fc9ec0d93f366f93e7cccf8a5eb8f386844d2f34da4",
+    "docs/tests/check_artisan_tutorial.mjs": "2f711f9832a3e191ee44aaf32c783357ee35d0f6fab9d21c06066ee83ccab9a4",
+    "docs/en/digging-deeper/artisan.md": "9b69bc3cbadcefc4778e30db15366ccbd6800f934366cda0e014c8c51df7f4e7",
+    "docs/zh-Hans/digging-deeper/artisan.md": "7624d2d298c25f7e1b7bcd187eddd36f5a9ca5567084a15268904713c7d32137",
+    "docs/zh-Hant/digging-deeper/artisan.md": "f24b6ff24f04587a9885214b1da74eb79cd7816573eb31bf24fbafd7f696f90a",
+    "vendor/openrust/framework/src/console/LICENSE.symfony": "18da7e490d2aa77197a0619b25bcc771a0110132a9d76071665718d3295e73cb",
+    "THIRD_PARTY_NOTICES.md": "02671c0ba0c2a0b22c9326c53cc3efe11f78b255b52801f5225f9d9373a057ea",
+    ".agents/project/audits/artisan-tutorial/io-output-oracle.json": "92a491b9c1421e210bd69bc591bebe588d307094fe1f3228009bbbdcf3a91200",
+    ".agents/project/audits/artisan-tutorial/io-color-oracle.json": "064f21d2ff9b1329c49d26a172d8df1500d5a73b3374b4b89d07231898af3b47"
+  },
+  "evidence": "target/tmp/artisan-tutorial-20261125/io-frozen-*",
+  "scope": "default output messages, rendering, metadata helpers and capturing async callback adapter; remaining contracts retained in io-contracts.json"
+}

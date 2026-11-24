@@ -66,7 +66,7 @@ impl CommandDefinition {
             .try_get_matches_from(
                 std::iter::once(OsString::from(&command)).chain(arguments.iter().cloned()),
             )
-            .map_err(|error| ConsoleError::new(error.to_string()))?;
+            .map_err(ConsoleError::from_source)?;
         Ok(Input {
             shutdown: None,
             syntax: self.syntax.clone(),
@@ -142,6 +142,29 @@ pub type CommandCallback = dyn for<'a> Fn(
     + Send
     + Sync;
 
+/// 为捕获状态的异步闭包提供明确返回类型，不增加第二层执行器。
+#[derive(Clone)]
+pub struct AsyncCommandCallback(Arc<CommandCallback>);
+impl AsyncCommandCallback {
+    pub fn new(
+        callback: impl for<'a> Fn(
+            &'a Application,
+            &'a Input,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<i32, ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self(Arc::new(callback))
+    }
+}
+impl IntoCommandCallback<AsyncCommandCallback> for AsyncCommandCallback {
+    fn into_command_callback(self) -> Arc<CommandCallback> {
+        self.0
+    }
+}
+
 /// 按参数形状转换闭包，不改变已有仅输出回调的调用方式。
 pub trait IntoCommandCallback<Arguments>: Send + Sync + 'static {
     fn into_command_callback(self) -> Arc<CommandCallback>;
@@ -203,7 +226,7 @@ where
                 let service = app
                     .make::<Service>()
                     .await
-                    .map_err(|error| ConsoleError::new(error.to_string()))?;
+                    .map_err(ConsoleError::from_source)?;
                 callback(service, input, output).await
             })
         })
