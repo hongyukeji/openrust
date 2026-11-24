@@ -49,6 +49,8 @@ let record = logger.on(Subject::new("settings", "1")?)
 
 定製稽核模型時，在應用 Provider 用 `app.container().instance_named("application.activity", value)` 登記 `Arc::new(models::ActivityModel::of::<CustomActivity>())`，並將 `activitylog.activity_model` 設為 `"application.activity"`。保留稽核欄位與 JSON casts；模型中繼資料選擇表及可選連線，顯式 `activitylog.connection` 優先。一般寫入執行原生 Eloquent 儲存事件。定製動作時，以原生容器名稱登記 `LogActivityAction` 或 `CleanActivityLogAction`，再透過 `actions.log_activity`、`actions.clean_log` 選擇；用 `before_logging` 修改日誌，用 `CleanActivityLogAction::using` 定製清理。
 
+直接呼叫 `ActivityRepository::prepare`、`log`、`log_in` 仍使用同一日誌準備與脫敏策略；結構驗證先於啟用開關檢查。已設定的允許清單、遞迴脫敏和負載限制同樣生效，`prepare` 本身不寫入資料庫。透過 `PreparedActivity::log_in` 將準備好的記錄寫入指定交易，使記錄隨交易一起回復。
+
 ## 交易邊界 {#transactions}
 
 顯式交易先呼叫 `repository.prepare(activity)`，再用 `PreparedActivity::log_in` 寫入業務交易。傳入交易選擇資料庫，該庫須已有稽核表。交易失敗或取消會回滾；`repository.log_in(tx, activity)` 合併準備與寫入。獨立 `repository.log(activity)` 不屬於業務交易；外部通知及出貨由應用負責。

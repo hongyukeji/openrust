@@ -59,3 +59,5 @@ MySQL 和 PostgreSQL 分别由 `tests/mysql_acceptance.py`、`tests/postgres_acc
 [其余模型与服务的复核](remaining-models-2026-11-24.md)记录剩余职责混合、可选整理与保留项；本页保留上一轮验收结论；当前落实状态见[六项实施验收](implementation-2026-11-24.md)。
 
 [Scout 与恢复码可选整理](optional-2026-11-24.md)记录用户选定的两项后续实施与验收。
+
+[相邻服务整理](adjacent-services-2026-11-24.md)记录 Cashier 订阅选择与 Activitylog 日志准备的职责调整及验收。

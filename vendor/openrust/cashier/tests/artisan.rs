@@ -11,7 +11,7 @@ use openrust_cashier::{Billable, BillingStore, Client, Error, Provider, WebhookO
 use serde_json::json;
 use std::sync::Arc;
 use support::{Db, Server, event, subscription};
-struct Fixtures(Vec<(Client, BillingStore)>);
+struct Fixtures(Vec<(Client, BillingStore, openrust::database::Connection)>);
 struct Register(Arc<Fixtures>);
 impl ServiceProvider for Register {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -34,7 +34,8 @@ impl Command for BillingCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let fixtures = app.make::<Fixtures>().await.unwrap();
-            for (client, store) in &fixtures.0 {
+            for (client, store, connection) in &fixtures.0 {
+                support::assert_subscription_selection(connection, client, store).await;
                 let billable =
                     Billable::new(client.clone(), store.clone(), "users:artisan").unwrap();
                 billable.attach_customer("cus_1").await.unwrap();
@@ -108,8 +109,8 @@ async fn native_artisan_keeps_remote_operations_and_webhook_transactions() {
     let stripe = Server::new(Provider::Stripe).await;
     let paddle = Server::new(Provider::Paddle).await;
     let fixtures = Arc::new(Fixtures(vec![
-        (stripe.client(), db.store.clone()),
-        (paddle.client(), db.store.clone()),
+        (stripe.client(), db.store.clone(), db.connection.clone()),
+        (paddle.client(), db.store.clone(), db.connection.clone()),
     ]));
     let mut app = TestApp::create(|builder| {
         builder

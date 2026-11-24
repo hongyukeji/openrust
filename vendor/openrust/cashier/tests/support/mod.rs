@@ -143,11 +143,18 @@ async fn handler(
     }
     let stripe = provider == Provider::Stripe;
     let p = path.strip_prefix("/v1").unwrap_or(&path);
-    let value = if p == "/customers" && method == http::Method::POST || p == "/customers/cus_1" {
+    let customer = p
+        .strip_prefix("/customers/")
+        .filter(|id| id.starts_with("cus_selection_"))
+        .unwrap_or("cus_1");
+    let value = if p == "/customers" && method == http::Method::POST
+        || p == "/customers/cus_1"
+        || p.starts_with("/customers/cus_selection_")
+    {
         if s.customer_deleted {
-            json!({"id":"cus_1","deleted":true})
+            json!({"id":customer,"deleted":true})
         } else {
-            json!({"id":"cus_1","balance":-300,"invoice_settings":{"default_payment_method":"pm_1"}})
+            json!({"id":customer,"balance":-300,"invoice_settings":{"default_payment_method":"pm_1"}})
         }
     } else if p == "/payment_methods/pm_1" || p.starts_with("/payment_methods/pm_1/") {
         json!({"id":"pm_1","customer":"cus_1"})
@@ -365,4 +372,141 @@ pub fn headers(provider: Provider, body: &[u8], offset: i64, secret: &str) -> ht
         .unwrap(),
     );
     h
+}
+
+// 从公开入口核对同名订阅的选择、失败和解码顺序；HTTP 与 Artisan 共用此消费者。
+pub async fn assert_subscription_selection(
+    connection: &Connection,
+    client: &Client,
+    store: &BillingStore,
+) {
+    use openrust_cashier::{Error, Subscription};
+    let owner = "users:selection";
+    let remote = format!("cus_selection_{}", client.provider().as_str());
+    let billable = Billable::new(client.clone(), store.clone(), owner).unwrap();
+    billable.attach_customer(&remote).await.unwrap();
+    let customer_key = connection
+        .table("cashier_customers")
+        .r#where("remote_id", "=", remote)
+        .value("id")
+        .await
+        .unwrap();
+    for (rows, expected) in [
+        (vec![], Ok(None)),
+        (
+            vec![
+                ("old", "canceled", 1),
+                ("a", "cancelled", 2),
+                ("z", "incomplete_expired", 2),
+            ],
+            Ok(Some("z")),
+        ),
+        (
+            vec![("current", "past_due", 0), ("later", "canceled", 99)],
+            Ok(Some("current")),
+        ),
+        (
+            vec![("paused", "paused", 0), ("later", "cancelled", 99)],
+            Ok(Some("paused")),
+        ),
+        (
+            vec![("active", "active", 1), ("trial", "trialing", 2)],
+            Err(()),
+        ),
+    ] {
+        connection
+            .table("cashier_subscriptions")
+            .r#where("customer_key", "=", customer_key.clone())
+            .delete()
+            .await
+            .unwrap();
+        for (id, status, created_at) in rows {
+            let subscription = Subscription {
+                id: id.into(),
+                customer: "selection".into(),
+                name: "default".into(),
+                created_at,
+                status: status.into(),
+                trial_ends_at: None,
+                ends_at: None,
+                paused_at: None,
+                items: vec![],
+            };
+            connection
+                .table("cashier_subscriptions")
+                .insert(&[[
+                    (
+                        "id".into(),
+                        format!("selection_{}_{}", client.provider().as_str(), id).into(),
+                    ),
+                    ("customer_key".into(), customer_key.clone()),
+                    ("name".into(), "default".into()),
+                    (
+                        "payload".into(),
+                        serde_json::to_string(&subscription).unwrap().into(),
+                    ),
+                ]
+                .into_iter()
+                .collect()])
+                .await
+                .unwrap();
+        }
+        let result = store.subscription(client, owner, "default").await;
+        match expected {
+            Ok(id) => assert_eq!(result.unwrap().map(|s| s.id), id.map(str::to_owned)),
+            Err(()) => assert!(matches!(
+                result,
+                Err(Error::InvalidInput(
+                    "multiple subscriptions share this name; use subscription_by_id"
+                ))
+            )),
+        }
+        match expected {
+            Ok(id) => assert_eq!(
+                billable
+                    .subscription("default")
+                    .await
+                    .unwrap()
+                    .map(|s| s.id.clone()),
+                id.map(str::to_owned)
+            ),
+            Err(()) => assert!(matches!(
+                billable.subscription("default").await,
+                Err(Error::InvalidInput(_))
+            )),
+        }
+    }
+    // 即使已有活动订阅，坏载荷也必须先解码失败，不能提前选择成功。
+    connection
+        .table("cashier_subscriptions")
+        .r#where("customer_key", "=", customer_key.clone())
+        .r#where(
+            "id",
+            "=",
+            format!("selection_{}_trial", client.provider().as_str()),
+        )
+        .update(
+            [("payload".into(), "invalid-json".into())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        store.subscription(client, owner, "default").await,
+        Err(Error::Database)
+    ));
+    assert!(
+        store
+            .subscription(client, "users:absent", "default")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    connection
+        .table("cashier_subscriptions")
+        .r#where("customer_key", "=", customer_key)
+        .delete()
+        .await
+        .unwrap();
 }

@@ -19,6 +19,7 @@ jiff = "=0.2.46"
 clap = "4.6.1"
 
 [dev-dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "time", "net", "sync"] }
 tempfile = "3.27"
 http = "1.4"

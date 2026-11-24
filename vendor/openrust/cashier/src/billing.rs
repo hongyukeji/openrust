@@ -1269,3 +1269,29 @@ pub(crate) async fn sync_subscription(
         .await
         .map_err(map_db)
 }
+
+// 同名订阅的业务选择规则；调用方已完成查询和解码。
+pub(crate) fn select_subscription(
+    mut candidates: Vec<Subscription>,
+) -> Result<Option<Subscription>> {
+    let active = candidates
+        .iter()
+        .filter(|s| {
+            !matches!(
+                s.status.as_str(),
+                "canceled" | "cancelled" | "incomplete_expired"
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if active.len() > 1 {
+        return Err(Error::InvalidInput(
+            "multiple subscriptions share this name; use subscription_by_id",
+        ));
+    }
+    if let Some(s) = active.into_iter().next() {
+        return Ok(Some(s));
+    }
+    candidates.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
+    Ok(candidates.pop())
+}

@@ -49,6 +49,8 @@ Each model also implements `Clone`, stores a `models::LoggingState` initialized 
 
 To use a custom activity model, register `Arc::new(models::ActivityModel::of::<CustomActivity>())` with `app.container().instance_named("application.activity", value)` in the application Provider and set `activitylog.activity_model` to `"application.activity"`. Keep the activity columns and JSON casts; the model metadata chooses the table and optional connection unless `activitylog.connection` overrides it. Ordinary writes use native Eloquent save events. For custom actions, register a `LogActivityAction` or `CleanActivityLogAction` under a native container name and select that name in `actions.log_activity` or `actions.clean_log`. Use `before_logging` for log customization and `CleanActivityLogAction::using` for a custom cleaner.
 
+Direct `ActivityRepository::prepare`, `log` and `log_in` calls use the same preparation and redaction policy. Structural validation runs before the enabled check. Configured allowlists, recursive redaction and payload limits still apply; `prepare` performs no database writes. Persist a prepared entry with `PreparedActivity::log_in` to join the supplied transaction and roll back with it.
+
 ## Transaction boundaries {#transactions}
 
 Prepare an explicit transaction log with `repository.prepare(activity)` and use `PreparedActivity::log_in` inside the business transaction. The supplied transaction selects the database, which must already contain the activity table. Failure or cancellation rolls back the log. `repository.log_in(tx, activity)` combines preparation and writing. Independent `repository.log(activity)` does not join a business transaction. Applications own external notifications and fulfillment.

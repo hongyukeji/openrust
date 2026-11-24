@@ -1,5 +1,11 @@
 mod support;
-use axum::{Router, body::Bytes, extract::State, response::IntoResponse, routing::post};
+use axum::{
+    Router,
+    body::Bytes,
+    extract::State,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use openrust::{database::DatabaseError, http::client::Factory};
 use openrust_cashier::{BillingStore, Client, Provider};
 use std::sync::{
@@ -11,6 +17,7 @@ use support::*;
 #[derive(Clone)]
 struct Endpoint {
     client: Client,
+    connection: openrust::database::Connection,
     store: BillingStore,
     fail: Arc<AtomicBool>,
 }
@@ -77,6 +84,7 @@ async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subs
         );
         let state = Endpoint {
             client,
+            connection: db.connection.clone(),
             store: db.store.clone(),
             fail: Arc::new(AtomicBool::new(true)),
         };
@@ -84,6 +92,7 @@ async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subs
         let url = format!("http://{}/webhook", listener.local_addr().unwrap());
         let app = Router::new()
             .route("/webhook", post(callback))
+            .route("/selection", get(selection))
             .with_state(state);
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let http = Factory::new().unwrap();
@@ -128,6 +137,13 @@ async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subs
         println!(
             "{provider:?}: TCP raw webhook tamper400, transaction failure500, retry200, duplicate200, canonical active subscription PASS"
         );
+        let selected = http
+            .pending_request()
+            .get(&url.replace("/webhook", "/selection"))
+            .await
+            .unwrap();
+        assert_eq!(selected.status(), 200);
+        assert_eq!(selected.body().unwrap().as_ref(), b"selection passed");
         server.abort();
         let _ = server.await;
         db.connection
@@ -145,4 +161,9 @@ async fn signed_http_webhooks_rollback_retry_duplicate_and_preserve_current_subs
         .rollback(None, &[], Default::default())
         .await
         .unwrap();
+}
+
+async fn selection(State(s): State<Endpoint>) -> &'static str {
+    support::assert_subscription_selection(&s.connection, &s.client, &s.store).await;
+    "selection passed"
 }

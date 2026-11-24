@@ -29,11 +29,13 @@ Stripe customer APIs retain `stripe_id`, `has_stripe_id`, `create_as_stripe_cust
 
 `Billable` is a trusted identity adapter rather than a PHP model trait. Provide customer name/email/address in `options`; no reflection reads application model fields. Provider objects remain JSON values, while local subscription/invoice records are typed. `subscription()` returns `SubscriptionHandle`, which owns operations and dereferences the stored `Subscription`; `as_stripe_subscription` and `as_paddle_subscription` retain their provider boundaries. `raw_balance()` returns Stripe minor units; the existing integer `balance()` is a convenience alias, without PHP localized currency formatting. Mutation keys are explicit Rust arguments to retain retry safety.
 
+Use the existing `Billable` and `BillingStore` APIs for billing operations and verified webhooks. Billing and webhook services coordinate remote calls and business decisions; storage keeps operation claims, account locks and durable writes. Remote reads and the application SQL handler retain their existing transaction order, so a rollback keeps the event retryable.
+
+`subscription(name)` chooses within the current account and owner. A single candidate whose status is neither `canceled`, `cancelled` nor `incomplete_expired` takes precedence; multiple such candidates return an error, so use `subscription_by_id`. When only terminal candidates remain, the greatest `(created_at, id)` wins. An empty set returns `None`; malformed stored payloads propagate an error.
+
 ```rust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
 use serde_json::json;
-
-Use the existing `Billable` and `BillingStore` APIs for billing operations and verified webhooks. Billing and webhook services coordinate remote calls and business decisions; storage keeps operation claims, account locks and durable writes. Remote reads and the application SQL handler retain their existing transaction order, so a rollback keeps the event retryable.
 
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());

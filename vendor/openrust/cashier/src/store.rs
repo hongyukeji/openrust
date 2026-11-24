@@ -173,31 +173,13 @@ impl BillingStore {
             .get()
             .await
             .map_err(map_db)?;
-        let mut candidates = rows
+        let candidates = rows
             .iter()
             .map(|r| decode(r.get("payload")))
             .collect::<Result<Vec<Subscription>>>()?;
-        let active = candidates
-            .iter()
-            .filter(|s| {
-                !matches!(
-                    s.status.as_str(),
-                    "canceled" | "cancelled" | "incomplete_expired"
-                )
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        if active.len() > 1 {
-            return Err(Error::InvalidInput(
-                "multiple subscriptions share this name; use subscription_by_id",
-            ));
-        }
-        if let Some(s) = active.into_iter().next() {
-            return Ok(Some(s));
-        }
-        candidates.sort_by(|a, b| (a.created_at, &a.id).cmp(&(b.created_at, &b.id)));
-        Ok(candidates.pop())
+        crate::billing::select_subscription(candidates)
     }
+
     pub async fn subscription_by_id(
         &self,
         client: &Client,

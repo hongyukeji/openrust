@@ -49,6 +49,8 @@ let record = logger.on(Subject::new("settings", "1")?)
 
 定制审计模型时，在应用 Provider 用 `app.container().instance_named("application.activity", value)` 登记 `Arc::new(models::ActivityModel::of::<CustomActivity>())`，并将 `activitylog.activity_model` 设为 `"application.activity"`。保留审计列与 JSON casts；模型元数据选择表及可选连接，显式 `activitylog.connection` 优先。普通写入执行原生 Eloquent 保存事件。定制动作时，以原生容器名称登记 `LogActivityAction` 或 `CleanActivityLogAction`，再通过 `actions.log_activity`、`actions.clean_log` 选择；用 `before_logging` 修改日志，用 `CleanActivityLogAction::using` 定制清理。
 
+直接调用 `ActivityRepository::prepare`、`log`、`log_in` 仍使用同一日志准备与脱敏策略；结构校验先于启用开关检查。已配置的白名单、递归脱敏和载荷限制同样生效，`prepare` 本身不写数据库。通过 `PreparedActivity::log_in` 将准备好的记录写入指定事务，使记录随事务一起回滚。
+
 ## 事务边界 {#transactions}
 
 显式事务日志先调用 `repository.prepare(activity)`，再用 `PreparedActivity::log_in` 写入业务事务。传入事务选择数据库，该库须已有审计表。事务失败或取消会回滚；`repository.log_in(tx, activity)` 合并准备和写入。独立的 `repository.log(activity)` 不属于业务事务。外部通知或发货由应用负责。

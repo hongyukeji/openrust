@@ -29,11 +29,13 @@ Stripe 客户接口保留 `stripe_id`、`has_stripe_id`、`create_as_stripe_cust
 
 `Billable` 是绑定可信身份的适配器；客户姓名、邮箱、地址通过 `options` 提供，不反射应用模型字段。供应商对象返回 JSON，本地订阅和账单记录使用类型。`subscription()` 返回持有操作能力并解引用到 `Subscription` 数据的 `SubscriptionHandle`；`as_stripe_subscription` 与 `as_paddle_subscription` 分别校验供应商。`raw_balance()` 返回 Stripe 最小货币单位；现有整数 `balance()` 是便利别名，不提供 PHP 的本地化货币格式。修改请求显式传入业务幂等键以保证重试安全。
 
+账单操作和已验证 Webhook 继续使用既有 `Billable` 与 `BillingStore` API。账单和 Webhook 服务协调远端调用及业务决策，存储层负责操作占用、账户锁和持久化写入。远端读取与应用 SQL 处理器保持原有事务顺序，回滚后事件仍可重试。
+
+`subscription(name)` 只在当前账户与客户内选择。状态不是 `canceled`、`cancelled` 或 `incomplete_expired` 的候选仅有一个时优先返回；此类候选有多个时返回错误，应改用 `subscription_by_id`。全部为上述终止状态时按 `(created_at, id)` 选择最大项。没有候选返回 `None`；存储载荷无法解码时传播错误。
+
 ```rust
 use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
 use serde_json::json;
-
-账单操作和已验证 Webhook 继续使用既有 `Billable` 与 `BillingStore` API。账单和 Webhook 服务协调远端调用及业务决策，存储层负责操作占用、账户锁和持久化写入。远端读取与应用 SQL 处理器保持原有事务顺序，回滚后事件仍可重试。
 
 let client = Cashier::driver("stripe")?;
 let store = BillingStore::new(connection.clone());

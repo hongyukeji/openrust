@@ -17,6 +17,7 @@ mod model_observer;
 mod model_snapshot;
 mod model_store;
 pub mod models;
+mod preparation;
 mod provider;
 mod repository;
 pub mod support;
