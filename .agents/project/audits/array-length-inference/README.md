@@ -77,3 +77,7 @@
 ## Release性能与堆分配
 
 [Release实测对照](release-benchmark/README.md)：分配计数相同、稳态基本不变；保留受控首次Faker构造约0.6微秒变慢、对启动上下文敏感的冷路径例外，不宣称所有场景绝对零开销。
+
+## 路由注册分配热点优化
+
+13700次分配的主要来源及后续优化见[路由注册热点记录](../route-registration-allocations/README.md)：93.43%来自路径编译；字面路径优化后128条GET注册为1028次alloc，Release完整注册／销毁耗时约减少90%。

@@ -13,6 +13,7 @@ const PCRE_BAD_RELATIVE_REFERENCE: i32 = 129;
 enum Matcher {
     Linear(Regex),
     Pcre(Box<pcre2::bytes::Regex>),
+    Literal(Box<str>),
 }
 
 fn compile_pcre(expression: &str, host: bool) -> Result<pcre2::bytes::Regex, pcre2::Error> {
@@ -43,7 +44,7 @@ impl Token<'_> {
 }
 
 pub(super) struct RoutePattern {
-    regex: Matcher,
+    matcher: Matcher,
     parameters: Vec<(String, Option<String>)>,
     uri_without_binding_fields: Option<String>,
 }
@@ -80,6 +81,18 @@ impl RoutePattern {
         let invalid = || RoutingError::InvalidUri {
             uri: uri.to_owned(),
         };
+        // 超长模板保留正则编译流程，维持原有资源限制及错误行为。
+        const MAX_LITERAL_PATH_BYTES: usize = 1024;
+        if !host && uri.len() <= MAX_LITERAL_PATH_BYTES && !uri.contains('{') {
+            if !valid_literal(uri) {
+                return Err(invalid());
+            }
+            return Ok(Self {
+                matcher: Matcher::Literal(uri.into()),
+                parameters: Vec::new(),
+                uri_without_binding_fields: None,
+            });
+        }
         let mut parameters = Vec::new();
         let mut tokens = Vec::new();
         let mut remaining = uri;
@@ -198,7 +211,7 @@ impl RoutePattern {
         }
         expression.push_str(&")?".repeat(tokens.len() - optional_start));
         expression.push_str(r"\z");
-        let regex = if constrained {
+        let matcher = if constrained {
             compile_pcre(&expression, host)
                 .map(|regex| Matcher::Pcre(Box::new(regex)))
                 .map_err(|source| RoutingError::InvalidPcreRoutePattern {
@@ -217,7 +230,7 @@ impl RoutePattern {
                 })?
         };
         Ok(Self {
-            regex,
+            matcher,
             uri_without_binding_fields,
             parameters: parameters
                 .into_iter()
@@ -227,7 +240,8 @@ impl RoutePattern {
     }
 
     pub(super) fn matches(&self, path: &str) -> bool {
-        match &self.regex {
+        match &self.matcher {
+            Matcher::Literal(literal) => literal.as_ref() == path,
             Matcher::Linear(regex) => regex.is_match(path),
             Matcher::Pcre(regex) => regex.captures(path.as_bytes()).is_ok_and(|captures| {
                 captures.is_some_and(|captures| {
@@ -254,7 +268,8 @@ impl RoutePattern {
         path: &str,
         defaults: &HashMap<String, String>,
     ) -> Vec<(String, String)> {
-        match &self.regex {
+        match &self.matcher {
+            Matcher::Literal(_) => self.parameter_values(defaults, |_| None),
             Matcher::Linear(regex) => {
                 let captures = regex.captures(path);
                 self.parameter_values(defaults, |name| {

@@ -1,0 +1,598 @@
+{
+  "baseline": {
+    "commit": "e03be8accee84131133a1eecac7b8609d23c834c"
+  },
+  "environment": {
+    "cpu": "Apple M4 Max",
+    "toolchain": "Rust 1.94.0 aarch64-apple-darwin",
+    "release": "Cargo --release with CARGO_PROFILE_RELEASE_INCREMENTAL=true",
+    "time_binary": "default allocator; separate allocation counter binary",
+    "argv0": "registration-perf identical in both arms",
+    "sampling": "31 randomized pairs, 10000 paired bootstrap resamples, 5 repeated allocation samples"
+  },
+  "allocations": {
+    "before": {
+      "routes_get": {
+        "case": "routes_get",
+        "iterations": 1,
+        "allocs": 13700,
+        "reallocs": 3471,
+        "deallocs": 13700,
+        "requested_bytes": 2826604,
+        "peak_live_bytes": 988069,
+        "retained_bytes": 0
+      },
+      "routes_any": {
+        "case": "routes_any",
+        "iterations": 1,
+        "allocs": 14476,
+        "reallocs": 3501,
+        "deallocs": 14476,
+        "requested_bytes": 2894420,
+        "peak_live_bytes": 1016899,
+        "retained_bytes": 0
+      },
+      "pattern": {
+        "case": "pattern",
+        "iterations": 1,
+        "allocs": 12800,
+        "reallocs": 3328,
+        "deallocs": 12800,
+        "requested_bytes": 2651264,
+        "peak_live_bytes": 9968,
+        "retained_bytes": 0
+      },
+      "regex": {
+        "case": "regex",
+        "iterations": 1,
+        "allocs": 12672,
+        "reallocs": 3328,
+        "deallocs": 12672,
+        "requested_bytes": 2631552,
+        "peak_live_bytes": 9808,
+        "retained_bytes": 0
+      },
+      "methods": {
+        "case": "methods",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      }
+    },
+    "after": {
+      "routes_get": {
+        "case": "routes_get",
+        "iterations": 1,
+        "allocs": 1028,
+        "reallocs": 143,
+        "deallocs": 1028,
+        "requested_bytes": 181420,
+        "peak_live_bytes": 92328,
+        "retained_bytes": 0
+      },
+      "routes_any": {
+        "case": "routes_any",
+        "iterations": 1,
+        "allocs": 1804,
+        "reallocs": 173,
+        "deallocs": 1804,
+        "requested_bytes": 249236,
+        "peak_live_bytes": 121584,
+        "retained_bytes": 0
+      },
+      "pattern": {
+        "case": "pattern",
+        "iterations": 1,
+        "allocs": 128,
+        "reallocs": 0,
+        "deallocs": 128,
+        "requested_bytes": 2048,
+        "peak_live_bytes": 16,
+        "retained_bytes": 0
+      },
+      "regex": {
+        "case": "regex",
+        "iterations": 1,
+        "allocs": 12672,
+        "reallocs": 3328,
+        "deallocs": 12672,
+        "requested_bytes": 2631552,
+        "peak_live_bytes": 9808,
+        "retained_bytes": 0
+      },
+      "methods": {
+        "case": "methods",
+        "iterations": 1,
+        "allocs": 0,
+        "reallocs": 0,
+        "deallocs": 0,
+        "requested_bytes": 0,
+        "peak_live_bytes": 0,
+        "retained_bytes": 0
+      }
+    }
+  },
+  "timing": {
+    "routes_get": {
+      "before_median_ns": 765827.92,
+      "after_median_ns": 78802.09,
+      "paired_change_pct": -89.6538219539155,
+      "ci95_pct": [
+        -89.81229569364204,
+        -89.53335126429911
+      ],
+      "pairs": 31
+    },
+    "routes_any": {
+      "before_median_ns": 911414.59,
+      "after_median_ns": 210034.58,
+      "paired_change_pct": -76.87778468925627,
+      "ci95_pct": [
+        -76.97833406432983,
+        -76.76302493408659
+      ],
+      "pairs": 31
+    },
+    "pattern": {
+      "before_median_ns": 711642.92,
+      "after_median_ns": 4378.34,
+      "paired_change_pct": -99.38428630116285,
+      "ci95_pct": [
+        -99.39430623276905,
+        -99.37477875501867
+      ],
+      "pairs": 31
+    },
+    "regex": {
+      "before_median_ns": 687279.59,
+      "after_median_ns": 695064.16,
+      "paired_change_pct": 1.2039723044749762,
+      "ci95_pct": [
+        0.29816675228138134,
+        1.6099344684168626
+      ],
+      "pairs": 31
+    },
+    "methods": {
+      "before_median_ns": 21.114458,
+      "after_median_ns": 21.104125,
+      "paired_change_pct": -0.1625183433874744,
+      "ci95_pct": [
+        -0.8736638938994679,
+        0.28975431736342205
+      ],
+      "pairs": 31
+    }
+  },
+  "baseline_path_compilation_allocs": 12800,
+  "baseline_full_get_allocs": 13700,
+  "path_compilation_share_pct": 93.43065693430657,
+  "binary_sha256": {
+    "after_time": "b6b7f51bac7c9498521ec574497ce5a941fd2661fd632e205cddf2adc234775a",
+    "before_time": "26ed60b851cbe5909a9e4afe5b414b8f14292bb38044fe5d30490daef30a2ccb",
+    "after_alloc": "7bda9ba267a32107b0f0cf7c6e5d03c3b8dfb0c5d17a7a156e28a6d0ac6e40ba",
+    "before_alloc": "860e329295629fad71870eccb5b910a494df9f8d48bb10fc9c7f3a425deb7057"
+  },
+  "production_sha256": "b72acd6f0c6c8fbeb901c97a23511e4a94db50baf6b45aee7c38946b347afe74",
+  "consumer_sha256": "2e8f4c29c3d4ff57c35d9f1d0fbfe12098c66e2bddba6446a4fa5719135c40dd",
+  "evidence_directory": "target/tmp/route-registration/",
+  "gates": [
+    {
+      "name": "http-accepted",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "+1.94.0",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "/Users/Home/Codes/Rust/openrust/target/tmp/route-registration/source/Cargo.toml",
+        "-p",
+        "openrust-framework",
+        "--test",
+        "routing_literal_patterns",
+        "--test",
+        "routing_methods",
+        "--test",
+        "routing_groups",
+        "--test",
+        "routing_shortcuts",
+        "--test",
+        "routing_named",
+        "--test",
+        "request_input"
+      ]
+    },
+    {
+      "name": "application",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "+1.94.0",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "/Users/Home/Codes/Rust/openrust/target/tmp/route-registration/source/Cargo.toml",
+        "-p",
+        "openrust",
+        "--test",
+        "startup",
+        "--test",
+        "console",
+        "--test",
+        "resource_generator",
+        "--",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "name": "fmt",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "+1.94.0",
+        "fmt",
+        "--manifest-path",
+        "/Users/Home/Codes/Rust/openrust/target/tmp/route-registration/source/Cargo.toml",
+        "--all",
+        "--check"
+      ]
+    },
+    {
+      "name": "clippy",
+      "exit": 0,
+      "command": [
+        "cargo",
+        "+1.94.0",
+        "clippy",
+        "--manifest-path",
+        "/Users/Home/Codes/Rust/openrust/target/tmp/route-registration/source/Cargo.toml",
+        "--locked",
+        "-p",
+        "openrust-framework",
+        "-p",
+        "openrust",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    }
+  ],
+  "executed_test_counts": {
+    "http-accepted": 42,
+    "application": 37
+  },
+  "binary_checks": {
+    "cli": [
+      {
+        "args": [
+          "list",
+          "--format=json"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "stub:publish",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "queue:work",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "route:list",
+          "--help"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "not-a-real-command"
+        ],
+        "exit": 1
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      },
+      {
+        "args": [
+          "./artisan",
+          "inspire",
+          "--no-ansi"
+        ],
+        "exit": 0
+      }
+    ],
+    "http": [
+      {
+        "path": "/",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 22917
+      },
+      {
+        "path": "/",
+        "method": "HEAD",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 0
+      },
+      {
+        "path": "/up",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 200,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 1896
+      },
+      {
+        "path": "/not-found",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 404,
+        "content_type": "text/html; charset=utf-8",
+        "bytes": 136
+      },
+      {
+        "path": "/not-found",
+        "method": "GET",
+        "accept": "application/json",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      },
+      {
+        "path": "/api/not-found",
+        "method": "GET",
+        "accept": "text/html",
+        "status": 404,
+        "content_type": "application/json",
+        "bytes": 23
+      }
+    ],
+    "registered_commands": [
+      "about",
+      "build",
+      "clear-compiled",
+      "completion",
+      "db",
+      "dev",
+      "docs",
+      "down",
+      "env",
+      "help",
+      "init",
+      "inspire",
+      "list",
+      "migrate",
+      "optimize",
+      "pail",
+      "reload",
+      "serve",
+      "test",
+      "tinker",
+      "up",
+      "auth:clear-resets",
+      "cache:clear",
+      "cache:forget",
+      "cache:prune-stale-tags",
+      "channel:list",
+      "config:cache",
+      "config:clear",
+      "config:publish",
+      "config:show",
+      "db:monitor",
+      "db:seed",
+      "db:show",
+      "db:table",
+      "db:wipe",
+      "dev:list",
+      "env:decrypt",
+      "env:encrypt",
+      "event:cache",
+      "event:clear",
+      "event:list",
+      "install:api",
+      "install:broadcasting",
+      "install:grpc",
+      "jwt:secret",
+      "key:generate",
+      "lang:publish",
+      "make:agent",
+      "make:cache-table",
+      "make:cast",
+      "make:channel",
+      "make:class",
+      "make:command",
+      "make:component",
+      "make:config",
+      "make:controller",
+      "make:enum",
+      "make:event",
+      "make:exception",
+      "make:factory",
+      "make:filter",
+      "make:interface",
+      "make:job",
+      "make:job-middleware",
+      "make:listener",
+      "make:mail",
+      "make:middleware",
+      "make:migration",
+      "make:model",
+      "make:notification",
+      "make:notifications-table",
+      "make:observer",
+      "make:package",
+      "make:policy",
+      "make:provider",
+      "make:queue-batches-table",
+      "make:queue-failed-table",
+      "make:queue-table",
+      "make:request",
+      "make:resource",
+      "make:rule",
+      "make:scope",
+      "make:seeder",
+      "make:session-table",
+      "make:test",
+      "make:tool",
+      "make:trait",
+      "make:view",
+      "migrate:fresh",
+      "migrate:install",
+      "migrate:refresh",
+      "migrate:reset",
+      "migrate:rollback",
+      "migrate:status",
+      "model:fields",
+      "model:prune",
+      "model:show",
+      "optimize:clear",
+      "package:discover",
+      "package:install",
+      "package:uninstall",
+      "queue:clear",
+      "queue:failed",
+      "queue:flush",
+      "queue:forget",
+      "queue:listen",
+      "queue:monitor",
+      "queue:pause",
+      "queue:prune-batches",
+      "queue:prune-failed",
+      "queue:restart",
+      "queue:resume",
+      "queue:retry",
+      "queue:retry-batch",
+      "queue:work",
+      "route:cache",
+      "route:clear",
+      "route:list",
+      "schedule:clear-cache",
+      "schedule:interrupt",
+      "schedule:list",
+      "schedule:pause",
+      "schedule:resume",
+      "schedule:run",
+      "schedule:test",
+      "schedule:work",
+      "schema:dump",
+      "session:garbage-collect",
+      "storage:link",
+      "storage:unlink",
+      "stub:publish",
+      "vendor:publish",
+      "view:cache",
+      "view:clear"
+    ],
+    "shutdown_exit": 0
+  },
+  "baseline_v0_branch": "6d1a81924451e15f595f68c8dfb520ad6d6c44cf",
+  "reference_sha256": {
+    "target/tmp/framework-parity-20261122/php-testing-reference/vendor/symfony/routing/Matcher/Dumper/CompiledUrlMatcherTrait.php": "dfbac9b297b681577860017b8b5b990dcd72cfee4e0a10462a5bd0a0616b3f28"
+  }
+}
