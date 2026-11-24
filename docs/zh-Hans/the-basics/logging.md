@@ -245,6 +245,8 @@ Log::log_with_request(request, openrust::log::Level::Info, "Order placed", &LogC
 
 认证或监听器错误在普通渠道完成写入后沿日志结果返回。取消 future 因而可能留下已有渠道记录而没有 Pail 捕获。取消会释放请求借用与解析作用域，后续调用可以重试。请求和应用分别保存认证状态；HTTP 中程序化调用 Artisan 保留该 HTTP 来源，独立 Artisan 使用命令来源。
 
+认证回调本身可以写日志。同一请求、同名 Guard 的嵌套读取只返回已知身份，不重新启动尚未完成的认证。完成、错误和取消均释放解析标记；外层认证错误仍正常返回，后续请求或重试可重新解析。
+
 ### 读取与筛选捕获记录
 
 `openrust_pail::value_objects::MessageLogged::from_json` 读取一行捕获数据，可获取消息、级别、日期／时间、异常类与文件、trace，以及类型化的 HTTP、命令或队列来源。解析、日期转换和来源解码的失败通过 `Result` 返回。`context()` 排除保留字段 `__pail`、`exception` 和 `user_id`。

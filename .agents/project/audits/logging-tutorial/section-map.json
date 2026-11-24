@@ -132,35 +132,91 @@
     },
     {
       "anchor": "tailing-log-messages-using-pail",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-installation",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-usage",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-filtering-logs",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-filtering-logs-filter-option",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-filtering-logs-message-option",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-filtering-logs-level-option",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     },
     {
       "anchor": "pail-filtering-logs-user-option",
-      "status": "pending_contract_review"
+      "status": "verified_tutorial_scope",
+      "contract": "Pail编译功能、原生CLI跟随、过滤、认证时序及清理；平台发布边界见第四簇",
+      "evidence": [
+        "pail-consumers-v2.log",
+        "pail-runtime.log",
+        "06-08/pail-command.md",
+        "06-08/pail-options.md"
+      ]
     }
   ]
 }

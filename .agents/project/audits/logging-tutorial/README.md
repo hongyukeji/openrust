@@ -33,3 +33,12 @@ MemoryUsageProcessor读取现有memory_stats的原生RSS；不是PHP分配器指
 3项组件消费者＋3项浏览器消费者与既有日志／网络／算术弃用回归共9目标49项0忽略通过；浏览器含16并发真实HTTP、直接公开类型、自定义及默认格式、独立Artisan子进程、trailers、JS／encoded／partial协议和后续JSON／HEAD。真实Chromium执行实际HTTP响应，验证级别／分组／样式／上下文及恶意结束script文本不执行。正式三语现有33个Rust示例和6个新增JSON配置直接提取、编译并运行，共39项0忽略。首次夹具缺依赖、Header类型／Host／独立CLI未注册格式器及错误生命周期假设均保留失败日志；仅最终49／39算通过，没有降低产品URL校验或请求关闭契约。最终workspace/all-targets严格Clippy51.81s、workspace格式、三语构建均0；实际main（pail功能）HTTP /up／静态／HTML404／JSON404／HEAD，Artisan inspire／list／pail帮助及Ctrl+C退出0通过。证据components-{consumers-final2,docs-consumers-final,clippy,fmt,main,docs,runtime,browser}.log及components-doc-browser.log。验收快照吸收已提交workspace版本统一，不夹带他人身份认证计划。
 
 整章继续开放：Pail跟随／过滤完整消费者、弃用命名渠道优先级、容器依赖tap与Facade邻接公开入口待收尾；固定示例的NewRelicHandler尚不应被通用自定义回调冒充为已支持，需要单独核对官方原生Agent及可用平台前置。当前提交不代表29节或全部Monolog类API闭合；现有UTC轮转／时间戳策略、供应商账户及跨平台发布边界保留。
+
+
+## 第四簇：Pail教程与异常报告认证重入
+
+第三簇已独立提交f00abcb99c7e1b262d385f0852b4b8df3bdf8a39。继续按Pail v1.2.5／fdb73f5eacf03db576c710d5a00101ba185f2254核对固定Logging最后8节；沿用06-08原认证时序、Options、Files、打印器、Provider与命令实现，不重造tail进程或Pail持久化格式。完整Pail七个消费者目标真实运行，涵盖从HTTP到独立Artisan、所有过滤器合取／空值／身份、-v／-vv、ANSI／quiet／silent、文件分段UTF8／截断／轮转、多个会话与两应用、超时／取消／信号／broken pipe、环境与Provider门禁、原生路径、22组Provider情况及432个打印器固定PHP向量。普通harness父用例12项（auth1／files4／options7）全部通过；子进程入口和harness=false消费者另列，不叠加为功能计数，无忽略。
+
+首轮auth_timing实际失败：新异常报告上下文先调用Auth解析身份，此时认证回调中的显式请求日志进入Pail；原Pail任务标记只覆盖它自己发起的认证，不能覆盖异常报告先发起的解析，导致再次调用回调并传播InvalidIdentity使请求中断。没有删除原反例或吞掉认证错误：RequestGuard／SessionGuard复用AuthContext按请求、Guard名记录正在解析的私有AtomicBool，用RAII在成功、错误及Future取消时释放；嵌套读取只返回已知身份，不启动新解析。最外层错误仍返回，未完成身份不缓存，后续请求／重试正常。无新增公开标识、事件或存储格式。原Pailauth_timing未降低断言，第二轮包含错误回调／错误页／取消后重试及后续HTTP全通过，日志pail-consumers{,-v2}.log保留红绿证据。
+
+额外auth_configured_extensions两项及SQLite实际Session HTTP回归一项通过；同二进制其余6项按精确筛选未执行，不当作MySQL／PG／完整Auth模块通过。格式、workspace/all-targets严格Clippy38.88s、三语构建0；实际main（pail功能）HTTP、HTML／JSON404、Artisaninspire/list/help、独立pail --level=error -vv --timeout=2捕获真实500报告、超时会话清理及Ctrl+C全0，来源与数据均隔离在target/tmp，数据库配置只指向本批SQLite文件，无开发数据库操作。证据pail-{gates,auth-extensions,session,fmt,clippy,main,docs,runtime,runtime-output}.log。同步三语认证重入说明；Windows和真实供应商发布矩阵不因此关闭。下一簇待验Facade转发仍留在工作区，明确不夹带本次提交。

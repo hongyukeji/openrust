@@ -32,6 +32,10 @@ impl Guard for RequestGuard<'_> {
     fn user(&mut self) -> AuthFuture<'_, AuthResult<Option<&dyn Authenticatable>>> {
         Box::pin(async move {
             if !AuthContext::state(self.request, &self.name).is_some_and(|state| state.resolved) {
+                let Some(_resolution) = AuthContext::begin_resolution(self.request, &self.name)
+                else {
+                    return Ok(None);
+                };
                 let user = (self.resolve)(self.request).await?;
                 AuthContext::set_shared(self.request, &self.name, user, false);
             }

@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, Weak},
+    sync::{
+        Arc, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -45,10 +48,31 @@ pub(super) struct GuardState {
 #[derive(Clone, Default)]
 pub(super) struct AuthContext {
     guards: HashMap<String, GuardState>,
+    resolutions: HashMap<String, Arc<AtomicBool>>,
     pub selected: Option<String>,
 }
 
+// 认证回调可以写日志；嵌套读取不得重新启动同一请求的同名认证。
+pub(super) struct UserResolution(Arc<AtomicBool>);
+impl Drop for UserResolution {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
 impl AuthContext {
+    pub(super) fn begin_resolution(request: &mut Request, name: &str) -> Option<UserResolution> {
+        let flag = Self::mutable(request)
+            .resolutions
+            .entry(name.to_owned())
+            .or_default()
+            .clone();
+        if flag.swap(true, Ordering::AcqRel) {
+            None
+        } else {
+            Some(UserResolution(flag))
+        }
+    }
+
     pub(super) fn get(request: &Request) -> Option<&Self> {
         request.parts().extensions.get()
     }
@@ -673,6 +697,9 @@ fn random_token() -> AuthResult<String> {
 impl Guard for SessionGuard<'_> {
     fn user(&mut self) -> AuthFuture<'_, AuthResult<Option<&dyn Authenticatable>>> {
         Box::pin(async move {
+            let Some(_resolution) = AuthContext::begin_resolution(self.request, &self.name) else {
+                return Ok(self.state().and_then(|state| state.user.as_deref()));
+            };
             self.resolve().await?;
             Ok(self.state().and_then(|state| state.user.as_deref()))
         })

@@ -245,6 +245,8 @@ This explicit await replaces PHP's ability to resolve a guard inside a synchrono
 
 Authentication or observer errors return through the log result after the ordinary channel write. Cancelling the future may therefore leave a written channel record without a Pail capture. Cancellation releases the request borrow and resolution scope; a later call can retry. Requests and applications keep separate authentication state; programmatic Artisan calls within HTTP retain that HTTP origin, while standalone Artisan uses console origin.
 
+Authentication callbacks may themselves log. A nested lookup for the same request and guard reads only the already-known identity, without restarting the pending lookup. Completion, errors and cancellation release that marker; the outer authentication error remains observable and a later request or retry can resolve normally.
+
 ### Reading and Filtering Captures
 
 `openrust_pail::value_objects::MessageLogged::from_json` reads a capture line. It exposes its message, level, date/time, exception class/file, trace and typed HTTP, console or queue origin. Parsing, date conversion and origin decoding return `Result` where they can fail. `context()` excludes the reserved `__pail`, `exception` and `user_id` fields.

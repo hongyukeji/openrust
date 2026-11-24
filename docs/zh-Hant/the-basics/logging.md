@@ -245,6 +245,8 @@ Log::log_with_request(request, openrust::log::Level::Info, "Order placed", &LogC
 
 驗證或監聽器錯誤在普通通道完成寫入後沿日誌結果返回。取消 future 因而可能留下已有通道記錄而沒有 Pail 擷取。取消會釋放請求借用與解析作用域，後續呼叫可以重試。請求和應用程式分別儲存驗證狀態；HTTP 中程式化呼叫 Artisan 保留該 HTTP 來源，獨立 Artisan 使用命令來源。
 
+認證回呼本身可以寫日誌。同一請求、同名 Guard 的巢狀讀取只回傳已知身分，不重新啟動尚未完成的認證。完成、錯誤和取消均釋放解析標記；外層認證錯誤仍正常回傳，後續請求或重試可重新解析。
+
 ### 讀取與篩選擷取記錄
 
 `openrust_pail::value_objects::MessageLogged::from_json` 讀取一行擷取資料，可取得訊息、等級、日期／時間、例外類別與檔案、trace，以及具型別的 HTTP、命令或佇列來源。解析、日期轉換與來源解碼的失敗透過 `Result` 傳回。`context()` 排除保留欄位 `__pail`、`exception` 和 `user_id`。
