@@ -134,11 +134,8 @@ struct ObservedJob {
 }
 impl ObservedJob {
     fn released(&self) {
-        let _ = self
-            .status
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |value| {
-                (value != 3).then_some(2)
-            });
+        // 状态仅有0（处理中）、2（重新入队）、3（失败）；重新入队不能覆盖失败。
+        self.status.fetch_max(2, Ordering::AcqRel);
     }
 }
 impl Job for ObservedJob {
