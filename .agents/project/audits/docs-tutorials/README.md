@@ -329,3 +329,15 @@ Rust不能重载方法参数数量，也不能为普通方法省略参数；回�
 最终 database-where/gates-resumed.log 九阶段全0：六目标44项0忽略（文档6、aware6、factories2、fluent3、for_each4、http23）；workspace/all-targets严格Clippy、fmt、三语构建／浏览器、实际main与artisan help make:rule／inspire全部成功。更早TCP专项1项已过；文档夹具曾因捕获式配置闭包与fn指针契约不符失败，改从独立应用基目录读取前缀／验收环境读取URL后完整重跑，不计失败为通过。临时MySQL自动回收，无本批存活服务；源文件SHA与隔离组合一致。证据target/tmp/docs-chapters-20261124/database-where/。
 
 数据库where教程缺口关闭；email、密码、数组消息位置与全章复核继续，整章仍开放。
+
+## 第十八组：数组消息索引、位置、序数与输入（2026-11-24）
+
+固定 FormatsMessages::makeReplacements／replaceIndexOrPositionPlaceholder／replaceInputPlaceholder 核对。先以真实反例证明 :index/:position/:ordinal-position 与 :input 原样泄漏，再补同一消息格式化管线；不在HTTP渲染层改字符串。数字路径按原规范转义段读取，支持first至tenth及other（第十一数字段），缺层保留、大小写不敏感；复用既有数值语法与php_integer_cast，不只支持非负整数数组下标。输入仅标量／null替换，保留值标签，数组保持原占位符。属性→输入→位置→规则参数的替换顺序与固定源码一致；翻译键先读取原文，再走同一格式化，避免译文与内联消息行为分裂。
+
+关联反例：带字面点的字段原先错误命中浅层通配消息。内联通配符改为只消费同层，不将规范转义路径拆段；翻译模式回退也检查实际层级。保留旧精确字段消息优先，原BTreeMap原生类型和各类错误包契约不变。序数复用现有Number，按固定Intl默认英语；负数序数使用Intl的减号，i64上界加一依固定PHP转浮点，复用已有浮点／数字格式化，不做未测量性能声明。
+
+为真实检查序数和后续email spoof，仅在target/tmp构建php:8.5.12-cli-alpine加intl的本地参考镜像，未引入PHP运行依赖。固定参考11组含多层、十二层／other、缺层、前导零、负数、科学计数法、非ASCII数字、字面点、数组／null／bool、数值上界；保存tests/reference/validation-message-positions.json。原行为baseline失败日志before.log保留，修复后全部通过。真实TCP逐组精确比较错误消息，显式保留空串配置与默认空串转null分别验收；默认响应和单独执行固定PHP得到的null数据组一致，不改预期凑通过。
+
+三语store_photos直接提取并在HTTP Kernel执行，展示本地化文案中的位置、序数和输入值，不只检查编译。message-positions/gates.log九阶段全0：MySQL8.4.13八目标51项0忽略（文档6、aware6、failure_translation1、fluent3、for_each4、http23、positions2、mutation6）；workspace/all-targets严格Clippy24.81s、fmt、三语构建15.67s／浏览器、实际main15.30s与两条Artisan退出0。源／测试／教程与隔离组合SHA一致，证据target/tmp/docs-chapters-20261124/message-positions/。临时MySQL已回收，HTTP服务已退出；没有改写历史证据。
+
+本批关闭数组消息教程缺口及以上关联问题；email、密码策略与逐节全章对账继续，整章未关闭。

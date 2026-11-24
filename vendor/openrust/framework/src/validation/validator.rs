@@ -1678,6 +1678,7 @@ impl Validator {
     }
 
     fn format_message(&self, pattern: &str, attribute: &str, mut failure: RuleFailure) -> String {
+        let canonical_attribute = attribute;
         let attribute = unescape(attribute);
         let display = self.display_attribute(pattern, &attribute);
         let attributes = message_cases("attribute", &[display], "");
@@ -1688,8 +1689,32 @@ impl Validator {
         } else {
             failure.replacements.extend(attributes);
         }
+        let attributes: BTreeMap<_, _> = ["attribute", "ATTRIBUTE", "Attribute"]
+            .into_iter()
+            .filter_map(|key| {
+                failure
+                    .replacements
+                    .remove(key)
+                    .map(|value| (key.to_owned(), value))
+            })
+            .collect();
+        let render = |template: &str| {
+            let mut message = replace(template, &attributes);
+            if message.contains(":input") {
+                let actual = self
+                    .data
+                    .attributes(canonical_attribute)
+                    .ok()
+                    .and_then(|values| values.first().and_then(|(_, value)| *value));
+                if actual.is_none_or(|value| !value.is_array() && !value.is_object()) {
+                    message = message.replace(":input", &self.display_value(&attribute, actual));
+                }
+            }
+            let message = super::message_positions::replace(&message, canonical_attribute);
+            replace(&message, &failure.replacements)
+        };
         if failure.translated {
-            return replace(&failure.message, &failure.replacements);
+            return render(&failure.message);
         }
         let rule_key = failure.message.strip_prefix("validation.");
         let rule = rule_key.and_then(|key| {
@@ -1703,32 +1728,45 @@ impl Validator {
             && let Some(message) = self
                 .messages
                 .get(&format!("{attribute}.{rule}"))
-                .or_else(|| self.messages.get(&format!("{pattern}.{rule}")))
+                .or_else(|| {
+                    self.messages.iter().find_map(|(key, value)| {
+                        (key.contains('*')
+                            && super::message_positions::matches(
+                                key,
+                                &format!("{attribute}.{rule}"),
+                            ))
+                        .then_some(value)
+                    })
+                })
                 .or_else(|| self.messages.get(rule))
+                .or_else(|| self.messages.get(&attribute))
         {
-            return replace(message, &failure.replacements);
+            return render(message);
         }
         if let Some(translator) = &self.translator {
             if let Some(rule) = rule {
                 for field in [&attribute, pattern] {
+                    if field == pattern && !super::message_positions::matches(pattern, &attribute) {
+                        continue;
+                    }
                     let key = format!("validation.custom.{field}.{rule}");
-                    if let Ok(message) = translator.string(&key, &failure.replacements, None)
+                    if let Ok(message) = translator.string(&key, &Default::default(), None)
                         && message != key
                     {
-                        return message;
+                        return render(&message);
                     }
                 }
             }
-            if let Ok(message) = translator.string(&failure.message, &failure.replacements, None)
+            if let Ok(message) = translator.string(&failure.message, &Default::default(), None)
                 && message != failure.message
             {
-                return message;
+                return render(&message);
             }
         }
         if let Some(rule) = rule
             && let Some(message) = self.extensions.fallback_messages.get(rule)
         {
-            return replace(message, &failure.replacements);
+            return render(message);
         }
         let fallback_message =
             if rule.is_some_and(|rule| self.extensions.callbacks.contains_key(rule)) {
@@ -1736,7 +1774,7 @@ impl Validator {
             } else {
                 rule_key.map_or(failure.message.as_str(), fallback)
             };
-        replace(fallback_message, &failure.replacements)
+        render(fallback_message)
     }
 }
 

@@ -299028,6 +299028,13 @@
       "status": "verified_tutorial_cluster",
       "evidence": ".agents/project/audits/docs-tutorials/README.md",
       "remaining": "email, password, message positions and full chapter review; chapter open"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第十八组 indexed and input messages",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "email, password and full chapter review; chapter open"
     }
   ]
 }

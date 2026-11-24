@@ -1682,12 +1682,12 @@
         {
           "anchor": "error-message-indexes-and-positions",
           "title": "Error Message Indexes and Positions",
-          "status": "confirmed_gap_pending_implementation",
+          "status": "verified_tutorial_scope",
           "contract": [
-            ":index/:position/:ordinal-position 及第二／第三层占位符"
+            "index/position/ordinal-position；first至tenth/other与input；原消息替换顺序／实际HTTP／三语原示例"
           ],
           "evidence": [
-            "README.md"
+            "README.md#第十八组数组消息索引位置序数与输入2026-11-24"
           ]
         },
         {

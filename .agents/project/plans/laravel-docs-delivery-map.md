@@ -217,3 +217,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第十六组：命名规则工厂、Confirmed/CurrentPassword链式配置与ImageFile类型闭合；101行为＋78参数固定对照、真实TCP／认证／UDP及MySQL8.4.13六目标37项通过，三语正式消费者、严格Clippy/fmt/文档浏览器及实际Artisan通过。数据库where、email、密码、消息位置和全章复核继续。
 
 2026-11-24 Validation第十七组：数据库where回调／数组同名入口闭合，50组固定SQLite参考由MySQL8.4.13真实TCP重放；三语原示例直接提取并实际查询，六目标44项0忽略与严格门禁、HTTP／Artisan通过。email、密码、消息位置及全章复核继续。
+
+2026-11-24 Validation第十八组：数组索引／位置／序数、input及字面点通配消息关联差异闭合。11组固定Intl参考与真实TCP、三语正式示例通过；MySQL8.4.13八目标51项0忽略、严格门禁及实际Artisan通过。email、密码及全章逐节对账继续。

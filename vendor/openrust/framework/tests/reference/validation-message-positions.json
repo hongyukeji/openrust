@@ -1,0 +1,336 @@
+{
+  "framework": "13.40.0",
+  "php": "8.5.12 + intl",
+  "cases": [
+    {
+      "attribute": "photos.*.description",
+      "data": {
+        "photos": [
+          {
+            "description": "fine"
+          },
+          {
+            "description": ""
+          }
+        ]
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "photos.1.description": [
+          "photos.1.description||1/2/2nd|1/2/2nd|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|1/2/2nd"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "photos.*.attributes.*.label",
+      "data": {
+        "photos": [
+          {
+            "attributes": [
+              {
+                "label": "x"
+              },
+              {
+                "label": "good"
+              }
+            ]
+          },
+          {
+            "attributes": [
+              {
+                "label": ""
+              }
+            ]
+          }
+        ]
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "photos.0.attributes.0.label": [
+          "photos.0.attributes.0.label|x|0/1/1st|0/1/1st|0/1/1st|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|0/1/1st"
+        ],
+        "photos.1.attributes.0.label": [
+          "photos.1.attributes.0.label||1/2/2nd|1/2/2nd|0/1/1st|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|1/2/2nd"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "rows.*.value",
+      "data": {
+        "rows": {
+          "01": {
+            "value": "x"
+          },
+          "-2": {
+            "value": "x"
+          },
+          "1e2": {
+            "value": "x"
+          },
+          "1.5": {
+            "value": "x"
+          }
+        }
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "rows.01.value": [
+          "rows.01.value|alias|1/2/2nd|1/2/2nd|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|1/2/2nd"
+        ],
+        "rows.-2.value": [
+          "rows.-2.value|x|-2/-1/−1st|-2/-1/−1st|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|-2/-1/−1st"
+        ],
+        "rows.1e2.value": [
+          "rows.1e2.value|x|100/101/101st|100/101/101st|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|100/101/101st"
+        ],
+        "rows.1.5.value": [
+          "The rows.1.5.value field must be at least 3 characters."
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "version\\.2.value",
+      "data": {
+        "version.2": {
+          "value": "x"
+        }
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "version.2.value": [
+          "The version.2.value field must be at least 3 characters."
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "rows.*.value",
+      "data": {
+        "rows": {
+          "10": {
+            "value": "x"
+          },
+          "11": {
+            "value": "x"
+          },
+          "12": {
+            "value": "x"
+          },
+          "20": {
+            "value": "x"
+          },
+          "١": {
+            "value": "x"
+          }
+        }
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "rows.10.value": [
+          "rows.10.value|x|10/11/11th|10/11/11th|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|10/11/11th"
+        ],
+        "rows.11.value": [
+          "rows.11.value|x|11/12/12th|11/12/12th|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|11/12/12th"
+        ],
+        "rows.12.value": [
+          "rows.12.value|x|12/13/13th|12/13/13th|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|12/13/13th"
+        ],
+        "rows.20.value": [
+          "rows.20.value|x|20/21/21st|20/21/21st|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|20/21/21st"
+        ],
+        "rows.١.value": [
+          "rows.١.value|x|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "rows.*.value",
+      "data": {
+        "rows": {
+          "9223372036854775807": {
+            "value": "x"
+          },
+          "1e30": {
+            "value": "x"
+          },
+          "1e999": {
+            "value": "x"
+          }
+        }
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "rows.9223372036854775807.value": [
+          "rows.9223372036854775807.value|x|9223372036854775807/9.2233720368548E+18/9,223,372,036,854,776,000th|9223372036854775807/9.2233720368548E+18/9,223,372,036,854,776,000th|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|9223372036854775807/9.2233720368548E+18/9,223,372,036,854,776,000th"
+        ],
+        "rows.1e30.value": [
+          "rows.1e30.value|x|9223372036854775807/9.2233720368548E+18/9,223,372,036,854,776,000th|9223372036854775807/9.2233720368548E+18/9,223,372,036,854,776,000th|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|9223372036854775807/9.2233720368548E+18/9,223,372,036,854,776,000th"
+        ],
+        "rows.1e999.value": [
+          "rows.1e999.value|x|0/1/1st|0/1/1st|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|0/1/1st"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "photos.*.description",
+      "data": {
+        "photos": [
+          {
+            "description": "fine"
+          },
+          {
+            "description": null
+          }
+        ]
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "photos.1.description": [
+          "photos.1.description|empty|1/2/2nd|1/2/2nd|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|1/2/2nd"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "n0.*.n1.*.n2.*.n3.*.n4.*.n5.*.n6.*.n7.*.n8.*.n9.*.n10.*.n11.*.value",
+      "data": {
+        "n0": [
+          {
+            "n1": {
+              "1": {
+                "n2": {
+                  "2": {
+                    "n3": {
+                      "3": {
+                        "n4": {
+                          "4": {
+                            "n5": {
+                              "5": {
+                                "n6": {
+                                  "6": {
+                                    "n7": {
+                                      "7": {
+                                        "n8": {
+                                          "8": {
+                                            "n9": {
+                                              "9": {
+                                                "n10": {
+                                                  "10": {
+                                                    "n11": {
+                                                      "11": {
+                                                        "value": "x"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "n0.0.n1.1.n2.2.n3.3.n4.4.n5.5.n6.6.n7.7.n8.8.n9.9.n10.10.n11.11.value": [
+          "n0.0.n1.1.n2.2.n3.3.n4.4.n5.5.n6.6.n7.7.n8.8.n9.9.n10.10.n11.11.value|x|0/1/1st|0/1/1st|1/2/2nd|2/3/3rd|9/10|10/11|0/1/1st"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "value",
+      "data": {
+        "value": "x"
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "value": [
+          "value|x|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "photos.*.value",
+      "data": {
+        "photos": [
+          {
+            "value": false
+          },
+          {
+            "value": null
+          },
+          {
+            "value": [
+              "x"
+            ]
+          },
+          {
+            "value": 12
+          }
+        ]
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "photos.0.value": [
+          "photos.0.value|false|0/1/1st|0/1/1st|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|0/1/1st"
+        ],
+        "photos.1.value": [
+          "photos.1.value|empty|1/2/2nd|1/2/2nd|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|1/2/2nd"
+        ],
+        "photos.2.value": [
+          "photos.2.value|:input|2/3/3rd|2/3/3rd|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|2/3/3rd"
+        ],
+        "photos.3.value": [
+          "photos.3.value|12|3/4/4th|3/4/4th|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|3/4/4th"
+        ]
+      },
+      "passes": false
+    },
+    {
+      "attribute": "a.*.b.*.c.*.value",
+      "data": {
+        "a": [
+          {
+            "b": [
+              {
+                "c": [
+                  {
+                    "value": "x"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "message": ":attribute|:input|:index/:position/:ordinal-position|:first-index/:first-position/:first-ordinal-position|:second-index/:second-position/:second-ordinal-position|:third-index/:third-position/:third-ordinal-position|:tenth-index/:tenth-position|:other-index/:other-position|:INDEX/:PoSiTiOn/:OrDiNaL-pOsItIoN",
+      "errors": {
+        "a.0.b.0.c.0.value": [
+          "a.0.b.0.c.0.value|x|0/1/1st|0/1/1st|0/1/1st|0/1/1st|:tenth-index/:tenth-position|:other-index/:other-position|0/1/1st"
+        ]
+      },
+      "passes": false
+    }
+  ]
+}

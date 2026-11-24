@@ -838,3 +838,20 @@ fn store_nested(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 Use `Rule::for_each_with` or `NestedRules::new` for all four arguments: value, attribute, gathered flat data and the parent context. The flat map uses canonical escaped paths so literal dots and nested paths remain distinct. `contracts::validation::CompilableRules` and `Rule::compile` are available for custom compilers. Database rules inside the returned list use the existing factory and presence verifier. For file-dependent compilation, use `Rule::for_each_context` or `NestedRules::with_context`: `NestedRuleContext::file()` reads the original typed file, `data` holds the original input, and `flattened` holds the current gathered map. Its `attribute` is a canonical escaped path. `CompilableRules::compile_context` exposes the same context to custom compilers.
 
 Compiled fields retain wildcard message lookup, error positions, Precognition selection and validated-field filtering. Existing infallible `set_data` / `set_rules` setters retain compilation errors; the next `get_rules` or validation returns the original error kind. Corrected data or rules clears the error. Empty typed maps remain JSON objects; no PHP array/object ambiguity is introduced into existing response contracts.
+
+## Array Error Indexes and Positions {#error-message-indexes-and-positions}
+
+`:index` starts at zero, `:position` at one, and `:ordinal-position` renders an ordinal such as `2nd`. Use `:second-index`, `:second-position`, `:second-ordinal-position` and corresponding third through tenth forms for deeper numeric path segments; `other` refers to the eleventh numeric segment. Paths without that level leave its placeholder unchanged. `:input` uses the display value for scalar or null input, including configured value labels; arrays remain unreplaced. Ordinals reuse number formatting with its default English locale, independently of the validation message language.
+
+```rust
+use std::collections::BTreeMap;
+use openrust::{http::{HttpError, HttpFuture, Request, Response, StatusCode}, validation::RuleSet};
+fn store_photos(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("photos.*.description", "required|string")])?;
+        let messages = BTreeMap::from([("photos.*.description.required".into(), "Please describe photo #:position (:ordinal-position), input=:input.".into())]);
+        let data = request.validate_with(rules, messages, BTreeMap::new()).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```

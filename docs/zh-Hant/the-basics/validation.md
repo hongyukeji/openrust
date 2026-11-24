@@ -838,3 +838,20 @@ fn store_nested(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 需要完整四個參數時，使用 `Rule::for_each_with` 或 `NestedRules::new`：目前值、屬性名稱、收集後的扁平資料和父項上下文。扁平映射使用規範轉義路徑，字面點與巢狀路徑不會互相覆蓋。自訂編譯器可實作 `contracts::validation::CompilableRules`，並呼叫 `Rule::compile`。傳回清單中的資料庫規則繼續使用既有工廠和存在性驗證器。 需要按檔案資訊編譯時，使用 `Rule::for_each_context` 或 `NestedRules::with_context`：`NestedRuleContext::file()` 讀取原型別化檔案，`data` 保留原始輸入，`flattened` 保留目前收集的映射；其中 `attribute` 是規範轉義路徑。自訂編譯器可透過 `CompilableRules::compile_context` 使用相同上下文。
 
 編譯後的欄位保留萬用字元訊息比對、錯誤位置、Precognition 選擇和 validated 欄位篩選。既有不傳回 Result 的 `set_data` / `set_rules` 會保留編譯錯誤，下次 `get_rules` 或驗證傳回原錯誤種類；修正資料或規則後恢復。空的型別化映射仍序列化為 JSON 物件，不把 PHP 陣列／物件歧義引入既有回應契約。
+
+## 陣列錯誤索引與位置 {#error-message-indexes-and-positions}
+
+`:index` 從零開始，`:position` 從一開始，`:ordinal-position` 輸出 `2nd` 等序數。更深層數字路徑使用 `:second-index`、`:second-position`、`:second-ordinal-position`，也支援第三至第十層對應單字；`other` 對應第十一層數字段。沒有對應層級時保留佔位符。`:input` 使用純量或空值的顯示值，包括已設定的值標籤；陣列不替換。序數共用數字格式化的預設英語語言，與驗證訊息語言分別處理。
+
+```rust
+use std::collections::BTreeMap;
+use openrust::{http::{HttpError, HttpFuture, Request, Response, StatusCode}, validation::RuleSet};
+fn store_photos(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::parse([("photos.*.description", "required|string")])?;
+        let messages = BTreeMap::from([("photos.*.description.required".into(), "請描述第 :position 張照片（:ordinal-position），輸入=:input。".into())]);
+        let data = request.validate_with(rules, messages, BTreeMap::new()).await?;
+        Response::json(StatusCode::CREATED, data)
+    })
+}
+```
