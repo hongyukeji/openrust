@@ -34,3 +34,36 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 - 新增夹具最初使用了模拟服务尚未支持的客户 ID，补充测试服务对应响应后复验；另一次给原生 `handle_command` 多传了程序名，修正夹具参数后复验。两次均未修改生产协议或命令契约。
 
 验收日志保存在 `target/tmp/model-layering-optional-20261124/adjacent-*.log`。两组独占数据库容器已回收，开发服务和数据卷保留。本批结束清理隔离源码、临时应用、文档构建及一次性编排脚本，保留日志与可复用 Cargo 缓存。只提交本批实现、测试、三语指南及记录；其他协作者的在途修改保留，不推送。
+
+## 本次静态复核结论
+
+2026-11-24，在 `bf0e6b814` 整理后按当前源码再次复查根应用和 vendor 包的生产模型、模型能力 trait、Record／注册适配器及直接服务消费者。逐项追踪实际委托与调用链，不以关键词命中或目录名代替职责判断。本次未发现范围内新增需调整的分层问题，也未发现已整理职责回流；这不是对全部框架服务或全部公开契约重新完成行为验收的声明。
+
+### 已完成项
+
+| 项目 | 当前职责边界与实施依据 |
+| --- | --- |
+| User、Sanctum、自定义 Activity 存储适配 | User 保留映射与认证能力，条件更新委托框架；Sanctum 保留可覆写模型查找入口，存储、事务锁和快照独立；Activity 的模型存储适配独立并保留原导出。见[首轮验收](README.md)。 |
+| Activitylog 监听与数据库通知 | 模型日志能力保留选项／钩子，监听、快照和提交后调度独立；通知记录保留公开状态方法，查询、行映射和条件更新委托内部 Store。见[六项实施验收](implementation-2026-11-24.md)，提交 `e61dc0279`。 |
+| Fortify 密码重置与邮箱验证 | 完成步骤和业务事件由 Actions 负责；注册适配器保留模型投影、字段设置及持久化。见六项实施验收，提交 `125abdb72`。 |
+| Passkeys 与 Cashier 业务／存储编排 | Passkeys 校验规则在 Actions，实际模型锁定、刷新及保存保留原事务保护；Cashier 远端调用和状态裁决归 billing／webhook，Store 负责锁、操作占用及读写。见六项实施验收，提交 `f3c15d1ad`。 |
+| Scout 批量导入与 Fortify 恢复码 | 公开模型入口分别委托 importer 和 Actions，保留模型覆写、筛选／分批、加密／保存及事件顺序。见[可选整理验收](optional-2026-11-24.md)，提交 `353f3ca0b`、`0eeb12e3a`。 |
+| Cashier 订阅选择与 Activitylog 日志准备 | 选择规则在 billing，Store 保留查询和解码；日志准备／脱敏在 preparation，Repository 的直接与间接入口均经过原准备路径。见本页实施与实际结果，提交 `bf0e6b814`。 |
+
+复核还覆盖 Passport 的 Client（含私有 ClientAttributes）／Token／RefreshToken／AuthCode／DeviceCode、ClientRecord，以及 Passkey 模型、Settings 和 Pennant 的直接模型消费者。关系、属性转换、模型查询作用域及单实体状态保存属于允许的 Active Record 行为；Record 的类型转接、实例身份、锁定和持久化适配可以保留。未据此新增空 Service 或继续机械拆分。
+
+### Pay 暂时保留的事务边界
+
+唯一按用户决定暂时保留的组合实现是 [pay/src/notifications.rs](../../../../vendor/openrust/pay/src/notifications.rs) 的 `DatabaseNotifications::process`。它是事务型通知服务与数据库存储的组合，位于独立 vendor 包中，不是应用模型中的业务流程；本次不将其记作已经拆分，也不新增 Pay 验收结论。
+
+- 已验签通知与可信订单的匹配校验在开启事务前执行。
+- 去重记录占用、指纹检查、行锁、完成状态检查、应用 SQL 回调和 `done` 标记维持同一事务；指纹冲突或已完成的重复通知不调用业务回调。
+- 回调或事务内 SQL 失败回滚本次事务，不能将回调或完成标记移到事务外而破坏原子性。
+- 应用回调仅执行所提供事务中的 SQL；通知、发货等外部副作用由应用的事务 outbox／提交后路径处理。
+- 后续如需整理，只在保留公开入口、上述顺序及错误语义的前提下抽取内部存储操作；当前建议保留现有实现。
+
+### 源码归属与本轮检查
+
+Cashier、Activitylog、Fortify、Passkeys、Passport、Scout 等实现属于各自 `vendor/openrust/<package>/` crate。当前 Sanctum 源码实际位于 `vendor/openrust/framework/src/sanctum/` 可选模块；其安装器发布到根应用的配置、迁移和 User 接入才是消费者产物，不能与包源码混同。当前 User、应用 Provider 及路由接入中未发现本轮应清理的扩展安装残留；基础 API 配置与空路由入口不作为残留处理。
+
+本次只做静态源码复核及记录更新，没有修改业务代码，也没有重新执行 Rust、HTTP、Artisan 或数据库测试。上文69项等测试数仍属于各次实施时的验收，不计作本轮新增结果。本轮检查记录的相对链接、复核章节锚点与 `git diff --check`；只本地提交记录，不推送，其他协作者改动保留。
