@@ -4,7 +4,7 @@ use serde_json::Value;
 
 pub(super) const MAX_FIELDS: usize = 1024;
 pub(super) const MAX_PATH: usize = 1024;
-const MAX_EXPANDED: usize = 4096;
+pub(super) const MAX_EXPANDED: usize = 4096;
 const MAX_VALUE_BYTES: usize = 20 * 1024 * 1024;
 const MAX_MATCH_STEPS: usize = 1024 * 1024;
 
@@ -191,4 +191,139 @@ pub(super) fn expand<'a>(
     let mut output = Vec::new();
     walk(Some(input), segments, "", &mut output, budget)?;
     Ok(output)
+}
+
+/// 与规则解析共用转义路径，避免把字面点误作层级或为稀疏索引分配巨量数组。
+pub(super) fn set(input: &mut Value, segments: &[Segment], value: Value) -> Result<()> {
+    let Some((Segment::Key(key), rest)) = segments.split_first() else {
+        return Err(invalid());
+    };
+    if !input.is_object() && !input.is_array() {
+        *input = if key == "0" {
+            Value::Array(Vec::new())
+        } else {
+            Value::Object(serde_json::Map::new())
+        };
+    }
+    if let Value::Array(items) = input {
+        let index = key
+            .parse::<usize>()
+            .ok()
+            .filter(|index| index.to_string() == *key);
+        if let Some(index) = index.filter(|index| *index <= items.len()) {
+            if index == items.len() {
+                items.push(Value::Null);
+            }
+            if rest.is_empty() {
+                items[index] = value;
+            } else {
+                set(&mut items[index], rest, value)?;
+            }
+            return Ok(());
+        }
+        let values = std::mem::take(items)
+            .into_iter()
+            .enumerate()
+            .map(|(i, value)| (i.to_string(), value))
+            .collect();
+        *input = Value::Object(values);
+    }
+    let values = input.as_object_mut().expect("已转换为对象");
+    if rest.is_empty() {
+        values.insert(key.clone(), value);
+    } else {
+        set(values.entry(key).or_insert(Value::Null), rest, value)?;
+    }
+    Ok(())
+}
+
+pub(super) fn from_flat(flat: &serde_json::Map<String, Value>) -> Result<Value> {
+    let mut input = Value::Null;
+    for (key, value) in flat {
+        set(&mut input, &parse(key)?, value.clone())?;
+    }
+    fn pack(value: Value) -> Value {
+        match value {
+            Value::Object(mut fields) => {
+                for value in fields.values_mut() {
+                    *value = pack(std::mem::take(value));
+                }
+                if !fields.is_empty()
+                    && (0..fields.len()).all(|i| fields.contains_key(&i.to_string()))
+                {
+                    Value::Array(
+                        (0..fields.len())
+                            .map(|i| fields.remove(&i.to_string()).expect("连续索引"))
+                            .collect(),
+                    )
+                } else {
+                    Value::Object(fields)
+                }
+            }
+            Value::Array(fields) => Value::Array(fields.into_iter().map(pack).collect()),
+            value => value,
+        }
+    }
+    let input = if input.is_null() {
+        Value::Object(serde_json::Map::new())
+    } else {
+        pack(input)
+    };
+    inspect(&input)?;
+    Ok(input)
+}
+
+pub(super) fn parent(attribute: &str) -> Result<Option<String>> {
+    let segments = parse(attribute)?;
+    if segments.len() < 2 {
+        return Ok(None);
+    }
+    let mut parent = String::new();
+    for segment in &segments[..segments.len() - 1] {
+        let Segment::Key(key) = segment else {
+            return Err(invalid());
+        };
+        parent = join(&parent, key)?;
+    }
+    Ok(Some(parent))
+}
+
+pub(super) fn forget(input: &mut Value, segments: &[Segment]) -> Result<()> {
+    let Some((Segment::Key(key), rest)) = segments.split_first() else {
+        return Err(invalid());
+    };
+    match input {
+        Value::Object(fields) => {
+            if rest.is_empty() {
+                fields.remove(key);
+            } else if let Some(value) = fields.get_mut(key) {
+                forget(value, rest)?;
+            }
+        }
+        Value::Array(fields) => {
+            if let Some(index) = key
+                .parse::<usize>()
+                .ok()
+                .filter(|i| i.to_string() == *key && *i < fields.len())
+            {
+                if rest.is_empty() {
+                    if index + 1 == fields.len() {
+                        fields.pop();
+                    } else {
+                        let mut map: serde_json::Map<_, _> = std::mem::take(fields)
+                            .into_iter()
+                            .enumerate()
+                            .map(|(i, value)| (i.to_string(), value))
+                            .collect();
+                        map.remove(key);
+                        *input = Value::Object(map);
+                    }
+                } else {
+                    forget(&mut fields[index], rest)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }

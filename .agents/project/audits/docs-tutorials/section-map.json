@@ -1,0 +1,1467 @@
+{
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "note": "逐节对账，未核定项保持开放；旧消费者只覆盖记录列明的入口，不据此自动关闭整节。",
+  "chapters": {
+    "urls": {
+      "sha256": "3f0fbaf1241207927c794b189ff3c0209e71be67443f4d28a84436a702753e63",
+      "sections": [
+        {
+          "anchor": "introduction",
+          "title": "Introduction",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "章节组织，不产生额外独立入口"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "the-basics",
+          "title": "The Basics",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "章节组织，不产生额外独立入口"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "generating-urls",
+          "title": "Generating URLs",
+          "status": "verified_with_retained_policy",
+          "contract": [
+            "Url::to/query；APP_URL显式优先属于真人确认策略"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "accessing-the-current-url",
+          "title": "Accessing the Current URL",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "accessing-the-previous-url",
+          "title": "Accessing the Previous URL",
+          "status": "verified_with_retained_policy",
+          "contract": [
+            "Url::previous/previous_path，Session::previous_route/previous_uri；保留既定同源策略"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "urls-for-named-routes",
+          "title": "URLs for Named Routes",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "eloquent-models",
+          "title": "Eloquent Models",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "signed-urls",
+          "title": "Signed URLs",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "validating-signed-route-requests",
+          "title": "Validating Signed Route Requests",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "responding-to-invalid-signed-routes",
+          "title": "Responding to Invalid Signed Routes",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "urls-for-controller-actions",
+          "title": "URLs for Controller Actions",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "fluent-uri-objects",
+          "title": "Fluent URI Objects",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "default-values",
+          "title": "Default Values",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        },
+        {
+          "anchor": "url-defaults-middleware-priority",
+          "title": "URL Defaults and Middleware Priority",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "见第四组逐节入口和真实HTTP／MySQL消费者映射"
+          ],
+          "evidence": [
+            "README.md#第四组url-默认值优先级与完整章节教程对账"
+          ]
+        }
+      ]
+    },
+    "validation": {
+      "sha256": "210db605c0c0db85e7ebbe8c4299e629fc7320dd6ebf9c3f1c69afd6468cfbfd",
+      "sections": [
+        {
+          "anchor": "introduction",
+          "title": "Introduction",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validation-quickstart",
+          "title": "Validation Quickstart",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "quick-defining-the-routes",
+          "title": "Defining the Routes",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "quick-creating-the-controller",
+          "title": "Creating the Controller",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "quick-writing-the-validation-logic",
+          "title": "Writing the Validation Logic",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "stopping-on-first-validation-failure",
+          "title": "Stopping on First Validation Failure",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "a-note-on-nested-attributes",
+          "title": "A Note on Nested Attributes",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "quick-displaying-the-validation-errors",
+          "title": "Displaying the Validation Errors",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "quick-customizing-the-error-messages",
+          "title": "Customizing the Error Messages",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "quick-xhr-requests-and-validation",
+          "title": "XHR Requests and Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "the-at-error-directive",
+          "title": "The `@error` Directive",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "repopulating-forms",
+          "title": "Repopulating Forms",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "a-note-on-optional-fields",
+          "title": "A Note on Optional Fields",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validation-error-response-format",
+          "title": "Validation Error Response Format",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "form-request-validation",
+          "title": "Form Request Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "creating-form-requests",
+          "title": "Creating Form Requests",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "RequestMakeCommand、GeneratorCommand、Stub及真实生成文件"
+          ],
+          "evidence": [
+            "tests/request_generator.rs",
+            "tests/request_generator_tutorial.py"
+          ]
+        },
+        {
+          "anchor": "performing-additional-validation-on-form-requests",
+          "title": "Performing Additional Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "request-stopping-on-first-validation-rule-failure",
+          "title": "Stopping on the First Validation Failure",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "request-failing-on-unknown-fields",
+          "title": "Failing on Unknown Fields",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "FormRequest::fail_on_unknown_fields、FormRequestDefaults"
+          ],
+          "evidence": [
+            "vendor/openrust/framework/tests/form_request_unknown_fields.rs"
+          ]
+        },
+        {
+          "anchor": "customizing-the-redirect-location",
+          "title": "Customizing the Redirect Location",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "customizing-the-error-bag",
+          "title": "Customizing the Error Bag",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "authorizing-form-requests",
+          "title": "Authorizing Form Requests",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "customizing-the-error-messages",
+          "title": "Customizing the Error Messages",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "customizing-the-validation-attributes",
+          "title": "Customizing the Validation Attributes",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "preparing-input-for-validation",
+          "title": "Preparing Input for Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "manually-creating-validators",
+          "title": "Manually Creating Validators",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "automatic-redirection",
+          "title": "Automatic Redirection",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "named-error-bags",
+          "title": "Named Error Bags",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "manual-customizing-the-error-messages",
+          "title": "Customizing the Error Messages",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "specifying-a-custom-message-for-a-given-attribute",
+          "title": "Specifying a Custom Message for a Given Attribute",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "specifying-custom-attribute-values",
+          "title": "Specifying Custom Attribute Values",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "performing-additional-validation",
+          "title": "Performing Additional Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "working-with-validated-input",
+          "title": "Working With Validated Input",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "working-with-error-messages",
+          "title": "Working With Error Messages",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "retrieving-the-first-error-message-for-a-field",
+          "title": "Retrieving the First Error Message for a Field",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "retrieving-all-error-messages-for-a-field",
+          "title": "Retrieving All Error Messages for a Field",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "retrieving-all-error-messages-for-all-fields",
+          "title": "Retrieving All Error Messages for All Fields",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "determining-if-messages-exist-for-a-field",
+          "title": "Determining if Messages Exist for a Field",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "specifying-custom-messages-in-language-files",
+          "title": "Specifying Custom Messages in Language Files",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "custom-messages-for-specific-attributes",
+          "title": "Custom Messages for Specific Attributes",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "specifying-attribute-in-language-files",
+          "title": "Specifying Attributes in Language Files",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "specifying-values-in-language-files",
+          "title": "Specifying Values in Language Files",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "available-validation-rules",
+          "title": "Available Validation Rules",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-builders",
+          "title": "Rule Builders",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-accepted",
+          "title": "accepted",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-accepted-if",
+          "title": "accepted_if:anotherfield,value,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-active-url",
+          "title": "active_url",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-after",
+          "title": "after:_date_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-after-or-equal",
+          "title": "after\\_or\\_equal:_date_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-anyof",
+          "title": "anyOf",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Rule::any_of、rules::AnyOf、AnyOfRules、Factory"
+          ],
+          "evidence": [
+            "vendor/openrust/framework/tests/validation_any_of.rs"
+          ]
+        },
+        {
+          "anchor": "rule-alpha",
+          "title": "alpha",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-alpha-dash",
+          "title": "alpha_dash",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-alpha-num",
+          "title": "alpha_num",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-array",
+          "title": "array",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-array-keys",
+          "title": "array_keys:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-ascii",
+          "title": "ascii",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-bail",
+          "title": "bail",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-before",
+          "title": "before:_date_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-before-or-equal",
+          "title": "before\\_or\\_equal:_date_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-between",
+          "title": "between:_min_,_max_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-boolean",
+          "title": "boolean",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-confirmed",
+          "title": "confirmed",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-contains",
+          "title": "contains:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-doesnt-contain",
+          "title": "doesnt_contain:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-current-password",
+          "title": "current_password",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-date",
+          "title": "date",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-date-equals",
+          "title": "date_equals:_date_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-date-format",
+          "title": "date_format:_format_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-decimal",
+          "title": "decimal:_min_,_max_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-declined",
+          "title": "declined",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-declined-if",
+          "title": "declined_if:anotherfield,value,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-different",
+          "title": "different:_field_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-digits",
+          "title": "digits:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-digits-between",
+          "title": "digits_between:_min_,_max_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-dimensions",
+          "title": "dimensions",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-distinct",
+          "title": "distinct",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-doesnt-start-with",
+          "title": "doesnt_start_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-doesnt-end-with",
+          "title": "doesnt_end_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-email",
+          "title": "email",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-encoding",
+          "title": "encoding:*encoding_type*",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-ends-with",
+          "title": "ends_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-enum",
+          "title": "enum",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-exclude",
+          "title": "exclude",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-exclude-if",
+          "title": "exclude_if:_anotherfield_,_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-exclude-unless",
+          "title": "exclude_unless:_anotherfield_,_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-exclude-with",
+          "title": "exclude_with:_anotherfield_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-exclude-without",
+          "title": "exclude_without:_anotherfield_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-exists",
+          "title": "exists:_table_,_column_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "basic-usage-of-exists-rule",
+          "title": "Basic Usage of Exists Rule",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "specifying-a-custom-column-name",
+          "title": "Specifying a Custom Column Name",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-extensions",
+          "title": "extensions:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-file",
+          "title": "file",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-filled",
+          "title": "filled",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-gt",
+          "title": "gt:_field_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-gte",
+          "title": "gte:_field_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-hex-color",
+          "title": "hex_color",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-image",
+          "title": "image",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-in",
+          "title": "in:_foo_,_bar_,...",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-in-array",
+          "title": "in_array:_anotherfield_.*",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-in-array-keys",
+          "title": "in_array_keys:_value_.*",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-integer",
+          "title": "integer",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-ip",
+          "title": "ip",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "ipv4",
+          "title": "ipv4",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "ipv6",
+          "title": "ipv6",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-json",
+          "title": "json",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-lt",
+          "title": "lt:_field_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-lte",
+          "title": "lte:_field_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-lowercase",
+          "title": "lowercase",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-list",
+          "title": "list",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-mac",
+          "title": "mac_address",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-max",
+          "title": "max:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-max-digits",
+          "title": "max_digits:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-mimetypes",
+          "title": "mimetypes:_text/plain_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-mimes",
+          "title": "mimes:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "mime-types-and-extensions",
+          "title": "MIME Types and Extensions",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-min",
+          "title": "min:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-min-digits",
+          "title": "min_digits:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-multiple-of",
+          "title": "multiple_of:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-missing",
+          "title": "missing",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-missing-if",
+          "title": "missing_if:_anotherfield_,_value_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-missing-unless",
+          "title": "missing_unless:_anotherfield_,_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-missing-with",
+          "title": "missing_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-missing-with-all",
+          "title": "missing_with_all:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-not-in",
+          "title": "not_in:_foo_,_bar_,...",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-not-regex",
+          "title": "not_regex:_pattern_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-nullable",
+          "title": "nullable",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-numeric",
+          "title": "numeric",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-present",
+          "title": "present",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-present-if",
+          "title": "present_if:_anotherfield_,_value_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-present-unless",
+          "title": "present_unless:_anotherfield_,_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-present-with",
+          "title": "present_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-present-with-all",
+          "title": "present_with_all:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-prohibited",
+          "title": "prohibited",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-prohibited-if",
+          "title": "prohibited_if:_anotherfield_,_value_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-prohibited-if-accepted",
+          "title": "prohibited_if_accepted:_anotherfield_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-prohibited-if-declined",
+          "title": "prohibited_if_declined:_anotherfield_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-prohibited-unless",
+          "title": "prohibited_unless:_anotherfield_,_value_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-prohibits",
+          "title": "prohibits:_anotherfield_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-regex",
+          "title": "regex:_pattern_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required",
+          "title": "required",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-if",
+          "title": "required_if:_anotherfield_,_value_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-if-accepted",
+          "title": "required_if_accepted:_anotherfield_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-if-declined",
+          "title": "required_if_declined:_anotherfield_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-unless",
+          "title": "required_unless:_anotherfield_,_value_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-with",
+          "title": "required_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-with-all",
+          "title": "required_with_all:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-without",
+          "title": "required_without:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-without-all",
+          "title": "required_without_all:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-required-array-keys",
+          "title": "required_array_keys:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-same",
+          "title": "same:_field_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-size",
+          "title": "size:_value_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-starts-with",
+          "title": "starts_with:_foo_,_bar_,...",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-string",
+          "title": "string",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-timezone",
+          "title": "timezone",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-unique",
+          "title": "unique:_table_,_column_",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-uppercase",
+          "title": "uppercase",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-url",
+          "title": "url",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-ulid",
+          "title": "ulid",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "rule-uuid",
+          "title": "uuid",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "conditionally-adding-rules",
+          "title": "Conditionally Adding Rules",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "skipping-validation-when-fields-have-certain-values",
+          "title": "Skipping Validation When Fields Have Certain Values",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-when-present",
+          "title": "Validating When Present",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "complex-conditional-validation",
+          "title": "Complex Conditional Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "complex-conditional-array-validation",
+          "title": "Complex Conditional Array Validation",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-arrays",
+          "title": "Validating Arrays",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-nested-array-input",
+          "title": "Validating Nested Array Input",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "accessing-nested-array-data",
+          "title": "Accessing Nested Array Data",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "Rule::for_each/for_each_with/for_each_context、NestedRules、CompilableRules、Rule::compile"
+          ],
+          "evidence": [
+            "vendor/openrust/framework/tests/validation_for_each.rs",
+            "README.md#第十一组foreach编译动态字段与关联路径修复2026-11-24"
+          ]
+        },
+        {
+          "anchor": "error-message-indexes-and-positions",
+          "title": "Error Message Indexes and Positions",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-files",
+          "title": "Validating Files",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-files-file-types",
+          "title": "Validating File Types",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-files-file-sizes",
+          "title": "Validating File Sizes",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-files-image-files",
+          "title": "Validating Image Files",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-files-image-dimensions",
+          "title": "Validating Image Dimensions",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "validating-passwords",
+          "title": "Validating Passwords",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "defining-default-password-rules",
+          "title": "Defining Default Password Rules",
+          "status": "confirmed_remaining_contracts",
+          "contract": [
+            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+          ],
+          "evidence": []
+        },
+        {
+          "anchor": "custom-validation-rules",
+          "title": "Custom Validation Rules",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "using-rule-objects",
+          "title": "Using Rule Objects",
+          "status": "pending_full_review",
+          "contract": [],
+          "evidence": []
+        },
+        {
+          "anchor": "using-closures",
+          "title": "Using Closures",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ValidationRule的Fn适配与Rule::custom"
+          ],
+          "evidence": [
+            "vendor/openrust/framework/tests/validation_rule_tutorial.rs"
+          ]
+        },
+        {
+          "anchor": "implicit-rules",
+          "title": "Implicit Rules",
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "ValidationRule::is_implicit、make:rule --implicit"
+          ],
+          "evidence": [
+            "vendor/openrust/framework/tests/validation_rule_tutorial.rs",
+            "tests/rule_generator_tutorial.py"
+          ]
+        }
+      ]
+    }
+  }
+}

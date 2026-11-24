@@ -79,6 +79,8 @@ pub(super) enum Kind {
     Exists(Exists),
     Unique(Unique),
     Custom(Arc<dyn ValidationRule>),
+    ForEach(super::NestedRules),
+    Compilable(Arc<dyn crate::contracts::validation::CompilableRules>),
 }
 
 impl Rule {
@@ -105,6 +107,46 @@ impl Rule {
         }
         .map(|(name, parameters)| (name.to_owned(), parameters));
         Self(kind, declaration)
+    }
+
+    pub fn compilable(rule: impl crate::contracts::validation::CompilableRules + 'static) -> Self {
+        Self::new(Kind::Compilable(Arc::new(rule)))
+    }
+
+    pub fn compile(
+        attribute: &str,
+        rules: impl Into<super::NestedRuleSet>,
+        data: &serde_json::Map<String, Value>,
+    ) -> ValidationResult<super::RuleSet> {
+        let input = super::path::from_flat(data)?;
+        let input = super::Data::new(input)?;
+        super::rule_compiler::bind(attribute, rules.into())?.compile_rules(&input)
+    }
+
+    pub fn for_each_context<T: Into<super::NestedRuleSet>>(
+        callback: impl Fn(&super::NestedRuleContext<'_>) -> ValidationResult<T> + Send + Sync + 'static,
+    ) -> super::NestedRules {
+        super::NestedRules::with_context(callback)
+    }
+
+    pub fn for_each<T: Into<super::NestedRuleSet>>(
+        callback: impl Fn(Option<&Value>, &str) -> ValidationResult<T> + Send + Sync + 'static,
+    ) -> super::NestedRules {
+        super::NestedRules::new(move |value, attribute, _, _| callback(value, attribute))
+    }
+
+    pub fn for_each_with<T: Into<super::NestedRuleSet>>(
+        callback: impl Fn(
+            Option<&Value>,
+            &str,
+            &serde_json::Map<String, Value>,
+            Option<&Value>,
+        ) -> ValidationResult<T>
+        + Send
+        + Sync
+        + 'static,
+    ) -> super::NestedRules {
+        super::NestedRules::new(callback)
     }
 
     pub fn any_of<T: Into<AnyOfRules>>(rules: impl IntoIterator<Item = T>) -> AnyOf {

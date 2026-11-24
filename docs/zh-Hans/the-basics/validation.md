@@ -531,3 +531,57 @@ fn store_contact(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 关联输入可传入由 `RuleSet` 构成的备选组，每组验证各自的字段映射。子验证器使用当前应用工厂，保留扩展、数据库存在性验证、自定义消息和字段显示名；嵌套组内的上传文件保留类型化句柄。检查规则组不会用子验证器过滤后的结果替换外层值；需要拒绝额外字段时，应声明允许的数组键。
 
 此规则与其他验证门面一样，需要活动的应用门面作用域。空备选列表拒绝已提供的值；单个空规则组则通过。所有组失败时，在外层字段报告 `validation.any_of`，并支持该规则的自定义消息。
+
+## 编译每项规则 {#accessing-nested-array-data}
+
+`Rule::for_each` 返回 `NestedRules`。回调在创建验证器时执行，先于字段验证，接收当前值和展开后的属性名。返回 `Vec<Rule>` 表示当前值的规则，或返回字段相对于当前值的 `RuleSet`。替换整份数据或规则会重新编译，重复验证不会重复执行回调。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleSet},
+};
+use serde_json::Value;
+
+fn store_each(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("companies", [Rule::array()])?
+            .field("companies.*.id", [Rule::for_each(|_value, _attribute| {
+                Ok(vec![Rule::required(), Rule::integer(), Rule::min(1)])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_bulk(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("items", [Rule::array()])?
+            .field("items.*.bulk", [Rule::sometimes(), Rule::parse("boolean:strict")?])?
+            .field("items.*.quantity", [Rule::for_each_with(|_value, _attribute, _flat, item| {
+                let bulk = item.and_then(|item| item.get("bulk")).and_then(Value::as_bool) == Some(true);
+                Ok(vec![Rule::required(), Rule::integer(), Rule::min(if bulk { 10 } else { 1 })])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_nested(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("items", [Rule::array()])?
+            .field("items.*", [Rule::for_each(|_value, _attribute| {
+                RuleSet::parse([("id", "required|integer"), ("tag", "sometimes|string")])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+需要完整四个参数时，使用 `Rule::for_each_with` 或 `NestedRules::new`：当前值、属性名、收集后的扁平数据和父项上下文。扁平映射使用规范转义路径，字面点与嵌套路径不会互相覆盖。自定义编译器可实现 `contracts::validation::CompilableRules`，并调用 `Rule::compile`。返回列表中的数据库规则继续使用原工厂和存在性验证器。 需要按文件信息编译时，使用 `Rule::for_each_context` 或 `NestedRules::with_context`：`NestedRuleContext::file()` 读取原类型化文件，`data` 保留原始输入，`flattened` 保留当前收集的映射；其中 `attribute` 是规范转义路径。自定义编译器可通过 `CompilableRules::compile_context` 使用相同上下文。
+
+编译后的字段保留通配符消息匹配、错误位置、Precognition 选择和 validated 字段过滤。既有不返回 Result 的 `set_data` / `set_rules` 会保留编译错误，下次 `get_rules` 或验证返回原错误种类；修正数据或规则后恢复。空的类型化映射仍序列化为 JSON 对象，不把 PHP 数组／对象歧义引入既有响应契约。

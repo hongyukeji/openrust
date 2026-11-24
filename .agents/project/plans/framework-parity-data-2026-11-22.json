@@ -298964,6 +298964,28 @@
         "email DNS/spoof/strict/filter模式"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "kind": "documentation_tutorial_foreach_compilation",
+      "status": "ForEach及列明关联路径闭合；全文对账继续",
+      "contracts": [
+        "Rule::for_each/for_each_with/for_each_context",
+        "NestedRules/NestedRuleSet/NestedRuleContext",
+        "CompilableRules::compile/compile_context",
+        "Rule::compile/compilable"
+      ],
+      "implementation": "Factory创建和数据/规则替换时同步编译，缓存编译错误，保留原通配来源和投影；修复sometimes条件上下文及转义路径/文件替换",
+      "actual_results": "PHP11组ForEach+4组sometimes；MySQL8.4.13五目标36项及三语3项消费者通过；严格workspace Clippy/fmt/三语构建浏览器通过",
+      "remaining": [
+        "safe子集/合并/collect/迭代与对应Contract",
+        "其他fluent builders及Enum/In",
+        "DataAware/ValidatorAware实际setter",
+        "email模式",
+        "密码默认策略/泄漏验证与HTML规则串",
+        "section-map中其他待逐节核对条目"
+      ],
+      "evidence": ".agents/project/audits/docs-tutorials/README.md"
     }
   ]
 }

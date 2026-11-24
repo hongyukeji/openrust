@@ -83,6 +83,7 @@ impl Contract for Factory {
             messages,
             attributes,
         );
+        validator.ensure_compiled()?;
         if let Some(resolver) = registrations.resolver {
             validator = resolver(validator)?;
         }
@@ -116,6 +117,7 @@ impl Contract for Factory {
             .extensions
             .fallback_messages
             .extend(registrations.fallback_messages);
+        validator.ensure_compiled()?;
         Ok(validator)
     }
 

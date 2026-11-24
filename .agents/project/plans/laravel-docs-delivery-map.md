@@ -203,3 +203,5 @@ API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分
 2026-11-24 Validation第九组：RuleFailure通过显式RuleContext借用提供translate／translate_choice，当场解析首选语言与复数，保持原JSON错误包和默认消息；固定PHP包含语言切换时序、回退与嵌套替换参数的输出已用24并发真实TCP回放。20项验证回归＋三语21段直接提取的3项HTTP消费者通过，严格Clippy/fmt/三语构建通过。其余setter／builder／email差异继续，未宣称整章关闭。
 
 2026-11-24 Validation第十组：Rule::any_of／AnyOf、标量及字段备选组闭合。固定PHP34组消息／值组合，真实TCP混合与递归组、工厂消息继承与短路、typed multipart成功／超限、MySQL8.4.13写连接存在性验证均通过。4目标28项＋三语24段正式示例3项消费者=31项，严格Clippy/fmt/三语构建浏览器通过。ForEach编译展开、其余builder、可变setter和email模式仍按逐项清单接续，未关闭整章。
+
+2026-11-24 Validation第十一组：ForEach／NestedRules／CompilableRules及实际编译生命周期已接通，修复sometimes上下文、转义路径、文件替换与动态投影关联问题。固定PHP11组＋sometimes4组、真实HTTP/Precognition/multipart与MySQL8.4.13组合36项通过；三语直接提取消费者3项、最终严格Clippy/fmt/三语构建浏览器通过。新增[逐节对账表](../audits/docs-tutorials/section-map.json)，全文复核新发现safe、Enum/In、密码策略缺口一并开放，接续实现，不结束本轮任务。

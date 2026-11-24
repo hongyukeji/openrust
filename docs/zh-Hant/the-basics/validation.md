@@ -531,3 +531,57 @@ fn store_contact(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 關聯輸入可傳入由 `RuleSet` 構成的備選組，每組驗證各自的欄位映射。子驗證器使用目前應用工廠，保留擴充、資料庫存在性驗證、自訂訊息和欄位顯示名稱；巢狀組內的上傳檔案保留型別化控制代碼。檢查規則組不會用子驗證器篩選後的結果替換外層值；需要拒絕額外欄位時，應宣告允許的陣列鍵。
 
 此規則與其他驗證門面一樣，需要作用中的應用門面範圍。空備選清單拒絕已提供的值；單個空規則組則通過。所有組失敗時，在外層欄位回報 `validation.any_of`，並支援該規則的自訂訊息。
+
+## 編譯每項規則 {#accessing-nested-array-data}
+
+`Rule::for_each` 傳回 `NestedRules`。回呼在建立驗證器時執行，先於欄位驗證，接收目前值和展開後的屬性名稱。傳回 `Vec<Rule>` 表示目前值的規則，或傳回欄位相對於目前值的 `RuleSet`。替換整份資料或規則會重新編譯，重複驗證不會重複執行回呼。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleSet},
+};
+use serde_json::Value;
+
+fn store_each(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("companies", [Rule::array()])?
+            .field("companies.*.id", [Rule::for_each(|_value, _attribute| {
+                Ok(vec![Rule::required(), Rule::integer(), Rule::min(1)])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_bulk(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("items", [Rule::array()])?
+            .field("items.*.bulk", [Rule::sometimes(), Rule::parse("boolean:strict")?])?
+            .field("items.*.quantity", [Rule::for_each_with(|_value, _attribute, _flat, item| {
+                let bulk = item.and_then(|item| item.get("bulk")).and_then(Value::as_bool) == Some(true);
+                Ok(vec![Rule::required(), Rule::integer(), Rule::min(if bulk { 10 } else { 1 })])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_nested(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("items", [Rule::array()])?
+            .field("items.*", [Rule::for_each(|_value, _attribute| {
+                RuleSet::parse([("id", "required|integer"), ("tag", "sometimes|string")])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+需要完整四個參數時，使用 `Rule::for_each_with` 或 `NestedRules::new`：目前值、屬性名稱、收集後的扁平資料和父項上下文。扁平映射使用規範轉義路徑，字面點與巢狀路徑不會互相覆蓋。自訂編譯器可實作 `contracts::validation::CompilableRules`，並呼叫 `Rule::compile`。傳回清單中的資料庫規則繼續使用既有工廠和存在性驗證器。 需要按檔案資訊編譯時，使用 `Rule::for_each_context` 或 `NestedRules::with_context`：`NestedRuleContext::file()` 讀取原型別化檔案，`data` 保留原始輸入，`flattened` 保留目前收集的映射；其中 `attribute` 是規範轉義路徑。自訂編譯器可透過 `CompilableRules::compile_context` 使用相同上下文。
+
+編譯後的欄位保留萬用字元訊息比對、錯誤位置、Precognition 選擇和 validated 欄位篩選。既有不傳回 Result 的 `set_data` / `set_rules` 會保留編譯錯誤，下次 `get_rules` 或驗證傳回原錯誤種類；修正資料或規則後恢復。空的型別化映射仍序列化為 JSON 物件，不把 PHP 陣列／物件歧義引入既有回應契約。

@@ -21,6 +21,7 @@ pub struct Validator {
     pub(super) extensions: super::extensions::Extensions,
     rules: RuleSet,
     initial_rules: RuleSet,
+    compilation_error: Option<super::rule_compiler::CompilationError>,
     exception: ValidationExceptionFactory,
     translator: Option<Arc<Translator>>,
     pub(super) presence: Option<DatabasePresenceVerifier>,
@@ -46,10 +47,16 @@ impl Validator {
         messages: BTreeMap<String, String>,
         attributes: BTreeMap<String, String>,
     ) -> Self {
+        let initial_rules = rules.clone();
+        let (rules, compilation_error) = match rules.compile_rules(&data) {
+            Ok(rules) => (rules, None),
+            Err(error) => (RuleSet::new(), Some(error.into())),
+        };
         Self {
             data,
             extensions: Default::default(),
-            initial_rules: rules.clone(),
+            initial_rules,
+            compilation_error,
             exception: ValidationException::localized,
             rules,
             translator,
@@ -68,6 +75,24 @@ impl Validator {
         }
     }
 
+    pub(super) fn ensure_compiled(&self) -> ValidationResult<()> {
+        self.compilation_error
+            .as_ref()
+            .map_or(Ok(()), |error| Err(error.error()))
+    }
+
+    fn compile_rules(&mut self, rules: RuleSet) {
+        match rules.compile_rules(&self.data) {
+            Ok(rules) => {
+                self.rules = rules;
+                self.compilation_error = None;
+            }
+            Err(error) => {
+                self.compilation_error = Some(error.into());
+            }
+        }
+    }
+
     pub(super) fn invalidate(&mut self) {
         self.result = None;
         self.errors = MessageBag::default();
@@ -80,7 +105,7 @@ impl Validator {
     /// 替换数据后恢复初始规则，移除运行期 addRules/sometimes 追加项。
     pub fn set_data(&mut self, data: Data) -> &mut Self {
         self.data = data;
-        self.rules = self.initial_rules.clone();
+        self.compile_rules(self.initial_rules.clone());
         self.invalidate();
         self
     }
@@ -104,10 +129,9 @@ impl Validator {
     pub fn set_value(&mut self, attribute: &str, value: Value) -> ValidationResult<()> {
         self.get_value(attribute)?;
         let mut data = self.data.clone();
-        data.forget(attribute)?;
+        data.forget_files(attribute)?;
         let mut input = data.as_value().clone();
-        crate::support::Arr::set(&mut input, attribute, value)
-            .map_err(|_| ValidationError::InvalidPath)?;
+        path::set(&mut input, &path::parse(attribute)?, value)?;
         data.replace(input)?;
         self.data = data;
         self.invalidate();
@@ -116,6 +140,7 @@ impl Validator {
 
     /// 返回当前数据展开后的规则，具体键仍使用原生转义路径。
     pub fn get_rules(&self) -> ValidationResult<Vec<(String, Vec<Rule>)>> {
+        self.ensure_compiled()?;
         let mut expanded: Vec<(String, Vec<Rule>)> = Vec::new();
         let mut budget = path::Budget::default();
         for (index, (pattern, rules)) in self.rules.fields.iter().enumerate() {
@@ -139,13 +164,14 @@ impl Validator {
 
     pub fn set_rules(&mut self, rules: RuleSet) -> &mut Self {
         self.initial_rules = rules.clone();
-        self.rules = rules;
+        self.compile_rules(rules);
         self.invalidate();
         self
     }
 
     pub fn add_rules(&mut self, rules: RuleSet) -> ValidationResult<()> {
-        let merged = self.rules.merged(rules)?;
+        self.ensure_compiled()?;
+        let merged = self.rules.merged(rules)?.compile_rules(&self.data)?;
         self.rules = merged;
         self.invalidate();
         Ok(())
@@ -250,34 +276,42 @@ impl Validator {
         rules: Vec<Rule>,
         condition: impl Fn(&Data, Option<&Value>) -> bool,
     ) -> ValidationResult<&mut Self> {
-        self.invalidate();
-        for (path, _) in self.data.attributes(attribute)? {
-            let parent = if attribute.contains('*') {
-                path.rsplit_once('.')
-                    .map(|(parent, _)| parent)
-                    .unwrap_or("")
-            } else {
-                ""
-            };
-            let item = if parent.is_empty() {
-                Some(self.data.as_value())
-            } else {
-                self.data
-                    .attributes(parent)?
+        self.ensure_compiled()?;
+        let candidate = if rules.is_empty() {
+            path::parse(attribute)?;
+            let mut rules = RuleSet::new();
+            rules.fields.push((attribute.to_owned(), Vec::new()));
+            rules
+        } else {
+            RuleSet::new().field(attribute, rules)?
+        }
+        .compile_rules(&self.data)?;
+        let mut additions = RuleSet::new();
+        for (declaration, rules) in &candidate.fields {
+            for (path, _) in self.data.attributes(declaration)? {
+                let parent = if attribute.ends_with(".*") {
+                    path.clone()
+                } else {
+                    path::parent(&path)?.unwrap_or_else(|| path.clone())
+                };
+                let item = self
+                    .data
+                    .attributes(&parent)?
                     .into_iter()
                     .next()
-                    .and_then(|(_, value)| value)
-            };
-            if condition(&self.data, item) {
-                if let Some((_, existing)) =
-                    self.rules.fields.iter_mut().find(|(name, _)| name == &path)
-                {
-                    existing.extend(rules.clone());
-                } else {
-                    self.rules = self.rules.clone().field(path, rules.clone())?;
+                    .and_then(|(_, value)| value);
+                if condition(&self.data, item) && !rules.is_empty() {
+                    additions =
+                        additions.merged(RuleSet::new().field(path.clone(), rules.clone())?)?;
+                    if path != candidate.origin(declaration) {
+                        additions
+                            .origins
+                            .insert(path, candidate.origin(declaration).to_owned());
+                    }
                 }
             }
         }
+        self.add_rules(additions)?;
         Ok(self)
     }
 
@@ -318,12 +352,14 @@ impl Validator {
         &mut self,
         mut request: Option<&mut crate::http::Request>,
     ) -> ValidationResult<()> {
+        self.ensure_compiled()?;
         self.result = None;
         self.errors = MessageBag::default();
         let mut excluded: Vec<String> = Vec::new();
         let mut errors = MessageBag::default();
         let mut budget = path::Budget::default();
-        'fields: for (index, (pattern, rules)) in self.rules.fields.iter().enumerate() {
+        'fields: for (index, (declaration, rules)) in self.rules.fields.iter().enumerate() {
+            let pattern = self.rules.origin(declaration);
             let nullable = contains(rules, |rule| matches!(rule, Kind::Nullable));
             let sometimes = contains(rules, |rule| matches!(rule, Kind::Sometimes));
             let bail = contains(rules, |rule| matches!(rule, Kind::Bail));
@@ -334,11 +370,14 @@ impl Validator {
             let presence_rules = contains(rules, |rule| {
                 matches!(rule, Kind::Exists(_) | Kind::Unique(_))
             });
-            let segments = path::parse(pattern)?;
+            let segments = path::parse(declaration)?;
             let wildcard = presence_rules
-                && segments
+                && (path::parse(pattern)?
                     .iter()
-                    .any(|part| matches!(part, path::Segment::Any));
+                    .any(|part| matches!(part, path::Segment::Any))
+                    || segments
+                        .iter()
+                        .any(|part| matches!(part, path::Segment::Any)));
             for (attribute, value) in path::expand(self.data.as_value(), &segments, &mut budget)? {
                 if excluded
                     .iter()

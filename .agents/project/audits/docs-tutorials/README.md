@@ -217,3 +217,27 @@ make:rule与生成模板消费者本组闭合。逐失败首选语言、DataAwar
 最终any-of-gates.log六阶段全0：三语提取与运行、workspace/all-targets -D warnings（45.45秒）、fmt、三语构建、浏览器和根／docs挂载全部导航、无API导出参考页检查通过。实现与验收快照逐字核对，保留日志／源码／热缓存；未混入队列／云功能等在途改动。
 
 当前明确余项：ForEach的编译规则与动态字段展开、其余Rule fluent builders、DataAware／ValidatorAware可变setter、email DNS／spoof／strict／filter扩展模式。AnyOf已闭合，不再列为未实现；Validation整章仍不能宣布完整对齐。
+
+## 第十一组：ForEach编译、动态字段与关联路径修复（2026-11-24）
+
+本轮重新核对固定文档全文；下载内容与已有reference/validation.md及urls.md的SHA一致，固定文档分别为210db605c0c0db85e7ebbe8c4299e629fc7320dd6ebf9c3f1c69afd6468cfbfd及3f0fbaf1241207927c794b189ff3c0209e71be67443f4d28a84436a702753e63。新增section-map.json逐节记录14个URL小节与179个Validation小节；未复核的小节保持开放，不把锚点数量当作完成率。旧版v0.x未找到可复用的ForEach／DataAware对应机制，沿用当前RuleSet／Factory／Validator装配。
+
+### 契约与生命周期
+
+- Rule::for_each返回NestedRules，回调接收值与属性；for_each_with与NestedRules::new提供四参数版本。NestedRuleSet::{Value,Fields}分别表达同一值规则与相对字段规则。Rule::compile、contracts::validation::CompilableRules、Rule::compilable实际参与编译；不是在普通Custom规则中另跑验证来冒充动态字段展开。
+- 原Factory创建时编译，get_rules与重复validate不重复调用回调；set_data／set_rules同步重编译。编译后的规则保留原通配来源、Precognition筛选、隐式数据库列名推导及投影字段；空规则列表仍保留该属性，空匹配不调用回调。现有规则／展开预算与深度限制继续执行，展开条目沿用4096预算而非错误套用1024声明限制。
+- 保持既有不返回Result的set_data／set_rules签名：编译失败缓存原错误类别，后续get_rules／验证持续返回错误，不使用旧编译结果悄悄通过；修正后恢复。Factory::make及可失败的add_rules立即返回错误。不可复制的执行原因用Arc保留原Error::source链，未把原因截成字符串。此为明确Rust错误表达适配，不声称setter同步抛异常完全一样。
+- Rust闭包不能省略参数，常用两参数与完整版本用不同构造方法表达。原始路径使用稳定转义，不泄漏PHP内部随机占位符；完整上下文NestedRuleContext、for_each_context／NestedRules::with_context及CompilableRules::compile_context提供原Data与typed file，普通四参数仍保留固定上游的扁平数据和父项语义。空的类型化flat映射／validated映射维持既有JSON对象表示，PHP空数组歧义在测试中仅对对应容器规范化，未改变用户数组值。
+
+### 关联修复及证据
+
+- 固定NestedRules、ValidationRuleParser、ValidationData、Rule::compile与Validator::sometimes源码逐项对照；固定PHP8.5.12真实执行11组ForEach用例，保存validation-for-each.json，包含创建时调用次数、扁平数据／父项、显式点路径、递归组、规则顺序、消息与投影。另4组sometimes上下文保存validation-sometimes-contexts.json。
+- sometimes在条件判断前编译动态规则；末尾.*条件接收当前项，其余路径接收对应父项／字段，修复此前一律父数组／根数据的偏差。动态追加在set_data时按既有契约清除。
+- 字面点路径复验发现用普通Arr::set/forget会混淆层级与字面点，已复用验证器path解析增加规范写入／删除；父路径也按片段解析，不用rsplit切断转义点。文件替换只清理文件元数据后写值，保留数组位置，不让旧shape重新覆盖新标量。原上传句柄不复制内容；实际multipart替换后JSON值42、文件引用消失已验证。
+- 实际HTTP回放11组固定数据，增加编译失败500后正常请求200、Precognition只验指定展开字段204／422、typed file与递归Trait文件编译、字面点字段、1201条合法展开、运行期追加及错误恢复；独立MySQL8.4.13以故意失效read地址验证推导id列与原write presence连接。
+
+最终隔离来源0eeb12e3a加本批源码：5目标36项、0忽略（for_each4、validation_http23、mutation6、lifecycle1、rule_tutorial2）通过。三语正式示例直接提取为3组HTTP Kernel消费者，覆盖两参数、父项bulk条件和相对字段过滤，通过；日志foreach/mysql-context-final.log、foreach-doc-{extract,tests}-final.log。首次新夹具误用Middleware命名空间／缺Ok包装已纠正，不算框架缺陷。普通回归只需要JSON数据，运行不依赖PHP。
+
+两次触及32GB停线，守卫清理并恢复；一次中断收尾报EPERM，本批构建已退出，项目构建守卫完成全局持锁清理后空间恢复，未绕过锁清理或计中断为通过。最终foreach/gates-resumed.log的Clippy、fmt、三语构建、浏览器四阶段均0；workspace/all-targets -D warnings完成1m20s，先前最终三语消费者两阶段也0。新完整上下文与主测试源码已核SHA；临时容器均由验收器回收，日志／源码保留、缓存继续复用。
+
+本批关闭ForEach及上述关联差异。全文复查另外确认safe子集／合并／集合／迭代入口、Enum/In对象及密码默认／泄漏验证等缺口，连同其余fluent builder、DataAware／ValidatorAware、email模式继续本轮处理；不以原关键词清单或本批36项宣布整章完成。

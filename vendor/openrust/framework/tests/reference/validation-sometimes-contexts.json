@@ -1,0 +1,73 @@
+[
+    {
+        "attribute": "rows.*",
+        "input": {
+            "rows": [
+                {
+                    "enabled": true
+                },
+                {
+                    "enabled": false
+                }
+            ]
+        },
+        "contexts": [
+            {
+                "enabled": true
+            },
+            {
+                "enabled": false
+            }
+        ]
+    },
+    {
+        "attribute": "rows.*.name",
+        "input": {
+            "rows": [
+                {
+                    "name": "A",
+                    "enabled": true
+                },
+                {
+                    "name": "B",
+                    "enabled": false
+                }
+            ]
+        },
+        "contexts": [
+            {
+                "name": "A",
+                "enabled": true
+            },
+            {
+                "name": "B",
+                "enabled": false
+            }
+        ]
+    },
+    {
+        "attribute": "name",
+        "input": {
+            "name": "A",
+            "other": true
+        },
+        "contexts": [
+            "A"
+        ]
+    },
+    {
+        "attribute": "nested.name",
+        "input": {
+            "nested": {
+                "name": "A",
+                "enabled": true
+            }
+        },
+        "contexts": [
+            {
+                "name": "A",
+                "enabled": true
+            }
+        ]
+    }
+]

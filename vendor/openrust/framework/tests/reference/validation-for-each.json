@@ -1,0 +1,1153 @@
+[
+    {
+        "mode": "value",
+        "attribute": "items.*.id",
+        "input": {
+            "items": [
+                {
+                    "id": 2,
+                    "tag": "x"
+                },
+                {
+                    "id": 3
+                },
+                {
+                    "other": 7
+                }
+            ],
+            "outside": true
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "items.0.id",
+                "value": 2,
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.tag": "x",
+                    "items.1.id": 3,
+                    "items.2.other": 7,
+                    "items.2.id": null
+                },
+                "context": {
+                    "id": 2,
+                    "tag": "x"
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1.id",
+                "value": 3,
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.tag": "x",
+                    "items.1.id": 3,
+                    "items.2.other": 7,
+                    "items.2.id": null
+                },
+                "context": {
+                    "id": 3
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.2.id",
+                "value": null,
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.tag": "x",
+                    "items.1.id": 3,
+                    "items.2.other": 7,
+                    "items.2.id": null
+                },
+                "context": {
+                    "other": 7
+                }
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "items.0.id",
+                "value": 2,
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.tag": "x",
+                    "items.1.id": 3,
+                    "items.2.other": 7,
+                    "items.2.id": null
+                },
+                "context": {
+                    "id": 2,
+                    "tag": "x"
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1.id",
+                "value": 3,
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.tag": "x",
+                    "items.1.id": 3,
+                    "items.2.other": 7,
+                    "items.2.id": null
+                },
+                "context": {
+                    "id": 3
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.2.id",
+                "value": null,
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.tag": "x",
+                    "items.1.id": 3,
+                    "items.2.other": 7,
+                    "items.2.id": null
+                },
+                "context": {
+                    "other": 7
+                }
+            }
+        ],
+        "rules": [
+            "items",
+            "items.0.id",
+            "items.1.id",
+            "items.2.id"
+        ],
+        "passes": false,
+        "errors": {
+            "items.2.id": [
+                "Missing identifier"
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "value",
+        "attribute": "items.*.id",
+        "input": {
+            "items": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": null
+                },
+                {
+                    "id": "bad"
+                }
+            ]
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "items.0.id",
+                "value": 1,
+                "flat": {
+                    "items.0.id": 1,
+                    "items.1.id": null,
+                    "items.2.id": "bad"
+                },
+                "context": {
+                    "id": 1
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1.id",
+                "value": null,
+                "flat": {
+                    "items.0.id": 1,
+                    "items.1.id": null,
+                    "items.2.id": "bad"
+                },
+                "context": {
+                    "id": null
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.2.id",
+                "value": "bad",
+                "flat": {
+                    "items.0.id": 1,
+                    "items.1.id": null,
+                    "items.2.id": "bad"
+                },
+                "context": {
+                    "id": "bad"
+                }
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "items.0.id",
+                "value": 1,
+                "flat": {
+                    "items.0.id": 1,
+                    "items.1.id": null,
+                    "items.2.id": "bad"
+                },
+                "context": {
+                    "id": 1
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1.id",
+                "value": null,
+                "flat": {
+                    "items.0.id": 1,
+                    "items.1.id": null,
+                    "items.2.id": "bad"
+                },
+                "context": {
+                    "id": null
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.2.id",
+                "value": "bad",
+                "flat": {
+                    "items.0.id": 1,
+                    "items.1.id": null,
+                    "items.2.id": "bad"
+                },
+                "context": {
+                    "id": "bad"
+                }
+            }
+        ],
+        "rules": [
+            "items",
+            "items.0.id",
+            "items.1.id",
+            "items.2.id"
+        ],
+        "passes": false,
+        "errors": {
+            "items.0.id": [
+                "Small identifier"
+            ],
+            "items.1.id": [
+                "Missing identifier"
+            ],
+            "items.2.id": [
+                "The identifier field must be an integer."
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "value",
+        "attribute": "items.*.id",
+        "input": {
+            "items": []
+        },
+        "calls": [],
+        "calls_after": [],
+        "rules": [
+            "items"
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "items": []
+        }
+    },
+    {
+        "mode": "value",
+        "attribute": "items.*.id",
+        "input": [],
+        "calls": [],
+        "calls_after": [],
+        "rules": [
+            "items"
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": []
+    },
+    {
+        "mode": "value",
+        "attribute": "value",
+        "input": {
+            "value": 3,
+            "outside": true
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "value",
+                "value": 3,
+                "flat": {
+                    "value": 3,
+                    "outside": true
+                },
+                "context": {
+                    "value": 3,
+                    "outside": true
+                }
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "value",
+                "value": 3,
+                "flat": {
+                    "value": 3,
+                    "outside": true
+                },
+                "context": {
+                    "value": 3,
+                    "outside": true
+                }
+            }
+        ],
+        "rules": [
+            "value"
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "value": 3
+        }
+    },
+    {
+        "mode": "value",
+        "attribute": "value",
+        "input": [],
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "value",
+                "value": null,
+                "flat": [],
+                "context": []
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "value",
+                "value": null,
+                "flat": [],
+                "context": []
+            }
+        ],
+        "rules": [
+            "value"
+        ],
+        "passes": false,
+        "errors": {
+            "value": [
+                "The value field is required."
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "value",
+        "attribute": "nested.value",
+        "input": {
+            "nested": {
+                "value": 4
+            }
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "nested.value",
+                "value": null,
+                "flat": {
+                    "nested.value": 4
+                },
+                "context": {
+                    "nested": {
+                        "value": 4
+                    }
+                }
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "nested.value",
+                "value": null,
+                "flat": {
+                    "nested.value": 4
+                },
+                "context": {
+                    "nested": {
+                        "value": 4
+                    }
+                }
+            }
+        ],
+        "rules": [
+            "nested.value"
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "nested": {
+                "value": 4
+            }
+        }
+    },
+    {
+        "mode": "fields",
+        "attribute": "items.*",
+        "input": {
+            "items": [
+                {
+                    "id": 2,
+                    "extra": true
+                },
+                {
+                    "id": 3,
+                    "tag": "ok",
+                    "extra": false
+                }
+            ]
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": {
+                    "id": 2,
+                    "extra": true
+                },
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.extra": true,
+                    "items.1.id": 3,
+                    "items.1.tag": "ok",
+                    "items.1.extra": false,
+                    "items.0": {
+                        "id": 2,
+                        "extra": true
+                    },
+                    "items.1": {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                },
+                "context": [
+                    {
+                        "id": 2,
+                        "extra": true
+                    },
+                    {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                ]
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": {
+                    "id": 3,
+                    "tag": "ok",
+                    "extra": false
+                },
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.extra": true,
+                    "items.1.id": 3,
+                    "items.1.tag": "ok",
+                    "items.1.extra": false,
+                    "items.0": {
+                        "id": 2,
+                        "extra": true
+                    },
+                    "items.1": {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                },
+                "context": [
+                    {
+                        "id": 2,
+                        "extra": true
+                    },
+                    {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                ]
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": {
+                    "id": 2,
+                    "extra": true
+                },
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.extra": true,
+                    "items.1.id": 3,
+                    "items.1.tag": "ok",
+                    "items.1.extra": false,
+                    "items.0": {
+                        "id": 2,
+                        "extra": true
+                    },
+                    "items.1": {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                },
+                "context": [
+                    {
+                        "id": 2,
+                        "extra": true
+                    },
+                    {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                ]
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": {
+                    "id": 3,
+                    "tag": "ok",
+                    "extra": false
+                },
+                "flat": {
+                    "items.0.id": 2,
+                    "items.0.extra": true,
+                    "items.1.id": 3,
+                    "items.1.tag": "ok",
+                    "items.1.extra": false,
+                    "items.0": {
+                        "id": 2,
+                        "extra": true
+                    },
+                    "items.1": {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                },
+                "context": [
+                    {
+                        "id": 2,
+                        "extra": true
+                    },
+                    {
+                        "id": 3,
+                        "tag": "ok",
+                        "extra": false
+                    }
+                ]
+            }
+        ],
+        "rules": [
+            "items",
+            "items.0.id",
+            "items.0.tag",
+            "items.1.id",
+            "items.1.tag"
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "items": [
+                {
+                    "id": 2
+                },
+                {
+                    "id": 3,
+                    "tag": "ok"
+                }
+            ]
+        }
+    },
+    {
+        "mode": "fields",
+        "attribute": "items.*",
+        "input": {
+            "items": [
+                {
+                    "id": "bad"
+                },
+                {
+                    "tag": 2
+                }
+            ]
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": {
+                    "id": "bad"
+                },
+                "flat": {
+                    "items.0.id": "bad",
+                    "items.1.tag": 2,
+                    "items.0": {
+                        "id": "bad"
+                    },
+                    "items.1": {
+                        "tag": 2
+                    }
+                },
+                "context": [
+                    {
+                        "id": "bad"
+                    },
+                    {
+                        "tag": 2
+                    }
+                ]
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": {
+                    "tag": 2
+                },
+                "flat": {
+                    "items.0.id": "bad",
+                    "items.1.tag": 2,
+                    "items.0": {
+                        "id": "bad"
+                    },
+                    "items.1": {
+                        "tag": 2
+                    }
+                },
+                "context": [
+                    {
+                        "id": "bad"
+                    },
+                    {
+                        "tag": 2
+                    }
+                ]
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": {
+                    "id": "bad"
+                },
+                "flat": {
+                    "items.0.id": "bad",
+                    "items.1.tag": 2,
+                    "items.0": {
+                        "id": "bad"
+                    },
+                    "items.1": {
+                        "tag": 2
+                    }
+                },
+                "context": [
+                    {
+                        "id": "bad"
+                    },
+                    {
+                        "tag": 2
+                    }
+                ]
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": {
+                    "tag": 2
+                },
+                "flat": {
+                    "items.0.id": "bad",
+                    "items.1.tag": 2,
+                    "items.0": {
+                        "id": "bad"
+                    },
+                    "items.1": {
+                        "tag": 2
+                    }
+                },
+                "context": [
+                    {
+                        "id": "bad"
+                    },
+                    {
+                        "tag": 2
+                    }
+                ]
+            }
+        ],
+        "rules": [
+            "items",
+            "items.0.id",
+            "items.0.tag",
+            "items.1.id",
+            "items.1.tag"
+        ],
+        "passes": false,
+        "errors": {
+            "items.0.id": [
+                "The identifier field must be an integer."
+            ],
+            "items.1.id": [
+                "Missing identifier"
+            ],
+            "items.1.tag": [
+                "The items.1.tag field must be a string."
+            ]
+        },
+        "validated": null
+    },
+    {
+        "mode": "empty",
+        "attribute": "items.*",
+        "input": {
+            "items": [
+                1,
+                2
+            ]
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": 1,
+                "flat": {
+                    "items.0": 1,
+                    "items.1": 2
+                },
+                "context": [
+                    1,
+                    2
+                ]
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": 2,
+                "flat": {
+                    "items.0": 1,
+                    "items.1": 2
+                },
+                "context": [
+                    1,
+                    2
+                ]
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": 1,
+                "flat": {
+                    "items.0": 1,
+                    "items.1": 2
+                },
+                "context": [
+                    1,
+                    2
+                ]
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": 2,
+                "flat": {
+                    "items.0": 1,
+                    "items.1": 2
+                },
+                "context": [
+                    1,
+                    2
+                ]
+            }
+        ],
+        "rules": [
+            "items",
+            "items.0",
+            "items.1"
+        ],
+        "passes": true,
+        "errors": [],
+        "validated": {
+            "items": [
+                1,
+                2
+            ]
+        }
+    },
+    {
+        "mode": "nested",
+        "attribute": "items.*",
+        "input": {
+            "items": [
+                {
+                    "children": [
+                        {
+                            "id": 2,
+                            "extra": true
+                        },
+                        {
+                            "id": 3
+                        }
+                    ]
+                },
+                {
+                    "children": [
+                        {
+                            "id": "bad"
+                        }
+                    ]
+                }
+            ]
+        },
+        "calls": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": {
+                    "children": [
+                        {
+                            "id": 2,
+                            "extra": true
+                        },
+                        {
+                            "id": 3
+                        }
+                    ]
+                },
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3,
+                    "items.1.children.0.id": "bad",
+                    "items.0": {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    "items.1": {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                },
+                "context": [
+                    {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "label": "inner",
+                "attribute": "items.0.children.0.id",
+                "value": 2,
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3
+                },
+                "context": {
+                    "id": 2,
+                    "extra": true
+                }
+            },
+            {
+                "label": "inner",
+                "attribute": "items.0.children.1.id",
+                "value": 3,
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3
+                },
+                "context": {
+                    "id": 3
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": {
+                    "children": [
+                        {
+                            "id": "bad"
+                        }
+                    ]
+                },
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3,
+                    "items.1.children.0.id": "bad",
+                    "items.0": {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    "items.1": {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                },
+                "context": [
+                    {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "label": "inner",
+                "attribute": "items.1.children.0.id",
+                "value": "bad",
+                "flat": {
+                    "items.1.children.0.id": "bad"
+                },
+                "context": {
+                    "id": "bad"
+                }
+            }
+        ],
+        "calls_after": [
+            {
+                "label": "outer",
+                "attribute": "items.0",
+                "value": {
+                    "children": [
+                        {
+                            "id": 2,
+                            "extra": true
+                        },
+                        {
+                            "id": 3
+                        }
+                    ]
+                },
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3,
+                    "items.1.children.0.id": "bad",
+                    "items.0": {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    "items.1": {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                },
+                "context": [
+                    {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "label": "inner",
+                "attribute": "items.0.children.0.id",
+                "value": 2,
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3
+                },
+                "context": {
+                    "id": 2,
+                    "extra": true
+                }
+            },
+            {
+                "label": "inner",
+                "attribute": "items.0.children.1.id",
+                "value": 3,
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3
+                },
+                "context": {
+                    "id": 3
+                }
+            },
+            {
+                "label": "outer",
+                "attribute": "items.1",
+                "value": {
+                    "children": [
+                        {
+                            "id": "bad"
+                        }
+                    ]
+                },
+                "flat": {
+                    "items.0.children.0.id": 2,
+                    "items.0.children.0.extra": true,
+                    "items.0.children.1.id": 3,
+                    "items.1.children.0.id": "bad",
+                    "items.0": {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    "items.1": {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                },
+                "context": [
+                    {
+                        "children": [
+                            {
+                                "id": 2,
+                                "extra": true
+                            },
+                            {
+                                "id": 3
+                            }
+                        ]
+                    },
+                    {
+                        "children": [
+                            {
+                                "id": "bad"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "label": "inner",
+                "attribute": "items.1.children.0.id",
+                "value": "bad",
+                "flat": {
+                    "items.1.children.0.id": "bad"
+                },
+                "context": {
+                    "id": "bad"
+                }
+            }
+        ],
+        "rules": [
+            "items",
+            "items.0.children.0.id",
+            "items.0.children.1.id",
+            "items.1.children.0.id"
+        ],
+        "passes": false,
+        "errors": {
+            "items.1.children.0.id": [
+                "The items.1.children.0.id field must be an integer."
+            ]
+        },
+        "validated": null
+    }
+]

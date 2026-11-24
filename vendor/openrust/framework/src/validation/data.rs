@@ -67,11 +67,14 @@ impl Data {
 
     /// 排除字段时同步移除上传文件及其形状，避免再次合并恢复已排除的数据。
     pub(super) fn forget(&mut self, attribute: &str) -> ValidationResult<()> {
-        crate::support::Arr::forget(&mut self.input, attribute)
-            .map_err(|_| ValidationError::InvalidPath)?;
+        let segments = path::parse(attribute)?;
+        path::forget(&mut self.input, &segments)?;
+        self.forget_files(attribute)
+    }
+
+    pub(super) fn forget_files(&mut self, attribute: &str) -> ValidationResult<()> {
         if !self.upload_shape.is_null() {
-            crate::support::Arr::forget(&mut self.upload_shape, attribute)
-                .map_err(|_| ValidationError::InvalidPath)?;
+            path::forget(&mut self.upload_shape, &path::parse(attribute)?)?;
         }
         self.uploads
             .retain(|path, _| path != attribute && !path.starts_with(&format!("{attribute}.")));

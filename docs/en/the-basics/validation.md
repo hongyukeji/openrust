@@ -531,3 +531,57 @@ fn store_contact(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 For associative input, pass alternatives built with `RuleSet`; each group checks its own field mapping. Child validators use the current application factory, including extensions, database presence checks, custom messages and attribute names. Uploaded files keep their typed handles in nested groups. A group check does not replace the outer value with the child’s filtered result: use allowed array keys when additional fields must be rejected.
 
 This rule requires an active application facade scope, like the other validation facades. Empty alternatives reject a supplied value; an empty individual group passes. All-failed groups report `validation.any_of` on the outer field and support its custom message.
+
+## Compiling per-item rules {#accessing-nested-array-data}
+
+`Rule::for_each` returns `NestedRules`. The callback runs when the validator is created, before any rules are evaluated, and receives the current value and expanded attribute. Return `Vec<Rule>` for the current value or a `RuleSet` whose fields are relative to it. Replacing all data or rules recompiles callbacks; repeated validation does not rerun them.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::{Rule, RuleSet},
+};
+use serde_json::Value;
+
+fn store_each(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("companies", [Rule::array()])?
+            .field("companies.*.id", [Rule::for_each(|_value, _attribute| {
+                Ok(vec![Rule::required(), Rule::integer(), Rule::min(1)])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_bulk(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("items", [Rule::array()])?
+            .field("items.*.bulk", [Rule::sometimes(), Rule::parse("boolean:strict")?])?
+            .field("items.*.quantity", [Rule::for_each_with(|_value, _attribute, _flat, item| {
+                let bulk = item.and_then(|item| item.get("bulk")).and_then(Value::as_bool) == Some(true);
+                Ok(vec![Rule::required(), Rule::integer(), Rule::min(if bulk { 10 } else { 1 })])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+
+fn store_nested(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let rules = RuleSet::new()
+            .field("items", [Rule::array()])?
+            .field("items.*", [Rule::for_each(|_value, _attribute| {
+                RuleSet::parse([("id", "required|integer"), ("tag", "sometimes|string")])
+            }).into()])?;
+        let data = request.validate(rules).await?;
+        Response::json(StatusCode::CREATED, data.into_value())
+    })
+}
+```
+
+Use `Rule::for_each_with` or `NestedRules::new` for all four arguments: value, attribute, gathered flat data and the parent context. The flat map uses canonical escaped paths so literal dots and nested paths remain distinct. `contracts::validation::CompilableRules` and `Rule::compile` are available for custom compilers. Database rules inside the returned list use the existing factory and presence verifier. For file-dependent compilation, use `Rule::for_each_context` or `NestedRules::with_context`: `NestedRuleContext::file()` reads the original typed file, `data` holds the original input, and `flattened` holds the current gathered map. Its `attribute` is a canonical escaped path. `CompilableRules::compile_context` exposes the same context to custom compilers.
+
+Compiled fields retain wildcard message lookup, error positions, Precognition selection and validated-field filtering. Existing infallible `set_data` / `set_rules` setters retain compilation errors; the next `get_rules` or validation returns the original error kind. Corrected data or rules clears the error. Empty typed maps remain JSON objects; no PHP array/object ambiguity is introduced into existing response contracts.

@@ -4,7 +4,10 @@ use super::{Rule, ValidationError, ValidationResult, path};
 #[derive(Clone, Default)]
 pub struct RuleSet {
     pub(super) fields: Vec<(String, Vec<Rule>)>,
-    precognitive: Vec<(usize, regex::bytes::RegexSet)>,
+    pub(super) expanded: bool,
+    pub(super) origins: std::collections::BTreeMap<String, String>,
+    pub(super) selections: std::collections::BTreeMap<String, Vec<regex::bytes::RegexSet>>,
+    pub(super) precognitive: Vec<(usize, regex::bytes::RegexSet)>,
 }
 
 impl RuleSet {
@@ -19,7 +22,14 @@ impl RuleSet {
     ) -> ValidationResult<Self> {
         let attribute = attribute.into();
         path::parse(&attribute)?;
-        if self.fields.len() >= 1024 || self.fields.iter().any(|(field, _)| field == &attribute) {
+        if self.fields.len()
+            >= if self.expanded {
+                path::MAX_EXPANDED
+            } else {
+                path::MAX_FIELDS
+            }
+            || self.fields.iter().any(|(field, _)| field == &attribute)
+        {
             return Err(ValidationError::InvalidRule);
         }
         let rules: Vec<_> = rules.into_iter().take(65).collect();
@@ -49,9 +59,16 @@ impl RuleSet {
 
     pub(super) fn merged(&self, other: Self) -> ValidationResult<Self> {
         let mut merged = self.clone();
+        merged.expanded |= other.expanded;
         // 过滤器作用于接收它的声明集合，不能静默丢弃传入过滤条件。
         if !other.precognitive.is_empty() {
             return Err(ValidationError::InvalidRule);
+        }
+        for (attribute, origin) in other.origins {
+            merged.origins.entry(attribute).or_insert(origin);
+        }
+        for (attribute, selections) in other.selections {
+            merged.selections.entry(attribute).or_insert(selections);
         }
         for (attribute, rules) in other.fields {
             if let Some((_, existing)) = merged
@@ -63,6 +80,12 @@ impl RuleSet {
                     return Err(ValidationError::LimitsExceeded);
                 }
                 existing.extend(rules);
+            } else if rules.is_empty() {
+                path::parse(&attribute)?;
+                if merged.fields.len() >= path::MAX_EXPANDED {
+                    return Err(ValidationError::LimitsExceeded);
+                }
+                merged.fields.push((attribute, rules));
             } else {
                 merged = merged.field(attribute, rules)?;
             }
@@ -91,9 +114,23 @@ impl RuleSet {
         Ok(self)
     }
 
+    pub(super) fn origin<'a>(&'a self, attribute: &'a str) -> &'a str {
+        self.origins
+            .get(attribute)
+            .map_or(attribute, String::as_str)
+    }
+
     pub(super) fn accepts(&self, index: usize, attribute: &str) -> bool {
-        self.precognitive
-            .iter()
-            .all(|(end, patterns)| index >= *end || patterns.is_match(attribute.as_bytes()))
+        self.selections
+            .get(&self.fields[index].0)
+            .is_none_or(|filters| {
+                filters
+                    .iter()
+                    .all(|filter| filter.is_match(attribute.as_bytes()))
+            })
+            && self
+                .precognitive
+                .iter()
+                .all(|(end, patterns)| index >= *end || patterns.is_match(attribute.as_bytes()))
     }
 }
