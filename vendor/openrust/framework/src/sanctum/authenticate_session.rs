@@ -63,11 +63,13 @@ impl Middleware for AuthenticateSession {
                     continue;
                 };
                 let user = auth.user_for_guard(request, Some(guard.as_str())).await?;
-                let valid = user.is_some_and(|user| {
-                    let password = user.get_auth_password();
+                let valid = if let Some(user) = user {
+                    let expected = self.signer.sign_for_guard(user.as_ref(), guard)?;
                     serde_json::from_value::<Vec<u8>>(stored)
-                        .is_ok_and(|stored| bool::from(stored.ct_eq(&self.signer.sign(password))))
-                });
+                        .is_ok_and(|stored| bool::from(stored.ct_eq(&expected)))
+                } else {
+                    false
+                };
                 if !valid {
                     auth.session_guard(request, Some(guard.as_str()))?
                         .logout_current_device()
@@ -84,7 +86,7 @@ impl Middleware for AuthenticateSession {
             let response = next.run(request).await;
             for guard in session_guards {
                 if let Some(user) = AuthManager::resolved_user_from_request(request, guard) {
-                    let fingerprint = self.signer.sign(user.get_auth_password());
+                    let fingerprint = self.signer.sign_for_guard(user.as_ref(), guard)?;
                     request.session_mut()?.put(
                         &format!("password_hash_{guard}"),
                         serde_json::json!(fingerprint),

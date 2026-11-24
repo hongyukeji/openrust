@@ -42,4 +42,32 @@ HTML 保留原生重新導向與快閃訊息。JSON 登入、註冊與雙因素�
 
 API 預設也提供最小登入、密碼重置與驗證網頁。未登入瀏覽器開啟驗證郵件後，登入仍回到原始簽章 URL。驗證收據讀取資料庫狀態，加入 `?verified=1` 不能讓帳戶變成已驗證。依賴郵件投遞前須設定傳輸。設定 `USER_EMAIL_VERIFICATION=false` 會關閉驗證路由與這類驗證郵件，密碼找回保持可用。
 
-已安裝套件在登入與有效 remember Cookie 恢復時立即儲存既有密碼指紋，Guard 在後續認證讀取中拒絕缺少或過時指紋。修改密碼保留目前瀏覽器工作階段並拒絕其他密碼工作階段；重置也會輪換 remember token。獨立認證的預設行為不變。本節瀏覽器工作階段行為不包含仍在開發的個人權杖與無密碼帳戶撤銷鏈路。
+已安裝套件在登入與有效 remember Cookie 恢復時立即儲存既有密碼指紋，Guard 在後續認證讀取中拒絕缺少或過時指紋。修改密碼保留目前瀏覽器工作階段並拒絕其他密碼工作階段；重置也會輪換 remember token。獨立認證的預設行為不變。
+
+## 憑據生命週期 {#credential-lifecycle}
+
+明確安裝套件提供兩份遷移範本（發佈時依 Laravel 機制產生時間戳記檔名）：`0001_01_01_000020_add_credential_version_to_users_table.rs` 和 `0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs`，跟隨所設定的使用者及權杖模型資料表和連線。升級應用開始服務前先執行正常遷移。啟用此策略後，既有工作階段須重新驗證，既有個人權杖須重新簽發；請勿手動重設憑據版本。
+
+產生的 User 保留 Sanctum 的 `create_token` 入口。在已驗證的應用作用域內使用，先完成所需的近期驗證及額外因素；此服務不會替呼叫方執行這些 HTTP 檢查：
+
+```rust
+use openrust::sanctum::HasApiTokens;
+
+// `user` is the authenticated application User; authenticate before issuing.
+let token = user.create_token(
+    &sanctum,
+    &database,
+    "phone",
+    &["account:read"],
+    None,
+).await?;
+let plaintext = token.plain_text_token;
+```
+
+`user.token_expiration_days` 預設30天。明確傳入較短期限會保留，較長期限會受到限制；Sanctum 全域期限可以更早拒絕權杖。`user.token_abilities` 是伺服器端能力白名單，未知或空能力會報錯。明文只回傳一次，資料庫僅儲存摘要及隱藏的憑據標記，請勿寫入日誌。過期紀錄繼續用 `sanctum:prune-expired` 清理，驗證不等待清理才拒絕過期權杖。
+
+產生的密碼 Action 在修改密碼的同一交易內遞增持久化使用者憑據版本，保留目前瀏覽器登入，使其他工作階段及個人權杖失效；密碼重設使全部舊登入失效。一般密碼雜湊升級及原生「登出其他瀏覽器工作階段」不會撤銷個人權杖。自訂 Action 應呼叫 `openrust_fortify::starter::credentials::change_password`，直接寫入資料庫密碼不會自動推進此策略。`credentials::revoke_all` 也支援沒有本機密碼的帳戶，呼叫方須先取得有效的近期驗證。
+
+修改憑據與簽發權杖會在提交前鎖定並重新核對目前身分／版本，要求使用者和權杖使用同一資料庫連線身分；獨立設定的權杖連線會明確失敗，不假裝具有原子安全保證。自訂使用者模型實作 `Clone` 並保留 `credential_version`；自訂權杖模型保留 `credential_stamp` 並在序列化中隱藏。含暫態欄位的權杖模型可覆寫 `PersonalAccessTokenModel::clone_token_model` 回傳 `self.clone()`，使屬性存取器保留這些狀態。
+
+以上為生命週期服務和產生的密碼 Action。裝置權杖登入／挑戰介面及完整帳戶中心仍在開發。僅註冊回應適配器不會啟用憑據策略。

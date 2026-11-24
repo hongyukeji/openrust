@@ -2,7 +2,9 @@
 
 mod personal_access_token;
 
-pub use personal_access_token::{NewAccessToken, PersonalAccessToken, PersonalAccessTokens};
+pub use personal_access_token::{
+    NewAccessToken, PersonalAccessToken, PersonalAccessTokens, TokenOptions,
+};
 
 mod abilities;
 mod authenticate_session;

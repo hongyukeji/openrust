@@ -116,6 +116,16 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
             .ends_with("_create_personal_access_tokens_table.rs")
     );
     assert!(root.0.join("config/sanctum.rs").is_file());
+    // 用户套件或应用可能已覆写签发方法，重复安装不能追加第二份 trait 实现。
+    let customized_model = fs::read_to_string(&model).unwrap().replace(
+        "impl openrust::sanctum::HasApiTokens for User {}",
+        "impl openrust::sanctum::HasApiTokens for User { fn create_token(&self) { custom_issuance() } }",
+    );
+    fs::write(&model, &customized_model).unwrap();
+    let repeated = run(&["install:api", "--without-migration-prompt"]);
+    assert!(repeated.status.success());
+    assert_eq!(fs::read_to_string(&model).unwrap(), customized_model);
+
     let custom = "// Keep the application's published migration.\n";
     fs::write(&migration, custom).unwrap();
     fs::remove_file(root.0.join("routes/api.rs")).unwrap();

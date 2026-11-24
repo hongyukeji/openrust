@@ -482,3 +482,104 @@ async fn user_preset_keeps_the_public_api_information_route_and_adds_authenticat
     assert!(source.contains("auth:sanctum"));
     assert!(source.contains("UserResource::current"));
 }
+
+#[tokio::test]
+async fn user_preset_upgrades_stock_password_and_registration_actions_without_overwriting_custom_code()
+ {
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    let mut output = Output::default();
+    assert_eq!(
+        kernel
+            .handle(
+                &["init:resources".into(), "--extensions=fortify".into()],
+                &mut output
+            )
+            .await,
+        0,
+        "{}",
+        output.stderr
+    );
+    let action = root.0.join("app/actions/fortify/mod.rs");
+    let source = root.read("app/actions/fortify/mod.rs");
+    let legacy_function = r#"async fn save_password(user: &mut User, input: &RequestValue) -> Result<(), HttpError> {
+        let password = Hash::make(text(input, "password")?, &HashOptions::new()).await?;
+        user.force_fill([("password".into(), password.into())].into())?.save().await?;
+        Ok(())
+    }"#;
+    let legacy = openrust::foundation::console::source_edit::replace_generated_function(
+        &source,
+        &source,
+        legacy_function,
+        "save_password",
+    )
+    .unwrap();
+    assert_ne!(legacy, source);
+    std::fs::write(
+        &action,
+        format!("{legacy}\n// keep app helper\nfn custom_rule() {{}}\n"),
+    )
+    .unwrap();
+    let creation = root.0.join("app/actions/fortify/create_new_user.rs");
+    let source = root.read("app/actions/fortify/create_new_user.rs");
+    let addition = r#"            #[cfg(feature = "sanctum")]
+            if openrust::support::facades::Config::has("user.profile")? {
+                let mut user = user;
+                openrust_fortify::starter::credentials::refresh_created(&mut user).await?;
+                return Ok(Box::new(user) as Box<dyn Account>);
+            }
+"#;
+    let legacy = source.replacen(addition, "", 1);
+    assert_ne!(legacy, source);
+    std::fs::write(&creation, legacy).unwrap();
+    for _ in 0..2 {
+        let mut output = Output::default();
+        assert_eq!(
+            kernel
+                .handle(
+                    &[
+                        "init:resources".into(),
+                        "--extensions=user-web,api,fortify".into()
+                    ],
+                    &mut output
+                )
+                .await,
+            0,
+            "{}",
+            output.stderr
+        );
+    }
+    let action = root.read("app/actions/fortify/mod.rs");
+    assert!(action.contains("credentials::change_password"));
+    assert!(action.contains("fn custom_rule() {}"));
+    assert!(
+        root.read("app/actions/fortify/create_new_user.rs")
+            .contains("credentials::refresh_created")
+    );
+    assert_eq!(
+        root.read("app/models/user.rs")
+            .matches("fn create_token")
+            .count(),
+        1
+    );
+    let files: Vec<_> = std::fs::read_dir(root.0.join("database/migrations"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        files
+            .iter()
+            .filter(|name| name.ends_with("_add_credential_version_to_users_table.rs"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        files
+            .iter()
+            .filter(
+                |name| name.ends_with("_add_credential_stamp_to_personal_access_tokens_table.rs")
+            )
+            .count(),
+        1
+    );
+}

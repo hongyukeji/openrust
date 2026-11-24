@@ -48,6 +48,12 @@ fn validator(
     )?)
 }
 async fn save_password(user: &mut User, input: &RequestValue) -> Result<(), HttpError> {
+    #[cfg(feature = "sanctum")]
+    if openrust::support::facades::Config::has("user.profile")? {
+        openrust_fortify::starter::credentials::change_password(user, text(input, "password")?)
+            .await?;
+        return Ok(());
+    }
     let password = Hash::make(text(input, "password")?, &HashOptions::new()).await?;
     user.force_fill([("password".into(), password.into())].into())?
         .save()

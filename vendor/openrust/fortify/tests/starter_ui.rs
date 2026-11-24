@@ -2,6 +2,12 @@
 mod installed;
 #[path = "../stubs/fortify_service_provider.rs"]
 mod installed_provider;
+#[cfg(feature = "sanctum")]
+#[path = "../stubs/starter/migrations/token-credentials.rs"]
+mod token_credential_migration;
+#[cfg(feature = "sanctum")]
+#[path = "../stubs/starter/migrations/user-credentials.rs"]
+mod user_credential_migration;
 #[path = "../stubs/starter/user_service_provider.rs"]
 mod user_provider;
 mod app {
@@ -26,6 +32,8 @@ impl Clone for app::models::User {
         Self::from_state(self.state().clone())
     }
 }
+#[cfg(feature = "sanctum")]
+impl openrust::sanctum::HasApiTokens for app::models::User {}
 impl openrust_fortify::TwoFactorAuthenticatable for app::models::User {}
 impl openrust_fortify::passkeys::PasskeyAuthenticatable for app::models::User {}
 
@@ -154,10 +162,11 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
         .unwrap();
     }
     app.boot().await.unwrap();
-    app.make::<AuthManager>()
-        .await
-        .unwrap()
-        .register_model::<app::models::User>("StarterUser");
+    let auth = app.make::<AuthManager>().await.unwrap();
+    #[cfg(feature = "sanctum")]
+    auth.register_sanctum_model::<app::models::User>("StarterUser");
+    #[cfg(not(feature = "sanctum"))]
+    auth.register_model::<app::models::User>("StarterUser");
     let db = app
         .make::<openrust::database::DatabaseManager>()
         .await
@@ -194,9 +203,26 @@ async fn start_options(profile: &'static str, verification: bool) -> Server {
             table.timestamp("email_verified_at", 0).nullable();
             table.string("password", None);
             table.remember_token();
+            table.big_integer("credential_version").default(0);
             table.timestamp("created_at", None).nullable();
             table.timestamp("updated_at", None).nullable();
             Ok(())
+        })
+        .await
+        .unwrap();
+    #[cfg(feature = "sanctum")]
+    schema
+        .create("personal_access_tokens", |table| {
+            table.id();
+            table.string("tokenable_type", 255);
+            table.unsigned_big_integer("tokenable_id");
+            table.text("name");
+            table.string("token", 64).unique();
+            table.text("abilities");
+            table.string("credential_stamp", 64).nullable();
+            table.timestamp("last_used_at", 0).nullable();
+            table.timestamp("expires_at", 0).nullable();
+            table.timestamps();
         })
         .await
         .unwrap();
@@ -321,6 +347,15 @@ async fn installed_blade_forms_and_real_database_registration_login_and_logout()
 }
 
 fn fixture_routes() -> Result<(), openrust::routing::RoutingError> {
+    #[cfg(feature = "sanctum")]
+    {
+        openrust::support::facades::Route::post("/fixture-token", native_token)?;
+        openrust::support::facades::Route::get_with("/api/token-me", token_user, |route| {
+            route.middleware_name("auth:sanctum");
+            Ok(())
+        })?;
+    }
+
     openrust::support::facades::Route::get("/old-input", old_input)?;
     openrust::support::facades::Route::post("/forget-fingerprint", forget_fingerprint)?;
     openrust::support::facades::Route::post("/expired-verification", expired_verification)
@@ -865,4 +900,107 @@ fn response_location(headers: &str) -> &str {
         .lines()
         .find_map(|line| line.strip_prefix("location: "))
         .expect("必须有重定向目标")
+}
+
+#[cfg(feature = "sanctum")]
+#[test]
+fn published_credential_migrations_implement_native_migration_contract() {
+    fn migration(_: impl openrust::database::migrations::Migration) {}
+    migration(user_credential_migration::Definition);
+    migration(token_credential_migration::Definition);
+}
+
+#[cfg(feature = "sanctum")]
+fn native_token(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::{
+            database::eloquent::Model as _,
+            support::facades::{App, Auth, Config, Facade as _},
+        };
+        let user = Auth::user(request)
+            .await?
+            .ok_or(openrust::http::HttpError::Unauthenticated)?;
+        let user = (user.as_ref() as &dyn std::any::Any)
+            .downcast_ref::<app::models::User>()
+            .unwrap();
+        let mut user = app::models::User::from_state(user.state().clone());
+        let token = openrust_fortify::starter::credentials::issue(
+            &mut user,
+            App::make::<openrust::sanctum::Sanctum>().await?.as_ref(),
+            App::make::<openrust::database::DatabaseManager>()
+                .await?
+                .as_ref(),
+            Config::get_facade_root()?.as_ref(),
+            "mobile",
+            &["account:read"],
+        )
+        .await?;
+        openrust::http::ApiResponse::success(token.to_array()?)
+            .with_status(openrust::http::StatusCode::CREATED)
+            .into_response()
+    })
+}
+#[cfg(feature = "sanctum")]
+fn token_user(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        let user = openrust::support::facades::Auth::user(request)
+            .await?
+            .ok_or(openrust::http::HttpError::Unauthenticated)?;
+        let token = openrust::sanctum::AccessToken::current_access_token(request);
+        assert!(matches!(
+            token,
+            Some(openrust::sanctum::AccessToken::Personal(_))
+        ));
+        openrust::http::ApiResponse::success(json!({"id":user.get_auth_identifier()}))
+            .into_response()
+    })
+}
+#[cfg(feature = "sanctum")]
+async fn bearer_request(address: SocketAddr, token: &str) -> u16 {
+    tokio::time::timeout(std::time::Duration::from_secs(10),async{
+        let mut socket=TcpStream::connect(address).await.unwrap();
+        socket.write_all(format!("GET /api/token-me HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nAuthorization: Bearer {token}\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+        let mut wire=String::new();socket.read_to_string(&mut wire).await.unwrap();
+        wire.split_whitespace().nth(1).unwrap().parse().unwrap()
+    }).await.unwrap()
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn password_update_revokes_bearer_and_allows_fresh_issuance() {
+    let server = start().await;
+    let mut client = Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    assert_eq!(client.send("GET", "/register", "", false).await.0, 200);
+    let registration = r#"{"name":"令牌用户","email":"token@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#;
+    let (status, body) = client.send("POST", "/register", registration, true).await;
+    assert_eq!(status, 201, "{body}");
+    assert_eq!(client.send("GET", "/home", "", false).await.0, 200);
+    let (status, body) = client.send("POST", "/fixture-token", "{}", true).await;
+    assert_eq!(status, 201, "{body}");
+    let payload: Value = serde_json::from_str(&body).unwrap();
+    let token = payload["data"]["plainTextToken"].as_str().unwrap();
+    assert!(payload["data"]["accessToken"].get("token").is_none());
+    assert!(
+        payload["data"]["accessToken"]
+            .get("credential_stamp")
+            .is_none()
+    );
+    assert_eq!(bearer_request(server.address, token).await, 200);
+    let update = r#"{"current_password":"long-password-123","password":"changed-password-456","password_confirmation":"changed-password-456"}"#;
+    let (status, body) = client.send("PUT", "/user/password", update, true).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(bearer_request(server.address, token).await, 401);
+    let (status, body) = client.send("POST", "/fixture-token", "{}", true).await;
+    assert_eq!(status, 201, "{body}");
+    let payload: Value = serde_json::from_str(&body).unwrap();
+    let renewed = payload["data"]["plainTextToken"].as_str().unwrap();
+    assert_ne!(token, renewed);
+    assert_eq!(bearer_request(server.address, renewed).await, 200);
 }

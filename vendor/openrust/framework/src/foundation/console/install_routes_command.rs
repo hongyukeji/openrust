@@ -583,9 +583,15 @@ fn wire_sanctum(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), Con
     if model.is_file() && auth_config.is_file() {
         let model_source = read(&model)?;
         let config_source = read(&auth_config)?;
-        let add_impl = source_hook(&model_source, &model, IMPL, |line| {
-            line.trim() == "impl Authenticatable for User {"
-        });
+        let add_impl = if UserModelSource::parse(&model_source)?
+            .implements("openrust::sanctum::HasApiTokens")
+        {
+            Ok(model_source.clone())
+        } else {
+            source_hook(&model_source, &model, IMPL, |line| {
+                line.trim() == "impl Authenticatable for User {"
+            })
+        };
         let add_reference = (|| {
             if config_source.contains(REGISTER) {
                 return Ok(config_source.clone());
@@ -683,6 +689,11 @@ pub(super) fn enable_feature(source: &str, feature: &str) -> Result<Option<Strin
     let mut manifest = source
         .parse::<DocumentMut>()
         .map_err(|error| ConsoleError::new(format!("Invalid Cargo.toml: {error}")))?;
+    let forward_sanctum = matches!(feature, "sanctum" | "fortify")
+        && manifest
+            .get("dependencies")
+            .and_then(|item| item.get("openrust-fortify"))
+            .is_some();
     let features = manifest
         .get_mut("features")
         .and_then(Item::as_table_like_mut)
@@ -690,15 +701,32 @@ pub(super) fn enable_feature(source: &str, feature: &str) -> Result<Option<Strin
     if !features.contains_key(feature) {
         return Err(invalid());
     }
+    let mut changed = false;
+    if forward_sanctum && features.contains_key("sanctum") {
+        let sanctum = features
+            .get_mut("sanctum")
+            .and_then(Item::as_array_mut)
+            .ok_or_else(invalid)?;
+        if !sanctum
+            .iter()
+            .any(|value| value.as_str() == Some("openrust-fortify?/sanctum"))
+        {
+            sanctum.push("openrust-fortify?/sanctum");
+            changed = true;
+        }
+    }
     let defaults = features
         .entry("default")
         .or_insert(toml_edit::value(Array::new()))
         .as_array_mut()
         .ok_or_else(invalid)?;
-    if defaults.iter().any(|item| item.as_str() == Some(feature)) {
+    if !defaults.iter().any(|item| item.as_str() == Some(feature)) {
+        defaults.push(feature);
+        changed = true;
+    }
+    if !changed {
         return Ok(None);
     }
-    defaults.push(feature);
     let updated = manifest.to_string();
     Ok(Some(if source.contains("\r\n") {
         updated.replace("\r\n", "\n").replace('\n', "\r\n")

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use jiff::{SignedDuration, Timestamp};
+use jiff::SignedDuration;
 use serde_json::Value;
 
 use crate::{
@@ -92,13 +92,20 @@ impl Guard {
         });
         if !sanctum.valid(
             &token,
-            valid_provider && !token.is_expired(Timestamp::now(), self.expiration),
+            valid_provider
+                && !token.is_expired(
+                    crate::support::utc_now_for(Some(container)),
+                    self.expiration,
+                ),
         ) {
             return Ok(None);
         }
         let Some(user) = user.filter(|user| auth.supports_sanctum_tokens(user.as_ref())) else {
             return Ok(None);
         };
+        if !sanctum.valid_owner(&token, user.as_ref())? {
+            return Ok(None);
+        }
         let token = Arc::new(token);
         container
             .make::<Dispatcher>()?

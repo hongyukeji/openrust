@@ -1,4 +1,4 @@
-use jiff::{SignedDuration, Timestamp};
+use jiff::SignedDuration;
 
 use crate::{
     console::{
@@ -42,7 +42,7 @@ impl Command for PruneExpired {
                 .matches()
                 .get_one::<i64>("hours")
                 .expect("default hours");
-            let now = Timestamp::now();
+            let now = crate::support::utc_now_for(Some(app.container()));
             let retention = hours
                 .checked_mul(3600)
                 .map(SignedDuration::from_secs)

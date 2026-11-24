@@ -114,3 +114,36 @@
 - 工作区 all-targets 严格 Clippy、框架 sanctum all-targets 严格 Clippy 与格式检查通过，`pat-final-gates-second.log`。三语 Sanctum 文档构建通过，三语／两种挂载／桌面移动共12组浏览器检查通过，`pat-docs-browser-final.log`；首次浏览器期望大写 TIMESTAMP 与正文小写不符，修正断言后通过。
 
 这批只闭合必要数据库兼容性修复；不代表 PAT 撤销并发或 A01-02 闭合。SQL Server、MariaDB 原生服务及生产供应商没有据此验收。临时数据库容器已按夹具退出清理，数据卷未操作；源码、日志与正常增量缓存保留，继续执行凭据生命周期。
+
+
+## 持久化凭据版本与事务签发（本批验收通过）
+
+本批补齐S02／S03／S07的底层生命周期与生成Action，不代表A01-02／A01-03整簇闭合。
+
+- 套件独立发布用户 `credential_version` 与令牌 `credential_stamp` 迁移模板，按原生发布机制生成时间戳文件名，跟随实际模型表及连接；不改基础迁移。启用套件后旧会话须重新认证、旧PAT须重新签发。会话摘要绑定身份、Guard、密码及持久版本，无密码账户也能撤销；PAT摘要绑定归属身份与版本，普通密码重哈希和原生其他浏览器退出不误撤销PAT。摘要及令牌秘密保持隐藏。
+- 签发、密码变更与全设备撤销共享用户行写锁；SQLite先无变化UPDATE取得写锁。锁内刷新并核对原身份／凭据，模型事件取消或事务失败回滚，不破坏调用者模型。跨连接令牌存储在写入前明确拒绝。Provider读取主库；remember／重哈希条件写防止撤销后的旧流程恢复凭据。
+- 保留标准 `User::create_token`，复用自定义随机令牌生成、模型事件及属性转换；30天上限、服务端能力白名单、显式更短期限及Sanctum全局更短期限分别生效。属性快照支持自定义瞬态模型状态。期限检查和清理采用所属应用时钟。
+- 生成Action只按可识别AST安全升级，保留业务函数、宏语义、换行、其他trait覆写；识别普通表达式格式差异。真实重复安装发现原生 `install:api` 只按空实现字符串判断、可能追加重复trait，已改AST识别并补回归。Fortify关闭时保留原生令牌方法，Sanctum关闭时迁移仍可编译，不误执行令牌迁移。
+- 仅注册响应适配器不会改变Guard、默认令牌模型或启用凭据策略；显式应用套件Provider才启用。
+
+### 实际证据
+
+所有原始日志／冻结源码在 `target/tmp/user-starter/`；清单与SHA为 `credential-files.json`、`credential-final-source-sha.json`。
+
+| 范围 | 实际结果 | 记录 |
+| --- | --- | --- |
+| 原生认证与AST | 配置扩展2、生成方法4、SQLite会话6、Sanctum5通过；MySQL不具备环境的目标已筛除，PostgreSQL外部目标不混计 | `credential-final-gates-second.log` |
+| 套件公开入口 | 安装11、响应9、SQLite生命周期1、TCP界面13通过 | 同上；最新2030时钟的SQLite目标再次明确运行1项通过：`credential-sqlite-final.log` |
+| 初始化与生成 | init16、startup28通过，含保留签发覆写的重复API安装 | `credential-startup-final.log` |
+| MySQL 8.4.13 | 独立夹具明确运行生命周期1、数据库Session HTTP13、原生整数／UUID／ULID令牌1，全部通过 | `credential-matrix-delivery-second.log` |
+| PostgreSQL 18.7 | 独立夹具明确运行生命周期1、数据库Session HTTP13、原生整数／UUID／ULID令牌1，全部通过；需外部环境的目标用 `--ignored` 显式执行 | 同上 |
+| 撤销与时钟 | 三库覆盖无密码账户、不可用只读端点、并发签发／撤销、旧remember条件写、事件取消、归属替换、自定义模型瞬态属性、30天／更短期限／全局期限及真实清理命令 | 同上及SQLite最终日志 |
+| 真实生成项目 | 实际Artisan升级及重复安装；两份迁移首次执行、重复执行、回滚两步、重执行；15个TCP请求验证标准User签发、隐藏字段、进程重启、bcrypt4→6后旧PAT有效、修改密码后旧PAT401且当前Cookie保留、新PAT可用 | `credential-runtime-upgrade-fourth.log`、`credential-runtime-delivery-third.log`及HTTP摘要JSON |
+| 可选特性 | 生成项目 `cargo check --no-default-features --bin main` 及仅 `--features sanctum` 均通过 | `credential-runtime-feature-off.log` |
+| 静态与文档 | 工作区all-targets严格Clippy、Fortify sanctum all-targets严格Clippy、格式检查通过；三语正文构建与12组浏览器检查通过 | `credential-final-recheck.log`、`credential-docs-final.log` |
+
+失败与修正保留：早期2040测试时间超出MySQL原生TIMESTAMP范围，改为三库均支持的2030固定时间，不更改原生列类型；原始失败日志 `credential-matrix-delivery.log`。生成项目两次验收路由夹具错误（不存在post_with、回调内重复借用路由器）修正后才计真实HTTP通过，不把夹具错误算作产品行为。启动测试中一条已过时英文提示断言改为当前中文，单独提交 `c7ee3d96e`；未修改Provider运行逻辑。最终重查曾误用不完整测试名导致0项运行，不计通过，随后明确运行sqlite完整目标1项通过。
+
+磁盘：`credential-runtime-upgrade-second.log`触及32GB，守卫安全停止并持Cargo锁清理全部项目编译产物，实际释放81,995,673,600字节，之后可用114,223,865,856字节。中断不计通过。源码、日志、数据库及数据卷保留；最终三库夹具临时容器已退出清理，正常增量缓存继续复用。收口时剩余空间见 `credential-delivery-space.json`。
+
+仍待后续：无Cookie令牌登录／额外因素挑战／近期证明、全设备HTTP入口、完整账户中心与头像、可替换注销及持久外部清理、SMTP／通知队列与跨进程／节点的整体验收、可选因素UI和最终安装矩阵。三语教程明确服务能力与尚未交付接口；不将本批通过扩大为A01-01至05闭合。真实供应商、硬件与生产发布继续单列。

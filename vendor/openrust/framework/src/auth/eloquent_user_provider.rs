@@ -24,6 +24,15 @@ pub struct EloquentUserProvider<M> {
 }
 
 impl<M: Model + Authenticatable> EloquentUserProvider<M> {
+    fn query(&self) -> AuthResult<crate::database::eloquent::Builder<'static, M>> {
+        let query = M::query_on(&self.connection);
+        Ok(if providers::requires_primary(&self.connection)? {
+            query.use_write_pdo()
+        } else {
+            query
+        })
+    }
+
     pub fn new(connection: Connection, hasher: Arc<dyn Hasher>) -> Self {
         let prototype = M::from_state(ModelState::default());
         Self {
@@ -47,7 +56,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         id: &'a AuthIdentifier,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = M::query_on(&self.connection);
+            let mut query = self.query()?;
             query.r#where(&self.identifier, "=", Value::from(id.clone()));
             let user = query.first().await?;
             Ok(user
@@ -75,7 +84,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = M::query_on(&self.connection);
+            let mut query = self.query()?;
             query.r#where(column, "=", token);
             Ok(query
                 .first()
@@ -101,7 +110,7 @@ impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = M::query_on(&self.connection);
+            let mut query = self.query()?;
             let mut constrained = false;
             for (field, value) in credentials.fields() {
                 if field != &self.password && field != &self.remember {

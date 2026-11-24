@@ -98,3 +98,9 @@ fn register() -> Result<(), RoutingError> {
 在测试中传入拥有所有权的 Eloquent 用户，用 `Sanctum::acting_as(&mut app, user, &["reports:read"], None)` 为 `TestApp` 的后续请求设置身份和能力。默认选择 Sanctum 守卫。可传入 `Some("guard-name")` 指定守卫，或传入 `["*"]` 授予全部能力。测试夹具直接提供身份和能力，无需签发数据库令牌。
 
 返回的共享用户已清除 `was_recently_created` 状态。
+
+## 应用凭据策略 {#credential-policy}
+
+可选的[用户套件](../getting-started/starter-kits.md#credential-lifecycle)增加持久化撤销，不修改独立 Sanctum 默认值。`Sanctum::validate_token_owner_using` 注册应用作用域内的校验，在标准令牌检查及归属解析后执行，回调收到令牌和实际用户。`PersonalAccessToken::get_attribute_value` 读取自定义模型访问器／转换，不序列化隐藏属性。含瞬态字段的模型可覆写 `PersonalAccessTokenModel::clone_token_model` 保留这些字段。
+
+自定义工作流可用 `PersonalAccessTokens::create_token_in_transaction`，传入事务、归属类型、归属标识和 `TokenOptions::new(name)`；构造器提供 `abilities`、`expires_at`、`attributes`、`secret`。事务必须属于同一连接。额外属性不能覆盖凭据字段、时间戳或所配置的主键，包括 JSON 路径写法。此存储操作不能替代应用授权、近期认证或套件的用户行锁／版本策略。普通调用继续使用标准 `create_token`。期限校验与清理使用应用时钟，包括 `Date` 的测试时钟覆写。

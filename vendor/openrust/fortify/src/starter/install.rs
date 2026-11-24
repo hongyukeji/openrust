@@ -86,6 +86,10 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         ],
         "user-kit-web-views",
     )?;
+    provider.publishes_migrations(app, &[
+        ("database/migrations/0001_01_01_000020_add_credential_version_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/user-credentials.rs")),
+        ("database/migrations/0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs", include_bytes!("../../stubs/starter/migrations/token-credentials.rs")),
+    ], "user-kit-migrations")?;
     // 使用已有路径发布器；应用自定义lang路径和旧resources/lang兼容遵循同一入口。
     for locale in ["en", "zh-Hans", "zh-Hant"] {
         let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -109,6 +113,88 @@ fn initialize<'a>(
             "crate::app::providers::user_service_provider::UserServiceProvider",
             "fortify",
         )?;
+        let model_path = root.join("app/models/user.rs");
+        let model_previous = read(&model_path)?;
+        let token_template = include_str!("../../stubs/starter/user-tokens.rs");
+        let cloned =
+            openrust::foundation::console::source_edit::UserModelSource::parse(&model_previous)?
+                .with_clone()?;
+        let model_updated =
+            openrust::foundation::console::source_edit::UserModelSource::parse(&cloned)?
+                .with_trait_method(
+                    token_template,
+                    "openrust::sanctum::HasApiTokens",
+                    "create_token",
+                )?;
+        let action_path = root.join("app/actions/fortify/mod.rs");
+        let action_edit = if action_path.exists() && !options.force {
+            let previous = read(&action_path)?;
+            let template = include_str!("../../stubs/mod.rs");
+            let legacy = r#"async fn save_password(user: &mut User, input: &RequestValue) -> Result<(), HttpError> {
+                let password = Hash::make(text(input, "password")?, &HashOptions::new()).await?;
+                user.force_fill([("password".into(), password.into())].into())?.save().await?;
+                Ok(())
+            }"#;
+            if openrust::foundation::console::source_edit::replace_generated_function(
+                &previous,
+                template,
+                template,
+                "save_password",
+            )
+            .is_ok()
+            {
+                None
+            } else {
+                let updated =
+                    openrust::foundation::console::source_edit::replace_generated_function(
+                        &previous,
+                        legacy,
+                        template,
+                        "save_password",
+                    )?;
+                Some((previous, updated))
+            }
+        } else {
+            None
+        };
+        let create_path = root.join("app/actions/fortify/create_new_user.rs");
+        let create_edit = if create_path.exists() && !options.force {
+            let previous = read(&create_path)?;
+            let template = include_str!("../../stubs/create_new_user.rs");
+            let addition = r#"            #[cfg(feature = "sanctum")]
+            if openrust::support::facades::Config::has("user.profile")? {
+                let mut user = user;
+                openrust_fortify::starter::credentials::refresh_created(&mut user).await?;
+                return Ok(Box::new(user) as Box<dyn Account>);
+            }
+"#;
+            let legacy = template.replacen(addition, "", 1);
+            if legacy == template {
+                return Err(ConsoleError::new("内置注册Action升级模板不一致"));
+            }
+            if openrust::foundation::console::source_edit::replace_generated_method(
+                &previous,
+                template,
+                template,
+                "CreatesNewUsers",
+                "create",
+            )
+            .is_ok()
+            {
+                None
+            } else {
+                let updated = openrust::foundation::console::source_edit::replace_generated_method(
+                    &previous,
+                    &legacy,
+                    template,
+                    "CreatesNewUsers",
+                    "create",
+                )?;
+                Some((previous, updated))
+            }
+        } else {
+            None
+        };
         let bootstrap = root.join("bootstrap/app.rs");
         let middleware_edit = if bootstrap.exists() {
             let previous = read(&bootstrap)?;
@@ -167,6 +253,9 @@ fn initialize<'a>(
         ] {
             installation.publish(tag, options.force, output).await?;
         }
+        installation
+            .publish("user-kit-migrations", false, output)
+            .await?;
         if full {
             installation
                 .publish("user-kit-web-views", options.force, output)
@@ -210,6 +299,13 @@ fn initialize<'a>(
                     "{previous}{newline}#[cfg(feature = \"fortify\")]{newline}pub(crate) mod user_service_provider;{newline}"
                 ),
             )?;
+        }
+        replace(&model_path, &model_previous, &model_updated)?;
+        if let Some((previous, updated)) = create_edit {
+            replace(&create_path, &previous, &updated)?;
+        }
+        if let Some((previous, updated)) = action_edit {
+            replace(&action_path, &previous, &updated)?;
         }
         if let Some((previous, updated)) = api_edit {
             replace(&api, &previous, &updated)?;

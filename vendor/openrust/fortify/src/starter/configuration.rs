@@ -125,9 +125,16 @@ pub async fn configure(app: &Application) -> ProviderResult {
             ]);
         })?;
     config.set("auth.session_fingerprint_on_login", json!(true))?;
+    #[cfg(feature = "sanctum")]
+    config.set(
+        "auth.session_credential_version_attribute",
+        json!(super::credentials::VERSION_ATTRIBUTE),
+    )?;
     config.set("fortify.features", Value::Array(features))?;
     config.set("fortify.middleware", Value::Array(middleware))?;
     config.set("fortify.views", json!(full))?;
+    #[cfg(feature = "sanctum")]
+    super::credentials::configure(app.make::<openrust::sanctum::Sanctum>().await?.as_ref());
     if !full {
         let prefix = config
             .get("fortify.prefix")

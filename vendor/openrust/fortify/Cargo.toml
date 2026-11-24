@@ -10,7 +10,11 @@ publish = false
 version = 1
 providers = true
 
+[features]
+sanctum = ["openrust/sanctum"]
+
 [dependencies]
+jiff = { version = "=0.2.46", features = ["serde"] }
 openrust-passkeys = { path = "../passkeys" }
 clap = "4.6.1"
 openrust = { package = "openrust-framework", path = "../framework" }
@@ -24,7 +28,6 @@ thiserror = "2"
 qrcode = { version = "=0.14.1", default-features = false }
 
 [dev-dependencies]
-jiff = { version = "=0.2.46", features = ["serde"] }
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "sync", "net", "io-util", "time"] }
 

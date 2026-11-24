@@ -15,6 +15,9 @@ use crate::{
 use super::{PersonalAccessToken, PersonalAccessTokenModel, PersonalAccessTokens};
 
 type Retrieval = dyn Fn(&Request) -> Option<String> + Send + Sync;
+type OwnerAuthentication = dyn Fn(&PersonalAccessToken, &dyn crate::contracts::auth::Authenticatable) -> AuthResult<bool>
+    + Send
+    + Sync;
 type Authentication = dyn Fn(&PersonalAccessToken, bool) -> bool + Send + Sync;
 #[derive(Clone, Copy)]
 struct TokenModel {
@@ -91,6 +94,7 @@ pub struct Sanctum {
     model: RwLock<Option<TokenModel>>,
     retrieval: RwLock<Option<Arc<Retrieval>>>,
     authentication: RwLock<Option<Arc<Authentication>>>,
+    owner_authentication: RwLock<Option<Arc<OwnerAuthentication>>>,
 }
 
 impl Sanctum {
@@ -211,6 +215,36 @@ impl Sanctum {
             .authentication
             .write()
             .expect("Sanctum authentication lock") = Some(Arc::new(callback));
+    }
+
+    /// 在标准有效期及 Provider 校验后，按最新归属身份追加应用级凭据检查。
+    pub fn validate_token_owner_using(
+        &self,
+        callback: impl Fn(
+            &PersonalAccessToken,
+            &dyn crate::contracts::auth::Authenticatable,
+        ) -> AuthResult<bool>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        *self
+            .owner_authentication
+            .write()
+            .expect("Sanctum owner authentication lock") = Some(Arc::new(callback));
+    }
+
+    pub(super) fn valid_owner(
+        &self,
+        token: &PersonalAccessToken,
+        owner: &dyn crate::contracts::auth::Authenticatable,
+    ) -> AuthResult<bool> {
+        let callback = self
+            .owner_authentication
+            .read()
+            .expect("Sanctum owner authentication lock")
+            .clone();
+        callback.map_or(Ok(true), |callback| callback(token, owner))
     }
 
     pub(super) fn credential(&self, request: &Request) -> Option<(Zeroizing<String>, bool)> {

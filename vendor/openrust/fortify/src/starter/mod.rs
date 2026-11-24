@@ -1,6 +1,9 @@
 //! 显式安装的用户套件；不改变独立 Fortify 应用的响应与功能默认值。
 
 mod configuration;
+pub use jiff::Timestamp as TokenTimestamp;
+#[cfg(feature = "sanctum")]
+pub mod credentials;
 pub(crate) mod install;
 mod responses;
 mod user_resource;

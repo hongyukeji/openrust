@@ -45,6 +45,12 @@ impl CreatesNewUsers for CreateNewUser {
                 .into(),
             )
             .await?;
+            #[cfg(feature = "sanctum")]
+            if openrust::support::facades::Config::has("user.profile")? {
+                let mut user = user;
+                openrust_fortify::starter::credentials::refresh_created(&mut user).await?;
+                return Ok(Box::new(user) as Box<dyn Account>);
+            }
             Ok(Box::new(user) as Box<dyn Account>)
         })
     }

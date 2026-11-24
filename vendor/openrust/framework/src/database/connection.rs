@@ -849,7 +849,7 @@ macro_rules! observed_query {
 }
 
 impl Connection {
-    pub(super) fn model_container(
+    pub(crate) fn model_container(
         connection: Option<&Self>,
     ) -> Option<Arc<crate::container::Container>> {
         match connection {

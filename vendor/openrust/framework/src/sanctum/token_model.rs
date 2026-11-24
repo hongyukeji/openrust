@@ -11,6 +11,11 @@ use crate::database::{
 
 /// An Eloquent token model with an overridable Sanctum credential lookup.
 pub trait PersonalAccessTokenModel: Model {
+    /// 为只读属性快照保留模型状态；含额外瞬态字段的模型可覆写并返回 self.clone()。
+    fn clone_token_model(&self) -> Self {
+        Self::from_state(self.state().clone())
+    }
+
     fn find_token<'a>(
         query: Builder<'static, Self>,
         connection: &'a Connection,

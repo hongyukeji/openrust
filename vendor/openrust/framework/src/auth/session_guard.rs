@@ -285,6 +285,15 @@ impl<'a> SessionGuard<'a> {
         self.request.session_mut().map_err(AuthError::backend)
     }
 
+    fn fingerprint_signer(&self) -> AuthResult<SessionFingerprint> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(AuthError::Configuration("认证会话所属应用"))?;
+        let config = owner.get::<dyn Repository>("config")?;
+        Ok(SessionFingerprint::from_config(config.as_ref()))
+    }
+
     fn store_login_fingerprint(&mut self, user: &dyn Authenticatable) -> AuthResult<()> {
         if self.fingerprint_on_login {
             let owner = self
@@ -292,8 +301,8 @@ impl<'a> SessionGuard<'a> {
                 .upgrade()
                 .ok_or(AuthError::Configuration("认证会话所属应用"))?;
             let config = owner.get::<dyn Repository>("config")?;
-            let value =
-                SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+            let value = SessionFingerprint::from_config(config.as_ref())
+                .sign_for_guard(user, &self.name)?;
             let key = SessionFingerprint::session_key(&self.name);
             // 登录或经有效remember凭据恢复时立即建立指纹，不能延至首次受保护请求。
             self.session()?.put(&key, serde_json::json!(value))?;
@@ -311,7 +320,7 @@ impl<'a> SessionGuard<'a> {
             .ok_or(AuthError::Configuration("认证会话所属应用"))?;
         let config = owner.get::<dyn Repository>("config")?;
         let expected =
-            SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+            SessionFingerprint::from_config(config.as_ref()).sign_for_guard(user, &self.name)?;
         let key = SessionFingerprint::session_key(&self.name);
         Ok(self.session()?.get(&key).cloned().is_some_and(|stored| {
             serde_json::from_value::<Vec<u8>>(stored)
@@ -498,15 +507,43 @@ impl<'a> SessionGuard<'a> {
         let Some(mut user) = self.validated(credentials, Some(remember)).await? else {
             return Ok(None);
         };
+        let signer = if self.fingerprint_on_login {
+            Some(self.fingerprint_signer()?)
+        } else {
+            None
+        };
+        let expected_version = signer
+            .as_ref()
+            .map(|signer| signer.credential_version(user.as_ref()))
+            .transpose()?
+            .flatten();
         if self.rehash {
             self.provider
                 .rehash_password_if_required(user.as_mut(), credentials, false)
                 .await?;
-            if remember {
-                return self
+            if remember || signer.is_some() {
+                let Some(fresh) = self
                     .provider
                     .retrieve_by_id(&user.get_auth_identifier())
-                    .await;
+                    .await?
+                else {
+                    return Ok(None);
+                };
+                if signer.is_some()
+                    && fresh.get_auth_password() != user.get_auth_password()
+                    && !self
+                        .provider
+                        .validate_credentials(fresh.as_ref(), credentials)
+                        .await?
+                {
+                    return Ok(None);
+                }
+                if let Some(signer) = signer
+                    && signer.credential_version(fresh.as_ref())? != expected_version
+                {
+                    return Ok(None);
+                }
+                return Ok(Some(fresh));
             }
         }
         Ok(Some(user))
@@ -521,6 +558,23 @@ impl<'a> SessionGuard<'a> {
         let id = user.get_auth_identifier();
         if matches!(&id, AuthIdentifier::String(id) if id.is_empty()) {
             return Err(AuthError::InvalidIdentity);
+        }
+        if self.fingerprint_on_login {
+            let signer = self.fingerprint_signer()?;
+            let fresh = self
+                .provider
+                .retrieve_by_id(&id)
+                .await?
+                .ok_or(crate::http::HttpError::Unauthenticated)?;
+            if fresh.get_auth_identifier() != id
+                || !bool::from(
+                    signer
+                        .sign_for_guard(user.as_ref(), &self.name)?
+                        .ct_eq(&signer.sign_for_guard(fresh.as_ref(), &self.name)?),
+                )
+            {
+                return Err(crate::http::HttpError::Unauthenticated.into());
+            }
         }
         let cookie = if remember {
             if !self.request.cookie_is_protected(&self.recaller) {
@@ -627,8 +681,8 @@ impl<'a> SessionGuard<'a> {
         }
         if let Some(owner) = self.owner.upgrade() {
             let config = owner.get::<dyn Repository>("config")?;
-            let value =
-                SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+            let value = SessionFingerprint::from_config(config.as_ref())
+                .sign_for_guard(user.as_ref(), &self.name)?;
             let key = SessionFingerprint::session_key(&self.name);
             self.session()?.put(&key, serde_json::json!(value))?;
         }

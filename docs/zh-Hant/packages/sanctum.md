@@ -98,3 +98,9 @@ fn register() -> Result<(), RoutingError> {
 在測試中傳入擁有所有權的 Eloquent 使用者，用 `Sanctum::acting_as(&mut app, user, &["reports:read"], None)` 為 `TestApp` 後續請求設定身分和能力。預設選擇 Sanctum 守衛。可傳入 `Some("guard-name")` 指定守衛，或傳入 `["*"]` 授予全部能力。測試夾具直接提供身分和能力，無須簽發資料庫權杖。
 
 傳回的共享使用者已清除 `was_recently_created` 狀態。
+
+## 應用憑據策略 {#credential-policy}
+
+可選的[使用者套件](../getting-started/starter-kits.md#credential-lifecycle)增加持久化撤銷，不修改獨立 Sanctum 預設值。`Sanctum::validate_token_owner_using` 註冊應用作用域內的檢查，在標準權杖檢查及歸屬解析後執行，回呼收到權杖和實際使用者。`PersonalAccessToken::get_attribute_value` 讀取自訂模型存取器／轉換，不序列化隱藏屬性。含暫態欄位的模型可覆寫 `PersonalAccessTokenModel::clone_token_model` 保留這些欄位。
+
+自訂工作流程可用 `PersonalAccessTokens::create_token_in_transaction`，傳入交易、歸屬類型、歸屬識別碼和 `TokenOptions::new(name)`；建構器提供 `abilities`、`expires_at`、`attributes`、`secret`。交易必須屬於同一連線。額外屬性不能覆寫憑據欄位、時間戳記或所設定的主鍵，包括 JSON 路徑寫法。此儲存操作不能取代應用授權、近期驗證或套件的使用者列鎖／版本策略。一般呼叫繼續使用標準 `create_token`。期限檢查與清理使用應用時鐘，包括 `Date` 的測試時鐘覆寫。

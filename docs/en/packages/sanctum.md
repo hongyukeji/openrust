@@ -96,3 +96,9 @@ Run the command with the Sanctum feature enabled. The default retention is 24 ho
 ## Testing {#testing}
 
 Use `Sanctum::acting_as(&mut app, user, &["reports:read"], None)` with a `TestApp` and an owned Eloquent user. It returns a shared user whose `was_recently_created` flag has been cleared. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.
+
+## Application-owned lifecycle policy {#credential-policy}
+
+The optional [user starter](../getting-started/starter-kits.md#credential-lifecycle) adds durable revocation without changing standalone Sanctum defaults. `Sanctum::validate_token_owner_using` registers an application-scoped check after the standard token checks and owner resolution; its callback receives the token and the resolved user. `PersonalAccessToken::get_attribute_value` reads a custom model accessor/cast without serializing hidden attributes. Custom models with transient fields may override `PersonalAccessTokenModel::clone_token_model` to retain them.
+
+For a custom workflow, `PersonalAccessTokens::create_token_in_transaction` accepts a transaction, owner type, owner identifier and `TokenOptions::new(name)`. The builder provides `abilities`, `expires_at`, `attributes` and `secret`. The transaction must belong to the same connection. Extra attributes cannot override credential fields, timestamps or the configured primary key, including JSON-path variants. This storage operation does not replace application authorization, recent authentication or the starter's user-row lock/version policy. Standard `create_token` remains sufficient for ordinary callers. Expiration and pruning use the application-owned clock, including `Date` test-clock overrides.

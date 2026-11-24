@@ -28,12 +28,20 @@ impl Middleware for AuthenticateSession {
                 return Ok(next.run(request).await);
             }
             let user = manager.user_for_guard(request, Some(&guard)).await?;
-            let Some(password) = user.as_deref().and_then(|user| user.get_auth_password()) else {
+            let Some(user) = user else {
                 return Ok(next.run(request).await);
             };
+            if user.get_auth_password().is_none()
+                && manager
+                    .config()
+                    .get("auth.session_credential_version_attribute")
+                    .is_none_or(|value| value.is_null())
+            {
+                return Ok(next.run(request).await);
+            }
 
             let signer = SessionFingerprint::from_config(manager.config());
-            let fingerprint = signer.sign(Some(password));
+            let fingerprint = signer.sign_for_guard(user.as_ref(), &guard)?;
             let key = SessionFingerprint::session_key(&guard);
             let session = request.session_mut()?;
             match session.get(&key) {
@@ -65,8 +73,8 @@ impl Middleware for AuthenticateSession {
 
             let response = next.run(request).await;
             let user = AuthManager::resolved_user_from_request(request, &guard);
-            if let Some(password) = user.as_deref().and_then(|user| user.get_auth_password()) {
-                let value = signer.sign(Some(password));
+            if let Some(user) = user {
+                let value = signer.sign_for_guard(user.as_ref(), &guard)?;
                 request.session_mut()?.put(&key, serde_json::json!(value))?;
             }
             Ok(response)

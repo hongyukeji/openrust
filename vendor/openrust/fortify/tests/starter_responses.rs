@@ -341,3 +341,29 @@ fn default_application_model_projects_casts_without_hidden_fields() {
     assert!(value["email_verified_at"].is_string());
     assert_eq!(value.as_object().unwrap().len(), 4);
 }
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn response_only_adapter_keeps_native_sanctum_model_and_authentication_policy() {
+    let mut app = Application::configure(std::env::temp_dir())
+        .with_providers(vec![Box::new(
+            openrust_fortify::starter::StarterKitServiceProvider,
+        )])
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    assert_eq!(
+        app.make::<openrust::sanctum::Sanctum>()
+            .await
+            .unwrap()
+            .personal_access_token_model(),
+        std::any::type_name::<openrust::sanctum::DefaultPersonalAccessToken>()
+    );
+    assert!(
+        app.make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap()
+            .get("auth.session_credential_version_attribute")
+            .is_none()
+    );
+}

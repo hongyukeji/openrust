@@ -21,6 +21,15 @@ pub struct DatabaseUserProvider {
 }
 
 impl DatabaseUserProvider {
+    fn query(&self) -> AuthResult<Builder<'static>> {
+        let query = self.connection.table(&self.table);
+        Ok(if providers::requires_primary(&self.connection)? {
+            query.use_write_pdo()
+        } else {
+            query
+        })
+    }
+
     pub fn new(connection: Connection, hasher: Arc<dyn Hasher>, table: impl Into<String>) -> Self {
         Self {
             connection,
@@ -64,12 +73,7 @@ impl DatabaseUserProvider {
         field: &str,
         value: Value,
     ) -> AuthResult<Option<Box<dyn Authenticatable>>> {
-        self.first(
-            self.connection
-                .table(&self.table)
-                .r#where(field, "=", value),
-        )
-        .await
+        self.first(self.query()?.r#where(field, "=", value)).await
     }
 }
 
@@ -105,12 +109,7 @@ impl UserProvider for DatabaseUserProvider {
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let row = self
-                .connection
-                .table(&self.table)
-                .r#where(column, "=", token)
-                .first()
-                .await?;
+            let row = self.query()?.r#where(column, "=", token).first().await?;
             row.filter(|row| providers::matches_api_token(row.get(column), token))
                 .map(|row| self.record(row))
                 .transpose()
@@ -135,7 +134,7 @@ impl UserProvider for DatabaseUserProvider {
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
         Box::pin(async move {
-            let mut query = self.connection.table(&self.table);
+            let mut query = self.query()?;
             let mut constrained = false;
             for (field, value) in credentials.fields() {
                 if field != &self.password && field != &self.remember {

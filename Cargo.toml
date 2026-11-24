@@ -47,7 +47,7 @@ doc = false
 
 [features]
 standalone = []
-sanctum = ["openrust/sanctum"]
+sanctum = ["openrust/sanctum", "openrust-fortify?/sanctum"]
 reverb = ["dep:openrust-reverb"]
 pail = ["dep:openrust-pail"]
 passport = ["dep:openrust-passport"]

@@ -25,6 +25,7 @@ pub struct PersonalAccessToken {
     pub last_used_at: Option<Timestamp>,
     pub expires_at: Option<Timestamp>,
     pub(super) serialized_model: super::token_store::SerializedModel,
+    pub(super) attribute_values: super::token_store::AttributeValues,
 }
 
 impl serde::Serialize for PersonalAccessToken {
@@ -38,6 +39,11 @@ impl serde::Serialize for PersonalAccessToken {
 }
 
 impl PersonalAccessToken {
+    /// 显式读取令牌模型的属性转换结果；隐藏属性仍不会进入序列化响应。
+    pub fn get_attribute_value(&self, name: &str) -> AuthResult<Option<Value>> {
+        (self.attribute_values)(name).map_err(Into::into)
+    }
+
     pub fn can(&self, ability: &str) -> bool {
         self.abilities
             .iter()
@@ -54,6 +60,44 @@ impl PersonalAccessToken {
                 self.created_at
                     .is_none_or(|created_at| now.duration_since(created_at) >= lifetime)
             })
+    }
+}
+
+/// 事务内签发的选项；普通 Sanctum 默认能力和有效期保持不变。
+pub struct TokenOptions<'a> {
+    name: &'a str,
+    abilities: &'a [&'a str],
+    expires_at: Option<Timestamp>,
+    attributes: Record,
+    secret: Option<Zeroizing<String>>,
+}
+
+impl<'a> TokenOptions<'a> {
+    pub fn new(name: &'a str) -> Self {
+        Self {
+            name,
+            abilities: &["*"],
+            expires_at: None,
+            attributes: Record::new(),
+            secret: None,
+        }
+    }
+    pub fn abilities(mut self, abilities: &'a [&'a str]) -> Self {
+        self.abilities = abilities;
+        self
+    }
+    pub fn expires_at(mut self, expires_at: Option<Timestamp>) -> Self {
+        self.expires_at = expires_at;
+        self
+    }
+    /// 复用模型覆写的 generate_token_string；明文仅保留到签发返回。
+    pub fn secret(mut self, secret: Zeroizing<String>) -> Self {
+        self.secret = Some(secret);
+        self
+    }
+    pub fn attributes(mut self, attributes: Record) -> Self {
+        self.attributes = attributes;
+        self
     }
 }
 
@@ -100,6 +144,19 @@ impl PersonalAccessTokens {
         Self::for_model::<super::DefaultPersonalAccessToken>(connection, prefix.into())
     }
 
+    pub fn get_table(&self) -> String {
+        self.model.table_name()
+    }
+
+    pub fn get_connection_name(&self) -> &str {
+        self.connection.get_name()
+    }
+
+    /// 核对能否与账户连接共同提交；不将跨连接写入冒充原子事务。
+    pub fn uses_connection(&self, connection: &Connection) -> bool {
+        self.connection.same_query_source(connection)
+    }
+
     pub(super) fn connection(&self) -> &Connection {
         &self.connection
     }
@@ -144,23 +201,84 @@ impl PersonalAccessTokens {
         expires_at: Option<Timestamp>,
         secret: Zeroizing<String>,
     ) -> AuthResult<NewAccessToken> {
-        let access_token = self
-            .model
-            .create(Record::from([
-                ("tokenable_type".into(), tokenable_type.into()),
-                ("tokenable_id".into(), tokenable_id.clone().into()),
-                ("name".into(), name.into()),
-                ("token".into(), token_hash(&secret).into()),
-                (
-                    "abilities".into(),
-                    Value::Json(serde_json::json!(abilities)),
-                ),
-                (
-                    "expires_at".into(),
-                    expires_at.map_or(Value::Null, |date| timestamp_text(date).into()),
-                ),
-            ]))
-            .await?;
+        self.create_with_attributes(
+            None,
+            tokenable_type,
+            tokenable_id,
+            secret,
+            TokenOptions::new(name)
+                .abilities(abilities)
+                .expires_at(expires_at),
+        )
+        .await
+    }
+
+    /// 在调用者事务内签发，供需要与账户写锁共同提交的安全操作使用。
+    /// 连接不一致或扩展属性试图覆盖标准凭据字段时，在写入前报错。
+    pub async fn create_token_in_transaction(
+        &self,
+        transaction: &mut crate::database::Transaction,
+        tokenable_type: &str,
+        tokenable_id: impl Into<AuthIdentifier>,
+        mut options: TokenOptions<'_>,
+    ) -> AuthResult<NewAccessToken> {
+        if !transaction.belongs_to(&self.connection) {
+            return Err(AuthError::Configuration("令牌与账户必须使用同一事务连接"));
+        }
+        let secret = match options.secret.take() {
+            Some(secret) => secret,
+            None => generate_secret(&self.prefix)?,
+        };
+        self.create_with_attributes(
+            Some(transaction),
+            tokenable_type,
+            tokenable_id.into(),
+            secret,
+            options,
+        )
+        .await
+    }
+
+    async fn create_with_attributes(
+        &self,
+        transaction: Option<&mut crate::database::Transaction>,
+        tokenable_type: &str,
+        tokenable_id: AuthIdentifier,
+        secret: Zeroizing<String>,
+        options: TokenOptions<'_>,
+    ) -> AuthResult<NewAccessToken> {
+        let TokenOptions {
+            name,
+            abilities,
+            expires_at,
+            attributes,
+            secret: _,
+        } = options;
+        let mut values = Record::from([
+            ("tokenable_type".into(), tokenable_type.into()),
+            ("tokenable_id".into(), tokenable_id.clone().into()),
+            ("name".into(), name.into()),
+            ("token".into(), token_hash(&secret).into()),
+            (
+                "abilities".into(),
+                Value::Json(serde_json::json!(abilities)),
+            ),
+            (
+                "expires_at".into(),
+                expires_at.map_or(Value::Null, |date| timestamp_text(date).into()),
+            ),
+        ]);
+        for (key, value) in attributes {
+            let base = key.split("->").next().unwrap_or(&key);
+            if base == self.model.key_name()
+                || values.contains_key(base)
+                || matches!(base, "id" | "created_at" | "updated_at" | "last_used_at")
+            {
+                return Err(AuthError::Configuration("扩展令牌属性不能覆盖标准凭据字段"));
+            }
+            values.insert(key, value);
+        }
+        let access_token = self.model.create(values, transaction).await?;
         Ok(NewAccessToken {
             plain_text_token: Zeroizing::new(format!("{}|{}", access_token.id, secret.as_str())),
             access_token,
@@ -217,8 +335,11 @@ impl PersonalAccessTokens {
         token: &mut PersonalAccessToken,
         mut model: Box<dyn ModelToken>,
     ) -> AuthResult<bool> {
+        let container = Connection::model_container(Some(&self.connection));
         if !model
-            .record_use(seconds_precision(Timestamp::now()))
+            .record_use(seconds_precision(crate::support::utc_now_for(
+                container.as_deref(),
+            )))
             .await?
         {
             return Ok(false);
@@ -226,6 +347,7 @@ impl PersonalAccessTokens {
         token.last_used_at = model.last_used_at()?;
         token.updated_at = model.updated_at()?;
         token.serialized_model = model.serialized_model();
+        token.attribute_values = model.attribute_values();
         Ok(true)
     }
 

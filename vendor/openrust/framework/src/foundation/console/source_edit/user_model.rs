@@ -63,6 +63,112 @@ impl<'a> UserModelSource<'a> {
         self.file.items.iter().any(|item| matches!(item, Item::Impl(i) if is_user(&i.self_ty)
             && i.trait_.as_ref().is_some_and(|(negative,p,_)| negative.is_none() && p.segments.iter().map(|s|s.ident.to_string()).eq(name.split("::").map(str::to_owned)))))
     }
+    /// 在唯一 User trait 实现中补入默认方法；已有自定义方法须手动接线。
+    pub fn with_trait_method(
+        &self,
+        template: &str,
+        trait_name: &str,
+        method_name: &str,
+    ) -> Result<String, ConsoleError> {
+        let template_file = syn::parse_file(template).map_err(|_| unsupported())?;
+        let short_name = trait_name.rsplit("::").next().ok_or_else(unsupported)?;
+        for item in &self.file.items {
+            if let Item::Impl(value) = item
+                && is_user(&value.self_ty)
+                && let Some((_, path, _)) = &value.trait_
+                && path
+                    .segments
+                    .last()
+                    .is_some_and(|segment| segment.ident == short_name)
+                && !path
+                    .segments
+                    .iter()
+                    .map(|segment| segment.ident.to_string())
+                    .eq(trait_name.split("::").map(str::to_owned))
+            {
+                return Err(unsupported());
+            }
+        }
+        let implementations: Vec<_> = self
+            .file
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Impl(value)
+                    if is_user(&value.self_ty)
+                        && value.trait_.as_ref().is_some_and(|(negative, path, _)| {
+                            negative.is_none()
+                                && path
+                                    .segments
+                                    .iter()
+                                    .map(|segment| segment.ident.to_string())
+                                    .eq(trait_name.split("::").map(str::to_owned))
+                        }) =>
+                {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .collect();
+        let methods: Vec<_> = template_file
+            .items
+            .iter()
+            .filter_map(|item| {
+                if let Item::Impl(value) = item {
+                    Some(value)
+                } else {
+                    None
+                }
+            })
+            .flat_map(|value| value.items.iter())
+            .filter_map(|item| match item {
+                syn::ImplItem::Fn(value) if value.sig.ident == method_name => Some(value),
+                _ => None,
+            })
+            .collect();
+        if methods.len() != 1 || implementations.len() > 1 {
+            return Err(unsupported());
+        }
+        let newline = if self.source.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let Some(implementation) = implementations.first() else {
+            let mut updated = self.source.to_owned();
+            updated.push_str(newline);
+            updated.push_str(&template.replace("\r\n", "\n").replace('\n', newline));
+            return Ok(updated);
+        };
+        if implementation
+            .items
+            .iter()
+            .any(|item| matches!(item,syn::ImplItem::Fn(value) if value.sig.ident == method_name))
+        {
+            return super::replace_generated_method(
+                self.source,
+                template,
+                template,
+                short_name,
+                method_name,
+            );
+        }
+        let method = methods[0];
+        let start = method.attrs.first().map_or_else(
+            || super::generated_function::signature_start(&method.sig),
+            |attribute| attribute.pound_token.span.byte_range().start,
+        );
+        let end = method.block.brace_token.span.close().byte_range().end;
+        let method = template[start..end]
+            .replace("\r\n", "\n")
+            .replace('\n', newline);
+        let mut updated = self.source.to_owned();
+        updated.insert_str(
+            implementation.brace_token.span.close().byte_range().start,
+            &format!("{newline}{method}{newline}"),
+        );
+        Ok(updated)
+    }
     pub fn with_clone(&self) -> Result<String, ConsoleError> {
         let mut structs = self.file.items.iter().filter_map(|item| match item {
             Item::Struct(s) if s.ident == "User" => Some(s),

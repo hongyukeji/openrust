@@ -9,6 +9,8 @@ use crate::database::{
 };
 use jiff::Timestamp;
 
+pub(super) type AttributeValues =
+    std::sync::Arc<dyn Fn(&str) -> DatabaseResult<Option<Value>> + Send + Sync>;
 pub(super) type SerializedModel = Result<serde_json::Map<String, serde_json::Value>, String>;
 type FoundModelToken = Option<(PersonalAccessToken, Box<dyn ModelToken>)>;
 
@@ -23,10 +25,13 @@ pub(super) fn credential_key<M: Model>(id: &str, connection: &Connection) -> Opt
 
 pub(super) trait ModelStore: Send + Sync {
     fn integer_key(&self) -> bool;
-    fn create(
-        &self,
+    fn key_name(&self) -> String;
+    fn table_name(&self) -> String;
+    fn create<'a>(
+        &'a self,
         attributes: Attributes,
-    ) -> DatabaseFuture<'_, DatabaseResult<PersonalAccessToken>>;
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<PersonalAccessToken>>;
     fn find<'a>(
         &'a self,
         credential: &'a str,
@@ -58,6 +63,7 @@ pub(super) trait ModelStore: Send + Sync {
 pub(super) trait ModelToken: Send + Sync {
     fn record_use(&mut self, now: Timestamp) -> DatabaseFuture<'_, DatabaseResult<bool>>;
     fn serialized_model(&self) -> SerializedModel;
+    fn attribute_values(&self) -> AttributeValues;
     fn last_used_at(&self) -> DatabaseResult<Option<Timestamp>>;
     fn updated_at(&self) -> DatabaseResult<Option<Timestamp>>;
 }
@@ -111,16 +117,29 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
         M::get_incrementing()
     }
 
-    fn create(
-        &self,
+    fn table_name(&self) -> String {
+        M::from_state(Default::default()).get_table().into()
+    }
+
+    fn key_name(&self) -> String {
+        M::from_state(Default::default()).get_key_name().into()
+    }
+
+    fn create<'a>(
+        &'a self,
         attributes: Attributes,
-    ) -> DatabaseFuture<'_, DatabaseResult<PersonalAccessToken>> {
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<PersonalAccessToken>> {
         Box::pin(async move {
             let mut model = self.query().make_async(Attributes::new()).await?;
             for (column, value) in attributes {
                 model.set_attribute_value_async(&column, value).await?;
             }
-            if !model.save().await? {
+            let saved = match transaction {
+                Some(transaction) => model.save_in_transaction(transaction).await?,
+                None => model.save().await?,
+            };
+            if !saved {
                 return Err(DatabaseError::InvalidQuery(
                     "personal access token creation cancelled",
                 ));
@@ -246,7 +265,7 @@ struct LoadedModel<M> {
     connection: Connection,
 }
 
-impl<M: Model> ModelToken for LoadedModel<M> {
+impl<M: PersonalAccessTokenModel> ModelToken for LoadedModel<M> {
     fn record_use(&mut self, now: Timestamp) -> DatabaseFuture<'_, DatabaseResult<bool>> {
         Box::pin(async move {
             let modified = self.connection.has_modified_records();
@@ -280,6 +299,10 @@ impl<M: Model> ModelToken for LoadedModel<M> {
         serialized_model(&self.model)
     }
 
+    fn attribute_values(&self) -> AttributeValues {
+        attribute_values(&self.model)
+    }
+
     fn last_used_at(&self) -> DatabaseResult<Option<Timestamp>> {
         date(&self.model, "last_used_at")
     }
@@ -304,7 +327,7 @@ async fn lock_token<M: Model>(transaction: &mut Transaction, model: &M) -> Datab
         .is_some())
 }
 
-fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
+fn snapshot<M: PersonalAccessTokenModel>(model: &M) -> DatabaseResult<PersonalAccessToken> {
     let abilities = match model.get_attribute_value("abilities")? {
         Some(Value::Json(abilities)) => {
             serde_json::from_value(abilities).map_err(|_| invalid_row())?
@@ -330,7 +353,14 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
         last_used_at: date(model, "last_used_at")?,
         expires_at: date(model, "expires_at")?,
         serialized_model: serialized_model(model),
+        attribute_values: attribute_values(model),
     })
+}
+
+fn attribute_values<M: PersonalAccessTokenModel>(model: &M) -> AttributeValues {
+    let model = model.clone_token_model();
+    // 只在显式读取时运行该属性的 accessor／cast，不提前触发其他隐藏属性。
+    std::sync::Arc::new(move |name| model.get_attribute_value(name))
 }
 
 fn serialized_model<M: Model>(model: &M) -> SerializedModel {
