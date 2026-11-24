@@ -2,7 +2,7 @@ use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     foundation::{
         Application,
-        console::source_edit::{insert_before, read, replace},
+        console::source_edit::{UserModelSource, insert_before, read, replace},
     },
 };
 use std::path::{Path, PathBuf};
@@ -126,49 +126,18 @@ fn plan(root: &Path) -> Result<Vec<Edit>, ConsoleError> {
     }
     let path = root.join("app/models/user.rs");
     let previous = read(&path)?;
-    let mut updated = previous.clone();
-    if !previous.contains("#[derive(Clone)]") {
-        if previous
-            .matches("pub(crate) struct User(ModelState);")
-            .count()
-            != 1
-        {
-            return Err(manual(&path, "User must implement Clone"));
+    let mut updated = UserModelSource::parse(&previous)?.with_clone()?;
+    updated = UserModelSource::parse(&updated)?
+        .with_hidden(&["two_factor_secret", "two_factor_recovery_codes"])?;
+    for capability in [
+        "openrust_fortify::TwoFactorAuthenticatable",
+        "openrust_fortify::passkeys::PasskeyAuthenticatable",
+    ] {
+        if !UserModelSource::parse(&updated)?.implements(capability) {
+            updated.push_str(&format!(
+                "\n#[cfg(feature = \"fortify\")]\nimpl {capability} for User {{}}\n"
+            ));
         }
-        updated = updated.replace(
-            "pub(crate) struct User(ModelState);",
-            "#[derive(Clone)]\npub(crate) struct User(ModelState);",
-        );
-    }
-    if !previous.contains("impl openrust_fortify::TwoFactorAuthenticatable for User") {
-        updated.push_str("\n#[cfg(feature = \"fortify\")]\nimpl openrust_fortify::TwoFactorAuthenticatable for User {}\n");
-    }
-    if !previous.contains("impl openrust_fortify::passkeys::PasskeyAuthenticatable for User") {
-        updated.push_str("\n#[cfg(feature = \"fortify\")]\nimpl openrust_fortify::passkeys::PasskeyAuthenticatable for User {}\n");
-    }
-    if !previous.contains("\"two_factor_secret\"")
-        || !previous.contains("\"two_factor_recovery_codes\"")
-    {
-        // 默认模型以字段常量声明隐藏项，旧应用可能仍使用字符串；只修改这两种已知骨架。
-        let hidden = [
-            ".hidden(&[\"password\", \"remember_token\"])",
-            ".hidden(&[User::PASSWORD, User::REMEMBER_TOKEN])",
-        ]
-        .into_iter()
-        .find(|candidate| previous.matches(candidate).count() == 1)
-        .ok_or_else(|| {
-            manual(
-                &path,
-                "hide two_factor_secret and two_factor_recovery_codes",
-            )
-        })?;
-        updated = updated.replace(
-            hidden,
-            &format!(
-                "{}, \"two_factor_secret\", \"two_factor_recovery_codes\"])",
-                &hidden[..hidden.len() - 2]
-            ),
-        );
     }
     if previous != updated {
         edits.push((path, previous, updated));

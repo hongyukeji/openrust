@@ -71,3 +71,5 @@ MySQL 和 PostgreSQL 分别由 `tests/mysql_acceptance.py`、`tests/postgres_acc
 [生成与安装产物的分层回归](generated-artifacts-2026-11-24.md)覆盖默认骨架、make:model 及 Sanctum／Passport／Fortify 安装前后、重复安装与应用定制保留。
 
 [生成回归的语法与声明定位修复](syntax-regression-2026-11-24.md)承接字符／嵌套注释和 hidden 位置的两个测试缺口，记录 Rust 语法解析及敏感字段序列化的正反验收。
+
+[安装器语法接入修复](installer-syntax-2026-11-24.md)记录 Fortify 隐藏字段、Fortify／Passport 声明识别，以及真实安装与重复安装反例。

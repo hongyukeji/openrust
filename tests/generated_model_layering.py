@@ -15,6 +15,10 @@ from generated_model_layering_contract import assert_actions, assert_model, asse
 
 FEATURES = 'sanctum,passport,fortify'
 CUSTOM_USER = '''
+// #[derive(Clone)]
+// impl openrust_passport::HasApiTokens for User
+// impl openrust_fortify::TwoFactorAuthenticatable for User
+// impl openrust_fortify::passkeys::PasskeyAuthenticatable for User
 impl User {
     pub(crate) fn layering_marker() -> &'static str { "retained" }
 }
@@ -144,7 +148,10 @@ def run():
     build(features=False)
     http('default')
     cli('migrate', '--force')
-    user.write_text(user.read_text() + CUSTOM_USER)
+    # 在真实安装前输入反例：fillable 与文档中的字段／声明都不算实际接入。
+    source_user = user.read_text().replace('.fillable(&[User::NAME, User::EMAIL, User::PASSWORD])', '.fillable(&[User::NAME, User::EMAIL, User::PASSWORD, "two_factor_secret", "two_factor_recovery_codes"])')
+    assert source_user != user.read_text()
+    user.write_text(source_user + CUSTOM_USER)
     cli('make:model', 'LayeringProbe')
     cli('make:model', 'FieldProbe', '--fields', '--table=users', '--database=mysql')
     for name in ['layering_probe', 'field_probe']:
@@ -182,6 +189,25 @@ def run():
         assert {p.name: p.read_bytes() for p in user.parent.glob('*.rs') if p != user} == generated_models
         assert CUSTOM_USER in user.read_text()
         print(phase, '安装前后白名单、重复安装与定制保留 PASS', flush=True)
+    # 无法安全定位的定制元数据必须拒绝；不能先发布或部分改写文件。
+    installed_user = user.read_bytes()
+    unsupported = user.read_text().replace('.hidden(&[', '.hidden(CUSTOM_HIDDEN).hidden(&[', 1)
+    start = unsupported.index('.hidden(&[')
+    end = unsupported.index('])', start) + 2
+    unsupported = unsupported[:start] + unsupported[end:]
+    assert unsupported != user.read_text()
+    def application_sources():
+        return {p.relative_to(generated): p.read_bytes() for folder in ['app', 'config', 'bootstrap', 'database/migrations'] for p in (generated / folder).rglob('*.rs')}
+    for invalid, reason in [(unsupported, '无法安全识别 User'), (user.read_text() + '\nfn broken( {', 'User 源码')]:
+        user.write_text(invalid)
+        preserved = application_sources()
+        failure = cli('fortify:install', success=False)
+        assert reason in failure, 'Fortify 未按预期原因拒绝定制源码'
+        assert application_sources() == preserved, 'Fortify 拒绝定制源码前已改写文件'
+    user.write_bytes(installed_user)
+    cli('fortify:install')
+    assert user.read_bytes() == installed_user
+    print('Fortify 不支持／无效元数据拒绝、零部分写入及恢复后重复安装 PASS', flush=True)
     assert_actions(generated)
     # 沿用既有 Fortify 生成应用夹具的必需配置：默认 User 需要邮箱验证路由。
     config = generated / 'config/fortify.rs'

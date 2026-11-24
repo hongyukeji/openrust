@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    source_edit::{file_error, insert_before, lock_manifest, read, replace},
+    source_edit::{UserModelSource, file_error, insert_before, lock_manifest, read, replace},
     vendor_publish_command::{
         migration_publication_timestamp, publish_package_if_migration_missing,
     },
@@ -819,8 +819,7 @@ impl ApiInstallCommand {
 fn wire_passport(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), ConsoleError> {
     let model = root.join("app/models/user.rs");
     let source = read(&model)?;
-    const IMPL: &str = "impl openrust_passport::HasApiTokens for User {";
-    if !source.contains(IMPL.trim_end_matches('{').trim()) {
+    if !UserModelSource::parse(&source)?.implements("openrust_passport::HasApiTokens") {
         match insert_before(
             &source,
             &model,

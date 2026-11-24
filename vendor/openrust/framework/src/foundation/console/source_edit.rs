@@ -1,3 +1,6 @@
+mod user_model;
+pub use user_model::UserModelSource;
+
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write as _},
