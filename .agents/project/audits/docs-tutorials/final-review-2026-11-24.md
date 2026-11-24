@@ -110,3 +110,5 @@ Validation其余101节为生成器、after、未知字段、safe、语言词条�
 详见第二十七组门禁及final-chapters/原始记录。最后实际main在随机非默认端口运行，核对首页GET/HEAD、/up、API JSON404、Web HTML404及Accept JSON404；SIGINT退出0。实际Artisan list/inspire/help make:request/help make:rule/lang:publish通过，自定义语言单键不被再次发布覆盖。正式三语make:request、make:rule配方由脚本直接提取，原始生成文件编译后通过真实HTTP，无平行模板实现。
 
 本地按功能簇提交，不推送。其他协作者的原型目录保留，不属于本轮。没有外部条件阻塞两个章节教程范围；本轮不宣称未验范围通过。
+
+逐簇完整提交哈希及实际文件范围见[本地交付清单](commits.json)，由本地Git历史逐项核对。清单只列27个功能簇；记录清单本身的纯审计提交另由Git历史保存，不伪造自引用哈希。
