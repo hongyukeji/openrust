@@ -1,0 +1,510 @@
+{
+  "framework": "13.40.0",
+  "cases": [
+    {
+      "rule": {
+        "users.*.account_id": "required"
+      },
+      "data": {
+        "users": [
+          {
+            "account_id": null
+          }
+        ]
+      },
+      "passes": false,
+      "errors": {
+        "users.0.account_id": [
+          "The users.0.account_id field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "userName": "required"
+      },
+      "data": [],
+      "passes": false,
+      "errors": {
+        "userName": [
+          "The user name field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.email": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "email": null
+          }
+        ]
+      },
+      "attributes": {
+        "rows.*.email": "inline alias"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.email": [
+          "The inline alias field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.0.email": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "email": null
+          }
+        ]
+      },
+      "attributes": {
+        "rows.*.email": "inline alias"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.email": [
+          "The inline alias field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.email": "nested_email"
+      },
+      "data": {
+        "rows": [
+          {
+            "email": "a@b.c"
+          }
+        ]
+      },
+      "attributes": {
+        "rows.*.email": "nested alias"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.email": [
+          "The nested alias field must be at least 8 characters."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.email": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "email": null
+          }
+        ]
+      },
+      "catalog": {
+        "attributes": {
+          "rows.*.email": "translated alias"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.email": [
+          "The translated alias field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.0.email": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "email": null
+          }
+        ]
+      },
+      "catalog": {
+        "attributes": {
+          "rows.*.email": "translated alias"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.email": [
+          "The translated alias field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.email": "nested_email"
+      },
+      "data": {
+        "rows": [
+          {
+            "email": "a@b.c"
+          }
+        ]
+      },
+      "catalog": {
+        "attributes": {
+          "rows.*.email": "nested translated"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.email": [
+          "The nested translated field must be at least 8 characters."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "value": "min:3"
+      },
+      "data": {
+        "value": "a"
+      },
+      "catalog": {
+        "custom": {
+          "value": {
+            "min": {
+              "string": "custom string :attribute :min",
+              "numeric": "wrong numeric"
+            }
+          }
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "custom string value 3"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "value": "numeric|min:3"
+      },
+      "data": {
+        "value": 1
+      },
+      "catalog": {
+        "custom": {
+          "value": {
+            "min": {
+              "string": "wrong string",
+              "numeric": "custom numeric :attribute :min"
+            }
+          }
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "custom numeric value 3"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "value": "array|min:3"
+      },
+      "data": {
+        "value": [
+          1
+        ]
+      },
+      "catalog": {
+        "custom": {
+          "value": {
+            "min": {
+              "array": "custom array :attribute :min"
+            }
+          }
+        }
+      },
+      "passes": false,
+      "errors": {
+        "value": [
+          "custom array value 3"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "catalog": {
+        "custom": {
+          "rows.*": {
+            "required": "broad :attribute"
+          }
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "broad rows.0.name"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "messages": {
+        "rows.*.required": "inline should not span dot"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The rows.0.name field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "min:3"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": "a"
+          }
+        ]
+      },
+      "catalog": {
+        "custom": {
+          "rows.*": {
+            "min": {
+              "string": "broad size :attribute"
+            }
+          }
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "broad size rows.0.name"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "attributes": {
+        "rows.*": "should not span dot"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The rows.0.name field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "attributes": {
+        "rows.*.name": "inline"
+      },
+      "catalog": {
+        "attributes": {
+          "rows.0.name": "translated concrete"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The inline field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "attributes": {
+        "rows.*.name": ""
+      },
+      "catalog": {
+        "attributes": {
+          "rows.0.name": "translated concrete"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The translated concrete field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "firstName": "required"
+      },
+      "data": [],
+      "catalog": {
+        "attributes": {
+          "firstName": "catalog attribute"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "firstName": [
+          "The catalog attribute field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "catalog": {
+        "custom": {
+          "rows.*.name": {
+            "required": "catalog wildcard"
+          }
+        }
+      },
+      "messages": {
+        "required": "inline wins"
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "inline wins"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "a\\.b": "required"
+      },
+      "data": {
+        "a.b": null
+      },
+      "catalog": {
+        "custom": {
+          "a*": {
+            "required": "literal-dot custom :attribute"
+          }
+        }
+      },
+      "passes": false,
+      "errors": {
+        "a.b": [
+          "literal-dot custom a.b"
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "locale": "fr",
+      "catalog": {
+        "attributes": {
+          "rows.*.name": "nom courant"
+        }
+      },
+      "fallback_catalog": {
+        "attributes": {
+          "rows.0.name": "fallback concrete"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The nom courant field is required."
+        ]
+      }
+    },
+    {
+      "rule": {
+        "rows.*.name": "required"
+      },
+      "data": {
+        "rows": [
+          {
+            "name": null
+          }
+        ]
+      },
+      "locale": "fr",
+      "catalog": {
+        "attributes": {
+          "unrelated": "autre"
+        }
+      },
+      "fallback_catalog": {
+        "attributes": {
+          "rows.0.name": "fallback should not override group"
+        }
+      },
+      "passes": false,
+      "errors": {
+        "rows.0.name": [
+          "The rows.0.name field is required."
+        ]
+      }
+    }
+  ]
+}

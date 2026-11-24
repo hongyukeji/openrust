@@ -1715,21 +1715,30 @@ impl Validator {
     }
 
     fn display_attribute(&self, pattern: &str, attribute: &str) -> String {
-        self.attributes
-            .get(attribute)
-            .or_else(|| self.attributes.get(pattern))
-            .cloned()
-            .or_else(|| {
-                let translator = self.translator.as_ref()?;
-                [attribute, pattern].into_iter().find_map(|field| {
-                    let key = format!("validation.attributes.{field}");
-                    translator
-                        .string(&key, &Default::default(), None)
-                        .ok()
-                        .filter(|text| text != &key)
-                })
-            })
-            .unwrap_or_else(|| attribute.replace('_', " "))
+        let translated = self
+            .translator
+            .as_ref()
+            .map(|translator| super::message_catalog::lines(translator, "validation.attributes"));
+        for name in [attribute, pattern] {
+            if let Some(name) = super::message_catalog::attribute(&self.attributes, name) {
+                return name.into();
+            }
+            if let Some(name) = translated
+                .as_ref()
+                .and_then(|names| super::message_catalog::attribute(names, name))
+            {
+                return name.into();
+            }
+        }
+        if path::parse(pattern).is_ok_and(|segments| {
+            segments
+                .iter()
+                .any(|segment| matches!(segment, path::Segment::Any))
+        }) {
+            attribute.to_owned()
+        } else {
+            crate::support::Str::snake(attribute, "_").replace('_', " ")
+        }
     }
 
     fn display_value(&self, field: &str, value: Option<&Value>) -> String {
@@ -1829,16 +1838,15 @@ impl Validator {
         }
         if let Some(translator) = &self.translator {
             if let Some(rule) = rule {
-                for field in [&attribute, pattern] {
-                    if field == pattern && !super::message_positions::matches(pattern, &attribute) {
-                        continue;
-                    }
-                    let key = format!("validation.custom.{field}.{rule}");
-                    if let Ok(message) = translator.string(&key, &Default::default(), None)
-                        && message != key
-                    {
-                        return render(&message);
-                    }
+                let category = rule_key
+                    .and_then(|key| key.strip_prefix(rule)?.strip_prefix('.'))
+                    .filter(|category| {
+                        matches!(*category, "numeric" | "array" | "file" | "string")
+                    });
+                if let Some(message) =
+                    super::message_catalog::custom(translator, &attribute, rule, category)
+                {
+                    return render(&message);
                 }
             }
             if let Ok(message) = translator.string(&failure.message, &Default::default(), None)

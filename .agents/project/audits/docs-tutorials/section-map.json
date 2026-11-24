@@ -448,30 +448,34 @@
         {
           "anchor": "specifying-custom-messages-in-language-files",
           "title": "Specifying Custom Messages in Language Files",
-          "status": "matching_differences_pending_consumer",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "逐型源码发现目录custom／attributes通配与嵌套标签差异，待实际消费者及完整消息簇验收"
+            "翻译custom跨层通配与尺寸类型键；attributes单层通配、组回退和原通配字段显示名"
           ],
           "evidence": [
-            "README.md#第十九组email扩展模式链式入口与dns测试门面2026-11-24"
+            "README.md#第二十一组语言目录customattributes及嵌套规则标签2026-11-24"
           ]
         },
         {
           "anchor": "custom-messages-for-specific-attributes",
           "title": "Custom Messages for Specific Attributes",
-          "status": "pending_full_review",
-          "contract": [],
-          "evidence": []
+          "status": "verified_tutorial_scope",
+          "contract": [
+            "翻译custom跨层通配与尺寸类型键；attributes单层通配、组回退和原通配字段显示名"
+          ],
+          "evidence": [
+            "README.md#第二十一组语言目录customattributes及嵌套规则标签2026-11-24"
+          ]
         },
         {
           "anchor": "specifying-attribute-in-language-files",
           "title": "Specifying Attributes in Language Files",
-          "status": "matching_differences_pending_consumer",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "逐型源码发现目录custom／attributes通配与嵌套标签差异，待实际消费者及完整消息簇验收"
+            "翻译custom跨层通配与尺寸类型键；attributes单层通配、组回退和原通配字段显示名"
           ],
           "evidence": [
-            "README.md#第十九组email扩展模式链式入口与dns测试门面2026-11-24"
+            "README.md#第二十一组语言目录customattributes及嵌套规则标签2026-11-24"
           ]
         },
         {

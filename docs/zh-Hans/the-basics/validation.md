@@ -897,3 +897,22 @@ fn configure_email_tests() -> ValidationResult<()> {
 测试中，在应用作用域内调用 `Validator::fake_dns_lookups(true)`，或配置当前应用的 `Factory::fake_dns_lookups(true)`；传入 `false` 恢复真实查询。已创建验证器也会观察其应用工厂的切换，其他应用不受影响；实例方法仍可显式覆盖单个验证器。Rust 需要明确传入布尔值。DNS 模拟保留其他已选检查及保留域处理；成功模拟用 `example.com` 等域名，不用 `.test`。
 
 工厂的克隆共享注册表和 DNS 测试策略。需要独立注册状态时，用 `Factory::default` 或 `Factory::new` 创建新工厂。
+
+## 语言文件消息与字段名称 {#language-file-messages}
+
+在 `lang/zh-Hans/validation.json` 创建或覆盖词条。语言文件 `custom` 的通配符可以跨嵌套路径；内联消息与字段名称的通配符只匹配一层。尺寸专用消息按声明规则选择 `numeric`、`array`、`file` 或 `string`，精确词条优先。字段名称先查当前语言的完整 attributes 组，再执行组级后备语言回退。未指定名称的通配字段保留原路径；普通字段的下划线或驼峰名称转换为单词。
+
+```json
+{
+  "custom": {
+    "photos.*.description": {
+      "min": {
+        "string": "第 :position 张：:attribute至少需要 :min 个字符。"
+      }
+    }
+  },
+  "attributes": {
+    "photos.*.description": "描述"
+  }
+}
+```

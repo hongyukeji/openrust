@@ -897,3 +897,22 @@ fn configure_email_tests() -> ValidationResult<()> {
 測試時，在應用作用域內呼叫 `Validator::fake_dns_lookups(true)`，或設定目前應用的 `Factory::fake_dns_lookups(true)`；傳入 `false` 恢復真實查詢。已建立的驗證器也會觀察其應用工廠的切換，其他應用不受影響；實例方法仍可明確覆寫單一驗證器。Rust 需要明確傳入布林值。DNS 模擬保留其他已選檢查與保留域處理；成功模擬用 `example.com` 等網域，不用 `.test`。
 
 工廠的複製共用註冊表與 DNS 測試策略。需要獨立註冊狀態時，用 `Factory::default` 或 `Factory::new` 建立新工廠。
+
+## 語言檔案訊息與欄位名稱 {#language-file-messages}
+
+在 `lang/zh-Hant/validation.json` 建立或覆寫詞條。語言檔案 `custom` 的萬用字元可以跨巢狀路徑；行內訊息與欄位名稱的萬用字元只比對一層。尺寸專用訊息按宣告規則選擇 `numeric`、`array`、`file` 或 `string`，精確詞條優先。欄位名稱先查目前語言的完整 attributes 群組，再執行群組層級後備語言回退。未指定名稱的萬用字元欄位保留原路徑；一般欄位的底線或駝峰名稱轉換為單字。
+
+```json
+{
+  "custom": {
+    "photos.*.description": {
+      "min": {
+        "string": "第 :position 張：:attribute至少需要 :min 個字元。"
+      }
+    }
+  },
+  "attributes": {
+    "photos.*.description": "描述"
+  }
+}
+```

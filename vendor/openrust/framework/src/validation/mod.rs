@@ -8,6 +8,7 @@ mod date_rules;
 mod extensions;
 pub(crate) mod facade;
 mod factory;
+mod message_catalog;
 mod message_positions;
 mod nested_rules;
 mod path;

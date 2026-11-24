@@ -1028,7 +1028,7 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
     );
     assert_eq!(
         duplicate["errors"]["users.0.account_id"],
-        json!(["The selected users.0.account id is invalid."])
+        json!(["The selected users.0.account_id is invalid."])
     );
     for email in [
         "foreign@example.test",

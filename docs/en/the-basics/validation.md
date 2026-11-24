@@ -897,3 +897,22 @@ fn configure_email_tests() -> ValidationResult<()> {
 In tests, call `Validator::fake_dns_lookups(true)` inside the application scope, or configure the application’s `Factory::fake_dns_lookups(true)`. Pass `false` to restore real lookups. Already-created validators observe their application’s factory switch, while other applications stay independent. The instance method remains an explicit per-validator override. Rust requires the boolean argument. DNS faking preserves the other selected checks and reserved-domain handling; use a host such as `example.com` instead of `.test` for a successful fake.
 
 Factory clones share registrations and the DNS test policy. Create a new factory with `Factory::default` or `Factory::new` when independent registration state is required.
+
+## Language file messages and labels {#language-file-messages}
+
+Create or override keys in `lang/en/validation.json`. Language-file `custom` wildcards can span nested paths; inline messages and attribute-name wildcards match one path segment. Size-specific custom messages select `numeric`, `array`, `file` or `string` using the declared rules. Exact entries take priority. Labels are looked up in the current language’s complete attributes group before group-level fallback. Unlabelled wildcard fields keep their raw path; ordinary field names are converted from snake/camel case to words.
+
+```json
+{
+  "custom": {
+    "photos.*.description": {
+      "min": {
+        "string": "Photo :position: :attribute needs :min characters."
+      }
+    }
+  },
+  "attributes": {
+    "photos.*.description": "description"
+  }
+}
+```

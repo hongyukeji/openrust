@@ -375,3 +375,13 @@ DNS共享原active_url的Hickory传输与解析器配置，绕过hosts／localho
 真实TCP回放378组JSON及6组multipart，精确核对422消息与成功投影；三语说明同步。sizes/gates.log九阶段全0：MySQL8.4.13十四目标70项0忽略（含原密码、email完整差分及三语6项），workspace/all-targets严格Clippy、fmt、三语构建／浏览器、实际main及artisan help make:rule／inspire通过。证据target/tmp/docs-chapters-20261124/sizes/，SHA与冻结快照一致；实际MySQL与HTTP服务均回收。初次HTTP夹具用保留小数零的参考投影比较默认JSON输出而失败，已补固定PHP实际wire投影并重跑，不改生产序列化格式。
 
 本批只关闭尺寸及消息类型关联差异；语言目录通配／嵌套标签、密码默认与泄漏策略、全章逐节复核继续，整章未关闭。
+
+## 第二十一组：语言目录custom／attributes及嵌套规则标签（2026-11-24）
+
+固定FormatsMessages::getCustomMessageFromTranslator、getWildcardCustomMessages、getAttributeFromTranslations／LocalArray、getDisplayableAttribute逐类型追踪。语言custom尺寸先查类型键，再普通键；读取原翻译器custom组并展平，复用Str::is实现可跨点的语言通配规则。内联消息和属性名称保留单层通配，不能把两者合并为同一种匹配。组级attributes读取保留当前语言优先，不能逐项后备导致英文精确标签覆盖当前语言通配标签；本地空／0标签按固定源码退回翻译。嵌套email附加规则由原Factory自然取得同一属性映射，不在响应渲染层重写文字。普通驼峰属性通过既有Str::snake显示，未命名通配属性保留原路径和下划线。
+
+新增22组固定PHP实际参考和文件加载器真实TCP，覆盖精确／通配／跨层、尺寸类型、字面点、内联优先、空名称、嵌套email及fr/en组级回退。初次参考夹具未刷新Facade原工厂，两个嵌套例错误得到未加载词条键；已修正容器绑定与Facade缓存再独立生成最终参考，不修改生产回退凑预期。三语新增JSON示例直接由Rust测试从正式Markdown提取，经文件加载、实际验证及真实HTTP执行，各语位置／名称／尺寸文案均核对，未维护平行示例资源。
+
+旧validation_http将users.0.account_id人化为空格，与固定源码和参考第一例冲突；仅修正该预期，原始历史记录保持。最终message-catalog/gates-resumed.log九阶段全0：MySQL8.4.13十五目标72项0忽略，严格workspace/all-targets Clippy／fmt、三语构建和浏览器、实际main／Artisan帮助及inspire通过。首次中文示例多余空格及测试Clippy嵌套if问题已修复复验，不以失败当通过。原始日志、最终参考与SHA在target/tmp/docs-chapters-20261124/message-catalog/；本批MySQL和HTTP服务已退出。
+
+本批关闭语言消息与属性教程及关联缺口；密码默认策略／泄漏查询／附加规则和全部179节最终对账继续，整章未关闭。
