@@ -1,0 +1,382 @@
+{
+  "units": [
+    {
+      "unit": "year",
+      "singular": "year",
+      "plural": "years",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "years",
+      "singular": "year",
+      "plural": "years",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "Year",
+      "singular": "year",
+      "plural": "years",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "day",
+      "singular": "day",
+      "plural": "days",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "days",
+      "singular": "day",
+      "plural": "days",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "weekday",
+      "singular": "weekday",
+      "plural": "weekdays",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "weekdays",
+      "singular": "weekday",
+      "plural": "weekdays",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "month",
+      "singular": "month",
+      "plural": "months",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "week",
+      "singular": "week",
+      "plural": "weeks",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "quarter",
+      "singular": "quarter",
+      "plural": "quarters",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "decade",
+      "singular": "decade",
+      "plural": "decades",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "century",
+      "singular": "century",
+      "plural": "centuries",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "centuries",
+      "singular": "century",
+      "plural": "centuries",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "millennium",
+      "singular": "millennium",
+      "plural": "millennia",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "millennia",
+      "singular": "millennium",
+      "plural": "millennia",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "millenniums",
+      "singular": "millennium",
+      "plural": "millennia",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "MILLISECONDS",
+      "singular": "millisecond",
+      "plural": "milliseconds",
+      "modifiable": false,
+      "precision": "H:i:s.v"
+    },
+    {
+      "unit": "milli",
+      "singular": "milli",
+      "plural": "millis",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "micro",
+      "singular": "micro",
+      "plural": "micros",
+      "modifiable": true,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "microsecond",
+      "singular": "microsecond",
+      "plural": "microseconds",
+      "modifiable": true,
+      "precision": "H:i:s.u"
+    },
+    {
+      "unit": "microseconds",
+      "singular": "microsecond",
+      "plural": "microseconds",
+      "modifiable": false,
+      "precision": "H:i:s.u"
+    },
+    {
+      "unit": "m",
+      "singular": "m",
+      "plural": "ms",
+      "modifiable": false,
+      "precision": "H:i:s.v"
+    },
+    {
+      "unit": "ms",
+      "singular": "m",
+      "plural": "ms",
+      "modifiable": false,
+      "precision": "H:i:s.v"
+    },
+    {
+      "unit": "µs",
+      "singular": "µ",
+      "plural": "µs",
+      "modifiable": false,
+      "precision": "H:i:s.u"
+    },
+    {
+      "unit": "μs",
+      "singular": "μ",
+      "plural": "μs",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "second",
+      "singular": "second",
+      "plural": "seconds",
+      "modifiable": true,
+      "precision": "H:i:s"
+    },
+    {
+      "unit": "seconds",
+      "singular": "second",
+      "plural": "seconds",
+      "modifiable": false,
+      "precision": "H:i:s"
+    },
+    {
+      "unit": "minute",
+      "singular": "minute",
+      "plural": "minutes",
+      "modifiable": true,
+      "precision": "H:i"
+    },
+    {
+      "unit": "minutes",
+      "singular": "minute",
+      "plural": "minutes",
+      "modifiable": false,
+      "precision": "H:i"
+    },
+    {
+      "unit": "class",
+      "singular": "cla",
+      "plural": "clas",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "S",
+      "singular": "",
+      "plural": "s",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "ss",
+      "singular": "",
+      "plural": "s",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "",
+      "singular": "",
+      "plural": "s",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "ÉTÉS",
+      "singular": "été",
+      "plural": "ÉtÉs",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    },
+    {
+      "unit": "ΟΔΟΣ",
+      "singular": "οδος",
+      "plural": "ΟΔΟΣs",
+      "modifiable": false,
+      "precision": {
+        "error": "Carbon\\Exceptions\\UnitException"
+      }
+    }
+  ],
+  "days": [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+  ],
+  "create": [
+    {
+      "input": null,
+      "format": "Y-m-d",
+      "result": false
+    },
+    {
+      "input": "2024-02-29",
+      "format": "Y-m-d",
+      "result": true
+    },
+    {
+      "input": "2024-02-30",
+      "format": "Y-m-d",
+      "result": true
+    },
+    {
+      "input": "2024-1-2",
+      "format": "Y-m-d",
+      "result": false
+    },
+    {
+      "input": "5",
+      "format": "N",
+      "result": false
+    },
+    {
+      "input": "wrong",
+      "format": "Y",
+      "result": false
+    },
+    {
+      "input": "0000",
+      "format": "Y",
+      "result": true
+    },
+    {
+      "input": "10000",
+      "format": "Y",
+      "result": false
+    },
+    {
+      "input": "1000000000000",
+      "format": "U",
+      "result": true
+    },
+    {
+      "input": "11:12:45",
+      "format": "h:i:s",
+      "result": true
+    },
+    {
+      "input": "13:12:45",
+      "format": "h:i:s",
+      "result": false
+    },
+    {
+      "input": "31/08/2015",
+      "format": "d#m#Y",
+      "result": true
+    },
+    {
+      "input": "2024-01-01tail",
+      "format": "Y-m-d+",
+      "result": false
+    },
+    {
+      "input": "2024\u0000",
+      "format": "Y",
+      "result": {
+        "error": "ValueError"
+      }
+    }
+  ]
+}

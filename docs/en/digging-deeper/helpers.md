@@ -198,6 +198,17 @@ assert_eq!(date.format("H:i:s")?, "00:00:00");
 
 With a frozen clock and no explicit timezone, format creation follows the mock's original timezone unless the format specifies one. Unformatted parsing still uses the application timezone. `!` and `|` reset unspecified fields. Formatted `Request::date` and its facade use the same rules, including lenient `None` results. Default input normalization runs first, so trailing NULs removed by trimming do not reach the date parser; direct format creation rejects NUL input.
 
+`get_days()` returns independent English weekday names from Sunday through Saturday. `singular_unit` and `plural_unit` normalize date unit names; `is_modifiable_unit` checks the exact singular name and case. `get_time_format_by_precision` returns the time pattern for minutes, seconds, milliseconds or microseconds, or `DateError::InvalidPrecision`.
+
+```rust
+assert_eq!(Date::singular_unit("CENTURIES")?, "century");
+assert_eq!(Date::get_time_format_by_precision("milliseconds")?, "H:i:s.v");
+assert!(Date::can_be_created_from_format("2024-02-29", "Y-m-d")?);
+assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
+```
+
+`can_be_created_from_format` combines actual format creation with the field-pattern check. NUL input remains an error. Dates outside the native year range return false even when a wider calendar can represent them.
+
 `instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 

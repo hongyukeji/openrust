@@ -12,6 +12,24 @@ impl Default for CreationSettings {
     }
 }
 impl DateFactory {
+    pub fn can_be_created_from_format<'a>(
+        &self,
+        input: impl Into<Option<&'a str>>,
+        format: &str,
+    ) -> Result<bool, DateError> {
+        let Some(input) = input.into() else {
+            return Ok(false);
+        };
+        if input.contains('\0') {
+            return Err(DateError::InvalidExpression);
+        }
+        match self.raw_create_from_format(format, input, None) {
+            Ok(Some(_)) => Ok(self.has_format_with_modifiers(input, format)),
+            Ok(None) | Err(DateError::InvalidExpression | DateError::OutOfRange) => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
     pub fn use_strict_mode(&self, enabled: impl Into<Option<bool>>) {
         self.creation
             .strict
@@ -81,6 +99,13 @@ impl DateFactory {
     }
 }
 impl DateFacade {
+    pub fn can_be_created_from_format<'a>(
+        input: impl Into<Option<&'a str>>,
+        format: &str,
+    ) -> Result<bool, DateError> {
+        Self::factory()?.can_be_created_from_format(input, format)
+    }
+
     pub(crate) fn input_from_format(
         format: &str,
         text: &str,

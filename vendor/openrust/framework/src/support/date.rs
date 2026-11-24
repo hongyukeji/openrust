@@ -20,6 +20,7 @@ pub enum DateError {
     OutOfRange,
     InvalidExpression,
     InputTooLarge,
+    InvalidPrecision,
 }
 
 impl std::fmt::Display for DateError {
@@ -28,6 +29,7 @@ impl std::fmt::Display for DateError {
             Self::Configuration => "application date configuration is unavailable",
             Self::InvalidTimezone => "invalid application timezone",
             Self::InvalidExpression => "日期表达式无效",
+            Self::InvalidPrecision => "日期时间精度单位无效",
             Self::InputTooLarge => "日期输入超过大小限制",
             Self::OutOfRange => "date or interval is out of range",
         })

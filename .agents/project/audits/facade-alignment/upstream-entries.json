@@ -1012,7 +1012,8 @@
         "setToStringFormat", "setTranslator", "setWeekEndsAt", "setWeekStartsAt", "setWeekendDays",
         "shouldOverflowMonths", "shouldOverflowYears", "singularUnit", "sleep", "today", "tomorrow",
         "translateTimeString", "translateWith", "useMonthsOverflow", "useStrictMode", "useYearsOverflow",
-        "withTestNow", "withTimeZone", "yesterday"
+        "withTestNow", "withTimeZone", "yesterday",
+        "createFromId", "__callStatic", "resetMacros", "genericMacro", "getMacro", "__set_state", "createFromImmutable", "createFromInterface"
       ],
       "review": "partial",
       "local": "support::facades::Date; support::DateFactory",
@@ -1111,7 +1112,182 @@
         "mock": "按固定原Creator继承mock原时区、未指定字段、微秒和重置标记；带时区格式与转义时间字母等分支实测。原生日期值保留时区元数据。",
         "consumers": "Request::date格式分支与公开Request门面接同一工厂规则，保留InputDate宽范围；HTTP默认TrimStrings/空转null先于读取。公开门面遵循既有with_container独占借出契约，未通过Root绕行。真实Artisan queue:work在独立SQLite消费2任务且队列清空，读取相同模式/时钟。",
         "evidence": "原Date门面276组创建向量；固定InteractsWithData及真实TrimStrings/ConvertEmptyStringsToNull方法30组输出，Rust实际HTTP逐条对照；date_format_creation.rs 3项含实际Worker。",
-        "remaining": "getLastErrors完整诊断和自定义创建/工厂回调仍未完成，不将此基本创建路径算全Date闭合。"
+        "inherited_static_audit": {
+        "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+        "carbon": "3.10.3/8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f",
+        "actual_public_static_count": 95,
+        "additional_entries": [
+          {
+            "name": "createFromId",
+            "declared_by": "Illuminate\\Support\\Carbon",
+            "return": "static",
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Ramsey\\Uuid\\Uuid|Symfony\\Component\\Uid\\Ulid|string",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "src/Illuminate/Support/Carbon.php",
+            "line": 28,
+            "review": "pending"
+          },
+          {
+            "name": "__callStatic",
+            "declared_by": "Carbon\\Carbon",
+            "return": "mixed",
+            "parameters": [
+              {
+                "name": "method",
+                "type": "string",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              },
+              {
+                "name": "parameters",
+                "type": "array",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "src/Carbon/Traits/Date.php",
+            "line": 2474,
+            "review": "pending"
+          },
+          {
+            "name": "resetMacros",
+            "declared_by": "Carbon\\Carbon",
+            "return": "void",
+            "parameters": [],
+            "file": "src/Carbon/Traits/Macro.php",
+            "line": 54,
+            "review": "pending"
+          },
+          {
+            "name": "genericMacro",
+            "declared_by": "Carbon\\Carbon",
+            "return": "void",
+            "parameters": [
+              {
+                "name": "macro",
+                "type": "callable",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              },
+              {
+                "name": "priority",
+                "type": "int",
+                "optional": true,
+                "default": 0,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "src/Carbon/Traits/Macro.php",
+            "line": 67,
+            "review": "pending"
+          },
+          {
+            "name": "getMacro",
+            "declared_by": "Carbon\\Carbon",
+            "return": "?callable",
+            "parameters": [
+              {
+                "name": "name",
+                "type": "string",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "src/Carbon/Traits/Macro.php",
+            "line": 87,
+            "review": "pending"
+          },
+          {
+            "name": "__set_state",
+            "declared_by": "Carbon\\Carbon",
+            "return": "static",
+            "parameters": [
+              {
+                "name": "dump",
+                "type": null,
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "src/Carbon/Traits/Serialization.php",
+            "line": 110,
+            "review": "pending"
+          },
+          {
+            "name": "createFromImmutable",
+            "declared_by": "DateTime",
+            "return": null,
+            "parameters": [
+              {
+                "name": "object",
+                "type": "DateTimeImmutable",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "internal",
+            "line": false,
+            "review": "pending"
+          },
+          {
+            "name": "createFromInterface",
+            "declared_by": "DateTime",
+            "return": "DateTime",
+            "parameters": [
+              {
+                "name": "object",
+                "type": "DateTimeInterface",
+                "optional": false,
+                "default": null,
+                "variadic": false,
+                "reference": false
+              }
+            ],
+            "file": "internal",
+            "line": false,
+            "review": "pending"
+          }
+        ],
+        "note": "原95项注解集合之外发现8个实际静态入口；追加到同一public_entries并逐项保留待办。Factory自身use*与默认Date类未反射到的注解另行跟踪，不把反射缺失当作跳过。getFormatsToIsoReplacements与getIsoUnits包含真实Closure，不允许用JSON空对象冒充可调用。"
+      },
+      "unit_probe_contracts": {
+        "entries": [
+          "getDays",
+          "singularUnit",
+          "pluralUnit",
+          "isModifiableUnit",
+          "getTimeFormatByPrecision",
+          "canBeCreatedFromFormat"
+        ],
+        "local": "Date/DateFactory::get_days/singular_unit/plural_unit/is_modifiable_unit/get_time_format_by_precision/can_be_created_from_format",
+        "review": "implemented_tested_base",
+        "contract": "星期顺序Sunday起且返回独立副本；单数采用多字节小写，复数ASCII小写，均去除末尾s并处理century/millennium；可修改单位严格大小写及单数，不擅自规范化。精度getter独立typed InvalidPrecision。创建探测组合真实raw创建与固定模式，null false、NUL错误不吞。",
+        "native_range": "PHP超Jiff范围的U时间戳可创建时，原生探测false，因为其返回日期值确实不能创建；实际1e12秒向量验证，不笼统以静态语言省略。",
+        "evidence": "35组原类单位输出、7天独立副本、14组原创建探测，在公开门面及具体Factory实际调用；严格true/false均验。",
+        "remaining": "自定义Date类/工厂和创建钩子仍未接入，Date保持partial。"
+      },
+      "remaining": "getLastErrors完整诊断和自定义创建/工厂回调仍未完成，不将此基本创建路径算全Date闭合。"
       },
       "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
       },

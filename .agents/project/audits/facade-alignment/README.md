@@ -471,3 +471,10 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - HTTP比较器使用固定InteractsWithData原date方法及原TrimStrings/ConvertEmptyStringsToNull转换方法，非完整PHP网络服务；30组结果与Rust真实HTTP/Request实例及门面核对。直接创建的NUL错误与HTTP末尾NUL先trim的行为分别验收。门面使用既有with_container安全借出，首次独占期间重借导致500的测试不计通过，未放松保护或绕行Root。
 - 实际Artisan queue:work使用独立SQLite表、2个原生任务，读取工厂宽松模式和mock原时区，处理后队列为空；源码/SQLite临时目录由夹具回收，共享数据库和卷未动。getLastErrors完整诊断、自定义创建/工厂及其他日期能力仍继续处理。
 - tests-fifth.log实际52项通过，另tests-worker.log新增真实Artisan/SQLite Worker成功（共53项不同消费者，不重复累加276/30组）。最终去除未用导入后workspace/all-targets严格Clippy28.69秒，三语文档构建及6组桌面/移动浏览器通过。首次未放入默认输入转换的PHP探针对末尾NUL结果不作为HTTP证据，原转换方法接入后重跑；严格模式关闭也不吞掉无效时区。
+
+### Date：实际继承静态入口与单位／创建探测（仍 partial）
+
+- 固定原Support Carbon实际反射95个public static入口；对比门面注解另外8项（createFromId、createFromImmutable/Interface、genericMacro/getMacro/resetMacros及两个魔术协议）已补入同一JSON公开清单并保存参数/默认/声明类/源路径，均明确pending，不另建计划。注解包含的Factory自有use*及默认路径无实际方法的条目继续逐项裁决。
+- getFormatsToIsoReplacements/getIsoUnits包含真实Closure，已明确不能把json_encode后的空对象当完成实现。日期类替换、宏/序列化与语言等剩余继续处理。
+- 正式提供get_days、singular_unit/plural_unit、is_modifiable_unit、get_time_format_by_precision及can_be_created_from_format。35组原单位结果含ASCII/Unicode不同小写、尾s及精度错误；星期副本可修改而不污染源。14组原创建探测在严格/宽松均实调，NUL错误保留；真正超Jiff的1e12秒U值明确native false，未把原Y格式10000的失败误称语言差异。
+- tests-second.log实际5项通过（2项新增公开消费者及3项格式创建回归，含真实Artisan/SQLite Worker）；workspace/all-targets严格Clippy23.31秒，三语构建13.57秒及6组桌面/移动浏览器通过。95项实际继承入口只扩充核对集合，不代表这些入口全部闭合。

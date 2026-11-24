@@ -198,6 +198,17 @@ assert_eq!(date.format("H:i:s")?, "00:00:00");
 
 凍結時間且未明確指定時區時，依格式建立沿用 mock 的原時區，格式自帶時區時使用格式中的值；無格式解析仍使用應用時區。`!` 和 `|` 重設未指定欄位。帶格式的 `Request::date` 及其門面使用同一規則，包括寬鬆模式的 `None`。預設輸入正規化先執行，因此被 trim 刪除的尾端 NUL 不會進入日期解析器；直接格式建立仍拒絕 NUL 輸入。
 
+`get_days()` 回傳星期日至星期六的獨立英文名稱副本。`singular_unit`、`plural_unit` 正規化日期單位名稱；`is_modifiable_unit` 嚴格檢查單數名稱及大小寫。`get_time_format_by_precision` 回傳分鐘、秒、毫秒或微秒對應的時間格式，不支援的單位回傳 `DateError::InvalidPrecision`。
+
+```rust
+assert_eq!(Date::singular_unit("CENTURIES")?, "century");
+assert_eq!(Date::get_time_format_by_precision("milliseconds")?, "H:i:s.v");
+assert!(Date::can_be_created_from_format("2024-02-29", "Y-m-d")?);
+assert!(!Date::can_be_created_from_format(None, "Y-m-d")?);
+```
+
+`can_be_created_from_format` 同時檢查實際格式建立與欄位模式，NUL 輸入仍會報錯。超出原生年份範圍的日期即使能由較寬的日曆表示，也回傳 false。
+
 `instance(&value)` 複製日期值。目前尚未提供本地化建立、自訂工廠與錯誤診斷入口。
 
 
