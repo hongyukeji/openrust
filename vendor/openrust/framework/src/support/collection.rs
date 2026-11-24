@@ -84,8 +84,8 @@ impl fmt::Display for ArrayKey {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum NextIndex {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NextIndex {
     Unset,
     Key(i64),
     Exhausted,
@@ -182,6 +182,14 @@ impl<T> Collection<T> {
         }
         self.items.insert(key, value);
         self
+    }
+
+    pub(crate) fn append_state(&self) -> NextIndex {
+        self.next_index
+    }
+
+    pub(crate) fn restore_append_state(&mut self, state: NextIndex) {
+        self.next_index = state;
     }
 
     pub fn push(&mut self, value: T) -> CollectionResult<&mut Self> {

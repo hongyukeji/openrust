@@ -31,7 +31,7 @@ pub use factory::Factory;
 pub use nested_rules::{NestedRuleContext, NestedRuleSet, NestedRules};
 pub use rule::Rule;
 pub use rule_set::RuleSet;
-pub use validated_input::ValidatedInput;
+pub use validated_input::{ValidatedInput, ValidatedInputIter};
 pub use validation_exception::ValidationException;
 pub use validation_service_provider::ValidationServiceProvider;
 pub use validator::{ValidationExceptionFactory, Validator};

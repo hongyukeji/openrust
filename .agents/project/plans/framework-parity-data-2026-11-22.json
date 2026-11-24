@@ -298986,6 +298986,13 @@
         "section-map中其他待逐节核对条目"
       ],
       "evidence": ".agents/project/audits/docs-tutorials/README.md"
+    },
+    {
+      "date": "2026-11-24",
+      "scope": "Validation 第十二组 ValidatedInput",
+      "status": "verified_tutorial_cluster",
+      "evidence": ".agents/project/audits/docs-tutorials/README.md",
+      "remaining": "Enum/In/NotIn, fluent builders, DataAware/ValidatorAware, email and password policies; full chapter remains open"
     }
   ]
 }

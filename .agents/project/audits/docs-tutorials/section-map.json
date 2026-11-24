@@ -401,11 +401,14 @@
         {
           "anchor": "working-with-validated-input",
           "title": "Working With Validated Input",
-          "status": "confirmed_remaining_contracts",
+          "status": "verified_tutorial_scope",
           "contract": [
-            "必须补公开对象／Builder／Trait或教程入口，字符串规则和只读上下文不能代替"
+            "support::ValidatedInput, contracts::support::{ValidatedData,Arrayable,ArrayAccess}",
+            "Validator::safe, ValidatedFormRequest::safe, only/except/merge/collect/all/offsets/iteration, typed file retention"
           ],
-          "evidence": []
+          "evidence": [
+            "README.md#第十二组validatedinput-筛选合并集合与类型化文件2026-11-24"
+          ]
         },
         {
           "anchor": "working-with-error-messages",

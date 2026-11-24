@@ -242,6 +242,40 @@ fn configure(exceptions: &mut Exceptions) {
 
 FormRequest 顺序为 `prepare_for_validation`、`authorize`、`with_validator`、验证和 `after`、`passed_validation`。授权或验证失败不会执行业务方法。携带 `Precognition-Validate-Only` 的预验证成功后不调用 `passed_validation`；未带该头时可能先调用，再短路业务方法。验证器按请求隔离。
 
+## 使用验证后的数据 {#working-with-validated-input}
+
+`Validator::safe()` 在验证成功后返回 `support::ValidatedInput`；`ValidatedFormRequest::safe()` 借用已验证的结果。`only`、`except` 按具体嵌套路径筛选，`merge` 返回新结果，`collect` 返回已有的 `Collection<RequestValue>`。原数据保持不变，借用和拥有式迭代均提供顶层键值对。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+use serde_json::json;
+
+fn store_safe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = request.validate(RuleSet::parse([
+            ("name", "required|string"),
+            ("email", "required|email"),
+        ])?).await?;
+        let selected = input.only(&["name", "email"])?;
+        let without_email = input.except(&["email"])?;
+        let merged = input.merge(json!({"role": "reader"}))?;
+        let collection = input.collect();
+        Response::json(StatusCode::CREATED, json!({
+            "selected": selected,
+            "without_email": without_email,
+            "merged": merged,
+            "collection": collection,
+            "name": input["name"],
+        }))
+    })
+}
+```
+
+子集保留为类型化的 `ValidatedInput`，而不是无类型数组，以保留筛选和合并后的上传文件句柄。通过 `file()` 或类型化集合读取文件；JSON 投影将文件表示为 `null`，不公开本地路径。`to_array()` 和索引读取此 JSON 投影。`contracts::support::{ValidatedData, Arrayable, ArrayAccess}` 提供对应泛型契约。手动构造 `ValidatedInput::new` 不执行验证；不可信输入应通过请求或验证器处理。
+
 ## 消息包 {#message-bags}
 
 使用 `MessageBag` 收集有序字段错误，`ViewErrorBag` 管理命名包。`add` 去重，`merge(&other)` 保留重复。`first(key, format)` 在没有消息时返回空字符串。`get(key, format)` 返回 `MessageLookup::Exact` 或保留字段名的通配映射；仅在确实需要扁平消息时调用 `into_messages()`。

@@ -242,6 +242,40 @@ Use `Rule::parse` inside a `RuleSet::field` array for regular expressions contai
 
 Form requests execute `prepare_for_validation`, `authorize`, `with_validator`, validation and `after`, then `passed_validation`. Authorization and validation failure stop the action. Precognition with `Precognition-Validate-Only` does not call `passed_validation`; successful Precognition without that header may call it before short-circuiting the action. Each request has its own validator.
 
+## Working with Validated Input {#working-with-validated-input}
+
+`Validator::safe()` returns `support::ValidatedInput` after successful validation; `ValidatedFormRequest::safe()` borrows the already validated result. `only` and `except` select concrete nested paths, `merge` returns a new result, and `collect` returns the existing `Collection<RequestValue>`. The original input remains unchanged. Both borrowed and owned iteration expose top-level key/value pairs.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    validation::RuleSet,
+};
+use serde_json::json;
+
+fn store_safe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = request.validate(RuleSet::parse([
+            ("name", "required|string"),
+            ("email", "required|email"),
+        ])?).await?;
+        let selected = input.only(&["name", "email"])?;
+        let without_email = input.except(&["email"])?;
+        let merged = input.merge(json!({"role": "reader"}))?;
+        let collection = input.collect();
+        Response::json(StatusCode::CREATED, json!({
+            "selected": selected,
+            "without_email": without_email,
+            "merged": merged,
+            "collection": collection,
+            "name": input["name"],
+        }))
+    })
+}
+```
+
+Subsets remain typed `ValidatedInput` values rather than untyped arrays so uploaded file handles survive filtering and merging. Use `file()` or typed collection values to access files; JSON projections represent files as `null` without exposing local paths. `to_array()` and indexing expose that JSON projection. `contracts::support::{ValidatedData, Arrayable, ArrayAccess}` provide the corresponding generic contracts. A manually constructed `ValidatedInput::new` does not run validation; use a request or validator for untrusted input.
+
 ## Message Bags {#message-bags}
 
 Use `MessageBag` to collect ordered field errors and `ViewErrorBag` for named bags. `add` suppresses duplicate messages; `merge(&other)` preserves duplicates. `first(key, format)` returns an empty string for a missing message. `get(key, format)` returns `MessageLookup::Exact` or a wildcard mapping that retains matching field names. Use `into_messages()` only when flattening is intended.

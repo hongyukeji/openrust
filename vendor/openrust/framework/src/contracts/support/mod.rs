@@ -34,3 +34,6 @@ pub trait DeferrableProvider {
         Vec::new()
     }
 }
+
+mod validated_data;
+pub use validated_data::{ArrayAccess, Arrayable, ValidatedData};

@@ -1,3 +1,6 @@
+mod operations;
+pub use operations::ValidatedInputIter;
+
 use std::collections::BTreeMap;
 
 use serde_json::Map;
@@ -13,6 +16,7 @@ use super::{
 #[derive(Clone, Debug)]
 pub struct ValidatedInput {
     input: Value,
+    next_index: crate::support::NextIndex,
     files: BTreeMap<String, UploadedFile>,
 }
 
@@ -71,6 +75,7 @@ impl ValidatedInput {
         let mut result = Self {
             input: shape(selected, data.as_value()),
             files: BTreeMap::new(),
+            next_index: crate::support::NextIndex::Unset,
         };
         result.files = data
             .uploads()
@@ -78,6 +83,7 @@ impl ValidatedInput {
             .filter(|(path, _)| result.get(path).is_some())
             .map(|(path, file)| (path.clone(), file.clone()))
             .collect();
+        result.next_index = crate::support::Collection::from_entries(result.iter()).append_state();
         Ok(result)
     }
 }

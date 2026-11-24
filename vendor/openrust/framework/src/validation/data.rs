@@ -25,6 +25,10 @@ impl Data {
         })
     }
 
+    pub(super) fn into_parts(self) -> (Value, BTreeMap<String, UploadedFile>) {
+        (self.input, self.uploads)
+    }
+
     /// Combines request input and the typed uploads from the multipart parser.
     pub async fn from_request(request: &mut Request) -> Result<Self, HttpError> {
         let mut data = Self::new(

@@ -1,0 +1,265 @@
+[
+    {
+        "input": {
+            "name": "A",
+            "email": "a@example.com",
+            "profile": {
+                "role": "reader",
+                "name": "N"
+            },
+            "rows": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": 2
+                }
+            ],
+            "nullable": null
+        },
+        "only": {
+            "name": "A",
+            "email": "a@example.com"
+        },
+        "except": {
+            "profile": {
+                "role": "reader",
+                "name": "N"
+            },
+            "rows": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": 2
+                }
+            ],
+            "nullable": null
+        },
+        "nested": {
+            "profile": {
+                "role": "reader"
+            },
+            "rows": {
+                "1": {
+                    "id": 2
+                }
+            }
+        },
+        "merge": {
+            "name": "B",
+            "email": "a@example.com",
+            "profile": {
+                "role": "admin"
+            },
+            "rows": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": 2
+                }
+            ],
+            "nullable": null
+        },
+        "numeric_merge": {
+            "name": "A",
+            "email": "a@example.com",
+            "profile": {
+                "role": "reader",
+                "name": "N"
+            },
+            "rows": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": 2
+                }
+            ],
+            "nullable": null,
+            "0": "last"
+        },
+        "collect": {
+            "name": "A",
+            "email": "a@example.com",
+            "profile": {
+                "role": "reader",
+                "name": "N"
+            },
+            "rows": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": 2
+                }
+            ],
+            "nullable": null
+        },
+        "iteration": {
+            "name": "A",
+            "email": "a@example.com",
+            "profile": {
+                "role": "reader",
+                "name": "N"
+            },
+            "rows": [
+                {
+                    "id": 1
+                },
+                {
+                    "id": 2
+                }
+            ],
+            "nullable": null
+        },
+        "nullable_exists": true,
+        "nullable_value": null,
+        "missing": null
+    },
+    {
+        "input": {
+            "a.b": 1,
+            "a": {
+                "b": 2
+            }
+        },
+        "only": [],
+        "except": {
+            "a.b": 1,
+            "a": {
+                "b": 2
+            }
+        },
+        "nested": {
+            "a": {
+                "b": 2
+            }
+        },
+        "merge": {
+            "a.b": 1,
+            "a": {
+                "b": 2
+            },
+            "name": "B",
+            "profile": {
+                "role": "admin"
+            }
+        },
+        "numeric_merge": {
+            "a.b": 1,
+            "a": {
+                "b": 2
+            },
+            "0": "last"
+        },
+        "collect": {
+            "a.b": 1,
+            "a": {
+                "b": 2
+            }
+        },
+        "iteration": {
+            "a.b": 1,
+            "a": {
+                "b": 2
+            }
+        },
+        "nullable_exists": false,
+        "nullable_value": null,
+        "missing": null
+    },
+    {
+        "input": [
+            "one",
+            "two"
+        ],
+        "only": [],
+        "except": [
+            "one",
+            "two"
+        ],
+        "nested": [],
+        "merge": {
+            "0": "one",
+            "1": "two",
+            "name": "B",
+            "profile": {
+                "role": "admin"
+            }
+        },
+        "numeric_merge": [
+            "one",
+            "two",
+            "last"
+        ],
+        "collect": [
+            "one",
+            "two"
+        ],
+        "iteration": [
+            "one",
+            "two"
+        ],
+        "nullable_exists": false,
+        "nullable_value": null,
+        "missing": null
+    },
+    {
+        "input": {
+            "2": "first",
+            "label": "L"
+        },
+        "only": [],
+        "except": {
+            "2": "first",
+            "label": "L"
+        },
+        "nested": [],
+        "merge": {
+            "0": "first",
+            "label": "L",
+            "name": "B",
+            "profile": {
+                "role": "admin"
+            }
+        },
+        "numeric_merge": {
+            "0": "first",
+            "label": "L",
+            "1": "last"
+        },
+        "collect": {
+            "2": "first",
+            "label": "L"
+        },
+        "iteration": {
+            "2": "first",
+            "label": "L"
+        },
+        "nullable_exists": false,
+        "nullable_value": null,
+        "missing": null
+    },
+    {
+        "input": [],
+        "only": [],
+        "except": [],
+        "nested": [],
+        "merge": {
+            "name": "B",
+            "profile": {
+                "role": "admin"
+            }
+        },
+        "numeric_merge": [
+            "last"
+        ],
+        "collect": [],
+        "iteration": [],
+        "nullable_exists": false,
+        "nullable_value": null,
+        "missing": null
+    }
+]

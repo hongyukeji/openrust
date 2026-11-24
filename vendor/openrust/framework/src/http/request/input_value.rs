@@ -145,7 +145,7 @@ impl RequestValue {
         }
     }
 
-    fn from_input(input: Value) -> Self {
+    pub(crate) fn from_input(input: Value) -> Self {
         match input {
             Value::Array(items) => Self::Array(
                 (0_i64..)
@@ -323,5 +323,31 @@ impl Request {
     /// Wraps selected input and uploads in an independent typed Fluent bag.
     pub async fn fluent_only(&mut self, keys: &[&str]) -> Result<Fluent<RequestValue>, HttpError> {
         Ok(Fluent::from_attributes(self.only(keys).await?))
+    }
+}
+
+impl serde::Serialize for RequestValue {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{SerializeMap as _, SerializeSeq as _};
+        match self {
+            Self::Value(value) => serde::Serialize::serialize(value, serializer),
+            Self::File(_) => serializer.serialize_none(),
+            Self::Array(fields) => {
+                let sequential=fields.keys().enumerate().all(|(index,key)|matches!(key,ArrayKey::Integer(key)if usize::try_from(*key)==Ok(index)));
+                if sequential {
+                    let mut sequence = serializer.serialize_seq(Some(fields.len()))?;
+                    for value in fields.values() {
+                        sequence.serialize_element(value)?;
+                    }
+                    sequence.end()
+                } else {
+                    let mut map = serializer.serialize_map(Some(fields.len()))?;
+                    for (key, value) in fields {
+                        map.serialize_entry(key, value)?;
+                    }
+                    map.end()
+                }
+            }
+        }
     }
 }

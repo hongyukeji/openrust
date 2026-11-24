@@ -84,3 +84,7 @@ pub use value_comparison::{
     php_loose_string_value_equal, php_numeric_json_string,
 };
 pub use view_error_bag::ViewErrorBag;
+
+pub use crate::validation::{ValidatedInput, ValidatedInputIter};
+
+pub(crate) use collection::NextIndex;

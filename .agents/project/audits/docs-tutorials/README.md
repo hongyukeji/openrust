@@ -241,3 +241,15 @@ make:rule与生成模板消费者本组闭合。逐失败首选语言、DataAwar
 两次触及32GB停线，守卫清理并恢复；一次中断收尾报EPERM，本批构建已退出，项目构建守卫完成全局持锁清理后空间恢复，未绕过锁清理或计中断为通过。最终foreach/gates-resumed.log的Clippy、fmt、三语构建、浏览器四阶段均0；workspace/all-targets -D warnings完成1m20s，先前最终三语消费者两阶段也0。新完整上下文与主测试源码已核SHA；临时容器均由验收器回收，日志／源码保留、缓存继续复用。
 
 本批关闭ForEach及上述关联差异。全文复查另外确认safe子集／合并／集合／迭代入口、Enum/In对象及密码默认／泄漏验证等缺口，连同其余fluent builder、DataAware／ValidatorAware、email模式继续本轮处理；不以原关键词清单或本批36项宣布整章完成。
+
+## 第十二组：ValidatedInput 筛选合并集合与类型化文件（2026-11-24）
+
+固定文档 working-with-validated-input 及 Support/ValidatedInput、Contracts/Support/ValidatedData、InteractsWithData 逐入口核对；旧实现没有正式 support 导入及 only/except/merge/collect，已先用实际 Cargo 负消费者复现（safe/before-cargo.log），非仅搜索判断。沿用原验证投影、Data 路径预算、Collection 数字键合并和上传句柄，不再新建输入体系。
+
+公开 support::ValidatedInput 与原 validation 路径兼容；ValidatedData/Arrayable/ArrayAccess trait 用正式泛型消费者验证，增加 only、except、merge、collect、to_array、键值迭代、索引及 offset 操作。ValidatedFormRequest::safe 借用原已验证结果；Validator::safe 仍要求成功验证。构造器本身不运行验证。筛选返回类型化结果以保留文件句柄，集合使用 RequestValue；JSON 投影沿用文件 null，不输出本地路径。Rust 没有 PHP 动态属性，使用原生索引与显式 offset_set/offset_unset；缺失索引为 null，路径使用既有转义机制。only 接收具体路径，不把通配投影冒充上游数据访问的任意表达式；本簇不宣称 InteractsWithData 全部通用入口已闭合。
+
+固定 PHP8.5.12 运行5组数据保存 validated-input.json，回放筛选／嵌套／合并／数字重排／集合／迭代／null 读取。实际 TCP 另覆盖类型化 FormRequest 成功200与失败422、未验证 admin 不进入数据、multipart 文件字节、独立子集与文件合并、替换后清元数据、原结果不变。关联修复删除最后数字键后的追加状态，复用 Collection 的私有 append state，不因重建结果错误覆盖旧键；删除全部后继续原编号、验证投影后追加都通过。
+
+最终 safe/final-gates.log 三阶段全0：新测试2、mutation6、正式三语提取HTTP消费者3，合计11项0忽略；先前 ForEach4 与规则对象2 回归也通过。safe/gates.log 的真实 main 构建与 artisan help make:request 退出0；三语构建、浏览器、根与docs挂载、API参考检查均0。最后编号修复后重新执行上述11项、workspace/all-targets严格Clippy（20.82秒）与fmt，全通过；未用先前源码的静态证据替代最终修复。未改命令行为、错误响应格式或默认值。日志／原始PHP／负消费者保留于target/tmp/docs-chapters-20261124/safe及safe-*，无本批常驻服务或容器；热缓存继续由守卫管理。
+
+本簇关闭教程已验证数据操作差异；接续 Enum/In/NotIn、剩余fluent builder、状态感知setter、email和密码策略，全章仍保持开放。

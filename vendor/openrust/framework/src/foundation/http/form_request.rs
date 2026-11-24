@@ -182,6 +182,10 @@ impl<F> ValidatedFormRequest<F> {
         &self.input
     }
 
+    pub fn safe(&self) -> &ValidatedInput {
+        &self.input
+    }
+
     pub fn into_parts(self) -> (F, ValidatedInput) {
         (self.form, self.input)
     }
