@@ -426,3 +426,9 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - clippy-cause.log实际workspace/all-targets严格通过23.09秒。仍需ExceptionReporter关联ID与源位置、托管不存在映射、raw/bulk/queueable options、跨进程凭据缓存及其余启动接线；Cloud与全门面保持未闭合。已有队列事件/JSON下载仅传原生任务，未声称执行其他语言序列化任务或通过真实云部署。
 
 - 补充tests-key-ring.log全部13项失败Provider通过：上一密钥显式配置才可解密旧下载，未配置则拒绝；与前述其余31项组成当前44项本机路径。clippy-final.log再次严格通过17.70秒；三语构建及托管失败章节桌面/移动浏览器6组通过。PHP容器均已按批次退出，既有PHP共享镜像保留；Cargo热缓存依现行规范继续复用，未推送。
+
+### Cloud：同步宏的类型边界（仍 partial）
+
+- 同步宏参数与返回值保留在调用线程，不进入应用共享状态；移除不必要的Send/Sync约束，仍要求拥有所有权的Any值。注册回调继续Send+Sync，保留应用隔离、类型错误和锁外执行。
+- cloud-macros/tests-first.log 实际15项通过，含公开Cloud门面接收并原样返回Rc<Cell<usize>>，验证指针身份与修改；其余真实Agent/Artisan Worker回归通过。此项不代表其他宏注册器或Cloud整体闭合。
+- clippy-first.log workspace/all-targets严格通过20.16秒；三语文档构建及桌面/移动6组实际浏览器检查通过。

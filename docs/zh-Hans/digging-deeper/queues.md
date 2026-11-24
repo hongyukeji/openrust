@@ -1046,6 +1046,8 @@ fn retry_entries<'a>(
 
 `Cloud` 门面读取应用的环境快照。`hosted()` 仅在 `LARAVEL_CLOUD=1` 时返回真；`uses_managed_queues()` 独立检查 `queue.connections.cloud.driver`，不依赖默认队列连接。`queue()` 返回实际的托管 SQS 连接，`is_managed_queue("priority")` 严格匹配配置中的队列名。
 
+Cloud 宏同步执行，拥有所有权的参数和返回值只要求 `Any`；`Rc<Cell<_>>` 等线程局部值保留在调用线程。应用会跨 Worker 共享注册表，因此注册回调仍须满足 `Send + Sync`。
+
 托管应用可通过 `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG` 提供以下 JSON 配置。嵌套的 `connection` 复用现有 SQS 驱动；`queues` 声明托管队列名。凭据由每个应用进程自行读取，不写入任务载荷。
 
 ```json

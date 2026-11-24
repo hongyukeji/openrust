@@ -828,3 +828,21 @@ async fn macro_factories_skip_retained_entries_and_preserve_partial_progress_on_
 fn fixed() -> Value {
     serde_json::from_str(include_str!("fixtures/cloud/agent-contract.json")).unwrap()
 }
+
+#[tokio::test]
+async fn synchronous_macros_accept_owned_thread_local_values_without_requiring_send_or_sync() {
+    use std::{cell::Cell, rc::Rc};
+    let app = app("0", json!({})).await;
+    App::set_facade_application(Some(app.app()), async {
+        Cloud::r#macro("local", |_, value: Rc<Cell<usize>>| {
+            value.set(value.get() + 1);
+            Ok(value)
+        })
+        .unwrap();
+        let value = Rc::new(Cell::new(6));
+        let returned: Rc<Cell<usize>> = Cloud::macro_call("local", value.clone()).unwrap();
+        assert!(Rc::ptr_eq(&value, &returned));
+        assert_eq!(value.get(), 7);
+    })
+    .await;
+}

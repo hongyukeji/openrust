@@ -1046,6 +1046,8 @@ Use `ListenerRegistry::listen_queued::<YourEvent>` with a stable listener ID and
 
 The `Cloud` facade reads the application environment snapshot. `hosted()` requires `LARAVEL_CLOUD=1`; `uses_managed_queues()` checks `queue.connections.cloud.driver`, independently of the default queue connection. `queue()` returns the actual managed SQS connection, and `is_managed_queue("priority")` checks its configured queue names strictly.
 
+Cloud macros execute synchronously. Their owned argument and return values only require `Any`; thread-local values such as `Rc<Cell<_>>` stay on the calling thread. Registered callbacks must still be `Send + Sync` because the application shares the registry across workers.
+
 In a hosted application, `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG` can contain the JSON configuration below. The nested `connection` belongs to the existing SQS driver; `queues` lists managed queue names. Credentials are read by each application process and are not included in job payloads.
 
 ```json

@@ -876,7 +876,7 @@
       "additional_contracts": {
         "queue": "已有SQS驱动/度量、管理列表、名称及元数据接线；Agent领取/结果经真实Artisan Worker验证。其余底层入口尚未闭合。",
         "lifecycle": "Weak应用owner，应用宏隔离；Agent匹配queue:work实际连接和单队列；Worker控制覆盖限定执行域。",
-        "macro_adaptation": "原生Any参数/返回，显式列表/惰性工厂替代私有反射；继承Facade测试契约未闭合。",
+        "macro_adaptation": "同步调用的拥有所有权参数/返回只要求Any，支持Rc<Cell>且不跨线程传递；应用共享回调保留Send+Sync。显式列表/惰性工厂替代私有反射；继承Facade测试契约未闭合。",
         "telemetry": {
           "local": "foundation::cloud::Events; Queue::finish_queueing_job/finish_processing_job/processing_job_details",
           "contract": "逐行JSON；Unicode/斜线/浮点0.0保留；空输入不建连；2秒连接/写入、5次零写失败断连、取消半行断连；应用服务实例工厂与真实TCP/Unix传输。队列queued/started/processed/released/failed及UTC微秒/duration_ms；停止与可重试超时124接线。",
@@ -904,7 +904,6 @@
         "Cloud专用硬超时/强制终止发布验收",
         "托管不存在错误转换、raw/bulk及queueable options完整契约",
         "跨进程凭据缓存与其他托管启动接线",
-        "复核并放宽宏参数/返回不必要的Send/Sync约束（共享回调约束保留）",
         "共享Facade mock/spy及默认别名",
         "真实托管AWS/Agent、供应商HTTPS及Windows发布验收"
       ]

@@ -21,7 +21,7 @@ impl CloudFacade {
     pub fn is_managed_queue(name: &str) -> CloudResult<bool> {
         Self::get_facade_root()?.is_managed_queue(name)
     }
-    pub fn r#macro<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn r#macro<A: Any, T: Any>(
         name: impl Into<String>,
         callback: impl Fn(&CloudManager, A) -> CloudResult<T> + Send + Sync + 'static,
     ) -> CloudResult<()> {
@@ -52,10 +52,7 @@ impl CloudFacade {
         Self::get_facade_root()?.flush_macros();
         Ok(())
     }
-    pub fn macro_call<T: Any + Send + Sync, A: Any + Send + Sync>(
-        name: &str,
-        arguments: A,
-    ) -> CloudResult<T> {
+    pub fn macro_call<T: Any, A: Any>(name: &str, arguments: A) -> CloudResult<T> {
         Self::get_facade_root()?.macro_call(name, arguments)
     }
 }

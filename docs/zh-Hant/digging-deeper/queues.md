@@ -1046,6 +1046,8 @@ fn retry_entries<'a>(
 
 `Cloud` 門面讀取應用的環境快照。`hosted()` 僅在 `LARAVEL_CLOUD=1` 時回傳真；`uses_managed_queues()` 獨立檢查 `queue.connections.cloud.driver`，不依賴預設佇列連線。`queue()` 回傳實際的託管 SQS 連線，`is_managed_queue("priority")` 嚴格比對設定中的佇列名稱。
 
+Cloud 巨集同步執行，擁有所有權的參數和回傳值只要求 `Any`；`Rc<Cell<_>>` 等執行緒區域值保留在呼叫執行緒。應用會跨 Worker 共用登錄表，因此登錄回呼仍須滿足 `Send + Sync`。
+
 託管應用可透過 `LARAVEL_CLOUD_MANAGED_QUEUES_CONFIG` 提供以下 JSON 設定。巢狀的 `connection` 重用現有 SQS 驅動；`queues` 宣告託管佇列名稱。憑證由每個應用程序自行讀取，不寫入工作負載。
 
 ```json

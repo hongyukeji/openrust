@@ -3,7 +3,7 @@ use std::{
     any::{Any, type_name},
     sync::Arc,
 };
-type Arguments = Box<dyn Any + Send + Sync>;
+type Arguments = Box<dyn Any>;
 type Callback =
     dyn Fn(&CloudManager, &str, Arguments, &'static str) -> CloudResult<Arguments> + Send + Sync;
 /// 带类型校验的托管服务宏，可返回任意拥有所有权的 Rust 值。
@@ -13,7 +13,7 @@ pub struct CloudMacro {
     output: &'static str,
 }
 impl CloudMacro {
-    pub fn new<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn new<A: Any, T: Any>(
         callback: impl Fn(&CloudManager, A) -> CloudResult<T> + Send + Sync + 'static,
     ) -> Self {
         Self {
@@ -30,7 +30,7 @@ impl CloudMacro {
             }),
         }
     }
-    pub(super) fn invoke<T: Any + Send + Sync, A: Any + Send + Sync>(
+    pub(super) fn invoke<T: Any, A: Any>(
         &self,
         cloud: &CloudManager,
         name: &str,
@@ -48,7 +48,7 @@ impl CloudMacro {
     }
 }
 impl CloudManager {
-    pub fn r#macro<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn r#macro<A: Any, T: Any>(
         &self,
         name: impl Into<String>,
         callback: impl Fn(&Self, A) -> CloudResult<T> + Send + Sync + 'static,
@@ -94,11 +94,7 @@ impl CloudManager {
         );
         drop(retired);
     }
-    pub fn macro_call<T: Any + Send + Sync, A: Any + Send + Sync>(
-        &self,
-        name: &str,
-        arguments: A,
-    ) -> CloudResult<T> {
+    pub fn macro_call<T: Any, A: Any>(&self, name: &str, arguments: A) -> CloudResult<T> {
         let callback = self
             .macros
             .read()
