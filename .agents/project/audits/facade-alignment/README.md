@@ -42,7 +42,7 @@
 | Mail | `support::facades::Mail` | 核对 Manager/Mailer/PendingMail 的入口、队列、附件、失败与测试替身 |
 | MaintenanceMode | 已补 `support::facades::MaintenanceMode` 与 `foundation::MaintenanceModeManager` | 管理器七入口与四个驱动委托已实测；HTTP 改为逐请求解析实际 Contract。公共 Facade 基类继承测试接口仍待全局核对，不先宣布全门面闭合 |
 | Notification | `support::facades::Notification` | 核对 Manager、路由通知、立即/队列派发、fake 和断言 |
-| ParallelTesting | 已接正式门面、原生生命周期与 Artisan 多进程运行器 | 16个声明入口及真实MySQL/生成测试/子进程消费者已验；标准缓存/视图隔离、数据库复用策略、取消异步清理与平台矩阵仍待补 |
+| ParallelTesting | 已接正式门面、原生生命周期与 Artisan 多进程运行器 | 16个声明入口、实际子进程、MySQL回调及缓存/视图隔离已验；数据库复用策略、取消异步清理与平台矩阵仍待补 |
 | Password | `support::facades::Password` | 核对 Broker、Provider、令牌仓储及所有委托/默认值 |
 | Pipeline | `support::facades::Pipeline` | 核对 Factory/实例构建、send/through/via/then/事务及 Context 隔离 |
 | Process | `support::facades::Process` | 核对 Factory/PendingProcess、管道/池、fake、断言和退出/信号 |
@@ -555,3 +555,13 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 真实CLI6场景通过：不同PID/token且barrier证明并发、预期失败仍teardown并返回1、单用例筛选、仅列举、无效并发数拒绝、Ctrl+C130并确认子进程不再运行。取消记录只有setup/body，未把异步teardown未执行说成通过；仅回收本批取消留下的已闲置临时目录。真实make:test生成文件另外编译并经parallel运行器通过，生成源码及日志保存。
 - workspace严格Clippy51.74s、fmt、三语站点14.94s、/和/docs/共12组浏览器通过。触线清理记录净释放62,714,703,872字节，锁inode、源码/日志/依赖/数据库卷保留；五个独立MySQL验收批次无遗留容器。继续保留仍复用的编译缓存。
 - 八个此前缺失核心类型现均已有正式入口，但不据此认定46个门面完整对齐。标准缓存/视图隔离、可复用数据库策略、取消异步清理、Linux/Windows进程实机和共享Facade测试能力继续处理。
+
+### ParallelTesting：标准缓存前缀与编译视图隔离（仍 partial）
+
+- 已核对固定TestCaches/TestViews，并联网确认ParallelTesting、Provider及三份Concern共5文件与1449bf原始官方内容逐字相等，记录于`target/tmp/facade-alignment/parallel-isolation/reference-verified.json`。原PHP8.5.12实跑8组首次／重复设置共16快照，含尾部斜线／反斜线、空/null/停用值、Unicode及缺键与null的不同记忆行为。
+- 默认应用绑定启用标准隔离，独立构造服务仍无附加配置／文件副作用；自定义替换可with_default_isolation。缓存使用原前缀加test_token_，实际--without-cache选项关闭改写，非空字符串原值按所属应用保留。固定??=对null的重捕获也已实际对照，未把它优化成另一套规则。已解析仓储不擅自换前缀；驱动级prefix与文件路径原规则不变。
+- 真实View工厂及命名编译器共享的实际编译目录可更新。测试覆盖只有View被解析、未解析Blade别名，以及提前创建的View通过正式Contract渲染，避免仅改配置或为测试添加多余门面同义入口。普通结束仅删当前token子目录，其他token和父目录保留；重复清理缺失目录无异常。路径token的分隔符／保留字符在文件操作前拒绝。
+- `tests-delivery.log`交付组合：独立MySQL8.4.13及Redis8.10.3共50项全部通过（12实际应用视图、5 Blade门面、6语句、7配置宏、4配置作用域、7并行生命周期／迁移、6隔离、3串行原生夹具），无忽略或缺环境提前返回。实际双应用共享Redis同名键隔离，并分别验证不同应用原前缀、purge和保留旧仓储的行为。
+- CLI7场景确认默认前缀及without-cache、不同进程/token并发、预期失败teardown、筛选/列举、无效参数和Ctrl+C无活跃子进程。当前取消仍不执行异步teardown，不将子进程退出冒充完整资源回收。候选父e03be8acc完整workspace严格Clippy1m17s、fmt、三语站点16.22s、/和/docs/共12浏览器通过。
+- 本批初期宏参数、测试Trait导入与冻结脚本匹配失败均已修正，失败日志保留。触线按规范持锁清理项目编译产物，净释放67,201,376,256字节；原始记录与当前源码SHA均保留。MySQL/Redis临时容器已清理，源码/日志/数据库卷未动，热缓存继续按规范复用。
+- 标准可复用数据库命名与重建/保留/删除策略、取消时异步清理、Linux/Windows进程实机及共享Facade测试契约仍未闭合，继续原任务。

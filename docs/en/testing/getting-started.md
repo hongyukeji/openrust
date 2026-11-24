@@ -46,7 +46,13 @@ Generated feature tests use `TestApp::run_parallel_test`. Wrap existing feature-
 
 `option` and `token` preserve false versus string values. `resolve_options_using(Some(Arc::new(...)))` and `resolve_token_using` install application-local resolvers; None restores the captured process environment. Resolver errors propagate. Native callbacks receive typed application/fixture arguments and may resolve other services through the application. They run outside registration locks and may reenter registration.
 
-The current native adapter uses an isolated process per test, rather than keeping a PHP-style worker alive across multiple cases. Existing owned MySQL fixtures still create and clean their own databases. Reusable database naming, recreate/drop command options, automatic cache-prefix and compiled-view isolation, asynchronous hook/database cleanup on cancellation, and native Linux/Windows process acceptance remain separate open items; they are not provided by the lifecycle API alone.
+Default application services prepare a global cache prefix of `original_prefix + test_<token>_` before test-case callbacks. `--without-cache` preserves the configured prefix. Existing store rules remain: store-level prefixes take precedence, file-cache paths are unchanged, and a repository resolved before setup keeps its prefix until explicitly purged. String prefixes retain their original base across repeated setup; explicit null follows the fixed recapture behavior, so prefer a string prefix.
+
+When `view.compiled` is enabled, the process creates `original_path/test_<token>`. Setup updates both the configuration and any already resolved View or Blade compiler; retained view instances also use the new directory. Normal process teardown removes only that token's directory, preserving its parent and other tokens. A missing or disabled compiled path is left alone. An explicitly null path can be recaptured after configuration changes. Custom tokens used in paths reject separators and reserved characters before filesystem changes.
+
+The application binding enables these defaults. A standalone `testing::ParallelTesting::new` remains a bare lifecycle service; use `with_default_isolation()` when creating a custom replacement that should retain the standard isolation behavior.
+
+The current native adapter uses an isolated process per test, rather than keeping a worker alive across multiple cases. Existing owned MySQL fixtures still create and clean their own databases. Reusable database naming, recreate/drop command options, asynchronous hook/database cleanup on cancellation, and native Linux/Windows process acceptance remain separate open items; they are not provided by the lifecycle API alone.
 
 ## Test environment {#test-environment}
 

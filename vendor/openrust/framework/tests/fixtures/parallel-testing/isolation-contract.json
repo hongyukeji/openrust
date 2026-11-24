@@ -1,0 +1,114 @@
+[
+    {
+        "prefix": "base_",
+        "compiled": "compiled/base///",
+        "token": "one",
+        "missing": false,
+        "result": {
+            "prefix": "base_test_one_",
+            "compiled": "compiled/base/test_one"
+        },
+        "repeat": {
+            "prefix": "base_test_one-next_",
+            "compiled": "compiled/base/test_one-next"
+        }
+    },
+    {
+        "prefix": "prefix_",
+        "compiled": "compiled/base\\\\",
+        "token": "two",
+        "missing": false,
+        "result": {
+            "prefix": "prefix_test_two_",
+            "compiled": "compiled/base/test_two"
+        },
+        "repeat": {
+            "prefix": "prefix_test_two-next_",
+            "compiled": "compiled/base/test_two-next"
+        }
+    },
+    {
+        "prefix": null,
+        "compiled": null,
+        "token": "plain",
+        "missing": false,
+        "result": {
+            "prefix": "test_plain_",
+            "compiled": null
+        },
+        "repeat": {
+            "prefix": "test_plain_test_plain-next_",
+            "compiled": "changed/views/test_plain-next"
+        }
+    },
+    {
+        "prefix": "",
+        "compiled": "0",
+        "token": "z",
+        "missing": false,
+        "result": {
+            "prefix": "test_z_",
+            "compiled": "0"
+        },
+        "repeat": {
+            "prefix": "test_z-next_",
+            "compiled": "0"
+        }
+    },
+    {
+        "prefix": "root_",
+        "compiled": "/",
+        "token": "root",
+        "missing": false,
+        "result": {
+            "prefix": "root_test_root_",
+            "compiled": "/test_root"
+        },
+        "repeat": {
+            "prefix": "root_test_root-next_",
+            "compiled": "/test_root-next"
+        }
+    },
+    {
+        "prefix": "off_",
+        "compiled": false,
+        "token": "disabled",
+        "missing": false,
+        "result": {
+            "prefix": "off_test_disabled_",
+            "compiled": false
+        },
+        "repeat": {
+            "prefix": "off_test_disabled-next_",
+            "compiled": false
+        }
+    },
+    {
+        "prefix": "前缀_",
+        "compiled": "缓存///",
+        "token": "unicode",
+        "missing": false,
+        "result": {
+            "prefix": "前缀_test_unicode_",
+            "compiled": "缓存/test_unicode"
+        },
+        "repeat": {
+            "prefix": "前缀_test_unicode-next_",
+            "compiled": "缓存/test_unicode-next"
+        }
+    },
+    {
+        "prefix": null,
+        "compiled": null,
+        "token": "missing",
+        "missing": true,
+        "result": {
+            "prefix": "test_missing_",
+            "compiled": null
+        },
+        "repeat": {
+            "prefix": "test_missing-next_",
+            "compiled": "changed/views"
+        }
+    }
+]

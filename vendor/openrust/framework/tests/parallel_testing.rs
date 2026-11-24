@@ -401,6 +401,8 @@ async fn every_public_callback_invoker_matches_original_order_and_arguments() {
         ))
         .unwrap();
         assert_eq!(json!(*events.lock().unwrap()), expected["callbacks"]);
+        assert_eq!(Config::get("cache.prefix").unwrap(), None);
+        assert_eq!(Config::get("view.compiled").unwrap(), None);
     })
     .await;
 }

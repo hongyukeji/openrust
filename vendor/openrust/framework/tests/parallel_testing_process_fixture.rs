@@ -1,5 +1,5 @@
 use openrust::{
-    support::facades::{App, Facade, ParallelTesting},
+    support::facades::{App, Config, Facade, ParallelTesting},
     testing::TestApp,
 };
 use std::{io::Write, path::PathBuf};
@@ -10,7 +10,7 @@ fn record(event: &str) {
     let token = ParallelTesting::token().unwrap();
     let token = token.as_str().unwrap_or("serial");
     let path = PathBuf::from(root).join(format!("{token}.jsonl"));
-    let row = serde_json::json!({"event":event,"token":token,"pid":std::process::id()});
+    let row = serde_json::json!({"event":event,"token":token,"pid":std::process::id(),"cache_prefix":Config::get("cache.prefix").unwrap()});
     let mut file = std::fs::OpenOptions::new()
         .append(true)
         .create(true)

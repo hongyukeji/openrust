@@ -22,7 +22,7 @@ pub(crate) async fn run(
     let mut processes = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
     let mut cargo = Vec::<OsString>::new();
     let mut harness = Vec::<OsString>::new();
-    let environment = vec![
+    let mut environment = vec![
         ("APP_ENV".to_owned(), "testing".to_owned()),
         ("LARAVEL_PARALLEL_TESTING".into(), "1".into()),
         ("OPENRUST_PARALLEL_TEST_CASE_PROCESS".into(), "1".into()),
@@ -63,6 +63,10 @@ pub(crate) async fn run(
                 .ok()
                 .filter(|n| *n > 0)
                 .ok_or_else(|| error("--processes需要正整数"))?;
+            continue;
+        }
+        if value == "--without-cache" {
+            environment.push(("LARAVEL_PARALLEL_TESTING_WITHOUT_CACHE".into(), "1".into()));
             continue;
         }
         if value == "--message-format" {

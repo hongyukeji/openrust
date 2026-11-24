@@ -37,6 +37,8 @@ pub struct ParallelTesting {
     options: RwLock<Option<ParallelOptionsResolver>>,
     token: RwLock<Option<ParallelTokenResolver>>,
     callbacks: RwLock<Callbacks>,
+    isolation: isolation::Isolation,
+    default_isolation: bool,
 }
 fn truthy(value: &Value) -> bool {
     match value {
@@ -49,7 +51,7 @@ fn truthy(value: &Value) -> bool {
     }
 }
 macro_rules! process_callbacks {
-    ($register:ident,$call:ident,$field:ident) => {
+    ($register:ident,$call:ident,$field:ident,$prepare:ident) => {
         pub fn $register(
             &self,
             callback: impl for<'a> Fn(&'a Application, Value) -> ParallelTestFuture<'a>
@@ -66,6 +68,9 @@ macro_rules! process_callbacks {
         pub async fn $call(&self, app: &Application) -> Result<(), ParallelTestError> {
             crate::support::facades::App::set_facade_application(Some(app), async {
                 if self.in_parallel()? {
+                    if self.default_isolation {
+                        self.$prepare(app).await?;
+                    }
                     let callbacks = self
                         .callbacks
                         .read()
@@ -101,6 +106,9 @@ macro_rules! case_callbacks {
             let app = test.app().share();
             crate::support::facades::App::set_facade_application(Some(&app), async {
                 if self.in_parallel()? {
+                    if self.default_isolation {
+                        self.prepare_case(test).await?;
+                    }
                     let callbacks = self
                         .callbacks
                         .read()
@@ -167,7 +175,14 @@ impl ParallelTesting {
             options: RwLock::default(),
             token: RwLock::default(),
             callbacks: RwLock::default(),
+            isolation: Default::default(),
+            default_isolation: false,
         }
+    }
+    /// 应用装配时启用标准测试隔离；独立构造的生命周期注册表保持无附加副作用。
+    pub fn with_default_isolation(mut self) -> Self {
+        self.default_isolation = true;
+        self
     }
     pub fn resolve_options_using(&self, resolver: Option<ParallelOptionsResolver>) {
         let old = std::mem::replace(
@@ -229,11 +244,17 @@ impl ParallelTesting {
             .is_some_and(|v| !v.is_empty() && v != "0")
             && truthy(&self.token()?))
     }
-    process_callbacks!(set_up_process, call_set_up_process_callbacks, process_up);
+    process_callbacks!(
+        set_up_process,
+        call_set_up_process_callbacks,
+        process_up,
+        prepare_process
+    );
     process_callbacks!(
         tear_down_process,
         call_tear_down_process_callbacks,
-        process_down
+        process_down,
+        cleanup_process
     );
     case_callbacks!(set_up_test_case, call_set_up_test_case_callbacks, case_up);
     case_callbacks!(
@@ -347,3 +368,5 @@ impl TestApp {
 }
 
 pub(crate) mod runner;
+
+mod isolation;

@@ -73,7 +73,7 @@ pub enum DirectiveOutput {
 
 /// Compiles Blade source into a cacheable tree of template instructions.
 pub struct BladeCompiler {
-    directory: PathBuf,
+    directory: RwLock<PathBuf>,
     path: RwLock<Option<PathBuf>>,
     extensions: RwLock<Arc<BladeExtensions>>,
 }
@@ -181,10 +181,17 @@ impl BladeCompiler {
     }
     pub fn new(directory: PathBuf) -> Self {
         Self {
-            directory,
+            directory: RwLock::new(directory),
             path: RwLock::default(),
             extensions: RwLock::default(),
         }
+    }
+
+    pub(crate) fn set_cache_directory(&self, directory: PathBuf) {
+        *self.directory.write().expect("视图缓存目录锁中毒") = directory;
+    }
+    fn cache_directory(&self) -> PathBuf {
+        self.directory.read().expect("视图缓存目录锁中毒").clone()
     }
 
     /// Preserves existing HTML entities in escaped Blade echoes.
@@ -355,7 +362,7 @@ impl BladeCompiler {
     }
 
     pub fn clear(&self) -> ViewResult<()> {
-        let directory = match Dir::open_ambient_dir(&self.directory, ambient_authority()) {
+        let directory = match Dir::open_ambient_dir(self.cache_directory(), ambient_authority()) {
             Ok(directory) => directory,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(error) => return Err(compile_error(error)),
@@ -410,7 +417,7 @@ impl BladeCompiler {
     }
 
     fn read_artifact(&self, name: &str) -> ViewResult<Option<Compiled>> {
-        let bytes = Dir::open_ambient_dir(&self.directory, ambient_authority())
+        let bytes = Dir::open_ambient_dir(self.cache_directory(), ambient_authority())
             .and_then(|directory| directory.read(name));
         match bytes {
             Ok(bytes) => Ok(serde_json::from_slice(&bytes).ok()),
@@ -420,9 +427,10 @@ impl BladeCompiler {
     }
 
     fn publish(&self, name: &str, compiled: &Compiled) -> ViewResult<()> {
-        fs::create_dir_all(&self.directory).map_err(compile_error)?;
+        let cache_directory = self.cache_directory();
+        fs::create_dir_all(&cache_directory).map_err(compile_error)?;
         let directory =
-            Dir::open_ambient_dir(&self.directory, ambient_authority()).map_err(compile_error)?;
+            Dir::open_ambient_dir(cache_directory, ambient_authority()).map_err(compile_error)?;
         let temporary = format!(".blade-{:032x}.tmp", fastrand::u128(..));
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -446,7 +454,7 @@ impl BladeCompiler {
 
 impl Compiler for BladeCompiler {
     fn get_compiled_path(&self, path: &Path) -> ViewResult<PathBuf> {
-        Ok(self.directory.join(artifact_name(path)))
+        Ok(self.cache_directory().join(artifact_name(path)))
     }
 
     fn is_expired(&self, path: &Path) -> ViewResult<bool> {
