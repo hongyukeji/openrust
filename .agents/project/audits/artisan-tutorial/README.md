@@ -83,3 +83,7 @@ Input可克隆，set_argument／set_option复用原Clap定义重建并验证输�
 磁盘在框架测试完成后触及32GB停线，已由共享构建守卫持锁清理项目profile和编译站点产物，事件记录before=31,994,896,384、after=115,385,188,352、released=83,390,291,968字节，锁inode保留；不是删改源码／日志／依赖／数据库。空间恢复后继续冷编译完成其余门禁，已通过的测试日志与源SHA保留。证据registry-final-{tests,root,fmt,clippy,main,docs,gates,runtime,formal-tty,browser}.log、registry-before.log、registry-after*.log、registry-source*.json／stderr；accepted-registry.json保存当前源SHA。正式示例的三个终端夹具目录再次清理，保留共享热缓存、独立源码和日志，无本批存活服务或容器。
 
 本关联生命周期缺口已闭合，prompting-for-missing-input按已核定教程范围更新为通过；完整事件相对交互／锁顺序继续随events节核查。registering-commands其余目录／类型发现与生成模板入口仍待逐项核定，不据此关闭该节或整章。继续I/O及其他余项，不推送。
+
+### 第六簇提交组合补验（2026-11-25）
+
+cfbe860c0提交窗口中，本地历史进入独立认证提交d8c7ee4b7；accepted-registry.json如实保留原验收基线229301926，不能把旧认证组合的验收冒称为新父提交组合。已重新从Git读取8ce3432b7至cfbe860c0的67条已提交路径，未复制任何当前认证／I/O在途代码；逐条与HEAD blob比较。补验当前纯提交组合35框架＋62根父测试共97项通过，含初始化16项、21个三语示例、Runner与调度；终端夹具ignore仍不计通过。fmt、workspace all-targets严格Clippy24.81s、main(pail)和三语构建退出0，实际main HTTP／Artisan／Pail／Ctrl+C及12组浏览器再验通过。证据registry-head-{framework,root,fmt,clippy,main,docs,gates,runtime,browser}.log，组合源哈希见accepted-registry-combination.json。未改写原始验收证据或覆盖其他在途改动。
