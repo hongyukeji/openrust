@@ -56,7 +56,7 @@
 
 | Laravel 文档 | OpenRust 正文路径 | 交付单元 |
 | --- | --- | --- |
-| [Artisan Console](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md) | [digging-deeper/artisan.md](../../../docs/en/digging-deeper/artisan.md) | [00-03](../plan.md#unit-00-03)、[06-08](../plan.md#unit-06-08) |
+| [Artisan Console](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md) | [digging-deeper/artisan.md](../../../docs/en/digging-deeper/artisan.md) | [00-03](../plan.md#unit-00-03)、[06-08](../plan.md#unit-06-08)；[48节深度复核](../audits/artisan-tutorial/README.md)，签名／闭包／声明式依赖已验，其他入口继续 |
 | [Broadcasting](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/broadcasting.md) | [digging-deeper/broadcasting.md](../../../docs/en/digging-deeper/broadcasting.md) | [08-01](../plan.md#unit-08-01)、[08-02](../plan.md#unit-08-02) |
 | [Cache](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md) | [digging-deeper/cache.md](../../../docs/en/digging-deeper/cache.md) | [03-06](../plan.md#unit-03-06)、[03-09](../plan.md#unit-03-09) |
 | [Collections](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/collections.md) | [digging-deeper/collections.md](../../../docs/en/digging-deeper/collections.md) | [02-08](../plan.md#unit-02-08)、[02-09](../plan.md#unit-02-09) |

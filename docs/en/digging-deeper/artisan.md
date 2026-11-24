@@ -244,3 +244,52 @@ Artisan generates Rust structs, traits and enums. Declare the resulting modules 
 `make:interface` and `make:trait` both generate Rust traits. Interface generation checks `app/contracts` then `app/interfaces`. Trait generation checks `app/concerns` then `app/traits`. Enum generation checks `app/enums` then `app/enumerations`. Each falls back to `app/`. Prefix a name with `App/` to start from `app/` explicitly.
 
 An invokable struct has an explicit `invoke()` method. Integer-backed enums expose an `i64` value and string-backed enums expose a static string through `value()`. Use `-f` or `--force` to replace a generated file. Publish customizable templates with [`stub:publish`](#stub-customization). The interface command uses its built-in template.
+
+## Command signatures and closure input {#command-signatures}
+
+Declare required `{user}`, optional `{user?}`, default `{user=Taylor}`, required arrays `{user*}` or optional arrays `{user?*}`. Options use `{--force}`, `{--queue=}`, `{--queue=default}`, and `{--id=*}`; `{--Q|queue=}` declares a shortcut. Array defaults use `{user=*Taylor,Dayle}` or `{--id=*1,2}`. Put descriptions after ` : ` and split the signature over lines when needed.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output},
+    support::facades::Artisan,
+};
+
+fn register() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "mail:send {user : User ID} {--Q|queue=default} {--id=*} {--force}",
+        |input: &Input, output: &mut Output| {
+            let user = input.argument("user").unwrap();
+            let queue = input.option("queue").unwrap();
+            output.comment(&format!("{user}: {queue}"));
+            Ok(0)
+        },
+    )?.purpose("Send a marketing email")
+}
+```
+
+`CommandDefinition::from_signature` creates the same definition for typed commands. `Input::argument` and `option` return JSON scalar/array values or `None` for unknown/unset names; `arguments` and `options` return each input group. Missing optional scalar values appear as JSON null in the group, while arrays remain arrays. Custom Clap value parsers should read their concrete types from `matches()`; these JSON accessors cover string, Boolean, numeric and UTF-8 OS-string values.
+
+The original `Artisan::command(signature, |output| …)` remains available with exit status 0. `command_with` accepts an explicitly typed input/output closure returning `Result<i32, ConsoleError>`, or an async callback `fn(&Application, &Input, &mut Output) -> ConsoleFuture<Result<i32, ConsoleError>>`. Resolve services with `app.make::<Service>().await` inside that callback; resolution belongs to the current application and command execution, not registration. Explicit signatures avoid changing existing Rust closure type inference. This does not provide PHP parameter reflection or automatic injection of undeclared Rust types.
+
+A callback whose first parameter is `Arc<Service>` is resolved automatically from the current application at execution. Register that service through your provider or the existing container type descriptors; constructors use the same container and are not run merely to list commands.
+
+```rust
+use std::sync::Arc;
+use openrust::{console::{ConsoleError, ConsoleFuture, Input, Output}, support::facades::Artisan};
+
+struct Mailer;
+impl Mailer {
+    fn send(&self, user: &str) -> String { format!("Sent to {user}") }
+}
+fn send<'a>(mailer: Arc<Mailer>, input: &'a Input, output: &'a mut Output)
+    -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+    Box::pin(async move {
+        output.comment(&mailer.send(input.argument("user").unwrap().as_str().unwrap()));
+        Ok(0)
+    })
+}
+fn register_injected() -> Result<(), ConsoleError> {
+    Artisan::command_with("mail:send-injected {user}", send)?.purpose("Send with an injected service")
+}
+```

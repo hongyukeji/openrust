@@ -1,0 +1,143 @@
+[
+  {
+    "signature": "send {user} {--Q|queue=default} {--force} {--id=*}",
+    "tokens": [
+      "Ada"
+    ],
+    "arguments": {
+      "user": "Ada"
+    },
+    "options": {
+      "queue": "default",
+      "force": false,
+      "id": []
+    }
+  },
+  {
+    "signature": "send {user} {--Q|queue=default} {--force} {--id=*}",
+    "tokens": [
+      "Ada",
+      "-Q",
+      "urgent",
+      "--force",
+      "--id=7",
+      "--id=9"
+    ],
+    "arguments": {
+      "user": "Ada"
+    },
+    "options": {
+      "queue": "urgent",
+      "force": true,
+      "id": [
+        "7",
+        "9"
+      ]
+    }
+  },
+  {
+    "signature": "send {user?} {--queue=} {--id=*1, 2}",
+    "tokens": [],
+    "arguments": {
+      "user": null
+    },
+    "options": {
+      "queue": null,
+      "id": [
+        "1",
+        "2"
+      ]
+    }
+  },
+  {
+    "signature": "send {user?} {--queue=} {--id=*1, 2}",
+    "tokens": [
+      "--queue"
+    ],
+    "arguments": {
+      "user": null
+    },
+    "options": {
+      "queue": null,
+      "id": [
+        "1",
+        "2"
+      ]
+    }
+  },
+  {
+    "signature": "send {user?} {--queue=default}",
+    "tokens": [
+      "--queue"
+    ],
+    "arguments": {
+      "user": null
+    },
+    "options": {
+      "queue": null
+    }
+  },
+  {
+    "signature": "send {user=*Taylor, Dayle}",
+    "tokens": [],
+    "arguments": {
+      "user": [
+        "Taylor",
+        "Dayle"
+      ]
+    },
+    "options": []
+  },
+  {
+    "signature": "send {user*}",
+    "tokens": [
+      "one",
+      "two"
+    ],
+    "arguments": {
+      "user": [
+        "one",
+        "two"
+      ]
+    },
+    "options": []
+  },
+  {
+    "signature": "send {--queue=default} {--force}",
+    "tokens": [
+      "--queue=first",
+      "--queue=last",
+      "--force",
+      "--force"
+    ],
+    "arguments": [],
+    "options": {
+      "queue": "last",
+      "force": true
+    }
+  },
+  {
+    "signature": "send {--id=*1, 2}",
+    "tokens": [
+      "--id=7"
+    ],
+    "arguments": [],
+    "options": {
+      "id": [
+        "7"
+      ]
+    }
+  },
+  {
+    "signature": "send {--id=*}",
+    "tokens": [
+      "--id"
+    ],
+    "arguments": [],
+    "options": {
+      "id": [
+        null
+      ]
+    }
+  }
+]

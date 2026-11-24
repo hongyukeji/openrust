@@ -737,15 +737,25 @@ impl Artisan {
     }
 
     pub fn command(
-        name: &'static str,
+        signature: &'static str,
         callback: impl Fn(&mut Output) + Send + Sync + 'static,
+    ) -> Result<RegisteredCommand, ConsoleError> {
+        Self::command_with(signature, callback)
+    }
+
+    /// 注册输入／异步闭包，保留原command的闭包类型推断。
+    pub fn command_with<Arguments>(
+        signature: &'static str,
+        callback: impl crate::console::IntoCommandCallback<Arguments>,
     ) -> Result<RegisteredCommand, ConsoleError> {
         CONSOLE
             .try_with(|console| {
                 let mut console = console.borrow_mut();
-                let command = console.command(name, callback)?;
+                let command = console.command_with(signature, callback)?;
                 Ok(RegisteredCommand {
-                    name,
+                    name: crate::console::Command::definition(command)
+                        .name()
+                        .to_owned(),
                     definition: command.registration_key(),
                 })
             })
@@ -773,7 +783,7 @@ impl Artisan {
 
 /// Configures the command just registered through the Artisan facade.
 pub struct RegisteredCommand {
-    name: &'static str,
+    name: String,
     definition: Weak<clap::Command>,
 }
 
@@ -783,7 +793,7 @@ impl RegisteredCommand {
             .try_with(|console| {
                 console
                     .borrow_mut()
-                    .set_closure_purpose(self.name, &self.definition, description)
+                    .set_closure_purpose(&self.name, &self.definition, description)
             })
             .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
     }

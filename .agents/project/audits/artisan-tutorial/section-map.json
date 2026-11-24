@@ -1,0 +1,326 @@
+{
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "sections": [
+    {
+      "anchor": "introduction",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "laravel-sail",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "tinker",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "installation",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "usage",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "command-allow-list",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "classes-that-should-not-be-aliased",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "writing-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "generating-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "command-structure",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "exit-codes",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "closure-commands",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "type-hinting-dependencies",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "closure-command-descriptions",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "isolatable-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "lock-id",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "lock-expiration-time",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "defining-input-expectations",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "arguments",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "options",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "options-with-values",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "option-shortcuts",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "input-arrays",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "option-arrays",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "input-descriptions",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan_signature_tutorial",
+        "artisan_docs_generated",
+        "signature-oracle.json",
+        "runtime.log",
+        "browser.log"
+      ],
+      "contract": "同一Clap定义／派发，command_with显式输入及Arc<Service>声明式异步注入；保留原command类型推断"
+    },
+    {
+      "anchor": "prompting-for-missing-input",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "command-io",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "retrieving-input",
+      "status": "partial_typed_command_input_pending",
+      "evidence": [
+        "artisan_signature_tutorial"
+      ],
+      "contract": "argument/option及分组读取已验，CommandInput类型化消费者待补齐"
+    },
+    {
+      "anchor": "prompting-for-input",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "asking-for-confirmation",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "auto-completion",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "multiple-choice-questions",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "writing-output",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "tables",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "progress-bars",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "registering-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "programmatically-executing-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "passing-array-values",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "passing-boolean-values",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "queueing-artisan-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "calling-commands-from-other-commands",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "signal-handling",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "the-dev-command",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "customizing-dev-processes",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "restarting-failed-processes",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "filtering-dev-processes",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "stub-customization",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "events",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    }
+  ]
+}

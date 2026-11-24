@@ -510,3 +510,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### Logging核心教程范围最终核定（2026-11-25）
 
 [29节逐项核对](logging-tutorial/README.md#第六簇与核心教程最终核对2026-11-25)已补齐通用Formattable类型、延迟默认格式器及直接三语消费者；11目标61项、文档45消费者、真实HTTP／独立Artisan／浏览器与严格门禁通过。用户明确将New Relic单列为[LOG-S01](../plans/log-supplier-integrations.md)待选型供应商功能，未实现；核心教程约定范围据此闭合，不能据此关闭供应商或跨平台发布，也不声称全部第三方类API。此前待决记录仅描述当时状态，后续按本决定推进Artisan Console，不推送。
+
+### Artisan固定教程首簇（2026-11-25）
+
+[48节深度账本](artisan-tutorial/README.md)首簇补齐签名解析、输入分组、Artisan与Console同作用域闭包、Arc服务执行期自动解析；48项相关消费者、实际HTTP／独立Artisan、6个三语直接示例及严格门禁通过。整章继续，尚有CommandInput等具体余项，不把此前66/66或这批通过代替公开契约复核；前章Logging核心及单列LOG-S01保持已确认边界，不推送。

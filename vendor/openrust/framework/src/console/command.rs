@@ -91,7 +91,7 @@ pub trait Command: Send + Sync {
 #[derive(Clone)]
 pub struct ClosureCommand {
     pub(super) definition: CommandDefinition,
-    pub(super) callback: Arc<dyn Fn(&mut Output) + Send + Sync>,
+    pub(super) callback: Arc<CommandCallback>,
 }
 
 impl ClosureCommand {
@@ -114,13 +114,87 @@ impl Command for ClosureCommand {
 
     fn handle<'a>(
         &'a self,
-        _app: &'a Application,
-        _input: &'a Input,
+        app: &'a Application,
+        input: &'a Input,
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
-        Box::pin(async move {
-            (self.callback)(output);
-            Ok(0)
+        (self.callback)(app, input, output)
+    }
+}
+
+/// 闭包命令复用正式Command执行作用域，可显式解析所属应用的依赖。
+pub type CommandCallback = dyn for<'a> Fn(
+        &'a Application,
+        &'a Input,
+        &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>>
+    + Send
+    + Sync;
+
+/// 按参数形状转换闭包，不改变已有仅输出回调的调用方式。
+pub trait IntoCommandCallback<Arguments>: Send + Sync + 'static {
+    fn into_command_callback(self) -> Arc<CommandCallback>;
+}
+impl<F> IntoCommandCallback<()> for F
+where
+    F: Fn(&mut Output) + Send + Sync + 'static,
+{
+    fn into_command_callback(self) -> Arc<CommandCallback> {
+        Arc::new(move |_, _, output| {
+            self(output);
+            Box::pin(async { Ok(0) })
+        })
+    }
+}
+impl<F> IntoCommandCallback<(Input,)> for F
+where
+    F: Fn(&Input, &mut Output) -> Result<i32, ConsoleError> + Send + Sync + 'static,
+{
+    fn into_command_callback(self) -> Arc<CommandCallback> {
+        Arc::new(move |_, input, output| {
+            let result = self(input, output);
+            Box::pin(async { result })
+        })
+    }
+}
+impl<F> IntoCommandCallback<(Application, Input)> for F
+where
+    F: for<'a> Fn(
+            &'a Application,
+            &'a Input,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<i32, ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+{
+    fn into_command_callback(self) -> Arc<CommandCallback> {
+        Arc::new(self)
+    }
+}
+
+impl<F, Service: ?Sized + Send + Sync + 'static> IntoCommandCallback<(Arc<Service>, Input)> for F
+where
+    F: for<'a> Fn(
+            Arc<Service>,
+            &'a Input,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<i32, ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+{
+    fn into_command_callback(self) -> Arc<CommandCallback> {
+        let callback = Arc::new(self);
+        Arc::new(move |app, input, output| {
+            let callback = callback.clone();
+            Box::pin(async move {
+                let service = app
+                    .make::<Service>()
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))?;
+                callback(service, input, output).await
+            })
         })
     }
 }

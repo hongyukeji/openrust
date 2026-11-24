@@ -89,12 +89,21 @@ impl Application {
     /// Registers a closure as an Artisan command.
     pub fn command(
         &mut self,
-        name: &'static str,
+        signature: &'static str,
         callback: impl Fn(&mut Output) + Send + Sync + 'static,
     ) -> Result<&mut ClosureCommand, ConsoleError> {
+        self.command_with(signature, callback)
+    }
+
+    /// 注册可读取输入或异步解析应用依赖的命令闭包。
+    pub fn command_with<Arguments>(
+        &mut self,
+        signature: &'static str,
+        callback: impl super::IntoCommandCallback<Arguments>,
+    ) -> Result<&mut ClosureCommand, ConsoleError> {
         let entry = self.add(Entry::Closure(ClosureCommand {
-            definition: CommandDefinition::new(Syntax::new(name)),
-            callback: Arc::new(callback),
+            definition: CommandDefinition::from_signature(signature)?,
+            callback: callback.into_command_callback(),
         }))?;
         let Entry::Closure(command) = entry else {
             unreachable!("registered closure command");

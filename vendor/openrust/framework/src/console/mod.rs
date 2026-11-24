@@ -6,10 +6,12 @@ mod descriptor;
 pub mod events;
 pub mod generator_command;
 mod help_command;
+mod input;
 mod list_command;
 pub(crate) mod localization;
 mod planned;
 pub mod scheduling;
+mod signature;
 pub(crate) mod task_command;
 
 use std::{
@@ -26,7 +28,9 @@ use clap::ArgMatches;
 use regex::Regex;
 
 pub use application::Application;
-pub use command::{ClosureCommand, Command, CommandDefinition};
+pub use command::{
+    ClosureCommand, Command, CommandCallback, CommandDefinition, IntoCommandCallback,
+};
 pub use generator_command::GeneratorCommand;
 pub(crate) use localization::text as localized_text;
 

@@ -244,3 +244,52 @@ Artisan 可產生 Rust 結構體、trait 和列舉。使用產生的型別前請
 `make:interface` 和 `make:trait` 均產生 Rust trait。介面依序尋找 `app/contracts`、`app/interfaces`，trait 依序尋找 `app/concerns`、`app/traits`，列舉依序尋找 `app/enums`、`app/enumerations`。目錄均不存在時寫入 `app/`。名稱以 `App/` 開頭時，從 `app/` 開始解析。
 
 可呼叫結構體提供明確的 `invoke()` 方法。整數與字串後備列舉透過 `value()` 分別回傳 `i64` 和靜態字串。使用 `-f` 或 `--force` 取代已產生的檔案。可透過 [`stub:publish`](#stub-customization) 發佈可自訂樣板。介面命令使用內建樣板。
+
+## 命令簽章與閉包輸入 {#command-signatures}
+
+位置參數支援必填 `{user}`、可選 `{user?}`、預設 `{user=Taylor}`、必填陣列 `{user*}` 和可選陣列 `{user?*}`。選項支援 `{--force}`、`{--queue=}`、`{--queue=default}`、`{--id=*}`；`{--Q|queue=}` 宣告縮寫。陣列預設值寫作 `{user=*Taylor,Dayle}` 或 `{--id=*1,2}`。以 ` : ` 分隔說明，簽章可以換行。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output},
+    support::facades::Artisan,
+};
+
+fn register() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "mail:send {user : User ID} {--Q|queue=default} {--id=*} {--force}",
+        |input: &Input, output: &mut Output| {
+            let user = input.argument("user").unwrap();
+            let queue = input.option("queue").unwrap();
+            output.comment(&format!("{user}: {queue}"));
+            Ok(0)
+        },
+    )?.purpose("Send a marketing email")
+}
+```
+
+型別命令透過 `CommandDefinition::from_signature` 建立相同的定義。`Input::argument` 和 `option` 回傳 JSON 純量／陣列，未知或未設定的名稱回傳 `None`；`arguments` 和 `options` 回傳各組輸入。未設定的可選純量在整組中為 JSON null，陣列保持陣列。自訂 Clap 值解析器透過 `matches()` 讀取其具體型別；這些 JSON 入口支援字串、布林、數值和 UTF-8 OS 字串。
+
+原有 `Artisan::command(signature, |output| …)` 繼續可用，正常退出碼為 0。`command_with` 接受明確型別的輸入／輸出閉包並回傳 `Result<i32, ConsoleError>`，也接受非同步回呼 `fn(&Application, &Input, &mut Output) -> ConsoleFuture<Result<i32, ConsoleError>>`。在回呼中用 `app.make::<Service>().await` 解析服務，讀取所屬應用，在命令執行時解析而非註冊時。明確的回呼入口避免破壞既有 Rust 閉包型別推斷；不提供 PHP 參數反射或未宣告 Rust 型別的自動注入。
+
+首個參數為 `Arc<Service>` 的非同步回呼會在執行時自動從目前應用解析服務。透過 Provider 或既有容器型別描述註冊該服務；建構繼續使用同一容器，查看清單不會提前執行建構。
+
+```rust
+use std::sync::Arc;
+use openrust::{console::{ConsoleError, ConsoleFuture, Input, Output}, support::facades::Artisan};
+
+struct Mailer;
+impl Mailer {
+    fn send(&self, user: &str) -> String { format!("Sent to {user}") }
+}
+fn send<'a>(mailer: Arc<Mailer>, input: &'a Input, output: &'a mut Output)
+    -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+    Box::pin(async move {
+        output.comment(&mailer.send(input.argument("user").unwrap().as_str().unwrap()));
+        Ok(0)
+    })
+}
+fn register_injected() -> Result<(), ConsoleError> {
+    Artisan::command_with("mail:send-injected {user}", send)?.purpose("Send with an injected service")
+}
+```
