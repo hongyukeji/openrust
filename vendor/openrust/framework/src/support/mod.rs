@@ -8,7 +8,7 @@ mod collection;
 mod data;
 mod date;
 pub(crate) mod date_factory;
-pub use date_factory::{DateComponents, DateFactory, DateInput, StrictDateComponents};
+pub use date_factory::{DateComponents, DateFactory, DateId, DateInput, StrictDateComponents};
 
 mod deferred_provider;
 pub(crate) mod driver_registry;

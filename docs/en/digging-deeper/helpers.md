@@ -232,6 +232,19 @@ let strict = Date::create_strict(StrictDateComponents::default(), None)?;
 
 `create_safe` rejects invalid calendar components and DST gaps instead of normalizing them; invalid values return an error in strict mode or `None` in lenient mode. `create_strict` always validates, leaving the application's strict-mode setting unchanged. Its integer components prevent PHP's implicit fractional-to-integer coercion. Years outside -9999 through 9999 return `DateError::OutOfRange`. `create_from_date(year, month, day, timezone)` keeps the clock time; `create_midnight_date` sets midnight. `create_from_time(hour, minute, second, timezone)` keeps the clock date; use `Some(0)` for midnight, and `None` to inherit a component.
 
+`make(input, timezone)` returns a cloned date object or parses a date-like string. Null, numbers, empty text, intervals starting with `P` and recurrences starting with `R` return `None`; invalid date-like text returns an error. Passing an existing date preserves its original timezone, even when a timezone argument is supplied.
+
+`create_from_interface` and `create_from_immutable` accept an owned or borrowed date value or `jiff::Zoned`, preserving the represented instant and timezone. Other input shapes are rejected.
+
+```rust
+let copied = Date::create_from_interface(&value)?;
+let maybe_date = Date::make("2024-01-02", None)?;
+assert!(Date::make("P1D", None)?.is_none());
+let from_id = Date::create_from_id("01ARZ3NDEKTSV4RRFFQ69G5FAV")?;
+```
+
+`create_from_id` accepts ULID, time-based UUID v1/v2/v6/v7 text, or the framework's native UUID/ULID values. Non-time UUIDs and malformed or overflowing identifiers return an error. UUID v2 loses the low 32 timestamp bits by design. Dates use UTC offsets and keep the source converter's microsecond rounding and error behavior; years outside the native date range return `DateError::OutOfRange`.
+
 `instance(&value)` clones a date value. Localized creation, custom factories and error diagnostics are not currently exposed.
 
 

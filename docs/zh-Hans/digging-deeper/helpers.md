@@ -232,6 +232,19 @@ let strict = Date::create_strict(StrictDateComponents::default(), None)?;
 
 `create_safe` 拒绝无效日历分量和夏令时间隙，不自动进位；严格模式返回错误，宽松模式返回 `None`。`create_strict` 始终校验，不改变应用的严格模式设置；整数分量在类型层面避免 PHP 将小数隐式截断。超出 -9999 至 9999 的年份返回 `DateError::OutOfRange`。`create_from_date(year, month, day, timezone)` 保留时钟时间，`create_midnight_date` 使用零点。`create_from_time(hour, minute, second, timezone)` 保留时钟日期；用 `Some(0)` 设置零值，用 `None` 继承分量。
 
+`make(input, timezone)` 克隆已有日期对象，或解析看起来像日期的字符串。null、数值、空文本、以 `P` 开头的区间及以 `R` 开头的重复规则返回 `None`；无效日期文本返回错误。传入已有日期时保留原时区，即使同时提供时区参数也不转换。
+
+`create_from_interface`、`create_from_immutable` 接收拥有所有权或借用的日期值、`jiff::Zoned`，保留其时刻和时区；拒绝其他输入形状。
+
+```rust
+let copied = Date::create_from_interface(&value)?;
+let maybe_date = Date::make("2024-01-02", None)?;
+assert!(Date::make("P1D", None)?.is_none());
+let from_id = Date::create_from_id("01ARZ3NDEKTSV4RRFFQ69G5FAV")?;
+```
+
+`create_from_id` 接收 ULID、时间型 UUID v1/v2/v6/v7 文本，或框架原生 UUID/ULID 值。非时间型 UUID、无效或溢出的标识返回错误；UUID v2 按其定义丢弃时间戳低 32 位。日期使用 UTC 偏移，保留来源转换器的微秒舍入和错误行为；超出原生日期范围的年份返回 `DateError::OutOfRange`。
+
 `instance(&value)` 克隆日期值。目前尚不提供本地化创建、自定义工厂与错误诊断入口。
 
 

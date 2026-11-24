@@ -993,27 +993,109 @@
       "type": "Date",
       "source": "src/Illuminate/Support/Facades/Date.php",
       "public_entries": [
-        "use", "useDefault", "useCallable", "useClass", "useFactory", "canBeCreatedFromFormat", "create",
-        "createFromDate", "createFromFormat", "createFromIsoFormat", "createFromLocaleFormat",
-        "createFromLocaleIsoFormat", "createFromTime", "createFromTimeString", "createFromTimestamp",
-        "createFromTimestampMs", "createFromTimestampMsUTC", "createFromTimestampUTC", "createMidnightDate",
-        "createSafe", "createStrict", "disableHumanDiffOption", "enableHumanDiffOption",
-        "executeWithLocale", "fromSerialized", "getAvailableLocales", "getAvailableLocalesInfo", "getDays",
-        "getFallbackLocale", "getFormatsToIsoReplacements", "getHumanDiffOptions", "getIsoUnits",
-        "getLastErrors", "getLocale", "getMidDayAt", "getTimeFormatByPrecision",
-        "getTranslationMessageWith", "getTestNow", "getTranslator", "getWeekEndsAt", "getWeekStartsAt",
-        "getWeekendDays", "hasFormat", "hasFormatWithModifiers", "hasMacro", "hasRelativeKeywords",
-        "hasTestNow", "instance", "isImmutable", "isModifiableUnit", "isMutable", "isStrictModeEnabled",
-        "localeHasDiffOneDayWords", "localeHasDiffSyntax", "localeHasDiffTwoDayWords",
-        "localeHasPeriodSyntax", "localeHasShortUnits", "macro", "make", "mixin", "now", "parse",
-        "parseFromLocale", "pluralUnit", "rawCreateFromFormat", "rawParse", "resetMonthsOverflow",
-        "resetToStringFormat", "resetYearsOverflow", "serializeUsing", "setFallbackLocale",
-        "setHumanDiffOptions", "setLocale", "setMidDayAt", "setTestNow", "setTestNowAndTimezone",
-        "setToStringFormat", "setTranslator", "setWeekEndsAt", "setWeekStartsAt", "setWeekendDays",
-        "shouldOverflowMonths", "shouldOverflowYears", "singularUnit", "sleep", "today", "tomorrow",
-        "translateTimeString", "translateWith", "useMonthsOverflow", "useStrictMode", "useYearsOverflow",
-        "withTestNow", "withTimeZone", "yesterday",
-        "createFromId", "__callStatic", "resetMacros", "genericMacro", "getMacro", "__set_state", "createFromImmutable", "createFromInterface"
+        "use",
+        "useDefault",
+        "useCallable",
+        "useClass",
+        "useFactory",
+        "canBeCreatedFromFormat",
+        "create",
+        "createFromDate",
+        "createFromFormat",
+        "createFromIsoFormat",
+        "createFromLocaleFormat",
+        "createFromLocaleIsoFormat",
+        "createFromTime",
+        "createFromTimeString",
+        "createFromTimestamp",
+        "createFromTimestampMs",
+        "createFromTimestampMsUTC",
+        "createFromTimestampUTC",
+        "createMidnightDate",
+        "createSafe",
+        "createStrict",
+        "disableHumanDiffOption",
+        "enableHumanDiffOption",
+        "executeWithLocale",
+        "fromSerialized",
+        "getAvailableLocales",
+        "getAvailableLocalesInfo",
+        "getDays",
+        "getFallbackLocale",
+        "getFormatsToIsoReplacements",
+        "getHumanDiffOptions",
+        "getIsoUnits",
+        "getLastErrors",
+        "getLocale",
+        "getMidDayAt",
+        "getTimeFormatByPrecision",
+        "getTranslationMessageWith",
+        "getTestNow",
+        "getTranslator",
+        "getWeekEndsAt",
+        "getWeekStartsAt",
+        "getWeekendDays",
+        "hasFormat",
+        "hasFormatWithModifiers",
+        "hasMacro",
+        "hasRelativeKeywords",
+        "hasTestNow",
+        "instance",
+        "isImmutable",
+        "isModifiableUnit",
+        "isMutable",
+        "isStrictModeEnabled",
+        "localeHasDiffOneDayWords",
+        "localeHasDiffSyntax",
+        "localeHasDiffTwoDayWords",
+        "localeHasPeriodSyntax",
+        "localeHasShortUnits",
+        "macro",
+        "make",
+        "mixin",
+        "now",
+        "parse",
+        "parseFromLocale",
+        "pluralUnit",
+        "rawCreateFromFormat",
+        "rawParse",
+        "resetMonthsOverflow",
+        "resetToStringFormat",
+        "resetYearsOverflow",
+        "serializeUsing",
+        "setFallbackLocale",
+        "setHumanDiffOptions",
+        "setLocale",
+        "setMidDayAt",
+        "setTestNow",
+        "setTestNowAndTimezone",
+        "setToStringFormat",
+        "setTranslator",
+        "setWeekEndsAt",
+        "setWeekStartsAt",
+        "setWeekendDays",
+        "shouldOverflowMonths",
+        "shouldOverflowYears",
+        "singularUnit",
+        "sleep",
+        "today",
+        "tomorrow",
+        "translateTimeString",
+        "translateWith",
+        "useMonthsOverflow",
+        "useStrictMode",
+        "useYearsOverflow",
+        "withTestNow",
+        "withTimeZone",
+        "yesterday",
+        "createFromId",
+        "__callStatic",
+        "resetMacros",
+        "genericMacro",
+        "getMacro",
+        "__set_state",
+        "createFromImmutable",
+        "createFromInterface"
       ],
       "review": "partial",
       "local": "support::facades::Date; support::DateFactory",
@@ -1085,34 +1167,64 @@
       "clock_dependency": "固定Framework 1449bf24，复用已有Carbon 3.10.3/8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f作为此批明确固定比较器，符合Framework ^3.8.4；既有表达式解析器仍沿用其Carbon3.8.4参考，不据此宣称所有依赖行为完整对齐。",
       "adaptation": "默认工厂只在无应用时共享；应用内正式date别名/类型单例，Weak owner，不共享冻结值。异步with_test_now使用既有任务局部TestClock，退出清除语义与固定原类一致。TestApp时间旅行既有嵌套恢复契约单独保留。",
       "parse_contracts": {
-        "entries": ["parse", "rawParse"],
+        "entries": [
+          "parse",
+          "rawParse"
+        ],
         "local": "Date::parse/raw_parse; DateFactory::parse/raw_parse; support::DateInput",
         "review": "implemented_tested_subset",
         "contract": "复用既有Calendar解析器；具类型日期/文本/整数/浮点/Now及JSON字符串/数字/null。参数保留数字与文本区别、拒绝非有限值/错误JSON形状/超过20MiB；负时间戳和微秒保留，原生Date支持Jiff年份范围。原日期值保留时区，显式时区转换同一时刻。",
         "format": "Date::format与timezone_name保留表达式时区名称/缩写，后续运算按新时间戳输出；Jiff原生视图使用实际偏移，原生外部时区规则在解析/格式化中保留，未按名称重新加载另一套规则。",
         "evidence": "date_parsing.rs实际读取23组原Date门面/Carbon3.10.3输出；错误输入/所有权日期/本机POSIX时区跨DST/固定偏移与20MiB限制。",
-        "timestamp_contracts": {
-        "entries": ["createFromTimestamp", "createFromTimestampUTC", "createFromTimestampMs", "createFromTimestampMsUTC"],
+        "remaining": "可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
+      },
+      "remaining": [
+        "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂及set_test_now_and_timezone",
+        "withTimeZone注解在当前固定比较器的默认Carbon路径实际UnknownMethod，需追踪useFactory与具体Factory委托，不以注解冒充默认入口成功",
+        "共享Facade mock/spy与异步root/替换生命周期还需逐项核对"
+      ],
+      "timestamp_contracts": {
+        "entries": [
+          "createFromTimestamp",
+          "createFromTimestampUTC",
+          "createFromTimestampMs",
+          "createFromTimestampMsUTC"
+        ],
         "local": "Date/DateFactory::create_from_timestamp/create_from_timestamp_utc/create_from_timestamp_ms/create_from_timestamp_ms_utc",
         "review": "implemented_tested_base",
         "contract": "省略timezone明确UTC而非应用默认时区；显式时区转换同一时刻。复用数字片段与3/6位PHP half-up舍入，保留固定Carbon3.10.3负毫秒拆分，包括-1ms为epoch+0.001s；不以数学除1000替代。",
         "adaptation": "原生Date年份超出Jiff范围时明确OutOfRange；非有限浮点与错误JSON形状明确拒绝。既有解析器6位舍入行为保留。",
         "evidence": "原Date门面/Carbon Timestamp.php实际120向量逐条裁决；原生范围外断言OutOfRange不跳过。Date门面和具体Factory均实调，覆盖所有4入口。",
-        "probe_contracts": {
-        "entries": ["hasFormat", "hasFormatWithModifiers", "hasRelativeKeywords"],
+        "remaining": "可替换日期类/工厂/创建回调仍须接入，不据此关闭Date。"
+      },
+      "probe_contracts": {
+        "entries": [
+          "hasFormat",
+          "hasFormatWithModifiers",
+          "hasRelativeKeywords"
+        ],
         "local": "Date/DateFactory::has_format/has_format_with_modifiers/has_relative_keywords",
         "review": "implemented_tested_base",
         "contract": "复用固定原Factory模式表、替换顺序与既有PCRE2；保留字段宽度、转义、修饰符、分支锚点/末尾换行和字节Unicode行为，模式成立不代表日历有效。相对关键词复用Calendar在2000-01-01与2001-12-25 UTC探测，不依赖测试时钟；空/null/0及非法表达式false。",
         "evidence": "date_format_matching.rs读取45组原Date门面格式向量及27组原相对探测向量；门面和具体Factory均实际调用，含比Jiff宽的Calendar表达式。",
-        "format_creation_contracts": {
-        "entries": ["createFromFormat", "rawCreateFromFormat", "useStrictMode", "isStrictModeEnabled"],
+        "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
+      },
+      "format_creation_contracts": {
+        "entries": [
+          "createFromFormat",
+          "rawCreateFromFormat",
+          "useStrictMode",
+          "isStrictModeEnabled"
+        ],
         "local": "Date/DateFactory::create_from_format/raw_create_from_format/use_strict_mode/is_strict_mode_enabled",
         "review": "implemented_tested_base",
         "contract": "默认严格true，格式不匹配Err；false返回None。时区/NUL/资源限制与原生范围错误独立。bool或None恢复true，配置属于应用工厂，同应用HTTP/Worker共享、不同应用和独立Factory隔离。",
         "mock": "按固定原Creator继承mock原时区、未指定字段、微秒和重置标记；带时区格式与转义时间字母等分支实测。原生日期值保留时区元数据。",
         "consumers": "Request::date格式分支与公开Request门面接同一工厂规则，保留InputDate宽范围；HTTP默认TrimStrings/空转null先于读取。公开门面遵循既有with_container独占借出契约，未通过Root绕行。真实Artisan queue:work在独立SQLite消费2任务且队列清空，读取相同模式/时钟。",
         "evidence": "原Date门面276组创建向量；固定InteractsWithData及真实TrimStrings/ConvertEmptyStringsToNull方法30组输出，Rust实际HTTP逐条对照；date_format_creation.rs 3项含实际Worker。",
-        "inherited_static_audit": {
+        "remaining": "getLastErrors完整诊断和自定义创建/工厂回调仍未完成，不将此基本创建路径算全Date闭合。"
+      },
+      "inherited_static_audit": {
         "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
         "carbon": "3.10.3/8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f",
         "actual_public_static_count": 95,
@@ -1133,7 +1245,8 @@
             ],
             "file": "src/Illuminate/Support/Carbon.php",
             "line": 28,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_object_creation.rs与object-creation-contract.json，公开门面及具体Factory实调；原生值及ID文本/对象、错误与范围。"
           },
           {
             "name": "__callStatic",
@@ -1248,7 +1361,8 @@
             ],
             "file": "internal",
             "line": false,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_object_creation.rs与object-creation-contract.json，公开门面及具体Factory实调；原生值及ID文本/对象、错误与范围。"
           },
           {
             "name": "createFromInterface",
@@ -1266,13 +1380,21 @@
             ],
             "file": "internal",
             "line": false,
-            "review": "pending"
+            "review": "implemented_tested_base",
+            "evidence": "date_object_creation.rs与object-creation-contract.json，公开门面及具体Factory实调；原生值及ID文本/对象、错误与范围。"
           }
         ],
         "note": "原95项注解集合之外发现8个实际静态入口；追加到同一public_entries并逐项保留待办。Factory自身use*与默认Date类未反射到的注解另行跟踪，不把反射缺失当作跳过。getFormatsToIsoReplacements与getIsoUnits包含真实Closure，不允许用JSON空对象冒充可调用。"
       },
       "component_creation_contract": {
-        "entries": ["create", "createSafe", "createStrict", "createFromDate", "createMidnightDate", "createFromTime"],
+        "entries": [
+          "create",
+          "createSafe",
+          "createStrict",
+          "createFromDate",
+          "createMidnightDate",
+          "createFromTime"
+        ],
         "local": "Date/DateFactory::{create,create_safe,create_strict,create_from_date,create_midnight_date,create_from_time}; DateComponents/StrictDateComponents",
         "review": "implemented_tested_base",
         "contract": "复用既有raw格式创建、6位half-up和日历年运算；Default保留create固定值，current显式null当前分量。mock默认保留原时区，显式时区转换。严格创建不泄漏应用设置，安全创建拒绝溢出/DST间隙，宽松返回None。",
@@ -1303,19 +1425,19 @@
         "evidence": "35组原类单位输出、7天独立副本、14组原创建探测，在公开门面及具体Factory实际调用；严格true/false均验。",
         "remaining": "自定义Date类/工厂和创建钩子仍未接入，Date保持partial。"
       },
-      "remaining": "getLastErrors完整诊断和自定义创建/工厂回调仍未完成，不将此基本创建路径算全Date闭合。"
-      },
-      "remaining": "自定义工厂/可调用拦截器及其余Date契约未闭合；不把模式检查当作createFromFormat或完整有效性验证。"
-      },
-      "remaining": "可替换日期类/工厂/创建回调仍须接入，不据此关闭Date。"
-      },
-      "remaining": "可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
-      },
-      "remaining": [
-        "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂及set_test_now_and_timezone",
-        "withTimeZone注解在当前固定比较器的默认Carbon路径实际UnknownMethod，需追踪useFactory与具体Factory委托，不以注解冒充默认入口成功",
-        "共享Facade mock/spy与异步root/替换生命周期还需逐项核对"
-      ]
+      "object_creation_contract": {
+        "entries": [
+          "make",
+          "createFromId",
+          "createFromImmutable",
+          "createFromInterface"
+        ],
+        "local": "Date/DateFactory::{make,create_from_id,create_from_immutable,create_from_interface}; DateInput/DateId",
+        "review": "implemented_tested_base",
+        "contract": "日期值独立克隆；jiff::Zoned原生接口保留时刻/时区。make只解析日期样式字符串，非日期值None，区间/循环前缀与ASCII探测按原规则，已有日期忽略timezone参数。ID复用既有UUID/ULID依赖；拒绝ULID首位溢出、非时间UUID及原转换器科学计数/微秒进位错误，URN前缀不区分大小写、v2低32位清零，UTC偏移输出。",
+        "evidence": "195组固定Date/Support Carbon真实原值（含140组固定UUID精度边界），含PHP DateTimeImmutable、ramsey/uuid4.7.6、Symfony Ulid7.4.0；日期门面与具体Factory双路径判定、原生借用及ID对象。",
+        "adaptation": "原生日期值受Jiff范围约束，10889年ID明确OutOfRange，不跳过；当前Date为不可变值，原默认可变类及替换/回调仍须处理，不据此关闭Date。"
+      }
     },
     {
       "type": "Event",

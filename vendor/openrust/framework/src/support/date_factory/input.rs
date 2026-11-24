@@ -82,3 +82,14 @@ impl DateInput {
         }
     }
 }
+
+impl From<jiff::Zoned> for DateInput {
+    fn from(value: jiff::Zoned) -> Self {
+        Self::Date(Date::from_utc(value.timestamp(), value.time_zone().clone()))
+    }
+}
+impl From<&jiff::Zoned> for DateInput {
+    fn from(value: &jiff::Zoned) -> Self {
+        Self::from(value.clone())
+    }
+}
