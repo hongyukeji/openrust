@@ -3,7 +3,7 @@ use std::{
     any::{Any, type_name},
     sync::Arc,
 };
-type Arguments = Box<dyn Any + Send + Sync>;
+type Arguments = Box<dyn Any>;
 type Callback = dyn Fn(&Vite, &str, Arguments, &'static str) -> ViteResult<Arguments> + Send + Sync;
 /// 带类型校验的资源宏，可返回任意拥有所有权的 Rust 值。
 #[derive(Clone)]
@@ -12,7 +12,7 @@ pub struct ViteMacro {
     output: &'static str,
 }
 impl ViteMacro {
-    pub fn new<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn new<A: Any, T: Any>(
         callback: impl Fn(&Vite, A) -> ViteResult<T> + Send + Sync + 'static,
     ) -> Self {
         Self {
@@ -29,7 +29,7 @@ impl ViteMacro {
             }),
         }
     }
-    pub(super) fn invoke<T: Any + Send + Sync, A: Any + Send + Sync>(
+    pub(super) fn invoke<T: Any, A: Any>(
         &self,
         vite: &Vite,
         name: &str,
@@ -47,7 +47,7 @@ impl ViteMacro {
     }
 }
 impl Vite {
-    pub fn r#macro<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn r#macro<A: Any, T: Any>(
         &self,
         name: impl Into<String>,
         callback: impl Fn(&Self, A) -> ViteResult<T> + Send + Sync + 'static,
@@ -93,11 +93,7 @@ impl Vite {
         );
         drop(retired);
     }
-    pub fn macro_call<T: Any + Send + Sync, A: Any + Send + Sync>(
-        &self,
-        name: &str,
-        arguments: A,
-    ) -> ViteResult<T> {
+    pub fn macro_call<T: Any, A: Any>(&self, name: &str, arguments: A) -> ViteResult<T> {
         let callback = self
             .macros
             .read()

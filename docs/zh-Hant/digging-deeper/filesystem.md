@@ -272,6 +272,8 @@ fn write_report(directory: &Path) -> FileResult<()> {
 
 MIME 偵測重用 OpenRust 內容識別器，最多讀取 8 KiB，不等同於完整的 libmagic 資料庫。此批 File API 不執行動態 PHP／Rust 原始碼，也未涵蓋全部 PHP glob／JSON 旗標與摘要演算法。Windows 目錄連結目前依賴符號連結能力；原生 junction 等價行為及 Windows ACL 尚未包含在已驗證的 Unix 行為範圍內。
 
+同步宏的參數及回傳值也可使用 `Rc<Cell<_>>` 等非 `Send` 值，持久註冊的回呼仍須為 `Send + Sync`，回傳值歸本次呼叫所有。編譯後的 `get_require`、`require_once` 回呼也遵循此規則；`require_once` 只保留路徑包含狀態。
+
 ### 編譯後的檔案模組 {#compiled-file-modules}
 
 在應用裝配時透過 `File::register_module(path, callback)` 註冊實際存在的原始碼路徑。回呼是編譯進應用的 Rust 程式碼，不在執行時解譯或編譯檔案；具型別參數代替動態擷取區域變數，無參數時傳 `()`。直接重用應用函式，不新增執行時指令碼引擎。修改 Rust 程式碼後需要重新建置應用。

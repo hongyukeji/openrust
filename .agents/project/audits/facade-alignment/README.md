@@ -521,3 +521,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 参考旧版typed_reader及字面键回归，修复当前完整字面点键优先级；复用当前RwLock仓储/列表/Collection。批量按输入顺序读取，前一默认回调写入可影响后续键；不移植旧Figment/发布版本体系或误改成整批快照。
 - 真实HTTP验证成功/已有错误类型500 JSON，实际Artisan验证新默认值入口，仓储替换/重绑定与应用请求/任务作用域回归；ArrayAccess四个公开入口、宏、写入边界和非JSON值/可失败默认闭包仍待处理，Config不关闭。
 - tests-third.log实际14项通过；新增CLI后tests-fifth.log6项通过（总计15项不同消费者，不重复累加矩阵），含真实HTTP的500 JSON、真实Artisan默认读取、替换/重绑定/作用域及48组双入口原类对照。workspace/all-targets严格Clippy40.39秒，三语构建14.01秒及6组浏览器通过。早期类型推断/不存在的断言方法失败日志保留，不计通过；PHP一次性容器已直接删除，未触及32GB停线，热缓存保留。
+
+### File／Vite：同步宏与编译模块的值约束（仍 partial）
+
+- 复用已有Cloud/Date的同步类型擦除结论，实际追踪File/Vite调用：注册表只存Send+Sync回调，参数/返回值在当前同步调用持有，原Any+Send+Sync限制没有对应的跨线程存储。正式放宽为Any，保留回调线程安全。
+- 发现File的编译模块使用相同FileMacro，get_require/require_once只保存包含路径，不缓存返回值；三个模块入口同时解除多余约束。Rc<Cell>参数/结果保持相同身份并可修改，不能以JSON复制冒充；具体服务、门面、mixin、错误类型与实际HTTP消费均验。
+- 原Filesystem/Vite Macroable对象及实际getRequire/requireOnce输出保留：首次为对象，重复包含为bool true，对应既有AlreadyIncluded；首次比较器把static闭包绑定警告混进JSON、后续重复包含误按整型1比较均已修正，不计为证据。Response/Cache是异步Future或限定响应值契约，本批未机械改动。
+- 项目守卫期间按锁安全清理，事件记录释放63,671,336,960字节，源码/日志/下载/数据库及卷保留；当时df复查94,544,384,000字节可用。此后复用同一工作流目录重新编译，非删除源码快照或整个target。
+- tests-final/combination.log实际26项通过，明确过滤2项未提供环境的MySQL/Redis Worker，未把门控返回计为实机数据库通过。File宏参数错误同时补齐真实宏名/期望和实际类型，3项新消费者及模块回归复验；独立父树更新到0eeb12e3a后workspace/all-targets严格Clippy2.67秒、26项组合回归、三语构建15.67秒和12组浏览器通过。数据库Worker沿用原记录，不重复声称本次已跑。

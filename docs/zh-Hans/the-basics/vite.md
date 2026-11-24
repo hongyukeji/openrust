@@ -76,6 +76,8 @@ Vite::use_prefetch_strategy(None, None)?;
 
 通过 `Vite::r#macro` 注册具类型回调，接收实际 `&Vite` 服务及拥有所有权的参数，使用 `macro_call::<返回类型, _>` 调用。参数和结果不经过 JSON，可以使用非 `Clone` 的 Rust 值；缺失名称、参数或结果类型不符均明确报错。
 
+同步宏的参数和返回值可使用 `Rc<Cell<_>>` 等非 `Send` 值；持久回调仍须为 `Send + Sync`，参数和结果保留在本次调用中。
+
 ```rust
 use openrust::support::{HtmlString, facades::Vite};
 

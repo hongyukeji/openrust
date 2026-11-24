@@ -2451,6 +2451,12 @@
         "higher_order": "typed operation closure replaces dynamic method interception; false skips side effects and returns original service; capture evaluated once; missing condition errors; actual operation null stays Value(None)",
         "lifecycle": "facade target owns original Arc across application scopes; direct service target borrowed; no registration/global conditional state",
         "evidence": "file-condition/oracle.log, tests-resumed.log (21 actual local), workers.log (2 real MySQL/Redis), clippy.log/fmt.log/docs.log/browser.log"
+      },
+      "synchronous_macro_values": {
+        "review": "implemented_tested_base",
+        "contract": "同步调用的拥有所有权参数/结果仅Any，不加Send/Sync；持久Fn仍Send+Sync，注册表只存回调。File编译模块同样只保存回调及包含路径，get_require/require_once不缓存返回值，因此一并解除多余限制。",
+        "evidence": "固定Filesystem/Vite Macroable原对象身份及require/require_once输出；synchronous_macro_values.rs的Rc<Cell>身份/变更/类型错误/mixin/具体服务/真实HTTP及编译模块；File模块与Vite宏既有消费者回归。",
+        "unchanged": "Response/Cache是实际异步Future/已限定响应值的不同契约，未机械去掉其必要线程约束；其余公开入口与平台差异继续在本类型剩余项处理。"
       }
     },
     {
@@ -3377,7 +3383,7 @@
           "local": "r#macro<A,T>",
           "status": "verified-native-adapter",
           "evidence": "framework/tests/vite_macros.rs; fixed Macroable original execution, actual HTTP/Blade and MySQL/Redis Artisan Worker in target/tmp/facade-alignment/vite-macros",
-          "parameters": "name, Fn(&Vite,A)->ViteResult<T>；A/T:Any+Send+Sync",
+          "parameters": "name, Fn(&Vite,A)->ViteResult<T>；A/T:Any；持久Fn:Send+Sync",
           "defaults": "同名替换；普通已有方法不被覆盖",
           "returns": "ViteResult<()>（Facade可用性错误保留）",
           "lifecycle": "应用级注册；实际调用用当前执行配置",
@@ -3427,6 +3433,12 @@
         "__invoke": "render(entries,Option<build>)->ViteResult<HtmlString>",
         "__call / Facade::__callStatic": "macro_call::<Return,_>(name,owned_arguments)；Blade支持Vec<ViewValue>->ViewValue；原生既有方法优先",
         "native_constraints": "无运行时PHP类反射/任意Rust私有字段访问；显式mixin列表/工厂。宏按应用隔离，调用状态按执行作用域；原始字节content保留，可信HTML属性不机械转义；字体CSS保留已有更严格公开目录及关闭标签检查。"
+      },
+      "synchronous_macro_values": {
+        "review": "implemented_tested_base",
+        "contract": "同步调用的拥有所有权参数/结果仅Any，不加Send/Sync；持久Fn仍Send+Sync，注册表只存回调。File编译模块同样只保存回调及包含路径，get_require/require_once不缓存返回值，因此一并解除多余限制。",
+        "evidence": "固定Filesystem/Vite Macroable原对象身份及require/require_once输出；synchronous_macro_values.rs的Rc<Cell>身份/变更/类型错误/mixin/具体服务/真实HTTP及编译模块；File模块与Vite宏既有消费者回归。",
+        "unchanged": "Response/Cache是实际异步Future/已限定响应值的不同契约，未机械去掉其必要线程约束；其余公开入口与平台差异继续在本类型剩余项处理。"
       }
     }
   ]

@@ -1,0 +1,20 @@
+[
+    {
+        "same": true,
+        "number": 7
+    },
+    {
+        "same": true,
+        "number": 7
+    },
+    {
+        "module_same": true,
+        "number": 9
+    },
+    {
+        "once_same": true,
+        "number": 9,
+        "duplicate": true,
+        "duplicate_type": "bool"
+    }
+]

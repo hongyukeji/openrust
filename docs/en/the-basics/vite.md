@@ -76,6 +76,8 @@ Vite::use_prefetch_strategy(None, None)?;
 
 Use `Vite::r#macro` to register a typed callback receiving the actual `&Vite` service and owned arguments. Call it through `macro_call::<Return, _>`; arguments and results do not pass through JSON and can be non-`Clone` Rust values. Missing names and mismatched argument/result types return explicit errors.
 
+Synchronous macro arguments and results may be non-`Send` values such as `Rc<Cell<_>>`. The stored callback remains `Send + Sync`; arguments and results stay within the current call.
+
 ```rust
 use openrust::support::{HtmlString, facades::Vite};
 

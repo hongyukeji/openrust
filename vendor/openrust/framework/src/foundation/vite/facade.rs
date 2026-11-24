@@ -131,7 +131,7 @@ impl ViteFacade {
 }
 
 impl ViteFacade {
-    pub fn r#macro<A: std::any::Any + Send + Sync, T: std::any::Any + Send + Sync>(
+    pub fn r#macro<A: std::any::Any, T: std::any::Any>(
         name: impl Into<String>,
         callback: impl Fn(&Vite, A) -> ViteResult<T> + Send + Sync + 'static,
     ) -> ViteResult<()> {
@@ -162,7 +162,7 @@ impl ViteFacade {
         Self::get_facade_root()?.flush_macros();
         Ok(())
     }
-    pub fn macro_call<T: std::any::Any + Send + Sync, A: std::any::Any + Send + Sync>(
+    pub fn macro_call<T: std::any::Any, A: std::any::Any>(
         name: &str,
         arguments: A,
     ) -> ViteResult<T> {

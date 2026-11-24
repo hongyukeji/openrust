@@ -3,8 +3,9 @@ use std::{
     any::{Any, type_name},
     sync::Arc,
 };
-type Arguments = Box<dyn Any + Send + Sync>;
-type Callback = dyn Fn(&Filesystem, Arguments) -> FileResult<Arguments> + Send + Sync;
+type Arguments = Box<dyn Any>;
+type Callback =
+    dyn Fn(&Filesystem, &str, Arguments, &'static str) -> FileResult<Arguments> + Send + Sync;
 /// 带类型校验的文件宏，可返回任意拥有所有权的 Rust 值。
 #[derive(Clone)]
 pub struct FileMacro {
@@ -12,30 +13,30 @@ pub struct FileMacro {
     output: &'static str,
 }
 impl FileMacro {
-    pub fn new<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn new<A: Any, T: Any>(
         callback: impl Fn(&Filesystem, A) -> FileResult<T> + Send + Sync + 'static,
     ) -> Self {
         Self {
             output: type_name::<T>(),
-            callback: Arc::new(move |filesystem, arguments| {
+            callback: Arc::new(move |filesystem, name, arguments, actual| {
                 let arguments = arguments
                     .downcast::<A>()
                     .map_err(|_| FileError::MacroType {
-                        name: "参数".into(),
+                        name: name.into(),
                         expected: type_name::<A>(),
-                        actual: "调用参数类型不符",
+                        actual,
                     })?;
                 callback(filesystem, *arguments).map(|value| Box::new(value) as Arguments)
             }),
         }
     }
-    pub(super) fn invoke<T: Any + Send + Sync, A: Any + Send + Sync>(
+    pub(super) fn invoke<T: Any, A: Any>(
         &self,
         filesystem: &Filesystem,
         name: &str,
         arguments: A,
     ) -> FileResult<T> {
-        let result = (self.callback)(filesystem, Box::new(arguments))?;
+        let result = (self.callback)(filesystem, name, Box::new(arguments), type_name::<A>())?;
         result
             .downcast::<T>()
             .map(|value| *value)
@@ -47,7 +48,7 @@ impl FileMacro {
     }
 }
 impl Filesystem {
-    pub fn r#macro<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn r#macro<A: Any, T: Any>(
         &self,
         name: impl Into<String>,
         callback: impl Fn(&Self, A) -> FileResult<T> + Send + Sync + 'static,
@@ -92,11 +93,7 @@ impl Filesystem {
         );
         drop(retired);
     }
-    pub fn macro_call<T: Any + Send + Sync, A: Any + Send + Sync>(
-        &self,
-        name: &str,
-        arguments: A,
-    ) -> FileResult<T> {
+    pub fn macro_call<T: Any, A: Any>(&self, name: &str, arguments: A) -> FileResult<T> {
         let callback = self
             .macros
             .read()

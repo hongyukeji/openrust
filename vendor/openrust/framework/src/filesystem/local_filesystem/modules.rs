@@ -15,7 +15,7 @@ pub enum RequiredFile<T> {
 
 impl Filesystem {
     /// 注册编译后的Rust模块；不在运行时解释或编译文件内容。
-    pub fn register_module<A: Any + Send + Sync, T: Any + Send + Sync>(
+    pub fn register_module<A: Any, T: Any>(
         &self,
         path: impl AsRef<Path>,
         callback: impl Fn(&Self, A) -> FileResult<T> + Send + Sync + 'static,
@@ -31,11 +31,7 @@ impl Filesystem {
     }
 
     /// 每次执行回调并传入拥有所有权的参数；成功查找后记入包含集合。
-    pub fn get_require<T: Any + Send + Sync, A: Any + Send + Sync>(
-        &self,
-        path: impl AsRef<Path>,
-        data: A,
-    ) -> FileResult<T> {
+    pub fn get_require<T: Any, A: Any>(&self, path: impl AsRef<Path>, data: A) -> FileResult<T> {
         let path = module_path(path.as_ref())?;
         let module = self.module(&path)?;
         self.included
@@ -46,7 +42,7 @@ impl Filesystem {
     }
 
     /// 在调用前标记已包含，支持递归及失败后的再次加载；回调期间不持锁。
-    pub fn require_once<T: Any + Send + Sync, A: Any + Send + Sync>(
+    pub fn require_once<T: Any, A: Any>(
         &self,
         path: impl AsRef<Path>,
         data: A,

@@ -272,6 +272,8 @@ Typed `r#macro`, `mixin`, `macro_call`, `has_macro` and `flush_macros` share the
 
 MIME detection reuses OpenRust’s content detector, reading at most 8 KiB; it does not claim the full libmagic database. This initial File API does not execute dynamic PHP/Rust source, expose every PHP glob/JSON flag, or implement every PHP hashing algorithm. Windows directory links currently require symlink support; native junction equivalence and Windows ACL behavior remain outside the verified Unix behavior.
 
+Synchronous macro arguments and results can also be non-`Send` values such as `Rc<Cell<_>>`; the stored callback remains `Send + Sync`. Each returned value belongs to that call. Compiled `get_require` and `require_once` callbacks follow the same rule; `require_once` retains only path-inclusion state.
+
 ### Compiled file modules {#compiled-file-modules}
 
 Register an existing source path with `File::register_module(path, callback)` during application setup. The callback is compiled Rust code; the file is not interpreted or compiled at runtime. Its typed argument replaces dynamically extracted local variables; use `()` for no arguments. Reuse actual application functions rather than adding a second runtime script engine. Changing Rust code requires rebuilding the application.
