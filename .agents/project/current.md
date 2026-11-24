@@ -6,7 +6,7 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
-- 2026-11-24 本对话已按用户要求启用持续目标，按固定文档逐章复核并本地提交，禁止推送。当前Logging 29节的渠道、网络／errorlog、具体格式器／处理器、Pail认证重入及实际消费者分簇通过；具体范围与原生差异见[日志教程账本](audits/logging-tutorial/README.md)及[逐节清单](audits/logging-tutorial/section-map.json)。继续接通通用Formattable处理器能力；NewRelic原生供应商方案另待用户范围选择，不用通用回调冒称支持，不关闭整章。URL／Validation、Error Handling及Settings既有闭合结果保持。其他对话的用户认证套件任务与在途改动保留，不据本条代为扩大范围。
+- 2026-11-25 固定Logging核心29节按用户核定范围闭合：通用Formattable类型与延迟自带格式器、实际HTTP／Artisan／浏览器和三语直接示例补齐；11目标61项、45个文档消费者及严格门禁通过。详见[最终核对](audits/logging-tutorial/README.md)和[逐节清单](audits/logging-tutorial/section-map.json)。用户将New Relic明确单列为[LOG-S01待选型供应商集成](plans/log-supplier-integrations.md)，专用APM未实现，不能算发布待账号。下一章Artisan Console；URL／Validation、Error Handling及Settings既有闭合不重开。不推送，保护其他对话在途。
 
 - 2026-11-24用户确认按建议执行完整版用户认证入门套件，正式授权、产品决定及依赖批次统一见[API-A01计划](plans/user-auth-starter-kit.md)。原待讨论状态已撤销；当前已记录决策，实现／新增整体验收待开展。后续直接按已确认方案推进，复用既有认证能力，保留其他在途工作，按规范实测后分批本地提交；不推送、不发布。
 

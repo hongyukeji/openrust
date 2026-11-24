@@ -506,3 +506,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### 固定Logging教程逐节深度复核（2026-11-24）
 
 [29节日志教程账本](logging-tutorial/README.md)分簇修复errorlog／网络渠道、具体格式器／处理器、浏览器输出、Pail报告认证重入及渠道装配入口，三语实际提取消费者、HTTP／Artisan和范围门禁通过。通用Formattable能力仍在收尾，NewRelic原生供应商范围另待用户决定；整章未关闭，不提升V16／V17或全框架API／发布矩阵。Settings及URL／Validation／Error Handling先前闭合范围保持，本轮不推送。
+
+### Logging核心教程范围最终核定（2026-11-25）
+
+[29节逐项核对](logging-tutorial/README.md#第六簇与核心教程最终核对2026-11-25)已补齐通用Formattable类型、延迟默认格式器及直接三语消费者；11目标61项、文档45消费者、真实HTTP／独立Artisan／浏览器与严格门禁通过。用户明确将New Relic单列为[LOG-S01](../plans/log-supplier-integrations.md)待选型供应商功能，未实现；核心教程约定范围据此闭合，不能据此关闭供应商或跨平台发布，也不声称全部第三方类API。此前待决记录仅描述当时状态，后续按本决定推进Artisan Console，不推送。

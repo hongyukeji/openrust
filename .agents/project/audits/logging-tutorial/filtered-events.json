@@ -1,0 +1,27 @@
+{
+    "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "monolog": "3.10.0",
+    "handler_level": "error",
+    "cases": [
+        {
+            "level": "info",
+            "is_handling": false,
+            "dispatch_count": 0,
+            "events": []
+        },
+        {
+            "level": "error",
+            "is_handling": true,
+            "dispatch_count": 1,
+            "events": [
+                {
+                    "level": "error",
+                    "message": "threshold probe",
+                    "context": {
+                        "key": "value"
+                    }
+                }
+            ]
+        }
+    ]
+}

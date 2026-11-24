@@ -436,3 +436,37 @@ fn register_formatter_tap(app: &Application) -> ProviderResult {
 在 tap 中，`get_handlers()` 透過 `&mut Logger` 借用實際處理鏈，每個控制代碼可呼叫 `set_formatter`。設定採用寫入時複製，其他已共享日誌器保留原有設定，一般寫入路徑不增加格式設定鎖。緊急回退不提供可設定的管道處理鏈。
 
 Log 門面也提供 `driver`、`get_default_driver`、`set_default_driver`、`forget_channel` 與 `extend`。`driver(None)` 選擇目前預設管道，`forget_channel(None)` 清除該管道快取，已回傳的日誌器仍保留原有輸出目標。這些操作需在有效應用程式作用域內執行。
+
+## 宣告處理器自帶格式器 {#formattable-handlers}
+
+自訂文字處理器可實作 `FormattableHandler`，在 Provider 中透過 `LogManager::register_formattable_handler` 註冊，繼續使用既有處理器註冊表及寫入管線。
+
+```rust
+use openrust::log::{FormattableHandler, Formatter, LogManager, LogRecord, LogResult};
+use std::{io::Write as _, sync::Arc};
+
+struct PrefixHandler { prefix: String }
+impl FormattableHandler for PrefixHandler {
+    fn get_default_formatter(&self) -> LogResult<Arc<Formatter>> {
+        let prefix = self.prefix.clone();
+        Ok(Arc::new(move |record| Ok(format!("{prefix}:{}\n", record.message()))))
+    }
+    fn write(&self, _record: &LogRecord<'_>, formatted: &str) -> LogResult<()> {
+        std::io::stderr().lock().write_all(formatted.as_bytes())?;
+        Ok(())
+    }
+}
+fn register_own_formatter(manager: &LogManager) {
+    manager.register_formattable_handler("own_text", |arguments| {
+        let prefix = arguments.get("prefix").and_then(|v| v.as_str())
+            .unwrap_or("APP").to_owned();
+        Ok(Arc::new(PrefixHandler { prefix }))
+    });
+}
+```
+
+設定 `driver: "monolog"`、`handler: "own_text"`、`handler_with: {"prefix":"APP"}` 與 `formatter: "default"` 使用自帶格式。省略 `formatter` 採用框架格式，指定 `line`、`html` 或註冊名稱則覆蓋自帶格式。一般 `register_handler` 回呼保持可用，選 `default` 時採用標準行格式器。
+
+預設 getter 僅在第一條通過層級篩選的記錄需要時執行。失敗後可在同一管道重試，成功格式器會快取。原生呼叫回傳原錯誤鏈，框架寫入保留緊急回退。執行使用者程式碼時不持註冊鎖。並行首次解析可能多次呼叫 getter，最終保留同一個成功格式器，因此 getter 應保持冪等。此能力輸出文字，不代表任意 PHP 擴充或結構化 APM 格式器型別均已支援。
+
+核心不包含 New Relic APM Agent。通用處理器回呼不等於已內建該供應商整合，原生 SDK 與結構化 APM 適配需另行實作。

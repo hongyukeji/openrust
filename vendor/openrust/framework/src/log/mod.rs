@@ -36,7 +36,7 @@ mod syslog;
 mod syslog_udp;
 mod webhook;
 pub use facade::Log;
-pub use sink::RecordHandler;
+pub use sink::{FormattableHandler, RecordHandler};
 
 pub mod context;
 pub mod events;

@@ -436,3 +436,37 @@ fn register_formatter_tap(app: &Application) -> ProviderResult {
 Inside a tap, `get_handlers()` borrows the actual chain through `&mut Logger`; each handle accepts `set_formatter`. Configuration uses copy on write, keeping other shared loggers unchanged and adding no formatter-configuration lock to normal writes. An emergency fallback has no configurable channel chain.
 
 The Log facade also exposes `driver`, `get_default_driver`, `set_default_driver`, `forget_channel` and `extend`. `driver(None)` selects the current default, `forget_channel(None)` invalidates that channel, and an already-returned logger keeps its existing output target. These operations require an active application scope.
+
+## Handlers With Their Own Formatter {#formattable-handlers}
+
+For a custom text handler, implement `FormattableHandler` and register it with `LogManager::register_formattable_handler` in a provider. This uses the same handler registry and write pipeline as other channels.
+
+```rust
+use openrust::log::{FormattableHandler, Formatter, LogManager, LogRecord, LogResult};
+use std::{io::Write as _, sync::Arc};
+
+struct PrefixHandler { prefix: String }
+impl FormattableHandler for PrefixHandler {
+    fn get_default_formatter(&self) -> LogResult<Arc<Formatter>> {
+        let prefix = self.prefix.clone();
+        Ok(Arc::new(move |record| Ok(format!("{prefix}:{}\n", record.message()))))
+    }
+    fn write(&self, _record: &LogRecord<'_>, formatted: &str) -> LogResult<()> {
+        std::io::stderr().lock().write_all(formatted.as_bytes())?;
+        Ok(())
+    }
+}
+fn register_own_formatter(manager: &LogManager) {
+    manager.register_formattable_handler("own_text", |arguments| {
+        let prefix = arguments.get("prefix").and_then(|v| v.as_str())
+            .unwrap_or("APP").to_owned();
+        Ok(Arc::new(PrefixHandler { prefix }))
+    });
+}
+```
+
+Select `handler: "own_text"` with `driver: "monolog"`, `handler_with: {"prefix":"APP"}` and `formatter: "default"`. Omitting `formatter` uses the framework format; choosing `line`, `html` or a registered formatter overrides the handler’s default. Ordinary `register_handler` callbacks remain supported and use the standard line formatter when `default` is selected.
+
+The default getter runs only when the first accepted record needs it. A failed getter remains retryable on the same channel; a successful formatter is cached. Native calls return the original error chain and framework writes retain emergency recovery. No registration lock is held around user code. Concurrent first accesses may invoke the getter more than once, with one successful formatter retained, so keep getters idempotent. This capability produces text; it does not claim support for arbitrary PHP extension or structured APM formatter types.
+
+The core does not include a New Relic APM agent. A generic handler callback is not a built-in integration with that supplier; its native SDK and structured APM adapter must be implemented separately.

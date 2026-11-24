@@ -16,6 +16,12 @@ pub(super) type Handlers = Arc<[Arc<Handler>]>;
 /// Receives a structured log record and its formatted output.
 pub type RecordHandler = dyn Fn(&LogRecord<'_>, &str) -> super::LogResult<()> + Send + Sync;
 
+/// 声明自带文字格式器的处理器能力，输出仍由现有处理链调用。
+pub trait FormattableHandler: Send + Sync {
+    fn get_default_formatter(&self) -> super::LogResult<Arc<Formatter>>;
+    fn write(&self, record: &LogRecord<'_>, formatted: &str) -> super::LogResult<()>;
+}
+
 pub(super) enum Handler {
     File {
         options: FileOptions,

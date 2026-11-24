@@ -68,3 +68,15 @@ LineFormatter支持固定示例构造与format／format_batch、各标准token�
 通用可扩展处理器仍需正式的Formattable能力入口：现有register_handler只返回接收record／formatted的Fn，内置default分支虽已验证，仍不能把“回调自己忽略文本再格式化”当作可声明自带格式器的类型契约。下一簇复用同一处理器注册／输出管线，增加能力声明并验收省略／default／显式formatter和构造失败；不另建并行日志系统。该核心余项不依赖NewRelic范围答复。当前阶段只提交以上已验范围，整章继续开放。
 
 补充最终证据：组件七项覆盖直接Native getter、写时复制及无装配链的应急输出；浏览器三项又补真实第二应用及恢复请求、固定HTML formatter/dateFormat字面组合，全部通过。最后严格workspace Clippy含该组合0.61s。证据lifecycle-handles-final.log、lifecycle-browser-{literal,final}.log、lifecycle-clippy-browser-final.log。三语增加弃用配置说明后构建final2与浏览器final全0；没有重复计为新增生产功能。
+
+## 第六簇与核心教程最终核对（2026-11-25）
+
+第五簇已提交4a446de516a0e1eef14fefc5fd74ab76f6147f8d。本簇接通公开FormattableHandler Trait及LogManager::register_formattable_handler，沿用同一注册仓储、过滤、格式器与Handler输出链；BrowserConsoleHandler实际实现该能力，不用普通闭包忽略传入文本来冒充类型契约。省略formatter维持框架既有输出，显式default才按处理器自带格式器，显式其他formatter不调用默认getter。getter在首条通过级别过滤的记录才执行；失败不缓存成功值、下一条可恢复，成功缓存后复用。用户代码外不持锁，并发首次可竞争但采用同一已发布格式器；递归走既有工厂重入保护，不新增全局锁或平行系统。
+
+五项专项实际验证具名类型构造、原有回调、文件内容、默认getter过滤／延迟／失败重试／缓存／并发16写入、真实TCP HTTP及独立Artisan、递归默认getter恢复。递归错误沿既有IO包装链保留LogError::CyclicStack；首轮测试错误期待顶层直接枚举，现按真实typed error chain核对，不改产品错误协议。另首轮Arc引用夹具编译问题已修，失败日志保留。正式三语新增类型实现与注册示例，直接提取39段Rust及6份JSON共45项编译执行，示例实际stderr精确APP:formal own，不维护平行代码。
+
+最终11个日志目标61项通过、0忽略，含公开Browser类型实际注册、16并发HTTP及第二应用隔离；workspace/all-targets严格Clippy29.23s、fmt、实际main（pail功能）构建全部退出0。实际二进制HTTP /up／静态／HTML404／JSON404／HEAD，Artisan inspire／list／pail help、独立Pail捕获真实500及级别过滤／-vv／超时清理、Ctrl+C退出0通过；本批SQLite及运行目录隔离，不访问开发队列或数据库。真实Chromium执行HTTP响应，验证控制台级别／CSS／字段及script转义；三语最终构建与浏览器／范围／API快照三组均通过。证据target/tmp/logging-tutorial-20261124/formattable-{gates-final,consumers-final,docs-consumers-final,clippy,fmt,main,runtime,browser,docs-final,doc-browser-final}.log。未新增Windows、真实供应商或完整Rustdoc导出结论。
+
+另用固定Illuminate Log Logger、Monolog NullHandler(error)与真实Dispatcher契约在PHP8.5.12实际运行INFO／ERROR：低级别is_handling=false不派发事件，ERROR派发一次，见filtered-events.json。该基线Logger.php181–185已有过滤早退，现有原生行为正确，无需按旧记忆改变事件语义。PHP夹具仅置临时目录，不提交脚本。
+
+用户2026-11-25明确选择将New Relic单列供应商集成，详见[LOG-S01](../../plans/log-supplier-integrations.md)。专用APM仍未实现、待选型，不是仅缺账号，也不用通用回调冒充支持；本决定覆盖第五簇当时待答复状态。依此核定核心29节全部有入口／消费者裁决，section-map无核心待验项。结论仅为固定Logging教程的约定范围，不扩张为全部Monolog类／PHP扩展生态API、供应商功能、跨平台或发布矩阵完成。历史阶段证据保留，不改写当时未完状态。所有本批子进程／服务已退出，保留复用缓存、源码与原始日志；未推送，下一章按计划为Artisan Console。

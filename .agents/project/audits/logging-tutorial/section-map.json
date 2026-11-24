@@ -146,13 +146,14 @@
     },
     {
       "anchor": "monolog-channel-customization",
-      "status": "partial_formattable_and_vendor_pending",
-      "contract": "内置Line/HTML、get_handlers装配及各内置default已验；通用Formattable能力接口继续实现，NewRelic供应商范围待用户决定",
+      "status": "verified_tutorial_scope",
+      "contract": "具体Line/HTML、逐Handler装配、通用Formattable及省略/default/显式格式器已实测；供应商专用APM按用户决定单列LOG-S01，未实现",
       "evidence": [
+        "formattable_log_tutorial",
         "log_components_tutorial",
-        "logging_docs_generated",
         "browser_log_tutorial",
-        "README.md#第五簇渠道装配接口与格式器语义"
+        "formattable-docs-consumers-final.log",
+        "formattable-runtime.log"
       ]
     },
     {
@@ -175,13 +176,14 @@
     },
     {
       "anchor": "monolog-formatters",
-      "status": "partial_formattable_and_vendor_pending",
-      "contract": "内置Line/HTML、get_handlers装配及各内置default已验；通用Formattable能力接口继续实现，NewRelic供应商范围待用户决定",
+      "status": "verified_tutorial_scope",
+      "contract": "具体Line/HTML、逐Handler装配、通用Formattable及省略/default/显式格式器已实测；供应商专用APM按用户决定单列LOG-S01，未实现",
       "evidence": [
+        "formattable_log_tutorial",
         "log_components_tutorial",
-        "logging_docs_generated",
         "browser_log_tutorial",
-        "README.md#第五簇渠道装配接口与格式器语义"
+        "formattable-docs-consumers-final.log",
+        "formattable-runtime.log"
       ]
     },
     {
@@ -293,5 +295,10 @@
         "06-08/pail-options.md"
       ]
     }
-  ]
+  ],
+  "scope_decision": {
+    "date": "2026-11-25",
+    "decision": "用户选择将New Relic单列待选型供应商集成；核心29节约定范围闭合，不声明该专用APM已实现",
+    "plan": "../../plans/log-supplier-integrations.md#log-s01new-relic-apm待选型未实现"
+  }
 }

@@ -23,6 +23,12 @@ const MAX_STACK_DEPTH: usize = 32;
 type Factory = dyn Fn(&LogManager, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync;
 type Registry<T> = Mutex<HashMap<String, Arc<T>>>;
 type ComponentFactory<T> = dyn Fn(&Value) -> LogResult<Arc<T>> + Send + Sync;
+type FormattableFactory =
+    dyn Fn(&Value) -> LogResult<Arc<dyn super::FormattableHandler>> + Send + Sync;
+enum HandlerFactory {
+    Callback(Arc<ComponentFactory<RecordHandler>>),
+    Formattable(Arc<FormattableFactory>),
+}
 type Tap = dyn Fn(&mut Logger, &[&str]) -> LogResult<()> + Send + Sync;
 type ChannelParts = (Handlers, bool, Vec<Arc<Processor>>);
 
@@ -34,11 +40,14 @@ struct FactoryCall;
 
 impl FactoryCall {
     fn enter<T: ?Sized>(manager: &LogManager, name: &str, factory: &Arc<T>) -> LogResult<Self> {
-        let key = (
+        Self::enter_key(
             std::ptr::from_ref(manager).addr(),
             Arc::as_ptr(factory).addr(),
-            name.to_owned(),
-        );
+            name,
+        )
+    }
+    fn enter_key(manager: usize, factory: usize, name: &str) -> LogResult<Self> {
+        let key = (manager, factory, name.to_owned());
         ACTIVE_FACTORIES.with_borrow_mut(|active| {
             if active.len() >= MAX_STACK_DEPTH || active.contains(&key) {
                 return Err(LogError::CyclicStack);
@@ -77,7 +86,7 @@ pub struct LogManager {
     formatters: Registry<ComponentFactory<Formatter>>,
     processors: Registry<ComponentFactory<Processor>>,
     taps: Registry<Tap>,
-    handlers: Registry<ComponentFactory<RecordHandler>>,
+    handlers: Registry<HandlerFactory>,
     listeners: Arc<super::events::Listeners>,
 }
 
@@ -236,7 +245,27 @@ impl LogManager {
         name: impl Into<String>,
         factory: impl Fn(&Value) -> LogResult<Arc<RecordHandler>> + Send + Sync + 'static,
     ) {
-        register(&self.handlers, name.into(), Arc::new(factory));
+        register(
+            &self.handlers,
+            name.into(),
+            Arc::new(HandlerFactory::Callback(Arc::new(factory))),
+        );
+    }
+
+    /// 注册具有自带格式器的处理器类型；仅显式default时读取该格式器。
+    pub fn register_formattable_handler(
+        &self,
+        name: impl Into<String>,
+        factory: impl Fn(&Value) -> LogResult<Arc<dyn super::FormattableHandler>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        register(
+            &self.handlers,
+            name.into(),
+            Arc::new(HandlerFactory::Formattable(Arc::new(factory))),
+        );
     }
 
     /// Resolves an on-demand channel from explicit settings without caching it by name.
@@ -861,11 +890,42 @@ impl Resolution<'_, '_> {
         let bubble = options_handler.bubble.unwrap_or(options.bubble);
         if let Some(factory) = find(&self.manager.handlers, name) {
             let _call = FactoryCall::enter(self.manager, channel, &factory)?;
-            let write = factory(&arguments).map_err(|_| LogError::FactoryFailed)?;
-            return Ok(Handler::Registered {
+            let own = options.formatter.as_deref() == Some("default");
+            let (write, formatter): (Arc<RecordHandler>, Option<Arc<Formatter>>) =
+                match factory.as_ref() {
+                    HandlerFactory::Callback(factory) => (
+                        factory(&arguments).map_err(|_| LogError::FactoryFailed)?,
+                        None,
+                    ),
+                    HandlerFactory::Formattable(factory) => {
+                        let handler = factory(&arguments).map_err(|_| LogError::FactoryFailed)?;
+                        let formatter = own.then(|| {
+                            lazy_handler_formatter(
+                                std::ptr::from_ref(self.manager).addr(),
+                                channel.to_owned(),
+                                handler.clone(),
+                            )
+                        });
+                        (
+                            Arc::new(move |record, formatted| handler.write(record, formatted)),
+                            formatter,
+                        )
+                    }
+                };
+            let handler = Handler::Registered {
                 write,
                 level,
                 bubble,
+            };
+            return Ok(if let Some(formatter) = formatter {
+                Handler::Formatted {
+                    handler: Arc::new(handler),
+                    formatter,
+                }
+            } else if own {
+                with_line_formatter(handler, None)
+            } else {
+                handler
             });
         }
         if name == "browser_console" {
@@ -882,14 +942,7 @@ impl Resolution<'_, '_> {
                 {
                     Handler::Formatted {
                         handler: Arc::new(handler),
-                        formatter: Arc::new(|record| {
-                            Ok(format!(
-                                "[[{}]]{{macro: autolabel}} [[{}]]{{font-weight: bold}} {}",
-                                record.channel,
-                                record.level.label(),
-                                record.message()
-                            ))
-                        }),
+                        formatter: super::browser::default_formatter(),
                     }
                 } else {
                     handler
@@ -1174,4 +1227,22 @@ fn with_line_formatter(handler: Handler, format: Option<&str>) -> Handler {
         handler: Arc::new(handler),
         formatter: Arc::new(move |record| formatter.format(record)),
     }
+}
+
+fn lazy_handler_formatter(
+    manager: usize,
+    channel: String,
+    handler: Arc<dyn super::FormattableHandler>,
+) -> Arc<Formatter> {
+    let ready = Arc::new(std::sync::OnceLock::<Arc<Formatter>>::new());
+    Arc::new(move |record| {
+        if let Some(formatter) = ready.get() {
+            return formatter(record);
+        }
+        let _call = FactoryCall::enter_key(manager, Arc::as_ptr(&ready).addr(), &channel)?;
+        // 不在用户回调外持锁；并发首次解析可竞争，成功后采用同一缓存。
+        let formatter = handler.get_default_formatter()?;
+        let _ = ready.set(formatter);
+        ready.get().expect("成功格式器已发布")(record)
+    })
 }

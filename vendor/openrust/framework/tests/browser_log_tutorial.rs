@@ -46,6 +46,12 @@ fn page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         if kind == "htmlformat" {
             Log::build(&json!({"driver":"monolog","handler":"browser_console","formatter":"html","formatter_with":{"dateFormat":"Y-m-d"}}))?.info("html formatter record",&LogContext::new())?;
         }
+        if kind == "typeddefault" {
+            Log::build(
+                &json!({"driver":"monolog","handler":"typed_browser","formatter":"default"}),
+            )?
+            .warning("typed own style", &LogContext::new())?;
+        }
         if kind == "typed" {
             Log::build(
                 &json!({"driver":"monolog","handler":"typed_browser","formatter":"browser"}),
@@ -119,11 +125,8 @@ async fn actual_http_console_is_request_isolated_and_skips_json_head_and_cli() {
             Box::pin(async move {
                 app.container()
                     .make::<openrust::log::LogManager>()?
-                    .register_handler("typed_browser", |_| {
-                        let handler = openrust::log::BrowserConsoleHandler::new()?;
-                        Ok(Arc::new(move |record, formatted| {
-                            handler.handle(record, formatted)
-                        }))
+                    .register_formattable_handler("typed_browser", |_| {
+                        Ok(Arc::new(openrust::log::BrowserConsoleHandler::new()?))
                     });
                 app.container()
                     .make::<openrust::log::LogManager>()?
@@ -232,6 +235,19 @@ async fn actual_http_console_is_request_isolated_and_skips_json_head_and_cli() {
         .await
         .unwrap();
     assert!(own.contains("[[production]]{macro: autolabel}"));
+    let typed_own = client
+        .get(format!("http://{address}/typeddefault/own"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        typed_own.contains("typed own style")
+            && typed_own.contains("[[production]]{macro: autolabel}")
+    );
+
     let html_formatted = client
         .get(format!("http://{address}/htmlformat/literal"))
         .send()

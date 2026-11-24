@@ -85,6 +85,24 @@ impl BrowserConsoleHandler {
         Ok(())
     }
 }
+impl super::FormattableHandler for BrowserConsoleHandler {
+    fn get_default_formatter(&self) -> LogResult<Arc<super::Formatter>> {
+        Ok(default_formatter())
+    }
+    fn write(&self, record: &LogRecord<'_>, formatted: &str) -> LogResult<()> {
+        self.handle(record, formatted)
+    }
+}
+pub(super) fn default_formatter() -> Arc<super::Formatter> {
+    Arc::new(|record| {
+        Ok(format!(
+            "[[{}]]{{macro: autolabel}} [[{}]]{{font-weight: bold}} {}",
+            record.channel,
+            record.level.label(),
+            record.message()
+        ))
+    })
+}
 pub(super) fn writer(owner: Weak<Container>) -> LogResult<Arc<RecordHandler>> {
     let handler = BrowserConsoleHandler::with_owner(owner)?;
     Ok(Arc::new(move |record, formatted| {
