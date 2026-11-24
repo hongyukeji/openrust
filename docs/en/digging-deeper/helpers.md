@@ -154,7 +154,20 @@ Date::with_test_now(Some(frozen), async {
 }).await??;
 ```
 
-`instance(&value)` clones a date value. This is the clock and civil-day subset; parsing, localization, custom factories and the remaining date facade contracts are still being completed.
+`parse` and `raw_parse` accept text, integer or floating-point timestamps, date values and `DateInput::Now`. Relative expressions use the same application test clock. `DateInput` also accepts JSON strings, numbers and null; booleans, arrays and objects return `DateError::InvalidExpression`. Non-finite floats and values outside the native date range fail; inputs over 20 MiB are rejected.
+
+```rust
+use openrust::support::facades::Date;
+
+let next = Date::parse("tomorrow", None)?;
+let text = next.format("Y-m-d H:i:sP")?;
+let epoch = Date::parse(0, None)?;
+assert_eq!(epoch.format("U.u")?, "0.000000");
+```
+
+`format` uses PHP date-format tokens. `timezone_name` and `format("e T")` preserve parsed names, offsets and abbreviations through civil arithmetic. `as_date_time` remains the Jiff view, where a parsed abbreviation uses a fixed offset. Explicit native timezones keep their own transition rules for parsing and formatting. The returned date value retains Jiff's −9999…9999 year range; request `InputDate` keeps the existing wider parser range.
+
+`instance(&value)` clones a date value. This is the clock and civil-day subset; localized parsing, format-driven creation, custom factories and the remaining date facade contracts are still being completed.
 
 
 ## Pipeline {#pipeline}

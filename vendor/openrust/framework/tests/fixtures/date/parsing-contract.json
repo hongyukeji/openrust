@@ -1,0 +1,185 @@
+[
+    {
+        "input": null,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2024-03-10 20:00:00.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "input": "",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2024-03-10 20:00:00.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "input": "now",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2024-03-10 20:00:00.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "input": "today",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2024-03-10 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "input": "tomorrow",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2024-03-11 00:00:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "input": "yesterday",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2024-03-09 00:00:00.000000-05:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "input": "next monday",
+        "timezone": "UTC",
+        "result": {
+            "date": "2024-03-11 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "input": "+1 day",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2024-03-11 08:00:00.123456-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "input": "2024-03-10 02:30:00",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2024-03-10 03:30:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "input": "2024-11-03 01:30:00",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2024-11-03 01:30:00.000000-04:00",
+            "zone": "America\/New_York"
+        }
+    },
+    {
+        "input": "2024-02-29 12:30:40.123456",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "2024-02-29 12:30:40.123456+08:00",
+            "zone": "Asia\/Shanghai"
+        }
+    },
+    {
+        "input": "2024-01-01T03:04:05+05:30",
+        "timezone": "UTC",
+        "result": {
+            "date": "2024-01-01 03:04:05.000000+05:30",
+            "zone": "+05:30"
+        }
+    },
+    {
+        "input": "2024-01-01 03:04:05 CST",
+        "timezone": "UTC",
+        "result": {
+            "date": "2024-01-01 03:04:05.000000-06:00",
+            "zone": "CST"
+        }
+    },
+    {
+        "input": 0,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": 1,
+        "timezone": "UTC",
+        "result": {
+            "date": "1970-01-01 00:00:01.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": -1,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1969-12-31 23:59:59.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": 1.25,
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 00:00:01.250000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": "@0",
+        "timezone": "Asia\/Shanghai",
+        "result": {
+            "date": "1970-01-01 00:00:00.000000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": "@-0.5",
+        "timezone": "UTC",
+        "result": {
+            "date": "1969-12-31 23:59:59.500000+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": "1601735792.198956",
+        "timezone": "America\/New_York",
+        "result": {
+            "date": "2020-10-03 14:36:32.198956+00:00",
+            "zone": "+00:00"
+        }
+    },
+    {
+        "input": "20240229",
+        "timezone": "UTC",
+        "result": {
+            "date": "2024-02-29 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "input": "2024-02-30",
+        "timezone": "UTC",
+        "result": {
+            "date": "2024-03-01 00:00:00.000000+00:00",
+            "zone": "UTC"
+        }
+    },
+    {
+        "input": "not a date",
+        "timezone": "UTC",
+        "result": {
+            "error": "Carbon\\Exceptions\\InvalidFormatException"
+        }
+    }
+]

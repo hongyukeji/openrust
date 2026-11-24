@@ -76,6 +76,38 @@ impl InputDate {
         Self { instant, zone }
     }
 
+    pub(crate) fn native_zoned(&self) -> std::result::Result<jiff::Zoned, super::DateError> {
+        let timestamp = self
+            .instant
+            .try_timestamp()
+            .map_err(|_| super::DateError::OutOfRange)?;
+        let zone = self.zone.jiff_zone().map_or_else(
+            || {
+                super::Date::timezone(self.timezone()).or_else(|_| {
+                    let offset = self
+                        .zone
+                        .offset_seconds(self.instant)
+                        .map_err(|_| super::DateError::OutOfRange)?;
+                    Ok(jiff::tz::TimeZone::fixed(
+                        jiff::tz::Offset::from_seconds(offset)
+                            .map_err(|_| super::DateError::OutOfRange)?,
+                    ))
+                })
+            },
+            Ok,
+        )?;
+        Ok(timestamp.to_zoned(zone))
+    }
+    pub(crate) fn format_at(
+        &self,
+        timestamp: Timestamp,
+        pattern: &str,
+    ) -> std::result::Result<String, super::DateError> {
+        let instant =
+            CalendarInstant::from_timestamp(timestamp).map_err(|_| super::DateError::OutOfRange)?;
+        format::display_zoned(instant, &self.zone, pattern)
+            .map_err(|_| super::DateError::OutOfRange)
+    }
     pub fn timestamp(&self) -> i64 {
         self.instant.epoch_seconds
     }
@@ -92,6 +124,17 @@ impl InputDate {
         format::display_zoned(self.instant, &self.zone, pattern)
             .map_err(|_| super::DateError::OutOfRange)
     }
+}
+
+pub(crate) fn format_date_value(
+    timestamp: Timestamp,
+    timezone: &TimeZone,
+    pattern: &str,
+) -> std::result::Result<String, super::DateError> {
+    let instant =
+        CalendarInstant::from_timestamp(timestamp).map_err(|_| super::DateError::OutOfRange)?;
+    let zone = ResolvedTimezone::from_jiff(timezone.clone(), timestamp);
+    format::display_zoned(instant, &zone, pattern).map_err(|_| super::DateError::OutOfRange)
 }
 
 pub(crate) enum DateReference {
@@ -113,12 +156,51 @@ pub(crate) fn parse_input_date(
     if size > MAX_CALENDAR_BYTES {
         return Err(limit_error());
     }
+    parse_input_date_with_zone(
+        value,
+        pattern,
+        ResolvedTimezone::parse(timezone)?,
+        reference,
+    )
+}
+
+pub(crate) fn parse_date_with_jiff(
+    value: Value,
+    timezone: TimeZone,
+    reference: DateReference,
+) -> Result<InputDate> {
+    if value.as_str().is_some_and(|v| v.len() > MAX_CALENDAR_BYTES) {
+        return Err(limit_error());
+    }
+    let now = match &reference {
+        DateReference::Wall(now) | DateReference::Frozen(now) => *now,
+    };
+    parse_input_date_with_zone(
+        value,
+        None,
+        ResolvedTimezone::from_jiff(timezone, now),
+        reference,
+    )
+}
+
+pub(crate) fn native_timezone_name(timezone: &TimeZone, timestamp: Timestamp) -> String {
+    ResolvedTimezone::from_jiff(timezone.clone(), timestamp)
+        .name()
+        .to_owned()
+}
+
+fn parse_input_date_with_zone(
+    value: Value,
+    pattern: Option<&str>,
+    zone: ResolvedTimezone,
+    reference: DateReference,
+) -> Result<InputDate> {
     let (reference, frozen) = match reference {
         DateReference::Wall(reference) => (reference, false),
         DateReference::Frozen(reference) => (reference, true),
     };
     let now = CalendarInstant::from_timestamp(reference)?;
-    let zone = ResolvedTimezone::parse(timezone)?;
+
     if let Some(pattern) = pattern {
         if value.is_array() || value.is_object() {
             return Err(CalendarError::InvalidExpression);

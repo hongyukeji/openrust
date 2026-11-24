@@ -18,6 +18,8 @@ pub enum DateError {
     Configuration,
     InvalidTimezone,
     OutOfRange,
+    InvalidExpression,
+    InputTooLarge,
 }
 
 impl std::fmt::Display for DateError {
@@ -25,6 +27,8 @@ impl std::fmt::Display for DateError {
         formatter.write_str(match self {
             Self::Configuration => "application date configuration is unavailable",
             Self::InvalidTimezone => "invalid application timezone",
+            Self::InvalidExpression => "日期表达式无效",
+            Self::InputTooLarge => "日期输入超过大小限制",
             Self::OutOfRange => "date or interval is out of range",
         })
     }
@@ -49,8 +53,14 @@ pub enum MonthOverflow {
 }
 
 /// An immutable timestamp with its IANA timezone attached.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Date(Zoned);
+#[derive(Clone, Debug)]
+pub struct Date(Zoned, Option<std::sync::Arc<super::InputDate>>);
+impl PartialEq for Date {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for Date {}
 
 impl Date {
     /// Resolve an IANA name using the framework's bundled IANA 2025b database.
@@ -60,13 +70,34 @@ impl Date {
     }
 
     pub fn from_utc(value: Timestamp, timezone: DateTimezone) -> Self {
-        Self(value.to_zoned(timezone))
+        Self(value.to_zoned(timezone), None)
     }
 
     pub fn from_local(value: DateTime, timezone: DateTimezone) -> Result<Self, DateError> {
-        resolve(value, &timezone, None).map(Self)
+        resolve(value, &timezone, None).map(|value| Self(value, None))
     }
 
+    pub(crate) fn from_input(value: super::InputDate) -> Result<Self, DateError> {
+        Ok(Self(
+            value.native_zoned()?,
+            Some(std::sync::Arc::new(value)),
+        ))
+    }
+    /// 保留表达式中的时区名称，包含固定偏移和缩写。
+    pub fn timezone_name(&self) -> String {
+        self.1.as_ref().map_or_else(
+            || super::calendar::native_timezone_name(self.0.time_zone(), self.0.timestamp()),
+            |input| input.timezone().to_owned(),
+        )
+    }
+    pub fn format(&self, pattern: &str) -> Result<String, DateError> {
+        match &self.1 {
+            Some(input) => input.format_at(self.0.timestamp(), pattern),
+            None => {
+                super::calendar::format_date_value(self.0.timestamp(), self.0.time_zone(), pattern)
+            }
+        }
+    }
     pub fn now(timezone: Option<DateTimezone>) -> Result<Self, DateError> {
         now(timezone)
     }
@@ -80,7 +111,12 @@ impl Date {
     }
 
     pub fn start_of_day(&self) -> Result<Self, DateError> {
-        Self::from_local(self.0.datetime().start_of_day(), self.0.time_zone().clone())
+        Self::from_local(self.0.datetime().start_of_day(), self.0.time_zone().clone()).map(
+            |mut value| {
+                value.1 = self.1.clone();
+                value
+            },
+        )
     }
 
     pub fn plus(&self, interval: DateInterval, overflow: MonthOverflow) -> Result<Self, DateError> {
@@ -106,7 +142,7 @@ impl Date {
             date = resolve(local, date.time_zone(), Some(date.offset()))?;
         }
         date.checked_add(SignedDuration::from_micros(interval.microseconds))
-            .map(Self)
+            .map(|value| Self(value, self.1.clone()))
             .map_err(|_| DateError::OutOfRange)
     }
 

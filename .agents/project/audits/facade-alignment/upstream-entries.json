@@ -1083,6 +1083,15 @@
       ],
       "clock_dependency": "固定Framework 1449bf24，复用已有Carbon 3.10.3/8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f作为此批明确固定比较器，符合Framework ^3.8.4；既有表达式解析器仍沿用其Carbon3.8.4参考，不据此宣称所有依赖行为完整对齐。",
       "adaptation": "默认工厂只在无应用时共享；应用内正式date别名/类型单例，Weak owner，不共享冻结值。异步with_test_now使用既有任务局部TestClock，退出清除语义与固定原类一致。TestApp时间旅行既有嵌套恢复契约单独保留。",
+      "parse_contracts": {
+        "entries": ["parse", "rawParse"],
+        "local": "Date::parse/raw_parse; DateFactory::parse/raw_parse; support::DateInput",
+        "review": "implemented_tested_subset",
+        "contract": "复用既有Calendar解析器；具类型日期/文本/整数/浮点/Now及JSON字符串/数字/null。参数保留数字与文本区别、拒绝非有限值/错误JSON形状/超过20MiB；负时间戳和微秒保留，原生Date支持Jiff年份范围。原日期值保留时区，显式时区转换同一时刻。",
+        "format": "Date::format与timezone_name保留表达式时区名称/缩写，后续运算按新时间戳输出；Jiff原生视图使用实际偏移，原生外部时区规则在解析/格式化中保留，未按名称重新加载另一套规则。",
+        "evidence": "date_parsing.rs实际读取23组原Date门面/Carbon3.10.3输出；错误输入/所有权日期/本机POSIX时区跨DST/固定偏移与20MiB限制。",
+        "remaining": "严格/非严格模式、可替换parse创建回调及本地化工厂路径尚未接入，因此不将此解析子集认定为全部日期创建对齐。"
+      },
       "remaining": [
         "其余已列公开入口逐项实现与裁决，包括解析、翻译、日历配置、宏、自定义类/可调用/工厂、sleep及set_test_now_and_timezone",
         "withTimeZone注解在当前固定比较器的默认Carbon路径实际UnknownMethod，需追踪useFactory与具体Factory委托，不以注解冒充默认入口成功",

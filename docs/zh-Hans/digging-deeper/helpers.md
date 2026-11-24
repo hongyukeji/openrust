@@ -154,7 +154,20 @@ Date::with_test_now(Some(frozen), async {
 }).await??;
 ```
 
-`instance(&value)` 克隆日期值。当前交付为时钟与当地日期子集；解析、本地化、自定义工厂和其余日期门面契约仍在补齐。
+`parse` 和 `raw_parse` 接收文本、整数或浮点时间戳、日期值及 `DateInput::Now`。相对表达式使用同一应用测试时钟。`DateInput` 也接收 JSON 字符串、数字和 null；布尔值、数组和对象返回 `DateError::InvalidExpression`。非有限浮点数及超出原生日期范围的值会报错，超过 20 MiB 的输入会被拒绝。
+
+```rust
+use openrust::support::facades::Date;
+
+let next = Date::parse("tomorrow", None)?;
+let text = next.format("Y-m-d H:i:sP")?;
+let epoch = Date::parse(0, None)?;
+assert_eq!(epoch.format("U.u")?, "0.000000");
+```
+
+`format` 使用 PHP 日期格式标记。`timezone_name` 与 `format("e T")` 在当地日期运算后仍保留解析得到的名称、偏移和缩写。`as_date_time` 仍为 Jiff 视图，解析出的缩写在其中使用固定偏移。显式传入原生时区时，解析和格式化保留其自身转换规则。返回日期值沿用 Jiff 的 −9999…9999 年范围，请求 `InputDate` 保留现有解析器的更宽范围。
+
+`instance(&value)` 克隆日期值。当前交付为时钟与当地日期子集；格式创建、本地化、自定义工厂和其余日期门面契约仍在补齐。
 
 
 ## 流水线 {#pipeline}

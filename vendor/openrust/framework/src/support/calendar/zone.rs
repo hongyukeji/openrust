@@ -9,6 +9,7 @@ use jiff::tz::{AmbiguousOffset, TimeZone};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ZoneKind {
+    Native(TimeZone),
     Fixed(i32),
     Named {
         zone: Option<TimeZone>,
@@ -29,6 +30,28 @@ impl Default for ResolvedTimezone {
     }
 }
 impl ResolvedTimezone {
+    pub(super) fn from_jiff(zone: TimeZone, timestamp: jiff::Timestamp) -> Self {
+        let name = zone.iana_name().map_or_else(
+            || offset_name(zone.to_offset(timestamp).seconds()),
+            str::to_owned,
+        );
+        let kind = if zone.iana_name().is_none() {
+            zone.to_fixed_offset().map_or_else(
+                |_| ZoneKind::Native(zone),
+                |offset| ZoneKind::Fixed(offset.seconds()),
+            )
+        } else {
+            ZoneKind::Native(zone)
+        };
+        Self { name, kind }
+    }
+    pub(super) fn jiff_zone(&self) -> Option<TimeZone> {
+        match &self.kind {
+            ZoneKind::Native(zone) => Some(zone.clone()),
+            ZoneKind::Named { zone, .. } => zone.clone(),
+            ZoneKind::Fixed(_) => None,
+        }
+    }
     pub(super) fn name(&self) -> &str {
         &self.name
     }
@@ -82,6 +105,7 @@ impl ResolvedTimezone {
     /// 查询指定时刻的 UTC 偏移秒数，包含历史 LMT 和无限期 POSIX 尾规则。
     pub fn offset_seconds(&self, instant: CalendarInstant) -> Result<i32> {
         match &self.kind {
+            ZoneKind::Native(zone) => Ok(zone.to_offset(instant.try_timestamp()?).seconds()),
             ZoneKind::Fixed(offset) => Ok(*offset),
             ZoneKind::Named { zone, record, tail } => {
                 if instant.epoch_seconds >= record.from_epoch {
@@ -103,6 +127,10 @@ impl ResolvedTimezone {
     }
     pub(super) fn abbreviation(&self, instant: CalendarInstant) -> Result<String> {
         match &self.kind {
+            ZoneKind::Native(zone) => Ok(zone
+                .to_offset_info(instant.try_timestamp()?)
+                .abbreviation()
+                .to_owned()),
             ZoneKind::Fixed(offset) => {
                 if self.name.starts_with(['+', '-']) {
                     let absolute = i64::from(*offset).abs();
@@ -136,6 +164,9 @@ impl ResolvedTimezone {
     }
     pub(super) fn is_dst(&self, instant: CalendarInstant) -> Result<bool> {
         match &self.kind {
+            ZoneKind::Native(zone) => {
+                Ok(zone.to_offset_info(instant.try_timestamp()?).dst().is_dst())
+            }
             ZoneKind::Fixed(_) => Ok(false),
             ZoneKind::Named { zone, record, tail } => {
                 if instant.epoch_seconds >= record.from_epoch {
@@ -166,6 +197,7 @@ impl ResolvedTimezone {
     ) -> Result<CalendarInstant> {
         let civil = civil.normalize()?;
         match &self.kind {
+            ZoneKind::Native(zone) => self.resolve_jiff(zone, civil, prefer_dst),
             ZoneKind::Fixed(offset) => civil.instant(*offset),
             ZoneKind::Named { zone, record, tail } => {
                 let early = civil.instant(record.first_offset)?;
@@ -181,35 +213,41 @@ impl ResolvedTimezone {
                 let zone = zone
                     .as_ref()
                     .ok_or_else(|| calendar_error("input_timezone_invalid"))?;
-                let naive = civil.naive()?;
-                let ambiguous = zone.to_ambiguous_timestamp(naive);
-                let instant = match ambiguous.offset() {
-                    AmbiguousOffset::Unambiguous { offset } => offset.to_timestamp(naive),
-                    AmbiguousOffset::Fold { before, after } => {
-                        // timelib 暂按 UTC 查询本地分量的偏移；东西半球回拨选择因此不同。
-                        let guess = self.offset_seconds(civil.instant(0)?)?;
-                        let first = before
-                            .to_timestamp(naive)
-                            .map_err(|_| calendar_error("input_timezone_invalid"))?;
-                        let second = after
-                            .to_timestamp(naive)
-                            .map_err(|_| calendar_error("input_timezone_invalid"))?;
-                        let first_is_dst = zone.to_offset_info(first).dst().is_dst();
-                        let second_is_dst = zone.to_offset_info(second).dst().is_dst();
-                        let use_first = match prefer_dst {
-                            Some(preferred) if first_is_dst != second_is_dst => {
-                                first_is_dst == preferred
-                            }
-                            _ => before.seconds() == guess,
-                        };
-                        Ok(if use_first { first } else { second })
-                    }
-                    AmbiguousOffset::Gap { before, .. } => before.to_timestamp(naive),
-                }
-                .map_err(|_| calendar_error("input_timezone_invalid"))?;
-                CalendarInstant::from_timestamp(instant)
+                self.resolve_jiff(zone, civil, prefer_dst)
             }
         }
+    }
+    fn resolve_jiff(
+        &self,
+        zone: &TimeZone,
+        civil: Civil,
+        prefer_dst: Option<bool>,
+    ) -> Result<CalendarInstant> {
+        let naive = civil.naive()?;
+        let ambiguous = zone.to_ambiguous_timestamp(naive);
+        let instant = match ambiguous.offset() {
+            AmbiguousOffset::Unambiguous { offset } => offset.to_timestamp(naive),
+            AmbiguousOffset::Fold { before, after } => {
+                // timelib 暂按 UTC 查询本地分量的偏移；东西半球回拨选择因此不同。
+                let guess = self.offset_seconds(civil.instant(0)?)?;
+                let first = before
+                    .to_timestamp(naive)
+                    .map_err(|_| calendar_error("input_timezone_invalid"))?;
+                let second = after
+                    .to_timestamp(naive)
+                    .map_err(|_| calendar_error("input_timezone_invalid"))?;
+                let first_is_dst = zone.to_offset_info(first).dst().is_dst();
+                let second_is_dst = zone.to_offset_info(second).dst().is_dst();
+                let use_first = match prefer_dst {
+                    Some(preferred) if first_is_dst != second_is_dst => first_is_dst == preferred,
+                    _ => before.seconds() == guess,
+                };
+                Ok(if use_first { first } else { second })
+            }
+            AmbiguousOffset::Gap { before, .. } => before.to_timestamp(naive),
+        }
+        .map_err(|_| calendar_error("input_timezone_invalid"))?;
+        CalendarInstant::from_timestamp(instant)
     }
 }
 

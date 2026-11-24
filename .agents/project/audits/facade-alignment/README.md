@@ -440,3 +440,11 @@ python3 -B tests/build_guard.py --workflow facade-alignment --target-dir target/
 - 原Date facade/DateFactory/Carbon在既有PHP8.5.12容器实跑：比较器明确固定Carbon3.10.3/8e3643dc，符合Framework ^3.8.4。fixtures/date/clock-contract.json含原始结果与上游SHA。DST当天至明天23小时，withTestNow嵌套返回/异常后清除而非恢复。无替代时钟、无反射伪造该行为。
 - 发现withTimeZone注解在此默认Carbon路径实际抛UnknownMethod；当前不添加一个伪称默认已对齐的同名实现，下一步追踪自定义Factory路径并裁决。该问题明确保留在JSON，不从范围删除。其他未实现入口亦仍待处理。
 - tests-delivery.log实际14项通过（6门面、5日期、3时间旅行），time_travel真实HTTP/Artisan/SQLite模型时间戳已改从Date门面设置/读取；Cloud受影响15+6+13共34项回归通过。clippy-second.log workspace/all-targets严格31.25秒，三语文档构建与6组桌面/移动浏览器通过。首轮注解/default实现/文档检查错误日志保留，不计通过；临时PHP容器已直接移除，共享镜像未删除。
+
+### Date：复用表达式解析与时区保留（仍 partial）
+
+- 基于前批固定原Date/DateFactory及Carbon3.10.3比较器，实际运行23组空值/相对日期/DST间隙和回拨/绝对日期/偏移和CST缩写/正负与小数时间戳/无效输入；parsing-contract.json为原始输出，源文件和比较器SHA沿用clock-contract记录。
+- 正式Date::parse/raw_parse与DateFactory、DateInput接线；复用已有旧版提取的Calendar扫描器、格式器、civil及时区解析，不引入另一套表达式解释器。拥有所有权日期保留原值，显式时区转换同一时刻；数值与文本不混淆，NaN/Infinity不经JSON变成null。错误JSON形状明确拒绝，日期值受Jiff年份范围限制，请求InputDate原范围不变。
+- Date日期值保留表达式来源的时区元数据，format使用原PHP标记，timezone_name及缩写随日期运算保留；格式器按新时间戳输出。对显式Jiff时区增加内部适配，避免按名称重新查2025b覆盖调用者实际规则；复用同一格式器而非平行实现。
+- 严格模式、自定义解析/工厂回调及其余Date公开入口仍待处理，解析不能因23组样本就标为全量闭合。
+- tests-final.log实际55项通过（含23组原类向量、额外原生时区/非法输入以及HTTP/Artisan/模型与请求日期回归；内嵌单项重启不重复计数）。clippy-first.log workspace/all-targets严格51.15秒；三语文档构建与6组桌面/移动浏览器通过。PHP一次性容器直接删除，失败工具尝试日志保留，不计为通过。

@@ -1,5 +1,6 @@
 //! 日期工厂与应用时钟；日期值沿用现有带时区的 Date。
 use super::{Date, DateError, DateTimezone, TestClock};
+mod input;
 use crate::{
     container::{Container, ServiceKey},
     contracts::{
@@ -10,6 +11,7 @@ use crate::{
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider, facades::Facade},
 };
+pub use input::DateInput;
 use std::sync::{Arc, OnceLock, Weak};
 
 /// 日期创建与测试时钟入口。应用之间不共享冻结时间。
@@ -65,6 +67,52 @@ impl DateFactory {
     pub async fn with_test_now<F: Future>(&self, time: Option<Date>, future: F) -> F::Output {
         let _clear = ClearTestNow(self.clock.clone());
         self.clock.clone().scope_date(time, future).await
+    }
+    pub fn parse(
+        &self,
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        use super::calendar::{CalendarError, DateReference, parse_date_with_jiff};
+        use serde_json::Value;
+        let input = match input.into() {
+            DateInput::Now => return self.now(timezone),
+            DateInput::Date(value) => {
+                return Ok(timezone.map_or(value.clone(), |zone| {
+                    Date::from_utc(value.as_date_time().timestamp(), zone)
+                }));
+            }
+            DateInput::Text(value) => Value::String(value),
+            DateInput::Integer(value) => value.into(),
+            DateInput::Unsigned(value) => value.into(),
+            DateInput::Number(value) => serde_json::Number::from_f64(value)
+                .ok_or(DateError::OutOfRange)?
+                .into(),
+            DateInput::Json(Value::Null) => return self.now(timezone),
+            DateInput::Json(value) if value.is_string() || value.is_number() => value,
+            DateInput::Json(_) => return Err(DateError::InvalidExpression),
+        };
+        let frozen = self.clock.now();
+        let reference = frozen.unwrap_or_else(jiff::Timestamp::now);
+        let zone = self.zone(timezone)?;
+        let parsed = parse_date_with_jiff(
+            input,
+            zone,
+            frozen.map_or(DateReference::Wall(reference), DateReference::Frozen),
+        )
+        .map_err(|error| match error {
+            CalendarError::InvalidExpression => DateError::InvalidExpression,
+            CalendarError::OutOfRange => DateError::OutOfRange,
+            CalendarError::LimitExceeded => DateError::InputTooLarge,
+        })?;
+        Date::from_input(parsed)
+    }
+    pub fn raw_parse(
+        &self,
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        self.parse(input, timezone)
     }
     pub fn instance(&self, date: &Date) -> Date {
         date.clone()
@@ -145,6 +193,18 @@ impl DateFacade {
         future: F,
     ) -> Result<F::Output, DateError> {
         Ok(Self::factory()?.with_test_now(time, future).await)
+    }
+    pub fn parse(
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        Self::factory()?.parse(input, timezone)
+    }
+    pub fn raw_parse(
+        input: impl Into<DateInput>,
+        timezone: Option<DateTimezone>,
+    ) -> Result<Date, DateError> {
+        Self::factory()?.raw_parse(input, timezone)
     }
     pub fn instance(date: &Date) -> Result<Date, DateError> {
         Ok(Self::factory()?.instance(date))
