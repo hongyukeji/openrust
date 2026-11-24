@@ -1,5 +1,7 @@
 # Error Handling
 
+For the optional business JSON envelope, its configuration and error examples, see [business responses](./responses.md#business-responses).
+
 ## Propagating domain errors
 
 Use `?` for fixed error conversions that need no additional context. Controllers and middleware returning `HttpError` can propagate configuration failures directly:

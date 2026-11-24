@@ -103,36 +103,144 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 Both `Response` and `RedirectResponse` support `with_cookie(&cookie, request)` and `with_cookies([&first, &second], request)`. A cookie replaces an earlier one with the same name, path and domain. Chain `without_cookie("theme", None, None, request)` or `without_cookies(["theme", "contrast"], None, None, request)` to expire cookies. Pass the original path and domain when they differ from the configured defaults.
 
-## JSON business responses
+## JSON business responses {#business-responses}
 
-Use `ApiResponse` in a route when clients need a shared business response format. The envelope contains `success`, `code` and `message`. It includes `data`, pagination `meta` or field `errors` when supplied. `success(data)` defaults to HTTP 200. Pass a status to `failure` or set it with `with_status`.
+`ApiResponse` provides a business JSON envelope with `success`, `code` and `message`, plus optional `data`, `meta` and `errors`. It is a business response extension; HTTP status codes still describe the request outcome.
+
+### Configuration and automatic envelopes {#business-response-configuration}
+
+`response_envelope` in `config/api.rs` is enabled by default and reads `API_RESPONSE_ENVELOPE`. Most applications need no environment entry. To disable it, add this to your own `.env`:
+
+```dotenv
+API_RESPONSE_ENVELOPE=false
+```
+
+When disabled, framework exceptions and ordinary API Resources retain their native format. Explicit `ApiResponse` values still use the business envelope. Restart long-running applications and Workers after changing configuration; rebuild a configuration cache with `./artisan config:cache` if used.
+
+Automatic envelopes apply to requests within the API prefix or for which `expects_json()` is true:
+
+- Default framework JSON exception responses gain business fields. Validation errors retain field `errors`. Custom exception renderers may return their own responses.
+- Ordinary `JsonResource` instances and resource collections use the business `data` wrapper and retain resource fields such as `links` and `meta`. Existing top-level fields take precedence.
+- JSON:API resources and requests accepting `application/vnd.api+json` bypass automatic business envelopes. Returning an explicit `ApiResponse` remains an application decision.
+- Strings, arrays, `Response::json`, downloads, streams and HTML are not automatically wrapped. Health checks are not automatically rewritten either.
+
+See [API Resources](../eloquent/resources.md) and [error handling](./errors.md).
+
+### Success, failure and pagination {#business-response-examples}
+
+When registered in `routes/api.rs`, these routes also receive the configured API prefix, which defaults to `/api`.
 
 ```rust
+use std::collections::BTreeMap;
 use openrust::{
     http::{ApiResponse, PageMeta, StatusCode},
     routing::RoutingError,
     support::facades::Route,
 };
+use serde_json::json;
 
 fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
-        ApiResponse::success([1, 2]).with_meta(PageMeta {
-            page: 2,
-            per_page: 2,
-            total: 4,
-            total_pages: 2,
-        })
+        ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
+            .with_message("Loaded.")
+            .with_meta(PageMeta { page: 1, per_page: 10, total: 1, total_pages: 1 })
     })?;
-
-    Route::get("/example-conflict", || {
-        ApiResponse::failure(StatusCode::CONFLICT, "conflict", "The item already exists.")
+    Route::post("/items", || {
+        ApiResponse::success(json!({"id": 2}))
+            .with_message("Created.")
+            .with_status(StatusCode::CREATED)
+    })?;
+    Route::get("/example-validation", || {
+        ApiResponse::failure(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", "Invalid input.")
+            .with_errors(BTreeMap::from([("email".into(), vec!["Email is required.".into()])]))
     })
 }
 ```
 
-`ApiResponse::empty()` returns a success envelope without a `data` field. HTTP 204 responses have an empty body. Supply a client-safe message to `failure` and attach field messages with `with_errors` when needed.
+GET `/api/items` returns HTTP 200:
 
-A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. The business response envelope is available separately.
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Loaded.",
+  "data": [{"id": 1, "name": "Notebook"}],
+  "meta": {"page": 1, "per_page": 10, "total": 1, "total_pages": 1}
+}
+```
+
+POST `/api/items` returns HTTP 201 with `{"success":true,"code":"ok","message":"Created.","data":{"id":2}}`.
+
+GET `/api/example-validation` returns HTTP 422:
+
+```json
+{
+  "success": false,
+  "code": "validation_failed",
+  "message": "Invalid input.",
+  "errors": {"email": ["Email is required."]}
+}
+```
+
+`success` defaults to HTTP 200; use a non-success status for `failure`. `with_status` changes the HTTP status only. For ordinary responses with a body, `into_response` rejects a mismatch between the success flag and HTTP status.
+
+`ApiResponse::empty()`, `success(())` and `success(Value::Null)` omit `data`; empty objects, arrays, `0`, `false` and empty strings remain present. HTTP 204, 205, 304 and informational responses have no body. Serialization failures use [error handling](./errors.md).
+
+### Localized messages {#business-response-localization}
+
+The default success message uses `response.ok`; framework exceptions use the corresponding `response.*` keys, resolved using the current request locale and existing fallback rules. Override these entries in `response.json` in the application's language directory. See [localization](../digging-deeper/localization.md) for locale configuration and selection; response handlers need not parse language headers themselves.
+
+Messages passed to `with_message` or `failure` are literal. Use `with_message_key` to translate at final serialization. For example, define this entry in `lang/zh-Hans/messages.json` under the default application language directory and return the response while the current locale is `zh-Hans`:
+
+```json
+{"created": "已创建 :name。"}
+```
+
+```rust
+use std::collections::BTreeMap;
+use openrust::http::ApiResponse;
+
+fn localized_response() -> ApiResponse<u64> {
+    ApiResponse::success(1).with_message_key(
+        "messages.created",
+        BTreeMap::from([("name".into(), "Notebook".into())]),
+    )
+}
+```
+
+```json
+{"success": true, "code": "ok", "message": "已创建 Notebook。", "data": 1}
+```
+
+### Custom fields {#business-response-fields}
+
+`with_field` sets a top-level field, `additional` shallow-merges fields and `without_field` removes a field. Operations run in call order; later operations win and nested objects are replaced as a whole. Standard fields may also be overridden, so keep the public schema consistent in your application. A JSON field named `status` does not change the HTTP status.
+
+This response returns HTTP 200:
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn custom_response() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({"id": 1}))
+        .with_message("Saved.")
+        .additional(json!({"trace_id": "first", "code": "saved"}).as_object().unwrap().clone())
+        .without_field("trace_id")
+        .with_field("trace_id", "request-123")
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "saved",
+  "message": "Saved.",
+  "data": {"id": 1},
+  "trace_id": "request-123"
+}
+```
+
 
 ## Redirect responses
 

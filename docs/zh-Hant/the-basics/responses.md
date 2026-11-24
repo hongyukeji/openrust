@@ -103,36 +103,144 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 一般回應與重新導向回應皆支援 `with_cookie(&cookie, request)` 與 `with_cookies([&first, &second], request)`。名稱、路徑及網域相同時，新的 Cookie 會覆蓋先前的 Cookie。用 `without_cookie("theme", None, None, request)` 或 `without_cookies(["theme", "contrast"], None, None, request)` 傳送過期 Cookie。原 Cookie 的路徑或網域與應用程式預設值不同時，請明確傳入原值。
 
-## JSON 業務回應
+## JSON 業務回應 {#business-responses}
 
-需要統一業務回應格式的路由可以使用 `ApiResponse`。回應包含 `success`、`code` 和 `message`，按需附帶 `data`、分頁 `meta` 或欄位 `errors`。`success(data)` 預設回傳 HTTP 200。使用 `failure` 時傳入狀態碼，也可以透過 `with_status` 設定。
+`ApiResponse` 提供統一業務 JSON 格式，包含 `success`、`code`、`message`，按需附帶 `data`、`meta` 和 `errors`。它是業務回應擴充；HTTP 狀態碼仍表示請求結果。
+
+### 設定與自動封裝 {#business-response-configuration}
+
+`config/api.rs` 的 `response_envelope` 預設啟用，讀取 `API_RESPONSE_ENVELOPE`。通常無需設定環境變數；需要關閉時在自己的 `.env` 加入：
+
+```dotenv
+API_RESPONSE_ENVELOPE=false
+```
+
+關閉後，框架例外和一般 API Resource 恢復原生格式；明確回傳 `ApiResponse` 仍保持業務封裝。修改設定後重新啟動常駐應用程式與 Worker；使用設定快取時重新執行 `./artisan config:cache`。
+
+自動封裝適用於 API 前綴內或 `expects_json()` 為真的請求：
+
+- 框架預設 JSON 例外回應增加業務欄位，驗證例外繼續攜帶欄位 `errors`。自訂例外渲染器可回傳自己的回應。
+- 一般 `JsonResource` 和資源集合使用業務 `data` 包裝，並保留資源本身的 `links`、`meta` 等欄位；已有同名頂層欄位優先。
+- JSON:API 資源及 `Accept: application/vnd.api+json` 請求不使用自動業務封裝。明確回傳 `ApiResponse` 仍由應用程式自行選擇格式。
+- 一般字串、陣列、`Response::json`、檔案下載、串流回應和 HTML 頁面不會因此自動套上業務欄位；健康檢查也不自動改寫。
+
+相關機制見[API 資源](../eloquent/resources.md)和[例外處理](./errors.md)。
+
+### 成功、失敗與分頁 {#business-response-examples}
+
+在 `routes/api.rs` 註冊時，下列路徑還會帶上應用程式設定的 API 前綴，預設 `/api`。
 
 ```rust
+use std::collections::BTreeMap;
 use openrust::{
     http::{ApiResponse, PageMeta, StatusCode},
     routing::RoutingError,
     support::facades::Route,
 };
+use serde_json::json;
 
 fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
-        ApiResponse::success([1, 2]).with_meta(PageMeta {
-            page: 2,
-            per_page: 2,
-            total: 4,
-            total_pages: 2,
-        })
+        ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
+            .with_message("Loaded.")
+            .with_meta(PageMeta { page: 1, per_page: 10, total: 1, total_pages: 1 })
     })?;
-
-    Route::get("/example-conflict", || {
-        ApiResponse::failure(StatusCode::CONFLICT, "conflict", "The item already exists.")
+    Route::post("/items", || {
+        ApiResponse::success(json!({"id": 2}))
+            .with_message("Created.")
+            .with_status(StatusCode::CREATED)
+    })?;
+    Route::get("/example-validation", || {
+        ApiResponse::failure(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", "Invalid input.")
+            .with_errors(BTreeMap::from([("email".into(), vec!["Email is required.".into()])]))
     })
 }
 ```
 
-`ApiResponse::empty()` 回傳省略 `data` 的成功回應。HTTP 204 回應的本文為空。請給 `failure` 傳入可安全顯示給用戶端的訊息，需要回傳欄位錯誤時使用 `with_errors`。
+GET `/api/items` 回傳 HTTP 200：
 
-序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應格式另外提供。
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Loaded.",
+  "data": [{"id": 1, "name": "Notebook"}],
+  "meta": {"page": 1, "per_page": 10, "total": 1, "total_pages": 1}
+}
+```
+
+POST `/api/items` 回傳 HTTP 201，本文為 `{"success":true,"code":"ok","message":"Created.","data":{"id":2}}`。
+
+GET `/api/example-validation` 回傳 HTTP 422：
+
+```json
+{
+  "success": false,
+  "code": "validation_failed",
+  "message": "Invalid input.",
+  "errors": {"email": ["Email is required."]}
+}
+```
+
+`success` 預設 HTTP 200；`failure` 應搭配非成功狀態碼。`with_status` 只修改 HTTP 狀態，不修改業務欄位；成功／失敗旗標與一般有本文狀態碼不一致時，`into_response` 回傳錯誤。
+
+`ApiResponse::empty()`、`success(())` 和 `success(Value::Null)` 省略 `data`；空物件、空陣列、`0`、`false` 和空字串仍保留。HTTP 204、205、304 及資訊狀態碼傳送空本文。序列化錯誤交給[例外處理](./errors.md)。
+
+### 國際化訊息 {#business-response-localization}
+
+預設成功訊息讀取 `response.ok`，框架例外讀取對應的 `response.*` 鍵，使用目前請求語言和既有回退機制。應用程式可在目前語言目錄的 `response.json` 覆寫這些詞條。請求語言的設定與選擇見[本地化](../digging-deeper/localization.md)；無需在每個回應中解析請求標頭。
+
+`with_message` 和 `failure` 的訊息是原文，不自動翻譯。需要翻譯時使用 `with_message_key`，在最終序列化時解析。下例在應用程式預設語言目錄的 `lang/zh-Hans/messages.json` 定義詞條，並在目前語言為 `zh-Hans` 時回傳：
+
+```json
+{"created": "已创建 :name。"}
+```
+
+```rust
+use std::collections::BTreeMap;
+use openrust::http::ApiResponse;
+
+fn localized_response() -> ApiResponse<u64> {
+    ApiResponse::success(1).with_message_key(
+        "messages.created",
+        BTreeMap::from([("name".into(), "Notebook".into())]),
+    )
+}
+```
+
+```json
+{"success": true, "code": "ok", "message": "已创建 Notebook。", "data": 1}
+```
+
+### 自訂欄位 {#business-response-fields}
+
+`with_field` 設定頂層欄位，`additional` 批次淺合併，`without_field` 移除欄位。操作依鏈式呼叫順序執行，後呼叫覆寫先呼叫；巢狀物件整體替換。可以覆寫標準欄位，因此應由應用程式統一約束公開協定。加入名為 `status` 的 JSON 欄位不會改變 HTTP 狀態。
+
+下列回應回傳 HTTP 200：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn custom_response() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({"id": 1}))
+        .with_message("Saved.")
+        .additional(json!({"trace_id": "first", "code": "saved"}).as_object().unwrap().clone())
+        .without_field("trace_id")
+        .with_field("trace_id", "request-123")
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "saved",
+  "message": "Saved.",
+  "data": {"id": 1},
+  "trace_id": "request-123"
+}
+```
+
 
 ## 重新導向回應
 

@@ -1,5 +1,7 @@
 # API 资源
 
+自动业务封装、配置开关及 JSON:API 边界见[业务响应](../the-basics/responses.md#business-response-configuration)。
+
 ## 生成资源 {#generating-resources}
 
 Artisan 将资源模块写到 `app/http/resources`。资源名使用 PascalCase，嵌套模块用 `/` 分隔。

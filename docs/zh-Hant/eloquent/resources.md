@@ -1,5 +1,7 @@
 # API 資源
 
+自動業務封裝、設定開關及 JSON:API 邊界見[業務回應](../the-basics/responses.md#business-response-configuration)。
+
 ## 產生資源 {#generating-resources}
 
 Artisan 將資源模組寫到 `app/http/resources`。資源名稱使用 PascalCase，巢狀模組以 `/` 分隔。

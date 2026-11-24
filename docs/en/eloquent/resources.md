@@ -1,5 +1,7 @@
 # API Resources
 
+For automatic business envelopes, configuration and their JSON:API boundary, see [business responses](../the-basics/responses.md#business-response-configuration).
+
 ## Generating Resources {#generating-resources}
 
 Artisan writes resource modules to `app/http/resources`. Use a PascalCase name and separate nested modules with `/`.

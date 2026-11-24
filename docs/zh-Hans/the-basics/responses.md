@@ -103,36 +103,144 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 普通响应和重定向响应都支持 `with_cookie(&cookie, request)` 和 `with_cookies([&first, &second], request)`。名称、路径和域相同时，新 Cookie 会覆盖先前的 Cookie。用 `without_cookie("theme", None, None, request)` 或 `without_cookies(["theme", "contrast"], None, None, request)` 发送过期 Cookie。原 Cookie 的路径或域与应用默认值不同时，请显式传入原值。
 
-## JSON 业务响应
+## JSON 业务响应 {#business-responses}
 
-需要统一业务响应格式的路由可以使用 `ApiResponse`。响应包含 `success`、`code` 和 `message`，按需附带 `data`、分页 `meta` 或字段 `errors`。`success(data)` 默认返回 HTTP 200。使用 `failure` 时传入状态码，也可以通过 `with_status` 设置。
+`ApiResponse` 提供统一业务 JSON 格式，包含 `success`、`code`、`message`，按需附带 `data`、`meta` 和 `errors`。它是业务响应扩展；HTTP 状态码仍表示请求结果。
+
+### 配置与自动封装 {#business-response-configuration}
+
+`config/api.rs` 的 `response_envelope` 默认启用，读取 `API_RESPONSE_ENVELOPE`。通常无需设置环境变量；需要关闭时在自己的 `.env` 添加：
+
+```dotenv
+API_RESPONSE_ENVELOPE=false
+```
+
+关闭后，框架异常和普通 API Resource 恢复原生格式；显式返回 `ApiResponse` 仍保持业务封装。修改配置后重启常驻应用与 Worker；使用配置缓存时重新执行 `./artisan config:cache`。
+
+自动封装适用于 API 前缀内或 `expects_json()` 为真的请求：
+
+- 框架默认 JSON 异常响应增加业务字段，验证异常继续携带字段 `errors`。自定义异常渲染器可返回自己的响应。
+- 普通 `JsonResource` 和资源集合使用业务 `data` 包装，并保留资源自身的 `links`、`meta` 等字段；已有同名顶级字段优先。
+- JSON:API 资源及 `Accept: application/vnd.api+json` 请求不使用自动业务封装。显式返回 `ApiResponse` 仍由应用自行选择格式。
+- 普通字符串、数组、`Response::json`、文件下载、流式响应和 HTML 页面不会因此自动套上业务字段；健康检查也不自动改写。
+
+相关机制见[API 资源](../eloquent/resources.md)和[异常处理](./errors.md)。
+
+### 成功、失败与分页 {#business-response-examples}
+
+在 `routes/api.rs` 注册时，下面的路径还会带上应用配置的 API 前缀，默认 `/api`。
 
 ```rust
+use std::collections::BTreeMap;
 use openrust::{
     http::{ApiResponse, PageMeta, StatusCode},
     routing::RoutingError,
     support::facades::Route,
 };
+use serde_json::json;
 
 fn register() -> Result<(), RoutingError> {
     Route::get("/items", || {
-        ApiResponse::success([1, 2]).with_meta(PageMeta {
-            page: 2,
-            per_page: 2,
-            total: 4,
-            total_pages: 2,
-        })
+        ApiResponse::success(json!([{"id": 1, "name": "Notebook"}]))
+            .with_message("Loaded.")
+            .with_meta(PageMeta { page: 1, per_page: 10, total: 1, total_pages: 1 })
     })?;
-
-    Route::get("/example-conflict", || {
-        ApiResponse::failure(StatusCode::CONFLICT, "conflict", "The item already exists.")
+    Route::post("/items", || {
+        ApiResponse::success(json!({"id": 2}))
+            .with_message("Created.")
+            .with_status(StatusCode::CREATED)
+    })?;
+    Route::get("/example-validation", || {
+        ApiResponse::failure(StatusCode::UNPROCESSABLE_ENTITY, "validation_failed", "Invalid input.")
+            .with_errors(BTreeMap::from([("email".into(), vec!["Email is required.".into()])]))
     })
 }
 ```
 
-`ApiResponse::empty()` 返回省略 `data` 的成功响应。HTTP 204 响应的正文为空。请给 `failure` 传入可安全展示给客户端的消息，需要返回字段错误时使用 `with_errors`。
+GET `/api/items` 返回 HTTP 200：
 
-序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应格式单独提供。
+```json
+{
+  "success": true,
+  "code": "ok",
+  "message": "Loaded.",
+  "data": [{"id": 1, "name": "Notebook"}],
+  "meta": {"page": 1, "per_page": 10, "total": 1, "total_pages": 1}
+}
+```
+
+POST `/api/items` 返回 HTTP 201，正文为 `{"success":true,"code":"ok","message":"Created.","data":{"id":2}}`。
+
+GET `/api/example-validation` 返回 HTTP 422：
+
+```json
+{
+  "success": false,
+  "code": "validation_failed",
+  "message": "Invalid input.",
+  "errors": {"email": ["Email is required."]}
+}
+```
+
+`success` 默认 HTTP 200；`failure` 应配合非成功状态码。`with_status` 只修改 HTTP 状态，不修改业务字段；成功／失败标志与正常有正文状态码不一致时，`into_response` 返回错误。
+
+`ApiResponse::empty()`、`success(())` 和 `success(Value::Null)` 省略 `data`；空对象、空数组、`0`、`false` 和空字符串仍保留。HTTP 204、205、304 及信息状态码发送空正文。序列化错误交给[异常处理](./errors.md)。
+
+### 国际化消息 {#business-response-localization}
+
+默认成功消息读取 `response.ok`，框架异常读取相应的 `response.*` 键，使用当前请求语言和既有回退机制。应用可在当前语言目录的 `response.json` 覆盖这些词条。请求语言的配置与选择见[本地化](../digging-deeper/localization.md)；无需在每个响应中解析请求头。
+
+`with_message` 和 `failure` 的消息是原文，不自动翻译。需要翻译时使用 `with_message_key`，在最终序列化时解析。下面在应用默认语言目录的 `lang/zh-Hans/messages.json` 定义词条，并在当前语言为 `zh-Hans` 时返回：
+
+```json
+{"created": "已创建 :name。"}
+```
+
+```rust
+use std::collections::BTreeMap;
+use openrust::http::ApiResponse;
+
+fn localized_response() -> ApiResponse<u64> {
+    ApiResponse::success(1).with_message_key(
+        "messages.created",
+        BTreeMap::from([("name".into(), "Notebook".into())]),
+    )
+}
+```
+
+```json
+{"success": true, "code": "ok", "message": "已创建 Notebook。", "data": 1}
+```
+
+### 自定义字段 {#business-response-fields}
+
+`with_field` 设置顶级字段，`additional` 批量浅合并，`without_field` 移除字段。操作按链式调用顺序执行，后调用覆盖先调用；嵌套对象整体替换。可以覆盖标准字段，因此应由应用统一约束公共协议。添加名为 `status` 的 JSON 字段不会改变 HTTP 状态。
+
+下面的响应返回 HTTP 200：
+
+```rust
+use openrust::http::ApiResponse;
+use serde_json::json;
+
+fn custom_response() -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(json!({"id": 1}))
+        .with_message("Saved.")
+        .additional(json!({"trace_id": "first", "code": "saved"}).as_object().unwrap().clone())
+        .without_field("trace_id")
+        .with_field("trace_id", "request-123")
+}
+```
+
+```json
+{
+  "success": true,
+  "code": "saved",
+  "message": "Saved.",
+  "data": {"id": 1},
+  "trace_id": "request-123"
+}
+```
+
 
 ## 重定向响应
 
