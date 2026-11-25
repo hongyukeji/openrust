@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-server` 提供签名器、退避契约与包配置，尚未提供完整发送 Builder、持久投递、重试或端点管理。生成签名头不等于发起网络投递。
+可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器和退避策略。持久投递、重试调度与端点管理仍在开发。
 
 ## 启用与配置 {#configuration}
 
@@ -41,7 +41,26 @@ pub fn standard_headers(
         body, secret, message_id, timestamp,
     })
 }
+
+pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
+    use openrust_webhook_server::{TargetPolicy, WebhookCall};
+
+    WebhookCall::new()?
+        .url("https://billing.example.com/callback")
+        .payload(serde_json::json!({"invoice_id": "inv-123"}))
+        .use_secret_reference("billing-v1")
+        .prepare(&TargetPolicy::default())
+}
 ```
+
+
+### 准备出站请求 {#prepare}
+
+在已启动的应用中调用 `WebhookCall::create()` 读取包配置，或使用 `WebhookCall::new()` 获取内置默认值。设置目的地、载荷和凭据，再调用 `prepare(&TargetPolicy::default())`。快照保留稳定消息 ID、已序列化的载荷及调度配置。`headers_at` 按尝试时间戳为已保存的字节生成签名头。凭据由应用在执行时解析的场景可传入具名凭据引用。
+
+POST 等正文方法使用已准备的字节。GET 将载荷编码为 RFC 3986 查询串，Spatie 签名继续使用已准备的 JSON。原始正文模式可以保留任意字节。快照限制正文为 16 MiB、Header 为 64 KiB。通过 `register_signer` 和 `register_backoff_strategy` 把外部实现注册到应用容器。
+
+默认目的地策略要求 HTTPS，并复核解析出的全部 Socket 地址。内部端点使用应用可信配置提供固定来源、路径与地址。`PreparedWebhook::bind_target` 可验证单次尝试的地址列表。HTTP 客户端固定实际连接地址，保留 Host 与 SNI，禁止重定向和代理转发，HTTPS 默认证书校验。包级派发仍需接入持久领取与尝试记录。
 
 ## 自定义签名与退避 {#customization}
 
@@ -49,7 +68,6 @@ pub fn standard_headers(
 
 `BackoffStrategy::wait_in_seconds_after_attempt` 返回秒数。默认 `ExponentialBackoffStrategy` 沿固定基线：尝试1至4分别等待10、100、1000、10000秒，超过4等待100000秒。底层契约的0返回1秒，首个实际尝试编号为1。
 
-这些工具本身不提供 SSRF 保护、持久领取、去重或 HTTP 重试循环，只能在已提供相应保证的应用流程内使用；包尚未开放生产投递服务。
 
 ## 使用边界 {#scope}
 

@@ -4664,11 +4664,14 @@ dependencies = [
  "aws-lc-rs",
  "http 1.5.0",
  "openrust-framework",
+ "serde",
  "serde_json",
  "standardwebhooks",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "url",
+ "zeroize",
 ]
 
 [[package]]

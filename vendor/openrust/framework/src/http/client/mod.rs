@@ -2,6 +2,7 @@
 
 mod batch;
 mod body;
+mod destination;
 mod digest;
 pub mod events;
 mod facade;
@@ -37,6 +38,7 @@ pub enum Error {
     Sink(std::io::Error),
     ResponseBody(std::io::Error),
     InvalidRequest,
+    DestinationMismatch,
     InvalidUriTemplate,
     Connection,
     Timeout,
@@ -59,6 +61,7 @@ impl fmt::Display for Error {
             Self::Sink(error) => write!(formatter, "保存 HTTP 响应失败：{error}"),
             Self::Configuration => formatter.write_str("invalid HTTP client configuration"),
             Self::InvalidRequest => formatter.write_str("invalid outgoing HTTP request"),
+            Self::DestinationMismatch => formatter.write_str("HTTP 请求目标与固定连接地址不匹配"),
             Self::InvalidUriTemplate => {
                 formatter.write_str("invalid HTTP URI template or parameter")
             }

@@ -3,9 +3,9 @@ use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
 
-use super::digest::DigestCredentials;
 use super::factory::{
     BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client, build_client_with_socket,
+    build_pinned_client,
 };
 use super::transport::Transport;
 use super::uri_template;
@@ -13,6 +13,7 @@ use super::{
     BatchResults, Error, Factory, Form, Pool, RecordedMultipartField, RecordedRequestDataSource,
     Response, Result,
 };
+use super::{destination::PinnedDestination, digest::DigestCredentials};
 
 pub(super) type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
 type ResponseMiddleware = dyn Fn(Response) -> Result<Response> + Send + Sync;
@@ -102,6 +103,7 @@ pub struct PendingRequest {
     connect_timeout: Duration,
     verify_tls: bool,
     unix_socket: Option<std::path::PathBuf>,
+    destination: Option<PinnedDestination>,
     timeout: Duration,
     redirects: Option<usize>,
     sink: Option<super::Sink>,
@@ -131,6 +133,7 @@ impl PendingRequest {
             connect_timeout: CONNECT_TIMEOUT,
             verify_tls: true,
             unix_socket: None,
+            destination: None,
             timeout: TIMEOUT,
             redirects: Some(5),
             sink: None,
@@ -432,6 +435,17 @@ impl PendingRequest {
         self
     }
 
+    /// 将请求固定到调用者已验证的 Socket 地址，保留 URL 的主机名和 TLS 校验。
+    /// 固定请求禁止重定向、自定义 Host 和 Unix socket。每次实际发送都会复核目的地。
+    pub fn pin_destination(
+        mut self,
+        url: &str,
+        addresses: Vec<std::net::SocketAddr>,
+    ) -> Result<Self> {
+        self.destination = Some(PinnedDestination::new(url, addresses)?);
+        Ok(self)
+    }
+
     pub fn without_redirecting(mut self) -> Self {
         self.redirects = None;
         self
@@ -544,7 +558,12 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
-        let client = if self.unix_socket.is_some() {
+        let client = if let Some(destination) = &self.destination {
+            if self.unix_socket.is_some() {
+                return Err(Error::Configuration);
+            }
+            build_pinned_client(self.connect_timeout, self.verify_tls, destination)?
+        } else if self.unix_socket.is_some() {
             build_client_with_socket(
                 self.connect_timeout,
                 self.verify_tls,
@@ -558,6 +577,9 @@ impl PendingRequest {
         let target = uri_template::expand(self.base_url.as_deref(), url, &self.uri_parameters)?;
         let base = self.base_url.as_deref().map(uri_template::escape_braces);
         let mut url = parse_url(base.as_deref(), &target)?;
+        if let Some(destination) = &self.destination {
+            destination.check_url(&url)?;
+        }
         let mut query_override = None;
         if !self.query.is_empty() {
             let original_query = url
@@ -680,7 +702,8 @@ impl PendingRequest {
             redact_response: self.redact_response,
             digest: self.digest.as_ref(),
             digest_origin: request.url().origin(),
-            max_redirects: self.redirects,
+            max_redirects: self.redirects.filter(|_| self.destination.is_none()),
+            destination: self.destination.as_ref(),
             timeout: self.timeout,
             body_limit: self.body_limit,
             sink: self.sink.as_ref(),

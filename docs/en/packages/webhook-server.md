@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-server` package supplies signer and backoff contracts and package configuration. It does not yet provide a complete send Builder, durable deliveries, retries or endpoint management. Signing headers is not a network send.
+The optional `openrust-webhook-server` package provides request preparation, target validation, named signers and backoff strategies. Durable sending, retries and endpoint management remain in development.
 
 ## Enable and configure {#configuration}
 
@@ -41,7 +41,26 @@ pub fn standard_headers(
         body, secret, message_id, timestamp,
     })
 }
+
+pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
+    use openrust_webhook_server::{TargetPolicy, WebhookCall};
+
+    WebhookCall::new()?
+        .url("https://billing.example.com/callback")
+        .payload(serde_json::json!({"invoice_id": "inv-123"}))
+        .use_secret_reference("billing-v1")
+        .prepare(&TargetPolicy::default())
+}
 ```
+
+
+### Prepare an outgoing request {#prepare}
+
+Use `WebhookCall::create()` in a booted application to load the package configuration, or `WebhookCall::new()` for the built-in defaults. Set the destination, payload and credential, then call `prepare(&TargetPolicy::default())`. A prepared request keeps its stable ID, serialized payload and scheduling settings. `headers_at` signs the stored bytes using the attempt timestamp. Use a named secret reference when the application resolves credentials at execution time.
+
+POST and other body methods use the prepared bytes. GET sends an RFC 3986 query and uses the prepared JSON for the Spatie signature. The raw body option preserves arbitrary bytes. The snapshot is bounded to 16 MiB of body data and 64 KiB of headers. Register external implementations in the application container with `register_signer` and `register_backoff_strategy`.
+
+The default target policy requires HTTPS and validates every resolved socket address. Use a policy built from trusted endpoint configuration for an internal route with a fixed origin, path and addresses. Applications can use `PreparedWebhook::bind_target` to validate an address list for one attempt. The HTTP client provides a pinned transport that preserves Host and SNI and disables redirects and proxy routing. HTTPS certificate verification remains the default. Durable claims and attempt records remain prerequisites for package dispatch.
 
 ## Custom signers and retry timing {#customization}
 
@@ -49,7 +68,6 @@ Implement `Signer` in an external crate. `SigningContext` supplies immutable bod
 
 `BackoffStrategy::wait_in_seconds_after_attempt` returns seconds. The default `ExponentialBackoffStrategy` follows the fixed baseline: attempts 1–4 wait 10, 100, 1000 and 10000 seconds; attempts above 4 wait 100000 seconds. Zero produces 1 second for the low-level contract; a first real attempt is numbered 1.
 
-These helpers do not supply SSRF protection, durable claims, deduplication or an HTTP retry loop. Use them only inside an application flow that already provides those guarantees; the package does not yet expose a production delivery service.
 
 ## Scope {#scope}
 

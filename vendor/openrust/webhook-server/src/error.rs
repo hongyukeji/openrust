@@ -4,6 +4,8 @@
 pub enum Error {
     #[error("Webhook 发送配置无效：{0}")]
     InvalidConfig(&'static str),
+    #[error("Webhook 目的地未通过验证")]
+    TargetDenied,
     #[error("Webhook 正文不符合签名协议")]
     InvalidPayload,
 }

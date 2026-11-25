@@ -6,6 +6,8 @@ Use the application-scoped `Http` facade from `openrust::support::facades` in ap
 
 Use `Http::accept_json()?` or `Http::pending_request()?` to start a configurable request. Supply POST, PUT, PATCH, or DELETE data by reference. JSON is the default. Use `as_form`, `with_body`, or `attach` to select another encoding. `with_query_parameters` sets the encoded query. Without it the query in the URL is preserved. Set timeouts with `Duration` and use `max_response_bytes` to limit buffered bytes. An application shares the connection pool for default connection settings.
 
+Use `pin_destination(url, addresses)?` with a previously validated address list to pin one request to a scheme, host and port. It uses only those addresses for DNS, preserves the URL hostname for Host and TLS, and rejects a different origin or a Host override after middleware. The pinned client disables redirects and Unix sockets. Apply your application’s network policy before pinning addresses.
+
 Request and response callbacks use Rust types. Select transport settings through the request builder and use Rust functions or extension traits to reuse named configurations.
 
 ### Digest authentication {#digest-authentication}

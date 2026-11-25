@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-可選套件 `openrust-webhook-server` 提供簽名器、退避契約與套件設定，尚未提供完整發送 Builder、持久投遞、重試或端點管理。產生簽名頭不等於發起網路投遞。
+可選套件 `openrust-webhook-server` 提供請求快照、目的地驗證、具名簽名器和退避策略。持久投遞、重試排程與端點管理仍在開發。
 
 ## 啟用與設定 {#configuration}
 
@@ -41,7 +41,26 @@ pub fn standard_headers(
         body, secret, message_id, timestamp,
     })
 }
+
+pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
+    use openrust_webhook_server::{TargetPolicy, WebhookCall};
+
+    WebhookCall::new()?
+        .url("https://billing.example.com/callback")
+        .payload(serde_json::json!({"invoice_id": "inv-123"}))
+        .use_secret_reference("billing-v1")
+        .prepare(&TargetPolicy::default())
+}
 ```
+
+
+### 準備對外請求 {#prepare}
+
+在已啟動的應用中呼叫 `WebhookCall::create()` 讀取套件設定，或使用 `WebhookCall::new()` 取得內建預設。設定目的地、載荷與憑據，再呼叫 `prepare(&TargetPolicy::default())`。快照保存穩定訊息 ID、已序列化載荷與排程設定。`headers_at` 按試行時間戳為已保存的位元組產生簽名頭。憑據由應用在執行時解析的場景可傳入具名憑據引用。
+
+POST 等正文方法使用已準備的位元組。GET 將載荷編碼為 RFC 3986 查詢字串，Spatie 簽名繼續使用已準備的 JSON。原始正文模式可保留任意位元組。快照限制正文為 16 MiB、Header 為 64 KiB。透過 `register_signer` 和 `register_backoff_strategy` 將外部實作註冊到應用容器。
+
+預設目的地策略要求 HTTPS，並重新核對解析所得的全部 Socket 位址。內部端點使用應用可信設定提供固定來源、路徑及位址。`PreparedWebhook::bind_target` 可驗證單次試行的位址清單。HTTP 用戶端固定實際連線位址，保留 Host 與 SNI，禁止重新導向和代理轉送，HTTPS 預設驗證憑證。套件派發仍需接入持久領取與試行記錄。
 
 ## 自訂簽名與退避 {#customization}
 
@@ -49,7 +68,6 @@ pub fn standard_headers(
 
 `BackoffStrategy::wait_in_seconds_after_attempt` 回傳秒數。預設 `ExponentialBackoffStrategy` 沿固定基線：嘗試1至4分別等待10、100、1000、10000秒，超過4等待100000秒。底層契約的0回傳1秒，首個實際嘗試編號為1。
 
-這些工具本身不提供 SSRF 保護、持久領取、去重或 HTTP 重試迴圈，只能在已提供相應保證的應用流程內使用；套件尚未開放生產投遞服務。
 
 ## 使用邊界 {#scope}
 

@@ -28,6 +28,7 @@ pub(super) struct Transport<'a> {
     pub digest: Option<&'a DigestCredentials>,
     pub digest_origin: url::Origin,
     pub max_redirects: Option<usize>,
+    pub destination: Option<&'a super::destination::PinnedDestination>,
     pub timeout: Duration,
     pub body_limit: usize,
     pub sink: Option<&'a super::Sink>,
@@ -68,6 +69,9 @@ impl Transport<'_> {
                     }
                     for callback in self.before_sending {
                         callback(&mut request)?;
+                    }
+                    if let Some(destination) = self.destination {
+                        destination.check_request(&request)?;
                     }
                     sent = (recording || has_events).then(|| self.snapshot(&request));
                     redirect = self

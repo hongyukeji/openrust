@@ -1,7 +1,11 @@
 use openrust::config::{ConfigError, Environment, Value};
 
 pub fn load(_: &Environment) -> Result<Value, ConfigError> {
-    Ok(serde_json::json!({
+    Ok(defaults())
+}
+
+pub(crate) fn defaults() -> Value {
+    serde_json::json!({
         "queue":"default", "connection":null, "http_verb":"post",
         "signer":"default", "signature_header_name":"Signature",
         "timestamp_header_name":"Timestamp", "webhook_id_header_name":"Webhook-Id",
@@ -10,5 +14,5 @@ pub fn load(_: &Environment) -> Result<Value, ConfigError> {
         "respect_retry_after":false, "retry_with_jitter":false,
         "webhook_job":"default", "verify_ssl":true,
         "throw_exception_on_failure":false, "proxy":null, "tags":[]
-    }))
+    })
 }

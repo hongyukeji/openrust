@@ -142,10 +142,13 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
     .unwrap();
     let configuration = Arc::new(configuration);
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!("https://{}/", listener.local_addr().unwrap());
+    let address = listener.local_addr().unwrap();
+    let url = format!("https://{address}/");
+    let pinned_url = format!("https://untrusted.example:{}/", address.port());
     let server = std::thread::spawn(move || {
         let mut successes = 0;
-        for _ in 0..6 {
+        let mut verified_sni = 0;
+        for _ in 0..8 {
             let (tcp, _) = listener.accept().unwrap();
             tcp.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
             tcp.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
@@ -166,11 +169,13 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
                         .unwrap();
                     stream.flush().unwrap();
                     successes += 1;
+                    verified_sni +=
+                        usize::from(stream.conn.server_name() == Some("untrusted.example"));
                     break;
                 }
             }
         }
-        successes
+        (successes, verified_sni)
     });
     let factory = Factory::new().unwrap();
     assert!(matches!(
@@ -228,5 +233,105 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
         request.get(&url).await.unwrap().body().unwrap().as_ref(),
         b"ok"
     );
-    assert_eq!(server.join().unwrap(), 3);
+    let pinned = || {
+        factory
+            .pending_request()
+            .pin_destination(&pinned_url, vec![address])
+            .unwrap()
+    };
+    assert!(matches!(
+        pinned().get(&pinned_url).await,
+        Err(Error::Connection)
+    ));
+    assert_eq!(
+        pinned()
+            .without_verifying()
+            .get(&pinned_url)
+            .await
+            .unwrap()
+            .body()
+            .unwrap()
+            .as_ref(),
+        b"ok"
+    );
+    assert_eq!(server.join().unwrap(), (4, 1));
+}
+
+#[tokio::test]
+async fn pinned_destination_uses_only_checked_addresses_and_preserves_host() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let blocked = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let other = format!("http://{}/", blocked.local_addr().unwrap());
+    let redirect = other.clone();
+    let server = tokio::spawn(async move {
+        let routes = axum::Router::new()
+            .route(
+                "/",
+                axum::routing::get(|headers: http::HeaderMap| async move {
+                    headers[http::header::HOST].to_str().unwrap().to_owned()
+                }),
+            )
+            .route(
+                "/redirect",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&redirect)
+                }),
+            );
+        axum::serve(listener, routes).await.unwrap();
+    });
+    let url = format!("http://checked-address.invalid:{}/", address.port());
+    let factory = Factory::new().unwrap();
+    let request = || {
+        factory
+            .pending_request()
+            .pin_destination(&url, vec![address])
+            .unwrap()
+    };
+    let response = request().get(&url).await.unwrap();
+    assert_eq!(
+        response.body().unwrap().as_ref(),
+        format!("checked-address.invalid:{}", address.port()).as_bytes()
+    );
+    let response = request()
+        .max_redirects(10)
+        .get(&format!("{url}redirect"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::TEMPORARY_REDIRECT);
+
+    assert!(matches!(
+        request().max_response_bytes(1).get(&url).await,
+        Err(Error::BodyTooLarge)
+    ));
+    assert!(matches!(
+        request().get(&other).await,
+        Err(Error::DestinationMismatch)
+    ));
+    assert!(matches!(
+        request()
+            .with_request_middleware({
+                let other = other.clone();
+                move |request| {
+                    *request.url_mut() = other.parse().unwrap();
+                    Ok(())
+                }
+            })
+            .get(&url)
+            .await,
+        Err(Error::DestinationMismatch)
+    ));
+    assert!(matches!(
+        request()
+            .with_header(http::header::HOST, "other-target.invalid".parse().unwrap())
+            .get(&url)
+            .await,
+        Err(Error::DestinationMismatch)
+    ));
+    assert!(
+        tokio::time::timeout(Duration::from_millis(100), blocked.accept())
+            .await
+            .is_err()
+    );
+    server.abort();
 }

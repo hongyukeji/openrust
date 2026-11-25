@@ -1,14 +1,21 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 mod backoff_strategy;
+mod body;
 #[path = "../config/webhook_server.rs"]
 mod configuration;
+mod destination;
 mod error;
+mod extensions;
 mod signer;
+mod webhook_call;
 
 pub use backoff_strategy::{BackoffStrategy, ExponentialBackoffStrategy};
+pub use destination::{BoundTarget, TargetPolicy};
 pub use error::{Error, Result};
+pub use extensions::{register_backoff_strategy, register_signer};
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};
+pub use webhook_call::{PreparedWebhook, WebhookCall};
 
 use openrust::{
     foundation::Application,

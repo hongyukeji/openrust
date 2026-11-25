@@ -6,6 +6,8 @@
 
 用 `Http::accept_json()?` 或 `Http::pending_request()?` 创建可配置请求。POST、PUT、PATCH 和 DELETE 数据按引用传入，默认编码为 JSON。用 `as_form`、`with_body` 或 `attach` 更换编码。`with_query_parameters` 设置编码后的查询参数，省略时保留 URL 内的查询串。超时使用 `Duration`，响应缓冲可用 `max_response_bytes` 限制。默认连接设置下，同一个应用共享连接池。
 
+使用 `pin_destination(url, addresses)?`，可将请求固定到已验证地址及指定协议、主机和端口。解析只使用提供的地址，Host 和 TLS 仍使用 URL 中的主机名。HTTP 传输层拒绝中间件改换来源或覆盖 Host。固定请求禁用重定向和 Unix socket。调用前由应用按网络策略校验地址。
+
 请求和响应回调使用 Rust 类型。通过请求构建器明确选择传输设置，可用 Rust 函数或扩展 trait 复用具名配置。
 
 ### Digest 认证 {#digest-authentication}

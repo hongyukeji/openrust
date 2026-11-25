@@ -835,6 +835,17 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         openrust::events::Delivery::Sync,
                     )?;
             }
+            let container = openrust::contracts::foundation::Application::container(app);
+            openrust_webhook_server::register_signer(
+                container,
+                "fixture-signer",
+                std::sync::Arc::new(FixtureSendSigner),
+            )?;
+            openrust_webhook_server::register_backoff_strategy(
+                container,
+                "fixture-backoff",
+                std::sync::Arc::new(FixtureSendBackoff),
+            )?;
             if std::env::var_os("FIXTURE_REPLAY_ALLOW").is_some() {
                 openrust_webhook_client::replay::register_policy(
                     openrust::contracts::foundation::Application::container(app),
@@ -1119,6 +1130,95 @@ fn web_routes() -> Result<(), openrust::routing::RoutingError> {
 fn ordinary(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Response::json(StatusCode::OK, json!({"ordinary":true})) })
 }
+struct FixtureSendSigner;
+
+impl Signer for FixtureSendSigner {
+    fn signature_header_name(&self) -> &str {
+        "x-fixture-signature"
+    }
+
+    fn calculate_signature(
+        &self,
+        context: &SigningContext<'_>,
+    ) -> openrust_webhook_server::Result<String> {
+        Ok(format!(
+            "{}:{}:{}",
+            context.message_id,
+            context.timestamp,
+            context.body.len()
+        ))
+    }
+}
+
+struct FixtureSendBackoff;
+
+impl openrust_webhook_server::BackoffStrategy for FixtureSendBackoff {
+    fn wait_in_seconds_after_attempt(&self, attempt: u32) -> u64 {
+        u64::from(attempt) * 7
+    }
+}
+
+struct PrepareSend(CommandDefinition);
+
+impl Command for PrepareSend {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            use openrust_webhook_server::{TargetPolicy, WebhookCall};
+
+            let profile = input.matches().get_one::<String>("profile").unwrap();
+            let call = WebhookCall::create()
+                .map_err(ConsoleError::from_source)?
+                .url("https://example.test/callback?old=1")
+                .uuid("outgoing-fixture")
+                .use_secret("outgoing-fixture-credential")
+                .use_timestamp(true);
+            let call = match profile.as_str() {
+                "json" => call.payload(json!({"z": "中/🙂", "a": 2})),
+                "raw" => call
+                    .send_raw_body(b"\x00\xffraw\n".to_vec())
+                    .do_not_sign()
+                    .with_webhook_id_header(None),
+                "get" => call
+                    .use_http_verb(openrust::http::Method::GET)
+                    .payload(json!({"label": "a b", "settings": {"enabled": true, "label": null}})),
+                "custom" => call
+                    .send_raw_body(b"test".to_vec())
+                    .sign_using("fixture-signer")
+                    .use_backoff_strategy("fixture-backoff"),
+                "blocked" => call.url("https://127.0.0.1/callback"),
+                _ => return Err(ConsoleError::new("未知 Webhook 发送夹具")),
+            };
+            let prepared = call
+                .prepare(&TargetPolicy::default())
+                .map_err(ConsoleError::from_source)?;
+            let headers = prepared
+                .headers_at(1_700_000_000, None)
+                .map_err(ConsoleError::from_source)?;
+            let headers: BTreeMap<_, _> = headers
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.to_str().unwrap()))
+                .collect();
+            let snapshot = json!({"url": prepared.get_url(), "id": prepared.get_uuid(),
+                "method": prepared.method().as_str(), "body": prepared.body(), "signed": prepared.signing_bytes(),
+                "headers": headers, "tries": prepared.tries(), "timeout": prepared.timeout().as_secs(),
+                "backoff": prepared.backoff_seconds(2), "queue": prepared.queue()});
+            output
+                .write_raw(&format!("{snapshot}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
 struct Sign(CommandDefinition);
 impl Command for Sign {
     fn definition(&self) -> &CommandDefinition {
@@ -1214,6 +1314,9 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             .arg(clap::Arg::new("profile").required(true))
             .arg(clap::Arg::new("body").required(true))
     };
+    artisan.add_command(Box::new(PrepareSend(CommandDefinition::new(
+        clap::Command::new("webhooks:prepare-send").arg(clap::Arg::new("profile").required(true)),
+    ))))?;
     artisan.add_command(Box::new(Sign(CommandDefinition::new(syntax(
         "webhooks:sign",
     )))))?;

@@ -231,13 +231,7 @@ pub(super) fn build_client_with_socket(
     verify_tls: bool,
     socket: Option<&std::path::Path>,
 ) -> Result<reqwest::Client> {
-    let builder = reqwest::Client::builder()
-        .connect_timeout(connect_timeout)
-        .tls_danger_accept_invalid_certs(!verify_tls)
-        .tls_danger_accept_invalid_hostnames(!verify_tls)
-        .redirect(reqwest::redirect::Policy::none())
-        .no_proxy()
-        .retry(reqwest::retry::never());
+    let builder = client_builder(connect_timeout, verify_tls);
     #[cfg(unix)]
     let builder = match socket {
         Some(path) => builder.unix_socket(path),
@@ -248,6 +242,27 @@ pub(super) fn build_client_with_socket(
         return Err(Error::Configuration);
     }
     builder.build().map_err(|_| Error::Configuration)
+}
+
+fn client_builder(connect_timeout: Duration, verify_tls: bool) -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .connect_timeout(connect_timeout)
+        .tls_danger_accept_invalid_certs(!verify_tls)
+        .tls_danger_accept_invalid_hostnames(!verify_tls)
+        .redirect(reqwest::redirect::Policy::none())
+        .no_proxy()
+        .retry(reqwest::retry::never())
+}
+
+pub(super) fn build_pinned_client(
+    timeout: Duration,
+    verify_tls: bool,
+    destination: &super::destination::PinnedDestination,
+) -> Result<reqwest::Client> {
+    destination
+        .apply(client_builder(timeout, verify_tls))
+        .build()
+        .map_err(|_| Error::Configuration)
 }
 
 tokio::task_local! {static WITHOUT_GLOBAL:Vec<usize>;}

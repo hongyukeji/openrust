@@ -113,6 +113,34 @@ def exercise(binary,env,log):
         stop(process)
 
 
+def check_sender_builder(binary, env):
+    def prepare(mode):
+        return json.loads(artisan(binary, env, "webhooks:prepare-send", mode))
+
+    secret = b"outgoing-fixture-credential"
+    rendered = prepare("json")
+    expected_json = br'{"z":"\u4e2d\/\ud83d\ude42","a":2}'
+    assert bytes(rendered["body"]) == bytes(rendered["signed"]) == expected_json
+    assert rendered["headers"]["signature"] == hmac.new(secret, expected_json, hashlib.sha256).hexdigest()
+    assert rendered["headers"]["timestamp"] == "1700000000"
+    assert rendered["headers"]["webhook-id"] == rendered["id"] == "outgoing-fixture"
+    assert (rendered["tries"], rendered["timeout"], rendered["queue"], rendered["backoff"]) == (3, 3, "default", 100)
+    assert rendered["method"] == "POST"
+    get = prepare("get")
+    assert get["method"] == "GET" and get["body"] == []
+    assert get["url"] == "https://example.test/callback?label=a%20b&settings%5Benabled%5D=1"
+    assert get["headers"]["signature"] == hmac.new(secret, bytes(get["signed"]), hashlib.sha256).hexdigest()
+    raw = prepare("raw")
+    assert bytes(raw["body"]) == b"\x00\xffraw\n"
+    assert "webhook-id" not in raw["headers"] and "signature" not in raw["headers"]
+    custom = prepare("custom")
+    assert custom["headers"]["x-fixture-signature"] == "outgoing-fixture:1700000000:4"
+    assert custom["backoff"] == 14
+    blocked = subprocess.run([str(binary), "artisan", "webhooks:prepare-send", "blocked"],
+                             env=env, capture_output=True, text=True, timeout=15)
+    assert blocked.returncode != 0 and secret.decode() not in blocked.stdout + blocked.stderr
+
+
 def main():
     binary=args.binary.resolve()
     with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-app-") as tmp:
@@ -136,6 +164,7 @@ def main():
                 for name in ("webhook_client","webhook_server"):
                     assert (root/"config"/(name+".rs")).read_text().endswith("// preserved customization\n")
                 exercise(binary,env,log)
+                check_sender_builder(binary,env)
                 artisan(binary,env,"config:cache")
                 wire=(root/"cached-config.json").read_text()
                 assert SPATIE not in wire and STANDARD not in wire
@@ -143,12 +172,13 @@ def main():
                 shown=artisan(binary,env,"config:show","webhook-client")
                 assert SPATIE not in shown and STANDARD not in shown
                 exercise(binary,env,log)
+                check_sender_builder(binary,env)
                 # 凭据是受控引用，不是固化到 config cache 中的明文；每个进程取自己的环境快照。
                 changed=env|{"FIXTURE_SPATIE_SECRET":"rotated-private-key"}
                 headers=json.loads(artisan(binary,changed,"webhooks:sign","spatie","rotation"))["headers"]
                 assert headers["signature"]==hmac.new(b"rotated-private-key",b"rotation",hashlib.sha256).hexdigest()
                 artisan(binary,env,"config:clear")
-                print("包发现／重复发布保留定制／缓存无密钥／真实 HTTP＋Artisan 原始正文与双协议通过")
+                print("包发现／重复发布保留定制／缓存无密钥／真实 HTTP＋Artisan 原始正文、双协议与发送快照通过")
             except BaseException:
                 log.flush();print((root/"http.log").read_text());raise
 

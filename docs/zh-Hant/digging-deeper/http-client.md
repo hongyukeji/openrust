@@ -6,6 +6,8 @@
 
 用 `Http::accept_json()?` 或 `Http::pending_request()?` 建立可設定的請求。POST、PUT、PATCH 和 DELETE 資料以借用方式傳入，預設編碼為 JSON。用 `as_form`、`with_body` 或 `attach` 更換編碼。`with_query_parameters` 設定編碼後的查詢參數，省略時保留 URL 內的查詢字串。逾時使用 `Duration`，可用 `max_response_bytes` 限制回應緩衝。預設連線設定下，同一應用程式共用連線池。
 
+使用 `pin_destination(url, addresses)?` 可將請求固定到已驗證位址及指定協定、主機和連接埠。解析只使用提供的位址，Host 和 TLS 仍使用 URL 中的主機名稱。HTTP 傳輸層拒絕中介軟體改換來源或覆蓋 Host。固定請求停用重新導向及 Unix socket。呼叫前由應用依網路策略驗證位址。
+
 請求和回應回呼使用 Rust 型別。透過請求建構器明確選擇傳輸設定，可用 Rust 函式或擴充 trait 重複使用具名設定。
 
 ### Digest 驗證 {#digest-authentication}
