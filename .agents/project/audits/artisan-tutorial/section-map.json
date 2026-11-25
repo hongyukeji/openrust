@@ -341,11 +341,13 @@
         "console_style_interface",
         "style-interface-contracts.json",
         "console_error_style",
-        "error-style-contracts.json"
+        "error-style-contracts.json",
+        "console_tree_nodes",
+        "tree-node-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "get_error_style基础类型与已实现助手已验；树／完整组件Factory／通用输出及其余章节继续，不关闭整章。"
+        "TreeNode已验；树渲染/TreeHelper/TreeStyle、完整组件Factory、通用输出及整章其他锚点继续，未关闭整章。"
       ]
     },
     {

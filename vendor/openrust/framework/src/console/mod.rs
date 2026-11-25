@@ -30,6 +30,8 @@ mod signature;
 mod table;
 pub(crate) mod task_command;
 mod terminal;
+mod tree;
+pub use tree::{TreeChild, TreeChildren, TreeNode, TreeValue, TreeValues, WeakTreeNode};
 
 use std::{
     env,

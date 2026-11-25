@@ -1,0 +1,78 @@
+[
+    {
+        "fail": false,
+        "trace": [
+            [
+                "open",
+                2
+            ],
+            [
+                "next",
+                2
+            ]
+        ],
+        "shape": [
+            "target",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "ok",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "first",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "leaf",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ]
+            ]
+        ],
+        "error": null
+    },
+    {
+        "fail": true,
+        "trace": [
+            [
+                "open",
+                2
+            ],
+            [
+                "next",
+                2
+            ]
+        ],
+        "shape": [
+            "target",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "ok",
+                    []
+                ]
+            ]
+        ],
+        "error": "nested failure"
+    }
+]

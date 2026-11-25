@@ -1507,3 +1507,41 @@ fn register_error_style() -> Result<(), ConsoleError> {
 The returned style borrows its output exclusively. End its scope before writing through the original style; it shares the real target rather than copying buffered output. Newline-counter lookup stops at a base-style boundary, while actual writes still reach the underlying target. Nested error-style creation returns another base style.
 
 `ConsoleStyle::write_iter` and `writeln_iter` write each item before requesting the next one. The derived `OutputStyle` retains its existing preparation for newline statistics. Both types use the same formatter and rendering engine; this does not add general third-party `OutputInterface` support. Tree helpers and the remaining component APIs are tracked separately.
+
+## Tree nodes and lazy children {#tree-nodes}
+
+`TreeNode` stores a read-only label and shared node identity. Use `new(value)` for an empty node, `with_children(value, children)` to add initial children, or `default()` for an empty label. `add_child` accepts a node, a string or `TreeChild::lazy`; cloning a node shares its identity rather than copying the tree.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle, TreeChild, TreeNode, TreeValue};
+use openrust::support::facades::Artisan;
+
+fn register_tree_nodes() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:tree-nodes", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let root = TreeNode::from_values(
+                [("languages", TreeValue::branch([(0_i64, "Rust"), (1_i64, "Go")]))],
+                Some(TreeNode::new("Project")),
+            )?;
+            root.add_child("Ready");
+            root.add_child(TreeChild::lazy(|| [Ok(TreeNode::new("Generated"))]));
+            OutputStyle::new(input, output).writeln(
+                format!("{}:{}", root.get_value(), root.count()?).as_str(),
+                OutputOptions::default(),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`from_values` accepts ordered key/value pairs. `TreeValue::branch` represents nested values; nested keys become labels, while scalar keys are ignored. A `TreeValue::Node` is iterable and expands its children under the supplied key, discarding that node's label. Use `add_child(node)` when you want to retain the node itself. Passing `Some(root)` appends to that same root; `None` creates an empty root.
+
+`get_children`, `get_iterator` and iteration over `&TreeNode` return `Result<TreeNode, ConsoleError>` items. They snapshot children on the first advance. Changes made before that advance are included; later additions are seen by a new traversal. Factories run outside the node lock and are invoked again by every traversal, including `count()`. Factories return owned `Send` iterators and may propagate errors. `lazy_keyed` preserves `ArrayKey` keys, available through the iterator's `key()`; `lazy` numbers each factory's items from zero. Direct children have their own sequential keys.
+
+Node ownership uses standard `Arc`, without a cycle collector. Use `downgrade`/`WeakTreeNode::upgrade` for callback backreferences. If you explicitly create a strong-reference cycle, call `clear_children` to break it when finished; `ptr_eq` compares node identity. Expanding a cyclic node through `from_values` returns an error instead of recursing indefinitely. The ordinary root and its children are released when their owners and iterators are dropped.
+
+Fallible input producers use `try_from_values` with `Result<(key, value), ConsoleError>` items; an error leaves already appended siblings intact.
+
+Nested one-shot producers use `TreeValue::iterable` or `try_iterable`. They own a `Send + 'static` iterator; the latter accepts fallible items. They are consumed in order, without collecting first, and the nested branch is attached only after it has finished successfully. `TreeValue` does not clone or replay a one-shot producer.

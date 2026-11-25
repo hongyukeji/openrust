@@ -1507,3 +1507,41 @@ fn register_error_style() -> Result<(), ConsoleError> {
 回傳的樣式獨占借用輸出，結束其作用域後再透過原樣式寫入；它共用實際目標，不複製輸出緩衝。換行計數查詢在基礎樣式邊界停止，實際寫入仍到達底層目標。巢狀呼叫 `get_error_style` 仍回傳基礎型別。
 
 `ConsoleStyle::write_iter` 與 `writeln_iter` 在請求下一項之前逐條寫出；衍生 `OutputStyle` 保留原有的換行統計準備。兩種型別複用同一格式器與渲染引擎，不代表一般第三方 `OutputInterface` 已實作。樹助手與其餘元件 API 另行追蹤。
+
+## 樹節點與惰性子節點 {#tree-nodes}
+
+`TreeNode` 儲存唯讀標籤和共享的節點身分。`new(value)` 建立空節點，`with_children(value, children)` 加入初始子節點，`default()` 使用空標籤。`add_child` 接受節點、字串或 `TreeChild::lazy`；複製節點會共享身分，不複製整棵樹。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle, TreeChild, TreeNode, TreeValue};
+use openrust::support::facades::Artisan;
+
+fn register_tree_nodes() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:tree-nodes", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let root = TreeNode::from_values(
+                [("languages", TreeValue::branch([(0_i64, "Rust"), (1_i64, "Go")]))],
+                Some(TreeNode::new("Project")),
+            )?;
+            root.add_child("Ready");
+            root.add_child(TreeChild::lazy(|| [Ok(TreeNode::new("Generated"))]));
+            OutputStyle::new(input, output).writeln(
+                format!("{}:{}", root.get_value(), root.count()?).as_str(),
+                OutputOptions::default(),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`from_values` 接受有序鍵值對。`TreeValue::branch` 表達巢狀值；巢狀鍵成為標籤，純量鍵被忽略。`TreeValue::Node` 本身可迭代，因此在所給鍵下展開其子節點，不保留該節點標籤；要保留節點本身，使用 `add_child(node)`。`Some(root)` 向同一根節點追加，`None` 建立空根。
+
+`get_children`、`get_iterator` 和 `&TreeNode` 的原生迭代均回傳 `Result<TreeNode, ConsoleError>` 項目。首次推進時取得子清單快照：此前的變動會包含在內，之後的追加需新遍歷才能看到。工廠在節點鎖外執行，每次遍歷及 `count()` 都會重新呼叫；工廠回傳擁有所有權的 `Send` 迭代器，可傳播錯誤。`lazy_keyed` 保留 `ArrayKey` 鍵，透過迭代器的 `key()` 讀取；`lazy` 對每個工廠從零編號，直接子節點使用獨立的順序編號。
+
+節點使用標準 `Arc`，不提供循環垃圾收集。回呼反向引用請用 `downgrade`／`WeakTreeNode::upgrade`；若主動建立強引用循環，結束使用後透過 `clear_children` 解除，`ptr_eq` 比較節點身分。透過 `from_values` 展開循環節點會回傳錯誤，避免無限遞迴。普通根節點及其子節點在擁有者和迭代器釋放後回收。
+
+可失敗的輸入產生者使用 `try_from_values`，逐項回傳 `Result<(key, value), ConsoleError>`；失敗前已追加的兄弟節點會保留。
+
+巢狀的一次性產生者使用 `TreeValue::iterable` 或 `try_iterable`，擁有 `Send + 'static` 迭代器，後者接受可失敗的項目。輸入按順序消費，不提前收集；巢狀分支只有完整成功後才附加。`TreeValue` 不複製或重播一次性產生者。

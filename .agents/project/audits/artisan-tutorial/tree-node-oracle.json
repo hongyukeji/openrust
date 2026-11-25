@@ -1,0 +1,1376 @@
+[
+    {
+        "root": "",
+        "kind": "empty",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior"
+        ],
+        "count": 2,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "empty",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "before-start"
+        ],
+        "count": 3,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "scalar",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "one",
+            "two"
+        ],
+        "count": 4,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "one",
+                    []
+                ],
+                [
+                    "two",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "scalar",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "one",
+            "two",
+            "before-start"
+        ],
+        "count": 5,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "one",
+                    []
+                ],
+                [
+                    "two",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "nested",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "branch",
+            "empty"
+        ],
+        "count": 4,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "a",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "b",
+                                    []
+                                ],
+                                [
+                                    "c",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "empty",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "nested",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "branch",
+            "empty",
+            "before-start"
+        ],
+        "count": 5,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "a",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "b",
+                                    []
+                                ],
+                                [
+                                    "c",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "empty",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "node",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "node-key"
+        ],
+        "count": 3,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "node-key",
+                    [
+                        [
+                            "0",
+                            []
+                        ],
+                        [
+                            "1",
+                            [
+                                [
+                                    "0",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "node",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "node-key",
+            "before-start"
+        ],
+        "count": 4,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "node-key",
+                    [
+                        [
+                            "0",
+                            []
+                        ],
+                        [
+                            "1",
+                            [
+                                [
+                                    "0",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "mixed",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "text",
+            "branch",
+            "42",
+            "last"
+        ],
+        "count": 6,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "text",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "nested",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "42",
+                    [
+                        [
+                            "0",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "",
+        "kind": "mixed",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "text",
+            "branch",
+            "42",
+            "last",
+            "before-start"
+        ],
+        "count": 7,
+        "string": "",
+        "shape": [
+            "",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "text",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "nested",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "42",
+                    [
+                        [
+                            "0",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "empty",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior"
+        ],
+        "count": 2,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "empty",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "before-start"
+        ],
+        "count": 3,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "scalar",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "one",
+            "two"
+        ],
+        "count": 4,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "one",
+                    []
+                ],
+                [
+                    "two",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "scalar",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "one",
+            "two",
+            "before-start"
+        ],
+        "count": 5,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "one",
+                    []
+                ],
+                [
+                    "two",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "nested",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "branch",
+            "empty"
+        ],
+        "count": 4,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "a",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "b",
+                                    []
+                                ],
+                                [
+                                    "c",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "empty",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "nested",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "branch",
+            "empty",
+            "before-start"
+        ],
+        "count": 5,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "a",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "b",
+                                    []
+                                ],
+                                [
+                                    "c",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "empty",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "node",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "node-key"
+        ],
+        "count": 3,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "node-key",
+                    [
+                        [
+                            "0",
+                            []
+                        ],
+                        [
+                            "1",
+                            [
+                                [
+                                    "0",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "node",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "node-key",
+            "before-start"
+        ],
+        "count": 4,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "node-key",
+                    [
+                        [
+                            "0",
+                            []
+                        ],
+                        [
+                            "1",
+                            [
+                                [
+                                    "0",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "mixed",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "text",
+            "branch",
+            "42",
+            "last"
+        ],
+        "count": 6,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "text",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "nested",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "42",
+                    [
+                        [
+                            "0",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "Root",
+        "kind": "mixed",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "text",
+            "branch",
+            "42",
+            "last",
+            "before-start"
+        ],
+        "count": 7,
+        "string": "Root",
+        "shape": [
+            "Root",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "text",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "nested",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "42",
+                    [
+                        [
+                            "0",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "empty",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior"
+        ],
+        "count": 2,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "empty",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "before-start"
+        ],
+        "count": 3,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "scalar",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "one",
+            "two"
+        ],
+        "count": 4,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "one",
+                    []
+                ],
+                [
+                    "two",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "scalar",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "one",
+            "two",
+            "before-start"
+        ],
+        "count": 5,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "one",
+                    []
+                ],
+                [
+                    "two",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "nested",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "branch",
+            "empty"
+        ],
+        "count": 4,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "a",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "b",
+                                    []
+                                ],
+                                [
+                                    "c",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "empty",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "nested",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "branch",
+            "empty",
+            "before-start"
+        ],
+        "count": 5,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "a",
+                            []
+                        ],
+                        [
+                            "deep",
+                            [
+                                [
+                                    "b",
+                                    []
+                                ],
+                                [
+                                    "c",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "empty",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "node",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "node-key"
+        ],
+        "count": 3,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "node-key",
+                    [
+                        [
+                            "0",
+                            []
+                        ],
+                        [
+                            "1",
+                            [
+                                [
+                                    "0",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "node",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "node-key",
+            "before-start"
+        ],
+        "count": 4,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "node-key",
+                    [
+                        [
+                            "0",
+                            []
+                        ],
+                        [
+                            "1",
+                            [
+                                [
+                                    "0",
+                                    []
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "mixed",
+        "mutation": false,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "text",
+            "branch",
+            "42",
+            "last"
+        ],
+        "count": 6,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "text",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "nested",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "42",
+                    [
+                        [
+                            "0",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "root": "<info>根<\/info>",
+        "kind": "mixed",
+        "mutation": true,
+        "same": true,
+        "first": "prior",
+        "held": [
+            "prior",
+            "text",
+            "branch",
+            "42",
+            "last",
+            "before-start"
+        ],
+        "count": 7,
+        "string": "<info>根<\/info>",
+        "shape": [
+            "<info>根<\/info>",
+            [
+                [
+                    "prior",
+                    []
+                ],
+                [
+                    "text",
+                    []
+                ],
+                [
+                    "branch",
+                    [
+                        [
+                            "nested",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "42",
+                    [
+                        [
+                            "0",
+                            []
+                        ]
+                    ]
+                ],
+                [
+                    "last",
+                    []
+                ],
+                [
+                    "before-start",
+                    []
+                ],
+                [
+                    "after-start",
+                    []
+                ]
+            ]
+        ]
+    },
+    {
+        "lazy": true,
+        "before": [],
+        "trace": [
+            "factory",
+            "factory2",
+            "factory",
+            "factory2"
+        ],
+        "keys": [
+            0,
+            7,
+            2,
+            1,
+            0,
+            2
+        ],
+        "values": [
+            "a",
+            "x",
+            "y",
+            "b",
+            "z",
+            "c"
+        ],
+        "count": 6
+    }
+]

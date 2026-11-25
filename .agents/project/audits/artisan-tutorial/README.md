@@ -547,3 +547,17 @@ OutputReference保留私有所选stderr；只有直接实际控制台切换，�
 首轮导出／导入及多行委托接收者编译问题已修正；32GB守卫中断不计通过，源码／日志保留后恢复同源验收。Clippy指出8参数内部转发，已合并所选目标参数为元组，不新增豁免；完整回归重新通过。终端初轮误用旧构建文件名，FileNotFound不计通过，失败日志独立保留，最终从本轮编译日志解析实际产物并重跑通过，避免把旧二进制当最终源码。Rust1.94版本化文档访问失败，仅用现行官方资料补充组合实践，NonZero布局另核本机1.94源码，编译和消费者仍固定1.94。
 
 正式证据error-style-contracts.json、accepted-error-style.json及六份oracle；原始target/tmp/artisan-tutorial-20261125/error-style-*与base-*保留。临时应用／HTTP服务／PTY／参考容器与门闩目录回收，保留源码／日志／可复用缓存与数据库／数据卷。树及TreeNode／TreeHelper／TreeStyle、完整组件Factory、通用OutputInterface／ConsoleOutputInterface和任意流／程序化缓冲继续，未声称整章或全工作区闭合；Windows实机属发布待验。仅本簇本地提交，不推送，其他在途保留。
+
+## 第三十七簇：树节点与惰性输入（2026-11-26）
+
+固定Console7.4.0 TreeNode八声明逐项核对，原有五项上游测试已读但未运行PHPUnit；实际源脚本另跑37正常/失败及转换向量，覆盖三种根标签、五种嵌套值、共享身份、首次推进快照、有键工厂、计数重放、失败时仅保留已完成兄弟及根/嵌套生产者时序。Node值按iterable优先展开并丢原标签，直接add_child保持身份；不按直觉改变此顺序。复用旧版检索确认无对应SDK，复用本仓ArrayKey/ConsoleError和原装配、样式、请求机制，不另起注册系统。
+
+原生公开TreeNode、TreeChild、TreeChildren、TreeValue、TreeValues和WeakTreeNode已由12父消费者实际调用；根/嵌套Result生产者逐项消费，避免预收集导致回调错序，嵌套成功后才附加。构造默认参数按Rust拆为new/with_children/default，动态异构值转为有序键值对与枚举，一次性嵌套迭代器为拥有所有权的Send+static；工厂Fn+Send+Sync在锁外执行，返回拥有所有权的Send迭代器。没有新增依赖、unsafe或命名lint豁免。计数和显式遍历传播原错误，不把错误项当正常节点。
+
+内存采用标准Arc/Weak及短锁快照；普通树、弱回调及主动清除强循环的释放已验，不引入全局GC/节点仓库。from_values的循环展开改为受控错误，固定源在16M限制下实际耗尽内存退出255，原生有限Result拒绝已验；这项安全差异及调用方解除强循环的责任已告知并写入三语。源首次检查器误只查stderr，实际诊断在stdout；已按真实输出重新记录，未将错误断言计作通过。
+
+真实HTTP成功200/JSON500/恢复200及12并发通过，独立handle_command子进程OS0/1通过。三语正式示例直接提取114例，各新增示例实际走四组verbosity/decoration参数；最终隔离组合框架30目标178父消费者、根6目标155父消费者共333通过，50个驱动忽略位不另算通过。Rustdoc、fmt及workspace all-targets严格Clippy通过；实际main/Pail/Artisan及三语12浏览器检查通过。首页夹具缺视图仍按既有预期500用于真实Pail错误消费，不声称首页200。
+
+初轮集合推导、测试接收者/JSON字段顺序和嵌套转换生命周期编译失败均已定位修复；最终完整门禁重新通过。三次32GB中断保留原始日志，恢复框架及其后未完成项；后两次清理等待占用进程后，复核正式守卫记录分别释放86,569,783,296与91,234,279,424字节并保留锁inode，恢复未完成门禁，不把中断或锁竞争当通过。提交前审查还发现泛型Into<TreeChild>转换在锁内执行的重入风险；独立子进程在5秒内真实死锁反例失败并被回收，随后把用户转换移到锁外。固定源Stringable重入亦实测0退出、节点顺序converted/outer；修复后完整12父消费者、严格门禁与实际消费者全部重新通过。Root源码与格式化隔离源码逐份核对，其他在途及索引不夹带。
+
+证据tree-node-contracts.json/accepted-tree-node.json及五份oracle；原始target/tmp/artisan-tutorial-20261125/tree-node-*保留。自己的运行目录/HTTP服务/参考--rm容器已回收；源码、日志和共享可复用缓存保留。TreeHelper/TreeStyle、tree/create_tree草案与游标对照尚未交付，接着完成，不把本簇当整棵树SDK、writing-output锚点或Artisan48锚点闭合；完整组件Factory、通用输出和其他章节仍按原账本。仅本簇本地提交，不推送。

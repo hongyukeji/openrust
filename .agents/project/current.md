@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-26 Artisan第三十七簇TreeNode已验：固定源八声明、37向量，根/嵌套惰性与Result生产者、共享身份/弱引用/强循环释放、真实HTTP恢复及CLI0/1通过；三语114例、333父消费者和严格门禁通过。见[树节点记录](audits/artisan-tutorial/tree-node-contracts.json)。继续TreeHelper/TreeStyle及tree/create_tree、组件/通用输出，整章未闭合，不推送。
+
 - 2026-11-25 Artisan第三十六簇基础ConsoleStyle／get_error_style已验：240捕获／分区与120真实控制台逐一对照，51公开助手／基础Trait双路／真实流式门闩及stdout／stderr TTY0／130通过；三语111例、318父消费者、HTTP恢复／并发、独立CLI与严格门禁通过。见[最新记录](audits/artisan-tutorial/README.md)。树／组件／通用输出及整章继续，不推送。
 
 - 2026-11-25 Artisan第三十五簇StyleInterface全部18入口已验：96源连续序列经泛型／dyn两路核对，修复连续问答历史；三语108例、308父消费者、真实HTTP／CLI与动态和具体TTY0／130、严格门禁通过。见[最新记录](audits/artisan-tutorial/README.md)。基类错误流样式／树／组件／通用输出及整章继续，不推送。

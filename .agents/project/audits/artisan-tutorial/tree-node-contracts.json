@@ -1,0 +1,81 @@
+{
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "docs": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+    "console": "Symfony Console v7.4.0 Helper/TreeNode.php; Tests/Helper/TreeNodeTest.php",
+    "license": "vendor/openrust/framework/src/console/LICENSE.symfony",
+    "reuse": "v0.x 6d1a81924451e15f595f68c8dfb520ad6d6c44cf 无对应SDK；复用现有ArrayKey、ConsoleError、OutputStyle与装配/HTTP/Artisan机制"
+  },
+  "status": "verified_tree_node_and_typed_iterable_values_only",
+  "source_entries": {
+    "__construct": "TreeNode::new / with_children / default",
+    "fromValues": "TreeNode::from_values / try_from_values",
+    "getValue": "TreeNode::get_value",
+    "addChild": "TreeNode::add_child",
+    "getChildren": "TreeNode::get_children",
+    "getIterator": "TreeNode::get_iterator and IntoIterator for &TreeNode",
+    "count": "TreeNode::count -> Result<usize,ConsoleError>",
+    "__toString": "Display"
+  },
+  "native_adapters": [
+    "TreeValue::branch, iterable, try_iterable",
+    "TreeValues ordered ArrayKey pairs",
+    "TreeChild::lazy / lazy_keyed",
+    "TreeChildren Iterator<Result<TreeNode,ConsoleError>> and key",
+    "WeakTreeNode::upgrade; TreeNode::downgrade / ptr_eq / clear_children"
+  ],
+  "source_vectors": 37,
+  "oracles": [
+    "tree-node-oracle.json",
+    "tree-node-failure-oracle.json",
+    "tree-node-incremental-oracle.json",
+    "tree-node-input-failure-oracle.json",
+    "tree-node-nested-oracle.json"
+  ],
+  "native_tests": "console_tree_nodes: 12 parent consumers; two ignored subprocess fixtures actually invoked by their parents, not counted as additional passes",
+  "source_conversion": {
+    "reference": "Stringable argument conversion can reenter addChild",
+    "expected": [
+      "converted",
+      "outer"
+    ],
+    "source_exit": 0,
+    "native_before": "bounded actual subprocess deadlocks and is killed/reaped after5s; parent fails",
+    "native_after": "child_conversion_runs_outside_the_node_lock succeeds in full final suite"
+  },
+  "actual_consumers": {
+    "http": "成功200/JSON500/恢复200/12并发",
+    "artisan": "handle_command真实子进程OS0/1",
+    "formal_docs": "三语正文直接提取114例，新增3例各四verbosity/decoration参数",
+    "main": "实际主二进制HTTP /up/static/HTML404/JSON404/HEAD；Artisan inspire/list/Pail过滤、详细错误捕获、超时回收与Ctrl+C0",
+    "browser": "三语×375/1440×根/子路径12组"
+  },
+  "counts": {
+    "framework": {
+      "targets": 30,
+      "passed": 178,
+      "ignored_drivers": 50
+    },
+    "root": {
+      "targets": 6,
+      "passed": 155,
+      "ignored_drivers": 0
+    }
+  },
+  "rust_adaptations": [
+    "字符串强类型、默认参数拆分new/with_children/default；异构迭代值用TreeValue枚举、有序键值对",
+    "Root producer accepts borrowed finite iterators; nested one-shot iterators are owned Send+static and are not Clone/replayed; fallible root/nested items use Result adapters without precollection",
+    "Fn+Send+Sync factory returns owned Send iterator; direct and lazy children preserve distinct key sequences; factories run outside locks and are reevaluated by each traversal/count",
+    "Arc preserves identity; short mutex snapshots preserve mutation timing; standard Weak backreferences and explicit clear_children replace automatic cycle GC; acyclic/callback/explicit-cycle release actually verified",
+    "from_values Node iterable classification precedes scalar identity; shared nodes are expanded under their supplied key, direct add_child retains identity",
+    "cyclic from_values gets a controlled error; fixed source with 16M limit actually exits255 with memory exhaustion instead of a finite result; native guard tested, not claimed byte-equivalent"
+  ],
+  "boundaries": [
+    "TreeHelper, TreeStyle and OutputStyle/ConsoleStyle tree/create_tree are not delivered here; fixed source prototypes/oracles remain unaccepted temporary research",
+    "complete component Factory and general output interfaces remain open",
+    "PHPUnit suite was read, not executed; actual source scripts are in target/tmp only, ordinary regression consumes saved oracles",
+    "Windows/release matrix not revalidated"
+  ],
+  "cleanup": "32GB stops never counted as pass; latest locked global events released86569783296 and91234279424 bytes with lock inodes preserved; root/gates resumed after recovery; preserve source/logs/cache/downloads/databases/volumes; own runtimes and PHP --rm containers closed",
+  "pushed": false
+}

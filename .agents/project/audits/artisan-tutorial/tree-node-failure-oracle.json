@@ -1,0 +1,17 @@
+{
+    "target": [
+        "prior",
+        "ok"
+    ],
+    "trace": [
+        [
+            "open",
+            2
+        ],
+        [
+            "error",
+            2
+        ]
+    ],
+    "error": "consumer failure"
+}

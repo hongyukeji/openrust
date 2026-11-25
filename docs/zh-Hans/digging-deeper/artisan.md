@@ -1507,3 +1507,41 @@ fn register_error_style() -> Result<(), ConsoleError> {
 返回的样式独占借用输出，结束其作用域后再通过原样式写入；它共享真实目标，不复制输出缓冲。换行计数查询在基础样式边界停止，实际写入仍到达底层目标。嵌套调用 `get_error_style` 仍返回基础类型。
 
 `ConsoleStyle::write_iter` 和 `writeln_iter` 在请求下一项之前逐条写出；派生 `OutputStyle` 保留原有的换行统计准备。两种类型复用同一格式器与渲染引擎，不代表通用第三方 `OutputInterface` 已实现。树助手及其余组件 API 另行跟踪。
+
+## 树节点与惰性子节点 {#tree-nodes}
+
+`TreeNode` 保存只读标签和共享的节点身份。`new(value)` 创建空节点，`with_children(value, children)` 添加初始子节点，`default()` 使用空标签。`add_child` 接受节点、字符串或 `TreeChild::lazy`；克隆节点会共享身份，不复制整棵树。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle, TreeChild, TreeNode, TreeValue};
+use openrust::support::facades::Artisan;
+
+fn register_tree_nodes() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:tree-nodes", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let root = TreeNode::from_values(
+                [("languages", TreeValue::branch([(0_i64, "Rust"), (1_i64, "Go")]))],
+                Some(TreeNode::new("Project")),
+            )?;
+            root.add_child("Ready");
+            root.add_child(TreeChild::lazy(|| [Ok(TreeNode::new("Generated"))]));
+            OutputStyle::new(input, output).writeln(
+                format!("{}:{}", root.get_value(), root.count()?).as_str(),
+                OutputOptions::default(),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`from_values` 接受有序键值对。`TreeValue::branch` 表达嵌套值；嵌套键成为标签，标量键被忽略。`TreeValue::Node` 本身可迭代，因此在所给键下展开其孩子，不保留该节点标签；要保留节点本身，使用 `add_child(node)`。`Some(root)` 向同一根节点追加，`None` 创建空根。
+
+`get_children`、`get_iterator` 和 `&TreeNode` 的原生迭代均返回 `Result<TreeNode, ConsoleError>` 项。首次推进时取得子列表快照：此前的改动会包含在内，之后的追加需新遍历才能看到。工厂在节点锁外执行，每次遍历及 `count()` 都会重新调用；工厂返回拥有所有权的 `Send` 迭代器，可传播错误。`lazy_keyed` 保留 `ArrayKey` 键，通过迭代器的 `key()` 读取；`lazy` 对每个工厂从零编号，直接子节点使用单独的顺序编号。
+
+节点使用标准 `Arc`，不提供循环垃圾收集。回调反向引用请用 `downgrade`／`WeakTreeNode::upgrade`；若主动创建强引用循环，结束使用后通过 `clear_children` 解除，`ptr_eq` 比较节点身份。通过 `from_values` 展开循环节点会返回错误，避免无限递归。普通根节点及其孩子在所有者和迭代器释放后回收。
+
+可失败的输入生产者使用 `try_from_values`，逐项返回 `Result<(key, value), ConsoleError>`；失败前已追加的兄弟节点会保留。
+
+嵌套的一次性生产者使用 `TreeValue::iterable` 或 `try_iterable`，拥有 `Send + 'static` 迭代器，后者接受可失败的项。输入按顺序消费，不提前收集；嵌套分支只有完整成功后才附加。`TreeValue` 不克隆或重放一次性生产者。

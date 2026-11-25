@@ -1330,6 +1330,120 @@
           "error-style-contracts.json"
         ]
       }
+    ],
+    "TreeNode": [
+      {
+        "method": "__construct",
+        "native": "TreeNode::new / with_children / default",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "fromValues",
+        "native": "TreeNode::from_values / try_from_values",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "getValue",
+        "native": "TreeNode::get_value",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "addChild",
+        "native": "TreeNode::add_child",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "getChildren",
+        "native": "TreeNode::get_children",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "getIterator",
+        "native": "TreeNode::get_iterator and IntoIterator for &TreeNode",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "count",
+        "native": "TreeNode::count -> Result<usize,ConsoleError>",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      },
+      {
+        "method": "__toString",
+        "native": "Display",
+        "status": "verified_actual_public_consumers",
+        "evidence": [
+          "console_tree_nodes",
+          "tree-node-contracts.json",
+          "tree-node-oracle.json",
+          "tree-node-failure-oracle.json",
+          "tree-node-incremental-oracle.json",
+          "tree-node-input-failure-oracle.json",
+          "tree-node-nested-oracle.json"
+        ]
+      }
     ]
   },
   "notes": [
@@ -1872,7 +1986,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "SymfonyStyle继承的tree、create_tree及对应TreeNode/TreeHelper/TreeStyle逐类型入口继续；错误基础类型及已实现51助手／StyleInterface均已验。",
+    "TreeNode及原生惰性值适配已验；SymfonyStyle继承的tree/create_tree及TreeHelper/TreeStyle仍待实现与完整验收；基础样式及已有助手保持闭合。",
     "完整组件Factory继续逐类型核对，不以既有OutputStyle助手代替组件公开入口。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ]

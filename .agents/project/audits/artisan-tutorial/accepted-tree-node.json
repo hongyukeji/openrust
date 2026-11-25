@@ -1,0 +1,88 @@
+{
+  "source_base": "661ba7ff59a0a6d2892d8fe44c9ad6a4e7e97b47",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/mod.rs": "250a9c1064cf8deda4dd2ff7e33e2f6762747de0856f807f286199ca43026a46",
+    "vendor/openrust/framework/src/console/tree/mod.rs": "82b1f2d55d16bbb225742733a5b1a7c987fe81f375e3e8397801e99416b015a2",
+    "vendor/openrust/framework/src/console/tree/node.rs": "eccb0234d7e68d60f0fb28f9138c3424188b728761d68b4d6a91c3ac60066245",
+    "vendor/openrust/framework/tests/console_tree_nodes.rs": "b86e7b0788adcfdcba342c9496a9e9c679bdce5df591be668a8ecca2c3bee120",
+    "tests/artisan_tutorial_docs.py": "89482d8f95db254238a9a238a1d1b30076d002f46548f3dbccf35dfe9aa96e36",
+    "docs/tests/check_artisan_tutorial.mjs": "42f4a23a0ab1cd39e6c98203f7579cf9860e9bf7c1cfd443a4a342e04eb9001e",
+    "docs/en/digging-deeper/artisan.md": "a86dbdf976a5478ede0a66f6f1265008b51f9887880d069b60c046a6db0b5b07",
+    "docs/zh-Hans/digging-deeper/artisan.md": "38b98917cf966f6ea809eff841db37f7c08fcab9053e7818033d30dbfc57d97e",
+    "docs/zh-Hant/digging-deeper/artisan.md": "7931f357513a56af106e1fc45fc7069ffe2a5d66e1f77f0e44c17757d9a947fb",
+    ".agents/project/audits/artisan-tutorial/tree-node-oracle.json": "54f263661c0be7e6a4d3d6604ec9d5028811810f695e853c1bdce41e7d73497e",
+    ".agents/project/audits/artisan-tutorial/tree-node-failure-oracle.json": "9473e940f1253098179a5a506651407da3cebfe06ffde9abc97b68423d965664",
+    ".agents/project/audits/artisan-tutorial/tree-node-incremental-oracle.json": "521d1f2824298e453e4fbfb48b26988e8ee701f6d7db2879bb92ae7883f05bb3",
+    ".agents/project/audits/artisan-tutorial/tree-node-input-failure-oracle.json": "19c296bea58b9dbcd228c9ffbd72e37c249c7d1cded95ac3e90f7c2046662a65",
+    ".agents/project/audits/artisan-tutorial/tree-node-nested-oracle.json": "4bfc88d9644c8e93716a990ef0ed633ed7fe4bcc02e81ecd02e67bb19be5da93",
+    ".agents/project/audits/artisan-tutorial/tree-node-contracts.json": "85848efa7220bdf2b08ffa90576959a215d8a72d39b03a52153753b98ef50aa2",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "14ff8db9e269a22e5f525e57ff54921ee89e7f38c67535c046700f9c4a716282",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "68522564b9d4320a0522b800a771f7dd4455651b932ab00fdd5735f9559dab04",
+    ".agents/project/audits/artisan-tutorial/README.md": "ad0f044b15a61073cbe83c7fddb93d99efd1a0bdf7be92e511341988107d2f59",
+    ".agents/project/current.md": "ca008aa8f12e98b115021d4de1ef09fea628bfc87366661ad4da3ec7c7f0421c"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-definition",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-base",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-style",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-reference",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "framework": {
+      "targets": 30,
+      "passed": 178,
+      "ignored_drivers": 50
+    },
+    "root": {
+      "targets": 6,
+      "passed": 155,
+      "ignored_drivers": 0
+    }
+  },
+  "notes": "与各阶段真实运行源字节一致；三次中断及失败日志保留；本记录不表示其他在途或全部章节完成",
+  "pushed": false
+}
