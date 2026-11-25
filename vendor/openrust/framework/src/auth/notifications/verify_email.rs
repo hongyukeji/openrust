@@ -8,7 +8,10 @@ use aws_lc_rs::digest;
 
 use crate::{
     auth::{AuthError, AuthResult},
-    contracts::{auth::MustVerifyEmail, config::Repository, container::Container as _},
+    contracts::{
+        auth::MustVerifyEmail, config::Repository, container::Container as _,
+        foundation::Application as _,
+    },
     notifications::messages::MailDelivery,
     routing::{RouteParameter, SignatureMode},
     support::facades::{Url, current_container},
@@ -20,6 +23,20 @@ use super::{LinkMail, MailCallbacks, route_id, send_mail};
 pub struct VerifyEmail;
 
 impl VerifyEmail {
+    /// 按所属应用与实际能力类型决定是否发送；回调错误直接失败，不影响其他类型。
+    pub fn send_when<T: std::any::Any>(
+        app: &crate::foundation::Application,
+        callback: impl Fn(&dyn MustVerifyEmail) -> AuthResult<bool> + Send + Sync + 'static,
+    ) -> AuthResult<()> {
+        app.container()
+            .make::<std::sync::RwLock<MailCallbacks>>()?
+            .write()
+            .expect("auth mail callbacks lock")
+            .verify_conditions
+            .insert(std::any::TypeId::of::<T>(), Arc::new(callback));
+        Ok(())
+    }
+
     /// 为所属应用的实际用户能力类型选择队列；None恢复同步，其他模型保持原行为。
     pub fn queue_for<T: std::any::Any>(
         app: &crate::foundation::Application,
@@ -92,6 +109,18 @@ impl VerifyEmail {
     }
 
     pub async fn send(user: &dyn MustVerifyEmail) -> AuthResult<()> {
+        let condition = MailCallbacks::get()?
+            .read()
+            .expect("auth mail callbacks lock")
+            .verify_conditions
+            .get(&(user as &dyn std::any::Any).type_id())
+            .cloned();
+        if let Some(condition) = condition
+            && !condition(user)?
+        {
+            return Ok(());
+        }
+
         send_mail(
             "VerifyEmail",
             user.get_email_for_verification(),

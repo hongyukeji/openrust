@@ -12,6 +12,8 @@ use crate::{
 
 type ResetUrl = dyn Fn(&dyn CanResetPassword, &str) -> AuthResult<String> + Send + Sync;
 type ResetMail = dyn Fn(&dyn CanResetPassword, &str) -> AuthResult<MailDelivery> + Send + Sync;
+pub(super) type VerifyCondition = dyn Fn(&dyn MustVerifyEmail) -> AuthResult<bool> + Send + Sync;
+
 type VerifyUrl = dyn Fn(&dyn MustVerifyEmail) -> AuthResult<String> + Send + Sync;
 type VerifyMail = dyn Fn(&dyn MustVerifyEmail, &str) -> AuthResult<MailDelivery> + Send + Sync;
 
@@ -19,6 +21,8 @@ type VerifyMail = dyn Fn(&dyn MustVerifyEmail, &str) -> AuthResult<MailDelivery>
 pub(crate) struct MailCallbacks {
     pub(super) queues:
         std::collections::BTreeMap<(std::any::TypeId, &'static str), super::AuthMailQueueOptions>,
+    pub(super) verify_conditions:
+        std::collections::BTreeMap<std::any::TypeId, Arc<VerifyCondition>>,
     pub(super) reset_url: Option<Arc<ResetUrl>>,
     pub(super) reset_mail: Option<Arc<ResetMail>>,
     pub(super) verify_url: Option<Arc<VerifyUrl>>,

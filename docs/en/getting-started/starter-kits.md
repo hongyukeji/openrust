@@ -326,6 +326,8 @@ Browser feedback retains the native flash status codes and translates their disp
 
 ## Authentication mail queues and development preview {#auth-mail-queue}
 
+The email-verification switch applies to the concrete starter user type, not every verification notification in the application. Other models retain their own verification flow. Advanced providers can use `VerifyEmail::send_when::<User>(app, |user| Ok(true))` to decide whether that type sends; returning an error fails the send. This condition is evaluated before rendering or enqueueing, and remains isolated by application.
+
 Mail is synchronous by default, matching the native notification flow. To send through a separate Worker, configure the generated `config/user.rs` after installation:
 
 ```rust

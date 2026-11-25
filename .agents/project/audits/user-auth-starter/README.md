@@ -379,3 +379,14 @@ web-sensitive-runtime-final.log用生成full应用实际重建、真实Artisan i
 Mailpit固定v1.34.0，镜像digest sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e；原共享旧镜像保留。auth-mailpit-runtime-final.log／json三语真实注册201、三次真实Worker退出0，API确认每封真实验证链接及各语言主题。首轮比较大小写收件人失败，修正验收断言为邮件地址规范化比较，没有修改生产逻辑。auth-mailpit-browser.json三语桌面／手机共6次打开实际邮件，脚本错误为空；手机截图人工复核显示繁体正文与按钮。容器只暴露随机回环端口、tmpfs存预览、没有真实供应商转发；结束直接删除本批容器，不动数据库／数据卷。教程提供宿主机Mailpit配置、容器网络区别和MAIL_URL优先级。auth-mail-docs-final.log三语站构建及两挂载／桌面手机12组正文浏览器全部通过。
 
 边界：请求成功只表示入队；SMTP受理后、队列确认前崩溃仍可能重复邮件，不宣称恰好一次，重置单用与验证幂等分别保证。真实SMTP账号、生产TLS、外部投递及手机／邮箱最终收信仍属外部发布验收。本项未闭合A01整体，后续仍需数据库设备列表、头像／DeleteUser可靠清理、Passkey／第三方登录及完整因素页面、S10自定义用户与安装矩阵；复核还须将旧DisableVerificationMail事件策略限定到套件用户，不能以当前队列类型隔离代替全局事件范围核对。清单及最终SHA见auth-mail-files.json／auth-mail-final-source-sha.json，清理与剩余空间见auth-mail-delivery-space.json。未推送。
+
+
+## A01-02／05：验证邮件策略的模型隔离（本子单元验收通过）
+
+修复上节复核登记的DisableVerificationMail范围问题：不再以全局NotificationSending事件按VerifyEmail字符串拦截所有用户。复用所属应用的认证邮件回调表，增加VerifyEmail::send_when::<T>类型条件，在生成URL、渲染或入队前执行；其他类型默认保留原生行为。错误直接向外返回，回调在释放注册表读锁后调用。套件configure_mail_queue无论同步或队列模式均按实际用户类型注册验证开关；关闭验证但使用包装能力时明确拒绝并要求手动接线，避免策略静默失效。移除旧事件监听器及其文件，默认Provider调用顺序与路由保持不变。
+
+verification-policy-first／resumed／second／third保留初次路径、trait导入及无From夹具失败，不计通过。修正本任务测试夹具后，verification-policy-final-gates首项通过但后续触32GB守卫退出75，不把中断计为完成；守卫因其他构建仍活跃而拒绝删除占用产物，恢复空间后继续。verification-policy-gates-resumed.log启用／未启用Sanctum各1项模型与App隔离、队列回归2项及workspace／feature严格Clippy／fmt最终退出0。不同模型使用独立验证URL回调完成原生邮件投递，当前套件被禁止类型零发送；同一类型在另一个应用正常发送，条件错误不增加发送记录。
+
+随后吸收已提交公共依赖到be4cf61a0，保留其他代理未提交改动与下一批设备源码在工作区，实际组合见verification-policy-combination-head.txt。verification-policy-combination.log独立MySQL8.4.13和PostgreSQL18.7各执行认证队列2项及隔离1项，完整Sanctum套件50项，workspace严格Clippy1分08秒、feature37.32秒及fmt通过。无环境提前返回不计外部数据库实测。前批Redis队列2项未受存储实现变化，复用既有证据，不声称本批重跑Redis。
+
+verification-policy-docs.log三语正文构建及两挂载／桌面手机12组通过，说明send_when公开调用及非全局阻断。交付清单／源码SHA见verification-policy-files.json／verification-policy-final-source-sha.json。清理仅本批文档dist与缓存，真实剩余空间见verification-policy-delivery-space.json；可复用Cargo缓存、源码、日志、数据库与数据卷保留。此项只闭合邮件策略范围，继续数据库设备管理、头像与注销、可选因素及安装矩阵，不闭合A01整体。未推送。

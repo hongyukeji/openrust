@@ -28,7 +28,6 @@ mod responses;
 #[cfg(feature = "sanctum")]
 pub mod updates;
 mod user_resource;
-mod verification_policy;
 mod views;
 #[cfg(feature = "sanctum")]
 pub(crate) mod web;

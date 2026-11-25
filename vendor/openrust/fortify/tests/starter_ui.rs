@@ -5118,3 +5118,64 @@ async fn auth_mail_queue_disabled_verification_never_queues_delayed_verification
             .contains("/reset-password/")
     );
 }
+
+#[path = "../../../../app/models/user.rs"]
+mod unrelated_verification_user;
+
+#[tokio::test]
+async fn verification_mail_policy_is_scoped_to_the_user_type_and_application() {
+    use openrust::support::facades::Facade as _;
+    use openrust::{
+        auth::notifications::VerifyEmail,
+        database::{Value as DbValue, eloquent::Model},
+        support::facades::App,
+    };
+    let disabled = start_security_catalog_mail(
+        "full",
+        false,
+        false,
+        "api",
+        false,
+        Some(json!({"default":"array","from":{"address":"policy@example.test","name":"Policy"},"mailers":{"array":{"transport":"array"}}})),
+    )
+    .await;
+    let enabled = start().await;
+    let mut user = app::models::User::new_instance(Default::default()).unwrap();
+    user.set_attribute("id", DbValue::Integer(70));
+    user.set_attribute("email", DbValue::Text("suite-policy@example.test".into()));
+    let mut other = unrelated_verification_user::User::new_instance(Default::default()).unwrap();
+    other.set_attribute("id", DbValue::Integer(71));
+    other.set_attribute("email", DbValue::Text("admin-policy@example.test".into()));
+    App::set_facade_application(Some(disabled._kernel.get_application()), async {
+        VerifyEmail::create_url_using(|_| Ok("https://admin.example.test/verify".into())).unwrap();
+        VerifyEmail::send(&user).await.unwrap();
+        assert!(disabled.mailer.sent().unwrap().is_empty());
+        VerifyEmail::send(&other).await.unwrap();
+        assert_eq!(
+            disabled.mailer.sent().unwrap().len(),
+            1,
+            "其他具体用户不受套件开关影响"
+        );
+        VerifyEmail::send_when::<unrelated_verification_user::User>(
+            disabled._kernel.get_application(),
+            |_| Err(openrust::auth::AuthError::Configuration("拒绝发送")),
+        )
+        .unwrap();
+        assert!(VerifyEmail::send(&other).await.is_err());
+        assert_eq!(
+            disabled.mailer.sent().unwrap().len(),
+            1,
+            "策略错误不得发送或吞掉错误"
+        );
+    })
+    .await;
+    App::set_facade_application(Some(enabled._kernel.get_application()), async {
+        VerifyEmail::send(&user).await.unwrap();
+        assert_eq!(
+            enabled.mailer.sent().unwrap().len(),
+            1,
+            "相同模型在另一个应用默认发送"
+        );
+    })
+    .await;
+}

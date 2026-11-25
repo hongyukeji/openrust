@@ -326,6 +326,8 @@ curl -X PUT "$APP_URL/api/user/profile-information" \
 
 ## 认证邮件队列与开发预览 {#auth-mail-queue}
 
+邮箱验证开关只作用于套件的具体用户类型，不会全局拦截应用的所有验证通知；其他模型保留自己的验证流程。高级 Provider 可用 `VerifyEmail::send_when::<User>(app, |user| Ok(true))` 决定该类型是否发送，回调错误直接使发送失败。条件在渲染及入队前执行，并按应用隔离。
+
 默认沿用原生同步邮件。需要请求快速返回、由独立 Worker 发送时，在安装后生成的 `config/user.rs` 配置：
 
 ```rust

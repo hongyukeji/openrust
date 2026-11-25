@@ -81,10 +81,25 @@ fn persistent(
 /// 队列名为null时同步发送；开启后按实际用户类型装配原生通知加密与队列策略。
 pub fn configure_mail_queue<M: Authenticatable + Model>(app: &Application) -> ProviderResult {
     let config = app.container().make::<dyn Repository>()?;
+    let verification =
+        super::configuration::boolean(config.as_ref(), "user.email_verification", true)?;
+    if !verification {
+        let probe = M::new_instance(Default::default())?;
+        if probe
+            .as_email_verification()
+            .is_none_or(|user| (user as &dyn Any).type_id() != TypeId::of::<M>())
+        {
+            return Err(AuthError::Configuration(
+                "关闭套件邮箱验证需要模型直接提供MustVerifyEmail；包装能力须手动注册实际类型策略",
+            )
+            .into());
+        }
+    }
     let queue = option(config.as_ref(), "user.mail.queue")?;
     let Some(queue) = queue else {
         ResetPassword::queue_for::<M>(app, None)?;
         VerifyEmail::queue_for::<M>(app, None)?;
+        VerifyEmail::send_when::<M>(app, move |_| Ok(verification))?;
         return Ok(());
     };
     let connection = option(config.as_ref(), "user.mail.connection")?;
@@ -138,5 +153,6 @@ pub fn configure_mail_queue<M: Authenticatable + Model>(app: &Application) -> Pr
             None
         },
     )?;
+    VerifyEmail::send_when::<M>(app, move |_| Ok(verification))?;
     Ok(())
 }
