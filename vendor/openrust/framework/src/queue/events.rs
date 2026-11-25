@@ -171,6 +171,16 @@ queue_event!(
 );
 
 queue_event!(
+    /// Redis 已准备好投递 ID，即将写入即时或延迟队列。
+    RedisJobQueueing { connection_name: String, queue: String, id: String, job: Payload }
+);
+
+queue_event!(
+    /// Redis 已将任务移入保留队列。
+    RedisJobReserved { connection_name: String, job: JobSnapshot }
+);
+
+queue_event!(
     /// A worker reserved a job before executing it.
     JobPopped {
         connection_name: String,

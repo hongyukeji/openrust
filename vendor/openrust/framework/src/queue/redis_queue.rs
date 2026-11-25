@@ -12,6 +12,7 @@ use crate::{
 
 use super::{
     Delay, JobContext, Payload, Queue, QueueError, QueueFuture, QueueResult, backend,
+    events::{JobQueued, JobSnapshot, RedisJobQueueing, RedisJobReserved},
     jobs::{Reservation, ReservedJob},
     new_id, queue_name,
 };
@@ -175,14 +176,24 @@ impl RedisQueue {
             ),
         };
         command.arg(raw).arg(milliseconds(duration)?).arg(mode);
+        let manager = self.registry.manager()?;
+        if manager.observes_worker_event(RedisJobQueueing::NAME)? {
+            manager
+                .emit_control_event(RedisJobQueueing {
+                    connection_name: self.name.clone(),
+                    queue: queue.into(),
+                    id: job.id.clone(),
+                    job: payload.clone(),
+                })
+                .await?;
+        }
         self.connection
             .query::<u32>(&command)
             .await
             .map_err(backend)?;
-        let manager = self.registry.manager()?;
-        if manager.observes_worker_event(super::events::JobQueued::NAME)? {
+        if manager.observes_worker_event(JobQueued::NAME)? {
             manager
-                .emit_control_event(super::events::JobQueued {
+                .emit_control_event(JobQueued {
                     connection_name: self.name.clone(),
                     queue: queue.into(),
                     id: job.id.clone(),
@@ -221,7 +232,7 @@ impl RedisQueue {
             reserved,
             raw,
         };
-        Ok(Some(Box::new(ReservedJob {
+        let reservation = ReservedJob {
             registry: self.registry.clone(),
             storage: Box::new(storage),
             id: job.id,
@@ -236,7 +247,17 @@ impl RedisQueue {
             deleted: false,
             released: false,
             failed: false,
-        })))
+        };
+        let manager = self.registry.manager()?;
+        if manager.observes_worker_event(RedisJobReserved::NAME)? {
+            manager
+                .emit_control_event(RedisJobReserved {
+                    connection_name: self.name.clone(),
+                    job: JobSnapshot::from_job(&reservation),
+                })
+                .await?;
+        }
+        Ok(Some(Box::new(reservation)))
     }
     async fn pop_waiting(
         &self,

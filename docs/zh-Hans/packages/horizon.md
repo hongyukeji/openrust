@@ -53,6 +53,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 设置 `HORIZON_NAME` 可在面板的页面标题和主标题显示部署名称。
 
+从 `openrust_horizon` 导入事件类型，为 `JobPending::NAME`、`JobPushed::NAME` 和 `JobReserved::NAME` 注册同步监听器。三个事件分别在 Redis 写入前、成功写入后和保留任务后派发，提供连接、队列、投递 ID 和原生载荷。`JobReserved` 的 `job` 快照还提供尝试次数。使用载荷 UUID 关联同一任务的不同投递。
+
 长等待告警在邮件主题、短信正文和 Slack 详情中显示部署名称。`Horizon::route_slack_notifications_to` 接受传入 Webhook 地址或频道 ID。频道 ID 使用 Slack Bot API，需配置 `services.slack.notifications.bot_user_oauth_token`。
 
 使用 `Horizon::route_slack_webhook_notifications_to(url, channel)` 可在传入 Webhook 的载荷中指定频道。Slack 应用的传入 Webhook 固定投递到安装时选定的频道。需要按请求指定目标频道时，使用 Bot API 频道 ID。

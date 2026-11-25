@@ -1,0 +1,54 @@
+use openrust::{
+    contracts::events::Event,
+    queue::{Payload, events::JobSnapshot},
+};
+
+macro_rules! enqueue_event {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug)]
+        pub struct $name {
+            pub connection_name: String,
+            pub queue: String,
+            pub id: String,
+            pub payload: Payload,
+        }
+
+        impl $name {
+            pub const NAME: &str = stringify!($name);
+        }
+
+        impl Event for $name {
+            fn name(&self) -> &str {
+                Self::NAME
+            }
+        }
+    };
+}
+
+enqueue_event!(
+    /// Redis 写入任务前的投递快照。
+    JobPending
+);
+
+enqueue_event!(
+    /// Redis 接受即时或延迟任务后的投递快照。
+    JobPushed
+);
+
+/// Redis 保留任务后、Worker 执行前的快照。队列、投递 ID、载荷和尝试次数在 `job` 中。
+#[derive(Clone, Debug)]
+pub struct JobReserved {
+    pub connection_name: String,
+    pub job: JobSnapshot,
+}
+
+impl JobReserved {
+    pub const NAME: &str = "JobReserved";
+}
+
+impl Event for JobReserved {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}

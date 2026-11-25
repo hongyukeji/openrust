@@ -247,6 +247,273 @@ impl openrust::contracts::queue::JobHandler for Handler {
         })
     }
 }
+
+#[derive(Debug)]
+struct TransportObservation {
+    name: String,
+    queue: String,
+    id: String,
+    uuid: String,
+    counts: Option<(u64, u64, u64)>,
+    status: String,
+    monitored: bool,
+    attempts: u32,
+}
+
+struct TransportListener {
+    queue: Arc<dyn openrust::contracts::queue::Queue>,
+    repository: Arc<Repository>,
+    observations: std::sync::Mutex<Vec<TransportObservation>>,
+}
+
+impl openrust::contracts::events::Listener for TransportListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn openrust::contracts::events::Event,
+        _: &'a mut openrust::events::EventContext<'_>,
+    ) -> openrust::events::EventFuture<
+        'a,
+        openrust::events::EventResult<Option<openrust::events::ListenerResponse>>,
+    > {
+        Box::pin(async move {
+            use openrust_horizon::{JobPending, JobPushed, JobReserved};
+            let (connection, queue, id, payload, attempts) =
+                if let Some(event) = event.downcast_ref::<JobPending>() {
+                    (
+                        &event.connection_name,
+                        &event.queue,
+                        &event.id,
+                        &event.payload,
+                        0,
+                    )
+                } else if let Some(event) = event.downcast_ref::<JobPushed>() {
+                    (
+                        &event.connection_name,
+                        &event.queue,
+                        &event.id,
+                        &event.payload,
+                        0,
+                    )
+                } else if let Some(event) = event.downcast_ref::<JobReserved>() {
+                    (
+                        &event.connection_name,
+                        &event.job.queue,
+                        &event.job.id,
+                        &event.job.payload,
+                        event.job.attempts,
+                    )
+                } else {
+                    return Ok(None);
+                };
+            assert_eq!(connection, "redis");
+            let counts = self.queue.metrics(Some(queue)).await.ok().map(|metrics| {
+                (
+                    metrics.pending.unwrap(),
+                    metrics.delayed.unwrap(),
+                    metrics.reserved.unwrap(),
+                )
+            });
+            let details = self.repository.jobs().find(id).await.unwrap().unwrap();
+            let monitored = self
+                .repository
+                .tags()
+                .jobs("tracked")
+                .await
+                .unwrap()
+                .contains(id);
+            self.observations
+                .lock()
+                .unwrap()
+                .push(TransportObservation {
+                    name: event.name().into(),
+                    queue: queue.clone(),
+                    id: id.clone(),
+                    uuid: payload.uuid().into(),
+                    counts,
+                    status: details.record.status,
+                    monitored,
+                    attempts,
+                });
+            Ok(None)
+        })
+    }
+}
+
+fn transport_config(
+    base: &Path,
+    env: &Environment,
+) -> Result<BTreeMap<String, Value>, ConfigError> {
+    let mut settings = config(base, env)?;
+    let database = settings.get_mut("database").unwrap();
+    database["default"] = json!("sqlite");
+    database["connections"] = json!({"sqlite":{"driver":"sqlite","database":":memory:"}});
+    Ok(settings)
+}
+
+fn transport_routes() -> Result<(), openrust::routing::RoutingError> {
+    Horizon::tag(|_| vec!["tracked".into()]).unwrap();
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_public_transport_events_follow_writes_reservations_and_commit() {
+    use openrust::{
+        contracts::events::Dispatcher as _,
+        database::DatabaseManager,
+        events::{Delivery, Dispatcher},
+        queue::{Delay, DispatchOptions, DispatchResult, Payload, QueueManager},
+    };
+    use openrust_horizon::{JobPending, JobPushed, JobReserved};
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(transport_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(transport_routes))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    repository.tags().monitor("tracked").await.unwrap();
+    let listener = Arc::new(TransportListener {
+        queue: queue.clone(),
+        repository,
+        observations: Default::default(),
+    });
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    for name in [JobPending::NAME, JobPushed::NAME, JobReserved::NAME] {
+        dispatcher
+            .listen(name, listener.clone(), Delivery::Sync)
+            .unwrap();
+    }
+    let payload = Payload::new("probe", json!({"id": 42})).unwrap();
+    let immediate = queue.push(&payload, None).await.unwrap().unwrap();
+    let mut reserved = queue.pop_now(None).await.unwrap().unwrap();
+    assert_eq!(reserved.get_job_id(), immediate);
+    reserved.delete().await.unwrap();
+    let delayed = queue
+        .later(
+            Delay::For(Duration::from_secs(300)),
+            &payload,
+            Some("later"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(queue.pop_now(Some("later")).await.unwrap().is_none());
+    let redis = app
+        .app()
+        .make::<openrust::redis::RedisManager>()
+        .await
+        .unwrap();
+    redis
+        .connection(None)
+        .unwrap()
+        .set("queues:broken", b"wrong type")
+        .await
+        .unwrap();
+    assert!(queue.push(&payload, Some("broken")).await.is_err());
+    let database = app
+        .app()
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let options = DispatchOptions {
+        queue: Some("transactional".into()),
+        after_commit: Some(true),
+        ..Default::default()
+    };
+    let mut transaction = database.begin_transaction().await.unwrap();
+    assert_eq!(
+        manager
+            .dispatch(payload.clone(), options.clone(), Some(&mut transaction))
+            .await
+            .unwrap(),
+        DispatchResult::Deferred
+    );
+    transaction.roll_back(None).await.unwrap();
+    let mut transaction = database.begin_transaction().await.unwrap();
+    assert_eq!(
+        manager
+            .dispatch(payload.clone(), options, Some(&mut transaction))
+            .await
+            .unwrap(),
+        DispatchResult::Deferred
+    );
+    assert_eq!(listener.observations.lock().unwrap().len(), 6);
+    transaction.commit().await.unwrap();
+    let observations = listener.observations.lock().unwrap();
+    assert_eq!(observations.len(), 8);
+    for row in observations.iter() {
+        assert_eq!(row.uuid, payload.uuid());
+        assert_ne!(row.id, row.uuid);
+    }
+    assert_eq!(observations[0].id, immediate);
+    assert_eq!(observations[1].id, immediate);
+    assert_eq!(observations[2].id, immediate);
+    assert_eq!(observations[3].id, delayed);
+    assert_eq!(observations[4].id, delayed);
+    assert_eq!(observations[6].id, observations[7].id);
+    let rows: Vec<_> = observations
+        .iter()
+        .map(|row| {
+            (
+                row.name.as_str(),
+                row.queue.as_str(),
+                row.counts,
+                row.status.as_str(),
+                row.monitored,
+                row.attempts,
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (
+                "JobPending",
+                "default",
+                Some((0, 0, 0)),
+                "pending",
+                false,
+                0
+            ),
+            ("JobPushed", "default", Some((1, 0, 0)), "pending", true, 0),
+            (
+                "JobReserved",
+                "default",
+                Some((0, 0, 1)),
+                "reserved",
+                true,
+                1
+            ),
+            ("JobPending", "later", Some((0, 0, 0)), "pending", false, 0),
+            ("JobPushed", "later", Some((0, 1, 0)), "pending", true, 0),
+            ("JobPending", "broken", None, "pending", false, 0),
+            (
+                "JobPending",
+                "transactional",
+                Some((0, 0, 0)),
+                "pending",
+                false,
+                0
+            ),
+            (
+                "JobPushed",
+                "transactional",
+                Some((1, 0, 0)),
+                "pending",
+                true,
+                0
+            ),
+        ]
+    );
+}
+
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn native_worker_hooks_count_success_release_failure_and_hide_payloads() {

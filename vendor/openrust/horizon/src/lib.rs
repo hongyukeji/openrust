@@ -5,6 +5,7 @@
 mod configuration;
 pub mod console;
 mod dashboard;
+mod events;
 mod job_trim;
 mod notifications;
 mod options;
@@ -22,6 +23,7 @@ pub use tags::{TagCallback, Tags};
 mod master_supervisor;
 
 pub use dashboard::{Dashboard, Horizon};
+pub use events::{JobPending, JobPushed, JobReserved};
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,

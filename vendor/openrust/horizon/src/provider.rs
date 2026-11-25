@@ -1,4 +1,4 @@
-use crate::{Dashboard, Error, JobRecord, Repository};
+use crate::{Dashboard, Error, JobPending, JobPushed, JobRecord, JobReserved, Repository};
 use openrust::support::facades::Facade;
 use openrust::{
     contracts::{
@@ -136,8 +136,12 @@ impl ServiceProvider for HorizonServiceProvider {
             )?;
             let listener = Arc::new(JobListener);
             for name in [
+                RedisJobQueueing::NAME,
                 JobQueued::NAME,
-                JobProcessing::NAME,
+                RedisJobReserved::NAME,
+                JobPending::NAME,
+                JobPushed::NAME,
+                JobReserved::NAME,
                 JobFailed::NAME,
                 JobReleased::NAME,
                 JobAttempted::NAME,
@@ -178,32 +182,49 @@ impl Listener for JobListener {
                     _ => Ok(Some(ListenerResponse::Value(Box::new(false)))),
                 };
             }
+            use openrust::support::facades::Event as EventFacade;
+            if let Some(event) = event.downcast_ref::<RedisJobQueueing>() {
+                EventFacade::dispatch(JobPending {
+                    connection_name: event.connection_name.clone(),
+                    queue: event.queue.clone(),
+                    id: event.id.clone(),
+                    payload: event.job.clone(),
+                })
+                .await?;
+                return Ok(None);
+            }
             if let Some(event) = event.downcast_ref::<JobQueued>() {
-                let config = openrust::support::facades::Config::get_facade_root()?;
-                if config
-                    .get(&format!(
-                        "queue.connections.{}.driver",
-                        event.connection_name
-                    ))
-                    .and_then(|value| value.as_str().map(str::to_owned))
-                    .as_deref()
-                    != Some("redis")
-                {
-                    return Ok(None);
-                }
+                EventFacade::dispatch(JobPushed {
+                    connection_name: event.connection_name.clone(),
+                    queue: event.queue.clone(),
+                    id: event.id.clone(),
+                    payload: event.job.clone(),
+                })
+                .await?;
+                return Ok(None);
+            }
+            if let Some(event) = event.downcast_ref::<RedisJobReserved>() {
+                EventFacade::dispatch(JobReserved {
+                    connection_name: event.connection_name.clone(),
+                    job: event.job.clone(),
+                })
+                .await?;
+                return Ok(None);
+            }
+            if let Some(event) = event.downcast_ref::<JobPending>() {
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let tags = crate::Tags::for_payload(&event.job).map_err(|source| {
+                let tags = crate::Tags::for_payload(&event.payload).map_err(|source| {
                     EventError::Listener {
                         source: Box::new(source),
                     }
                 })?;
                 repository
                     .jobs()
-                    .pushed(
+                    .queueing(
                         &event.id,
                         &event.connection_name,
                         &event.queue,
-                        &event.job,
+                        &event.payload,
                         &tags,
                     )
                     .await
@@ -212,8 +233,24 @@ impl Listener for JobListener {
                     })?;
                 return Ok(None);
             }
+            if let Some(event) = event.downcast_ref::<JobPushed>() {
+                let repository = crate::dashboard::Store::get_facade_root()?;
+                let tags = crate::Tags::for_payload(&event.payload).map_err(|source| {
+                    EventError::Listener {
+                        source: Box::new(source),
+                    }
+                })?;
+                repository
+                    .jobs()
+                    .monitor_pushed(&event.id, &tags)
+                    .await
+                    .map_err(|source| EventError::Listener {
+                        source: Box::new(source),
+                    })?;
+                return Ok(None);
+            }
             let (connection, job, phase, exception, duration) =
-                if let Some(e) = event.downcast_ref::<JobProcessing>() {
+                if let Some(e) = event.downcast_ref::<JobReserved>() {
                     (&e.connection_name, &e.job, "processing", None, 0.)
                 } else if let Some(e) = event.downcast_ref::<JobFailed>() {
                     (

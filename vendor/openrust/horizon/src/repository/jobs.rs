@@ -214,6 +214,29 @@ impl JobRepository {
         payload: &Payload,
         tags: &[String],
     ) -> Result<()> {
+        self.store_push(id, connection, queue, payload, tags, "pending")
+            .await
+    }
+    pub(crate) async fn queueing(
+        &self,
+        id: &str,
+        connection: &str,
+        queue: &str,
+        payload: &Payload,
+        tags: &[String],
+    ) -> Result<()> {
+        self.store_push(id, connection, queue, payload, tags, "queueing")
+            .await
+    }
+    async fn store_push(
+        &self,
+        id: &str,
+        connection: &str,
+        queue: &str,
+        payload: &Payload,
+        tags: &[String],
+        phase: &str,
+    ) -> Result<()> {
         let record = JobRecord {
             id: id.into(),
             name: payload.name().into(),
@@ -224,8 +247,27 @@ impl JobRepository {
             duration: 0.,
             updated_at: 0,
         };
-        self.store(record, payload, tags, false, None, "pending")
-            .await
+        self.store(record, payload, tags, false, None, phase).await
+    }
+    pub(crate) async fn monitor_pushed(&self, id: &str, tags: &[String]) -> Result<()> {
+        let tags = self.0.tags().monitored(tags).await?;
+        if tags.is_empty() {
+            return Ok(());
+        }
+        self.0.tags().add(id, &tags).await?;
+        let now = self.0.now().await?;
+        self.0
+            .eval(
+                "redis.call('ZADD',KEYS[1],ARGV[1],ARGV[2]);return redis.call('EXPIRE',KEYS[2],ARGV[3],'GT')",
+                vec![self.index("monitored"), self.key(id)?],
+                vec![
+                    now.to_string(),
+                    id.into(),
+                    self.0.retention_for("monitored").to_string(),
+                ],
+            )
+            .await?;
+        Ok(())
     }
     pub async fn reserved(
         &self,
@@ -390,14 +432,19 @@ impl JobRepository {
             return Err(Error::InvalidRecord);
         }
         let now = self.0.now().await?;
-        let monitored = !self.0.tags().monitored(tags).await?.is_empty();
+        let monitored_tags = if phase == "queueing" {
+            Vec::new()
+        } else {
+            self.0.tags().monitored(tags).await?
+        };
+        let monitored = !monitored_tags.is_empty();
         record.updated_at = now;
         let old = self.find(&record.id).await?;
         let status = if phase == "finalize" {
             "completed"
         } else if phase == "processing" {
             "reserved"
-        } else if phase == "released" || phase == "retrying" {
+        } else if matches!(phase, "queueing" | "released" | "retrying") {
             "pending"
         } else {
             phase
@@ -496,8 +543,9 @@ return 1
                 )
                 .await?;
         }
-        let monitored_tags = self.0.tags().monitored(tags).await?;
-        self.0.tags().add(&record.id, &monitored_tags).await?;
+        if monitored {
+            self.0.tags().add(&record.id, &monitored_tags).await?;
+        }
         if status == "failed" {
             self.0
                 .command(
