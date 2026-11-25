@@ -90,3 +90,5 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 固定 `ClientRequestWatcher::input` 使用结构化字段，普通字段保留原值，文件或流使用文件名、十进制 KB 长度与部件头部，同名字段取请求中最后一项。Laravel `PendingRequest::parseHttpOptions` 先加入普通字段，再追加登记的附件。OpenRust 调整线上的字段顺序，通过 `RecordedRequest.multipart` 将原值和 `attach_body` 元数据传给 Watcher。未知流长度记为 `null`，流只由 HTTP 传输消费。字段、部件头部和整个载荷复用既有脱敏开关。
 
 `attach` 仍接受原生 reqwest `Part`。该类型没有元数据读取接口，最后一项为原生 `Part` 时省略对应字段。快照关联构建器生成的 multipart boundary 和请求 origin；中间件如保留原 boundary 却替换成其他流，记录仍是构建器提供的字段。Laravel 接受的预格式化 multipart 数据数组和 PHP 文件／资源类型仍须分别核对对应的 Rust 入口。`RecordedRequest` 增加公开字段，外部使用完整结构体字面量时需补齐该字段。
+
+固定 Laravel HTTP Client 与 Telescope 的 PHP 8.5.12 探针验证了预格式化数组。Guzzle 生成的正文包含文本、具名和无名流及非 UTF-8 字节。发送及响应诊断均保留普通文本，流与无法编码为 JSON 的字节字段只记录名称、十进制 KB 长度和部件头部。重复字段取末项，未提供头部时输出空数组。Rust 原生 `Part` 的文本、流和字节仍须按对应真实入口对照。证据为 `target/tmp/observability-parity/multipart-preformatted-upstream.log`。
