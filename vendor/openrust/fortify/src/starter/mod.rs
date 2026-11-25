@@ -23,6 +23,8 @@ mod messages;
 pub mod resource_cleanup;
 #[cfg(feature = "sanctum")]
 mod token_web;
+#[cfg(feature = "sanctum")]
+pub(crate) mod two_factor;
 pub use mail_queue::configure_mail_queue;
 mod password_tokens;
 #[cfg(feature = "sanctum")]

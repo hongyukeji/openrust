@@ -18,6 +18,11 @@ async fn account(request: &mut Request, fortify: &Fortify) -> Result<Box<dyn Acc
         .ok_or_else(|| internal(FortifyError::UnregisteredTwoFactorModel))
 }
 async fn mutate(request: &mut Request, mutation: Mutation<'_>) -> Result<(), HttpError> {
+    #[cfg(feature = "sanctum")]
+    if crate::starter::two_factor::mutate_web(request, mutation).await? {
+        return Ok(());
+    }
+
     let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
     let mut user = account(request, &fortify).await?;
     let enabling = matches!(mutation, Mutation::Enable(_));
@@ -93,6 +98,16 @@ impl RecoveryCodeController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            if let Some(response) = crate::starter::two_factor::read_web(
+                request,
+                crate::starter::two_factor::Read::Codes,
+            )
+            .await?
+            {
+                return Ok(response);
+            }
+
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             if !truthy(user.attribute("two_factor_secret").map_err(internal)?)
@@ -130,6 +145,16 @@ impl TwoFactorSecretKeyController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            if let Some(response) = crate::starter::two_factor::read_web(
+                request,
+                crate::starter::two_factor::Read::Secret,
+            )
+            .await?
+            {
+                return Ok(response);
+            }
+
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             let encrypted = text(user.attribute("two_factor_secret").map_err(internal)?)
@@ -160,6 +185,14 @@ impl TwoFactorQrCodeController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            if let Some(response) =
+                crate::starter::two_factor::read_web(request, crate::starter::two_factor::Read::Qr)
+                    .await?
+            {
+                return Ok(response);
+            }
+
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = account(request, &fortify).await?;
             if !present(user.attribute("two_factor_secret").map_err(internal)?) {

@@ -72,5 +72,19 @@
   "deletion_completed": "其餘檔案已清理完成。",
   "deletion_failed": "檔案清理將重試，帳戶已註銷。",
   "deletion_status_error": "暫時無法讀取清理狀態，請保留此頁稍後重試。",
-  "refresh_status": "重新整理狀態"
+  "refresh_status": "重新整理狀態",
+  "proof_in_url": "認證證明不能透過 URL 傳遞。",
+  "factor_active": "雙因素認證已啟用。",
+  "factor_pending": "請驗證身分驗證器以完成啟用雙因素認證。",
+  "factor_scan": "使用身分驗證器掃描二維碼，或輸入設定金鑰。",
+  "factor_qr": "身分驗證器二維碼",
+  "factor_secret": "設定金鑰",
+  "factor_confirm": "確認身分驗證器",
+  "factor_done": "隱藏設定詳情",
+  "factor_recovery": "查看復原碼",
+  "factor_recovery_warning": "請妥善保存復原碼，每個復原碼只能使用一次。",
+  "factor_regenerate": "重新產生復原碼",
+  "factor_disable": "關閉雙因素認證",
+  "factor_inactive": "尚未啟用雙因素認證。",
+  "factor_enable": "啟用雙因素認證"
 }

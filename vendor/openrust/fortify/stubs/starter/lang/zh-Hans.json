@@ -72,5 +72,19 @@
   "deletion_completed": "剩余文件已清理完成。",
   "deletion_failed": "文件清理将重试，账户已注销。",
   "deletion_status_error": "暂时无法读取清理状态，请保留此页稍后重试。",
-  "refresh_status": "刷新状态"
+  "refresh_status": "刷新状态",
+  "proof_in_url": "认证证明不能通过 URL 传递。",
+  "factor_active": "双因素认证已启用。",
+  "factor_pending": "请验证身份验证器以完成启用双因素认证。",
+  "factor_scan": "使用身份验证器扫描二维码，或输入设置密钥。",
+  "factor_qr": "身份验证器二维码",
+  "factor_secret": "设置密钥",
+  "factor_confirm": "确认身份验证器",
+  "factor_done": "隐藏设置详情",
+  "factor_recovery": "查看恢复码",
+  "factor_recovery_warning": "请妥善保存恢复码，每个恢复码只能使用一次。",
+  "factor_regenerate": "重新生成恢复码",
+  "factor_disable": "关闭双因素认证",
+  "factor_inactive": "尚未启用双因素认证。",
+  "factor_enable": "启用双因素认证"
 }

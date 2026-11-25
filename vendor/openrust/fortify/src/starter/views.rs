@@ -153,6 +153,14 @@ fn account(
             [
                 ("user".into(), user.into()),
                 ("can_manage_devices".into(), can_manage_devices.into()),
+                (
+                    "can_manage_two_factor".into(),
+                    (cfg!(feature = "sanctum")
+                        && features
+                            .enabled(crate::Features::two_factor_authentication())
+                            .map_err(crate::resolver::internal)?)
+                    .into(),
+                ),
                 ("can_manage_tokens".into(), cfg!(feature = "sanctum").into()),
                 ("can_manage_avatar".into(), can_manage_avatar.into()),
                 (

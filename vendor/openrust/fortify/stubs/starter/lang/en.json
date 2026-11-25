@@ -72,5 +72,19 @@
   "deletion_completed": "The remaining files have been removed.",
   "deletion_failed": "File cleanup will be retried. Your account has already been deleted.",
   "deletion_status_error": "Unable to read the cleanup status. Keep this page and try again.",
-  "refresh_status": "Refresh status"
+  "refresh_status": "Refresh status",
+  "proof_in_url": "Authentication proofs must not be included in URLs.",
+  "factor_active": "Two-factor authentication is enabled.",
+  "factor_pending": "Finish confirming your authenticator to enable two-factor authentication.",
+  "factor_scan": "Scan the QR code using your authenticator, or enter the setup key.",
+  "factor_qr": "Authenticator QR code",
+  "factor_secret": "Setup key",
+  "factor_confirm": "Confirm authenticator",
+  "factor_done": "Hide setup details",
+  "factor_recovery": "View recovery codes",
+  "factor_recovery_warning": "Save these codes in a safe place. Each code can only be used once.",
+  "factor_regenerate": "Generate new recovery codes",
+  "factor_disable": "Disable two-factor authentication",
+  "factor_inactive": "Two-factor authentication is not enabled.",
+  "factor_enable": "Enable two-factor authentication"
 }

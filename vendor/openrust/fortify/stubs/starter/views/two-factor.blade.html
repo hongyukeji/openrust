@@ -1,0 +1,31 @@
+@extends('user.layout')
+@section('title', __('user.two_factor'))
+@section('content')
+<p><a href="{{ route('user.profile') }}">{{ __('user.account') }}</a></p>
+<p>{{ __('user.confirmation_required') }} <a href="{{ route('password.confirm') }}">{{ __('user.confirm_password') }}</a></p>
+@if($factor['has_secret'])
+@if($factor['enabled'])<p role="status">{{ __('user.factor_active') }}</p>@else<p role="status">{{ __('user.factor_pending') }}</p>@endif
+@if($show_setup)
+<p>{{ __('user.factor_scan') }}</p>
+<div aria-label="{{ __('user.factor_qr') }}">{!! $factor['svg'] !!}</div>
+<p class="device-meta">{{ __('user.factor_secret') }}: <code id="two-factor-secret">{{ $factor['secretKey'] }}</code></p>
+@if($factor['confirmation_required'])
+<form method="POST" action="{{ route('two-factor.confirm') }}">@csrf
+<label for="code">{{ __('user.code') }}</label><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required>
+@error('code', 'confirmTwoFactorAuthentication')<p class="error" role="alert">{{ $message }}</p>@enderror
+<button type="submit">{{ __('user.factor_confirm') }}</button></form>
+@endif
+<p><a href="{{ route('user.two-factor.page', ['setup' => '0']) }}">{{ __('user.factor_done') }}</a></p>
+@endif
+@if($factor['recovery_codes'])
+<section id="two-factor-recovery" aria-label="{{ __('user.factor_recovery') }}"><p>{{ __('user.factor_recovery_warning') }}</p>
+<ul>@foreach($factor['recovery_codes'] as $recovery_code)<li><code>{{ $recovery_code }}</code></li>@endforeach</ul></section>
+@endif
+<p><a href="{{ route('user.two-factor.page', ['recovery' => '1']) }}">{{ __('user.factor_recovery') }}</a></p>
+<form method="POST" action="{{ route('two-factor.regenerate-recovery-codes') }}">@csrf<button type="submit">{{ __('user.factor_regenerate') }}</button></form>
+<form method="POST" action="{{ route('two-factor.disable') }}">@csrf @method('DELETE')<button type="submit">{{ __('user.factor_disable') }}</button></form>
+@else
+<p>{{ __('user.factor_inactive') }}</p>
+<form method="POST" action="{{ route('two-factor.enable') }}">@csrf<button type="submit">{{ __('user.factor_enable') }}</button></form>
+@endif
+@endsection

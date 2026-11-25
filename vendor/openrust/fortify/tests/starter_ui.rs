@@ -227,6 +227,7 @@ async fn start_custom_resource(
     for relative in [
         "layout.blade.html",
         "home.blade.html",
+        "two-factor.blade.html",
         "deleted.blade.html",
         "sessions.blade.html",
         "api-tokens.blade.html",
@@ -5272,3 +5273,7 @@ mod profile_photo_migration;
 #[cfg(feature = "sanctum")]
 #[path = "starter_ui/deletion.rs"]
 mod deletion;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/two_factor_management.rs"]
+mod two_factor_management;

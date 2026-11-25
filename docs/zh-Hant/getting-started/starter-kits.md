@@ -317,6 +317,39 @@ curl -X PUT "$APP_URL/api/user/profile-information" \
 
 啟用後，先前未繫結的舊重置連結失效，需重新請求郵件；所有應用／Worker 節點須使用相同模型和繫結設定。若模型的重置能力回傳自訂包裝類型，或使用額外動態租戶範圍，應明確註冊相符規則。進階應用可透過 Password 的 `bind_user_tokens_using` 追加具名規則：不同名稱組合，同名替換，回呼錯誤直接失敗，不退回簽發未繫結權杖。規則名稱和值須在各節點穩定，不向用戶端回傳密碼或計算出的繫結；一般業務繼續呼叫既有忘記／重置密碼介面。
 
+### 雙因素帳戶管理 {#user-two-factor-management}
+
+安裝使用者套件並執行遷移後，設定 `USER_TWO_FACTOR=true` 啟用入口，預設關閉。完整套件的帳戶頁提供 `/user/two-factor-authentication` 連結，沿用原生 Fortify 表單、CSRF、設定的 Session Guard 與應用翻譯。依序啟用、掃描身分驗證器二維碼或輸入設定金鑰、按要求輸入 TOTP 確認，並離線保存八個復原碼。頁面也支援重新產生復原碼及關閉雙因素認證。設定詳情與復原碼使用 `no-store`、`no-referrer`，不寫入表單快閃資料，且要求近期密碼確認。啟用或確認因素後舊確認快照失效，出現提示時須再次確認密碼；隱藏設定詳情不會關閉認證因素。
+
+僅 API 預設提供相同的管理能力，不發佈這些頁面。下表路徑依 API 前綴設定：
+
+| 方法 | `/api` 後的路徑 | 回傳內容 |
+| --- | --- | --- |
+| GET | `/user/two-factor-authentication` | 安全狀態 `enabled`、`has_secret`、`confirmation_required`，要求 `account:read`。 |
+| POST | `/user/two-factor-authentication` | 啟用，回傳設定 SVG、URL、`secretKey` 及 `recovery_codes`。 |
+| POST | `/user/confirmed-two-factor-authentication` | 用 `code` 確認，回傳安全狀態。 |
+| DELETE | `/user/two-factor-authentication` | 關閉，省略空成功資料。 |
+| GET | `/user/two-factor-qr-code` | `svg`、`url`。 |
+| GET | `/user/two-factor-secret-key` | `secretKey`。 |
+| GET | `/user/two-factor-recovery-codes` | `data` 內的 `recovery_codes` 陣列。 |
+| POST | `/user/two-factor-recovery-codes` | 產生並回傳替換後的 `recovery_codes`。 |
+
+除安全狀態 GET 外，每次操作均要求 `account:update`，並透過 `POST /api/auth/confirm` 取得用途為 `factors` 的新單次證明。透過 `X-Auth-Confirmation` 請求標頭傳送，有本文的請求亦可使用 JSON `proof` 欄位。URL 查詢參數中的證明回傳400，避免進入存取日誌、歷史或複製連結。下一次操作須取得新證明，錯誤驗證碼後也一樣；證明不能重放或轉交其他權杖。Cookie 客戶端使用本瀏覽器近期確認的 Session 與 CSRF，不使用 PAT 證明。因素管理不會額外簽發存取權杖。
+
+```bash
+# 用目前 PAT 為這次操作取得證明。
+curl -X POST http://localhost:8000/api/auth/confirm \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"purpose":"factors","password":"your-password"}'
+
+# 將 data.proof 存入 PROOF，再啟用身分驗證器。
+curl -X POST http://localhost:8000/api/user/two-factor-authentication \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+寫入與敏感讀取均使用共同使用者鎖及同連線交易，在回傳前核對目前權杖及憑證快照。錯誤驗證碼回傳422，缺少或已消費證明回傳401，權杖權限不足回傳403，功能關閉時路由回傳404。因素啟用後，登入仍須提交 TOTP 或未使用的復原碼。獨立 Fortify 應用保留既有路由回應；額外的 API 封裝與更嚴格的確認要求屬於安裝後的使用者套件。
+
 ### 網頁資料與密碼表單 {#web-user-updates}
 
 帳戶頁提供資料、密碼表單與身分確認入口。原生 `PUT /user/profile-information`、`PUT /user/password` 與上述API共用應用Action、使用者寫入鎖及同連線交易。姓名更新也需要近期確認；一般瀏覽器尚未確認時導向 `password.confirm`，確認後返回帳戶頁重新提交，密碼不會保存在舊輸入。JSON協商維持423與本地化提示。密碼帳戶的網頁密碼表單仍驗證 `current_password`，使用已設定的Fortify Guard。

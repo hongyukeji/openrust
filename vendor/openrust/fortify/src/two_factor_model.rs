@@ -41,6 +41,7 @@ impl<T: TwoFactorAuthenticatable + Clone> RegisteredModel for ModelAdapter<T> {
         })
     }
 }
+#[derive(Clone, Copy)]
 pub(crate) enum Mutation<'a> {
     Enable(bool),
     Confirm(&'a str),

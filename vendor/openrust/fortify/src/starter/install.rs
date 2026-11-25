@@ -60,6 +60,10 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         app,
         &[
             (
+                "resources/views/user/two-factor.blade.html",
+                include_bytes!("../../stubs/starter/views/two-factor.blade.html"),
+            ),
+            (
                 "resources/views/user/deleted.blade.html",
                 include_bytes!("../../stubs/starter/views/deleted.blade.html"),
             ),

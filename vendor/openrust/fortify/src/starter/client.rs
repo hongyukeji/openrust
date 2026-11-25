@@ -575,6 +575,7 @@ where
     super::resource_cleanup::configure::<M>(app)?;
     super::avatar::register::<M>(app)?;
     super::deletion::register::<M>(app)?;
+    super::two_factor::register::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
@@ -660,6 +661,69 @@ where
                         "throttle:{}",
                         fortify.string("fortify.limiters.verification", "6,1")
                     ));
+            }
+            if features
+                .enabled(Features::two_factor_authentication())
+                .map_err(|_| RoutingError::InvalidAction)?
+            {
+                macro_rules! factor_route {
+                    ($method:ident,$path:expr,$handler:ident,$name:expr) => {
+                        router
+                            .$method($path, super::two_factor::$handler::<M>)?
+                            .middleware_name("auth:sanctum")
+                            .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                            .middleware_name("throttle:10,1")
+                            .name($name);
+                    };
+                }
+                factor_route!(
+                    get,
+                    "/user/two-factor-authentication",
+                    api_state,
+                    "user.api.two-factor.state"
+                );
+                factor_route!(
+                    post,
+                    "/user/two-factor-authentication",
+                    api_enable,
+                    "user.api.two-factor.enable"
+                );
+                factor_route!(
+                    delete,
+                    "/user/two-factor-authentication",
+                    api_disable,
+                    "user.api.two-factor.disable"
+                );
+                factor_route!(
+                    post,
+                    "/user/confirmed-two-factor-authentication",
+                    api_confirm,
+                    "user.api.two-factor.confirm"
+                );
+                factor_route!(
+                    get,
+                    "/user/two-factor-qr-code",
+                    api_qr,
+                    "user.api.two-factor.qr-code"
+                );
+                factor_route!(
+                    get,
+                    "/user/two-factor-secret-key",
+                    api_secret,
+                    "user.api.two-factor.secret-key"
+                );
+                factor_route!(
+                    get,
+                    "/user/two-factor-recovery-codes",
+                    api_codes,
+                    "user.api.two-factor.recovery-codes"
+                );
+                factor_route!(
+                    post,
+                    "/user/two-factor-recovery-codes",
+                    api_generate,
+                    "user.api.two-factor.regenerate-recovery-codes"
+                );
             }
             router
                 .post("/auth/confirm", super::confirmation::confirm::<M>)?

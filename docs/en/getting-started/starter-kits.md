@@ -317,6 +317,39 @@ The existing database/cache repositories, 64-character email token, expiry, thro
 
 Enabling this binding invalidates earlier unbound reset links: request a new email. All application/Worker nodes must use the same model and binding configuration. Custom wrappers returned by a model's reset capability, or additional runtime tenant scopes, require explicit matching binding rules. Advanced apps can add named rules through `Password::bind_user_tokens_using`; distinct names compose, the same name replaces its rule, and callback errors fail instead of issuing unbound tokens. Keep rule names and values stable across nodes, and never return passwords or the computed binding to clients. Use the existing forgot/reset endpoints for normal application code.
 
+### Two-factor account management {#user-two-factor-management}
+
+Set `USER_TWO_FACTOR=true` after installing the user suite and applying its migrations. The default remains disabled. The complete profile adds an account-page link to `/user/two-factor-authentication`; it uses native Fortify forms, CSRF, the configured Session guard and application translations. Enable, scan the authenticator QR code or enter its setup key, enter a TOTP code when confirmation is required, and save the eight recovery codes offline. The page also supports regenerating recovery codes and disabling the factor. Setup and recovery details use `no-store` and `no-referrer`, are never stored as flash input, and require recent password confirmation. Enrollment or confirmation changes invalidate an older confirmation snapshot: confirm your password again when prompted. Hiding setup details does not disable the factor.
+
+The API-only profile exposes the same management operations under the configured API prefix without publishing these pages:
+
+| Method | Path after `/api` | Result |
+| --- | --- | --- |
+| GET | `/user/two-factor-authentication` | Safe `enabled`, `has_secret`, `confirmation_required` state; `account:read` required. |
+| POST | `/user/two-factor-authentication` | Enable; return setup SVG, URL, `secretKey` and `recovery_codes`. |
+| POST | `/user/confirmed-two-factor-authentication` | Confirm using `code`; return safe factor state. |
+| DELETE | `/user/two-factor-authentication` | Disable; empty success data. |
+| GET | `/user/two-factor-qr-code` | `svg` and `url`. |
+| GET | `/user/two-factor-secret-key` | `secretKey`. |
+| GET | `/user/two-factor-recovery-codes` | `recovery_codes` array inside `data`. |
+| POST | `/user/two-factor-recovery-codes` | Generate and return replacement `recovery_codes`. |
+
+Except for the safe-state GET, every operation requires `account:update` and a fresh single-use `factors` proof from `POST /api/auth/confirm`. Send it as `X-Auth-Confirmation`, or as a JSON `proof` field for a body-bearing request. Proofs in URL query parameters return 400; they must not appear in access logs, history or copied links. Fetch a new proof for the next operation, including after an invalid code; proofs cannot be replayed or transferred to another token. Cookie clients use their own recently confirmed Session plus CSRF instead of a PAT proof. Factor management does not issue a new access token.
+
+```bash
+# Obtain a proof for this one operation with the current PAT.
+curl -X POST http://localhost:8000/api/auth/confirm \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"purpose":"factors","password":"your-password"}'
+
+# Copy data.proof to PROOF, then enable the authenticator.
+curl -X POST http://localhost:8000/api/user/two-factor-authentication \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+All writes and sensitive reads use the common user lock and same-connection transaction, checking the current token and credential snapshot before returning. Invalid codes return 422, missing or consumed proofs return 401, insufficient token abilities return 403, and disabled feature routes return 404. Login continues to require TOTP or an unused recovery code once the factor is active. Standalone Fortify applications retain their existing route responses; the additional API envelope and stricter confirmation checks belong to this installed suite.
+
 ### Browser profile and password forms {#web-user-updates}
 
 The account page provides profile and password forms with a confirmation link. Native `PUT /user/profile-information` and `PUT /user/password` share the application Actions, user write lock and same-connection transaction with the API above. Name changes also require recent confirmation. Unconfirmed browsers redirect to `password.confirm`, then return to the account page to resubmit; passwords are never retained in old input. JSON negotiation keeps the localized 423 response. For password accounts, the browser password form also validates `current_password` against the configured Fortify guard.

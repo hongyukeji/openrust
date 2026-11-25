@@ -275,6 +275,13 @@ pub(super) async fn claim<M>(
 where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
+    if request.query(Some("proof"))?.is_some() {
+        let response =
+            ApiResponse::failure(openrust::http::StatusCode::BAD_REQUEST, "bad_request", "")
+                .with_message_key("user.proof_in_url", Default::default())
+                .into_response()?;
+        return Err(openrust::http::abort_response(client::no_store(response)));
+    }
     if matches!(
         user.current_access_token(request),
         Some(AccessToken::Transient)

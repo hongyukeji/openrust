@@ -9,7 +9,7 @@
 | A01-01 安装与基础认证 | 开发中 | 显式安装预设、基础账户流程与响应适配、安装保护、真实Artisan／HTTP。 |
 | A01-02 邮件与生命周期 | 开发中 | 已验邮件落地、本地SMTP、加密可靠队列、无会话恢复及会话／PAT撤销；待无密码与跨驱动最终组合。 |
 | A01-03 账户中心 | 未闭合 | 已验资料／密码、浏览器设备、个人令牌、头像及注销／资源恢复；待自定义模型／驱动和最后组合。 |
-| A01-04 网页与可选认证 | 未闭合 | 基础认证、设备、令牌、头像和注销网页已验；待2FA／Passkeys／第三方登录管理、无密码确认及三语组合。 |
+| A01-04 网页与可选认证 | 未闭合 | 基础认证、设备、令牌、头像、注销和2FA管理网页／API已验；待Passkeys／第三方登录管理、无密码确认及最终三语组合。 |
 | A01-05 组合验收 | 未闭合 | 两种预设、三库／缓存、常用系统与最终支持矩阵。 |
 
 ## 首个实现单元：响应与安全资源
@@ -581,3 +581,25 @@ workspace all-targets及Fortify+Sanctum严格Clippy、fmt在passkey-purge-*-deli
 - two-factor-transaction-docs.log／two-factor-transaction-docs-browser.log：三语教程构建、12组双挂载桌面／移动章节与无溢出检查通过。文件／SHA在two-factor-transaction-files.json、two-factor-transaction-final-source-sha.json；清理文档dist／cache计量在two-factor-transaction-delivery-space.json，保留所有证据、源码、下载、正常增量缓存及数据库／卷。
 
 这里只闭合事务Action前置，不代表套件因素管理页面、API／近期确认或A01-04已完成。接续使用正式入口装配近期确认、Cookie／PAT、页面与API，不能让调用方从底层绕行冒充管理流程。
+
+## 双因素管理网页与用户API（2026-11-25）
+
+延续上一单元的原生2FA事务Action，未另建TOTP或恢复码引擎。套件为显式注册的用户模型装配共同用户写锁，在同一连接内验证近期证明、PAT归属／能力、凭据快照及模型保存；普通Fortify未装配套件时保留既有响应。固定基线再次核对Fortify1.43.0的TwoFactorAuthenticationController及TwoFactorAuthenticatable：保留force参数与密钥“非null”启用语义，不用PHPempty规则替代。
+
+完整预设新增`user.two-factor`页面、账户页入口、三语文字及正式发布映射。原生启用／确认／关闭／恢复码表单继续使用CSRF、具名路由与可替换响应契约。设置二维码／密钥及八个恢复码仅在近期确认后显示；因素状态改变使旧通用确认失效，须按提示重新确认。非秘密Session设置标记仅控制展示，不代替认证证明；设置详情可隐藏，原生未要求TOTP确认的配置仍可展示新绑定详情。
+
+新增八个跟随API_PREFIX的用户API：读取安全状态、启用、确认、关闭、读取二维码／设置密钥／恢复码，以及生成新恢复码。安全状态要求account:read；其他操作要求account:update与factors用途的单次证明，或当前Cookie会话的近期确认。证明放请求头或JSON正文；所有近期证明消费统一拒绝URL中的proof，返回本地化400，包括Cookie分支。API-only不注册管理页面；相同路径保留原生POST时GET按HTTP契约返回405，不假装存在页面。
+
+### 最终源码验收
+
+- `two-factor-management-regression-final.log`：SQLite3.54.1套件90项、安装14项、原生2FA路由6项全部通过。新增4项包括完整API启用／确认／TOTP登录挑战／恢复码轮换／关闭、证明重放／错误码／URL拒绝／权限／关闭功能、原生HTML表单及旧确认失效、API-only多级前缀和无账户页面。
+- `two-factor-management-mysql-final.log`与`two-factor-management-postgres-final.log`：相同4项分别在MySQL8.4.13、PostgreSQL18.7及真实database Session驱动全部通过，均经回环TCP。测试数据库和容器由各自验收器独立创建及清理。
+- `factor-management-runtime-first.log`、`factor-management-runtime-install.log`和`factor-management-runtime-repeat-install.log`：真实Artisan完整套件首次／重复安装、自动重建和MySQL迁移成功。`factor-management-app-browser.json`记录本机实际Chrome的简体／繁体／英文、桌面／手机共6组原生表单流程，覆盖近期密码确认、二维码和密钥展示、真实时间TOTP确认、敏感详情隐藏、读取与重新生成恢复码、语言和无横向溢出。真实硬件／生物识别不属于本2FA浏览器验收。
+- `two-factor-management-clippy-final.log`及`two-factor-management-workspace-clippy-final.log`：Fortify+Sanctum所有目标和冻结workspace所有目标严格Clippy均通过；`two-factor-management-fmt.log`完整格式检查通过。冻结源码的基线与前序单元一致，本记录不声称其他对话后续未提交功能已验收。
+- 三语教程补齐完整端点表、Cookie／PAT证明边界及curl示例；`two-factor-management-docs.log`文档站构建通过；`two-factor-management-docs-browser.log`覆盖两个部署基路径、三语及桌面／手机12组文章DOM验收通过。
+
+早期夹具失败及中断日志保留：首次错误工作目录的构建已主动安全取消，不计最终证据；早期两次编译交错未计冻结证据。页面夹具漏复制新视图、未导入Session trait及模板中当前Blade不支持的三元表达式已纠正，未放宽安全校验。API-only夹具初次复用了要求GET/login页面的网页注册辅助方法，现改从真实API注册；无GET管理页面的405按原生路由保留。最后上述三库与严格检查使用冻结源码，无并行写入。
+
+范围SHA为`target/tmp/user-starter/two-factor-management-source-sha.json`，独立提交清单为`two-factor-management-files.json`。已直接删除本批文档dist，逻辑文件大小78,390,368字节；清理后当时可用74,890,387,456字节。系统差额可能含并行构建，不全部归因本批；保留正常增量缓存、源码、日志、数据库及数据卷，详见`two-factor-management-cleanup.json`。
+
+A01-04仍未闭合：后续继续Passkeys、第三方登录及无密码近期确认。S10仍需最终自定义模型／配置／驱动组合与观测记录敏感数据审查，不能由本轮页面私密缓存头推断所有日志已脱敏。独立Passkeys事务草稿不属于本批提交，也未被上述冻结检查计作通过；无推送。
