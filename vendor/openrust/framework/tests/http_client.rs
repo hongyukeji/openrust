@@ -84,6 +84,55 @@ async fn sends_real_requests_and_classifies_responses() {
     assert_eq!(form["body"], "title=a+b");
     assert_eq!(form["authorization"], "Basic Zm9vOmJhcg==");
     assert_eq!(form["query"], Value::Null);
+
+    struct CountedForm(AtomicUsize);
+    impl serde::Serialize for CountedForm {
+        fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            let _ = self.0.fetch_add(1, Ordering::Relaxed);
+            [("repeat", json!(false)), ("repeat", json!(2))].serialize(serializer)
+        }
+    }
+    factory.fake(|_| None);
+    let data = CountedForm(AtomicUsize::new(0));
+    let form: Value = factory
+        .pending_request()
+        .as_form()
+        .post(&url, &data)
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(data.0.load(Ordering::Relaxed), 1);
+    assert_eq!(form["body"], "repeat=false&repeat=2");
+    let requests = factory.recorded();
+    assert_eq!(
+        requests.last().unwrap().0.diagnostic_data(),
+        json!({"repeat":2})
+    );
+    assert_eq!(
+        requests.last().unwrap().0.data(),
+        Some(json!({"repeat":"2"}))
+    );
+
+    let form: Value = factory
+        .pending_request()
+        .as_form()
+        .before_sending(|request| {
+            *request.body_mut() = Some("replacement=yes".into());
+            Ok(())
+        })
+        .post(&url, &data)
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(data.0.load(Ordering::Relaxed), 2);
+    assert_eq!(form["body"], "replacement=yes");
+    assert_eq!(
+        factory.recorded().last().unwrap().0.diagnostic_data(),
+        json!({"replacement":"yes"})
+    );
+
     let patched = factory
         .pending_request()
         .before_sending(|request| {

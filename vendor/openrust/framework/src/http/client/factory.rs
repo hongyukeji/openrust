@@ -59,7 +59,7 @@ pub struct RecordedRequest {
 #[derive(Clone)]
 pub enum RecordedRequestDataSource {
     Query(Arc<str>),
-    Form,
+    Form(Option<Arc<serde_json::Value>>),
     Json,
 }
 
@@ -111,7 +111,10 @@ impl RecordedRequest {
             Some(RecordedRequestDataSource::Query(query)) => {
                 crate::http::request::query::parse(query).ok()
             }
-            Some(RecordedRequestDataSource::Form) => self.decode_body_fields(true, false),
+            Some(RecordedRequestDataSource::Form(fields)) => fields
+                .as_deref()
+                .cloned()
+                .or_else(|| self.decode_body_fields(true, false)),
             Some(RecordedRequestDataSource::Json) => self.decode_body_fields(false, true),
             None => self.decode_body_fields(is_form, is_json),
         };

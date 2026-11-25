@@ -22,6 +22,7 @@ pub(super) struct Transport<'a> {
     pub multipart: Option<(Arc<BTreeMap<String, RecordedMultipartField>>, HeaderValue)>,
     pub query_override: Option<(url::Url, Option<RecordedRequestDataSource>)>,
     pub diagnostic_source: Option<RecordedRequestDataSource>,
+    pub form_body: Option<reqwest::Body>,
     pub redact_payload: bool,
     pub redact_response: bool,
     pub digest: Option<&'a DigestCredentials>,
@@ -201,9 +202,15 @@ impl Transport<'_> {
         {
             snapshot.diagnostic_source.clone_from(original_query);
         } else if snapshot.body.is_some() && request.url().origin() == self.digest_origin {
-            snapshot
-                .diagnostic_source
-                .clone_from(&self.diagnostic_source);
+            snapshot.diagnostic_source = match &self.diagnostic_source {
+                Some(RecordedRequestDataSource::Form(Some(_)))
+                    if self.form_body.as_ref().and_then(reqwest::Body::as_bytes)
+                        != snapshot.body.as_deref() =>
+                {
+                    Some(RecordedRequestDataSource::Form(None))
+                }
+                source => source.clone(),
+            };
         }
         snapshot.attributes.clone_from(self.attributes);
         if self.redact_payload {

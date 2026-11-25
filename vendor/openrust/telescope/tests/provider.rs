@@ -1458,13 +1458,29 @@ fn client_handler(
             .await
             .unwrap();
         let url = request.headers()["x-origin-url"].to_str().unwrap();
-        let data = json!({"same":"body","secret":"private","nested":{"password":"hidden"}});
+        let data = json!({"same":"body","secret":"private","nested":{"password":"hidden"},"nested.password":"also-hidden"});
         assert_eq!(Http::post(url, &data).await.unwrap().status().as_u16(), 200);
+        #[derive(serde::Serialize)]
+        struct FormInput {
+            same: &'static str,
+            secret: &'static str,
+            flag: bool,
+            count: u32,
+            #[serde(rename = "nested.password")]
+            literal_password: &'static str,
+        }
+        let form = FormInput {
+            same: "form",
+            secret: "private",
+            flag: false,
+            count: 2,
+            literal_password: "form-password",
+        };
         assert_eq!(
             Http::pending_request()
                 .unwrap()
                 .as_form()
-                .post(url, &json!({"same":"form","secret":"private"}))
+                .post(url, &form)
                 .await
                 .unwrap()
                 .status()
@@ -1621,6 +1637,12 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         })
                         .unwrap_or(0);
                     if bytes.len() >= end + 4 + size {
+                        if index == 1 {
+                            assert_eq!(
+                                &bytes[end + 4..],
+                                b"same=form&secret=private&flag=false&count=2&nested.password=form-password"
+                            );
+                        }
                         if (6..8).contains(&index) || index == 11 {
                             assert!(headers.starts_with("get /outgoing?override=yes "));
                         }
@@ -1747,11 +1769,15 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                 && entry.content["payload"].get("query").is_none())
     );
     assert_eq!(entries[0].content["payload"]["same"], "form");
+    assert_eq!(entries[0].content["payload"]["flag"], false);
+    assert_eq!(entries[0].content["payload"]["count"], 2);
+    assert_eq!(entries[0].content["payload"]["nested.password"], "********");
     assert_eq!(entries[1].content["payload"]["same"], "body");
     assert_eq!(
         entries[1].content["payload"]["nested"]["password"],
         "********"
     );
+    assert_eq!(entries[1].content["payload"]["nested.password"], "********");
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let queries = repository
         .get(Some(EntryType::Query), EntryQueryOptions::default())

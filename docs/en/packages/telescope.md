@@ -38,7 +38,7 @@ Use `openrust::support::dump(&value).await?` for an observed Debug dump. Collect
 
 Source locations and stack frames are absent when the runtime provides no reliable location. Query/Gate `ignore_packages` and `ignore_paths` do not currently provide source-based caller filtering. View composer names are not available from opaque Rust callbacks. Buffered JSON/text responses are captured with response parameter masking and the configured character limit. Opaque bodies and streams are not read; they are marked `Not Captured`. Route handler/controller names and the resolved route middleware types come from the router. The HTTP client records multipart fields supplied to `as_multipart()` and the filename, size in decimal KB, and headers of attachments added with `attach_body()`. Attachment streams are left to the transport and unknown lengths appear as `null`. Applications can still send native `Part` values through `attach()`; Telescope omits fields whose last part is opaque. The dashboard provides lists, filters, details, monitored tags and recording controls; it does not reproduce the upstream Vue interface or avatars.
 
-Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types.
+Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types.
 
 ## Queries and commands {#commands}
 

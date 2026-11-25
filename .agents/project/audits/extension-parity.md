@@ -76,7 +76,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|---|
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。Query／Gate 来源过滤仍待实现。 |
-| Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文与自定义媒体类型。框架 `RecordedRequest::data()` 仍提供既有合并视图。 | 表单原始标量类型、重复表单键、拦截器替换正文和重定向后的诊断选择仍需对账。 |
+| Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。重复字段照常发送，诊断取最后一项。 | 重定向及所有中间件组合的诊断选择仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。当前原生 `QueryExecuted`、`GateEvaluated` 均没有来源字段。 | 实现并验证原生调用来源的传播，覆盖公开 Facade、直接连接、查询构建器、模型、Gate 入口及框架内部触发。验证筛掉帧后的候选与未知来源策略。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
@@ -224,3 +224,13 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 Telescope 改用 `RecordedRequest::diagnostic_data()`，失败事件复用同一载荷选择，完全脱敏时清除诊断查询与正文。PHP 另行验证表单源数据 `{"flag":false,"count":2}` 原样保留，Rust 目前从线上缓冲表单解码得到字符串。表单原始类型、重定向和中间件修改行为仍需对账。公开结构体新增 `diagnostic_source`，完整字面量需补齐字段。
 
 隔离快照沿用 `8041ae15a` 加前批和本批文件。真实回环 HTTP 和 SQLite 仓储对照线上 URL、JSON／表单、HEAD、原始正文、媒体类型覆盖、连接被拒和完全脱敏。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行。
+
+### Telescope 表单标量与原始字段名
+
+固定 Laravel 参考以 `beforeSending` 观察到 `{"flag":false,"count":2}`。核心在诊断或测试记录启用时用 [serde-save 0.1.1](https://docs.rs/serde-save/0.1.1/serde_save/) 捕获一次应用提供的 Serde 数据。该库保留标量类型、结构和重复键顺序，复用 reqwest 的表单编码产生网络正文。Rust 序列对可以发送同名字段，诊断映射保留最后一项，与 PHP 关联数组覆盖规则对应。发送前替换正文时，记录的实际请求从新正文解码，字段类型无法从 URL 编码恢复。
+
+固定 Telescope 的 `hideParameters` 在原始点号字段和嵌套路径同名时会保留原始字段值，PHP 复现实测见 `target/tmp/observability-parity/typed-form-upstream.log`。OpenRust 同时遮盖已登记的原始字段和嵌套路径，防止新快照写入未脱敏值。此处列为有意行为差异。
+
+旧版 HTTP 客户端直接调用 reqwest 表单编码，未提供类型快照。对比以 JSON 或排序映射作中间值的方案时，发现会丢失重复键、顺序或原始标量编码，故依赖锁只增加捕获库及框架引用。仍须逐项核对重定向、修改请求的中间件和诊断覆盖。
+
+真实回环 HTTP 回归在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过，验证线上表单顺序、实际入库的布尔值和数字、原样字段名和嵌套字段遮盖。框架 HTTP 客户端 20 项验证单次序列化、重复字段和替换正文后的快照，Telescope 全包 32 项及独立 Redis 8.10.3 用例通过。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。快照沿用 `8041ae15a` 加前批和本批文件，根工作区另用锁定依赖树验证新增依赖。直接匹配预览 API 的 `RecordedRequestDataSource::Form` 时需使用新的带快照变体。

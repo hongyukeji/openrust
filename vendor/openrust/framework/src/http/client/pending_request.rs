@@ -584,8 +584,18 @@ impl PendingRequest {
                 request.json(data)
             }
             (Payload::Form, Some(data)) => {
-                diagnostic_source = Some(RecordedRequestDataSource::Form);
-                request.form(data)
+                diagnostic_source = Some(RecordedRequestDataSource::Form(None));
+                if !self.redact_payload
+                    && (self.factory.events.is_some() || self.factory.is_recording())
+                {
+                    // 只执行一次应用的 Serialize，使用同一份数据编码表单并记录字段类型。
+                    let captured = serde_save::save(data).map_err(|_| Error::InvalidRequest)?;
+                    diagnostic_source =
+                        Some(RecordedRequestDataSource::Form(form_fields(&captured)));
+                    request.form(&captured)
+                } else {
+                    request.form(data)
+                }
             }
             (Payload::Raw(body), _) => request.body(body),
             (Payload::Multipart(parts), data) => {
@@ -635,6 +645,16 @@ impl PendingRequest {
             _ => request,
         };
         let request = request.build().map_err(|_| Error::InvalidRequest)?;
+        let form_body = if matches!(
+            diagnostic_source,
+            Some(RecordedRequestDataSource::Form(Some(_)))
+        ) {
+            request
+                .try_clone()
+                .and_then(|mut request| request.body_mut().take())
+        } else {
+            None
+        };
         let Retry {
             mut delays,
             when,
@@ -655,6 +675,7 @@ impl PendingRequest {
             multipart,
             query_override,
             diagnostic_source,
+            form_body,
             redact_payload: self.redact_payload,
             redact_response: self.redact_response,
             digest: self.digest.as_ref(),
@@ -723,6 +744,31 @@ impl PendingRequest {
             };
         }
     }
+}
+
+fn form_fields(captured: &serde_save::Save<'static>) -> Option<Arc<serde_json::Value>> {
+    use serde_json::{Map, Value};
+
+    let value = serde_json::to_value(captured).ok()?;
+    let value = match value {
+        Value::Array(entries) => {
+            let mut fields = Map::new();
+            for entry in entries {
+                let Value::Array(pair) = entry else {
+                    return None;
+                };
+                let [key, value] = <[_; 2]>::try_from(pair).ok()?;
+                let key = match key {
+                    Value::String(key) => key,
+                    key => key.to_string(),
+                };
+                fields.insert(key, value);
+            }
+            Value::Object(fields)
+        }
+        value => value,
+    };
+    Some(Arc::new(value))
 }
 
 fn parse_url(base: Option<&str>, url: &str) -> Result<url::Url> {

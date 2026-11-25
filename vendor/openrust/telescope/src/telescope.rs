@@ -446,7 +446,12 @@ macro_rules! recorders {
 recorders!(record_batch => Batch, record_cache => Cache, record_command => Command, record_event => Event, record_gate => Gate, record_job => Job, record_log => Log, record_mail => Mail, record_notification => Notification, record_query => Query, record_model_event => Model, record_redis => Redis, record_request => Request, record_scheduled_command => ScheduledTask, record_view => View, record_client_request => ClientRequest);
 fn redact(mut value: serde_json::Value, hidden: &[String]) -> serde_json::Value {
     for path in hidden {
-        if let Some(value) = path
+        if path.contains('.')
+            && let Some(literal) = value.get_mut(path)
+        {
+            mask_parameter(literal);
+        }
+        if let Some(nested) = path
             .split('.')
             .try_fold(&mut value, |value, key| match value {
                 serde_json::Value::Object(values) => values.get_mut(key),
@@ -456,17 +461,23 @@ fn redact(mut value: serde_json::Value, hidden: &[String]) -> serde_json::Value 
                     .and_then(|index| values.get_mut(index)),
                 _ => None,
             })
-            && match value {
-                serde_json::Value::Null => false,
-                serde_json::Value::Bool(value) => *value,
-                serde_json::Value::Number(value) => value.as_f64() != Some(0.0),
-                serde_json::Value::String(value) => !value.is_empty() && value != "0",
-                serde_json::Value::Array(value) => !value.is_empty(),
-                serde_json::Value::Object(value) => !value.is_empty(),
-            }
         {
-            *value = "********".into();
+            mask_parameter(nested);
         }
     }
     value
+}
+
+fn mask_parameter(value: &mut serde_json::Value) {
+    let present = match value {
+        serde_json::Value::Null => false,
+        serde_json::Value::Bool(value) => *value,
+        serde_json::Value::Number(value) => value.as_f64() != Some(0.0),
+        serde_json::Value::String(value) => !value.is_empty() && value != "0",
+        serde_json::Value::Array(value) => !value.is_empty(),
+        serde_json::Value::Object(value) => !value.is_empty(),
+    };
+    if present {
+        *value = "********".into();
+    }
 }
