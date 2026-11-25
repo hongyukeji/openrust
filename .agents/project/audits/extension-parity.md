@@ -381,6 +381,14 @@ Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pu
 
 基于 `38285b7c1` 加本批文件的隔离快照，使用真实 Artisan `config:cache`、`config:show`、`config:clear` 验证包默认配置与发布配置。两种配置均可缓存本机主机名或显式覆盖，缓存期间修改环境变量仍读取原值。Pulse 默认 21 项、快照格式、全目标严格 Clippy、三语构建和 12 组浏览器检查通过。证据位于 `target/tmp/observability-parity/pulse-server-*.log`。
 
+### Pulse Exceptions 报告入口
+
+PHP 8.5.12 使用固定 Laravel 和固定 Pulse，通过实际异常处理器、Logger 和 Pulse Ingest 核对记录来源。框架 `Handler::report` 与显式 `Pulse::report` 各产生一条异常。前者在日志传输失败时仍然采集。直接向 Logger 写入附带 Throwable 的日志、被较早报告回调停止的异常均无 Pulse 条目。两个条目保留准确类型与源码位置。证据为 `target/tmp/observability-parity/pulse-exception-sources-upstream.log`。 [固定 Exceptions Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Exceptions.php)
+
+Rust 将默认采集注册到框架异常处理器的 `reportable_all`，保留显式 Pulse 事件。真实 HTTP 核对普通带类型日志、日志级别过滤、较早报告回调停止传播、关闭来源与持久化键。自定义处理器缺少运行期报告配置时可正常启动，并使用显式 Pulse 报告。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Linux 7.0.14 ARM64 与 Windows 11 ARM64 的 SQLite 均通过两个专项。框架异常上下文 14 项、三个扩展默认 93 项、严格 Clippy、全仓格式、三语文档与 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-exception-sources-{accepted,complete-linux,custom-linux,complete-docs}.log` 和 `target/tmp/observability-windows/pulse-exception-sources-accepted-arm64.log`。Release 与部署组合仍待验。
+
+固定 Pulse 对 `ViewException` 以原始异常类型与应用相对视图路径分组，禁用位置时保留类型并写入空值。PHP 8.5.12 已用真实 Pulse Ingest 验证，证据为 `target/tmp/observability-parity/pulse-view-exception-upstream.log`。Rust 的视图包装错误分类、归一化位置、开启位置时的标准错误文件及行号仍待实现和实测。
+
 ### Horizon Linux ARM64 Release 进程矩阵
 
 固定 Horizon 的进程树采用 Unix 信号，包依赖 `ext-pcntl` 和 `ext-posix`。PHP 官方明确 PCNTL 不在原生 Windows 上工作。Linux 的进程验收对应固定上游支持范围；OpenRust 在 Windows 上的元数据命令及应用装配仍须按项目发布范围单独核对。 [固定 Horizon 依赖](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/composer.json) [PHP PCNTL 安装文档](https://www.php.net/manual/en/pcntl.installation.php)

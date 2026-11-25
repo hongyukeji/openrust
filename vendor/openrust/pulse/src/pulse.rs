@@ -182,6 +182,10 @@ impl Pulse {
         self.options = options;
         self
     }
+
+    pub(crate) fn has_options(&self, options: &Arc<Options>) -> bool {
+        Arc::ptr_eq(&self.options, options)
+    }
     pub fn with_trim_lottery(mut self, lottery: openrust::support::Lottery) -> Self {
         self.lottery = lottery;
         self

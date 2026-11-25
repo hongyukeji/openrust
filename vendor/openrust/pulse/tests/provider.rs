@@ -876,10 +876,15 @@ fn observed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let log = Log::channel(None)?;
         log.log_exception(
             openrust::log::Level::Error,
-            "typed error",
-            &std::io::Error::other("expected"),
+            "exception attached to an application log",
+            &std::fmt::Error,
             &Default::default(),
         )?;
+        openrust::support::report(std::io::Error::other("reported exception")).await?;
+        openrust::support::report(std::fmt::Error).await?;
+        openrust_pulse::facades::Pulse::report("ExplicitPulseReport", Some("probe:1".into()))
+            .await
+            .unwrap();
         Log::error(
             "user context is not an actual exception",
             &[("exception".into(), json!({"class":"FakeException"}))]
@@ -906,10 +911,78 @@ fn recorder_config(
     root: &std::path::Path,
     env: &openrust::config::Environment,
 ) -> Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
-    let mut values = config(root, env)?;
+    let mut values = recorder_database_config(root, env)?;
     values.get_mut("pulse").unwrap()["recorders"] = json!({"SlowRequests":{"threshold":0},"SlowQueries":{"threshold":1000000000000_i64,"location":false},"SlowOutgoingRequests":{"threshold":0},"CacheInteractions":{"groups":[[r"/^feature:\d+$/","feature:*"]]},"Exceptions":{"location":false},"UserRequests":{}});
     Ok(values)
 }
+
+#[tokio::test]
+async fn explicit_exception_reports_work_with_a_custom_handler_without_runtime_configuration() {
+    use openrust::contracts::{
+        container::Container as _,
+        debug::{Exception, ExceptionHandler},
+        foundation::Application as _,
+    };
+
+    struct CustomHandler;
+    impl ExceptionHandler for CustomHandler {
+        fn should_report<'a>(&'a self, _: &'a Exception<'_>) -> HttpFuture<'a, bool> {
+            Box::pin(async { true })
+        }
+        fn report<'a>(
+            &'a self,
+            _: &'a Exception<'_>,
+        ) -> HttpFuture<'a, openrust::log::LogResult<()>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn render(&self, _: &Request, _: &Exception<'_>) -> Response {
+            Response::from("custom handler")
+        }
+        fn render_for_console(&self, _: &mut openrust::console::Output, _: &Exception<'_>) {}
+    }
+
+    fn report(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            openrust::support::report(std::io::Error::other("custom report")).await?;
+            openrust_pulse::facades::Pulse::report("ExplicitPulseReport", Some("probe:1".into()))
+                .await
+                .unwrap();
+            Ok(Response::from("ok"))
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(recorder_config)
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/report", report)))
+    })
+    .unwrap();
+    app.app()
+        .container()
+        .instance::<dyn ExceptionHandler>(Arc::new(CustomHandler))
+        .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/report").await.unwrap().assert_ok();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let entries = storage
+        .connection()
+        .table("pulse_entries")
+        .r#where("type", "=", "exception")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0].get("key"),
+        Some(&openrust::database::Value::Text(
+            json!(["ExplicitPulseReport", null]).to_string(),
+        )),
+    );
+}
+
 #[tokio::test]
 async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without_identity_leaks() {
     use openrust::contracts::foundation::Application as _;
@@ -929,6 +1002,12 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
     });
     let mut app = TestApp::create(|b| {
         b.with_config(recorder_config)
+            .with_exceptions(|exceptions| {
+                exceptions.level::<std::io::Error>(openrust::log::Level::Warning);
+                exceptions.report::<std::fmt::Error>(|_| {
+                    openrust::foundation::configuration::ReportDecision::Stop
+                });
+            })
             .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
             .with_routing(Routing::default().api(routes))
     })
@@ -946,13 +1025,35 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
     config
         .set(
             "logging",
-            json!({"default":"null","channels":{"null":{"driver":"null"}}}),
+            json!({"default":"null","channels":{"null":{"driver":"null","level":"error"}}}),
         )
+        .unwrap();
+    let logged_exceptions = Arc::new(std::sync::Mutex::new(Vec::new()));
+    app.app()
+        .make::<openrust::log::LogManager>()
+        .await
+        .unwrap()
+        .listen({
+            let logged_exceptions = logged_exceptions.clone();
+            move |event| {
+                if event.exception.is_some() {
+                    logged_exceptions
+                        .lock()
+                        .unwrap()
+                        .push(event.message.clone());
+                }
+                Ok(())
+            }
+        })
         .unwrap();
     config.set("pulse.recorders",json!({"SlowRequests":{"threshold":0},"SlowQueries":{"threshold":0,"location":false},"SlowOutgoingRequests":{"threshold":0},"CacheInteractions":{"groups":[[r"/^feature:\d+$/","feature:*"]]},"Exceptions":{"location":false},"UserRequests":{}})).unwrap();
     app.get("/api/observe?user=1").await.unwrap().assert_ok();
     app.get("/api/observe?drop=1").await.unwrap().assert_ok();
     peer.await.unwrap();
+    assert_eq!(
+        logged_exceptions.lock().unwrap().as_slice(),
+        ["exception attached to an application log"; 2],
+    );
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let connection = storage.connection();
     let rows = connection
@@ -966,14 +1067,28 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
         rows[0].get("key"),
         Some(&openrust::database::Value::Text("42".into()))
     );
+    let exceptions = connection
+        .table("pulse_entries")
+        .r#where("type", "=", "exception")
+        .get()
+        .await
+        .unwrap();
+    let mut exception_keys = BTreeMap::new();
+    for row in &exceptions {
+        let Some(openrust::database::Value::Text(key)) = row.get("key") else {
+            panic!("异常记录缺少键");
+        };
+        *exception_keys.entry(key.clone()).or_insert(0) += 1;
+    }
     assert_eq!(
-        connection
-            .table("pulse_entries")
-            .r#where("type", "=", "exception")
-            .count("*")
-            .await
-            .unwrap(),
-        2
+        exception_keys,
+        BTreeMap::from([
+            (
+                json!([std::any::type_name::<std::io::Error>(), null]).to_string(),
+                2
+            ),
+            (json!(["ExplicitPulseReport", null]).to_string(), 2),
+        ]),
     );
     assert_eq!(
         connection

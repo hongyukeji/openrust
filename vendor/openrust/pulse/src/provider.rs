@@ -244,8 +244,9 @@ impl ServiceProvider for PulseServiceProvider {
                     app.base_path().to_owned(),
                     app.make::<crate::pulse::Options>().await?,
                 )?;
-                crate::recorders::register_logging(
-                    app.make::<openrust::log::LogManager>().await?.as_ref(),
+                crate::recorders::register_exceptions(
+                    app.make::<dyn openrust::contracts::debug::ExceptionHandler>()
+                        .await?,
                     app.config()?,
                     app.make::<crate::pulse::Options>().await?,
                 )?;

@@ -717,49 +717,69 @@ pub(crate) fn register(
     Ok(())
 }
 
-pub(crate) fn register_logging(
-    manager: &openrust::log::LogManager,
+pub(crate) fn register_exceptions(
+    handler: Arc<dyn openrust::contracts::debug::ExceptionHandler>,
     config: Arc<dyn Repository>,
     options: Arc<crate::pulse::Options>,
-) -> openrust::log::LogResult<()> {
+) -> std::result::Result<(), openrust::contracts::container::BindingResolutionError> {
+    use openrust::contracts::container::BindingResolutionError;
+    use openrust::foundation::configuration::ReportDecision;
+
     let recorders = Arc::new(Recorders::new(config));
-    manager.listen(move |event| {
-        if Pulse::is_ignoring(&options) {
-            return Ok(());
-        }
-        let Some(exception) = &event.exception else {
-            return Ok(());
-        };
-        let Ok(pulse) = crate::facades::Pulse::get_facade_root() else {
-            return Ok(());
-        };
-        if !pulse
-            .automatic_recording
-            .load(std::sync::atomic::Ordering::Relaxed)
-            || !pulse.is_recording()
-        {
-            return Ok(());
-        }
-        let event = crate::events::ExceptionReported {
-            class: exception
-                .get("class")
-                .and_then(Value::as_str)
-                .unwrap_or("Error")
-                .into(),
-            location: exception
-                .get("location")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-        };
+    let settings = recorders.options("Exceptions");
+    if settings == Value::Bool(false)
+        || settings.get("enabled").and_then(Value::as_bool) == Some(false)
+    {
+        return Ok(());
+    }
+    let owner = Arc::downgrade(&handler);
+    let registered = handler.configure(&mut |configuration| {
+        let owner = owner.clone();
         let recorders = recorders.clone();
-        let timestamp = jiff::Timestamp::now().as_second();
-        pulse.defer(move |pulse| {
-            Box::pin(async move {
-                recorders
-                    .exception(pulse, &event.class, event.location.as_deref(), timestamp)
-                    .await
-            })
+        let options = options.clone();
+        configuration.reportable_all(move |exception| {
+            if !Pulse::is_ignoring(&options)
+                && let Ok(pulse) = crate::facades::Pulse::get_facade_root()
+                && pulse.has_options(&options)
+                && pulse
+                    .automatic_recording
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                && pulse.is_recording()
+                && let Some(handler) = owner.upgrade()
+            {
+                let snapshot = handler.build_log_exception(exception, None, true);
+                let class = snapshot
+                    .get("class")
+                    .and_then(Value::as_str)
+                    .unwrap_or("Error")
+                    .to_owned();
+                let location = snapshot
+                    .get("location")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+                let recorders = recorders.clone();
+                let timestamp = jiff::Timestamp::now().as_second();
+                pulse.defer(move |pulse| {
+                    Box::pin(async move {
+                        recorders
+                            .exception(pulse, &class, location.as_deref(), timestamp)
+                            .await
+                    })
+                });
+            }
+            ReportDecision::Continue
         });
-        Ok(())
-    })
+    });
+    match registered {
+        Err(BindingResolutionError::FactoryFailed {
+            service: "ExceptionHandler",
+            ref source,
+        }) if source
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|error| error.kind() == std::io::ErrorKind::Unsupported) =>
+        {
+            Ok(())
+        }
+        result => result,
+    }
 }

@@ -52,7 +52,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 `groups` 與按模式設定的 `threshold` 使用有序的 `[[pattern, value], ...]` 表達首次符合規則。例如 `[["/^orders:\\d+$/", "orders:*"]]`；物件形式按 JSON 物件的鍵順序比對。工作取樣以工作 UUID 保持生命週期一致。請求指標使用符合的路由，避免為每個動態 ID 建立指標鍵；外部 HTTP 移除 URL 使用者名稱與密碼。
 
-慢查詢 `location` 使用資料庫事件擷取的呼叫位置，Release 建置也可記錄。沒有可用位置時寫入空字串，關閉 `location` 時寫入空值。`Exceptions` 接收原生帶型別的例外日誌、工作例外與 `Pulse::report`，一般 JSON 日誌內容不視為例外。Rust 錯誤未必帶有呼叫堆疊，需要時明確傳入位置。
+慢查詢 `location` 使用資料庫事件擷取的呼叫位置，Release 建置也可記錄。沒有可用位置時寫入空字串，關閉 `location` 時寫入空值。`Exceptions` 採集框架例外處理器回報的例外（含回報的工作失敗）及 `Pulse::report`。僅將錯誤附加到應用程式日誌不會向 Pulse 回報。錯誤缺少原始碼位置時，可在 `Pulse::report` 明確傳入。自行管理回報流程的自訂處理器可直接呼叫 `Pulse::report`。
 
 `Servers` 預設每個實例 15 秒取樣一次，儲存 CPU、記憶體與磁碟快照；載入設定時預設讀取作業系統主機名稱，建立設定快取時會儲存該值。`PULSE_SERVER_NAME` 可覆寫主機名稱，`PULSE_SERVER_DIRECTORIES` 設定以冒號分隔的目錄。`Servers::detect_cpu_using`、`detect_memory_using` 可替換偵測器。
 

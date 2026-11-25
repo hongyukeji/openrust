@@ -230,7 +230,10 @@ pub trait ExceptionHandler: Any + Send + Sync {
         Err(
             crate::contracts::container::BindingResolutionError::FactoryFailed {
                 service: "ExceptionHandler",
-                source: Box::new(std::io::Error::other("此异常处理器不支持运行期配置")),
+                source: Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "此异常处理器不支持运行期配置",
+                )),
             },
         )
     }
