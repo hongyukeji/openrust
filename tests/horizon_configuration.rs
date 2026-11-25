@@ -22,8 +22,9 @@ fn native_artisan_discovers_horizon_and_preserves_published_and_cached_configura
         let path = root.as_path().join(format!("lang/{language}"));
         std::fs::create_dir_all(&path).unwrap();
         std::fs::copy(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join(format!("lang/{language}/schema.json")),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+                "vendor/openrust/framework/src/translation/lang/{language}/schema.json"
+            )),
             path.join("schema.json"),
         )
         .unwrap();
