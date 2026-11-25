@@ -6,6 +6,8 @@
 
 ## 啟用與設定 {#configuration}
 
+執行 `./artisan init --extensions=webhook-client --no-interaction` 啟用此套件並執行遷移。使用 `--extensions=webhook-client,webhook-server` 可同時安裝接收和傳送套件，也可在同一清單加入應用所需的其他擴充。已使用標準 `all` 設定初始化的應用，可再單獨執行 Webhook 安裝指令。
+
 將 `webhook-client` 加入根應用 `[features].default`，保留既有 feature，套件發現會註冊 `WebhookClientServiceProvider`。其他應用也可直接依賴 crate 並註冊該 Provider。註冊與啟動不查詢資料庫、不聯繫供應商。
 
 預設設定名為 `default`，簽名頭為 `Signature`，憑據引用指向 `WEBHOOK_CLIENT_SECRET`。透過程序環境或受保護的應用 `.env` 提供金鑰；套件設定只儲存環境變數名稱，不儲存解析後的金鑰。自訂時發布範本，在 `config/mod.rs` 增加 `mod webhook_client;` 與 `("webhook-client".to_owned(), webhook_client::load(env)?),`，再重新編譯。重複發布保留自訂，明確指定 `--force` 才覆寫。

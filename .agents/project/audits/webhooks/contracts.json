@@ -199,7 +199,7 @@
         "PackageServiceProvider"
       ],
       "declared_public_properties": [],
-      "notes": "包发现、配置合并／发布／缓存、内置迁移、默认具名工厂、scoped Repo、当前匹配路由的 WebhookConfig 绑定与公开 trait 路由已验。无 Provider 的登记失败；没有自动公开回调或关闭 CSRF。完整新应用安装／迁移发布仍待完成。",
+      "notes": "包发现、配置合并／发布／缓存、内置迁移、默认具名工厂、scoped Repo、当前匹配路由的 WebhookConfig 绑定与公开 trait 路由已验。无 Provider 的登记失败；没有自动公开回调或关闭 CSRF。原生 init 单包、双包及重复安装已验；应用自有迁移文件发布仍待完成。",
       "evidence": [
         "tests/webhooks_features.py",
         "tests/webhooks_acceptance.py",

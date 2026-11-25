@@ -6,6 +6,8 @@ The optional `openrust-webhook-server` package provides request preparation, tar
 
 ## Enable and configure {#configuration}
 
+Run `./artisan init --extensions=webhook-server --no-interaction` to enable this package and apply its migrations. Select `--extensions=webhook-client,webhook-server` to install both packages together. Add other application extensions to the same list as needed. For an application initialized with the standard `all` profile, run the Webhook command afterward.
+
 Add `webhook-server` to the root application’s `[features].default` list, preserving existing features. Package discovery registers `WebhookServerServiceProvider`; other applications may register it directly. Defaults are merged without database or network access. Publish the template with the command below, add `mod webhook_server;` and `("webhook-server".to_owned(), webhook_server::load(env)?),` to `config/mod.rs`, then rebuild. Existing customization is preserved unless `--force` is explicit.
 
 ```sh

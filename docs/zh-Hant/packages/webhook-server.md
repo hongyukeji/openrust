@@ -6,6 +6,8 @@
 
 ## 啟用與設定 {#configuration}
 
+執行 `./artisan init --extensions=webhook-server --no-interaction` 啟用此套件並執行遷移。使用 `--extensions=webhook-client,webhook-server` 可同時安裝接收和傳送套件，也可在同一清單加入應用所需的其他擴充。已使用標準 `all` 設定初始化的應用，可再單獨執行 Webhook 安裝指令。
+
 將 `webhook-server` 加入根應用 `[features].default`，保留既有 feature，套件發現會註冊 `WebhookServerServiceProvider`；其他應用可直接註冊。預設設定合併不存取資料庫或網路。用以下命令發布範本，在 `config/mod.rs` 增加 `mod webhook_server;` 與 `("webhook-server".to_owned(), webhook_server::load(env)?),`，再重新編譯。重複發布保留自訂，明確指定 `--force` 才覆寫。
 
 ```sh

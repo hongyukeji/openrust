@@ -48,7 +48,7 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         clap::Arg::new("extensions")
             .long("extensions")
             .value_name("LIST")
-            .help("Comma-separated extensions: api,broadcasting,reverb,grpc,passport,fortify,passkeys,socialite,precognition,oidc,sso; all installs the complete profile"),
+            .help("Comma-separated extensions: api,broadcasting,reverb,grpc,passport,fortify,passkeys,socialite,precognition,oidc,sso,webhook-client,webhook-server; all selects the standard profile"),
     );
     syntax = syntax.arg(
         clap::Arg::new("starter-kit")
@@ -452,6 +452,7 @@ impl Command for InitCommand {
 const DEFAULT_EXTENSIONS: &str = "api,broadcasting,reverb,grpc";
 const AUTH_EXTENSIONS: &str = "passport,fortify,passkeys,socialite,precognition,oidc,sso";
 const USER_EXTENSIONS: &str = "user-web,user-api";
+const WEBHOOK_EXTENSIONS: &str = "webhook-client,webhook-server";
 
 struct Extensions {
     names: Vec<String>,
@@ -473,9 +474,10 @@ impl Extensions {
             if !DEFAULT_EXTENSIONS.split(',').any(|known| known == name)
                 && !AUTH_EXTENSIONS.split(',').any(|known| known == name)
                 && !USER_EXTENSIONS.split(',').any(|known| known == name)
+                && !WEBHOOK_EXTENSIONS.split(',').any(|known| known == name)
             {
                 return Err(ConsoleError::new(format!(
-                    "Unknown initialization extension `{name}`. Supported: {DEFAULT_EXTENSIONS},{AUTH_EXTENSIONS},{USER_EXTENSIONS}. No changes were made."
+                    "Unknown initialization extension `{name}`. Supported: {DEFAULT_EXTENSIONS},{AUTH_EXTENSIONS},{USER_EXTENSIONS},{WEBHOOK_EXTENSIONS}. No changes were made."
                 )));
             }
             if !names.iter().any(|known| known == name) {
@@ -615,6 +617,8 @@ impl Extensions {
             ("fortify", "fortify"),
             ("socialite", "socialite"),
             ("oidc", "oidc"),
+            ("webhook-client", "webhook-client"),
+            ("webhook-server", "webhook-server"),
         ]
         .into_iter()
         .filter(|(extension, _)| self.has(extension))
@@ -630,6 +634,12 @@ impl Extensions {
         .collect()
     }
     fn report(&self, output: &mut Output) {
+        if self.has("webhook-client") {
+            output.info("Webhook 接收：启用包发现及编译迁移。请按应用需要配置签名凭据、回调路由和处理任务。\n");
+        }
+        if self.has("webhook-server") {
+            output.info("Webhook 发送：启用包发现及编译迁移。请按应用需要配置目标许可、签名凭据和 Worker。\n");
+        }
         if self.has("user-web") || self.has("user-api") {
             output.info("用户认证套件：显式装配配置、应用 Provider、认证页面及安全用户资源；保留现有业务文件与凭据。邮件、可选身份供应商及生产部署须按实际环境验收。\n");
         }

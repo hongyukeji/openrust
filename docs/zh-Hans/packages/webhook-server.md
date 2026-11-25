@@ -6,6 +6,8 @@
 
 ## 启用与配置 {#configuration}
 
+运行 `./artisan init --extensions=webhook-server --no-interaction` 启用此包并执行迁移。使用 `--extensions=webhook-client,webhook-server` 可同时安装接收和发送包，也可在同一列表中加入应用需要的其他扩展。已使用标准 `all` 配置初始化的应用，可再单独执行 Webhook 安装命令。
+
 将 `webhook-server` 加入根应用 `[features].default`，保留已有 feature，包发现会注册 `WebhookServerServiceProvider`；其他应用可直接注册。默认配置合并不访问数据库或网络。用下面命令发布模板，在 `config/mod.rs` 增加 `mod webhook_server;` 与 `("webhook-server".to_owned(), webhook_server::load(env)?),`，再重新编译。重复发布保留定制，显式 `--force` 才覆盖。
 
 ```sh

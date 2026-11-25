@@ -6,6 +6,8 @@
 
 ## 启用与配置 {#configuration}
 
+运行 `./artisan init --extensions=webhook-client --no-interaction` 启用此包并执行迁移。使用 `--extensions=webhook-client,webhook-server` 可同时安装接收和发送包，也可在同一列表中加入应用需要的其他扩展。已使用标准 `all` 配置初始化的应用，可再单独执行 Webhook 安装命令。
+
 将 `webhook-client` 加入根应用 `[features].default`，保留已有 feature，包发现会注册 `WebhookClientServiceProvider`。其他应用也可直接依赖 crate 并注册该 Provider。注册与启动不查询数据库、不联系供应商。
 
 默认配置名为 `default`，签名头为 `Signature`，凭据引用指向 `WEBHOOK_CLIENT_SECRET`。通过进程环境或受保护的应用 `.env` 提供密钥；包配置只保存环境变量名称，不保存解析后的密钥。自定义时发布模板，在 `config/mod.rs` 增加 `mod webhook_client;` 与 `("webhook-client".to_owned(), webhook_client::load(env)?),`，再重新编译。重复发布保留定制，显式 `--force` 才覆盖。

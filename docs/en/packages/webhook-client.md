@@ -6,6 +6,8 @@ The optional `openrust-webhook-client` package supplies named configuration, typ
 
 ## Enable and configure {#configuration}
 
+Run `./artisan init --extensions=webhook-client --no-interaction` to enable this package and apply its migrations. Select `--extensions=webhook-client,webhook-server` to install both packages together. Add other application extensions to the same list as needed. For an application initialized with the standard `all` profile, run the Webhook command afterward.
+
 Add `webhook-client` to the root application’s `[features].default` list, preserving existing features; package discovery registers `WebhookClientServiceProvider`. Other applications may depend on the crate and register that provider directly. Registration and boot do not query a database or contact a supplier.
 
 The default profile is `default`, using the `Signature` header and a credential reference to `WEBHOOK_CLIENT_SECRET`. Supply that secret in the process environment or protected application `.env`. The package configuration stores the environment variable name, not the resolved secret. To customize, publish the template, add `mod webhook_client;` and `("webhook-client".to_owned(), webhook_client::load(env)?),` in `config/mod.rs`, then rebuild. Publication preserves existing customization unless `--force` is explicit.
