@@ -248,6 +248,7 @@ impl ServiceProvider for PulseServiceProvider {
                     app.make::<dyn openrust::contracts::debug::ExceptionHandler>()
                         .await?,
                     app.config()?,
+                    app.base_path().to_owned(),
                     app.make::<crate::pulse::Options>().await?,
                 )?;
             }

@@ -24,6 +24,7 @@ mod object;
 mod rendering;
 mod request_data;
 mod value;
+mod view_exception;
 mod view_finder;
 mod view_service_provider;
 
@@ -33,6 +34,7 @@ pub use file_view_finder::FileViewFinder;
 pub use native::{FromViewValue, NativeBlock, NativeContext, NativeResult, NativeTemplate};
 pub use object::{ObjectValue, ViewObject};
 pub(crate) use rendering::{ComponentRenderer, EscapedEcho};
+pub use view_exception::ViewException;
 pub use view_finder::ViewFinder;
 pub use view_service_provider::ViewServiceProvider;
 
